@@ -42,7 +42,14 @@ def write(path):
     o.append('  (setup')
     # Physical stackup, so KiCad's 3D view shows the board in the colours it
     # will actually be ordered in - and so the fab sees the intent too.
-    #   OffGrid: Pitch mask / Bone silkscreen / ENIG gold for the Ember accent
+    #   OffGrid: Pitch mask / Bone silkscreen / bare metal for the Ember accent
+    # HASL, not ENIG. ENIG is what the accent wants - HASL solders over the
+    # exposed copper and the ring comes out silver rather than gold - but it
+    # took five boards from about $5 to about $50, and this board is entirely
+    # through-hole, so the flatter surface buys nothing else. Surface finish
+    # is an order-form option and never travels in the Gerbers, so this line
+    # only decides what KiCad's 3D view shows. It is set to what was actually
+    # ordered, so the render does not promise a gold mark that arrives silver.
     o.append('    (stackup')
     o.append('      (layer "F.SilkS" (type "Top Silk Screen") (color "White"))')
     o.append('      (layer "F.Paste" (type "Top Solder Paste"))')
@@ -54,7 +61,7 @@ def write(path):
     o.append('      (layer "B.Mask" (type "Bottom Solder Mask") (color "Black") (thickness 0.01))')
     o.append('      (layer "B.Paste" (type "Bottom Solder Paste"))')
     o.append('      (layer "B.SilkS" (type "Bottom Silk Screen") (color "White"))')
-    o.append('      (copper_finish "ENIG")')
+    o.append('      (copper_finish "HASL")')
     o.append('      (dielectric_constraints no)')
     o.append('    )')
     o.append('    (pad_to_mask_clearance 0.05)')

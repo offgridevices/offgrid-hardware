@@ -5,8 +5,10 @@ Drop in the **RAK19003**, the **XIAO ESP32-C6** and the **microSD breakout**,
 add a button and a power switch, and every connection in the build record is
 made in copper instead of wire.
 
-**Board: 86 × 58 mm, 2 layers, 1.6 mm FR4.**
-65 solder points. 98 track segments, 8 vias, full ground plane underneath.
+**Board: 86 × 58 mm, 2 layers, 1.6 mm FR4, 1 oz copper.**
+65 solder points. 301 track segments, 18 vias — 9 carrying signals between
+layers, 9 stitching the two ground pours together. Ground fill on **both**
+layers: 85.0% of the top, 92.8% of the bottom.
 
 Opens in **KiCad 10** — the board file is saved in KiCad 10's own native
 format and KiCad's DRC reports **0 errors, 0 warnings, 0 unconnected**.
@@ -24,7 +26,7 @@ the artwork to suit them. Both are done.
 |---|---|---|
 | **Pitch** `#1B1813` | Soldermask | **Matte black** (JLCPCB "Matt Black", PCBWay "Matte Black") |
 | **Bone** `#F1ECE0` | Silkscreen | **White** |
-| **Ember** `#FF6A00` | The Beacon Ring, in bare metal | **ENIG** surface finish |
+| **Ember** `#FF6A00` | The Beacon Ring, in bare metal | **HASL** surface finish — see below |
 
 ### The lockup
 
@@ -52,16 +54,27 @@ allows. The wordmark beside it stays white silkscreen, which keeps to the
 brand's **one accent per surface** rule: the ring is the accent, everything
 else is Bone on Pitch.
 
-ENIG rather than HASL matters here — HASL would coat the mark in solder and it
-would come out silver. ENIG also has a longer shelf life and a flatter finish.
-It costs a little more than the default; it is the difference between a gold
-mark and a grey one.
+**This board was ordered with HASL, not ENIG, and the mark comes out silver
+rather than gold.** That was a deliberate reversal, and the reasoning is worth
+keeping.
+
+ENIG is what the accent wants: HASL coats exposed copper in solder, so the ring
+comes out silver instead of gold, and ENIG additionally has a longer shelf life
+and a flatter finish. The cost is what settled it. On this order ENIG took five
+boards from about $5 to about $50 — a tenfold increase, for a colour, on a
+board that is entirely through-hole and gains nothing else from the flatter
+surface. A ten-times premium buys a real advantage on a fine-pitch surface-mount
+board; here it buys the logo being the right colour.
+
+Choose ENIG if you want the gold mark and the cost does not bother you. Nothing
+else about the board changes: **surface finish is an order-form option and never
+travels in the Gerbers**, so the same files produce either.
 
 The board outline is a plain rectangle with square corners, per the brand's
 right-angles-only geometry rule.
 
-**Full order settings:** 2 layers · 1.6 mm · **Matte black** mask · **White**
-silkscreen · **ENIG** finish · 86 × 58 mm · qty 5.
+**Full order settings:** 2 layers · 1.6 mm · 1 oz copper · **Matte black** mask ·
+**White** silkscreen · **HASL** finish · 86 × 58 mm · qty 5.
 
 One practical note: matte black shows fingerprints and dust more than green,
 and cosmetic consistency between batches is slightly looser. Nothing about it
@@ -183,12 +196,14 @@ bridge the two pads with solder.
 
 JLCPCB or PCBWay:
 
-* 2 layers, 1.6 mm, **matte black mask, white silkscreen, ENIG finish** (see Brand colours above)
+* 2 layers, 1.6 mm, 1 oz copper, **matte black mask, white silkscreen, HASL
+  finish** (see Brand colours above for why HASL and not ENIG)
 * **86 × 58 mm** — inside the cheap 100 × 100 mm tier
 * Upload `packet-logger-carrier-gerbers.zip` as-is
 * Minimum order is 5; you need 4, so you get a spare
-* Expect roughly $2–5 for the bare boards; ENIG and the black mask add a
-  few dollars. Plus shipping, about 1–2 weeks.
+* Expect roughly **$5 for five boards** with HASL and the black mask. ENIG
+  takes the same order to about **$50** — worth knowing before you tick it.
+  Plus shipping, about 1–2 weeks.
 
 The zip contains top and bottom copper, both soldermasks, top silkscreen,
 board outline, and separate plated / non-plated drill files. J7's oval slots
