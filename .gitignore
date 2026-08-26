@@ -1,0 +1,38 @@
+# macOS
+.DS_Store
+
+# Editor settings stay personal.
+#
+# Workspace settings are not only formatting preferences: keys such as
+# chat.agentSkillsLocations designate folders as sources of agent skills, the
+# instruction files an AI assistant loads and follows. Committing those makes
+# repository content able to steer every contributor's assistant with no
+# explicit opt-in. Use `git add -f` if a specific file is ever genuinely worth
+# sharing.
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Secrets and credentials
+.env*
+.envrc
+credentials.json
+service-account*.json
+*.pem
+*.key
+
+# KiCad local state - not part of any design
+*.kicad_prl
+*.lck
+*-backups/
+~*
+.history/
+fp-info-cache
+
+# Build scratch. Each board's committed outputs live beside its src/, not here.
+out/
