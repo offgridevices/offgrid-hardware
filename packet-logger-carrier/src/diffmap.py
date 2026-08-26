@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
 """Show WHERE our gerbers differ from KiCad's export, so we can judge whether
 each difference is benign."""
+import os, sys
 import numpy as np
 import gerber_read as GR
 import design as D
 
-K = '/Users/shreyashgupta/.claude/jobs/d1c8fae8/tmp/kigerb/packet-logger-carrier-'
+# Where KiCad's own Gerber export of this board lives. Pass it as the first
+# argument or set KICAD_GERBER_DIR; produce it with:
+#   kicad-cli pcb export gerbers -o out/kicad-gerbers packet-logger-carrier.kicad_pcb
+KDIR = (sys.argv[1] if len(sys.argv) > 1
+        else os.environ.get('KICAD_GERBER_DIR', 'out/kicad-gerbers'))
+K = os.path.join(KDIR, 'packet-logger-carrier-')
 M = 'out/gerbers/packet-logger-carrier-'
 RES = 0.05
 
