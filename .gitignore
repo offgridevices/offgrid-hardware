@@ -36,3 +36,6 @@ fp-info-cache
 
 # Build scratch. Each board's committed outputs live beside its src/, not here.
 out/
+
+# Agent worktrees - a second git checkout, never repo content.
+.claude/
