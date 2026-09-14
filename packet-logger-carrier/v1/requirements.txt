@@ -1,0 +1,12 @@
+# What src/ needs, beyond the Python standard library.
+#
+# Versions are deliberately unpinned. The environment that produced the
+# committed outputs was not captured, so a pin here would be a guess rather
+# than a record. If you rebuild successfully, pin what worked for you.
+#
+# KiCad 10 must also be installed: make.py hands the board to it for the
+# final DRC, and refuses to finish if that check does not pass.
+
+cadquery
+numpy
+Pillow

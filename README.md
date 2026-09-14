@@ -4,7 +4,7 @@ Open hardware from [OffGrid Devices](https://github.com/offgridevices). One fold
 
 | Board | What it is | Status |
 |---|---|---|
-| [`packet-logger-carrier/`](packet-logger-carrier/) | 86 × 58 mm carrier for a LoRa mesh packet logger — RAK19003 + XIAO ESP32-C6 + microSD | v1 ordered, not yet bench-verified |
+| [`packet-logger-carrier/v1/`](packet-logger-carrier/v1/) | 86 × 58 mm carrier for a LoRa mesh packet logger — RAK19003 + XIAO ESP32-C6 + microSD | v1 ordered, not yet bench-verified |
 
 The firmware and analysis tooling these boards run with live in
 [`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab).
@@ -13,8 +13,9 @@ The firmware and analysis tooling these boards run with live in
 
 ## How to build one
 
-Every board folder is self-contained and follows the same layout. To get a
-board made, you need two things from it:
+Each board folder holds one folder per revision. Every revision folder is
+self-contained and follows the same layout. To get a board made, you need two
+things from it:
 
 1. **`*-gerbers.zip`** — upload this to any fab (JLCPCB, PCBWay, OSH Park).
 2. **`bom.csv`** — what to buy.
@@ -37,7 +38,7 @@ silkscreen, Gerbers, drill files and a 3D model, with verification gates that
 fail the build rather than warn. One command rebuilds everything:
 
 ```bash
-cd <board>/src && python3 make.py
+cd <board>/<revision>/src && python3 make.py
 ```
 
 If it finishes, every check passed. If a check fails, it stops.
@@ -46,14 +47,19 @@ If it finishes, every check passed. If a check fails, it stops.
 
 ```
 <board-name>/
-  README.md          what it is, how to order it, how to build it
-  bom.csv            what to buy
-  *-gerbers.zip      upload this to a fab
-  *.kicad_pcb        open in KiCad to look around
-  netlist.csv        every pad, its net and its position
-  mechanical/        STEP models for enclosure design
-  src/               the generator and its verification scripts
+  v1/                  one folder per revision; v1 is what was ordered
+    README.md          what it is, how to order it, how to build it
+    bom.csv            what to buy
+    *-gerbers.zip      upload this to a fab
+    *.kicad_pcb        open in KiCad to look around
+    netlist.csv        every pad, its net and its position
+    mechanical/        STEP models for enclosure design
+    src/               the generator and its verification scripts
+    requirements.txt   what src/ needs installed
 ```
+
+A revision folder is never edited once its board has been ordered. A change
+that alters copper becomes the next revision beside it.
 
 Generated outputs are committed alongside the scripts that produce them, so a
 stranger can order a board without a toolchain. They are expected to agree: a

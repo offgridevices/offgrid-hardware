@@ -302,7 +302,6 @@ packet-logger-carrier.kicad_pro      project file
 packetlogger.pretty/                 footprint library (so nothing is unresolved)
 fp-lib-table                         points KiCad at that library
 packet-logger-carrier-gerbers.zip    <- upload this to JLCPCB / PCBWay
-gerbers/                             the same files, unzipped
 netlist.csv                          every pad, its net and its position
 bom.csv                              what to buy
 kicad-drc.json                       KiCad's own DRC report
@@ -311,6 +310,7 @@ render3d_top.png / render3d_bottom.png   KiCad's 3D render, real colours
 board.png                            routing view (top = red, bottom = blue)
 mechanical/                          STEP models + sizes for enclosure design
 src/                                 the generator and every verification script
+requirements.txt                     what src/ needs installed
 ```
 
 For an enclosure, start at `mechanical/README.md`. It has the STEP files, the
