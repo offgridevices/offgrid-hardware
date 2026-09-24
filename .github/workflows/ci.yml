@@ -1,0 +1,84 @@
+name: CI
+
+# Rebuilds every board from its generator and checks the result against what is
+# committed. The central invariant of this repository is that the committed
+# Gerbers are exactly what the scripts in `src/` produce — someone orders from
+# those files — so this is the check that matters most here.
+on:
+  push:
+    branches: [main]
+  # Pull requests do not trigger this file directly. `claude-code-review.yml`
+  # calls it as its first job and only starts the Claude review once every job
+  # here is green, so a PR runs this suite exactly once and a red suite stops
+  # there — no paid review of a board that does not rebuild.
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  packet-logger-carrier-v1:
+    # 2 vCPU: the org is on Blacksmith's free plan (3,000 2-vCPU minutes a
+    # month; a 4-vCPU minute counts double). The router is single-threaded, so
+    # more cores would not make this faster anyway.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    # The full build takes a little over two minutes on a fast laptop; this is
+    # the backstop for a hung router, not an estimate.
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: packet-logger-carrier/v1
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # `requirements.txt` lists numpy and Pillow; make.py also needs fontTools
+      # (the wordmark is built from real Archivo glyph outlines), which the file
+      # does not list. cadquery is only for `emit_step.py`, which make.py does
+      # not run, so it is left out — it is a very large install.
+      - name: Install dependencies
+        run: pip install numpy Pillow fonttools
+
+      # wordmark.py reads the brand font from `~/Library/Fonts/`, a macOS
+      # path. On Linux `~` still expands, so the same file placed there works
+      # without touching the generator. Pinned to a google/fonts commit and
+      # checked against its hash, so a changed upstream font fails loudly
+      # instead of quietly moving the silkscreen.
+      - name: Fetch Archivo (brand font used by the wordmark)
+        env:
+          FONT_URL: https://raw.githubusercontent.com/google/fonts/6c70c829f09ea345d3590406693220ea35c6553f/ofl/archivo/Archivo%5Bwdth,wght%5D.ttf
+          FONT_SHA256: 0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053
+        run: |
+          mkdir -p ~/Library/Fonts
+          F=~/Library/Fonts/Archivo-VariableFont_wdth,wght.ttf
+          curl -fsSL -o "$F" "$FONT_URL"
+          echo "$FONT_SHA256  $F" | sha256sum -c -
+
+      # Route, DRC, netlist, silkscreen, wordmark, KiCad emit, layer check,
+      # Gerber emit and Gerber verify — every gate in make.py. Any failing gate
+      # exits non-zero. KiCad's own DRC step is skipped here: make.py looks for
+      # kicad-cli at its macOS path only and prints that it skipped.
+      - name: Build and verify (make.py)
+        working-directory: packet-logger-carrier/v1/src
+        run: python make.py
+
+      # The rebuilt Gerbers and drill files must be byte-identical to the ones
+      # in the committed zip. A script change without regenerated outputs, or
+      # outputs no script produces, fails here.
+      - name: Committed Gerbers match the generator
+        run: |
+          mkdir -p /tmp/committed /tmp/rebuilt
+          unzip -q packet-logger-carrier-gerbers.zip -d /tmp/committed
+          unzip -q src/out/packet-logger-carrier-gerbers.zip -d /tmp/rebuilt
+          if ! diff -r /tmp/committed /tmp/rebuilt; then
+            echo "::error::Committed packet-logger-carrier-gerbers.zip does not match what src/make.py produces. Rebuild and commit the outputs."
+            exit 1
+          fi
+          echo "Gerbers and drill files are byte-identical to the generator's output."

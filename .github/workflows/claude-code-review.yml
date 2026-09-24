@@ -1,31 +1,55 @@
 name: Claude Code Review
 
+# Every pull request goes through two stages, in this order:
+#
+#   1. `ci`     — ci.yml, called directly as a reusable workflow: rebuild every
+#                 board from `src/`, run every verification gate, and check the
+#                 committed Gerbers are byte-identical to the rebuild.
+#   2. `review` — Claude reads the diff, the codebase and the CI output, may
+#                 run the generator and write throwaway probe scripts in its own
+#                 checkout, and leaves line-by-line comments.
+#
+# `review` has `needs: ci`, so a red suite stops the pull request at stage 1 and
+# no paid review runs. Fix it, push, and both stages run again on the new commit.
+#
+# `synchronize` is what makes this iterative: push a fix and both stages run
+# again against the new head, so findings get re-checked until they stop coming
+# back. It does not fix anything on its own.
+#
+# This repository is public. Fork PRs get CI but never the review: the review
+# job holds `id-token: write` and runs the PR's own Python.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
 
-# One review per pull request. Pushing three commits in a minute would
-# otherwise start three paid runs racing each other; now the newest wins and
-# the rest are cancelled before they cost anything.
-#
-# `synchronize` is also what makes this iterative: push a fix and the review
-# runs again against the new head, so findings get re-checked until they stop
-# coming back. It does not fix anything on its own.
+# One run per pull request. Pushing three commits in a minute would otherwise
+# start three paid runs racing each other; now the newest wins and the rest are
+# cancelled before they cost anything.
 concurrency:
   group: claude-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   review:
-    runs-on: ubuntu-latest
+    needs: ci
+    # 2 vCPU for the free-plan allowance; see the note in ci.yml.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
 
     # Drafts are work in progress by definition; reviewing every intermediate
     # push is noise and cost. Marking ready fires `ready_for_review`, which is
-    # in the trigger list above. Dependabot is guarded in advance so enabling
-    # a config later does not quietly start paying for lockfile churn.
+    # in the trigger list above and re-runs both stages. Dependabot is guarded
+    # in advance so it does not quietly start paying for lockfile churn, and
+    # fork PRs never reach the paid, token-holding job.
     if: >-
       github.event.pull_request.draft == false &&
-      github.actor != 'dependabot[bot]'
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
 
     # Backstop so a hung run fails in the low tens of minutes rather than
     # sitting on GitHub's default 6-hour job ceiling with a paid model attached.
@@ -40,23 +64,70 @@ jobs:
       # theory that a reviewer only needs to comment is the mistake that breaks
       # this file.
       id-token: write
+      # Lets Claude read CI results (checks, run logs) on the PR.
+      actions: read
 
     steps:
       # Pinned to a commit rather than a tag. A tag is mutable, and whoever
       # controls it controls what runs in this repository with a token in
-      # scope. This is `actions/checkout` v4.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      # scope. This is `actions/checkout` v7.0.1.
+      #
+      # `ref` pins the review to the exact SHA CI just passed on, even if the
+      # PR branch moves on while this job is starting.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           # Full history rather than a shallow clone, so `git log` and
           # `git blame` work. The review is markedly better when it can see why
           # a line came to be the way it is, not only that it changed.
           fetch-depth: 0
+          # This job holds `id-token: write` for every step, and Claude may run
+          # the PR's own Python below. Persisting the checkout's GITHUB_TOKEN
+          # into `.git/config` on top of that would hand that code a second
+          # credential. The action re-authenticates itself independently.
+          persist-credentials: false
 
-      # Likewise. This is `anthropics/claude-code-action` v1. Re-resolve the
-      # tag and update this line deliberately when picking up a new version.
-      - uses: anthropics/claude-code-action@c81e3bc69d1b18badbb63ba39581218f02421678
+      # Same toolchain as ci.yml, so Claude can re-run the generator or one
+      # gate to check a specific claim. Pinned to a commit for the same reason
+      # as checkout: this job holds a token.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install numpy Pillow fonttools
+
+      # Same pinned, hash-checked font as ci.yml; see the note there.
+      - name: Fetch Archivo (brand font used by the wordmark)
+        env:
+          FONT_URL: https://raw.githubusercontent.com/google/fonts/6c70c829f09ea345d3590406693220ea35c6553f/ofl/archivo/Archivo%5Bwdth,wght%5D.ttf
+          FONT_SHA256: 0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053
+        run: |
+          mkdir -p ~/Library/Fonts
+          F=~/Library/Fonts/Archivo-VariableFont_wdth,wght.ttf
+          curl -fsSL -o "$F" "$FONT_URL"
+          echo "$FONT_SHA256  $F" | sha256sum -c -
+
+      # Checkout used persist-credentials: false. The action still `git fetch`es
+      # the PR branch; without a credential on origin that fails with "could not
+      # read Username". Re-attach the token only after setup has finished.
+      - name: Allow Claude action to fetch the PR branch
+        run: git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # Likewise. This is `anthropics/claude-code-action` v1.0.233 (Claude Code
+      # 2.1.281). Re-resolve the tag and update this line deliberately when
+      # picking up a new version.
+      - uses: anthropics/claude-code-action@8cf3482550831fb35a4fc3fbf7ca139cf8028b4c # v1.0.233
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # Let the Cursor cloud agent's bot identity trigger this review. By
+          # default the action refuses any bot-initiated run, which blocks
+          # review on commits the agent pushes. Scoped to this one login on
+          # purpose — never "*". The fork guard on this job's `if:` still holds.
+          allowed_bots: "cursor[bot]"
 
           # Leaves a checklist comment that fills in as the review proceeds, so
           # a twelve-minute run shows its work instead of looking hung.
@@ -67,6 +138,35 @@ jobs:
             PR NUMBER: ${{ github.event.pull_request.number }}
 
             Review this pull request for correctness and obvious defects.
+
+            **The full CI suite already passed on this exact commit** — this
+            review only starts when it is green. CI rebuilt every board with
+            `src/make.py`, ran every verification gate, and confirmed the
+            committed Gerbers are byte-identical to the rebuild. KiCad's own DRC
+            was skipped (no kicad-cli in CI). Green means the gates pass, not
+            that the change is right. Run
+            `gh pr checks ${{ github.event.pull_request.number }}` and, where
+            useful, `gh run view <run-id> --log` to read what CI actually did
+            before you comment.
+
+            **Check the pull request's description against the diff.** Every
+            change in the diff should be something the description asks for,
+            and everything the description claims should be in the diff.
+            Unrelated changes riding along, or a claimed fix that isn't there,
+            are findings.
+
+            **You have a sandbox — use it to test, not just read.** This runner
+            is a throwaway checkout of this commit with Python 3.12, numpy,
+            Pillow, fontTools and the brand font installed. From a board's
+            `src/` you can run `python make.py` or any single gate
+            (`python drc.py`, `python netcheck.py`, `python verify_gerber.py`,
+            …). You can also write throwaway probe scripts (Write/Edit) —
+            e.g. to measure a clearance the change claims, or to try a rule at
+            its boundary — and run them with `python`. Nothing you write is
+            committed or pushed; it disappears with the runner. When a probe
+            finds a real problem, put the input and the output in your comment,
+            and say which claims you verified by running something rather than
+            by reading.
 
             This repository is **open hardware**. Each top-level folder is one
             board. The design files are the Python scripts in each board's
@@ -122,17 +222,26 @@ jobs:
             speculative ones. If you looked at something and it is fine, do not
             comment on it.
 
-            Finish with a brief top-level summary.
+            Finish with a brief top-level summary: whether the change does what
+            the description says, the findings that must be fixed before merge,
+            and anything you verified yourself by running a script rather than
+            by reading.
 
           # `--allowedTools`, camelCase, per the action's own examples. The
           # kebab-case spelling is silently not the flag it parses.
           #
-          # **Genuinely read-only.** Notably absent: `find`, `sed`, `cat` and
+          # Read-only on the repository, plus `python` for running the
+          # generator, its gates and throwaway probe scripts, and Write/Edit for
+          # those probes. Write/Edit cannot reach GitHub: no git commit or push
+          # is allowed and the job token is read-only on contents, so anything
+          # written dies with the runner. Still absent: `find`, `sed`, `cat` and
           # friends. `find -exec` runs arbitrary commands and `sed -i` writes
           # files, so an allowlist containing them is a shell in two disguises.
           # `gh api` is absent for the same reason — that verb takes POST and
           # DELETE. `Read`, `Grep` and `Glob` already do everything those tools
           # would be there for, and they cannot execute or write.
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Grep,Glob,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git ls-files:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr checks:*),Bash(gh run view:*),Bash(python:*),Bash(python3:*),Read,Write,Edit,Grep,Glob,Bash(ls:*),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git blame:*),Bash(git ls-files:*),Bash(git status:*)"
             --max-turns 120
+            --model claude-opus-5-5
+            --effort medium
