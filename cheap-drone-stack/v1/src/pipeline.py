@@ -64,6 +64,7 @@ def run(board_name, work, passes=60, log=print):
         left = finish.repair(b, todo, protect=planes + list(widths), widths=widths, clmap=clmap, log=log)
         b.Save(fin)
         log('%s: repair left %s' % (board_name, [x for x in left if x not in planes]))
+    pcb.tidy_tracks(fin)                 # the maze router's near-duplicate ends and segments
     if board_name == 'fc':
         pcb.pour_ground(fin, [pcbnew.F_Cu, pcbnew.B_Cu])
     else:

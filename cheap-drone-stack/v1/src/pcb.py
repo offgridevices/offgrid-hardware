@@ -270,6 +270,71 @@ def drc(path, out_json):
     warns = [v for v in r['violations'] if v['severity'] != 'error']
     return errs, warns, r['unconnected_items']
 
+def tidy_tracks(path, snap=0.005):
+    """Clean the maze router's leftovers: track ends of one net on one layer
+    that lie within `snap` mm of each other (or of a via of the net) are
+    joined at one point, then segments that became zero-length and exact
+    duplicates are dropped.  Freerouting fails to "normalize" a net with
+    such geometry and hangs; KiCad accepts it, but it is not clean copper.
+    Returns (ends moved, segments removed)."""
+    from collections import defaultdict
+    b = pcbnew.LoadBoard(path)
+    S = int(snap * 1e6)
+    tracks = [t for t in b.GetTracks() if t.GetClass() == 'PCB_TRACK']
+    vias = defaultdict(list)
+    for t in b.GetTracks():
+        if t.GetClass() == 'PCB_VIA':
+            q = t.GetPosition(); vias[t.GetNetname()].append((q.x, q.y))
+    ends = defaultdict(list)             # (net, layer) -> [(track, 'start'|'end')]
+    for t in tracks:
+        ends[(t.GetNetname(), t.GetLayer())] += [(t, 's'), (t, 'e')]
+    moved = 0
+    for (net, layer), items in ends.items():
+        pts = [((t.GetStart() if k == 's' else t.GetEnd()).x, (t.GetStart() if k == 's' else t.GetEnd()).y)
+               for t, k in items]
+        anchors = vias.get(net, [])
+        parent = list(range(len(pts)))
+
+        def find(i):
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]; i = parent[i]
+            return i
+        for i in range(len(pts)):
+            for j in range(i + 1, len(pts)):
+                if pts[i] != pts[j] and abs(pts[i][0] - pts[j][0]) <= S and abs(pts[i][1] - pts[j][1]) <= S:
+                    parent[find(i)] = find(j)
+        clusters = defaultdict(list)
+        for i in range(len(pts)):
+            clusters[find(i)].append(i)
+        for members in clusters.values():
+            cand = [a for a in anchors if any(abs(a[0] - pts[i][0]) <= S and abs(a[1] - pts[i][1]) <= S for i in members)]
+            if len(set(pts[i] for i in members)) < 2 and not cand:
+                continue
+            target = cand[0] if cand else max(set(pts[i] for i in members), key=lambda q: sum(pts[i] == q for i in members))
+            for i in members:
+                if pts[i] != target:
+                    t, k = items[i]
+                    (t.SetStart if k == 's' else t.SetEnd)(pcbnew.VECTOR2I(int(target[0]), int(target[1])))
+                    moved += 1
+    removed = 0
+    seen = {}
+    for t in tracks:
+        a, e = t.GetStart(), t.GetEnd()
+        if a.x == e.x and a.y == e.y:
+            remove(b, t); removed += 1
+            continue
+        key = (t.GetNetname(), t.GetLayer(), tuple(sorted(((a.x, a.y), (e.x, e.y)))))
+        if key in seen:
+            keep = seen[key]
+            if t.GetWidth() > keep.GetWidth():
+                keep.SetWidth(t.GetWidth())
+            remove(b, t); removed += 1
+        else:
+            seen[key] = t
+    b.Save(path)
+    return moved, removed
+
+
 def dedupe_vias(path):
     """Freerouting sometimes drops a via right on top of an existing via of
     the same net.  Keep one of any pair whose holes would be closer than the
