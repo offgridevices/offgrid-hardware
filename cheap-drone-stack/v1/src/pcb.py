@@ -318,3 +318,47 @@ RULES = """(version 1)
 def write_rules(board_path):
     import os
     open(os.path.splitext(board_path)[0] + '.kicad_dru', 'w').write(RULES)
+
+
+# Stackups, 1.6 mm, 1 oz outer and 0.5 oz inner copper.  4 layers:
+# JLCPCB's standard JLC04161H-7628.  6 layers: nominal figures for the fab's
+# standard 6-layer 1.6 mm build (nothing here needs controlled impedance).
+# Mask and silk colours follow the OffGrid brand: Pitch ground (black
+# mask), Bone type (white silk); ENIG keeps the QFN pads flat.
+DIELECTRIC = {4: [('prepreg', 0.2104, '7628', 4.4), ('core', 1.065, 'FR4', 4.6), ('prepreg', 0.2104, '7628', 4.4)],
+              6: [('prepreg', 0.1, 'FR4', 4.4), ('core', 0.4, 'FR4', 4.6), ('prepreg', 0.45, 'FR4', 4.4),
+                  ('core', 0.4, 'FR4', 4.6), ('prepreg', 0.1, 'FR4', 4.4)]}
+
+
+def stackup_text(n):
+    cu = ['F.Cu'] + ['In%d.Cu' % i for i in range(1, n - 1)] + ['B.Cu']
+    L = ['\t\t(stackup',
+         '\t\t\t(layer "F.SilkS" (type "Top Silk Screen") (color "White"))',
+         '\t\t\t(layer "F.Paste" (type "Top Solder Paste"))',
+         '\t\t\t(layer "F.Mask" (type "Top Solder Mask") (color "Black") (thickness 0.01))']
+    for k, name in enumerate(cu):
+        outer = k in (0, n - 1)
+        L.append('\t\t\t(layer "%s" (type "copper") (thickness %s))' % (name, '0.035' if outer else '0.0152'))
+        if k < n - 1:
+            kind, t, mat, er = DIELECTRIC[n][k]
+            L.append('\t\t\t(layer "dielectric %d" (type "%s") (color "FR4 natural") (thickness %s) '
+                     '(material "%s") (epsilon_r %s) (loss_tangent 0.02))' % (k + 1, kind, t, mat, er))
+    L += ['\t\t\t(layer "B.Mask" (type "Bottom Solder Mask") (color "Black") (thickness 0.01))',
+          '\t\t\t(layer "B.Paste" (type "Bottom Solder Paste"))',
+          '\t\t\t(layer "B.SilkS" (type "Bottom Silk Screen") (color "White"))',
+          '\t\t\t(copper_finish "ENIG")',
+          '\t\t\t(dielectric_constraints no)',
+          '\t\t)']
+    return '\n'.join(L) + '\n'
+
+
+def set_stackup(path):
+    """Write the stackup (colours, finish, dielectric) into a saved board.
+    KiCad's Python API does not reach BOARD_STACKUP, so this edits the
+    file; KiCad keeps the block on every later load and save."""
+    import re
+    n = pcbnew.LoadBoard(path).GetCopperLayerCount()
+    s = open(path).read()
+    s = re.sub(r'\t\t\(stackup\n.*?\n\t\t\)\n', '', s, flags=re.S)
+    s = s.replace('\t(setup\n', '\t(setup\n' + stackup_text(n), 1)
+    open(path, 'w').write(s)

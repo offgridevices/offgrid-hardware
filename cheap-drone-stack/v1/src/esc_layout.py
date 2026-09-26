@@ -147,8 +147,24 @@ def roles(comps, n):
     return out
 
 
+# The two bottom-side channels are mirror images of the top-side ones, so
+# without this every corner would stack a top-side MCU right over a
+# bottom-side MCU (and a BEMF network over a BEMF network): two 0.5 mm-pitch
+# QFNs back to back leave neither room for a via, and both routers stalled
+# there.  On the bottom channels the MCU end and the BEMF end trade places,
+# so each corner pairs one MCU with one resistor network.
+MCU_END = ('MCU', 'C_VDD17', 'C_VDD1', 'C_VDDA', 'C_RST', 'TP_DIO', 'TP_CLK')
+BEMF_END = ('R_BA_H', 'R_BA_L', 'R_BB_H', 'R_BB_L', 'R_BC_H', 'R_BC_L', 'R_NA', 'R_NB', 'R_NC', 'R_N',
+            'C_VCC', 'R_VCC')
+
+
 def channel_template(n):
     t = dict(TEMPLATE)
+    if CHANNELS[n][1] == 'B':
+        for k in MCU_END + BEMF_END:
+            u, yr, rot, side = t[k]
+            # the MCU turns round so its PA8-10 side still faces the driver
+            t[k] = (-u, yr, (rot + 180) % 360 if k == 'MCU' else rot, side)
     if n == 1:
         for ph in 'ABC':
             u = M1_FET_U[ph]
@@ -220,7 +236,7 @@ if __name__ == '__main__':
 
 
 def build_placed(out_path, legal=True):
-    b = pcb.new_board(4)
+    b = pcb.new_board(LAYERS)
     pcb.outline(b)
     comps = circuit.build('esc')
     place = placement(comps)
@@ -305,7 +321,6 @@ def power_copper(b, comps):
     # (motor 1's FET A sits under BAT-) and the vias already there allow
     import fanout
     from shapely.geometry import Point
-    cu = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
     obs = fanout.Obstacles(b, [pcbnew.F_Cu, pcbnew.B_Cu])
     for ref, net in (('P_BAT+', 'VBAT'), ('P_BAT-', 'GND')):
         cx, cy = POWER[ref][0], POWER[ref][1]
@@ -333,6 +348,15 @@ def fet_refs(comps):
     return out
 
 
+# Six layers.  Every patch of this board carries a half-bridge channel on
+# one side and another on the other side, so four layers left too few
+# routing layers (Freerouting and the in-house router both stalled at over
+# a hundred open connections).  Stackup: F signals | In1 GND | In2, In3
+# signals | In4 VBAT | B signals.
+LAYERS = 6
+ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
+
+
 def net_groups(comps):
     nets = set(net for c in comps for net in c.pins.values() if net)
     gate = sorted(n for n in nets if n[:1] == 'M' and n[2:5] in ('_GH', '_GL', '_VB'))
@@ -351,14 +375,15 @@ def widths(comps):
 
 def build(out_path):
     b, comps, fps = build_placed(out_path)
-    cu = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+    cu = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
     pcb.hole_keepouts(b, cu)
     e = H - 0.35
     full = [(-e, -e), (e, -e), (e, e), (-e, e)]
     pcb.zone(b, 'GND', pcbnew.In1_Cu, full, name='GND plane', thermal=False)
-    pcb.zone(b, 'VBAT', pcbnew.In2_Cu, full, name='VBAT plane', thermal=False)
-    b.SetLayerType(pcbnew.In1_Cu, pcbnew.LT_POWER)
-    b.SetLayerType(pcbnew.In2_Cu, pcbnew.LT_POWER)
+    pcb.zone(b, 'VBAT', pcbnew.In4_Cu, full, name='VBAT plane', thermal=False)
+    for l, t in ((pcbnew.In1_Cu, pcbnew.LT_POWER), (pcbnew.In2_Cu, pcbnew.LT_SIGNAL),
+                 (pcbnew.In3_Cu, pcbnew.LT_SIGNAL), (pcbnew.In4_Cu, pcbnew.LT_POWER)):
+        b.SetLayerType(l, t)
     count = power_copper(b, comps)
     print('power vias:', count)
     nets, gate, drv = net_groups(comps)
@@ -366,6 +391,7 @@ def build(out_path):
     pcb.netclass(b, 'DRIVE', drv, width=0.25, clearance=0.15)
     pcb.netclass(b, 'PWR', ['+3V3', 'BUCK_CB'], width=0.25, clearance=0.15)
     pcb.netclass(b, 'SW', ['BUCK_SW'], width=0.4, clearance=0.15)
+    pcb.netclass(b, 'BAT', ['VBAT'], width=0.3, clearance=0.15)
     import fanout
     e2 = H - 0.4
     n, failed = fanout.fanout(b, {'GND', 'VBAT'}, (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2),
@@ -378,60 +404,73 @@ def build(out_path):
 
 # ---------------------------------------------------------------- artwork
 def artwork(b, comps):
-    """Silkscreen: motor number at every motor pad, battery polarity, SWD
-    pad names, FRONT arrows, board name.  Nothing lands on a pad, a hole or
-    a part body."""
-    import artwork as A
+    """OffGrid silkscreen: motor number at every motor pad, battery
+    polarity, SWD pad names, front arrows, the lockup and what the board is.
+    Codes in JetBrains Mono, words in Instrument Sans.  Nothing lands on a
+    pad, a hole or a part body."""
+    import artwork as A, brand
+    from shapely.geometry import box
+    from shapely.ops import unary_union
     A.hide_fields(b)
-    top = A.SilkPlacer(b, 'T', bodies=True)
-    bot = A.SilkPlacer(b, 'B', bodies=True)
+    A.strip(b)
+    top = A.SilkPlacer(b, 'T', bodies=True, brand=True, via_clear=0.1)
+    bot = A.SilkPlacer(b, 'B', bodies=True, brand=True, via_clear=0.1)
     side = {fp.GetReference(): ('B' if fp.IsFlipped() else 'T') for fp in b.GetFootprints()}
-    # which way is forward: the ESC must sit in the stack the same way round
-    # as the FC, or every motor number is wrong
-    def front(layer, L):
-        def draw(x, y):
-            items = A.arrow(b, x, y, length=L, layer=layer, width=0.2, head=0.7)
-            items.append(pcb.text(b, 'FRONT', x, y + L / 2 + 0.75, size=0.8, layer=layer))
-            return items
-        return draw
-    top.shape_near(front(pcbnew.F_SilkS, 2.6), (0.0, -8.0), radius=12)
-    bot.shape_near(front(pcbnew.B_SilkS, 2.6), (0.0, -8.0), radius=12)
-    # battery: big polarity marks drawn as strokes, outboard of each pad
-    def mark(plus):
-        def draw(x, y):
-            s = 0.4
-            items = []
-            for a, c in ([((x - s, y), (x + s, y))] + ([((x, y - s), (x, y + s))] if plus else [])):
-                seg = pcbnew.PCB_SHAPE(b, pcbnew.SHAPE_T_SEGMENT)
-                seg.SetStart(pcb.P(*a)); seg.SetEnd(pcb.P(*c)); seg.SetLayer(pcbnew.F_SilkS)
-                seg.SetWidth(MM(0.25)); b.Add(seg); items.append(seg)
-            return items
-        return draw
-    xp, yp = POWER['P_BAT+'][:2]; xm, ym = POWER['P_BAT-'][:2]
-    top.shape(mark(True), [(xp - 1.3 - d, yp + dy) for d in (0.8, 0.65) for dy in (1.0, 1.6, 0.4, 2.0)])
-    top.shape(mark(False), [(xm + 1.3 + d, ym + dy) for d in (0.7, 0.65, 0.75) for dy in (1.0, 1.6, 0.4, 2.0)])
     # every motor pad carries its motor number, beside it along the edge
     # (the order of a motor's three wires does not matter)
     for n in CHANNELS:
         r = roles(comps, n)
         for ph in 'ABC':
-            top.label_along(r['P' + ph], str(n), size=1.0)
+            top.label_along(r['P' + ph], str(n), sizes=(1.5, 1.3, 1.2), face='mono')
+    # battery polarity, square-ended strokes outboard of each pad
+    def sign(plus, s=0.55, w=0.3):
+        g = box(-s, -w / 2, s, w / 2)
+        return unary_union([g, box(-w / 2, -s, w / 2, s)]) if plus else g
+    xp, yp = POWER['P_BAT+'][:2]; xm, ym = POWER['P_BAT-'][:2]
+    top.geom(sign(True), [(xp - 1.3 - d, yp + dy) for d in (0.8, 0.65, 0.95) for dy in (1.0, 1.6, 0.4, 2.0)],
+             vias=False, margin=0.15)
+    top.geom(sign(False), [(xm + 1.3 + d, ym + dy) for d in (0.7, 0.65, 0.85) for dy in (1.0, 1.6, 0.4, 2.0)],
+             vias=False, margin=0.15)
     # SWD pads, labelled on whichever side they are
     for n in CHANNELS:
         r = roles(comps, n)
-        for key, s in (('TP_DIO', 'D%d' % n), ('TP_CLK', 'C%d' % n)):
+        for key, s_ in (('TP_DIO', 'D%d' % n), ('TP_CLK', 'C%d' % n)):
             pl = top if side[r[key]] == 'T' else bot
-            if pl.label(r[key], s, size=0.8, dist=0.7) is None:
-                x, y = A.pad_xy(b, r[key])
-                if pl.text_near(s, (x, y), size=0.7, radius=2.0) is None:
-                    if pl.text_near(s, (x, y), size=0.6, radius=2.6) is None:
-                        # no free spot: accept a part body nearby (the pad
-                        # itself stays clear; the label shows before assembly)
-                        fb = A.SilkPlacer(b, pl.side, bodies=False)
-                        fb.placed = pl.placed          # still clear of every other label
-                        fb.text_near(s, (x, y), size=0.7, radius=2.0)
-    bot.label('TP_3V3', '3V3')
-    bot.label('TP_GND', 'GND')
-    top.label('J_FC', '1', pad='1', dist=0.8)
-    bot.text_near('OFFGRID CHEAP DRONE ESC v1', (0.0, 4.5), size=0.8)
-    bot.text_near('AM32 FD6288_F051  4S ONLY', (0.0, -4.5), size=0.8)
+            pl.label(r[key], s_, size=1.2, dist=0.7, smallest=1.1, face='mono')
+    bot.label('TP_3V3', '3V3', size=1.2, face='mono')
+    bot.label('TP_GND', 'GND', size=1.2, face='mono')
+    top.label('J_FC', '1', pad='1', dist=0.8, size=1.2, face='mono')
+    # which way is forward: the ESC must sit in the stack the same way round
+    # as the FC, or every motor number is wrong
+    for pl in (top, bot):
+        spots = pl.grid_spots((0.0, -6.0), radius=11.0, step=0.25)
+        if not pl.geom(brand.arrow_mm(2.6, 'Front', cap=1.2, mirror=pl.side == 'B'), spots, vias='fewest',
+                       margin=0.25):
+            pl.geom(brand.arrow_mm(2.6), spots, vias='fewest', margin=0.25)
+    # the lockup where there is room for it, else the bare mark; then what
+    # the board is, and the one limit that matters
+    placed = None
+    for width in (16.0, 14.0, 12.0):
+        for pl in (bot, top):
+            g, clear = brand.lockup_mm(width, mirror=pl.side == 'B')
+            at = pl.geom(g, pl.grid_spots((0.0, 5.0), radius=9.0, step=0.25), clear=clear, vias='fewest')
+            if at:
+                placed = (pl, at, g, clear)
+                break
+        if placed:
+            break
+    if placed is None:
+        g, clear = brand.mark_mm(3.5)
+        for pl in (bot, top):
+            at = pl.geom(g, pl.grid_spots((0.0, 5.0), radius=12.0, step=0.25), clear=clear, vias='fewest')
+            if at:
+                placed = (pl, at, g, clear)
+                break
+    pl = placed[0] if placed else bot
+    near = (placed[1][0], placed[1][1] + 3.5) if placed else (0.0, 0.0)
+    for runs, cap in (([('sans', 'Cheap drone ESC'), ('mono', 'v1')], 1.2),
+                      ([('mono', 'AM32 FD6288_F051')], 1.15),
+                      ([('mono', '4S'), ('sans', 'only')], 1.2)):
+        spots = [(x, y, 0, None) for x, y in pl.grid_spots(near, radius=10.0, step=0.25)]
+        if pl.text(runs, spots, size=cap, vias='fewest'):
+            near = (near[0], pl.placed[-1].bounds[3] - pcb.CY + 1.2)

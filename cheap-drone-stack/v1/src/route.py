@@ -18,11 +18,18 @@ def export_dsn(pcb_path, dsn_path):
     if not ok:
         raise SystemExit('DSN export failed')
 
-def freeroute(dsn_path, ses_path, passes=20, timeout=1800, log=None):
+def freeroute(dsn_path, ses_path, passes=20, timeout=None, log=None):
+    timeout = timeout or int(os.environ.get('FREEROUTING_TIMEOUT', 1800))
     cmd = ['xvfb-run', '-a', 'java', '-jar', JAR, '-de', dsn_path, '-do', ses_path, '-mp', str(passes)]
     with open(log or os.devnull, 'w') as f:
-        rc = subprocess.call(cmd, stdout=f, stderr=subprocess.STDOUT, timeout=timeout,
+        p = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, start_new_session=True,
                              cwd=os.path.dirname(os.path.abspath(dsn_path)))
+        try:
+            rc = p.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            os.killpg(p.pid, 9)          # java and Xvfb too, not just xvfb-run
+            p.wait()
+            raise SystemExit('Freerouting did not finish in %d s' % timeout)
     if rc != 0 or not os.path.exists(ses_path):
         raise SystemExit('Freerouting failed (rc=%s), see %s' % (rc, log))
 

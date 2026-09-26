@@ -2,6 +2,8 @@
 """Build the Cheap Drone stack v1: every committed output, with gates.
 
     python3 make.py              outputs from the committed .kicad_pcb files
+    python3 make.py --artwork    lay the silkscreen and stackup out again first
+                                 (copper untouched)
     python3 make.py --reroute    place and route both boards from scratch first
     python3 make.py fc           one board only (fc or esc)
 
@@ -56,7 +58,19 @@ def check_outputs(board, name, prod):
     gate(fps == set(comps), '%s: board footprints == circuit.py components (%d)' % (board, len(comps)))
 
 
-def build(board, reroute):
+def artwork(dst, board):
+    """Silkscreen and stackup again on the committed board."""
+    L = __import__(board + '_layout')
+    b = pcbnew.LoadBoard(dst)
+    if board == 'fc':
+        L.artwork(b)
+    else:
+        L.artwork(b, circuit.build(board))
+    b.Save(dst)
+    pcb.set_stackup(dst)
+
+
+def build(board, reroute, art=False):
     name = BOARDS[board]
     print('== %s' % name)
     check_circuit(board)
@@ -66,6 +80,8 @@ def build(board, reroute):
         work = tempfile.mkdtemp(prefix='cheapdrone-%s-' % board)
         fin = pipeline.run(board, work)
         fab.install(fin, os.path.join(V1, board), name)
+    elif art:
+        artwork(dst, board)
     tmp = tempfile.mkdtemp()
     e, w, u = pcb.drc(dst, os.path.join(tmp, 'drc.json'))
     gate(not e and not w and not u, '%s: DRC %d errors, %d warnings, %d unconnected' % (board, len(e), len(w), len(u)))
@@ -81,5 +97,5 @@ def build(board, reroute):
 if __name__ == '__main__':
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     for bd in (args or ['fc', 'esc']):
-        build(bd, '--reroute' in sys.argv)
+        build(bd, '--reroute' in sys.argv, '--artwork' in sys.argv)
     print('all gates passed')

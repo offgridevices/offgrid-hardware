@@ -44,6 +44,7 @@ def run(board_name, work, passes=60, log=print):
     fin = os.path.join(work, board_name + '_fin.kicad_pcb')
     L.build(placed)
     pcb.write_rules(placed)
+    finish.ROUTE_LAYERS = getattr(L, 'ROUTE_LAYERS', [pcbnew.F_Cu, pcbnew.B_Cu])
     n = route.route(placed, routed, passes=passes, rounds=1)
     log('%s: %d connections left after Freerouting, %d duplicate vias removed'
         % (board_name, n, pcb.dedupe_vias(routed)))
@@ -63,6 +64,7 @@ def run(board_name, work, passes=60, log=print):
     else:
         L.artwork(b, circuit.build('esc'))
     b.Save(fin)
+    pcb.set_stackup(fin)
     e, w, u = pcb.drc(fin, os.path.join(work, board_name + '_final_drc.json'))
     log('%s DRC: %d errors %s, %d warnings %s, %d unconnected'
         % (board_name, len(e), dict(Counter(v['type'] for v in e)), len(w),

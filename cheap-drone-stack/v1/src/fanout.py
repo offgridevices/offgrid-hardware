@@ -88,7 +88,7 @@ class Obstacles:
         return True
 
 def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
-           ep_min_area=2.0, stub_w=0.25, skip=()):
+           ep_min_area=2.0, stub_w=0.25, skip=(), via_ok=None):
     """nets: set of net names to take into the planes.  bounds: (x0,y0,x1,y1)
     in board mm inside which vias may go (board edge minus clearance)."""
     layers = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu,
@@ -121,7 +121,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                         x, y = ox + i * pitch, oy + j * pitch
                         vg = Point(x, y).buffer(rv)
                         if pg.buffer(-0.05).contains(vg) and obs.clear(vg, net, layers, clearance) \
-                                and obs.via_room(x, y, via_d + 0.15):
+                                and obs.via_room(x, y, via_d + 0.15) and (via_ok is None or via_ok(x, y, net)):
                             v = pcbnew.PCB_VIA(board); v.SetPosition(pcbnew.VECTOR2I(MM(x), MM(y)))
                             v.SetWidth(MM(via_d)); v.SetDrill(MM(via_drill)); v.SetNet(pad.GetNet())
                             board.Add(v); obs.add(vg, net, layers); obs.vias.append((x, y)); n += 1
@@ -144,6 +144,8 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                     from shapely.geometry import LineString
                     sg = LineString([(px, py), (x, y)]).buffer(stub_w / 2)
                     if not obs.via_room(x, y, via_d + 0.15):
+                        continue
+                    if via_ok is not None and not via_ok(x, y, net):
                         continue
                     if not obs.clear(vg, net, layers, clearance):
                         continue

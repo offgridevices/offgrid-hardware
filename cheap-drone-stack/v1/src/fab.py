@@ -22,8 +22,12 @@ import csv, os, subprocess, zipfile, collections
 import pcbnew
 import parts, circuit
 
-LAYERS = ['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu', 'F.Paste', 'B.Paste', 'F.Silkscreen', 'B.Silkscreen',
-          'F.Mask', 'B.Mask', 'Edge.Cuts']
+LAYERS = ['F.Paste', 'B.Paste', 'F.Silkscreen', 'B.Silkscreen', 'F.Mask', 'B.Mask', 'Edge.Cuts']
+
+
+def copper_layers(board):
+    n = pcbnew.LoadBoard(board).GetCopperLayerCount()
+    return ['F.Cu'] + ['In%d.Cu' % i for i in range(1, n - 1)] + ['B.Cu']
 
 
 def run(cmd):
@@ -38,7 +42,8 @@ def gerbers(board, out_dir, name):
     os.makedirs(gdir, exist_ok=True)
     for f in os.listdir(gdir):
         os.remove(os.path.join(gdir, f))
-    run(['kicad-cli', 'pcb', 'export', 'gerbers', '--layers', ','.join(LAYERS), '--subtract-soldermask',
+    run(['kicad-cli', 'pcb', 'export', 'gerbers', '--layers', ','.join(copper_layers(board) + LAYERS),
+         '--subtract-soldermask',
          '--output', gdir + '/', board])
     run(['kicad-cli', 'pcb', 'export', 'drill', '--format', 'excellon', '--excellon-units', 'mm',
          '--excellon-separate-th', '--generate-map', '--map-format', 'gerberx2', '--output', gdir + '/', board])
@@ -164,11 +169,11 @@ def renders(board, out_dir, name):
     for side in ('top', 'bottom'):
         o = os.path.join(out_dir, '%s-%s.png' % (name, side))
         run(['kicad-cli', 'pcb', 'render', '--side', side, '--width', '1600', '--height', '1600',
-             '--quality', 'high', '--output', o, board])
+             '--quality', 'high', '--use-board-stackup-colors', '--output', o, board])
         outs.append(o)
     o = os.path.join(out_dir, '%s-iso.png' % name)
     run(['kicad-cli', 'pcb', 'render', '--width', '1600', '--height', '1200', '--quality', 'high',
-         '--rotate', '-45,0,-30', '--zoom', '0.9', '--output', o, board])
+         '--use-board-stackup-colors', '--rotate', '-45,0,-30', '--zoom', '0.9', '--output', o, board])
     outs.append(o)
     return outs
 

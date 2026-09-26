@@ -57,6 +57,7 @@ class Grid:
         net_exclude, plus geometry of copper on it."""
         other = {l: [] for l in self.layers}; same = {l: [] for l in self.layers}
         self.soft = {l: [] for l in self.layers}
+        self.inner_zones = {}
         holes = []
         b = self.board
         for fp in b.GetFootprints():
@@ -108,8 +109,12 @@ class Grid:
                     g = Polygon([(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())])
                     if z.GetNetname() == net_exclude:
                         same[l].append(g)
-                    else:
+                    elif l in (pcbnew.F_Cu, pcbnew.B_Cu):
                         other[l].append((g, self.netcl(z.GetNetname())))
+                    else:
+                        # an inner-layer pour only keeps tracks out: a via
+                        # through it just gets a clearance hole in the fill
+                        self.inner_zones.setdefault(l, []).append((g, self.netcl(z.GetNetname())))
         return other, same, holes
 
     def build(self, net):
@@ -125,6 +130,8 @@ class Grid:
                 self._draw(img, g.buffer(c + self.tw / 2 + M, 8)); self._draw(vmask, g.buffer(c + self.vd / 2 + M, 8))
             for g in holes:
                 self._draw(img, g.buffer(0.3 + self.tw / 2 + M, 8)); self._draw(vmask, g.buffer(0.3 + self.vd / 2 + M, 8))
+            for g, c in self.inner_zones.get(l, []):
+                self._draw(img, g.buffer(max(c, mine) + self.tw / 2 + M, 8))
             self.block[l] = np.array(img, dtype=bool)
         # inner layers: a via may not hit another net's pad or via there either
         for l in (pcbnew.In1_Cu, pcbnew.In2_Cu):
@@ -133,9 +140,12 @@ class Grid:
             if z.GetIsRuleArea() and (z.GetDoNotAllowTracks() or z.GetDoNotAllowVias()):
                 ol = z.Outline().Outline(0)
                 g = Polygon([(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())])
-                for l in self.layers:
-                    img = Image.fromarray(self.block[l]); self._draw(img, g.buffer(self.tw / 2)); self.block[l] = np.array(img, dtype=bool)
-                self._draw(vmask, g.buffer(self.vd / 2))
+                if z.GetDoNotAllowTracks():
+                    for l in self.layers:
+                        if z.GetLayerSet().Contains(l):
+                            img = Image.fromarray(self.block[l]); self._draw(img, g.buffer(self.tw / 2)); self.block[l] = np.array(img, dtype=bool)
+                if z.GetDoNotAllowVias():
+                    self._draw(vmask, g.buffer(self.vd / 2))
         # board edge
         e = int(math.ceil((self.edge + self.tw / 2) / RES)); ev = int(math.ceil((self.edge + self.vd / 2) / RES))
         for l in self.layers:
@@ -156,6 +166,10 @@ class Grid:
         self.vsoft = np.array(vs, dtype=bool)
         return same
 
+# Copper layers the maze router may use.  Boards with an inner signal
+# layer (the ESC's In2 is a VBAT ring round a routable centre) add it.
+ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.B_Cu]
+
 def _same_cells(grid, same, layer):
     img = Image.new('1', (grid.W, grid.H), 0)
     for g in same[layer]:
@@ -166,7 +180,7 @@ def route_connection(board, net, a_items, b_items, clearance=0.1, track_w=0.1, v
                      max_expand=3_000_000, clmap=None, soft_nets=None, rip_cost=60, victims_out=None):
     """Route from copper island A to island B of `net`.  a_items/b_items are
     lists of shapely geometries per layer: {layer: [geom,...]}."""
-    layers = [pcbnew.F_Cu, pcbnew.B_Cu]
+    layers = list(ROUTE_LAYERS)
     g = Grid(board, layers, clearance, track_w, via_d, clmap=clmap, soft_nets=soft_nets)
     g.build(net)
     src = {}; dst = {}
@@ -174,7 +188,7 @@ def route_connection(board, net, a_items, b_items, clearance=0.1, track_w=0.1, v
         src[li] = _same_cells(g, a_items, l) if l in a_items else np.zeros((g.H, g.W), bool)
         dst[li] = _same_cells(g, b_items, l) if l in b_items else np.zeros((g.H, g.W), bool)
     # targets: cells inside B copper; sources: cells inside A copper (allowed even if blocked)
-    tgt = np.argwhere(dst[0] | dst[1])
+    tgt = np.argwhere(np.logical_or.reduce([dst[li] for li in range(len(layers))]))
     if len(tgt) == 0:
         return None
     tc = tgt.mean(axis=0)
@@ -182,7 +196,7 @@ def route_connection(board, net, a_items, b_items, clearance=0.1, track_w=0.1, v
     INF = 1 << 60
     cost = {}
     pq = []
-    for li in (0, 1):
+    for li in range(len(layers)):
         for (j, i) in np.argwhere(src[li]):
             k = (li, i, j); cost[k] = 0
             heapq.heappush(pq, (0, 0, k, None, None))
@@ -218,17 +232,22 @@ def route_connection(board, net, a_items, b_items, clearance=0.1, track_w=0.1, v
                 cost[nk] = nc
                 h = math.hypot(ni - tc[1], nj - tc[0]) * 0.9
                 heapq.heappush(pq, (nc + h, nc, nk, k, d))
-        # via
-        if not g.vblock[j, i] or src[li][j, i]:
-            ok_other = (not g.block[layers[1 - li]][j, i]) or src[1 - li][j, i] or dst[1 - li][j, i]
-            if ok_other and not g.vblock[j, i]:
-                nk = (1 - li, i, j)
-                if nk not in came:
-                    nc = c + vcost + (rip_cost if g.vsoft[j, i] else 0)
-                    if nc < cost.get(nk, INF):
-                        cost[nk] = nc
-                        h = math.hypot(i - tc[1], j - tc[0]) * 0.9
-                        heapq.heappush(pq, (nc + h, nc, nk, k, 'via'))
+        # via (through all layers) to any other routing layer
+        if not g.vblock[j, i]:
+            for lj in range(len(layers)):
+                if lj == li:
+                    continue
+                ok_other = (not g.block[layers[lj]][j, i]) or src[lj][j, i] or dst[lj][j, i]
+                if not ok_other:
+                    continue
+                nk = (lj, i, j)
+                if nk in came:
+                    continue
+                nc = c + vcost + (rip_cost if g.vsoft[j, i] else 0)
+                if nc < cost.get(nk, INF):
+                    cost[nk] = nc
+                    h = math.hypot(i - tc[1], j - tc[0]) * 0.9
+                    heapq.heappush(pq, (nc + h, nc, nk, k, 'via'))
     if not found:
         return None
     # walk back
@@ -314,7 +333,7 @@ def _geom_of(item):
     out = {}
     cls = item.GetClass()
     if cls == 'PAD':
-        for l in (pcbnew.F_Cu, pcbnew.B_Cu):
+        for l in ROUTE_LAYERS:
             if item.IsOnLayer(l):
                 sp = item.GetEffectivePolygon(l)
                 for k in range(sp.OutlineCount()):
@@ -324,10 +343,10 @@ def _geom_of(item):
     elif cls == 'PCB_VIA':
         p = item.GetPosition()
         g = Point(mm(p.x), mm(p.y)).buffer(mm(item.GetWidth(pcbnew.F_Cu)) / 2)
-        out = {pcbnew.F_Cu: [g], pcbnew.B_Cu: [g]}
+        out = {l: [g] for l in ROUTE_LAYERS}
     elif cls in ('PCB_TRACK', 'PCB_ARC'):
         s, e = item.GetStart(), item.GetEnd()
-        if item.GetLayer() in (pcbnew.F_Cu, pcbnew.B_Cu):
+        if item.GetLayer() in ROUTE_LAYERS:
             out[item.GetLayer()] = [LineString([(mm(s.x), mm(s.y)), (mm(e.x), mm(e.y))]).buffer(mm(item.GetWidth()) / 2)]
     return out
 

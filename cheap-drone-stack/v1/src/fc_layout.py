@@ -101,8 +101,8 @@ PLACE = {
     'P_3V3':  (15.8, -1.4, 90, T), 'P_G3':  (15.8, 0.0, 90, T), 'P_5V': (15.8, 1.4, 90, T),
     'TP_SWDIO': (-5.0, -8.4, 0, T), 'TP_SWCLK': (-5.0, -9.8, 0, T), 'TP_NRST': (-5.0, -11.2, 0, T),
     # left edge, rear: LED strip, buzzer, ground
-    'P_LED':  (-15.8, 5.8, 90, T), 'P_BZ+': (-15.8, 7.2, 90, T),
-    'P_BZ-':  (-15.8, 8.6, 90, T), 'P_G1':  (-15.8, 10.0, 90, T),
+    'P_G1':   (-15.8, 5.8, 90, T), 'P_BZ+': (-15.8, 7.2, 90, T),
+    'P_BZ-':  (-15.8, 8.6, 90, T), 'P_LED': (-15.8, 10.0, 90, T),   # LED last: its label needs the room
     'P_VBAT': (-8.4, 15.8, 0, T),  'P_G2':  (-7.0, 15.8, 0, T),
     # --- mounting
     'H1': (-pcb.HOLE, -pcb.HOLE, 0, T), 'H2': (pcb.HOLE, -pcb.HOLE, 0, T),
@@ -170,32 +170,52 @@ LABELS = [
     ('P_T4', 'T4'), ('P_R4', 'R4'), ('P_R1', 'R1'), ('P_T1', 'T1'),
     ('P_RX5V', '5V'), ('P_RXG', 'G'), ('P_R2', 'R2'), ('P_T2', 'T2'),
     ('P_3V3', '3V3'), ('P_G3', 'G'), ('P_5V', '5V'),
-    ('P_LED', 'LED'), ('P_BZ+', 'BZ+'), ('P_BZ-', 'BZ-'), ('P_G1', 'G'),
+    ('P_G1', 'G'), ('P_BZ+', '5V'), ('P_BZ-', 'BZ-'), ('P_LED', 'LED'),   # buzzer: 5V and BZ-
     ('P_VBAT', 'VB'), ('P_G2', 'G'),
     ('TP_SWDIO', 'DIO'), ('TP_SWCLK', 'CLK'), ('TP_NRST', 'RST'),
 ]
 
 def artwork(b):
-    import artwork as A
+    """OffGrid silkscreen: codes in JetBrains Mono, words in Instrument Sans,
+    the lockup on the empty bottom, the bare mark on the top."""
+    import artwork as A, brand
     A.hide_fields(b)
-    top = A.SilkPlacer(b, 'T')
-    for ref, s in LABELS:
-        top.label(ref, s)
-    top.label('J_ESC', '1', pad='1', dist=0.8)
-    top.label('SW_BOOT', 'BOOT', pad='1')
-    # which way is forward
-    def front(x, y):
-        return A.arrow(b, x, y, length=2.4) + [pcb.text(b, 'FRONT', x + 0.4, y + 2.1, size=0.8)]
-    top.shape(front, [(x, y) for y in (-14.4, -13.9, -13.4) for x in (9.0, 8.5, 9.5, -9.5, 0.0)])
-    bot = A.SilkPlacer(b, 'B')
-    bot.text('ESC', [(x, 12.0, 0, None) for x in (0.0, 1.0, -1.0)])
-    def big(x, y):
-        return A.arrow(b, x, y, length=7.0, layer=pcbnew.B_SilkS, width=0.3, head=1.0) + \
-               [pcb.text(b, 'FRONT', x, y - 4.8, size=1.2, layer=pcbnew.B_SilkS, thick=0.2)]
-    bot.shape(big, [(x, y) for x in (0.0, -1.0, 1.0, -2.0, 2.0) for y in (-4.0, -3.0, -5.0)])
-    for s, size, ys in (('OFFGRID CHEAP DRONE FC v1', 1.0, (3.2, 3.8, 2.6, 4.4)),
-                        ('STM32G473  ICM-42688-P  16MB', 0.8, (5.0, 5.6, 4.6, 6.0)),
-                        ('ESC lead 1 VBAT 2 GND 3 CUR 4 TLM 5-8 M1-M4', 0.8, (6.6, 7.2, 7.8)),
-                        ('Betaflight CHEAPDRONE_G473', 0.8, (8.2, 8.8, 9.4, 10.0))):
-        bot.text(s, [(x, y, 0, None) for y in ys for x in (0.0, -0.5, 0.5, -1.0, 1.0)], size=size,
-                 thick=0.18 if size >= 1.0 else 0.15)
+    A.strip(b)
+    top = A.SilkPlacer(b, 'T', brand=True, via_clear=0.1, bodies=True)
+    # 1.2 mm capitals, 1.1 at the least: at weight 500 that keeps the
+    # median stroke of every glyph over the fabs' 0.15 mm silkscreen floor
+    # pad names are signal codes: JetBrains Mono; words (Boot, Front) are
+    # Instrument Sans.  RST has the least room, so it goes first.
+    for ref, s in sorted(LABELS, key=lambda rs: rs[0] != 'TP_NRST'):
+        top.label(ref, s, size=1.2, smallest=1.1, face='mono')
+    top.label('J_ESC', '1', pad='1', dist=0.8, size=1.2, face='mono')
+    top.label('SW_BOOT', 'Boot', pad='1', size=1.2)
+    everywhere = top.grid_spots((0.0, 0.0), radius=17.0, step=0.25)
+    if not top.geom(brand.arrow_mm(2.6, 'Front', cap=1.2, side=True), [s for s in everywhere if s[1] < -8],
+                    vias='fewest', margin=0.2):
+        top.geom(brand.arrow_mm(2.6), [s for s in everywhere if s[1] < -8], vias='fewest', margin=0.2)
+    mark, clear = brand.mark_mm(3.0)
+    top.geom(mark, everywhere, clear=clear, vias='fewest')
+
+    bot = A.SilkPlacer(b, 'B', brand=True, via_clear=0.1)
+    # three bands are free on the bottom: between the front holes (the
+    # lockup, its line under it), between the USB-C shell tabs and the far
+    # edge (the arrow), and between the rear holes (what the board is)
+    g, clear = brand.lockup_mm(20.0, mirror=True)
+    at = bot.geom(g, [(x, y) for y in (-9.5, -9.25, -9.0, -9.75, -10.0, -8.75, -8.5)
+                      for x in (0.0, 0.25, -0.25, 0.5, -0.5)], clear=clear, vias='fewest')
+    y = at[1] + (g.bounds[3] - g.bounds[1]) / 2 + clear
+    bot.text([('sans', 'Built to be checked.')], [(x, y + 0.6 + dy, 0, None) for dy in (0, 0.2, 0.4, 0.6)
+                                                  for x in (0, 0.3, -0.3)], size=1.2, vias='fewest')
+    bot.geom(brand.arrow_mm(6.0, 'Front', cap=1.2, mirror=True),
+             [(x, y) for x in (13.0, 13.25, 12.75, 13.5, 12.5) for y in (0.0, 0.5, -0.5, 1.0, -1.0)], vias='fewest')
+    # what the board is, three lines between the rear holes, 1.9 mm from
+    # baseline to baseline
+    base = 7.6
+    for runs, cap in (([('sans', 'Cheap drone flight controller')], 1.2),
+                      ([('mono', 'v1 \u00b7 CHEAPDRONE_G473')], 1.15)):
+        g0 = brand.line(runs, cap)[0].bounds
+        mid = (g0[1] + g0[3]) / 2           # box centre below the baseline
+        spots = [(0.0, base + mid + dy, 0, None) for dy in (0.0, 0.1, -0.1, 0.2)]
+        if bot.text(runs, spots, size=cap, vias='fewest'):
+            base = bot.placed[-1].centroid.y - pcb.CY - mid + 2.0
