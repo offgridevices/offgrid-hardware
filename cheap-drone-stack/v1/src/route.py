@@ -20,13 +20,16 @@ PRE_EXPORT = None
 # same autoroute_settings block Freerouting saves in its own .rules files).
 # Freerouting is deterministic for a given input; different costs give
 # genuinely different routings.  None: Freerouting's defaults.
-#   dict(via_costs=50, plane_via_costs=5, start_ripup_costs=100,
+#   dict(via_costs=50, plane_via_costs=5, start_ripup_costs=100, fanout=False,
 #        directions={'F.Cu': 'horizontal', ...}, against=2.0)
+# fanout=True runs Freerouting's fan-out pass first: an escape via at each
+# SMD pin before general routing, so dense QFN pins keep a way out.
 AUTOROUTE = None
 
 
 def _autoroute_block(a, layers):
-    lines = ['    (autoroute_settings', '      (fanout off)', '      (autoroute on)', '      (postroute on)',
+    lines = ['    (autoroute_settings', '      (fanout %s)' % ('on' if a.get('fanout') else 'off'),
+             '      (autoroute on)', '      (postroute on)',
              '      (vias on)', '      (via_costs %d)' % a.get('via_costs', 50),
              '      (plane_via_costs %d)' % a.get('plane_via_costs', 5),
              '      (start_ripup_costs %d)' % a.get('start_ripup_costs', 100),
