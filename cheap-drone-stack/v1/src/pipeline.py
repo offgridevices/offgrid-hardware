@@ -38,7 +38,7 @@ def run(board_name, work, passes=60, log=print):
         import esc_layout as L
         widths = L.widths(circuit.build('esc'))
         planes = ['GND', 'VBAT']
-    clmap = {n: 0.15 for n in widths}
+    clmap = L.clearances(circuit.build('esc')) if board_name == 'esc' else {n: 0.15 for n in widths}
     placed = os.path.join(work, board_name + '.kicad_pcb')
     routed = os.path.join(work, board_name + '_routed.kicad_pcb')
     fin = os.path.join(work, board_name + '_fin.kicad_pcb')

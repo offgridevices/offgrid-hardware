@@ -267,7 +267,7 @@ def _in_keepout(x, y, r):
 
 def _zone(b, n, net, side_rel, pts, prio=3, name=None):
     poly = [xf_point(n, u, yr) for u, yr in pts]
-    z = pcb.zone(b, net, _layer(n, side_rel), poly, clearance=0.2, min_width=0.2, priority=prio,
+    z = pcb.zone(b, net, _layer(n, side_rel), poly, clearance=0.15, min_width=0.2, priority=prio,
                  thermal=False, name=name)
     return z
 
@@ -369,9 +369,17 @@ def net_groups(comps):
 def widths(comps):
     nets, gate, drv = net_groups(comps)
     w = {n: 0.2 for n in gate}
-    w.update({n: 0.25 for n in drv})
-    w.update({'+3V3': 0.25, 'BUCK_SW': 0.4, 'BUCK_CB': 0.25, 'VBAT': 0.3})
+    w.update({n: 0.2 for n in drv})
+    w.update({'+3V3': 0.2, 'BUCK_SW': 0.4, 'BUCK_CB': 0.2, 'VBAT': 0.3})
     return w
+
+
+# Clearances.  Nothing on this board exceeds 16.8 V (plus switching
+# overshoot), where IPC-2221B asks 0.1 mm between outer-layer conductors
+# (B2, 16-30 V).  0.1 mm everywhere, 0.15 round the buck's switch node.
+# Space for vias is what limits this board, so no more than that.
+def clearances(comps):
+    return {n: (0.15 if n == 'BUCK_SW' else 0.1) for n in widths(comps)}
 
 def build(out_path):
     b, comps, fps = build_placed(out_path)
@@ -387,11 +395,11 @@ def build(out_path):
     count = power_copper(b, comps)
     print('power vias:', count)
     nets, gate, drv = net_groups(comps)
-    pcb.netclass(b, 'GATE', gate, width=0.2, clearance=0.15)
-    pcb.netclass(b, 'DRIVE', drv, width=0.25, clearance=0.15)
-    pcb.netclass(b, 'PWR', ['+3V3', 'BUCK_CB'], width=0.25, clearance=0.15)
+    pcb.netclass(b, 'GATE', gate, width=0.2, clearance=0.1)
+    pcb.netclass(b, 'DRIVE', drv, width=0.2, clearance=0.1)
+    pcb.netclass(b, 'PWR', ['+3V3', 'BUCK_CB'], width=0.2, clearance=0.1)
     pcb.netclass(b, 'SW', ['BUCK_SW'], width=0.4, clearance=0.15)
-    pcb.netclass(b, 'BAT', ['VBAT'], width=0.3, clearance=0.15)
+    pcb.netclass(b, 'BAT', ['VBAT'], width=0.3, clearance=0.1)
     import fanout
     e2 = H - 0.4
     n, failed = fanout.fanout(b, {'GND', 'VBAT'}, (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2),
