@@ -16,6 +16,30 @@ JAR = os.environ.get('FREEROUTING_JAR', os.path.expanduser('~/freerouting-1.9.0.
 # for Freerouting: PRE_EXPORT(board) is called before the DSN is written.
 PRE_EXPORT = None
 
+# Freerouting's router costs, written into the DSN's structure scope (the
+# same autoroute_settings block Freerouting saves in its own .rules files).
+# Freerouting is deterministic for a given input; different costs give
+# genuinely different routings.  None: Freerouting's defaults.
+#   dict(via_costs=50, plane_via_costs=5, start_ripup_costs=100,
+#        directions={'F.Cu': 'horizontal', ...}, against=2.0)
+AUTOROUTE = None
+
+
+def _autoroute_block(a, layers):
+    lines = ['    (autoroute_settings', '      (fanout off)', '      (autoroute on)', '      (postroute on)',
+             '      (vias on)', '      (via_costs %d)' % a.get('via_costs', 50),
+             '      (plane_via_costs %d)' % a.get('plane_via_costs', 5),
+             '      (start_ripup_costs %d)' % a.get('start_ripup_costs', 100),
+             '      (start_pass_no 1)']
+    dirs = a.get('directions', {})
+    for i, l in enumerate(layers):
+        d = dirs.get(l, 'horizontal' if i % 2 == 0 else 'vertical')
+        lines += ['      (layer_rule %s' % l, '        (active on)', '        (preferred_direction %s)' % d,
+                  '        (preferred_direction_trace_costs 1.0)',
+                  '        (against_preferred_direction_trace_costs %.1f)' % a.get('against', 2.0), '      )']
+    lines.append('    )')
+    return '\n'.join(lines) + '\n'
+
 
 def export_dsn(pcb_path, dsn_path):
     b = pcbnew.LoadBoard(pcb_path)
@@ -24,6 +48,15 @@ def export_dsn(pcb_path, dsn_path):
     ok = pcbnew.ExportSpecctraDSN(b, dsn_path)
     if not ok:
         raise SystemExit('DSN export failed')
+    if AUTOROUTE:
+        import re
+        txt = open(dsn_path).read()
+        sig = [m.group(1) for m in re.finditer(r'\(layer (\S+)\s+\(type signal\)', txt)]
+        # right after the layer definitions (its layer_rules name layers that
+        # must already be defined), before the boundary
+        j = txt.index('\n    (boundary') + 1
+        txt = txt[:j] + _autoroute_block(AUTOROUTE, sig) + txt[j:]
+        open(dsn_path, 'w').write(txt)
 
 def freeroute(dsn_path, ses_path, passes=20, timeout=None, log=None):
     timeout = timeout or int(os.environ.get('FREEROUTING_TIMEOUT', 1800))
@@ -64,6 +97,11 @@ def route(pcb_in, pcb_out, passes=60, rounds=4):
     best = None
     for r in range(rounds):
         dsn = os.path.join(work, 'route%d.dsn' % r); ses = os.path.join(work, 'route%d.ses' % r)
+        if r > 0:
+            # Freerouting hangs ("normalization of net ... failed") on its own
+            # near-degenerate wiring when that is fed back to it
+            import pcb
+            pcb.tidy_tracks(src)
         export_dsn(src, dsn)
         freeroute(dsn, ses, passes=passes, log=os.path.join(work, 'freerouting%d.log' % r))
         import_ses(src, ses, pcb_out)

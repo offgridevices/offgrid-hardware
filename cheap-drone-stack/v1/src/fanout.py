@@ -253,6 +253,9 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                     sg = LineString([(px, py), (x, y)]).buffer(stub_w / 2)
                     if not obs.via_room(x, y, via_d + 0.15):
                         continue
+                    # filled (via-in-pad) holes nearby keep POFV spacing
+                    if inpad and not obs.hole_room(x, y, (off_drill or via_drill) / 2, inpad['hole_gap'] + 0.01):
+                        continue
                     if via_ok is not None and not via_ok(x, y, net):
                         continue
                     if not obs.clear(vg, net, layers, clearance):
@@ -316,7 +319,8 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
     return placed, failed
 
 
-def escape_vias(board, planes, inpad, far=5.0, max_pads=2, skip=(), bounds=None, lock=True, refs=(), force=()):
+def escape_vias(board, planes, inpad, far=5.0, max_pads=2, skip=(), bounds=None, lock=True, refs=(), force=(),
+                only=None):
     """Signal escapes in the pads themselves (filled and capped via-in-pad).
 
     For every signal net, a pad of a two-terminal part (resistor, capacitor,
@@ -327,6 +331,7 @@ def escape_vias(board, planes, inpad, far=5.0, max_pads=2, skip=(), bounds=None,
     inpad['hole_cl'] (hole) on every layer and keeps inpad['hole_gap'] from
     any other hole.  force: (ref, pad number) pairs that get their via
     whatever the distance (a pad boxed in by a bundle it cannot cross).
+    only: if given, the parts (refs) to consider, nothing else.
     Returns the number of vias placed."""
     layers = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu,
                           pcbnew.In4_Cu, pcbnew.B_Cu) if board.IsLayerEnabled(l)]
@@ -346,6 +351,8 @@ def escape_vias(board, planes, inpad, far=5.0, max_pads=2, skip=(), bounds=None,
         if net in skip or len(lst) < 2:
             continue
         for fp, pad, side, x, y in lst:
+            if only is not None and fp.GetReference() not in only:
+                continue
             if (fp.GetPadCount() > max_pads and fp.GetReference() not in refs) or pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
                 continue
             others = [o for o in lst if o[1] is not pad]
