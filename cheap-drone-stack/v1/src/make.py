@@ -6,18 +6,22 @@
                                  (copper untouched)
     python3 make.py --reroute    place and route both boards from scratch first
     python3 make.py fc           one board only (fc or esc)
+    python3 make.py --no-panel   skip the production panel (it takes ~3 min)
 
 Gates (any failure stops the build):
   * KiCad DRC: 0 errors, 0 warnings, 0 unconnected items
   * every pad's net on the board equals circuit.py
   * every assembled part appears in the BOM and CPL with an LCSC number
   * circuit.py itself: no part without a footprint, no single-pin net
+  * the 3 x 2 production panel (panel.py): DRC equal to six boards', every
+    copy's Gerbers, BOM and CPL identical to the single board's, fiducial
+    keep-out measured on the Gerbers
 
 Needs KiCad 10 (pcbnew Python module + kicad-cli) and, for --reroute only,
 Freerouting 1.9 (FREEROUTING_JAR=path/to/freerouting-1.9.0.jar) with java
 and xvfb-run.
 """
-import os, sys, csv, tempfile
+import os, sys, csv, shutil, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 V1 = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
@@ -70,7 +74,25 @@ def artwork(dst, board):
     pcb.set_stackup(dst)
 
 
-def build(board, reroute, art=False):
+def make_panel(board, name, dst):
+    """3 x 2 panel for bulk assembly: order files into production/panel/,
+    renders into images/.  panel.make_panel stops on any failed check."""
+    import panel
+    tmp = tempfile.mkdtemp(prefix='cheapdrone-%s-panel-' % board)
+    out = panel.make_panel(dst, tmp, name, board_name=board)
+    prod = os.path.join(V1, board, 'production', 'panel')
+    shutil.rmtree(prod, ignore_errors=True)
+    os.makedirs(prod)
+    for k in ('gerbers_zip', 'bom', 'bom_pcbway', 'cpl'):
+        shutil.copy(out[k], prod)
+    for side in ('top', 'bottom'):
+        shutil.copy(os.path.join(tmp, '%s-panel-%s.png' % (name, side)), os.path.join(V1, board, 'images'))
+    gate(True, '%s: panel %s, %d copies, %s mm; DRC = %d x the board\'s own; Gerbers, BOM and CPL of '
+               'every copy equal the board\'s' % (board, out['grid'], out['copies'],
+                                                  out['geometry'].get('size_mm'), out['copies'], ))
+
+
+def build(board, reroute, art=False, pan=True):
     name = BOARDS[board]
     print('== %s' % name)
     check_circuit(board)
@@ -92,10 +114,12 @@ def build(board, reroute, art=False):
           % (os.path.relpath(out['zip'], V1), len(out['gerber_files']), out['parts'], out['bom_lines'],
              out['bottom_parts'], out['pads']))
     check_outputs(board, name, os.path.join(V1, board, 'production'))
+    if pan:
+        make_panel(board, name, dst)
 
 
 if __name__ == '__main__':
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     for bd in (args or ['fc', 'esc']):
-        build(bd, '--reroute' in sys.argv, '--artwork' in sys.argv)
+        build(bd, '--reroute' in sys.argv, '--artwork' in sys.argv, '--no-panel' not in sys.argv)
     print('all gates passed')

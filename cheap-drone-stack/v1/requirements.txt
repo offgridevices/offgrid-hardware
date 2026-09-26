@@ -10,6 +10,7 @@ fonttools       # brand.py: font metrics
 pymupdf         # SVG -> image for the Gerber read-back and checks
 scipy           # verify.py: silkscreen stroke widths
 scikit-image    # verify.py: silkscreen stroke widths
-gerbonara       # optional: silkscreen read back from the Gerbers (pip install --no-deps gerbonara)
+gerbonara       # silkscreen and panel read-back from the Gerbers (pip install --no-deps gerbonara)
+kikit           # panel.py: the production panel (1.8.1 on KiCad 10)
 # make.py --reroute also needs Freerouting 1.9.0 (java) and xvfb-run:
 #   FREEROUTING_JAR=/path/to/freerouting-1.9.0.jar

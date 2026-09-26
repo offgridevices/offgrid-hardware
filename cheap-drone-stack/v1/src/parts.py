@@ -108,9 +108,12 @@ PARTS = {
     'BZX585C15': dict(fp='aio:SOD-523_L1.2-W0.8-LS1.6-RD', lcsc='C550633',
                       mpn='BZX585-C15,135', value='15V',
                       desc='Zener 15 V 300 mW, SOD-523', kind='D'),
-    'RB521S30': dict(fp='aio:SOD-523_L1.2-W0.8-LS1.6-RD', lcsc='C145179',
-                     mpn='RB521S30T1G', value='RB521S30',
-                     desc='Schottky 30 V 200 mA, SOD-523', kind='D'),
+    # JSCJ's RB521S-30 (JLCPCB's footprint for it is SOD-523F, pad 1
+    # cathode like this one, so no CPL offset).  About a third of the price
+    # of onsemi's RB521S30T1G (C145179), which is the drop-in second source.
+    'RB521S30': dict(fp='aio:SOD-523_L1.2-W0.8-LS1.6-RD', lcsc='C8523',
+                     mpn='RB521S-30', value='RB521S30',
+                     desc='Schottky 30 V 200 mA, SOD-523 (JSCJ; alt. onsemi RB521S30T1G C145179)', kind='D'),
     'LED_RED': dict(fp='aio:LED-SMD_L1.6-W0.8-R-RD', lcsc='C2286',
                     mpn='KT-0603R', value='RED', desc='LED red 0603 (basic)', kind='LED'),
     'LED_BLUE': dict(fp='aio:LED0603-RD_BLUE', lcsc='C965807',

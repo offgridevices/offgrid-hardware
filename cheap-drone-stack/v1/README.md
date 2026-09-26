@@ -149,19 +149,82 @@ and a few values are "extended".
   one. Check it with a multimeter: VBAT (pin 1) must go to pin 1 at both ends.
 - **ST-Link V2** (or clone) to flash the ESC bootloaders once.
 
+### Ordering in volume
+
+The boards use no exotic parts. Every part is a stocked JLCPCB/LCSC
+catalogue part, most passives are JLC "basic" parts, and each part that
+matters has a second source that fits the same pads.
+
+**Panels.** JLCPCB's Standard assembly, which is the only JLC service that
+places both sides and takes large quantities, needs a board or panel of at
+least 70 × 70 mm. `make.py` therefore also writes a **3 × 2 panel** of each
+board to `production/panel/`: Gerbers, BOM and CPL, ready to upload in
+place of the single-board files. The panel is 105.4 × 83.6 mm with six
+boards, 5 mm rails, mouse-bite tabs, three fiducials per side and four 2 mm
+tooling holes. The tabs sit only where no part or copper is near the edge.
+The rail reads `JLCJLCJLCJLC`, so JLC prints its order number there rather
+than on a board. After depanelling, sand the tab stubs flush (up to 0.25 mm).
+`make.py` checks that every copy on the panel is the single board exactly:
+Gerbers, BOM and CPL, every copy. It also checks that the panel's DRC
+result equals six copies of the board's own.
+
+![FC panel](fc/images/cheapdrone-fc-panel-top.png)
+
+**Second sources.** These fit the same pads without any copper change:
+
+| Part | In the BOM | Drop-in alternative | What changes |
+|---|---|---|---|
+| Gyro | Bosch BMI270 (C2836813) | TDK ICM-42688-P (C1850418) | Flash the `_ICM` Betaflight image |
+| Blackbox flash | Puya PY25Q128HA (C18208279) | Winbond W25Q128JVPIQ (C190862) | Nothing |
+| FC MCU | STM32G473CEU6 (C1342773) | STM32G474CEU6 (C1235412), a superset in the same package | Nothing: Betaflight's G47x target is built for the G474 |
+| BEC inductor | cjiang FXL0530-4R7-M (C177246) | Sunlord MWSA0503S-4R7MT (C408410) | Nothing |
+| ESC MCU | STM32F051K6U6 (C81451) | Artery AT32F421K8U7 (C2965611), **untested** | AM32 image and flashing tool, see `firmware/README.md` |
+| Gate driver | JSMSEMI JSM6288Q (C19077370) | DOINGTER DO6288Q (C42386238), YLPTEC YC6288Q (C54157432) | Nothing; build one ESC first |
+| Bootstrap diode | JSCJ RB521S-30 (C8523) | onsemi RB521S30T1G (C145179) | Nothing |
+| 10 µF 50 V 0805 | Samsung CL21A106KBYQNNE (C2932476) | Murata GRM21BR61H106KE43L (C440198) | Nothing |
+
+**Component cost** (JLC catalogue prices on 26 Sep 2026, before assembly
+fees and bare boards):
+
+| | 1 set | 100 sets | 1,000 sets |
+|---|---|---|---|
+| FC | $15.62 | $9.79 | $9.13 |
+| ESC | $16.91 | $10.73 | $9.51 |
+| **Stack** | **$32.53** | **$20.52** | **$18.64** |
+| Stack with AT32F421 ESC MCUs | | | about $16.1 |
+
+- **What limits a large run is stock, not price.** On 26 Sep 2026, JLC's
+  866 STM32F051K6U6 were enough for 216 ESCs. That is why the AT32F421 path
+  exists: build and test one AT32 ESC before a big order. The next limit is
+  the STM32G473 (1,690 FCs). Reserve it, or buy it in, before committing.
+- **Assembly fees at JLC:** Standard assembly has a setup, stencil and
+  $1.53-per-unique-part loading fee per order: about $78 for the FC and
+  $100 for the ESC. On top of that is $0.0016 per solder joint: 208 joints
+  per FC and about 600 per ESC. At 1,000 sets this adds roughly $0.40 per
+  FC and $0.90 per ESC.
+- **Bare boards** (6-layer ESC, 4-layer FC, ENIG, black) were not priced
+  here. Get a JLC or PCBWay quote for the panels at the volume you need.
+- **Programming** is the one per-unit labour step. Each FC flashes over USB
+  (hold BOOT, plug in). Each ESC needs four SWD sessions on its test pads.
+  At volume, use a pogo-pin fixture on those pads, or the assembler's
+  pre-programming service.
+
 ---
 
 ## Assembly
 
 1. **FC to receiver:** receiver on the FC's front-left pads: `5V`, `G`,
    `R2` to the receiver's TX, `T2` to the receiver's RX.
-2. **XT30 lead and capacitor:** onto the ESC's rear-left pads, `+` outer,
+2. **Flash the ESCs** while the ESC board is still bare: no battery lead,
+   no capacitor, not stacked. See [`firmware/README.md`](firmware/README.md).
+   The ST-Link's 3.3 V also reaches the battery net through the 3.3 V
+   buck's body diode. With the 470 µF fitted it would have to charge that
+   too.
+3. **XT30 lead and capacitor:** onto the ESC's rear-left pads, `+` outer,
    `-` inner. The capacitor goes across the same two pads, observing its
    polarity.
-3. **Motor wires:** each motor's three wires to the three pads marked with
+4. **Motor wires:** each motor's three wires to the three pads marked with
    its number.
-4. **Flash the ESCs:** do this before stacking, with the battery
-   disconnected. See [`firmware/README.md`](firmware/README.md).
 5. **Stack:** ESC at the bottom, FC on top, both with the **Front arrow
    forward**. Fit the stack cable.
 
@@ -191,9 +254,7 @@ Do these in order. Each step catches a fault before it can damage the next.
    stopper on the battery.
    - It should idle at a few tens of mA.
    - Check the 3.3 V buck at the `3V3` test pad.
-5. **Flash the four ESCs:** AM32 bootloader and firmware over SWD, battery
-   off. See `firmware/README.md`.
-6. **Stack plus battery, props off:**
+5. **Stack plus battery, props off:**
    - ESC-configurator via Betaflight passthrough must see four AM32 ESCs.
      Set KV 3800 and 12 poles.
    - In Betaflight's Motors tab, spin each motor slowly. Confirm the order
@@ -201,6 +262,11 @@ Do these in order. Each step catches a fault before it can damage the next.
      directions in ESC-configurator.
    - Check the RPM readout. Bidirectional DShot working means the ESC
      telemetry path is sound.
+6. **Heat, props on, before the first real flight.** Tape a thermocouple
+   to the hottest FET package (the channel with the longest run to the
+   battery pads). Run 10 s, then 30 s, at full throttle with the quad
+   held down. Stop at 100 °C. This is the ESC's only current rating
+   until it has been measured: see [Limits](#limits).
 7. **Props on:** hover test on a leash or in a net first.
 
 ## Limits
@@ -222,6 +288,25 @@ Do these in order. Each step catches a fault before it can damage the next.
 - **Heat.** The FETs of motors 2 and 3 are on top and those of 1 and 4 on
   the bottom. All of them dump heat into the ground and battery planes.
   Keep the stack in the airflow and do not run full throttle on the bench.
+  The XING2 1404's published maximum is 15.8 A for 60 s. At that current
+  each motor's FETs dissipate about 4 W, which suits full-throttle bursts
+  of a few seconds, not a full minute without airflow. Bring-up step 6
+  measures it. If it runs hot, order the ESC with **2 oz inner copper**
+  (the In1/In4 planes carry all four motors' current) before changing parts.
+- **USB power back-feeds the battery net.** On USB alone, about 3.9 V
+  reaches VBAT through the FC's 5 V buck (its high-side FET's body diode).
+  That powers the `VBAT` pad and the stack lead at a level where the ESC's
+  buck may start and stop. It does no harm, but unplug the stack lead
+  and the VTX while configuring on USB. Betaflight will show a "1S"
+  battery.
+- **VTX power.** The stack lead's JST-SH contacts are rated 1 A, and they
+  already carry the FC's own BEC current. Wire a VTX that draws more than
+  about 300 mA (any digital or 800 mW analog VTX) to the ESC's battery
+  pads, not to the FC's `VBAT` pad.
+- **Dead time.** AM32's `FD6288_F051` inserts about 0.94 µs, about five
+  times what the gate driver needs. That is safe, and costs about 0.3 W per
+  motor at 8 A in body-diode conduction. A shorter value needs a custom
+  AM32 build, and should be checked on a scope first.
 
 ---
 
@@ -272,11 +357,13 @@ v1/
     cheapdrone-fc.kicad_pcb / .kicad_pro / .kicad_dru   open in KiCad 10
     production/           gerbers zip, BOM + CPL (JLCPCB), BOM (PCBWay),
                           netlist, assembly drawing (PDF)
+      panel/              the same for a 3 x 2 panel, for volume assembly
     images/               renders
   esc/                    4-in-1 ESC, same layout
   mechanical/             STEP models of both boards (zipped), for frame CAD
-  firmware/               Betaflight target + hex, AM32 bootloader + firmware,
-                          flashing script, CLI setup
+  firmware/               Betaflight targets + hex (one per gyro chip), AM32
+                          bootloader + firmware (STM32F051, and AT32F421
+                          untested), flashing scripts, CLI setup
   aio.pretty/ aio.3dshapes/   footprints and 3D models (from JLCPCB/EasyEDA's
                           own library entries for the exact LCSC parts)
   fonts/                  Instrument Sans and JetBrains Mono (SIL OFL), for
@@ -299,6 +386,7 @@ The design is the Python in `src/`:
 | `artwork.py` | Silkscreen placement: labels go only where they touch no pad, hole, part body or other label. |
 | `brand.py` | The OffGrid mark, lockup and type as outlines, from the brand hand-off's numbers. |
 | `fab.py` | Gerbers, drills, BOM, CPL, netlist, assembly PDF, renders, STEP. |
+| `panel.py` | The 3 × 2 production panel (KiKit), checked copy by copy against the single board. |
 | `make.py` | Runs it all with gates. |
 | `verify.py` | Writes `VERIFICATION.md`. |
 
@@ -311,5 +399,5 @@ gives a different (equally checked) board, not the committed one. The
 committed `.kicad_pcb` files are the reference.
 
 The tools: KiCad 10 (`pcbnew` Python module and `kicad-cli`), Freerouting 1.9
-(Java, headless via `xvfb-run`), and Python 3.12 with the packages in
-`requirements.txt`.
+(Java, headless via `xvfb-run`), KiKit 1.8 for the panel, and Python 3.12
+with the packages in `requirements.txt`.
