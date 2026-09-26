@@ -61,7 +61,7 @@ def nudge_vias(path, drc_json, out=None, clearances=None, steps=26, log=print):
                 g = Point(x, y).buffer(d / 2)
                 if any(kp.intersects(g) for kp in obs.keepouts):
                     continue
-                ok = all(math.hypot(x - hx, y - hy) - hr - r >= (GAP_FILLED if max(hr, r) >= FILLED_R else GAP_PLAIN)
+                ok = all(math.hypot(x - hx, y - hy) - hr - r >= (GAP_FILLED if (hx, hy, hr) in getattr(obs, 'pad_holes', ()) else GAP_PLAIN)
                          for hx, hy, hr in obs.holes)
                 if not ok or not obs.clear(g, net, cu, 0.1):
                     continue

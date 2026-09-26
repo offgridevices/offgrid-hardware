@@ -64,20 +64,23 @@ minimum quantity, assemble one stack, and go through the
   - Bulk capacitors directly under the FETs.
 - **Layout:**
   - Each channel owns one board edge, and its three half-bridges face their
-    motor pads.
-  - Motors 2 and 3 are built on the top side, motors 1 and 4 on the bottom.
-  - All twelve motor pads are on top, so everything can be soldered with the
-    stack assembled.
+    motor pads. Each gate driver sits behind the middle of its FET row, and
+    each MCU sits in its own corner.
+  - Every chip is on the bottom: the four MCUs, the four gate drivers, the
+    twelve FETs and the buck. The four channels are one drawing turned by
+    90°. A channel built on the other side would come out mirrored, and its
+    MCU would land in a neighbour's corner.
+  - The top carries the passives that need not sit against a chip:
+    back-EMF dividers, bootstrap diodes and part of the decoupling. The top
+    also holds all twelve motor pads, the battery pads and the stack
+    connector, so everything can be soldered with the stack assembled.
   - Six layers: signals on the outer layers and on In2 and In3, a solid
     ground plane on In1 and a solid battery plane on In4. Every FET pin
     reaches its plane through a column of vias beside the pin.
-  - One MCU per corner, and no MCU or driver sits directly over another
-    chip on the other side. Each gate driver sits behind the middle of its
-    FET row. (Stacked back to back, as in the first layout, the chips left
-    no room for vias, and neither router could get the signals out.)
-  - Vias in pads: small parts and the chips' ground pads connect to the
-    planes through vias inside their own pads. JLCPCB fills and caps these
-    free on 6-layer boards (see [Ordering](#ordering)).
+  - Vias in pads: the small parts, the chips' ground pads and the FET gates
+    connect through vias inside their own pads. QFN pins that change layer
+    escape through a via just outside the pin. JLCPCB fills and caps every
+    via free on 6-layer boards (see [Ordering](#ordering)).
 - **Also:**
   - 3.3 V buck for the four MCUs.
   - Shared battery-voltage divider for AM32.
@@ -88,8 +91,8 @@ minimum quantity, assemble one stack, and go through the
 standard pinout: `1 VBAT, 2 GND, 3 CUR, 4 TLM, 5 M1, 6 M2, 7 M3, 8 M4`.
 
 **Motor numbering:** Betaflight's Quad X. Motor 1 is rear-right, 2
-front-right, 3 rear-left and 4 front-left. Each motor's three pads on the
-ESC carry its number on the silkscreen. The order of the three wires within
+front-right, 3 rear-left and 4 front-left. On the ESC, each motor's number
+is printed beside its three pads. The order of the three wires within
 a motor does not matter: set the direction in ESC-configurator.
 
 ---
@@ -117,7 +120,7 @@ separate orders. They differ only in layer count:
 | Inner copper | **1 oz for the ESC** (its In1/In4 planes carry the motor current); 0.5 oz is fine for the FC |
 | Via covering | FC: tented (the default). **ESC: "Epoxy Filled & Capped" (POFV)**: the ESC has vias in pads. JLCPCB makes POFV the free default on 6–20 layer boards. At PCBWay, ask for via-in-pad filled and capped, which is a paid option there |
 | Min track / spacing | 0.1 / 0.1 mm (JLCPCB standard multilayer capability) |
-| Min via | FC 0.45 mm pad / 0.25 mm drill. ESC 0.35 mm / 0.2 mm (JLCPCB's 6-layer standard allows 0.25 / 0.15); vias in pads are 0.45 / 0.3 and keep 0.45 mm from other holes, as JLC's POFV rules ask |
+| Min via | FC 0.45 mm pad / 0.25 mm drill. ESC 0.35 mm / 0.2 mm (JLCPCB's 6-layer standard allows 0.25 / 0.15); vias in pads are 0.45 / 0.3. Every via keeps 0.45 mm from the unplated mounting holes, which are drilled after the via fill, as JLC's POFV rules ask |
 | Stackup | The fab's standard 1.6 mm build: JLC04161H-7628 for the FC; any standard 6-layer 1.6 mm for the ESC (no impedance control needed) |
 | Order number | "Remove" or "specify location". The boards have no free spot reserved for it. |
 
@@ -227,8 +230,8 @@ fees and bare boards):
 3. **XT30 lead and capacitor:** onto the ESC's rear-left pads, `+` outer,
    `-` inner. The capacitor goes across the same two pads, observing its
    polarity.
-4. **Motor wires:** each motor's three wires to the three pads marked with
-   its number.
+4. **Motor wires:** each motor's three wires to the three pads beside its
+   number.
 5. **Stack:** ESC at the bottom, FC on top, both with the **Front arrow
    forward**. Fit the stack cable.
 
@@ -289,8 +292,8 @@ Do these in order. Each step catches a fault before it can damage the next.
   bring-up before long full-throttle runs. The ESC has no current sensor.
   Betaflight shows voltage but reports current as 0; `cli-setup.txt` sets
   `current_meter = NONE`.
-- **Heat.** The FETs of motors 2 and 3 are on top and those of 1 and 4 on
-  the bottom. All of them dump heat into the ground and battery planes.
+- **Heat.** All twelve FETs are on the ESC's underside, facing the frame,
+  away from the FC. They dump heat into the ground and battery planes.
   Keep the stack in the airflow and do not run full throttle on the bench.
   The XING2 1404's published maximum is 15.8 A for 60 s. At that current
   each motor's FETs dissipate about 4 W, which suits full-throttle bursts
@@ -386,7 +389,10 @@ The design is the Python in `src/`:
 | `parts.py` | Every orderable part, with its LCSC number, MPN and footprint. |
 | `footprints.py` | Builds `aio.pretty` from the JLCPCB/EasyEDA library entries. |
 | `fc_layout.py`, `esc_layout.py` | Placement, power copper, planes and silkscreen. The ESC is one motor channel written once and stamped onto four edges. |
-| `route.py`, `fanout.py`, `finish.py` | Plane fan-out, then Freerouting for the signal routing, then an in-house maze router with rip-up to finish the last connections. |
+| `route.py`, `fanout.py`, `finish.py` | Plane fan-out and escape vias, then Freerouting for the signal routing, then an in-house maze router with rip-up to finish the last connections. |
+| `esc_fixes.py` | The ESC's last connection (motor 1's FET C low-side gate), which both routers left sealed at both ends: two written-down, deterministic edits, applied by the pipeline and checked by its DRC. |
+| `cleanup.py`, `pofv.py` | ESC clean-up after routing: unused escape vias and stubs come out one at a time, each removal kept only if KiCad's DRC agrees; vias move off the POFV hole spacing if needed. |
+| `pipeline.py` | The order the above run in for `--reroute`. |
 | `artwork.py` | Silkscreen placement: labels go only where they touch no pad, hole, part body or other label. |
 | `brand.py` | The OffGrid mark, lockup and type as outlines, from the brand hand-off's numbers. |
 | `fab.py` | Gerbers, drills, BOM, CPL, netlist, assembly PDF, renders, STEP. |
@@ -398,9 +404,12 @@ The design is the Python in `src/`:
 files and fails unless each board has zero DRC errors and zero unconnected
 items, the copper matches `circuit.py` pad for pad, and every assembled part
 is in the BOM and the CPL. `python3 make.py --reroute` places and routes both
-boards from scratch first. Autorouting is not deterministic, so a reroute
-gives a different (equally checked) board, not the committed one. The
-committed `.kicad_pcb` files are the reference.
+boards from scratch first. A reroute must pass the same gates, but it does
+not reproduce the committed copper: every fresh build gives the board's
+items new IDs, which changes the order the router sees them in. On the ESC,
+a reroute also leaves a connection or two for someone to finish, the way
+`esc_fixes.py` finished the committed board's last one, so it can stop at
+the DRC gate. The committed `.kicad_pcb` files are the reference.
 
 The tools: KiCad 10 (`pcbnew` Python module and `kicad-cli`), Freerouting 1.9
 (Java, headless via `xvfb-run`), KiKit 1.8 for the panel, and Python 3.12

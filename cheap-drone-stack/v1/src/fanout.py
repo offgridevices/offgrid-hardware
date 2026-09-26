@@ -31,6 +31,7 @@ class Obstacles:
     def __init__(self, board, layers):
         self.items = {l: [] for l in layers}
         self.holes = []                       # (x, y, drill radius) of every plated/unplated hole
+        self.pad_holes = set()                # the pad holes among them (drilled after the via fill)
         for fp in board.GetFootprints():
             for pad in fp.Pads():
                 for l in layers:
@@ -40,7 +41,7 @@ class Obstacles:
                             self.items[l].append((g, pad.GetNetname()))
                 if pad.GetDrillSize().x > 0:          # holes cut every layer
                     p = pad.GetPosition(); r = mm(pad.GetDrillSize().x) / 2
-                    self.holes.append((mm(p.x), mm(p.y), r))
+                    self.holes.append((mm(p.x), mm(p.y), r)); self.pad_holes.add((mm(p.x), mm(p.y), r))
                     for l in layers:
                         self.items[l].append((Point(mm(p.x), mm(p.y)).buffer(r), '__hole__'))
         self.vias = []
@@ -75,9 +76,16 @@ class Obstacles:
             self.items[l].append((geom, net))
         self._index()
 
+    # every via is filled and capped: only the holes drilled after the fill
+    # (pad holes) need the POFV gap; via to via is the normal hole-to-hole rule
+    VIA_GAP = 0.25
+
     def hole_room(self, x, y, r, gap):
-        """No other hole closer than `gap`, edge to edge."""
-        return all((x - hx) ** 2 + (y - hy) ** 2 >= (gap + r + hr) ** 2 for hx, hy, hr in self.holes)
+        """No pad hole closer than `gap`, no via hole closer than VIA_GAP
+        (or `gap` if smaller), edge to edge."""
+        vg = min(gap, self.VIA_GAP)
+        return all((x - hx) ** 2 + (y - hy) ** 2 >= ((gap if (hx, hy, hr) in self.pad_holes else vg) + r + hr) ** 2
+                   for hx, hy, hr in self.holes)
 
     def via_room(self, x, y, pitch):
         """No other via (any net) closer than `pitch`, centre to centre:
@@ -320,7 +328,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
 
 
 def escape_vias(board, planes, inpad, far=5.0, max_pads=2, skip=(), bounds=None, lock=True, refs=(), force=(),
-                only=None):
+                only=None, only_pads=None):
     """Signal escapes in the pads themselves (filled and capped via-in-pad).
 
     For every signal net, a pad of a two-terminal part (resistor, capacitor,
@@ -332,6 +340,7 @@ def escape_vias(board, planes, inpad, far=5.0, max_pads=2, skip=(), bounds=None,
     any other hole.  force: (ref, pad number) pairs that get their via
     whatever the distance (a pad boxed in by a bundle it cannot cross).
     only: if given, the parts (refs) to consider, nothing else.
+    only_pads: if given, the (ref, pad number) pairs to consider, nothing else.
     Returns the number of vias placed."""
     layers = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu,
                           pcbnew.In4_Cu, pcbnew.B_Cu) if board.IsLayerEnabled(l)]
@@ -352,6 +361,8 @@ def escape_vias(board, planes, inpad, far=5.0, max_pads=2, skip=(), bounds=None,
             continue
         for fp, pad, side, x, y in lst:
             if only is not None and fp.GetReference() not in only:
+                continue
+            if only_pads is not None and (fp.GetReference(), pad.GetNumber()) not in only_pads:
                 continue
             if (fp.GetPadCount() > max_pads and fp.GetReference() not in refs) or pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
                 continue
@@ -410,3 +421,80 @@ def drop_unused_escapes(path):
             pcb.remove(b, t); n += 1
     b.Save(path)
     return n
+
+
+def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap=0.25, lock=True):
+    """A dog-bone escape for each (ref, pad number) of a QFN: a via just
+    outside the pad, straight out from the package (or a little to either
+    side), joined to the pad by a stub on the pad's layer.  Adjacent
+    escapes are staggered (near / far) so traces can still pass.  The via
+    clears every other net by `cl` on every layer and keeps `hole_gap` to
+    via holes (the POFV gap to pad holes); the stub clears every other net
+    on its layer.  Returns (placed, failed pins)."""
+    layers = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu,
+                          pcbnew.In4_Cu, pcbnew.B_Cu) if board.IsLayerEnabled(l)]
+    obs = Obstacles(board, layers)
+    from shapely.geometry import LineString
+    placed, failed = 0, []
+    order = list(pins)                     # the caller's order: earlier pins get the nearer spots
+    last = {}
+    for ref, num in order:
+        fp = board.FindFootprintByReference(ref)
+        pad = next(p for p in fp.Pads() if p.GetNumber() == num)
+        L = pcbnew.B_Cu if fp.IsFlipped() else pcbnew.F_Cu
+        c, q = fp.GetPosition(), pad.GetPosition()
+        qx, qy = mm(q.x), mm(q.y)
+        dx, dy = qx - mm(c.x), qy - mm(c.y)
+        bb = pad.GetBoundingBox()
+        if abs(dx) >= abs(dy):
+            nx, ny, h = (1 if dx > 0 else -1), 0, mm(bb.GetWidth()) / 2
+        else:
+            nx, ny, h = 0, (1 if dy > 0 else -1), mm(bb.GetHeight()) / 2
+        tx, ty = -ny, nx
+        near = h + 0.06 + via_d / 2
+        # stagger against the neighbouring pin's escape on the same face
+        prev = last.get((ref, nx, ny))
+        dists = [near, near + 0.45, near + 0.9]
+        if prev is not None and abs(prev[0] - (qx * tx + qy * ty)) < 0.75 and prev[1] == 0:
+            dists = [near + 0.45, near + 0.9, near]
+        net = pad.GetNetname()
+        spot = None
+        for k, d in enumerate(dists):
+            for lat in (0.0, 0.25, -0.25, 0.5, -0.5):
+                vx, vy = qx + nx * d + tx * lat, qy + ny * d + ty * lat
+                vg = Point(vx, vy).buffer(via_d / 2)
+                if not obs.clear(vg, net, layers, cl) or not obs.hole_room(vx, vy, via_drill / 2, hole_gap):
+                    continue
+                # stub: straight out of the pad, then over to the via
+                ex, ey = qx + nx * (d - 0.0), qy + ny * (d - 0.0)
+                pts = [(qx, qy), (ex, ey)] if lat == 0 else [(qx, qy), (qx + nx * (d - abs(lat)), qy + ny * (d - abs(lat))), (vx, vy)]
+                sg = LineString(pts).buffer(width / 2)
+                if not obs.clear(sg, net, [L], cl):
+                    continue
+                spot = (vx, vy, pts, 0 if k == 0 or dists[0] == near else 1)
+                break
+            if spot:
+                break
+        if not spot:
+            failed.append((ref, num))
+            continue
+        vx, vy, pts, far_ = spot
+        last[(ref, nx, ny)] = (qx * tx + qy * ty, 0 if abs((vx - qx) * nx + (vy - qy) * ny - near) < 1e-6 else 1)
+        v = pcbnew.PCB_VIA(board); v.SetPosition(pcbnew.VECTOR2I(MM(vx), MM(vy)))
+        v.SetWidth(MM(via_d)); v.SetDrill(MM(via_drill)); v.SetNet(pad.GetNet())
+        if lock:
+            v.SetLocked(True)
+        board.Add(v)
+        vg = Point(vx, vy).buffer(via_d / 2)
+        obs.add(vg, net, layers); obs.vias.append((vx, vy)); obs.netvias.append((vx, vy, net))
+        obs.holes.append((vx, vy, via_drill / 2))
+        for a, b_ in zip(pts[:-1], pts[1:]):
+            t = pcbnew.PCB_TRACK(board)
+            t.SetStart(pcbnew.VECTOR2I(MM(a[0]), MM(a[1]))); t.SetEnd(pcbnew.VECTOR2I(MM(b_[0]), MM(b_[1])))
+            t.SetWidth(MM(width)); t.SetLayer(L); t.SetNet(pad.GetNet())
+            if lock:
+                t.SetLocked(True)
+            board.Add(t)
+            obs.add(LineString([a, b_]).buffer(width / 2), net, [L])
+        placed += 1
+    return placed, failed

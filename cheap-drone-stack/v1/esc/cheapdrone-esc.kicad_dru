@@ -1,0 +1,15 @@
+(version 1)
+# JLCPCB 4-layer limits the board-setup numbers cannot express on their own.
+(rule "plated component hole to track"
+  (condition "A.Type == 'Pad' && A.isPlated() && A.Pad_Type == 'Through-hole' && B.Type == 'Track'")
+  (constraint hole_clearance (min 0.28mm)))
+# Every plane-net pad already has its own via into the plane; one thermal
+# spoke from the surface fill is enough.
+(rule "one spoke is enough"
+  (constraint min_resolved_spokes 1))
+# JLCPCB via-in-pad (POFV): ordered "Epoxy Filled & Capped", every via is
+# filled; holes drilled afterwards (here: the unplated mounting holes) keep
+# 0.45 mm from them.  Via to via: the board's normal hole-to-hole rule.
+(rule "POFV to drilled holes"
+  (condition "A.Type == 'Via' && B.Type == 'Pad'")
+  (constraint hole_to_hole (min 0.45mm)))

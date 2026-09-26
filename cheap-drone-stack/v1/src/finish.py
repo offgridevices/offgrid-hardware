@@ -689,3 +689,79 @@ def repair_tx(board, nets, protect=(), widths=None, clmap=None, max_rounds=60, m
             rollback(before, removed)
             log('   repair %-12s rolled back (victims %s)' % (net, sorted(victims)))
     return unrouted_nets(board)
+
+
+def repair_orders(board, nets, protect=(), widths=None, clmap=None, tries=40, max_victims=10, seed=1,
+                  passes=2, log=print):
+    """Rip-up and re-route in random orders, one jam at a time.  For each
+    open net: a 'soft' route (other signal nets may be crossed, at a cost)
+    names the nets in its way.  The net and those nets are torn up and
+    routed again in up to `tries` random orders (seeded: the same board
+    gives the same result); the first order in which the net joins up and
+    no torn-up net has more islands than before is kept, otherwise every
+    track and via is put back.  Returns the nets still open."""
+    import random
+    rnd = random.Random(seed)
+    protect = set(protect)
+    for t in board.GetTracks():
+        if t.GetNetname() not in protect:
+            t.SetLocked(False)
+
+    def islands(n):
+        return len(_net_components(board, n))
+
+    def snapshot():
+        return set(t.m_Uuid.AsString() for t in board.GetTracks())
+
+    def rollback(before, removed):
+        for t in list(board.GetTracks()):
+            if t.m_Uuid.AsString() not in before:
+                pcb.remove(board, t)
+        for t in removed:
+            board.Add(t)
+
+    def rip(n, removed):
+        for t in list(board.GetTracks()):
+            if t.GetNetname() == n and not t.IsLocked():
+                removed.append(t); pcb.remove(board, t)
+
+    def width(n):
+        return (widths or {}).get(n, 0.1)
+
+    def attempt(net):
+        if islands(net) <= 1:
+            return True
+        before = snapshot()
+        soft = set(t.GetNetname() for t in board.GetTracks() if not t.IsLocked()) - protect - {net}
+        victims = set()
+        route_net(board, net, track_w=width(net), clmap=clmap, lock=False, soft_nets=soft, victims_out=victims)
+        for t in list(board.GetTracks()):
+            if t.m_Uuid.AsString() not in before:
+                pcb.remove(board, t)
+        group = {net} | (victims - protect)
+        if len(group) > max_victims + 1:
+            log('   orders %-12s %d nets in the way, too many' % (net, len(group) - 1))
+            return False
+        base = {n: islands(n) for n in group}
+        for k in range(tries):
+            before = snapshot(); removed = []
+            for n in group:
+                rip(n, removed)
+            order = sorted(group - {net}); rnd.shuffle(order)
+            order = [net] + order if k % 2 == 0 else order[:len(order) // 2] + [net] + order[len(order) // 2:]
+            for n in order:
+                route_net(board, n, track_w=width(n), clmap=clmap, lock=False)
+            now = {n: islands(n) for n in group}
+            if now[net] == 1 and all(now[n] <= base[n] for n in group):
+                log('   orders %-12s routed on try %d, re-routed %s' % (net, k, sorted(group - {net})))
+                return True
+            rollback(before, removed)
+        log('   orders %-12s no order worked (%d tries, nets %s)' % (net, tries, sorted(group)))
+        return False
+
+    todo = list(nets)
+    for _ in range(passes):
+        todo = [n for n in todo if not attempt(n)]
+        if not todo:
+            break
+    return [n for n in unrouted_nets(board) if n in set(nets)]
