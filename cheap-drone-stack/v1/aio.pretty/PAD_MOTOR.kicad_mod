@@ -1,0 +1,102 @@
+(footprint "PAD_MOTOR"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "Motor phase wire pad")
+	(property "Reference" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "f7d08c7f-086b-48fd-b61e-6b6dab3ac48b")
+		(effects
+			(font
+				(size 0.4 0.4)
+				(thickness 0.06)
+			)
+		)
+	)
+	(property "Value" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "90c4ce1b-d8ba-4333-9abd-78d722fe0191")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "a8afd41a-072a-428c-99a7-d3ee47204c81")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "45d60d9e-2b92-4422-bb9b-78ec09c487e4")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr smd exclude_from_pos_files exclude_from_bom)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -1.1 -1.25)
+		(end 1.1 -1.25)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "7ba07aa2-6772-47ab-841b-952498daa387")
+	)
+	(fp_line
+		(start -1.1 1.25)
+		(end -1.1 -1.25)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "93b79166-d9d7-4973-b2ae-3ccb5fff9a8a")
+	)
+	(fp_line
+		(start 1.1 -1.25)
+		(end 1.1 1.25)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "11d1c5f4-6bf9-44cc-96f8-9f2224399b95")
+	)
+	(fp_line
+		(start 1.1 1.25)
+		(end -1.1 1.25)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "e0e3629c-482b-437e-95fc-591372cb9fa9")
+	)
+	(pad "1" smd roundrect
+		(at 0 0)
+		(size 2 2.3)
+		(layers "F.Cu" "F.Mask")
+		(roundrect_rratio 0.2)
+		(thermal_bridge_angle 45)
+		(uuid "a1e71137-f928-46fa-af13-cd17d792ed5a")
+	)
+	(embedded_fonts no)
+)

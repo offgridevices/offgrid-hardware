@@ -1,0 +1,216 @@
+(footprint "CONN-TH_BM08B-SRSS-TB-LF-SN"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "c5fc4a49-4c0f-4196-9ab0-df7fd8b80c2e")
+		(effects
+			(font
+				(size 0.5 0.5)
+				(thickness 0.08)
+			)
+		)
+	)
+	(property "Value" "CONN-TH_BM08B-SRSS-TB-LF-SN"
+		(at 0 5.262 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "f0db8b39-0710-4371-aa67-99d393ad58d0")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "7dab63a1-7fa1-436a-99bf-1d5624f51731")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "ba0d9420-8ac8-47f7-a34a-bc3a0fa273d7")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "LCSC Part" "C160394"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "eb8d3284-3a3c-43a0-b88e-14cd5ebf3cbd")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr through_hole)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -5.65 -2.135)
+		(end 5.65 -2.135)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "83238ba5-722d-4d52-94d9-fee91b9b80e0")
+	)
+	(fp_line
+		(start -5.65 2.36)
+		(end -5.65 -2.135)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "cb4a7805-ab90-46f6-a971-99873c05f3ca")
+	)
+	(fp_line
+		(start 5.65 -2.135)
+		(end 5.65 2.36)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "366ddea4-c9ff-4538-b2e8-8cf602e4dc80")
+	)
+	(fp_line
+		(start 5.65 2.36)
+		(end -5.65 2.36)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "a3734897-5145-45f5-98a7-91126ddd5807")
+	)
+	(fp_line
+		(start -5 -0.64)
+		(end -5 2.26)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "247a3882-ca90-4941-9bff-ce56075ba719")
+	)
+	(fp_line
+		(start -5 2.26)
+		(end 5 2.26)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "5d8280b8-bb4d-4b2f-ab9c-e42d3c57f1af")
+	)
+	(fp_line
+		(start 5 -0.64)
+		(end -5 -0.64)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "0a7654f4-9152-44d8-adac-7d3d9a430ee4")
+	)
+	(fp_line
+		(start 5 2.26)
+		(end 5 -0.64)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "612bb042-03fc-41c9-8027-44d18888f994")
+	)
+	(pad "1" smd rect
+		(at 3.5 -1.26)
+		(size 0.6 1.55)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "aeb65a30-2ac3-4ffd-81d7-508998503276")
+	)
+	(pad "2" smd rect
+		(at 2.5 -1.26)
+		(size 0.6 1.55)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "82ac3478-41c8-4e79-824b-569391b68717")
+	)
+	(pad "3" smd rect
+		(at 1.5 -1.26)
+		(size 0.6 1.55)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "388b04c1-635e-43f9-8a01-fe3fdff40181")
+	)
+	(pad "4" smd rect
+		(at 0.5 -1.26)
+		(size 0.6 1.55)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "19326561-13e7-4774-9510-d8f573040c3b")
+	)
+	(pad "5" smd rect
+		(at -0.5 -1.26)
+		(size 0.6 1.55)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "4723717c-52fb-447b-bb8c-d0520160f836")
+	)
+	(pad "6" smd rect
+		(at -1.5 -1.26)
+		(size 0.6 1.55)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "081aca0b-3651-45db-af9c-3036116c8313")
+	)
+	(pad "7" smd rect
+		(at -2.5 -1.26)
+		(size 0.6 1.55)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "7a2c4ab1-53bf-4edd-bb47-6311effa9b06")
+	)
+	(pad "8" smd rect
+		(at -3.5 -1.26)
+		(size 0.6 1.55)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "1ef57782-c04f-4ddb-b941-5e1423baf360")
+	)
+	(pad "9" smd rect
+		(at -4.8 1.26)
+		(size 1.5 2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "d4dcc023-c6ac-48ca-865a-d47a4d1b24b4")
+	)
+	(pad "10" smd rect
+		(at 4.8 1.26)
+		(size 1.5 2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "aec7ab6c-bd0d-4dcc-a1e0-770ecc3a1a2e")
+	)
+	(embedded_fonts no)
+	(model "${KIPRJMOD}/../aio.3dshapes/CONN-SMD_SR1.00-LS-8P.stpZ"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 180)
+		)
+	)
+)

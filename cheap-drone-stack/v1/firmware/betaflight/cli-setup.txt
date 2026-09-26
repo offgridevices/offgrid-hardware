@@ -1,0 +1,28 @@
+# Cheap Drone stack v1 - Betaflight 2025.12 first-time setup
+# Phase 1 hardware: 3" frame, iFlight XING2 1404 3800KV, Gemfan 3016,
+# OVONIC 4S 650 mAh (XT30), RadioMaster RP3 ELRS receiver on UART2 (CRSF).
+# Paste into the Betaflight CLI after flashing CHEAPDRONE_G473, then check
+# the orientation in the Setup tab BEFORE the first flight: tilt the nose
+# down and the model must tilt nose down; yaw right and it must yaw right.
+
+# receiver: CRSF on UART2 (the pads marked 5V G R2 T2), telemetry on
+serial 1 64 115200 57600 0 115200
+set serialrx_provider = CRSF
+feature TELEMETRY
+
+# motors: AM32 ESC board, bidirectional DShot for the RPM filter
+set motor_pwm_protocol = DSHOT300
+set dshot_bidir = ON
+set motor_poles = 14
+
+# battery: 10k/1k divider on the FC; the ESC board has no current sensor
+set vbat_scale = 110
+set vbat_min_cell_voltage = 330
+set vbat_warning_cell_voltage = 350
+set vbat_max_cell_voltage = 430
+set current_meter = NONE
+
+# blackbox to the 16 MB flash
+set blackbox_device = SPIFLASH
+
+save

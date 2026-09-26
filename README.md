@@ -5,6 +5,7 @@ Open hardware from [OffGrid Devices](https://github.com/offgridevices). One fold
 | Board | What it is | Status |
 |---|---|---|
 | [`packet-logger-carrier/v1/`](packet-logger-carrier/v1/) | 86 × 58 mm carrier for a LoRa mesh packet logger — RAK19003 + XIAO ESP32-C6 + microSD | v1 ordered, not yet bench-verified |
+| [`cheap-drone-stack/v1/`](cheap-drone-stack/v1/) | 3" FPV stack for the Cheap Drone Phase 1 quad — 33.8 mm flight controller (STM32G473, ICM-42688-P, Betaflight) + 4-in-1 AM32 ESC (4S), 25.5 mm mount | v1 designed, DRC-clean, not yet ordered |
 
 The firmware and analysis tooling these boards run with live in
 [`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab).
