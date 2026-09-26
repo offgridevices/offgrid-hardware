@@ -32,12 +32,15 @@ minimum quantity, assemble one stack, and go through the
 **Flight controller**, `fc/`: all parts on the top side, 53 parts, 4 layers.
 
 - **MCU:** STM32G473CEU6 (170 MHz Cortex-M4). Same MCU and pin map as the
-  TAKER G4, so Betaflight's `TAKERG4AIO` target runs it. Use the board's own
-  `CHEAPDRONE_G473` build from `firmware/`.
-- **Gyro:** ICM-42688-P on SPI1, on its own filtered 3.3 V supply. It is
-  mounted square to the board, so the alignment is `CW0` and board rotation
-  is 0/0/0.
-- **Blackbox:** W25Q128 16 MB flash on SPI2.
+  TAKER G4. Flash the board's own `CHEAPDRONE_G473` build from `firmware/`:
+  stock `TAKERG4AIO` has no BMI270 driver.
+- **Gyro:** Bosch BMI270 on SPI1, on its own filtered 3.3 V supply. The
+  same pads take a TDK ICM-42688-P. The two chips' axes differ by 90° on the
+  same pads, so `firmware/` has one Betaflight build for each chip
+  (`CW270` for the BMI270, `CW0` for the ICM). The wrong build shows no gyro
+  and will not arm. Board rotation is 0/0/0 with either chip.
+- **Blackbox:** 16 MB SPI NOR flash on SPI2: Puya PY25Q128HA in the BOM, or a
+  Winbond W25Q128 on the same pads. Betaflight knows both.
 - **Power:** 5 V 2 A buck (LMR51420, 36 V input) from the battery, and a
   3.3 V LDO. USB-C alone powers the board for setup.
 - **Pads:**

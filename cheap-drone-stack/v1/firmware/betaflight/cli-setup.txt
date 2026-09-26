@@ -1,9 +1,11 @@
 # Cheap Drone stack v1 - Betaflight 2025.12 first-time setup
 # Phase 1 hardware: 3" frame, iFlight XING2 1404 3800KV, Gemfan 3016,
 # OVONIC 4S 650 mAh (XT30), RadioMaster RP3 ELRS receiver on UART2 (CRSF).
-# Paste into the Betaflight CLI after flashing CHEAPDRONE_G473, then check
-# the orientation in the Setup tab BEFORE the first flight: tilt the nose
-# down and the model must tilt nose down; yaw right and it must yaw right.
+# Paste into the Betaflight CLI after flashing CHEAPDRONE_G473 (BMI270 gyro)
+# or CHEAPDRONE_G473_ICM (ICM-42688-P gyro), then check the orientation in
+# the Setup tab BEFORE the first flight: tilt the nose down and the model
+# must tilt nose down; right side down, it must roll right; yaw right and it
+# must yaw right.  Do not change the board alignment from 0/0/0.
 
 # receiver: CRSF on UART2 (the pads marked 5V G R2 T2), telemetry on
 serial 1 64 115200 57600 0 115200

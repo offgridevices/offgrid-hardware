@@ -15,8 +15,9 @@ pattern of the GEPRC TAKER G4 AIO that Phase 1 flew:
 
   FC   STM32G473CEU6 + BMI270 (or ICM-42688-P) + 16 MB flash, USB-C, three UARTs,
        beeper, LED strip, battery voltage and current inputs, 5 V 2 A BEC.
-       Pin map mirrors Betaflight target GEPR/TAKERG4AIO, so that stock
-       target also runs it (see firmware/ for the board's own target).
+       Pin map mirrors Betaflight target GEPR/TAKERG4AIO; firmware/ has the
+       board's own target, one build per gyro (stock TAKERG4AIO has no
+       BMI270 driver).
   ESC  4 x (STM32F051K6U6 + JSM6288Q + 3 x AON7934 half-bridge), wired to
        AM32 target FD6288_F051 so the stock AM32 release runs it.
 
@@ -175,9 +176,12 @@ def fc_core():
     # with OIS off, its reset state; pin 9 grounded is the ICM's FSYNC
     # when unused and the BMI270's INT2, which stays an input unless
     # enabled.  Own 10-ohm / 4.7 uF filter off the 3.3 V rail.
-    # Placed rotated 90 degrees so the ICM's +X points at the board's front arrow
-    # and its +Y to the left, which is Betaflight's body frame, so
-    # GYRO_1_ALIGN = CW0 and board alignment stays 0/0/0.
+    # Placed rotated 90 degrees, pin 1 rear-left, so the ICM's +X points at the
+    # board's front arrow and its +Y to the left, which is Betaflight's body
+    # frame: GYRO_1_ALIGN = CW0.  Relative to pin 1 the BMI270's axes are the
+    # ICM's turned 90 degrees (Bosch DS sec. 8.2 vs TDK fig. 15), so on the
+    # same pads it needs CW270.  firmware/ has one build per chip; board
+    # alignment stays 0/0/0 with either.
     add('U', 'BMI270', {'1': 'SPI1_MISO', '2': None, '3': None, '4': 'GYRO_INT',
                            '5': '+3V3_GYRO', '6': GND, '7': GND, '8': '+3V3_GYRO',
                            '9': GND, '10': GND, '11': GND, '12': 'GYRO_CS',

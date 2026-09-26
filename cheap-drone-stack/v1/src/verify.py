@@ -103,8 +103,14 @@ def check_fc_pins():
             if any(n != want for n in nets):
                 bad.append('%s=%s' % (name, nets))
     check(S, 'every VDD/VDDA/VREF+/VBAT pin on +3V3, every VSS on GND', not bad, ', '.join(bad))
-    # Betaflight config.h
-    cfg = open(os.path.join(V1, 'firmware/betaflight/configs/CHEAPDRONE_G473/config.h')).read()
+    # Betaflight config.h, one per gyro chip: the pin map must be the same
+    cfgs = {k: open(os.path.join(V1, 'firmware/betaflight/configs/%s/config.h' % k)).read()
+            for k in ('CHEAPDRONE_G473', 'CHEAPDRONE_G473_ICM')}
+    pinmap = {k: re.findall(r'#define\s+(\w+_PIN|TIMER_PIN_MAPPING|\w+_INSTANCE|\w+_DMA_OPT)\s+(.*)', v)
+              for k, v in cfgs.items()}
+    check(S, 'the BMI270 and ICM-42688-P configs have the same pin, timer and bus map',
+          pinmap['CHEAPDRONE_G473'] == pinmap['CHEAPDRONE_G473_ICM'])
+    cfg = cfgs['CHEAPDRONE_G473']
     want = {'MOTOR1': 'M1_SIG', 'MOTOR2': 'M2_SIG', 'MOTOR3': 'M3_SIG', 'MOTOR4': 'M4_SIG',
             'BEEPER': 'BEEPER', 'LED0': 'LED0', 'LED_STRIP': 'LED_STRIP',
             'UART1_TX': 'UART1_TX', 'UART1_RX': 'UART1_RX', 'UART2_TX': 'UART2_TX', 'UART2_RX': 'UART2_RX',
@@ -126,7 +132,8 @@ def check_fc_pins():
     far = {'GYRO_CS': ('U_IMU', '12'), 'SPI1_SCK': ('U_IMU', '13'), 'SPI1_MOSI': ('U_IMU', '14'),
            'SPI1_MISO': ('U_IMU', '1'), 'GYRO_INT': ('U_IMU', '4'), 'FLASH_CS': ('U_FLASH', '1'),
            'SPI2_MISO': ('U_FLASH', '2'), 'SPI2_MOSI': ('U_FLASH', '5'), 'SPI2_SCK': ('U_FLASH', '6')}
-    names = {'U_IMU': 'ICM-42688-P (DS-000347 pin table)', 'U_FLASH': 'W25Q128 (SOIC/WSON-8 pinout)'}
+    names = {'U_IMU': 'BMI270 sec. 7.1 / ICM-42688-P table 9 (same pins)',
+             'U_FLASH': 'W25Q128 / PY25Q128HA (same SOIC/WSON-8 pinout)'}
     for net, (ref, pin) in far.items():
         check(S, '%s reaches %s pin %s' % (net, ref, pin), comp('fc', ref).pins.get(pin) == net, names[ref])
     imu = comp('fc', 'U_IMU')
@@ -134,6 +141,37 @@ def check_fc_pins():
              'SPI and supply pins shared', imu.pins.get('2') is None and imu.pins.get('3') is None
           and imu.pins['12'] == 'GYRO_CS' and imu.pins['5'] == '+3V3_GYRO' and imu.pins['8'] == '+3V3_GYRO',
           'BOM part: %s' % parts.PARTS[imu.part]['mpn'])
+    # Gyro alignment against the placed footprint.  Pad 1 is the chip's
+    # pin-1 corner.  TDK DS-000347 fig. 15: pin 1 is at the ICM's (-X, +Y)
+    # corner.  Bosch BST-BMI270-DS000-08 sec. 8.2: pin 1 is at the BMI270's
+    # (+x, +y) corner.  Betaflight body frame: +X forward, +Y left; the
+    # board's front is -y in KiCad.  So with pin 1 rear-left and the pad
+    # 12-14 edge on the left, the ICM is CW0 and the BMI270 CW270.
+    b = pcbnew.LoadBoard(os.path.join(V1, 'fc', 'cheapdrone-fc.kicad_pcb'))
+    fp = b.FindFootprintByReference('U_IMU')
+    ctr = fp.GetPosition()
+    pad = {p.GetNumber(): p.GetPosition() for p in fp.Pads()}
+    rel = lambda n: (pcbnew.ToMM(pad[n].x - ctr.x), pcbnew.ToMM(pad[n].y - ctr.y))
+    p1, p13 = rel('1'), rel('13')
+    rear_left = p1[0] < 0 and p1[1] > 0
+    left_edge = p13[0] < 0 and abs(p13[0]) > abs(p13[1])
+    check(S, 'IMU footprint on top, pin 1 rear-left, pads 12-14 along the left edge',
+          not fp.IsFlipped() and rear_left and left_edge,
+          'pad 1 at (%.2f, %.2f), pad 13 at (%.2f, %.2f) mm from centre' % (p1 + p13))
+    align = {k: re.search(r'#define\s+GYRO_1_ALIGN\s+(\w+)', v).group(1) for k, v in cfgs.items()}
+    drivers = {k: sorted(set(re.findall(r'#define\s+USE_(?:ACC|GYRO|ACCGYRO)_(?:SPI_)?(\w+)', v)))
+               for k, v in cfgs.items()}
+    check(S, 'CHEAPDRONE_G473 (BMI270 build): GYRO_1_ALIGN CW270_DEG, BMI270 driver only',
+          align['CHEAPDRONE_G473'] == 'CW270_DEG' and drivers['CHEAPDRONE_G473'] == ['BMI270'],
+          '%s, drivers %s' % (align['CHEAPDRONE_G473'], drivers['CHEAPDRONE_G473']))
+    check(S, 'CHEAPDRONE_G473_ICM (ICM-42688-P build): GYRO_1_ALIGN CW0_DEG, ICM-42688-P driver only',
+          align['CHEAPDRONE_G473_ICM'] == 'CW0_DEG' and drivers['CHEAPDRONE_G473_ICM'] == ['ICM42688P'],
+          '%s, drivers %s' % (align['CHEAPDRONE_G473_ICM'], drivers['CHEAPDRONE_G473_ICM']))
+    check(S, 'no board rotation in either build (DEFAULT_ALIGN_BOARD_* unset)',
+          not any(re.search(r'#define\s+DEFAULT_ALIGN_BOARD', v) for v in cfgs.values()))
+    check(S, 'PID loop: BMI270 3.2 kHz (denom 1), ICM 8 kHz / 2 = 4 kHz',
+          re.search(r'DEFAULT_PID_PROCESS_DENOM\s+1\b', cfgs['CHEAPDRONE_G473']) is not None
+          and re.search(r'DEFAULT_PID_PROCESS_DENOM\s+2\b', cfgs['CHEAPDRONE_G473_ICM']) is not None)
     check(S, 'HSE crystal on PF0/PF1 with SYSTEM_HSE_MHZ 8',
           c.pins['5'] == 'HSE_IN' and c.pins['6'] == 'HSE_OUT' and 'SYSTEM_HSE_MHZ      8' in cfg
           and comp('fc', 'Y1').part == 'XTAL8M')
