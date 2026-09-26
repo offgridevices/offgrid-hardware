@@ -129,6 +129,11 @@ def check_fc_pins():
     names = {'U_IMU': 'ICM-42688-P (DS-000347 pin table)', 'U_FLASH': 'W25Q128 (SOIC/WSON-8 pinout)'}
     for net, (ref, pin) in far.items():
         check(S, '%s reaches %s pin %s' % (net, ref, pin), comp('fc', ref).pins.get(pin) == net, names[ref])
+    imu = comp('fc', 'U_IMU')
+    check(S, 'IMU pads take a BMI270 or an ICM-42688-P: pins 2/3 open (BMI270 aux I2C must not be grounded), '
+             'SPI and supply pins shared', imu.pins.get('2') is None and imu.pins.get('3') is None
+          and imu.pins['12'] == 'GYRO_CS' and imu.pins['5'] == '+3V3_GYRO' and imu.pins['8'] == '+3V3_GYRO',
+          'BOM part: %s' % parts.PARTS[imu.part]['mpn'])
     check(S, 'HSE crystal on PF0/PF1 with SYSTEM_HSE_MHZ 8',
           c.pins['5'] == 'HSE_IN' and c.pins['6'] == 'HSE_OUT' and 'SYSTEM_HSE_MHZ      8' in cfg
           and comp('fc', 'Y1').part == 'XTAL8M')
@@ -243,9 +248,27 @@ def check_power():
     kn = rn / (rs + rn)
     check(S, 'virtual neutral scales like the phases: %.4f vs %.4f (%.1f %% apart)' % (kn, kr, 100 * (kn / kr - 1)),
           abs(kn / kr - 1) < 0.03)
-    # gate drive
-    check(S, 'gate driver VCC = VBAT through 10 ohm: 4S 12.0-16.8 V inside JSM6288Q VCC 8-20 V and '
-             'AON7934 VGS +/-20 V', True, 'not for 2S/3S at low charge: below driver UVLO')
+    # gate drive: VCC from the pack through a resistor, clamped by a Zener
+    rv = [x for x in circuit.build('esc') if x.note == 'driver VCC filter']
+    dz = [x for x in circuit.build('esc') if x.note == 'driver VCC clamp']
+    VZ_MAX = 15.75       # BZX585-C15: 14.25-15.75 V (Nexperia datasheet)
+    check(S, 'gate driver VCC: pack through %d x %s, clamped by %d x %s (15 V, max 15.75 V): '
+             'gates at most 15.75 V against the AON7934\'s +/-20 V (4.25 V to spare) and inside the '
+             'JSM6288Q\'s 8-20 V VCC range' % (len(rv), rv[0].part if rv else '?', len(dz), dz[0].part if dz else '?'),
+          len(rv) == 4 and len(dz) == 4 and all(x.part == 'R330' for x in rv) and all(
+              x.part == 'BZX585C15' and x.pins['2'] == 'GND' and x.pins['1'].endswith('_VCC') for x in dz)
+          and 20 - VZ_MAX >= 4)
+    i_drv = 5e-3        # driver supply: IQ + 6 gates x ~25 nC at 48 kHz, upper estimate
+    for vb in (12.0, 16.8):
+        v = min(vb - i_drv * 330, 15.0)
+        check(S, 'gate drive at a %.1f V pack: VCC about %.1f V (330 ohm drop at %d mA)' % (vb, v, i_drv * 1e3),
+              8.0 <= v <= VZ_MAX, 'JSM6288Q UVLO below 8 V; AON7934 RDS(on) specified at 10 V and 4.5 V')
+    # BEC inductor against the regulator's current limit
+    ind = find('fc', 'BEC inductor')[0]
+    ISAT = {'L4U7H': 5.0, 'L4U7': 1.4}[ind.part]
+    check(S, 'FC BEC inductor %s: Isat %.1f A against the LMR51420 current limit 2.7 / 3.5 / 5.1 A (min/typ/max)'
+          % (parts.PARTS[ind.part]['mpn'], ISAT), ISAT >= 3.5,
+          'saturates only in a hard short at a worst-case-high limit' if ISAT < 5.1 else '')
     cb = value(find('esc', 'bootstrap A')[1].part) if find('esc', 'bootstrap A')[1].part.startswith('C') \
         else value(find('esc', 'bootstrap A')[0].part)
     QG = 11e-9      # AON7934 Q1 (the high side, D1 on the battery) Qg at 10 V, datasheet max
@@ -318,6 +341,26 @@ def check_board(board, name):
         job = zipfile.ZipFile(zp).read([x for x in names if x.endswith('.gbrjob')][0]).decode()
         check(S, 'gerber job file states %d layers and ENIG' % ncu,
               ('"LayerNumber": %d' % ncu in job or '"LayerNumber":  %d' % ncu in job) and 'ENIG' in job)
+    cpl = os.path.join(prod, name + '-cpl-jlcpcb.csv')
+    if os.path.exists(cpl):
+        import csv
+        rows_ = {r['Designator']: r for r in csv.DictReader(open(cpl))}
+        comps_ = {c.ref: c for c in circuit.build(board)}
+        bad = []
+        for fp in b.GetFootprints():
+            c = comps_.get(fp.GetReference())
+            if c is None or c.part not in parts.PARTS:
+                continue
+            off = parts.PARTS[c.part].get('jlc_rot', 0)
+            want = (fp.GetOrientationDegrees() + off) % 360
+            if fp.IsFlipped():
+                want = (180 - fp.GetOrientationDegrees()) % 360
+            if abs((float(rows_[fp.GetReference()]['Rotation']) - want + 180) % 360 - 180) > 0.01:
+                bad.append(fp.GetReference())
+        offs = sorted('%s +%d' % (c.ref, parts.PARTS[c.part]['jlc_rot']) for c in comps_.values()
+                      if c.part in parts.PARTS and parts.PARTS[c.part].get('jlc_rot'))
+        check(S, 'CPL rotation of every part = board rotation (+ JLCPCB footprint offset for second-source '
+                 'parts: %s)' % (', '.join(offs) or 'none'), not bad, ', '.join(bad))
     for f in ('-bom-jlcpcb.csv', '-cpl-jlcpcb.csv', '-bom-pcbway.csv', '-assembly.pdf', '-netlist.csv'):
         check(S, 'production/%s%s present' % (name, f), os.path.exists(os.path.join(prod, name + f)))
 
