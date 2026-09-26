@@ -315,9 +315,9 @@ RULES = """(version 1)
   (constraint min_resolved_spokes 1))
 """
 
-def write_rules(board_path):
+def write_rules(board_path, extra=''):
     import os
-    open(os.path.splitext(board_path)[0] + '.kicad_dru', 'w').write(RULES)
+    open(os.path.splitext(board_path)[0] + '.kicad_dru', 'w').write(RULES + extra)
 
 
 # Stackups, 1.6 mm, 1 oz outer and 0.5 oz inner copper.  4 layers:

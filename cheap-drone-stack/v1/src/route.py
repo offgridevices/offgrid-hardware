@@ -12,8 +12,15 @@ import pcbnew
 
 JAR = os.environ.get('FREEROUTING_JAR', os.path.expanduser('~/freerouting-1.9.0.jar'))
 
+# A board may add routing-only constraints (keepouts) to the copy exported
+# for Freerouting: PRE_EXPORT(board) is called before the DSN is written.
+PRE_EXPORT = None
+
+
 def export_dsn(pcb_path, dsn_path):
     b = pcbnew.LoadBoard(pcb_path)
+    if PRE_EXPORT:
+        PRE_EXPORT(b)
     ok = pcbnew.ExportSpecctraDSN(b, dsn_path)
     if not ok:
         raise SystemExit('DSN export failed')

@@ -58,6 +58,8 @@ class Grid:
         other = {l: [] for l in self.layers}; same = {l: [] for l in self.layers}
         self.soft = {l: [] for l in self.layers}
         self.inner_zones = {}
+        self.same_via_holes = []
+        self.pofv_holes = []
         holes = []
         b = self.board
         for fp in b.GetFootprints():
@@ -87,6 +89,12 @@ class Grid:
                         same[l].append(g)
                     else:
                         other[l].append((g, self.netcl(t.GetNetname())))
+                if t.GetNetname() == net_exclude:
+                    # a new via of this net must still keep its hole clear of this one's
+                    self.same_via_holes.append(Point(mm(p.x), mm(p.y)).buffer(mm(t.GetDrillValue()) / 2))
+                if POFV_GAP and mm(t.GetDrillValue()) >= POFV_DRILL - 1e-3:
+                    # filled (via-in-pad) vias keep POFV_GAP to every other hole
+                    self.pofv_holes.append(Point(mm(p.x), mm(p.y)).buffer(mm(t.GetDrillValue()) / 2))
             elif t.GetLayer() in self.layers:
                 s, e = t.GetStart(), t.GetEnd()
                 g = LineString([(mm(s.x), mm(s.y)), (mm(e.x), mm(e.y))]).buffer(mm(t.GetWidth()) / 2)
@@ -133,6 +141,10 @@ class Grid:
             for g, c in self.inner_zones.get(l, []):
                 self._draw(img, g.buffer(max(c, mine) + self.tw / 2 + M, 8))
             self.block[l] = np.array(img, dtype=bool)
+        for g in self.same_via_holes:
+            self._draw(vmask, g.buffer(HOLE_TO_HOLE + VIA_DRILL / 2 + M, 8))
+        for g in self.pofv_holes:
+            self._draw(vmask, g.buffer(POFV_GAP + VIA_DRILL / 2 + M, 8))
         # inner layers: a via may not hit another net's pad or via there either
         for l in (pcbnew.In1_Cu, pcbnew.In2_Cu):
             pass
@@ -143,9 +155,9 @@ class Grid:
                 if z.GetDoNotAllowTracks():
                     for l in self.layers:
                         if z.GetLayerSet().Contains(l):
-                            img = Image.fromarray(self.block[l]); self._draw(img, g.buffer(self.tw / 2)); self.block[l] = np.array(img, dtype=bool)
+                            img = Image.fromarray(self.block[l]); self._draw(img, g.buffer(self.tw / 2 + M)); self.block[l] = np.array(img, dtype=bool)
                 if z.GetDoNotAllowVias():
-                    self._draw(vmask, g.buffer(self.vd / 2))
+                    self._draw(vmask, g.buffer(self.vd / 2 + M))
         # board edge
         e = int(math.ceil((self.edge + self.tw / 2) / RES)); ev = int(math.ceil((self.edge + self.vd / 2) / RES))
         for l in self.layers:
@@ -176,10 +188,21 @@ def _same_cells(grid, same, layer):
         grid._draw(img, g)
     return np.array(img, dtype=bool)
 
-def route_connection(board, net, a_items, b_items, clearance=0.1, track_w=0.1, via_d=0.45, via_drill=0.25,
+# Via the maze router drops (a board may set smaller ones, see esc_layout)
+VIA_D, VIA_DRILL = 0.45, 0.25
+HOLE_TO_HOLE = 0.25
+# JLCPCB via-in-pad (POFV): the in-pad vias (0.3 mm drill here; every
+# 0.3 mm-drill via is treated as one) keep more than 0.45 mm hole to hole
+# from any other hole.  None switches this off.
+POFV_GAP, POFV_DRILL = 0.46, 0.3
+
+
+def route_connection(board, net, a_items, b_items, clearance=0.1, track_w=0.1, via_d=None, via_drill=None,
                      max_expand=3_000_000, clmap=None, soft_nets=None, rip_cost=60, victims_out=None):
     """Route from copper island A to island B of `net`.  a_items/b_items are
     lists of shapely geometries per layer: {layer: [geom,...]}."""
+    via_d = VIA_D if via_d is None else via_d
+    via_drill = VIA_DRILL if via_drill is None else via_drill
     layers = list(ROUTE_LAYERS)
     g = Grid(board, layers, clearance, track_w, via_d, clmap=clmap, soft_nets=soft_nets)
     g.build(net)
@@ -400,6 +423,19 @@ def _net_components(board, net):
     for t in board.GetTracks():
         if t.GetNetname() == net:
             items.append(_geom_of(t))
+    # filled pours of the net join what they touch
+    for z in board.Zones():
+        if z.GetIsRuleArea() or z.GetNetname() != net or not z.IsFilled():
+            continue
+        for l in ROUTE_LAYERS:
+            if not z.GetLayerSet().Contains(l):
+                continue
+            fp_ = z.GetFilledPolysList(l)
+            for k in range(fp_.OutlineCount()):
+                ol = fp_.Outline(k)
+                pts = [(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())]
+                if len(pts) >= 3:
+                    items.append({l: [Polygon(pts).buffer(0)]})
     n = len(items)
     parent = list(range(n))
     def find(a):
@@ -582,4 +618,74 @@ def repair(board, nets, protect=(), widths=None, clmap=None, max_rips=4, max_rou
         for v in victims:
             if v not in queue:
                 queue.append(v)
+    return unrouted_nets(board)
+
+
+def repair_tx(board, nets, protect=(), widths=None, clmap=None, max_rounds=60, max_victims=4, log=print):
+    """Rip-up and re-route, one transaction at a time.  An open net may be
+    routed through the copper of other (unprotected) signal nets; those nets
+    are torn up and routed again.  The attempt is kept only if afterwards the
+    open net and every torn-up net have no more islands than before;
+    otherwise every track and via is put back as it was.  Returns the nets
+    still open."""
+    protect = set(protect)
+    for t in board.GetTracks():
+        if t.GetNetname() not in protect:
+            t.SetLocked(False)
+
+    def islands(n):
+        return len(_net_components(board, n))
+
+    def snapshot():
+        return set(t.m_Uuid.AsString() for t in board.GetTracks())
+
+    def rollback(before, removed):
+        for t in list(board.GetTracks()):
+            if t.m_Uuid.AsString() not in before:
+                pcb.remove(board, t)
+        for t in removed:
+            if t.m_Uuid.AsString() in before:
+                board.Add(t)
+
+    def rip(n, removed):
+        for t in list(board.GetTracks()):
+            if t.GetNetname() == n and not t.IsLocked():
+                removed.append(t); pcb.remove(board, t)
+
+    queue = list(nets)
+    tried = set()
+    rounds = 0
+    while queue and rounds < max_rounds:
+        rounds += 1
+        net = queue.pop(0)
+        w = (widths or {}).get(net, 0.1)
+        if route_net(board, net, track_w=w, clmap=clmap, lock=False) == 0:
+            log('   repair %-12s routed' % net)
+            continue
+        if net in tried:
+            continue
+        tried.add(net)
+        before = snapshot(); removed = []
+        soft = set(t.GetNetname() for t in board.GetTracks() if not t.IsLocked()) - protect - {net}
+        victims = set()
+        if route_net(board, net, track_w=w, clmap=clmap, lock=False, soft_nets=soft, victims_out=victims) \
+                or not victims or len(victims) > max_victims:
+            rollback(before, removed)
+            log('   repair %-12s no path (%d victims)' % (net, len(victims)))
+            continue
+        score0 = {v: islands(v) for v in victims}
+        score0[net] = None
+        rip(net, removed)
+        for v in victims:
+            rip(v, removed)
+        ok = route_net(board, net, track_w=w, clmap=clmap, lock=False) == 0
+        for v in sorted(victims):
+            route_net(board, v, track_w=(widths or {}).get(v, 0.1), clmap=clmap, lock=False)
+            if islands(v) > score0[v]:
+                ok = False
+        if ok:
+            log('   repair %-12s routed, re-routed %s' % (net, sorted(victims)))
+        else:
+            rollback(before, removed)
+            log('   repair %-12s rolled back (victims %s)' % (net, sorted(victims)))
     return unrouted_nets(board)

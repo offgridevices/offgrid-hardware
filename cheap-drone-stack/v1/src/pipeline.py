@@ -7,7 +7,8 @@
   2. Freerouting             everything else
   3. finish.finish_board()   in-house maze router for what Freerouting left
   4. finish.repair()         rip-up and re-route for the last few
-  5. ground pour on the outer layers, silkscreen, stray-stub removal
+  5. ESC: POFV hole spacing (pofv.nudge_vias); FC: ground pour on the outer
+     layers.  Silkscreen, stray-stub removal.
   6. KiCad DRC               must be 0 errors / 0 warnings / 0 unconnected
 
 Freerouting is not deterministic: two runs give two different, equally
@@ -18,13 +19,15 @@ from collections import Counter
 import pcbnew
 import pcb, route, finish, artwork, circuit
 
+EXTRA_RULES = ''       # board-specific DRC rules (esc_layout.DRU_EXTRA)
+
 
 def _copy_project(src_pcb, dst_pcb):
     for ext in ('.kicad_pro',):
         s = os.path.splitext(src_pcb)[0] + ext
         if os.path.exists(s):
             shutil.copy(s, os.path.splitext(dst_pcb)[0] + ext)
-    pcb.write_rules(dst_pcb)
+    pcb.write_rules(dst_pcb, EXTRA_RULES)
 
 
 def run(board_name, work, passes=60, log=print):
@@ -42,10 +45,15 @@ def run(board_name, work, passes=60, log=print):
     placed = os.path.join(work, board_name + '.kicad_pcb')
     routed = os.path.join(work, board_name + '_routed.kicad_pcb')
     fin = os.path.join(work, board_name + '_fin.kicad_pcb')
+    global EXTRA_RULES
+    EXTRA_RULES = getattr(L, 'DRU_EXTRA', '')
     L.build(placed)
-    pcb.write_rules(placed)
+    pcb.write_rules(placed, EXTRA_RULES)
     finish.ROUTE_LAYERS = getattr(L, 'ROUTE_LAYERS', [pcbnew.F_Cu, pcbnew.B_Cu])
-    n = route.route(placed, routed, passes=passes, rounds=1)
+    if hasattr(L, 'VIA_SIG'):
+        finish.VIA_D, finish.VIA_DRILL = L.VIA_SIG
+    route.PRE_EXPORT = getattr(L, 'routing_keepouts', None)
+    n = route.route(placed, routed, passes=passes, rounds=1 if board_name == 'fc' else 2)
     log('%s: %d connections left after Freerouting, %d duplicate vias removed'
         % (board_name, n, pcb.dedupe_vias(routed)))
     _copy_project(placed, routed); _copy_project(placed, fin)
@@ -56,8 +64,16 @@ def run(board_name, work, passes=60, log=print):
         left = finish.repair(b, todo, protect=planes + list(widths), widths=widths, clmap=clmap, log=log)
         b.Save(fin)
         log('%s: repair left %s' % (board_name, [x for x in left if x not in planes]))
-    pcb.pour_ground(fin, [pcbnew.F_Cu, pcbnew.B_Cu])
+    if board_name == 'fc':
+        pcb.pour_ground(fin, [pcbnew.F_Cu, pcbnew.B_Cu])
+    else:
+        import fanout, pofv
+        fanout.drop_unused_escapes(fin)
     artwork.remove_dangling(fin)
+    if board_name == 'esc':
+        e, w, u = pcb.drc(fin, os.path.join(work, 'esc_pofv_drc.json'))
+        if any(v['type'] == 'hole_to_hole' for v in e):
+            pofv.nudge_vias(fin, os.path.join(work, 'esc_pofv_drc.json'), clearances=clmap, log=log)
     b = pcbnew.LoadBoard(fin)
     if board_name == 'fc':
         L.artwork(b)
