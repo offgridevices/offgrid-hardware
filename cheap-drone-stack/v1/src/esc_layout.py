@@ -63,6 +63,7 @@ TEMPLATE = {
     'C_VCCHF': (-1.0, 4.0, 0, 'same'),
     'C_VCC':   (-3.4, 5.5, 90, 'same'),
     'R_VCC':   (-3.4, 8.3, 90, 'same'),
+    'D_Z':     (-3.4, 3.4, 90, 'same'),
     # MCU: its PA8-10 (HA/HB/HC) line up with the driver's HIN1-3
     'MCU': (6.5, 6.9, 90, 'same'),
     'C_VDD17': (3.9, 3.35, 0, 'same'),
@@ -130,6 +131,7 @@ def roles(comps, n):
         elif note == 'driver VCC filter': out['R_VCC'] = c.ref
         elif note == 'driver VCC bulk': out['C_VCC'] = c.ref
         elif note == 'driver VCC HF': out['C_VCCHF'] = c.ref
+        elif note == 'driver VCC clamp': out['D_Z'] = c.ref
         elif note.startswith('bootstrap '):
             ph = note[-1]
             out[('D_' if c.ref.startswith('D') else 'C_B') + ph] = c.ref
@@ -155,7 +157,7 @@ def roles(comps, n):
 # so each corner pairs one MCU with one resistor network.
 MCU_END = ('MCU', 'C_VDD17', 'C_VDD1', 'C_VDDA', 'C_RST', 'TP_DIO', 'TP_CLK')
 BEMF_END = ('R_BA_H', 'R_BA_L', 'R_BB_H', 'R_BB_L', 'R_BC_H', 'R_BC_L', 'R_NA', 'R_NB', 'R_NC', 'R_N',
-            'C_VCC', 'R_VCC')
+            'C_VCC', 'R_VCC', 'D_Z')
 
 
 def channel_template(n):

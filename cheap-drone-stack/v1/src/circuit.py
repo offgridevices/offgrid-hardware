@@ -13,7 +13,7 @@ pads (numbered 9 and 10 by the footprint, assigned by geometry - see there).
 Two boards, one stack, both 33.8 x 33.8 mm on the 25.5 mm M3/M2-grommet
 pattern of the GEPRC TAKER G4 AIO that Phase 1 flew:
 
-  FC   STM32G473CEU6 + ICM-42688-P + 16 MB flash, USB-C, three UARTs,
+  FC   STM32G473CEU6 + BMI270 (or ICM-42688-P) + 16 MB flash, USB-C, three UARTs,
        beeper, LED strip, battery voltage and current inputs, 5 V 2 A BEC.
        Pin map mirrors Betaflight target GEPR/TAKERG4AIO, so that stock
        target also runs it (see firmware/ for the board's own target).
@@ -84,7 +84,7 @@ def fc_power():
     cap('C10U50', 'VBAT', GND, B, 'BEC input')
     cap('C100N', 'VBAT', GND, B, 'BEC input HF')
     cap('C100N', 'BUCK_CB', 'BUCK_SW', B, 'BEC bootstrap')
-    add('L', 'L4U7', {'1': 'BUCK_SW', '2': '+5V'}, B, 'BEC inductor', ref='L1')
+    add('L', 'L4U7H', {'1': 'BUCK_SW', '2': '+5V'}, B, 'BEC inductor', ref='L1')
     cap('C22U25', '+5V', GND, B, 'BEC output')
     cap('C22U25', '+5V', GND, B, 'BEC output')
     res('R15K', '+5V', 'BUCK_FB', B, 'BEC feedback top')
@@ -167,13 +167,18 @@ def fc_core():
     res('R10K', 'BOOT0', GND, B, 'BOOT0 pulldown')
     add('SW', 'BOOTSW', {'1': '+3V3', '2': 'BOOT0'}, B, 'DFU boot button', ref='SW_BOOT')
 
-    # ICM-42688-P on SPI1.  Datasheet table 9: RESV pins 2,3,10,11 NC or GND,
-    # pin 7 GND, pin 9 (FSYNC/CLKIN) GND when unused.  Own 10-ohm / 4.7 uF
-    # filter off the 3.3 V rail.
-    # Placed rotated 90 degrees so its +X points at the board's FRONT arrow
+    # IMU on SPI1: Bosch BMI270, or the ICM-42688-P on the same pads (both
+    # are LGA-14 2.5 x 3 with the same SPI/power pins; Betaflight detects
+    # either).  Pins 2 and 3 are left open: the BMI270's aux I2C must not
+    # be grounded (Bosch), and ICM-42688-P table 9 allows RESV pins 2, 3,
+    # 10, 11 "NC or GND".  Pins 10/11 (BMI270 OCSB/OSDO) grounded is fine
+    # with OIS off, its reset state; pin 9 grounded is the ICM's FSYNC
+    # when unused and the BMI270's INT2, which stays an input unless
+    # enabled.  Own 10-ohm / 4.7 uF filter off the 3.3 V rail.
+    # Placed rotated 90 degrees so the ICM's +X points at the board's front arrow
     # and its +Y to the left, which is Betaflight's body frame, so
     # GYRO_1_ALIGN = CW0 and board alignment stays 0/0/0.
-    add('U', 'ICM42688P', {'1': 'SPI1_MISO', '2': GND, '3': GND, '4': 'GYRO_INT',
+    add('U', 'BMI270', {'1': 'SPI1_MISO', '2': None, '3': None, '4': 'GYRO_INT',
                            '5': '+3V3_GYRO', '6': GND, '7': GND, '8': '+3V3_GYRO',
                            '9': GND, '10': GND, '11': GND, '12': 'GYRO_CS',
                            '13': 'SPI1_SCK', '14': 'SPI1_MOSI'}, B, 'gyro', ref='U_IMU')
@@ -183,7 +188,7 @@ def fc_core():
     cap('C100N', '+3V3_GYRO', GND, B, 'gyro VDDIO')
 
     # 16 MB blackbox flash on SPI2.  /WP and /HOLD held high (plain SPI).
-    add('U', 'W25Q128', {'1': 'FLASH_CS', '2': 'SPI2_MISO', '3': '+3V3', '4': GND,
+    add('U', 'PY25Q128', {'1': 'FLASH_CS', '2': 'SPI2_MISO', '3': '+3V3', '4': GND,
                          '5': 'SPI2_MOSI', '6': 'SPI2_SCK', '7': '+3V3', '8': '+3V3',
                          '9': GND}, B, 'blackbox flash', ref='U_FLASH')
     cap('C100N', '+3V3', GND, B, 'flash')
@@ -206,12 +211,12 @@ def fc_core():
     add('LED', 'LED_RED', {'1': 'LED_PWR_A', '2': GND}, B, 'power LED', ref='LED_PWR')
     res('R1K', '+3V3', 'LED_PWR_A', B, 'power LED')
     add('LED', 'LED_BLUE', {'2': 'LED0_A', '1': 'LED0'}, B, 'status LED', ref='LED_STAT')
-    res('R1K', '+3V3', 'LED0_A', B, 'status LED')
+    res('R330', '+3V3', 'LED0_A', B, 'status LED')     # blue LED, Vf ~3 V: 1k left it dim
 
-    # Beeper: low-side 2N7002, buzzer between 5 V and BZ-.  FPV buzzers are
+    # Beeper: low-side AO3400A, buzzer between 5 V and BZ-.  FPV buzzers are
     # active (self-driven) 5 V parts, which Betaflight switches with a
     # steady level, so no flyback diode is needed.
-    add('Q', '2N7002', {'1': 'BEEPER_G', '2': GND, '3': 'BZ-'}, B, 'beeper switch', ref='Q_BZ')
+    add('Q', 'AO3400A', {'1': 'BEEPER_G', '2': GND, '3': 'BZ-'}, B, 'beeper switch', ref='Q_BZ')
     res('R100', 'BEEPER', 'BEEPER_G', B, 'beeper gate')
     res('R10K', 'BEEPER_G', GND, B, 'beeper gate pulldown')
 
@@ -301,13 +306,14 @@ def esc(n):
         '32': None,
     }, B, 'ESC %d MCU' % n, ref='U_ESC%d' % n)
     cap('C100N', '+3V3', GND, B, 'U_ESC%d VDD pin 1' % n)
-    cap('C100N', '+3V3', GND, B, 'U_ESC%d VDD pin 17' % n)
+    cap('C4U7', '+3V3', GND, B, 'U_ESC%d VDD pin 17' % n)     # ST's 4.7 uF bulk, at the MCU
     cap('C1U', '+3V3', GND, B, 'U_ESC%d VDDA' % n)
     cap('C100N', p('NRST'), GND, B, 'U_ESC%d reset filter' % n)
 
-    # Gate driver.  VCC straight from the pack through a 10-ohm / 10 uF
-    # filter: on 4S that is 12-16.8 V, inside the driver's 8-20 V range and
-    # the AON7934's +/-20 V gate rating.  (Not for 2S: below driver UVLO.)
+    # Gate driver.  VCC from the pack through 330 ohm into 10 uF, clamped
+    # at 15 V: 4S gives 10-15 V at the gates, inside the driver's 8-20 V
+    # range, with 5 V to spare below the AON7934's +/-20 V gate rating.
+    # (Not for 2S or 3S: too close to the driver's undervoltage lockout.)
     add('U', 'JSM6288Q', {
         '1': p('LA'), '2': p('LB'), '3': p('LC'),          # LIN1..3
         '4': p('VCC'), '5': None, '6': GND, '7': None, '8': None,
@@ -319,7 +325,12 @@ def esc(n):
         '22': p('HA'), '23': p('HB'), '24': p('HC'),      # HIN1..3
         '25': GND,                                          # exposed pad -> COM
     }, B, 'ESC %d gate driver' % n, ref='U_GD%d' % n)
-    res('R10', 'VBAT', p('VCC'), B, 'driver VCC filter')
+    res('R330', 'VBAT', p('VCC'), B, 'driver VCC filter')
+    # 15 V clamp: the gates see VCC (low side) and VCC - Vf (high side), so
+    # this keeps them 5 V inside the AON7934's +/-20 V at a full 16.8 V pack
+    # plus regen.  330 ohm: the driver draws a few mA (1.7 V drop at 5 mA),
+    # and at 16.8 V the Zener takes the rest, (16.8 - 15) / 330 = 5.5 mA.
+    add('D', 'BZX585C15', {'1': p('VCC'), '2': GND}, B, 'driver VCC clamp')
     cap('C10U50', p('VCC'), GND, B, 'driver VCC bulk')
     cap('C100N', p('VCC'), GND, B, 'driver VCC HF')
 

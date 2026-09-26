@@ -101,6 +101,12 @@ def bom_cpl(board, out_dir, name, board_name):
             q = fp.GetPosition()
             rot = fp.GetOrientationDegrees()
             bottom = fp.IsFlipped()
+            # a part whose JLCPCB library footprint is this board's land
+            # pattern turned round (a second source on the same pads)
+            off = p.get('jlc_rot', 0)
+            if bottom and off:
+                raise SystemExit('jlc_rot on a bottom-side part is not worked out: %s' % fp.GetReference())
+            rot += off
             if bottom:
                 rot = 180 - rot
             rot = round(rot % 360, 2) % 360

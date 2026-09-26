@@ -6,7 +6,7 @@ drawn for the Phase 1 hardware:
 
 | | Phase 1 part | What this stack does for it |
 |---|---|---|
-| Motors | iFlight XING2 1404 3800KV (12N14P) | Four AM32 ESCs, 30 V half-bridges, bidirectional DShot for the RPM filter |
+| Motors | iFlight XING2 1404 3800KV (9N12P: 12 magnet poles) | Four AM32 ESCs, 30 V half-bridges, bidirectional DShot for the RPM filter |
 | Props | Gemfan 3016 | – |
 | Battery | OVONIC 4S 650 mAh, XT30 | 4S only (see [Limits](#limits)); battery pads on the ESC's rear edge |
 | Receiver | RadioMaster RP3 ELRS (CRSF, 5 V) | 5 V / G / R2 / T2 pads on the FC's front-left edge, CRSF on UART2 by default |
@@ -192,7 +192,7 @@ Do these in order. Each step catches a fault before it can damage the next.
    off. See `firmware/README.md`.
 6. **Stack plus battery, props off:**
    - ESC-configurator via Betaflight passthrough must see four AM32 ESCs.
-     Set KV 3800 and 14 poles.
+     Set KV 3800 and 12 poles.
    - In Betaflight's Motors tab, spin each motor slowly. Confirm the order
      is 1 rear-right, 2 front-right, 3 rear-left, 4 front-left, and fix the
      directions in ESC-configurator.

@@ -66,8 +66,8 @@ and settings go through the flight controller in the usual way.
 1. Open <https://esc-configurator.com> in Chrome, connect to the flight
    controller (Betaflight passthrough), and click **Read settings**. All four
    ESCs should show *AM32 2.21, FD6288_F051*.
-2. Set these on all four: *Motor KV* `3800`, *Motor poles* `14` (the XING2
-   1404 is 12N14P), *Bi-directional DShot* **on**, *Low voltage cutoff*
+2. Set these on all four: *Motor KV* `3800`, *Motor poles* `12` (the XING2
+   1404 is 9N12P; count the magnets in one bell to be sure), *Bi-directional DShot* **on**, *Low voltage cutoff*
    **off** (Betaflight does battery warnings).
 3. Use Betaflight's *Motors* tab (props off!) to check the motor order and
    direction. Motor 1 is rear-right, 2 front-right, 3 rear-left, and 4

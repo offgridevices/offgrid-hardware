@@ -13,7 +13,8 @@ feature TELEMETRY
 # motors: AM32 ESC board, bidirectional DShot for the RPM filter
 set motor_pwm_protocol = DSHOT300
 set dshot_bidir = ON
-set motor_poles = 14
+# XING2 1404 is 9N12P: 12 magnets in the bell
+set motor_poles = 12
 
 # battery: 10k/1k divider on the FC; the ESC board has no current sensor
 set vbat_scale = 110

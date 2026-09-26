@@ -43,6 +43,19 @@ PARTS = {
     'ICM42688P': dict(fp='aio:LGA-14_L3.0-W2.5-P0.50-TL', lcsc='C1850418',
                       mpn='ICM-42688-P', value='ICM-42688-P',
                       desc='6-axis IMU, SPI, LGA-14 2.5x3', kind='U'),
+    # Bosch BMI270 on the ICM-42688-P's land pattern (pads within 0.09 mm;
+    # JLCPCB's library footprint for it is this one turned 180 degrees).
+    # $1.36 against $15.43 at 1000, and in stock where the ICM is not.
+    # Its pins 2/3 (aux I2C) must not be grounded, so circuit.py leaves
+    # them open, which the ICM-42688-P also allows: either part fits.
+    'BMI270': dict(fp='aio:LGA-14_L3.0-W2.5-P0.50-TL', lcsc='C2836813',
+                   mpn='BMI270', value='BMI270', jlc_rot=180,
+                   desc='6-axis IMU (Bosch), SPI, LGA-14 2.5x3', kind='U'),
+    # Puya PY25Q128HA on the W25Q128's WSON-8 land (pads within 0.11 mm;
+    # JLCPCB's footprint is this one turned 90 degrees).
+    'PY25Q128': dict(fp='aio:WSON-8_L6.0-W5.0-P1.27-BL-EP', lcsc='C18208279',
+                     mpn='PY25Q128HA-WXH-IR', value='PY25Q128HA', jlc_rot=90,
+                     desc='16 MB SPI NOR flash (blackbox), WSON-8 6x5', kind='U'),
     'W25Q128': dict(fp='aio:WSON-8_L6.0-W5.0-P1.27-BL-EP', lcsc='C190862',
                     mpn='W25Q128JVPIQ', value='W25Q128JVPIQ',
                     desc='16 MB SPI NOR flash (blackbox), WSON-8 6x5', kind='U'),
@@ -75,6 +88,11 @@ PARTS = {
     'AON7934': dict(fp='aio:DFN-8_L3.0-W3.0-P0.65-BL_AON7934', lcsc='C485677',
                     mpn='AON7934', value='AON7934',
                     desc='Dual asymmetric N-MOSFET half-bridge 30 V, DFN3x3', kind='Q'),
+    # Same JLCPCB footprint as the 2N7002, and specified at 2.5 V gate drive
+    # (48 mOhm), which the 3.3 V GPIO needs.  Basic part.
+    'AO3400A': dict(fp='aio:SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR', lcsc='C20917',
+                    mpn='AO3400A', value='AO3400A',
+                    desc='N-MOSFET 30 V logic level, beeper driver, SOT-23', kind='Q'),
     '2N7002': dict(fp='aio:SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR', lcsc='C8545',
                    mpn='2N7002', value='2N7002',
                    desc='N-MOSFET 60 V, beeper driver, SOT-23', kind='Q'),
@@ -85,6 +103,11 @@ PARTS = {
                      desc='Schottky 40 V 1 A, SOD-323 (basic)', kind='D'),
     # Bootstrap diodes: 30 V 200 mA Schottky in SOD-523, a third the area of
     # SOD-323.  Driver VCC tops out at 16.8 V on a full 4S pack.
+    # 15 V clamp on each gate driver's supply (same JLCPCB SOD-523
+    # footprint as the RB521S30: pad 1 cathode).
+    'BZX585C15': dict(fp='aio:SOD-523_L1.2-W0.8-LS1.6-RD', lcsc='C550633',
+                      mpn='BZX585-C15,135', value='15V',
+                      desc='Zener 15 V 300 mW, SOD-523', kind='D'),
     'RB521S30': dict(fp='aio:SOD-523_L1.2-W0.8-LS1.6-RD', lcsc='C145179',
                      mpn='RB521S30T1G', value='RB521S30',
                      desc='Schottky 30 V 200 mA, SOD-523', kind='D'),
@@ -95,6 +118,13 @@ PARTS = {
     'XTAL8M': dict(fp='aio:CRYSTAL-SMD_4P-L3.2-W2.5-BL', lcsc='C400090',
                    mpn='TAXM8M4RDBCCT2T', value='8MHz',
                    desc='Crystal 8 MHz 10 pF 3225', kind='Y'),
+    # FC BEC inductor: Isat 5 A, above the LMR51420's 2.7-5.1 A current
+    # limit as TI's design procedure asks (9.2.2.4).  The 3 x 3 mm FNR3015
+    # saturates at 1.4 A: fine for the ESC's 0.1 A 3.3 V rail, not for a
+    # 2 A BEC.
+    'L4U7H': dict(fp='aio:IND-SMD_L5.4-W5.2_FXL0530', lcsc='C177246',
+                  mpn='FXL0530-4R7-M', value='4.7uH',
+                  desc='Inductor 4.7 uH Isat 5 A, 5.4 x 5.2 mm molded', kind='L'),
     'L4U7': dict(fp='aio:IND-SMD_L3.0-W3.0_FNR30XXS', lcsc='C167753',
                  mpn='FNR3015S4R7MT', value='4.7uH',
                  desc='Inductor 4.7 uH 1.3 A shielded 3x3', kind='L'),
@@ -123,6 +153,7 @@ PARTS = {
     'R100':  R('100R', 'C25076', '0402WGF1000TCE'),
     'R750':  R('750R', 'C25132', '0402WGF7500TCE'),   # extended
     'R1K':   R('1k',   'C11702', '0402WGF1001TCE'),
+    'R330':  R('330R', 'C25104', '0402WGF3300TCE'),
     'R2K':   R('2k',   'C4109',  '0402WGF2001TCE'),
     'R2K2':  R('2.2k', 'C25879', '0402WGF2201TCE'),
     'R5K1':  R('5.1k', 'C25905', '0402WGF5101TCE'),
@@ -137,7 +168,8 @@ PARTS = {
     'C100N':  C('100nF', C0402, 'C307331', 'CL05B104KB54PNC',  '50V X7R 0402'),
     'C1U':    C('1uF',   C0402, 'C52923',  'CL05A105KA5NQNC',  '25V X5R 0402'),
     'C4U7':   C('4.7uF', C0402, 'C23733',  'CL05A475MP5NRNC',  '10V X5R 0402'),
-    'C10U50': C('10uF',  C0805, 'C440198', 'GRM21BR61H106KE43L','50V X5R 0805'),
+    # Samsung rather than Murata: 216k at JLCPCB against a few thousand
+    'C10U50': C('10uF',  C0805, 'C2932476', 'CL21A106KBYQNNE', '50V X5R 0805'),
     'C22U25': C('22uF',  C0805, 'C45783',  'CL21A226MAQNNNE',  '25V X5R 0805'),
     'C10U50B':C('10uF',  C1206, 'C13585',  'CL31A106KBHNNNE',  '50V X5R 1206'),
 }
