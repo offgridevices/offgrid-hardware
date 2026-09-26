@@ -405,7 +405,7 @@ def build(out_path):
 # ---------------------------------------------------------------- artwork
 def artwork(b, comps):
     """OffGrid silkscreen: motor number at every motor pad, battery
-    polarity, SWD pad names, front arrows, the lockup and what the board is.
+    polarity, SWD pad names, front arrows, the bare mark and what the board is.
     Codes in JetBrains Mono, words in Instrument Sans.  Nothing lands on a
     pad, a hole or a part body."""
     import artwork as A, brand
@@ -416,21 +416,25 @@ def artwork(b, comps):
     top = A.SilkPlacer(b, 'T', bodies=True, brand=True, via_clear=0.1)
     bot = A.SilkPlacer(b, 'B', bodies=True, brand=True, via_clear=0.1)
     side = {fp.GetReference(): ('B' if fp.IsFlipped() else 'T') for fp in b.GetFootprints()}
-    # every motor pad carries its motor number, beside it along the edge
-    # (the order of a motor's three wires does not matter)
+    # battery polarity first (square-ended strokes, outboard of each pad),
+    # then every motor pad's motor number beside it along the edge (the
+    # order of a motor's three wires does not matter)
+    def sign(plus, s=0.4, w=0.3):
+        g = box(-s, -w / 2, s, w / 2)
+        return unary_union([g, box(-w / 2, -s, w / 2, s)]) if plus else g
+    xp, yp = POWER['P_BAT+'][:2]; xm, ym = POWER['P_BAT-'][:2]
+    # outboard of each pad, level with each other
+    for plus, x0, y0 in ((True, xp, yp), (False, xm, ym)):
+        beside = [(x0 + (-1) ** plus * (1.3 + d), y0 + dy) for d in (0.55, 0.6, 0.7, 0.8, 0.95)
+                  for dy in (1.0, 1.6, 0.4, 2.0, 0.0)]
+        top.geom(sign(plus), beside, vias=False, margin=0.12)
     for n in CHANNELS:
         r = roles(comps, n)
         for ph in 'ABC':
             top.label_along(r['P' + ph], str(n), sizes=(1.5, 1.3, 1.2), face='mono')
-    # battery polarity, square-ended strokes outboard of each pad
-    def sign(plus, s=0.55, w=0.3):
-        g = box(-s, -w / 2, s, w / 2)
-        return unary_union([g, box(-w / 2, -s, w / 2, s)]) if plus else g
-    xp, yp = POWER['P_BAT+'][:2]; xm, ym = POWER['P_BAT-'][:2]
-    top.geom(sign(True), [(xp - 1.3 - d, yp + dy) for d in (0.8, 0.65, 0.95) for dy in (1.0, 1.6, 0.4, 2.0)],
-             vias=False, margin=0.15)
-    top.geom(sign(False), [(xm + 1.3 + d, ym + dy) for d in (0.7, 0.65, 0.85) for dy in (1.0, 1.6, 0.4, 2.0)],
-             vias=False, margin=0.15)
+    # the one limit that matters, beside the battery pads
+    top.text([('mono', '4S'), ('sans', 'only')],
+             [(x, y, 0, None) for x, y in top.grid_spots(((xp + xm) / 2, 9.5), radius=8.0, step=0.25)], size=1.2)
     # SWD pads, labelled on whichever side they are
     for n in CHANNELS:
         r = roles(comps, n)
@@ -445,32 +449,25 @@ def artwork(b, comps):
     for pl in (top, bot):
         spots = pl.grid_spots((0.0, -6.0), radius=11.0, step=0.25)
         if not pl.geom(brand.arrow_mm(2.6, 'Front', cap=1.2, mirror=pl.side == 'B'), spots, vias='fewest',
-                       margin=0.25):
+                       margin=0.25, quiet=True):
             pl.geom(brand.arrow_mm(2.6), spots, vias='fewest', margin=0.25)
-    # the lockup where there is room for it, else the bare mark; then what
-    # the board is, and the one limit that matters
+    # This board is full edge to edge: no room for the lockup, so the bare
+    # mark (the brand's everywhere mark), with what the board is beside it
     placed = None
-    for width in (16.0, 14.0, 12.0):
+    for width in (4.0, 3.5, 3.0):
+        g, clear = brand.mark_mm(width)
         for pl in (bot, top):
-            g, clear = brand.lockup_mm(width, mirror=pl.side == 'B')
-            at = pl.geom(g, pl.grid_spots((0.0, 5.0), radius=9.0, step=0.25), clear=clear, vias='fewest')
+            at = pl.geom(g, pl.grid_spots((0.0, 0.0), radius=17.0, step=0.25), clear=clear, vias='fewest',
+                         quiet=True)
             if at:
-                placed = (pl, at, g, clear)
+                placed = (pl, at)
                 break
         if placed:
             break
-    if placed is None:
-        g, clear = brand.mark_mm(3.5)
-        for pl in (bot, top):
-            at = pl.geom(g, pl.grid_spots((0.0, 5.0), radius=12.0, step=0.25), clear=clear, vias='fewest')
-            if at:
-                placed = (pl, at, g, clear)
+    pl, near = (placed[0], placed[1]) if placed else (bot, (0.0, 0.0))
+    for runs, cap in (([('sans', 'Cheap drone ESC'), ('mono', 'v1')], 1.2),):
+        for p in (pl, top if pl is bot else bot):
+            spots = [(x, y, 0, None) for x, y in p.grid_spots(near, radius=17.0, step=0.25)]
+            if p.text(runs, spots, size=cap, vias='fewest'):
+                near = (p.placed[-1].centroid.x - pcb.CX, p.placed[-1].centroid.y - pcb.CY)
                 break
-    pl = placed[0] if placed else bot
-    near = (placed[1][0], placed[1][1] + 3.5) if placed else (0.0, 0.0)
-    for runs, cap in (([('sans', 'Cheap drone ESC'), ('mono', 'v1')], 1.2),
-                      ([('mono', 'AM32 FD6288_F051')], 1.15),
-                      ([('mono', '4S'), ('sans', 'only')], 1.2)):
-        spots = [(x, y, 0, None) for x, y in pl.grid_spots(near, radius=10.0, step=0.25)]
-        if pl.text(runs, spots, size=cap, vias='fewest'):
-            near = (near[0], pl.placed[-1].bounds[3] - pcb.CY + 1.2)

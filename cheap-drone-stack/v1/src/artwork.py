@@ -163,7 +163,7 @@ class SilkPlacer:
         from shapely import affinity
         return brand.add(self.b, affinity.translate(g, -pcb.CX, -pcb.CY), self.layer)
 
-    def geom(self, g, spots, clear=0.0, vias=True, margin=0.4):
+    def geom(self, g, spots, clear=0.0, vias=True, margin=0.4, quiet=False):
         """Place a ready-made shapely geometry (board-centre mm, drawn round
         the origin) at the first (x, y) where it fits; `clear` is extra room
         kept round it for the next items (the mark's clear space)."""
@@ -184,7 +184,8 @@ class SilkPlacer:
                 best = (0, x, y, h, env)
                 break
         if best is None:
-            print('   silk: no room for artwork')
+            if not quiet:
+                print('   silk: no room for artwork')
             return None
         _, x, y, h, env = best
         self._add_geom(h)

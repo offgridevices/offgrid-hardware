@@ -178,6 +178,33 @@ def renders(board, out_dir, name):
     return outs
 
 
+def silk_from_gerbers(gdir, out_png, name):
+    """Both silkscreen layers read back from the Gerbers (not from KiCad):
+    what the fab will print, the bottom mirrored to read as seen from
+    below.  Needs gerbonara; skipped without it."""
+    try:
+        import warnings
+        from gerbonara import GerberFile
+        import pymupdf
+        from PIL import Image
+    except ImportError:
+        return None
+    ims = []
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        for suffix in ('F_Silkscreen.gto', 'B_Silkscreen.gbo'):
+            g = GerberFile.open(os.path.join(gdir, '%s-%s' % (name, suffix)))
+            svg = str(g.to_svg(fg='black', bg='white', margin=1))
+            pdf = pymupdf.open('pdf', pymupdf.open(stream=svg.encode(), filetype='svg').convert_to_pdf())
+            pix = pdf[0].get_pixmap(dpi=1200)
+            ims.append(Image.frombytes('RGB', (pix.width, pix.height), pix.samples))
+    top, bot = ims[0], ims[1].transpose(Image.FLIP_LEFT_RIGHT)
+    im = Image.new('RGB', (top.width + bot.width + 60, max(top.height, bot.height)), 'white')
+    im.paste(top, (0, 0)); im.paste(bot, (top.width + 60, 0))
+    im.save(out_png)
+    return out_png
+
+
 def step(board, out_path):
     """STEP of the assembled board, zipped: the raw file is ~18 MB, the zip
     a fifth of that, and every CAD tool reads the STEP inside."""
@@ -226,6 +253,9 @@ def produce(board, board_name, name, v1_dir):
     n_pads = netlist(board, prod, name)
     pdf = assembly_pdf(board, prod, name)
     pics = renders(board, img, name)
+    silk = silk_from_gerbers(os.path.join(prod, 'gerbers'), os.path.join(img, name + '-silkscreen-from-gerbers.png'), name)
+    if silk:
+        pics.append(silk)
     stp = step(board, os.path.join(v1_dir, 'mechanical', name + '.step'))
     return dict(zip=zp, gerber_files=files, parts=n_parts, bom_lines=n_lines, bottom_parts=n_bottom,
                 pads=n_pads, pdf=pdf, images=pics, step=stp)

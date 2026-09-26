@@ -15,7 +15,7 @@
  *      rotated so its axes ARE the board's axes: GYRO_1_ALIGN CW0 and no
  *      board rotation.  With the arrow on the board pointing forward, the
  *      default is right.  (A wrong default here cost Phase 1 three crashes.)
- *   2. Receiver on UART2 (the pads labelled RX 5V G R2 T2), CRSF.
+ *   2. Receiver on UART2 (the pads labelled 5V G R2 T2), CRSF.
  *   3. DShot300 with bidirectional DShot on, to suit the AM32 ESC board.
  */
 

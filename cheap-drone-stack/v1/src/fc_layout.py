@@ -192,7 +192,7 @@ def artwork(b):
     top.label('SW_BOOT', 'Boot', pad='1', size=1.2)
     everywhere = top.grid_spots((0.0, 0.0), radius=17.0, step=0.25)
     if not top.geom(brand.arrow_mm(2.6, 'Front', cap=1.2, side=True), [s for s in everywhere if s[1] < -8],
-                    vias='fewest', margin=0.2):
+                    vias='fewest', margin=0.2, quiet=True):
         top.geom(brand.arrow_mm(2.6), [s for s in everywhere if s[1] < -8], vias='fewest', margin=0.2)
     mark, clear = brand.mark_mm(3.0)
     top.geom(mark, everywhere, clear=clear, vias='fewest')

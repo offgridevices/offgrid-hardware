@@ -13,11 +13,15 @@ drawn for the Phase 1 hardware:
 | Frame | 25.5 mm mount, USB-C out the left side, lead out the back | Same hole pattern, board size, and USB and lead directions as the TAKER G4 |
 
 **Status: designed, not yet built.** Both boards pass KiCad DRC with **zero
-errors, zero warnings and zero unconnected items** against JLCPCB's 4-layer
-rules. The routed copper was checked pad by pad against the circuit in
-`src/circuit.py`. No board has been made yet. Order the minimum quantity,
-assemble one stack, and go through the [bring-up](#bring-up) steps before
-building more.
+errors, zero warnings and zero unconnected items** against JLCPCB's rules
+(FC 4 layers, ESC 6 layers). The routed copper was checked pad by pad
+against the circuit in `src/circuit.py`, and
+[`VERIFICATION.md`](VERIFICATION.md) checks the design against sources other
+than itself: the pin maps against KiCad's STM32 libraries and the Betaflight
+and AM32 sources, the regulator and divider arithmetic, the fab outputs, and
+the silkscreen. **No board has been made or measured yet.** Order the
+minimum quantity, assemble one stack, and go through the
+[bring-up](#bring-up) steps before building more.
 
 ![flight controller](fc/images/cheapdrone-fc-iso.png)
 
@@ -40,12 +44,14 @@ building more.
   - UART2 for the receiver.
   - UART4 and UART1 spare (VTX, GPS).
   - 5 V and 3.3 V outputs, a VBAT output for a VTX.
-  - LED strip, and buzzer (low-side switched).
+  - LED strip, and buzzer (low-side switched): the left-rear column reads
+    `G`, `5V`, `BZ-`, `LED`. The buzzer goes between `5V` (its +) and
+    `BZ-`.
   - SWD.
 - **Also:** voltage divider for battery monitoring, current input from the
   ESC lead, status LED, and a DFU **BOOT** button.
 
-**4-in-1 ESC**, `esc/`: parts on both sides, 4 layers, 4S.
+**4-in-1 ESC**, `esc/`: parts on both sides, 6 layers, 4S.
 
 - **Per motor:**
   - STM32F051K6U6 running AM32 (target `FD6288_F051`).
@@ -59,9 +65,12 @@ building more.
   - Motors 2 and 3 are built on the top side, motors 1 and 4 on the bottom.
   - All twelve motor pads are on top, so everything can be soldered with the
     stack assembled.
-  - The inner layers are a solid ground plane and a solid battery plane.
-    Every FET pin reaches its plane through a column of vias beside the
-    pin.
+  - Six layers: signals on the outer layers and on In2 and In3, a solid
+    ground plane on In1 and a solid battery plane on In4. Every FET pin
+    reaches its plane through a column of vias beside the pin.
+  - The bottom channels have their MCU and back-EMF ends swapped, so no
+    corner stacks one MCU directly over another. (On four layers, with the
+    MCUs back to back, neither router could get the signals out.)
 - **Also:**
   - 3.3 V buck for the four MCUs.
   - Shared battery-voltage divider for AM32.
@@ -86,21 +95,23 @@ not need KiCad or Python.
 ### Bare boards (JLCPCB or PCBWay)
 
 Upload `cheapdrone-fc-gerbers.zip` and `cheapdrone-esc-gerbers.zip` as two
-separate orders. Both boards use the same settings:
+separate orders. They differ only in layer count:
 
 | Setting | Value |
 |---|---|
-| Layers | **4** |
+| Layers | **FC 4, ESC 6** |
 | Dimensions | 33.8 × 33.8 mm (read from the outline) |
 | Thickness | 1.6 mm |
 | Material | FR-4, TG155 or better |
+| Solder mask | **Black** (JLCPCB) / **Matte black** (PCBWay): the brand's Pitch ground |
+| Silkscreen | **White**: the brand's Bone |
 | Surface finish | **ENIG** (the QFN and LGA parts need a flat finish; HASL is a gamble on the 0.5 mm pitch and the gyro) |
 | Outer copper | 1 oz |
-| Inner copper | **1 oz for the ESC** (it carries the motor current in its planes); 0.5 oz is fine for the FC |
+| Inner copper | **1 oz for the ESC** (its In1/In4 planes carry the motor current); 0.5 oz is fine for the FC |
 | Via covering | Tented (the default) |
-| Min track / spacing | 0.1 / 0.1 mm (JLCPCB standard 4-layer capability) |
+| Min track / spacing | 0.1 / 0.1 mm (JLCPCB standard multilayer capability) |
 | Min via | 0.45 mm pad / 0.25 mm drill |
-| Stackup | JLCPCB default JLC04161H-7628 (no impedance control needed) |
+| Stackup | The fab's standard 1.6 mm build: JLC04161H-7628 for the FC; any standard 6-layer 1.6 mm for the ESC (no impedance control needed) |
 | Order number | "Remove" or "specify location". The boards have no free spot reserved for it. |
 
 ### Assembly (JLCPCB PCBA)
@@ -148,7 +159,7 @@ and a few values are "extended".
    its number.
 4. **Flash the ESCs:** do this before stacking, with the battery
    disconnected. See [`firmware/README.md`](firmware/README.md).
-5. **Stack:** ESC at the bottom, FC on top, both with the **FRONT arrow
+5. **Stack:** ESC at the bottom, FC on top, both with the **Front arrow
    forward**. Fit the stack cable.
 
 ## Bring-up
@@ -197,9 +208,12 @@ Do these in order. Each step catches a fault before it can damage the next.
     the AON7934's ±20 V gate rating.
   - 3S (9–12.6 V) is near the driver's undervoltage lockout: do not.
   - 5S/6S exceed the FETs' 30 V rating: do not.
-- **Current.** The ESC is sized for the 1404 3800KV on 4S with 3" props.
-  That is roughly 8–10 A per motor at full throttle and a few amps at
-  hover. It is not a 35 A-per-motor racing ESC. It has no current sensor.
+- **Current.** The ESC is built for the 1404 3800KV on 4S with 3" props;
+  it is not a 35 A-per-motor racing ESC. Its current rating has not been
+  measured. From the AON7934 datasheet's maximum on-resistance, conduction
+  loss is about 0.45 W per motor at 5 A, 1.8 W at 10 A and 4 W at 15 A (the
+  arithmetic is in `VERIFICATION.md`): check FET temperatures during
+  bring-up before long full-throttle runs. The ESC has no current sensor.
   Betaflight shows voltage but reports current as 0; `cli-setup.txt` sets
   `current_meter = NONE`.
 - **Heat.** The FETs of motors 2 and 3 are on top and those of 1 and 4 on
@@ -208,11 +222,49 @@ Do these in order. Each step catches a fault before it can damage the next.
 
 ---
 
+## The look
+
+Both boards follow the OffGrid brand hand-off (v3.2). Dark is the brand's
+default expression, so the boards are **Pitch** (black solder mask) with
+**Bone** type (white silkscreen) and ENIG gold pads.
+
+- The FC's bottom carries the horizontal lockup: the Beacon Ring and
+  "OffGrid" in Instrument Sans 600, at the lockup SVG's own proportions.
+  Under it sit the company line and what the board is. The top carries the
+  bare mark.
+- Pad names, part codes and numerals are JetBrains Mono 500, uppercase and
+  tracked 0.06 em. Words ("Boot", "Front") are Instrument Sans 500. Both
+  follow `tokens.json`.
+- Everything is drawn as filled outlines from the fonts in `fonts/` (SIL
+  OFL), not KiCad's stroke font. The Gerbers carry the exact letterforms,
+  and nobody needs the fonts installed.
+- No Ember: silkscreen prints one colour, and the brand's rule is one accent
+  or none.
+
+**Black or white, and heat:** mask colour makes almost no difference to how
+hot the board runs. Solder mask of any colour emits infrared about equally
+well, and the heat leaves through the copper planes and the airflow. White
+only helps under direct sun. Black is the brand's default, so both boards
+are specified black.
+
+## Why two boards, not one
+
+An all-in-one board (FC and four ESCs on one 33.8 mm square) was checked
+first. The parts alone cover about 1,080 mm², over half of both sides.
+Every channel would then share its patch of board with the flight
+controller's MCU, gyro and flash, on at least six layers. The gyro would
+also sit next to the switching FETs. Two boards keep the gyro away from the
+power stage and let either board be replaced alone.
+
+---
+
 ## Files
 
 ```
 v1/
   README.md               this file
+  VERIFICATION.md         every design check that can be made without
+                          hardware, with its result (src/verify.py)
   fc/                     flight controller
     cheapdrone-fc.kicad_pcb / .kicad_pro / .kicad_dru   open in KiCad 10
     production/           gerbers zip, BOM + CPL (JLCPCB), BOM (PCBWay),
@@ -224,6 +276,8 @@ v1/
                           flashing script, CLI setup
   aio.pretty/ aio.3dshapes/   footprints and 3D models (from JLCPCB/EasyEDA's
                           own library entries for the exact LCSC parts)
+  fonts/                  Instrument Sans and JetBrains Mono (SIL OFL), for
+                          the silkscreen
   src/                    the design, as Python (see below)
   requirements.txt
 ```
@@ -239,9 +293,11 @@ The design is the Python in `src/`:
 | `footprints.py` | Builds `aio.pretty` from the JLCPCB/EasyEDA library entries. |
 | `fc_layout.py`, `esc_layout.py` | Placement, power copper, planes and silkscreen. The ESC is one motor channel written once and stamped onto four edges. |
 | `route.py`, `fanout.py`, `finish.py` | Plane fan-out, then Freerouting for the signal routing, then an in-house maze router with rip-up to finish the last connections. |
-| `artwork.py` | Silkscreen placement: labels go only where they touch no pad, hole or other label. |
+| `artwork.py` | Silkscreen placement: labels go only where they touch no pad, hole, part body or other label. |
+| `brand.py` | The OffGrid mark, lockup and type as outlines, from the brand hand-off's numbers. |
 | `fab.py` | Gerbers, drills, BOM, CPL, netlist, assembly PDF, renders, STEP. |
 | `make.py` | Runs it all with gates. |
+| `verify.py` | Writes `VERIFICATION.md`. |
 
 `python3 make.py` rebuilds every output from the committed `.kicad_pcb`
 files and fails unless each board has zero DRC errors and zero unconnected

@@ -5,5 +5,11 @@ shapely
 Pillow
 matplotlib
 pypdf
+uharfbuzz       # brand.py: shapes the silkscreen type
+fonttools       # brand.py: font metrics
+pymupdf         # SVG -> image for the Gerber read-back and checks
+scipy           # verify.py: silkscreen stroke widths
+scikit-image    # verify.py: silkscreen stroke widths
+gerbonara       # optional: silkscreen read back from the Gerbers (pip install --no-deps gerbonara)
 # make.py --reroute also needs Freerouting 1.9.0 (java) and xvfb-run:
 #   FREEROUTING_JAR=/path/to/freerouting-1.9.0.jar

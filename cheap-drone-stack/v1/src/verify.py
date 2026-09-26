@@ -31,6 +31,8 @@ rows = []            # (section, check, result, detail)
 
 
 def check(section, name, ok, detail=''):
+    if hasattr(ok, 'item'):          # numpy bool
+        ok = bool(ok)
     rows.append((section, name, 'PASS' if ok is True else ('FAIL' if ok is False else ok), detail))
 
 
@@ -133,10 +135,13 @@ def check_fc_pins():
     check(S, 'USB D+/D- on PA12/PA11', ports['PA12'] == 'USB_DP' and ports['PA11'] == 'USB_DM')
     check(S, 'SWD on PA13/PA14 to test pads', ports['PA13'] == 'SWDIO' and ports['PA14'] == 'SWCLK'
           and comp('fc', 'TP_SWDIO').pins['1'] == 'SWDIO')
-    boot = [p for n, p in pins.items() if 'BOOT0' in p]
-    check(S, 'BOOT0 (%s) pulled down, button to 3.3 V' % (boot[0] if boot else '?'),
-          any(x.part == 'R10K' and set(x.pins.values()) == {'BOOT0', 'GND'} for x in circuit.build('fc'))
+    check(S, 'BOOT0 (pin 46, PB8-BOOT0) pulled down 10k, DFU button to 3.3 V',
+          pins['46'] == 'PB8' and ports['PB8'] == 'BOOT0'
+          and any(x.part == 'R10K' and set(x.pins.values()) == {'BOOT0', 'GND'} for x in circuit.build('fc'))
           and comp('fc', 'SW_BOOT').pins == {'1': '+3V3', '2': 'BOOT0'})
+    check(S, 'NRST (pin 7, PG10-NRST) to the RST test pad, 100 nF to ground',
+          pins['7'] == 'PG10' and ports['PG10'] == 'NRST' and comp('fc', 'TP_NRST').pins['1'] == 'NRST'
+          and any(x.part == 'C100N' and set(x.pins.values()) == {'NRST', 'GND'} for x in circuit.build('fc')))
 
 
 def am32_group(name):
