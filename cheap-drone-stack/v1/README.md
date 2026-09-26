@@ -71,9 +71,13 @@ minimum quantity, assemble one stack, and go through the
   - Six layers: signals on the outer layers and on In2 and In3, a solid
     ground plane on In1 and a solid battery plane on In4. Every FET pin
     reaches its plane through a column of vias beside the pin.
-  - The bottom channels have their MCU and back-EMF ends swapped, so no
-    corner stacks one MCU directly over another. (On four layers, with the
-    MCUs back to back, neither router could get the signals out.)
+  - One MCU per corner, and no MCU or driver sits directly over another
+    chip on the other side. Each gate driver sits behind the middle of its
+    FET row. (Stacked back to back, as in the first layout, the chips left
+    no room for vias, and neither router could get the signals out.)
+  - Vias in pads: small parts and the chips' ground pads connect to the
+    planes through vias inside their own pads. JLCPCB fills and caps these
+    free on 6-layer boards (see [Ordering](#ordering)).
 - **Also:**
   - 3.3 V buck for the four MCUs.
   - Shared battery-voltage divider for AM32.
@@ -111,9 +115,9 @@ separate orders. They differ only in layer count:
 | Surface finish | **ENIG** (the QFN and LGA parts need a flat finish; HASL is a gamble on the 0.5 mm pitch and the gyro) |
 | Outer copper | 1 oz |
 | Inner copper | **1 oz for the ESC** (its In1/In4 planes carry the motor current); 0.5 oz is fine for the FC |
-| Via covering | Tented (the default) |
+| Via covering | FC: tented (the default). **ESC: "Epoxy Filled & Capped" (POFV)**: the ESC has vias in pads. JLCPCB makes POFV the free default on 6–20 layer boards. At PCBWay, ask for via-in-pad filled and capped, which is a paid option there |
 | Min track / spacing | 0.1 / 0.1 mm (JLCPCB standard multilayer capability) |
-| Min via | 0.45 mm pad / 0.25 mm drill |
+| Min via | FC 0.45 mm pad / 0.25 mm drill. ESC 0.35 mm / 0.2 mm (JLCPCB's 6-layer standard allows 0.25 / 0.15); vias in pads are 0.45 / 0.3 and keep 0.45 mm from other holes, as JLC's POFV rules ask |
 | Stackup | The fab's standard 1.6 mm build: JLC04161H-7628 for the FC; any standard 6-layer 1.6 mm for the ESC (no impedance control needed) |
 | Order number | "Remove" or "specify location". The boards have no free spot reserved for it. |
 
