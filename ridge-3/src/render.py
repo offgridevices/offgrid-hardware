@@ -23,7 +23,8 @@ def poly_of(shape_poly_set):
         out.append([(ol.CPoint(j).x / 1e6, ol.CPoint(j).y / 1e6) for j in range(ol.PointCount())])
     return out
 
-def render(path, out_prefix, cx=100, cy=100, half=17.5):
+def render(path, out_prefix, cx=100, cy=100, half=18.6):
+    import pcb
     b = pcbnew.LoadBoard(path)
     cu_top, cu_bot = pcbnew.F_Cu, pcbnew.B_Cu
     for side, cu, crt in (('top', cu_top, pcbnew.F_CrtYd), ('bottom', cu_bot, pcbnew.B_CrtYd)):
@@ -72,8 +73,8 @@ def render(path, out_prefix, cx=100, cy=100, half=17.5):
                 pass
         except Exception:
             pass
-        ax.plot([cx - 16.9, cx + 16.9, cx + 16.9, cx - 16.9, cx - 16.9],
-                [cy - 16.9, cy - 16.9, cy + 16.9, cy + 16.9, cy - 16.9], color='#ff0', lw=1)
+        ax.plot([cx - pcb.HALF, cx + pcb.HALF, cx + pcb.HALF, cx - pcb.HALF, cx - pcb.HALF],
+                [cy - pcb.HALF, cy - pcb.HALF, cy + pcb.HALF, cy + pcb.HALF, cy - pcb.HALF], color='#ff0', lw=1)
         ax.set_xlim(cx - half, cx + half); ax.set_ylim(cy + half, cy - half)
         if side == 'bottom':
             ax.invert_xaxis()

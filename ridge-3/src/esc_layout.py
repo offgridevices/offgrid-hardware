@@ -1,28 +1,39 @@
 # -*- coding: utf-8 -*-
-"""4-in-1 ESC board: placement, power copper and silkscreen.
+"""Ridge 3 ESC (36 x 36 mm, 25.5 mm holes): placement, power copper,
+planes and silkscreen.
 
-One motor channel is laid out once, as a template, and stamped four times,
-all on the bottom side: M1 on the rear edge, M2 right, M3 left, M4 front.
+One motor channel is drawn once, as a template for the REAR edge, and
+stamped four times by rotation: M1 rear, M2 right, M3 left, M4 front.  All
+four channels are the same copper, turned.
 
-Each channel owns one board edge.  Its three half-bridges stand in a row
-along that edge with their switch nodes facing out, straight into the
-motor pads; the gate driver sits behind the middle half-bridge and the MCU
-beside the driver.  The channels are the template mirrored, so a channel
-looks the same seen from its own side.  All twelve motor pads are on top,
-where they can be soldered with the stack assembled; the channels reach
-them through via clusters.
+Template axes: u along the edge (board x for the rear channel), yr towards
+the edge (board y; the rear edge is at yr = +18).
 
-The template is written for a channel on the REAR edge seen from above:
-u runs along the edge (+u = right), yr is the ordinary board y (the edge
-is at yr = +16.9, the board centre at yr = 0).
+The power stage of each phase is a vertical half-bridge:
+  * the HIGH-side FET on the top, source pins towards the edge.  Its source
+    pins and a top pour run straight out to the phase's motor pad; its
+    drain tab carries the battery (VBAT plane on In4) through filled vias;
+  * the LOW-side FET on the bottom, 2.4 mm further out, source pins
+    inwards.  Its drain tab lies under the top switch-node pour and joins
+    it through filled vias in the tab;
+  * the bridge capacitor on the bottom, under the high-side drain: its
+    VBAT pad takes a via straight up into that drain tab, its other pad
+    sits at the low-side source pins.  The switching loop closes through
+    the board's thickness.
+The low-side sources of a channel return to ground through its current
+shunt: they, the bridge capacitors' return pads and the shunt meet on the
+bottom and on a pour on In3 under the channel ("M<n>_SRC").  The shunt
+stands in the channel's corner slot (+u end, bottom), between the FET row
+and the mounting hole; its amplifier sits inside it.
 
-Stackup: F.Cu parts + power copper, In1 solid GND, In2 solid VBAT,
-B.Cu parts + power copper.  Every FET pin goes to its plane through a
-column of vias right beside it; a bulk capacitor sits directly under each
-FET on the opposite side, between those same via columns.
+Behind the power stage, on the bottom: the gate driver and the MCU side by
+side (each channel's pair turned like a pinwheel, so the four pairs clear
+each other at the centre), with their small parts round them.  The top
+carries the high-side FETs, the motor and battery pads, the stack
+connector in the middle and the small parts that fit round it.
 
-The battery pads share the rear edge with motor 1's pads (rear-left: BAT+
-outermost, BAT- next to it); motor 1's three pads sit rear-right.
+Stackup (6 layers): F signals + power | In1 GND | In2 signals |
+In3 signals + channel return pours | In4 VBAT | B signals + power.
 """
 import math, os
 import pcbnew
@@ -30,386 +41,269 @@ import pcb, circuit
 from pcb import MM
 
 H = pcb.HALF
-Y0 = 12.15            # centre line of the FET row (yr)
-PITCH = 5.2           # FET spacing along the edge
-PAD_YR = 15.4         # motor pad centre (yr)
-FET_U = {'A': PITCH, 'B': 0.0, 'C': -PITCH}
+PITCH = 5.0          # phase spacing: a 1.7 mm gap between FETs for the channel's vias
+PH_U = {'A': -PITCH, 'B': 0.0, 'C': PITCH}
+Y_HS = 12.3          # high-side FET centre (top)
+Y_LS = 14.7          # low-side FET centre (bottom), its drain under the motor pad
+Y_CAP = 10.65        # bridge capacitor row (bottom), under the high-side drain pins
+Y_PAD = 16.4         # motor pads (top)
+Y_CHIP = 7.2         # driver and MCU row (bottom)
 
-# channel: (rotation from the rear edge, side it is built on)
-CHANNELS = {1: (0, 'B'), 2: (90, 'B'), 3: (-90, 'B'), 4: (180, 'B')}
-
-# role: (u, yr, rotation, side)   side: 'same' / 'opp' (other side) / 'T'
-#
-# FLOORPLAN.  Seen in plan (top and bottom at once) the board has eight dense
-# blocks: four drivers, one behind the middle of each FET row, and four
-# MCUs, one in each corner.  No two of them are stacked: each has the other
-# side of the board under it free (or holding a few small parts), which is
-# where its vias go.
-#
-#   Every channel is built on the bottom, from the one template: the MCU
-#       beside the driver on its HIN side (+u), so PA8-10 run straight
-#       across to HIN1-3 and PA7/PB0/PB1 loop round the driver's input
-#       corner to LIN1-3.  All four have the same handedness, so each MCU
-#       takes a different corner (M1 rear-left, M2 rear-right, M3
-#       front-left, M4 front-right), just behind the next channel's FET C.
-#       The top side carries only the motor and battery pads, the FC
-#       connector, the bulk capacitors under the FETs and a few small
-#       parts, so it is free for vias.
-#
-# The bootstrap capacitors stand in a row just behind the FETs, each in front
-# of its half-bridge's switch node; the back-EMF dividers sit on the far side
-# of the FET row by the motor pads (a free strip on the other side of the
-# board), whose phase node they tap.
-
-
-def fet_row(fu, pu):
-    t = {}
-    for ph in 'ABC':
-        # half-bridges: switch node (exposed pad 10) facing the edge,
-        # gates towards the driver
-        t['Q' + ph] = (fu[ph], Y0, -90, 'same')
-        t['P' + ph] = (pu[ph], PAD_YR, 0, 'T')
-    # bulk decoupling right under each half-bridge, between its via columns
-    t['C_BULK1'] = (fu['A'], Y0, 0, 'opp')
-    t['C_HF'] = (fu['B'], Y0, 0, 'opp')
-    t['C_BULK2'] = (fu['C'], Y0, 0, 'opp')
-    return t
-
-
-# Back-EMF: the resistor from each phase (R_Bx_H) and to the neutral
-# (R_Nx) stand in the gaps beside that phase's motor pad, on top, touching
-# its switch-node copper; the dividers' ground legs (R_Bx_L, R_N) sit at the
-# MCU's comparator pins.  Slot u for each, relative to the motor pads.
-def bemf_slots(pu):
-    return {'R_BA_H': pu['A'] + 1.675, 'R_NA': pu['A'] - 1.675,
-            'R_NB': pu['B'] + 1.675, 'R_BB_H': pu['B'] - 1.675,
-            'R_NC': pu['C'] + 1.675, 'R_BC_H': pu['C'] - 1.675}
-
-EDGE_YR = 15.15     # back-EMF resistors between the motor pads
-
-
-# Surface routing channels kept free of parts (template u/yr boxes, the
-# channel's own side): PA8-10 run straight across to HIN1-3, PA7/PB0/PB1
-# loop under the driver-MCU gap to LIN1-3.
-TOP_CHANNELS = [(2.4, 4.9, 4.3, 6.95),                    # HIN, driver -> MCU
-                (0.55, 2.5, 1.95, 4.7), (0.55, 2.5, 6.85, 3.2), (5.45, 2.5, 6.85, 3.6),   # LIN U
-                (2.75, 6.95, 4.15, 9.45)]                  # HO1/VB1/SWD up the gap
-
-
-def top_template(fu, pu):
-    """The channel template (every channel is built from it, on the bottom)."""
-    sw = {ph: fu[ph] + 0.42 for ph in 'ABC'}      # switch-node pad centre (u)
-    t = {
-        # driver: VS/HO/VB face to the FETs, HIN side (+u) to the MCU
-        'GD': (0.5, 6.9, -90, 'same'),
-        'MCU': (6.9, 6.4, 90, 'same'),
-        # bootstrap capacitors in a row in front of the switch nodes
-        'C_BA': (sw['A'], 9.95, 0, 'same'),
-        'C_BB': (fu['B'] + 0.75, 9.95, 180, 'same'),
-        # C's bootstrap capacitor: the next channel's MCU stands right behind
-        # FET C, so it sits on top, just inside FET C's bulk capacitor and
-        # clear of that MCU's pin escapes; a stub from its VS pad to a filled
-        # via takes it down into the switch node's inner tip (boot_vias)
-        'C_BC': (sw['C'] + 1.38, 10.45, 180, 'opp'),
-        'D_A': (2.5098, 10.3026, -90, 'opp'),
-        'D_B': (0.0606, 9.85, 180, 'opp'),      # clear of HO2's escape via (ho2_vias)
-        'D_C': (-1.667, 9.7852, 90, 'opp'),
-        # driver supply: HF cap and clamp at VCC/COM, bulk cap and the
-        # 330 ohm out in the corner pocket beside FET C
-        'C_VCCHF': (-0.4201, 3.8697, 180, 'same'),
-        'D_Z': (3.0459, 3.7196, 90, 'opp'),
-        'C_VCC': (-8.7999, 12.8624, -90, 'opp'),
-        'R_VCC': (-9.0893, 12.4275, 90, 'same'),
-        # MCU decoupling; SWD pads in the corner pocket beside FET A
-        'C_VDD17': (2.8195, 3.829, 180, 'same'),
-        'C_VDDA': (10.5457, 9.275, -90, 'opp'),
-        'C_RST': (8.9298, 11.0946, 180, 'same'),
-        'C_VDD1': (8.8252, 10.0306, 180, 'same'),
-        'TP_DIO': (4.9388, 10.3304, -90, 'opp'),
-        'TP_CLK': (3.6996, 9.7826, -90, 'opp'),
-        'R_BA_L': (6.3511, 2.5869, 180, 'same'), 'R_BB_L': (6.3903, 2.7879, 180, 'opp'),
-        'R_BC_L': (8.9278, 10.262, 180, 'opp'), 'R_N': (9.1378, 3.2485, 90, 'opp'),
-    }
-    # the phase-side resistors on top, between the motor pads
-    for k, u in bemf_slots(pu).items():
-        t[k] = (u, EDGE_YR, 90, 'opp')
-    return t
-
-
-# Motor 1 shares the rear edge with the battery pads: its FET row moves right
-# and its pads move right of the battery pads.  u here is template u (the
-# channel is mirrored: global x = -u).
-# (global x = -u: FETs at x = -3.0, 2.2, 7.4, pads at x = -0.9, 2.2, 7.4;
-#  7.4 is as far right as FET C's outer via column clears hole H3)
-M1_FET_U = {'A': 3.0, 'B': -2.2, 'C': -7.4}
-M1_PAD_U = {'A': 0.9, 'B': -2.2, 'C': -7.4}
+# channel: rotation of the rear-edge template (degrees, KiCad's sense)
+CHANNELS = {1: 0, 2: 90, 3: -90, 4: 180}
 
 
 def xf_point(n, u, yr):
-    theta, cside = CHANNELS[n]
-    x, y = (-u if cside == 'B' else u), yr
-    a = math.radians(theta)
-    return (x * math.cos(a) + y * math.sin(a), -x * math.sin(a) + y * math.cos(a))
+    a = math.radians(CHANNELS[n])
+    return (u * math.cos(a) + yr * math.sin(a), -u * math.sin(a) + yr * math.cos(a))
 
 
-def xf(n, u, yr, rot, side_rel):
-    theta, cside = CHANNELS[n]
-    if side_rel == 'same':
-        side = cside
-    elif side_rel == 'opp':
-        side = 'B' if cside == 'T' else 'T'
-    else:
-        side = side_rel
-    if cside == 'B':
-        rot = 180 - rot
+def xf(n, u, yr, rot, side):
     x, y = xf_point(n, u, yr)
-    return (round(x, 4), round(y, 4), (rot + theta) % 360, side)
+    return (round(x, 4), round(y, 4), (rot + CHANNELS[n]) % 360, side)
+
+
+def template():
+    """role -> (u, yr, rotation, side) for the rear-edge channel."""
+    t = {}
+    for ph, u in PH_U.items():
+        t['Q%sH' % ph] = (u, Y_HS, 0, 'T')
+        t['Q%sL' % ph] = (u, Y_LS, 0, 'B')
+        t['P' + ph] = (u, Y_PAD, 0, 'T')
+        # bridge capacitor along the row: VBAT pad (1) at +u, its return
+        # pad at -u, straight above the low-side source pins 1 and 2
+        t['CBR_' + ph] = (u, Y_CAP, 180, 'B')
+    # back-EMF: the phase-side 20k resistors on the bottom beside the
+    # low-side drains they tap: in each gap between two phases one
+    # standing (courtyards leave room for one) and one lying across the
+    # gap's outer end, and one standing in each end slot.  Each one's
+    # phase end reaches its own drain copper through a short tab
+    # (power_copper); pin 1 is the phase end.
+    ga, gb = (PH_U['A'] + PH_U['B']) / 2, (PH_U['B'] + PH_U['C']) / 2
+    t['RBH_A'] = (ga, Y_LS + 0.7, 90, 'B')
+    t['RN_B'] = (ga, Y_LS + 2.6, 180, 'B')
+    t['RBH_B'] = (gb, Y_LS + 0.7, 90, 'B')
+    t['RN_C'] = (gb, Y_LS + 2.6, 180, 'B')
+    t['RN_A'] = (PH_U['A'] - 2.36, Y_LS + 0.7, 90, 'B')
+    t['RBH_C'] = (PH_U['C'] + 2.36, Y_LS + 0.7, 90, 'B')
+    # Driver and MCU side by side on the bottom behind the FET row.  The
+    # pair spans u -5.04 .. 4.8: the next channel's pair starts at
+    # Y_CHIP - 2.35 = 4.85, so the four pairs pinwheel round the centre.
+    # Driver turned with its gate, bootstrap and switch-node pins facing
+    # the FETs; MCU with its supply and reset pins facing the centre.
+    t['GD'] = (-2.69, Y_CHIP, 270, 'B')
+    t['MCU'] = (2.38, Y_CHIP, 0, 'B')
+    # a row of capacitors inside the chips, on the bottom: the driver's
+    # bootstrap and gate-drive supply capacitors (its supply pin faces the
+    # centre), then the MCU's supply and reset capacitors (its supply and
+    # reset pins face the centre too)
+    for i, role in enumerate(('CBS_A', 'CBS_B', 'CBS_C', 'C_GV', 'C_GVHF', 'C_VDD', 'C_VDDB', 'C_RST')):
+        t[role] = (-4.4 + 1.1 * i, 3.9, 90, 'B')
+    # shunt along the row in the diagonal zone at the channel's +u end:
+    # its sense-node pad (1) at +u, where the channel's return copper comes
+    # in from the FET band, its ground pad inwards
+    t['R_SH'] = (8.0, 8.0, 180, 'B')
+    # On top, over the driver: the gate resistors and the SWD test points.
+    # Over the MCU: the back-EMF dividers' low legs, the neutral's leg to
+    # ground, the current filter and the CUR-average resistor.  In the
+    # diagonal zone at the +u end, over the shunt: the current amplifier
+    # and its supply capacitor.
+    for i, ph in enumerate('ABC'):
+        t['RGH_' + ph] = (-4.4 + 2.0 * i, 9.65, 0, 'T')
+        t['RGL_' + ph] = (-4.4 + 2.0 * i, 8.65, 0, 'T')
+    # SWD test points on the bottom, in the diagonal zone under the shunt
+    # (pogo pins from below at programming time)
+    t['TP_DIO'] = (7.0, 6.0, 0, 'B')
+    t['TP_CLK'] = (8.3, 6.0, 0, 'B')
+    for role, pos in (('RBL_A', (1.6, 9.65)), ('RBL_B', (3.6, 9.65)), ('RBL_C', (5.6, 9.65)),
+                      ('RNG', (1.6, 8.65)), ('R_IF', (3.6, 8.65)), ('C_IF', (3.6, 7.65)),
+                      ('R_CUR', (1.6, 7.65))):
+        t[role] = pos + (0, 'T')
+    t['U_CS'] = (7.4, 7.6, 0, 'T')
+    t['C_CS'] = (5.6, 6.0, 90, 'T')
+    return t
 
 
 def roles(comps, n):
     """Map template roles to this channel's references."""
     out = {}
     blk = 'esc%d' % n
-    bulk = 0
     for c in comps:
-        if c.block != blk:
+        note, ref = c.note, c.ref
+        if c.block != blk and note != 'CUR average %d' % n:
             continue
-        note = c.note
-        if c.ref.startswith('U_ESC'): out['MCU'] = c.ref
-        elif c.ref.startswith('U_GD'): out['GD'] = c.ref
-        elif c.ref.startswith('Q'): out['Q' + c.ref[-1]] = c.ref
-        elif c.ref.startswith('P_M'): out['P' + c.ref[-1]] = c.ref
-        elif c.ref.startswith('TP_E'): out['TP_DIO' if c.ref.endswith('DIO') else 'TP_CLK'] = c.ref
-        elif note.endswith('VDD pin 1'): out['C_VDD1'] = c.ref
-        elif note.endswith('VDD pin 17'): out['C_VDD17'] = c.ref
-        elif note.endswith('VDDA'): out['C_VDDA'] = c.ref
-        elif note.endswith('reset filter'): out['C_RST'] = c.ref
-        elif note == 'driver VCC filter': out['R_VCC'] = c.ref
-        elif note == 'driver VCC bulk': out['C_VCC'] = c.ref
-        elif note == 'driver VCC HF': out['C_VCCHF'] = c.ref
-        elif note == 'driver VCC clamp': out['D_Z'] = c.ref
-        elif note.startswith('bootstrap '):
-            ph = note[-1]
-            out[('D_' if c.ref.startswith('D') else 'C_B') + ph] = c.ref
+        if ref == 'U_ESC%d' % n: out['MCU'] = ref
+        elif ref == 'U_GD%d' % n: out['GD'] = ref
+        elif ref == 'R_SH%d' % n: out['R_SH'] = ref
+        elif ref == 'U_CS%d' % n: out['U_CS'] = ref
+        elif ref.startswith('Q%d' % n): out['Q' + ref[-2:]] = ref
+        elif ref.startswith('P_M%d' % n): out['P' + ref[-1]] = ref
+        elif ref.startswith('TP_E%d' % n): out['TP_DIO' if ref.endswith('DIO') else 'TP_CLK'] = ref
+        elif note == 'U_ESC%d VDD' % n: out['C_VDD'] = ref
+        elif note == 'U_ESC%d VDD bulk' % n: out['C_VDDB'] = ref
+        elif note == 'U_ESC%d reset filter' % n: out['C_RST'] = ref
+        elif note == 'driver GVDD': out['C_GV'] = ref
+        elif note == 'driver GVDD HF': out['C_GVHF'] = ref
+        elif note.startswith('bootstrap '): out['CBS_' + note[-1]] = ref
+        elif note.startswith('gate high '): out['RGH_' + note[-1]] = ref
+        elif note.startswith('gate low '): out['RGL_' + note[-1]] = ref
+        elif note.startswith('bridge '): out['CBR_' + note[-1]] = ref
         elif note.startswith('BEMF '):
-            ph = note[-1]
-            out['R_B%s_%s' % (ph, 'H' if c.part == 'R10K' else 'L')] = c.ref
-        elif note.startswith('neutral to'): out['R_N'] = c.ref
-        elif note.startswith('neutral '): out['R_N' + note[-1]] = c.ref
-        elif note.endswith(' bulk'):
-            bulk += 1
-            out['C_BULK%d' % bulk] = c.ref
-        elif note.endswith(' HF'): out['C_HF'] = c.ref
+            out[('RBH_' if c.part == 'R20K' else 'RBL_') + note[-1]] = ref
+        elif note.startswith('neutral to'): out['RNG'] = ref
+        elif note.startswith('neutral '): out['RN_' + note[-1]] = ref
+        elif note == 'U_CS%d supply' % n: out['C_CS'] = ref
+        elif note == 'current filter':
+            out['R_IF' if c.part == 'R1K' else 'C_IF'] = ref
+        elif note == 'CUR average %d' % n: out['R_CUR'] = ref
         else:
-            raise KeyError('unplaced role for %s (%s)' % (c.ref, note))
+            raise KeyError('unplaced role for %s (%s)' % (ref, note))
     return out
 
 
-def channel_template(n):
-    fu, pu = (M1_FET_U, M1_PAD_U) if n == 1 else (FET_U, FET_U)
-    t = fet_row(fu, pu)
-    t.update(top_template(fu, pu))      # every channel: MCU on the driver's input-corner side
-    if n == 1:
-        # FET A sits half under BAT-: its HF capacitor fits beside the pad
-        t['C_BULK1'] = (M1_FET_U['B'], Y0, 0, 'opp')
-        t['C_HF'] = (2.0, Y0, 90, 'opp')
-    t.update(CH_OVERRIDE.get(n, {}))
-    t.update(OPT.get('T' if CHANNELS[n][1] == 'T' else 'B', {}))
-    if n == 1:
-        t.update(OPT.get('1', {}))
-    return t
-
-
-# optimiser output (place_opt.py), applied over the tables when present
-OPT = {}
-
-
-def load_opt(path):
-    import json
-    d = json.load(open(path))
-    OPT.clear()
-    for k, v in d.items():
-        kind, name = k.split('|', 1)
-        if kind == 'P':
-            POWER[name] = tuple(v)
-        elif kind == 'G':
-            globals()[name] = tuple(v)
-        else:
-            OPT.setdefault(kind, {})[name] = tuple(v)
-
-
-if os.environ.get('ESC_OPT'):
-    pass    # loaded after POWER is defined (see below)
-
-
-CH_OVERRIDE = {
-    1: {  # back-EMF: top slots where the battery pads leave room, the rest
-          # on the bottom between the switch-node pours (u = -x)
-        'R_BA_H': (2.6, EDGE_YR, 90, 'opp'), 'R_NA': (-0.65, EDGE_YR, 90, 'same'),
-        'R_BB_H': (-3.9, EDGE_YR, 90, 'opp'), 'R_NB': (-3.75, EDGE_YR, 90, 'same'),
-        'R_BC_H': (-5.7, EDGE_YR, 90, 'opp'), 'R_NC': (-9.1, EDGE_YR, 90, 'opp'),
-        # the parts that hang on the FET row follow it (2.2 mm towards +x),
-        # except B's bootstrap capacitor, which stays under the driver's VS2 /
-        # VB2 pins (the driver does not follow FET B: motor 2's MCU is in the
-        # way), and C's, which stands past the next MCU's pin 5-8 escapes
-        'C_BA': (3.42, 9.95, 0, 'same'), 'C_BB': (0.75, 9.95, 180, 'same'), 'C_BC': (-7.3, 10.45, 0, 'opp'),
-        'D_A': (3.3012, 10.1808, 0, 'opp'), 'D_B': (1.0571, 9.85, 0, 'opp'),
-        'D_C': (-2.0175, 10.2559, 0, 'opp'),
-        'C_VCC': (-14.8352, 8.7425, 180, 'opp'), 'R_VCC': (-14.3355, 9.1223, 0, 'same'),
-        # the corner pocket beside FET A holds BAT+'s vias
-        'TP_DIO': (5.5319, 10.1372, -90, 'same'), 'TP_CLK': (6.7833, 10.1301, -90, 'same'),
-        'C_RST': (10.535, 8.7202, -90, 'same'), 'C_VDD1': (8.8285, 10.0336, 180, 'same'),
-    },
-}
-
-
-# ---------------------------------------------------------------- power pads
-POWER = {
-    'P_BAT+': (-8.2, 13.9, 0, 'T'),
-    'P_BAT-': (-4.6, 13.9, 0, 'T'),
-    'J_FC':   (0.0, 0.0, 90, 'T'),
-    # 3.3 V buck for the four MCUs: bottom centre, under the FC connector
-    # (regulator, inductor and bootstrap capacitor: BUCK below)
-    'C1':     (-3.2071, 0.8814, 90, 'T'),
-    'C2':     (-3.2188, -1.4208, 180, 'T'),
-    'C4':     (3.4624, -0.8521, -90, 'T'),
-    'R1':     (-0.3103, -1.7312, -90, 'B'),
-    'R2':     (1.2625, 2.2648, 0, 'B'),
-    # small parts on the free strips under the side motor pads
-    'C5':     (-15.6, -8.2, 90, 'B'),
-    'R4':     (-15.604, -2.3271, 0, 'B'),
-    'R5':     (-15.5801, 8.4859, 180, 'B'),
-    'C6':     (-15.0246, 9.128, -90, 'T'),
-    'LED_PWR': (15.5, -8.6, 90, 'B'),
-    'R3':     (14.4, -8.6, 90, 'B'),
-    'TP_3V3': (-15.9946, 2.708, -90, 'B'),
-    'TP_GND': (-16.0002, 7.3638, -90, 'B'),
+# ---------------------------------------------------------------- global parts
+# By note (first match, in circuit order).  Battery pads: plated through
+# holes in the rear edge's two corner slots, outside motor 1's pads and
+# FETs (+ left, - right).
+BAT_U, BAT_YR = 9.5, 16.1
+GLOBAL = {
+    'P_BAT+': (-BAT_U, BAT_YR, 0, 'T'),
+    'P_BAT-': (BAT_U, BAT_YR, 0, 'T'),
+    'J_FC': (0.0, 1.6, 0, 'T'),
     'H1': (-pcb.HOLE, -pcb.HOLE, 0, 'T'), 'H2': (pcb.HOLE, -pcb.HOLE, 0, 'T'),
     'H3': (pcb.HOLE, pcb.HOLE, 0, 'T'), 'H4': (-pcb.HOLE, pcb.HOLE, 0, 'T'),
+    # TVS in the rear-left corner slot beside the battery pads; the 3.3 V
+    # buck and the gate-drive LDO in front of the stack connector
+    'D_TVS': (-8.4, 11.6, 90, 'T'),
+    'L1': (-3.2, -3.2, 0, 'T'),
+    'U_BUCK': (-0.2, -2.6, 0, 'T'),
+    'U_GVDD': (3.4, -3.0, 0, 'T'),
+    'LED_PWR': (16.8, 13.2, 90, 'T'),
+    'TP_3V3': (-15.2, 7.0, 0, 'T'),
+    'TP_GND': (-15.2, 8.6, 0, 'T'),
 }
-
-
-# The buck's regulator, inductor and bootstrap capacitor are one rigid group
-# on the bottom: the inductor's SW pad right against the regulator's SW pin
-# (pin 2), the bootstrap capacitor beside pin 6 (CB), and the SW and CB
-# connections laid down as fixed copper (buck_copper) - they are not left to
-# the router.  Offsets at group rotation 0 in board axes: pins 1-3 face +y,
-# the inductor below them (hand 'R': to the right of the regulator, 'L': to
-# the left), its SW pad under pin 2.  The capacitor's SW end runs in under
-# the regulator, between its pin rows, to pin 2; pin 1 (GND) takes its plane
-# via under the inductor, between its pads.  All of this copper stays inside
-# the three parts' courtyards.  BUCK = (x, y, rotation, hand).
-BUCK = (-1.5945, 0.9019, 90, 'R')
-BUCK_PARTS = {'U_BUCK': (0.0, 0.0, 180), 'L1': (1.35, 3.5, 180), 'C3': (2.13, -0.4, 270)}
-BUCK_COPPER = [('BUCK_SW', 0.4, [(0.0, 1.15), (0.0, 2.6)]),
-               ('BUCK_SW', 0.4, [(2.13, 0.08), (0.0, 0.08), (0.0, 1.15)]),
-               ('BUCK_CB', 0.25, [(0.95, -1.15), (2.13, -0.88)]),
-               ('GND', 0.25, [(0.95, 1.15), (1.35, 2.6)])]
-BUCK_VIAS = [('GND', 1.35, 2.6)]
-# hand 'L': the inductor's body is on the other side, pin 1's via goes
-# just beside its SW pad instead
-BUCK_GND_L = (1.1, 2.6)
-
-
-def _buck_xf(g, dx, dy):
-    x0, y0, rot, hand = g
-    for _ in range((int(round(rot)) // 90) % 4):
-        dx, dy = dy, -dx
-    return x0 + dx, y0 + dy
-
-
-def buck_place(g=None):
-    g = g or BUCK
-    out = {}
-    for ref, (dx, dy, r) in BUCK_PARTS.items():
-        if g[3] == 'L' and ref == 'L1':
-            dx, r = -dx, r - 180
-        x, y = _buck_xf(g, dx, dy)
-        out[ref] = (round(x, 4), round(y, 4), (r + int(round(g[2]))) % 360, 'B')
-    return out
-
-
-def buck_copper(b, g=None):
-    """The buck's SW, CB and pin-1 GND connections as locked tracks on the
-    bottom, and pin 1's plane via."""
-    g = g or BUCK
-    k = 0
-    left = g[3] == 'L'
-    for net, x, y in BUCK_VIAS:
-        vx, vy = _buck_xf(g, *(BUCK_GND_L if left else (x, y)))
-        v = pcb.via(b, vx, vy, net, d=VIA_INPAD[0], drill=VIA_INPAD[1])
-        v.SetLocked(True)
-    for net, w, pts in BUCK_COPPER:
-        if left and net == 'GND':
-            pts = [pts[0], BUCK_GND_L]
-        pts = [_buck_xf(g, x, y) for x, y in pts]
-        for (xa, ya), (xb, yb) in zip(pts[:-1], pts[1:]):
-            t = pcbnew.PCB_TRACK(b)
-            t.SetStart(pcbnew.VECTOR2I(MM(pcb.CX + xa), MM(pcb.CY + ya)))
-            t.SetEnd(pcbnew.VECTOR2I(MM(pcb.CX + xb), MM(pcb.CY + yb)))
-            t.SetWidth(MM(w)); t.SetLayer(pcbnew.B_Cu); t.SetNet(b.FindNet(net)); t.SetLocked(True)
-            b.Add(t); k += 1
-    return k
-
-
-if os.environ.get('ESC_OPT'):
-    load_opt(os.environ['ESC_OPT'])
+GLOBAL_BY_NOTE = {
+    'CUR filter': (0.0, -1.6, 0, 'B'),
+    'buck input': (-0.2, -4.4, 0, 'T'),
+    'buck VCC': (1.4, -2.6, 90, 'T'),
+    'buck output': (-6.0, -2.4, 90, 'T'),
+    'power LED': (16.8, 15.4, 90, 'T'),
+    'gate-drive LDO input filter': (1.8, -4.6, 0, 'T'),
+    'gate-drive LDO input': (3.4, -4.9, 0, 'T'),
+    'gate-drive LDO feedback top': (5.8, -2.4, 90, 'T'),
+    'gate-drive LDO feedback bottom': (6.8, -2.4, 90, 'T'),
+    'gate-drive LDO output': (6.3, -4.4, 0, 'T'),
+    'ESC vsense top': (-1.0, 0.0, 90, 'B'),
+    'ESC vsense bottom': (0.1, 0.0, 90, 'B'),
+    'ESC vsense filter': (1.2, 0.0, 90, 'B'),
+}
 
 
 def placement(comps):
-    place = dict(POWER)
-    place.update(buck_place())
+    place = {}
+    for ref, p in GLOBAL.items():
+        place[ref] = p
+    for c in comps:
+        if c.ref in place or c.note not in GLOBAL_BY_NOTE:
+            continue
+        place[c.ref] = GLOBAL_BY_NOTE[c.note]
+    t = template()
     for n in CHANNELS:
-        r = roles(comps, n)
-        t = channel_template(n)
-        for role, ref in r.items():
+        for role, ref in roles(comps, n).items():
             place[ref] = xf(n, *t[role])
     return place
 
 
-FIXED_ROLES = ('QA', 'QB', 'QC', 'PA', 'PB', 'PC', 'C_BULK1', 'C_BULK2', 'C_HF', 'GD', 'MCU', 'C_BC')
+FIXED_ROLES = ('QAH', 'QBH', 'QCH', 'QAL', 'QBL', 'QCL', 'PA', 'PB', 'PC', 'CBR_A', 'CBR_B', 'CBR_C',
+               'GD', 'MCU', 'R_SH', 'RBH_A', 'RBH_B', 'RBH_C', 'RN_A', 'RN_B', 'RN_C')
+
+
+# global parts that stay exactly where the table puts them; the others
+# are only hints for the packer
+GLOBAL_FIXED = ('P_BAT+', 'P_BAT-', 'J_FC', 'H1', 'H2', 'H3', 'H4')
 
 
 def fixed(comps):
-    f = {'P_BAT+', 'P_BAT-', 'J_FC', 'H1', 'H2', 'H3', 'H4'} | set(BUCK_PARTS)   # the buck group is rigid
+    f = set(GLOBAL_FIXED)
     for n in CHANNELS:
         r = roles(comps, n)
         f |= {r[k] for k in FIXED_ROLES}
     return f
 
 
-if __name__ == '__main__':
-    import sys
-    comps = circuit.build('esc')
-    pl = placement(comps)
-    missing = [c.ref for c in comps if c.ref not in pl]
-    print('placed %d of %d; missing %s' % (len(pl), len(comps), missing))
-
-
-def build_placed(out_path, legal=True):
+def build_placed(out_path, legal=True, strict=True):
     b = pcb.new_board(LAYERS)
-    via_rules(b)
+    # 0.04 mm solder-mask expansion: the MCU's 0.5 mm-pitch corner pads
+    # keep a 0.12 mm mask web (0.05 leaves exactly the 0.1 minimum)
+    b.GetDesignSettings().m_SolderMaskExpansion = MM(0.04)
     pcb.outline(b)
     comps = circuit.build('esc')
     place = placement(comps)
+    missing = [c.ref for c in comps if c.ref not in place]
+    if missing:
+        raise KeyError('no placement for %s' % missing)
     if legal:
         import legalize
-        place, left = legalize.legalize(comps, place, fixed(comps))
+        two_pad = lambda c: c.ref[:1] in 'RC' and not c.ref.startswith(('R_SH', 'CBR'))
+        place, left = legalize.pack(comps, place, fixed(comps), rotatable=two_pad, reserved=reserved())
+        if left and strict:
+            raise SystemExit('no room for %s' % left)
     fps = pcb.place_components(b, comps, place)
     b.Save(out_path)
     return b, comps, fps
 
 
-# ---------------------------------------------------------------- power copper
-VIA_D, VIA_DRILL = 0.5, 0.3          # power vias
-COL_DY = (-0.4, 0.35, 1.1)           # via column positions along the FET, from Y0
-COL_DX = 2.1                         # via column distance from the FET centre
+# ============================================================ power copper
+# All in template coordinates (u, yr), stamped for every channel.  Zones
+# connect solidly (no thermal spokes): these are current paths.
+VIA_SIG = (0.35, 0.2)          # signal vias (routers, escapes)
+VIA_INPAD = (0.45, 0.3)        # plane vias in pads (POFV, filled and capped)
+VIA_PWR = (0.5, 0.3)           # power vias: FET tabs, motor pads, returns
+HOLE_CL = 0.15
+
+GAPS = (-7.5, -2.5, 2.5, 7.5)  # via corridors: the gaps between phases and both ends
+SRC_VIA = ((-0.4, 11.85), (0.4, 11.85))          # per corridor, from its centre
+LS_GATE_VIA = (2.0, 13.15)     # from the phase centre (low-side gate, bottom pin 4 at +0.97)
+HS_GATE_VIA = (2.5, 14.05)     # from the phase centre (high-side gate, top pin 4 at +0.97)
+VBAT_VIAS = ((0.95, 10.3), (0.95, 11.1), (0.95, 12.0), (0.1, 12.0))    # from the phase centre
+SW_VIAS = [(du, yr) for yr in (14.3, 15.1, 15.9) for du in (-0.8, 0.0, 0.8) if (du, yr) != (0.8, 14.3)]
+# the return copper's leg from the FET band to the shunt, through the
+# channel's +u corner, and a grid of vias in it
+SRC_LEG = (6.6, 6.8, 10.6, 13.45)
+SRC_LEG_VIAS = [(u, yr) for u in (8.3, 9.1, 9.9) for yr in (9.9, 10.7)]
+TOP_SW = lambda u: [(u - 1.6, 13.45), (u + 0.55, 13.45), (u + 0.55, 14.55), (u + 1.6, 14.55),
+                    (u + 1.6, 17.65), (u - 1.6, 17.65)]
+BOT_SRC = [(-7.9, 13.45), (-7.9, 10.75), (-6.7, 10.75), (-6.7, 9.75), (6.6, 9.75), (6.6, 6.8),
+           (10.6, 6.8), (10.6, 13.45)]
 
 
-def _layer(n, side_rel):
-    cside = CHANNELS[n][1]
-    side = cside if side_rel == 'same' else ('B' if cside == 'T' else 'T')
+def reserved():
+    """Board regions (side, bbox) the packer keeps free for the channel's
+    fixed vias: the corridors, the return leg's via grid, the tops of the
+    shunt's ground vias."""
+    out = []
+    for n in CHANNELS:
+        rects = [('TB', (g - 1.05, 11.35, g + 1.05, 14.45)) for g in GAPS]
+        # the bottom lanes between the bridge capacitors: the driver's and
+        # the MCU's escape vias towards the FETs
+        rects += [('B', (g - 1.0, 9.85, g + 1.0, 11.35)) for g in GAPS[1:3]]
+        rects += [('TB', (7.9, 9.4, 10.3, 11.2)), ('T', (5.5, 7.1, 7.3, 8.9))]
+        for sd, (u0, y0, u1, y1) in rects:
+            pts = [xf_point(n, u, yr) for u, yr in ((u0, y0), (u1, y1))]
+            bb = (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts))
+            for side in ('T', 'B') if sd == 'TB' else (sd,):
+                out.append((side, bb))
+    return out
+
+
+def _cu(side):
     return pcbnew.F_Cu if side == 'T' else pcbnew.B_Cu
+
+
+def _zone(b, n, net, layer, pts, prio=3, name=None, clearance=0.2):
+    poly = [xf_point(n, u, yr) for u, yr in pts]
+    return pcb.zone(b, net, layer, poly, clearance=clearance, min_width=0.2, priority=prio,
+                    thermal=False, name=name)
 
 
 def _in_keepout(x, y, r):
@@ -417,213 +311,211 @@ def _in_keepout(x, y, r):
                for sx in (-1, 1) for sy in (-1, 1))
 
 
-def _zone(b, n, net, side_rel, pts, prio=3, name=None):
-    poly = [xf_point(n, u, yr) for u, yr in pts]
-    z = pcb.zone(b, net, _layer(n, side_rel), poly, clearance=0.15, min_width=0.2, priority=prio,
-                 thermal=False, name=name)
-    return z
-
-
-def _via(b, n, u, yr, net, count):
+def _via(b, n, u, yr, net, size, count):
     x, y = xf_point(n, u, yr)
-    if _in_keepout(x, y, VIA_D / 2):
-        return 0
-    v = pcb.via(b, x, y, net, d=VIA_D, drill=VIA_DRILL)
+    if _in_keepout(x, y, size[0] / 2):
+        return None
+    v = pcb.via(b, x, y, net, d=size[0], drill=size[1])
     v.SetLocked(True)
     count[net] = count.get(net, 0) + 1
-    return 1
+    return v
+
+
+def _pad_box(b, ref, num):
+    """(u0, yr0, u1, yr1) of a pad, in board mm (not template)."""
+    fp = b.FindFootprintByReference(ref)
+    pad = next(p for p in fp.Pads() if p.GetNumber() == num)
+    bb = pad.GetBoundingBox()
+    return (bb.GetLeft() / 1e6 - pcb.CX, bb.GetTop() / 1e6 - pcb.CY, bb.GetRight() / 1e6 - pcb.CX,
+            bb.GetBottom() / 1e6 - pcb.CY)
+
+
+def _to_template(n, x, y):
+    a = math.radians(CHANNELS[n])
+    # inverse of xf_point: rotate back
+    return (x * math.cos(a) - y * math.sin(a), x * math.sin(a) + y * math.cos(a))
 
 
 def power_copper(b, comps):
-    """Via columns, switch-node copper and bulk-capacitor copper for every
-    half-bridge; vias in the battery pads.  Returns via counts per net."""
+    """Every channel's half-bridge copper, vias and return path.  Returns
+    via counts per net."""
     count = {}
     for n in CHANNELS:
-        t = channel_template(n)
-        for ph in 'ABC':
-            x0, y0 = t['Q' + ph][0], t['Q' + ph][1]
-            px = t['P' + ph][0]
-            sw = 'M%d_%s' % (n, ph)
-            # plane via columns: VBAT beside pins 2-4, GND beside pins 5-7
-            for dy in COL_DY:
-                _via(b, n, x0 - COL_DX, y0 + dy, 'VBAT', count)
-                _via(b, n, x0 + COL_DX, y0 + dy, 'GND', count)
-            # pins + exposed pad 9 + via column, on the FET's side
-            _zone(b, n, 'VBAT', 'same', [(x0 - 2.5, y0 - 1.3), (x0 - 0.3, y0 - 1.3),
-                                         (x0 - 0.3, y0 + 1.45), (x0 - 2.5, y0 + 1.45)])
-            _zone(b, n, 'GND', 'same', [(x0 + 1.05, y0 - 0.75), (x0 + 2.5, y0 - 0.75),
-                                        (x0 + 2.5, y0 + 1.45), (x0 + 1.05, y0 + 1.45)])
-            # switch node: exposed pad 10 straight out to the motor pad
-            xl, xr = min(x0, px) - 1.0, max(x0, px) + 1.0
-            _zone(b, n, sw, 'same', [(x0 - 0.12, y0 - 1.3), (x0 + 0.96, y0 - 1.3), (x0 + 0.96, y0 + 1.4),
-                                     (xr, y0 + 1.4), (xr, 16.5), (xl, 16.5), (xl, y0 + 1.4),
-                                     (x0 - 0.12, y0 + 1.4)], name='switch node')
-            # the back-EMF resistors standing beside this phase's motor pad:
-            # a copper tab from the pad (or the switch-node pour) to their
-            # phase-end pad, so no trace has to come here
-            for role in ('R_B%s_H' % ph, 'R_N%s' % ph):
-                ur, yr_r, rot_r, side_r = t[role]
-                if abs(yr_r - EDGE_YR) > 0.01:
+        r = roles(comps, n)
+        m = lambda s: 'M%d_%s' % (n, s)
+        for ph, u in PH_U.items():
+            sw = m(ph)
+            # top: switch node from the high-side sources to the motor pad,
+            # notched round the gate pin; the drain side is battery
+            _zone(b, n, sw, pcbnew.F_Cu, TOP_SW(u), name='switch node')
+            _zone(b, n, 'VBAT', pcbnew.F_Cu, [(u - 1.6, 10.15), (u + 1.6, 10.15), (u + 1.6, 13.25),
+                                              (u - 1.6, 13.25)], name='high-side drain')
+            # bottom: switch node over the low-side drain, reaching out to
+            # the phase ends of the back-EMF resistors that tap it
+            pts = [(u - 1.6, 13.65), (u + 1.6, 13.65), (u + 1.6, 16.85), (u - 1.6, 16.85)]
+            _zone(b, n, sw, pcbnew.B_Cu, pts, name='switch node')
+            for c in comps:
+                if c.block != 'esc%d' % n or not c.note.startswith(('BEMF ', 'neutral ')) or c.pins.get('1') != sw:
                     continue
-                on_fet_side = (_layer(n, side_r) == _layer(n, 'same'))
-                lo, hi = (xl, xr) if on_fet_side else (px - 1.0, px + 1.0)
-                if ur > hi:
-                    ua, ub = hi - 0.1, ur + 0.1
-                elif ur < lo:
-                    ua, ub = ur - 0.1, lo + 0.1
+                if c.note.startswith('neutral to'):
+                    continue
+                x0, y0, x1, y1 = _pad_box(b, c.ref, '1')
+                q = [_to_template(n, x, y) for x, y in ((x0, y0), (x1, y1))]
+                pu0, pu1 = min(q[0][0], q[1][0]), max(q[0][0], q[1][0])
+                py0, py1 = min(q[0][1], q[1][1]), max(q[0][1], q[1][1])
+                # a strip from the pad to the nearest point well inside
+                # the pour (0.25 mm in from its edge)
+                cu_ = min(max((pu0 + pu1) / 2, u - 1.35), u + 1.35)
+                cy_ = min(max((py0 + py1) / 2, 13.9), 16.6)
+                if u - 1.6 <= (pu0 + pu1) / 2 <= u + 1.6 and 13.65 <= (py0 + py1) / 2 <= 16.85:
+                    continue
+                w2 = 0.25
+                if abs(cu_ - (pu0 + pu1) / 2) >= abs(cy_ - (py0 + py1) / 2):
+                    ya, yb = max(py0, cy_ - w2), min(py1, cy_ + w2)
+                    if ya > yb - 0.3:
+                        ya, yb = (py0 + py1) / 2 - w2, (py0 + py1) / 2 + w2
+                    tab = [(min(pu0, cu_), ya), (max(pu1, cu_), ya), (max(pu1, cu_), yb), (min(pu0, cu_), yb)]
                 else:
-                    continue
-                y1 = yr_r + 0.51
-                _zone(b, n, sw, side_r, [(ua, y1 - 0.24), (ub, y1 - 0.24), (ub, y1 + 0.24), (ua, y1 + 0.24)],
-                      prio=4, name='bemf tab')
-            if CHANNELS[n][1] == 'B':
-                # bottom channel: the pad is on top, reached by vias in the pad
-                # (3 x 2 at 0.76 / 0.8 mm pitch: POFV holes > 0.45 mm apart)
-                for du in (-0.76, 0.0, 0.76):
-                    for yr in (PAD_YR - 0.4, PAD_YR + 0.4):
-                        _via(b, n, px + du, yr, sw, count)
-            # bulk capacitor under the FET, joined to the same via columns
-            if not (n == 1 and ph == 'A'):
-                _zone(b, n, 'VBAT', 'opp', [(x0 - 2.5, y0 - 0.75), (x0 - 0.3, y0 - 0.75),
-                                            (x0 - 0.3, y0 + 1.45), (x0 - 2.5, y0 + 1.45)])
-                _zone(b, n, 'GND', 'opp', [(x0 + 0.3, y0 - 0.75), (x0 + 2.5, y0 - 0.75),
-                                           (x0 + 2.5, y0 + 1.45), (x0 + 0.3, y0 + 1.45)])
-    # battery pads: a grid of vias into the planes, wherever the other side
-    # (motor 1's FET A sits under BAT-) and the vias already there allow
-    import fanout
-    from shapely.geometry import Point
-    obs = fanout.Obstacles(b, [pcbnew.F_Cu, pcbnew.B_Cu])
-    for ref, net in (('P_BAT+', 'VBAT'), ('P_BAT-', 'GND')):
-        cx, cy = POWER[ref][0], POWER[ref][1]
-        for dx in (-0.76, 0.0, 0.76):          # 0.76 mm grid: POFV hole spacing
-            for dy in (-1.83, -1.07, -0.31, 0.45, 1.21, 1.97):
-                x, y = cx + dx, cy + dy
-                g = Point(pcb.CX + x, pcb.CY + y).buffer(VIA_D / 2)
-                if _in_keepout(x, y, VIA_D / 2) or not obs.via_room(pcb.CX + x, pcb.CY + y, VIA_D + 0.2):
-                    continue
-                if not obs.clear(g, net, [pcbnew.F_Cu, pcbnew.B_Cu], 0.2):
-                    continue
-                v = pcb.via(b, x, y, net, d=VIA_D, drill=VIA_DRILL); v.SetLocked(True)
-                obs.add(g, net, [pcbnew.F_Cu, pcbnew.B_Cu]); obs.vias.append((pcb.CX + x, pcb.CY + y))
-                count[net] = count.get(net, 0) + 1
+                    ua, ub = max(pu0, cu_ - w2), min(pu1, cu_ + w2)
+                    if ua > ub - 0.3:
+                        ua, ub = (pu0 + pu1) / 2 - w2, (pu0 + pu1) / 2 + w2
+                    tab = [(ua, min(py0, cy_)), (ub, min(py0, cy_)), (ub, max(py1, cy_)), (ua, max(py1, cy_))]
+                _zone(b, n, sw, pcbnew.B_Cu, tab, prio=4, name='bemf tab')
+            # bottom: battery island round the bridge capacitor's VBAT pad
+            # and the high-side drain's vias beside the low-side sources
+            _zone(b, n, 'VBAT', pcbnew.B_Cu, [(u + 0.3, 9.75), (u + 1.62, 9.75), (u + 1.62, 12.35),
+                                              (u - 0.3, 12.35), (u - 0.3, 11.62), (u + 0.3, 11.62)],
+                  prio=5, name='bridge VBAT')
+            for du, yr in VBAT_VIAS:
+                _via(b, n, u + du, yr, 'VBAT', VIA_PWR, count)
+            for du, yr in SW_VIAS:
+                _via(b, n, u + du, yr, sw, VIA_PWR, count)
+        # the channel's return: bottom and In3, the FET band plus the leg
+        # to the shunt
+        leg = [(SRC_LEG[0], SRC_LEG[1]), (SRC_LEG[2], SRC_LEG[1]), (SRC_LEG[2], SRC_LEG[3])]
+        _zone(b, n, m('SRC'), pcbnew.B_Cu, BOT_SRC, prio=3, name='return')
+        _zone(b, n, m('SRC'), pcbnew.In3_Cu, BOT_SRC, prio=3, name='return')
+        for g in GAPS:
+            for du, yr in SRC_VIA:
+                _via(b, n, g + du, yr, m('SRC'), VIA_PWR, count)
+        for u, yr in SRC_LEG_VIAS:
+            _via(b, n, u, yr, m('SRC'), VIA_PWR, count)
     return count
 
 
-def routing_keepouts(b):
-    """Rule areas (no tracks, no vias) over the half-bridge pours, added only
-    to the copy of the board handed to Freerouting: it treats pours as
-    planes other nets may cross, and a trace across a pour splits it when
-    the pour is refilled.  Openings are left where connections land: each
-    high-side gate pad (inside the VBAT pour) and the inner tip of each
-    switch-node pour (driver VS pin, bootstrap capacitor)."""
-    from shapely.geometry import box
-    from shapely.ops import unary_union
-    n_added = 0
+def shunt_vias(b, comps):
+    """Ground vias in every shunt's ground pad, as many as fit round its
+    Kelvin sense pad."""
+    import fanout
+    from shapely.geometry import Point
+    layers = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
+    k = 0
     for n in CHANNELS:
-        t = channel_template(n)
-        for ph in 'ABC':
-            x0, y0 = t['Q' + ph][0], t['Q' + ph][1]
-            px = t['P' + ph][0]
-            xl, xr = min(x0, px) - 1.0, max(x0, px) + 1.0
-            areas = {'same': [], 'opp': []}
-            vb = box(x0 - 2.5, y0 - 1.3, x0 - 0.3, y0 + 1.45).difference(box(x0 - 2.05, y0 - 1.5, x0 - 0.95, y0 - 0.45))
-            areas['same'] += [vb, box(x0 + 1.05, y0 - 0.75, x0 + 2.5, y0 + 1.45)]
-            sw = unary_union([box(x0 - 0.12, y0 - 1.3, x0 + 0.96, y0 + 1.4), box(xl, y0 + 1.4, xr, 16.5)])
-            areas['same'].append(sw.difference(box(x0 - 0.6, y0 - 1.5, x0 + 1.5, y0 - 0.8)))
-            if not (n == 1 and ph == 'A'):
-                areas['opp'] += [box(x0 - 2.5, y0 - 0.75, x0 - 0.3, y0 + 1.45), box(x0 + 0.3, y0 - 0.75, x0 + 2.5, y0 + 1.45)]
-            for side_rel, geoms in areas.items():
-                for g in geoms:
-                    for poly in (g.geoms if hasattr(g, 'geoms') else [g]):
-                        pts = [xf_point(n, u, yr) for u, yr in list(poly.exterior.coords)[:-1]]
-                        pcb.rule_area(b, pts, [_layer(n, side_rel)], tracks=True, vias=True, pads=False,
-                                      pours=False, name='pour keepout')
-                        n_added += 1
-    # Freerouting keeps only its own clearance from the outline, not the
-    # board's 0.3 mm copper-to-edge rule: a 0.3 mm strip along each edge
+        obs = fanout.Obstacles(b, layers)
+        ref = roles(comps, n)['R_SH']
+        fp = b.FindFootprintByReference(ref)
+        pad = next(p for p in fp.Pads() if p.GetNumber() == '2')
+        c = pad.GetPosition(); cx, cy = c.x / 1e6, c.y / 1e6
+        for dx in (-0.4, 0.4):
+            for dy in (-0.4, 0.4):
+                vx, vy = cx + dx, cy + dy
+                g = Point(vx, vy).buffer(VIA_PWR[0] / 2)
+                if not (obs.clear(g, 'GND', layers, 0.2) and obs.hole_room(vx, vy, VIA_PWR[1] / 2, 0.45)):
+                    continue
+                v = pcb.via(b, vx - pcb.CX, vy - pcb.CY, 'GND', d=VIA_PWR[0], drill=VIA_PWR[1]); v.SetLocked(True)
+                obs.add(g, 'GND', layers); obs.holes.append((vx, vy, VIA_PWR[1] / 2))
+                k += 1
+    return k
+
+
+def gate_vias(b, comps):
+    """Every FET gate leaves its pin 4 by a short fixed stub, sideways into
+    the corridor beside the phase, to a via: the gate trace changes layer
+    there and the router starts from the via.  Locked."""
+    k = 0
+    for n in CHANNELS:
+        r = roles(comps, n)
+        for ph, u in PH_U.items():
+            for role, (du, yr), layer in (('Q%sL' % ph, LS_GATE_VIA, pcbnew.B_Cu),
+                                          ('Q%sH' % ph, HS_GATE_VIA, pcbnew.F_Cu)):
+                fp = b.FindFootprintByReference(r[role])
+                pad = next(p for p in fp.Pads() if p.GetNumber() == '4')
+                x, y = xf_point(n, u + du, yr)
+                v = pcb.via(b, x, y, pad.GetNetname(), d=VIA_SIG[0], drill=VIA_SIG[1]); v.SetLocked(True)
+                tr = pcbnew.PCB_TRACK(b)
+                tr.SetStart(pad.GetPosition()); tr.SetEnd(v.GetPosition()); tr.SetWidth(MM(0.25))
+                tr.SetLayer(layer); tr.SetNet(pad.GetNet()); tr.SetLocked(True)
+                b.Add(tr)
+                k += 1
+    return k
+
+
+def routing_keepouts(b):
+    """Rule areas (no tracks, no vias) over the power copper, added only to
+    the copy of the board handed to Freerouting, which treats pours as
+    planes other nets may cross.  Plus a 0.3 mm strip along each edge
+    (Freerouting keeps only its own clearance from the outline)."""
+    k = 0
+    for n in CHANNELS:
+        areas = []
+        for ph, u in PH_U.items():
+            areas.append((pcbnew.F_Cu, TOP_SW(u)))
+            areas.append((pcbnew.F_Cu, [(u - 1.6, 10.15), (u + 1.6, 10.15), (u + 1.6, 13.25), (u - 1.6, 13.25)]))
+            areas.append((pcbnew.B_Cu, [(u - 1.6, 13.65), (u + 1.6, 13.65), (u + 1.6, 16.85), (u - 1.6, 16.85)]))
+        areas.append((pcbnew.B_Cu, BOT_SRC))
+        areas.append((pcbnew.In3_Cu, BOT_SRC))
+        for layer, pts in areas:
+            pcb.rule_area(b, [xf_point(n, u, yr) for u, yr in pts], [layer], tracks=True, vias=True,
+                          pads=False, pours=False, name='pour keepout')
+            k += 1
     h, w = pcb.HALF, 0.3
     cu = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu)
           if b.IsLayerEnabled(l)]
     for x0, y0, x1, y1 in ((-h, -h, h, -h + w), (-h, h - w, h, h), (-h, -h, -h + w, h), (h - w, -h, h, h)):
         pcb.rule_area(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], cu, tracks=True, vias=True, pads=False,
                       pours=False, name='edge keepout')
-        n_added += 1
-    return n_added
+        k += 1
+    return k
 
 
-def fet_refs(comps):
-    out = set()
-    for n in CHANNELS:
-        r = roles(comps, n)
-        out |= {r[k] for k in ('QA', 'QB', 'QC', 'C_BULK1', 'C_BULK2', 'C_HF')}
-    out |= {'P_BAT+', 'P_BAT-'}
-    out.discard(roles(comps, 1)['C_HF'])      # motor 1's HF cap has no zone: fan it out
-    return out
-
-
-# Six layers.  Every patch of this board carries a half-bridge channel on
-# one side and another on the other side, so four layers left too few
-# routing layers (Freerouting and the in-house router both stalled at over
-# a hundred open connections).  Stackup: F signals | In1 GND | In2, In3
-# signals | In4 VBAT | B signals.
+# Six layers: F signals + power | In1 GND | In2 signals | In3 signals +
+# channel returns | In4 VBAT | B signals + power.
 LAYERS = 6
 ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
 
 
 def net_groups(comps):
     nets = set(net for c in comps for net in c.pins.values() if net)
-    gate = sorted(n for n in nets if n[:1] == 'M' and n[2:5] in ('_GH', '_GL', '_VB'))
-    drv = sorted(n for n in nets if n[:1] == 'M' and n[2:] in ('_VCC', '_A', '_B', '_C'))
+    gate = sorted(x for x in nets if x[:1] == 'M' and x[2:] in ('_GHA', '_GHB', '_GHC', '_GLA', '_GLB', '_GLC',
+                                                                 '_GHA_D', '_GHB_D', '_GHC_D', '_GLA_D',
+                                                                 '_GLB_D', '_GLC_D', '_BSTA', '_BSTB', '_BSTC'))
+    drv = sorted(x for x in nets if x[:1] == 'M' and x[2:] in ('_A', '_B', '_C'))
     return nets, gate, drv
 
 
-# Net widths for the router: gate drive and bootstrap 0.2 mm, driver supply
-# and switch-node sense 0.25 mm, 3.3 V 0.25 mm, buck switch node 0.4 mm.
 def widths(comps):
+    """Router widths: gate drive and bootstrap 0.2 mm, the driver's
+    switch-node sense 0.2 mm, supplies 0.25 mm, the buck's switch node
+    0.4 mm, everything else the 0.1 mm default."""
     nets, gate, drv = net_groups(comps)
-    w = {n: 0.2 for n in gate}
-    w.update({n: 0.2 for n in drv})
-    w.update({'+3V3': 0.2, 'BUCK_SW': 0.4, 'BUCK_CB': 0.2, 'VBAT': 0.3})
+    w = {x: 0.2 for x in gate}
+    w.update({x: 0.2 for x in drv})
+    w.update({'+3V3': 0.25, 'GVDD': 0.25, 'GVDD_IN': 0.25, 'BUCK_LX': 0.4, 'BUCK_VCC': 0.2, 'VBAT': 0.3})
     return w
 
 
-# Clearances.  Nothing on this board exceeds 16.8 V (plus switching
-# overshoot), where IPC-2221B asks 0.1 mm between outer-layer conductors
-# (B2, 16-30 V).  0.1 mm everywhere, 0.15 round the buck's switch node.
-# Space for vias is what limits this board, so no more than that.
 def clearances(comps):
-    return {n: (0.15 if n == 'BUCK_SW' else 0.1) for n in widths(comps)}
-
-# Vias.  This is a 6-layer JLCPCB build, which makes 0.25/0.15 mm vias and
-# via-in-pad (epoxy filled, copper capped: POFV) at standard price.
-#   signal vias (Freerouting, finisher)             0.35 / 0.2 mm
-#   plane vias in passive pads and signal escape
-#   vias in pads (POFV)                             0.45 / 0.3 mm  (JLC's free size)
-#   plane vias in QFN exposed pads (POFV)           0.45 / 0.3 mm
-#   plane vias beside a pad that cannot take one    0.45 / 0.25 mm
-#   FET, battery and motor-pad power vias           0.5 / 0.3 mm
-# Every 0.3 mm drill is an in-pad (filled) or power via; in-pad holes keep
-# more than 0.45 mm to any other hole (JLC's POFV rule, DRU_EXTRA below).
-# Hole to other-net copper 0.15 mm (a 0.35/0.2 via at 0.1 mm clearance
-# gives 0.175).  Space for vias is what limits this board.
-VIA_SIG = (0.35, 0.2)
-
-# Extra DRC rule for the ESC (pcb.write_rules(path, DRU_EXTRA)): JLCPCB's
-# via-in-pad (POFV) holes must stay more than 0.45 mm from any other hole.
-# Every 0.3 mm-drill via here is an in-pad or power via (signal vias are
-# 0.2 mm), so the rule is keyed on the drill.  The FET via columns sit at
-# exactly 0.45 mm (not in pads), hence min 0.45.
-DRU_EXTRA = '''# JLCPCB via-in-pad (POFV): ordered "Epoxy Filled & Capped", every via is
-# filled; holes drilled afterwards (here: the unplated mounting holes) keep
-# 0.45 mm from them.  Via to via: the board's normal hole-to-hole rule.
-(rule "POFV to drilled holes"
-  (condition "A.Type == 'Via' && B.Type == 'Pad'")
-  (constraint hole_to_hole (min 0.45mm)))
-'''
-ESCAPE_FAR = float(os.environ.get('ESCAPE_FAR', 5.0))   # see fanout.escape_vias
-VIA_INPAD = (0.45, 0.3)
-VIA_OFFPAD = (0.45, 0.25)   # plane via beside a pad that cannot take one
-HOLE_CL = 0.15
+    """The switch nodes and the battery reach 25.2 V plus switching
+    overshoot, so 31-50 V: IPC-2221B asks 0.13 mm on outer layers under
+    solder mask (B4) and 0.1 mm on inner layers (B1).  0.13 mm round those
+    nets everywhere; everything else is 3.3 V or 11.4 V logic and gate
+    drive, 0.1 mm (B4 and B1 both allow it below 30 V)."""
+    nets, gate, drv = net_groups(comps)
+    cl = {x: 0.1 for x in widths(comps)}
+    for x in drv + ['VBAT']:
+        cl[x] = 0.13
+    cl['BUCK_LX'] = 0.15
+    return cl
 
 
 def via_rules(b):
@@ -636,23 +528,35 @@ def via_rules(b):
     nc.SetViaDiameter(MM(VIA_SIG[0])); nc.SetViaDrill(MM(VIA_SIG[1]))
 
 
-# Plane fan-out: every ground/pack pad of a passive gets its plane via in the
-# pad itself; QFN ground pins join their own exposed pad; four vias in each
-# MCU/driver exposed pad (a 1.5 mm grid) are plenty and leave the inner
-# layers under them to the router.  Where a pad cannot take a via (the other
-# side of the board is occupied there), a via beside it, or a stub to a
-# ground via within 0.9 mm.
-FANOUT = dict(ep_pitch=float(os.environ.get('FANOUT_EP', 1.5)), share=float(os.environ.get('FANOUT_SHARE', 0.9)),
-              ep_join=0.2, via_d=VIA_INPAD[0], via_drill=VIA_INPAD[1], off_drill=VIA_OFFPAD[1], clearance=0.1,
-              steps=(0.02, 0.15, 0.3, 0.5, 0.75, 1.0, 1.3, 1.7, 2.1, 2.5), far_share=3.0)
-if os.environ.get('FANOUT_INPAD', '1') == '1':
-    FANOUT['inpad'] = dict(d=VIA_INPAD[0], drill=VIA_INPAD[1], cl=0.1, hole_cl=HOLE_CL, hole_gap=0.45, min_pad=0.34)
+DRU_EXTRA = """# JLCPCB via-in-pad (POFV): ordered "Epoxy Filled & Capped", every via is
+# filled; holes drilled afterwards (the unplated mounting holes and the
+# plated battery pads) keep 0.45 mm from them.
+(rule "POFV to drilled holes"
+  (condition "A.Type == 'Via' && B.Type == 'Pad'")
+  (constraint hole_to_hole (min 0.45mm)))
+"""
+
+FANOUT = dict(ep_pitch=1.5, share=0.9, ep_join=0.2, via_d=VIA_INPAD[0], via_drill=VIA_INPAD[1],
+              off_drill=0.25, clearance=0.1, steps=(0.02, 0.15, 0.3, 0.5, 0.75, 1.0, 1.3, 1.7, 2.1, 2.5),
+              far_share=3.0,
+              inpad=dict(d=VIA_INPAD[0], drill=VIA_INPAD[1], cl=0.1, hole_cl=HOLE_CL, hole_gap=0.45, min_pad=0.34))
+
+
+def power_refs(comps):
+    """Parts whose plane connections the power copper already makes."""
+    out = {'P_BAT+', 'P_BAT-'}
+    for n in CHANNELS:
+        r = roles(comps, n)
+        out |= {r[k] for k in ('QAH', 'QBH', 'QCH', 'QAL', 'QBL', 'QCL', 'CBR_A', 'CBR_B', 'CBR_C', 'R_SH',
+                               'PA', 'PB', 'PC')}
+    return out
 
 
 def build(out_path):
     b, comps, fps = build_placed(out_path)
     cu = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
     pcb.hole_keepouts(b, cu)
+    via_rules(b)
     e = H - 0.35
     full = [(-e, -e), (e, -e), (e, e), (-e, e)]
     pcb.zone(b, 'GND', pcbnew.In1_Cu, full, name='GND plane', thermal=False)
@@ -660,178 +564,37 @@ def build(out_path):
     for l, t in ((pcbnew.In1_Cu, pcbnew.LT_POWER), (pcbnew.In2_Cu, pcbnew.LT_SIGNAL),
                  (pcbnew.In3_Cu, pcbnew.LT_SIGNAL), (pcbnew.In4_Cu, pcbnew.LT_POWER)):
         b.SetLayerType(l, t)
-    count = power_copper(b, comps)
-    print('power vias:', count)
-    print('bootstrap VS vias:', boot_vias(b, comps), ' buck copper:', buck_copper(b))
+    print('power vias:', power_copper(b, comps))
+    print('shunt ground vias:', shunt_vias(b, comps))
+    print('gate vias:', gate_vias(b, comps))
     nets, gate, drv = net_groups(comps)
+    cl = clearances(comps)
     pcb.netclass(b, 'GATE', gate, width=0.2, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
-    pcb.netclass(b, 'DRIVE', drv, width=0.2, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
-    pcb.netclass(b, 'PWR', ['+3V3', 'BUCK_CB'], width=0.2, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
-    pcb.netclass(b, 'SW', ['BUCK_SW'], width=0.4, clearance=0.15, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
-    pcb.netclass(b, 'BAT', ['VBAT'], width=0.3, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    pcb.netclass(b, 'SWITCH', drv, width=0.2, clearance=0.13, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    pcb.netclass(b, 'PWR', ['+3V3', 'GVDD', 'GVDD_IN', 'BUCK_VCC'], width=0.25, clearance=0.1,
+                 via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    pcb.netclass(b, 'BUCKSW', ['BUCK_LX'], width=0.4, clearance=0.15, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    pcb.netclass(b, 'BAT', ['VBAT'], width=0.3, clearance=0.13, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
     import fanout
-    fanout.Obstacles.NET_CL = {n: c for n, c in clearances(comps).items() if c > 0.1}
+    fanout.Obstacles.NET_CL = {x: c for x, c in cl.items() if c > 0.1}
     fanout.Obstacles.MARGIN = 0.01
     e2 = H - 0.4
-    k, bad = gate_vias(b, comps)
-    print('gate vias in pads: %d, none for %s' % (k, bad))
-    k, bad = ho2_vias(b, comps)
-    print('HO2 escape vias: %d, none for %s' % (k, bad))
     pins = escape_pins(b, comps)
     k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
     print('QFN escape vias: %d of %d, none for %s' % (k, len(pins), bad))
-    # plane vias stay out of the channels' surface routing lanes
-    from shapely.geometry import Point
-    lanes = channel_lanes()
-    lane_ok = lambda x, y, net: not any(l.intersects(Point(x, y).buffer(VIA_INPAD[0] / 2)) for l in lanes)
-    n, failed = fanout.fanout(b, {'GND', 'VBAT'}, (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2),
-                              skip=fet_refs(comps), via_ok=lane_ok, **FANOUT)
-    print('fanout: %d plane vias, %d pads without one: %s' % (n, len(failed), failed))
-    if 'inpad' in FANOUT and os.environ.get('ESCAPE_VIAS', '1') == '1':
-        k = fanout.escape_vias(b, {'GND', 'VBAT'}, FANOUT['inpad'], far=ESCAPE_FAR, refs=('J_FC',),
-                               bounds=(pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2))
-        print('escape vias in pads:', k)
+    k, failed = fanout.fanout(b, {'GND', 'VBAT'}, (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2),
+                              skip=power_refs(comps), **{x: y for x, y in FANOUT.items() if x != 'inpad'},
+                              inpad=FANOUT['inpad'])
+    print('fanout: %d plane vias, %d pads without one: %s' % (k, len(failed), failed))
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     b.Save(out_path)
     return b
 
 
-BOOT_VIA = (0.6, 10.9)      # from the FET's centre: in the switch-node pour's inner tip
-
-
-def boot_vias(b, comps):
-    """Every bootstrap capacitor's VS pad is tied to its switch node by
-    fixed copper: a stub to a filled via in the switch-node pour's inner tip
-    (C's capacitor is on top, just inside FET C's bulk capacitor; A's and
-    B's stand on the FET's side, just behind it).  The driver's VS pins then
-    only have to reach their capacitor.  Locked."""
-    k = 0
-    for n in CHANNELS:
-        t = channel_template(n)
-        for ph in 'ABC':
-            cap = b.FindFootprintByReference(roles(comps, n)['C_B' + ph])
-            pad = next(p for p in cap.Pads() if p.GetNetname() == 'M%d_%s' % (n, ph))
-            # straight behind the VS pad where that is over the pour's tip
-            # (A and B), else at BOOT_VIA (C, on top; motor 1's B)
-            x0 = t['Q' + ph][0]
-            u = {'A': t['C_BA'][0] + 0.48, 'B': t['C_BB'][0] - 0.48, 'C': None}[ph]
-            if u is None or not (x0 - 0.12 <= u <= x0 + 0.96):
-                u = x0 + BOOT_VIA[0]
-            u = min(u, x0 + 0.8)          # clear of the low-side gate pad (x0 + 1.2)
-            x, y = xf_point(n, u, BOOT_VIA[1])
-            v = pcb.via(b, x, y, pad.GetNetname(), d=VIA_INPAD[0], drill=VIA_INPAD[1])
-            v.SetLocked(True)
-            tr = pcbnew.PCB_TRACK(b)
-            tr.SetStart(pad.GetPosition()); tr.SetEnd(v.GetPosition()); tr.SetWidth(MM(0.25))
-            tr.SetLayer(pcbnew.B_Cu if cap.IsFlipped() else pcbnew.F_Cu); tr.SetNet(pad.GetNet()); tr.SetLocked(True)
-            b.Add(tr)
-            k += 1
-    return k
-
-
-HO2_VIA_YR = 10.55    # HO2's escape: through the gap between B's bootstrap pads
-
-
-def ho2_vias(b, comps):
-    """The driver's HO2 (pin 16) sits between VS2 and VB2, which run straight
-    down to B's bootstrap capacitor, and FET B's high-side gate is on the far
-    side of VS2's copper: a stub down through the gap between the capacitor's
-    pads to a via just past it, locked.  Returns (placed, failed)."""
-    import fanout
-    from shapely.geometry import Point, LineString
-    layers = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
-    obs = fanout.Obstacles(b, layers)
-    d, dr = VIA_SIG
-    k, bad = 0, []
-    for n in CHANNELS:
-        r = roles(comps, n)
-        gd = b.FindFootprintByReference(r['GD'])
-        pad = next(p for p in gd.Pads() if p.GetNumber() == '16')
-        t = channel_template(n)
-        x, y = xf_point(n, t['GD'][0] + 0.25, HO2_VIA_YR)
-        q = pad.GetPosition(); px, py = q.x / 1e6, q.y / 1e6
-        vx, vy = pcb.CX + x, pcb.CY + y
-        net = pad.GetNetname()
-        if not (obs.clear(Point(vx, vy).buffer(d / 2), net, layers, 0.1) and obs.hole_room(vx, vy, dr / 2, 0.45)
-                and obs.clear(LineString([(px, py), (vx, vy)]).buffer(0.075), net, [pcbnew.B_Cu], 0.1)):
-            bad.append(r['GD'])
-            continue
-        v = pcb.via(b, x, y, net, d=d, drill=dr); v.SetLocked(True)
-        tr = pcbnew.PCB_TRACK(b); tr.SetStart(q); tr.SetEnd(v.GetPosition()); tr.SetWidth(MM(0.15))
-        tr.SetLayer(pcbnew.B_Cu if gd.IsFlipped() else pcbnew.F_Cu); tr.SetNet(pad.GetNet()); tr.SetLocked(True)
-        b.Add(tr)
-        k += 1
-    return k, bad
-
-
-def channel_lanes():
-    """The surface routing channels (TOP_CHANNELS) of every channel as
-    board-mm polygons (board origin at pcb.CX, pcb.CY)."""
-    from shapely.geometry import Polygon
-    out = []
-    for n in CHANNELS:
-        for u0, y0, u1, y1 in TOP_CHANNELS:
-            out.append(Polygon([(pcb.CX + a, pcb.CY + c) for a, c in
-                                (xf_point(n, u, yr) for u, yr in ((u0, y0), (u1, y0), (u1, y1), (u0, y1)))]))
-    return out
-
-
-GATE_VIA_YR = (11.08, 11.14, 11.0, 10.9, 10.8)   # gate via, tried in turn (the pad spans 10.98-11.38)
-
-
-def gate_vias(b, comps):
-    """A filled via in every FET gate pad (pad 1 high side, pad 8 low side),
-    at its inner end: the gate trace can change layer right at the FET.  The
-    bulk capacitor on top reaches to yr 11.43, so the via sits at the pad's
-    driver end, or just past it where a battery pad leaves no room.
-    Locked.  Returns (placed, failed pads)."""
-    import fanout
-    from shapely.geometry import Point
-    layers = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
-    obs = fanout.Obstacles(b, layers)
-    d, dr = VIA_SIG
-    k, bad = 0, []
-    for n in CHANNELS:
-        r = roles(comps, n)
-        t = channel_template(n)
-        for ph in 'ABC':
-            fp = b.FindFootprintByReference(r['Q' + ph])
-            x0 = t['Q' + ph][0]
-            for num, du in (('1', -1.5), ('8', 1.5)):
-                pad = next(p for p in fp.Pads() if p.GetNumber() == num)
-                net = pad.GetNetname()
-                spot = None
-                for yr in GATE_VIA_YR:
-                    x, y = xf_point(n, x0 + du, yr)
-                    vx, vy = pcb.CX + x, pcb.CY + y
-                    g = Point(vx, vy).buffer(d / 2)
-                    if obs.clear(g, net, layers, 0.1) and obs.hole_room(vx, vy, dr / 2, 0.45):
-                        spot = (x, y, g, vx, vy)
-                        break
-                if not spot:
-                    bad.append((fp.GetReference(), num))
-                    continue
-                x, y, g, vx, vy = spot
-                v = pcb.via(b, x, y, net, d=d, drill=dr)
-                v.SetLocked(True)
-                obs.add(g, net, layers); obs.holes.append((vx, vy, dr / 2))
-                k += 1
-    return k, bad
-
-
-# MCU pins that always get an escape via: SIG (8), CMP_A/B/C (11/10/6),
-# NEUTRAL (7), SWDIO/SWCLK (23/24)
-MCU_ESCAPES = ('6', '7', '8', '10', '11', '23', '24')
-# driver pins that always get one: LO1 (11) and LO2 (10) leave on the side
-# facing FET C and would have to cross the HO/VB/VS escapes to reach FETs
-# A and B; LO1 first, so it takes the spot just outside the pin row
-GD_ESCAPES = ('11', '10')
-
-
 def escape_pins(b, comps):
-    """QFN pins (MCUs and drivers) that get a dog-bone escape via: the MCU
-    pins above, and every pin whose net's nearest pad on another part is on
-    the other side of the board."""
+    """QFN pins (MCUs and drivers) that get a dog-bone escape via: every
+    pin whose net's nearest pad on another part is on the other side of the
+    board, or whose net leaves the channel (signal, SWD, current sense)."""
     qfn = set()
     for n in CHANNELS:
         r = roles(comps, n)
@@ -843,18 +606,11 @@ def escape_pins(b, comps):
                 q = p.GetPosition()
                 pads.setdefault(p.GetNetname(), []).append((fp.GetReference(), fp.IsFlipped(), q.x / 1e6, q.y / 1e6))
     out = []
-    for n in CHANNELS:
-        out += [(roles(comps, n)['GD'], num) for num in GD_ESCAPES]
     for ref in sorted(qfn):
         fp = b.FindFootprintByReference(ref)
         for p in fp.Pads():
-            if (ref, p.GetNumber()) in out:
-                continue
             net = p.GetNetname()
-            if not net or net in ('GND', 'VBAT') or p.GetNumber() in ('25', '33'):
-                continue
-            if ref.startswith('U_ESC') and p.GetNumber() in MCU_ESCAPES:
-                out.append((ref, p.GetNumber()))
+            if not net or net in ('GND', 'VBAT') or p.GetNumber() == '25':
                 continue
             q = p.GetPosition(); x, y = q.x / 1e6, q.y / 1e6
             others = [(math.hypot(ox - x, oy - y), fl) for r_, fl, ox, oy in pads[net] if r_ != ref]
@@ -863,12 +619,19 @@ def escape_pins(b, comps):
     return out
 
 
-# ---------------------------------------------------------------- artwork
+# ============================================================ artwork
+PRODUCT = 'Ridge 3'               # the lineup: Ridge 3 / 7 / 12, by prop size
+FIRMWARE = 'RIDGE3_G071'          # the AM32 build to flash (firmware/am32)
+
+
 def artwork(b, comps):
-    """OffGrid silkscreen: motor number at every motor pad, battery
-    polarity, SWD pad names, front arrows, the bare mark and what the board is.
-    Codes in JetBrains Mono, words in Instrument Sans.  Nothing lands on a
-    pad, a hole or a part body."""
+    """OffGrid silkscreen.  Top (it faces the flight controller): the
+    motor number by every motor's pads, battery polarity, the pack range,
+    pin 1 of the stack connector, the front arrow.  Bottom (the side seen
+    under the quad): the OffGrid mark and the board's name, both centred on
+    the board's centre line, battery polarity, SWD pad names, the front
+    arrow.  Codes in JetBrains Mono, words in Instrument Sans.  Nothing
+    lands on a pad, a hole or a part body."""
     import artwork as A, brand
     from shapely.geometry import box
     from shapely.ops import unary_union
@@ -877,22 +640,22 @@ def artwork(b, comps):
     top = A.SilkPlacer(b, 'T', bodies=True, brand=True, via_clear=0.1)
     bot = A.SilkPlacer(b, 'B', bodies=True, brand=True, via_clear=0.1)
     side = {fp.GetReference(): ('B' if fp.IsFlipped() else 'T') for fp in b.GetFootprints()}
-    # battery polarity first (square-ended strokes, outboard of each pad),
-    # then every motor pad's motor number beside it along the edge (the
-    # order of a motor's three wires does not matter)
-    def sign(plus, s=0.4, w=0.3):
+
+    def sign(plus, s=0.45, w=0.3):
         g = box(-s, -w / 2, s, w / 2)
         return unary_union([g, box(-w / 2, -s, w / 2, s)]) if plus else g
-    xp, yp = POWER['P_BAT+'][:2]; xm, ym = POWER['P_BAT-'][:2]
-    # outboard of each pad, level with each other
-    for plus, x0, y0 in ((True, xp, yp), (False, xm, ym)):
-        beside = [(x0 + (-1) ** plus * (1.3 + d), y0 + dy) for d in (0.55, 0.6, 0.7, 0.8, 0.95)
-                  for dy in (1.0, 1.6, 0.4, 2.0, 0.0)]
-        top.geom(sign(plus), beside, vias=False, margin=0.12)
-    # one number per motor, as large as fits, in the nearest free spot that
-    # is clearly this motor's: at least 2 mm nearer its own three pads than
-    # any other motor's pads or the battery pads (so '1' never reads '-1')
-    import math
+    # battery polarity on both sides (the leads go through), outboard of
+    # each pad towards its corner
+    for pl in (top, bot):
+        for plus, ref in ((True, 'P_BAT+'), (False, 'P_BAT-')):
+            x0, y0 = GLOBAL[ref][:2]
+            out = -1 if x0 < 0 else 1
+            beside = [(x0 + out * (1.5 + d), y0 + dy) for d in (0.6, 0.75, 0.9, 1.1) for dy in (0.0, -0.5, 0.5, -1.0)]
+            beside += [(x0 + dx, y0 - (1.5 + d)) for d in (0.6, 0.8, 1.0) for dx in (0.0, out * 0.5, -out * 0.5)]
+            pl.geom(sign(plus), beside, vias=False, margin=0.12)
+    # one number per motor on top, as large as fits, in the nearest free
+    # spot that is clearly this motor's: at least 2 mm nearer its own three
+    # pads than any other motor's pads or the battery pads
     mpads = {n: [A.pad_xy(b, roles(comps, n)['P' + ph], '1') for ph in 'ABC'] for n in CHANNELS}
     batt = [A.pad_xy(b, 'P_BAT+', '1'), A.pad_xy(b, 'P_BAT-', '1')]
     for n in CHANNELS:
@@ -907,65 +670,49 @@ def artwork(b, comps):
         else:
             for ph in 'ABC':
                 top.label_along(roles(comps, n)['P' + ph], str(n), sizes=(1.5, 1.3, 1.2), face='mono')
-    # the one limit that matters, beside the battery pads
-    top.text([('mono', '4S'), ('sans', 'only')],
-             [(x, y, 0, None) for x, y in top.grid_spots(((xp + xm) / 2, 9.5), radius=8.0, step=0.25)], size=1.2)
-    # SWD pads, labelled on whichever side they are
+    # the pack range, between the battery pads
+    xb = (GLOBAL['P_BAT+'][0] + GLOBAL['P_BAT-'][0]) / 2
+    for pl in (top, bot):
+        pl.text([('mono', '2-6S')], [(x, y, 0, None) for x, y in pl.grid_spots((xb, 17.2), radius=6.0, step=0.2)],
+                size=1.2)
+    # SWD and supply test points, on whichever side they are
     for n in CHANNELS:
         r = roles(comps, n)
         for key, s_ in (('TP_DIO', 'D%d' % n), ('TP_CLK', 'C%d' % n)):
             pl = top if side[r[key]] == 'T' else bot
-            # on the bottom a size smaller if need be, so both of motor 1's
-            # sit the same way round under their pads
-            pl.label(r[key], s_, size=1.2, dist=0.7, smallest=1.1 if pl is top else 1.0, face='mono')
-    bot.label('TP_3V3', '3V3', size=1.2, face='mono')
-    bot.label('TP_GND', 'GND', size=1.2, face='mono')
+            pl.label(r[key], s_, size=1.2, dist=0.7, smallest=1.0, face='mono')
+    for ref, s_ in (('TP_3V3', '3V3'), ('TP_GND', 'GND')):
+        (top if side[ref] == 'T' else bot).label(ref, s_, size=1.2, smallest=1.0, face='mono')
     top.label('J_FC', '1', pad='1', dist=0.8, size=1.2, face='mono')
-    # The top carries no dense parts (all four channels are built on the
-    # bottom), so it takes the horizontal lockup, as large as fits, with
-    # what the board is under it; the bare mark only if no lockup fits.
-    placed = None
-    for width in (14.0, 13.0, 12.0, 11.0, 10.0):
-        g, clear = brand.lockup_mm(width)
-        at = top.geom(g, top.grid_spots((-2.0, -4.0), radius=12.0, step=0.25), clear=clear, vias='fewest',
-                      quiet=True)
+    # the mark and the name on the bottom, on the board's centre line
+    # (x = 0): only their height may move, to clear a part
+    col = [(0.0, y) for y in sorted((0.25 * k for k in range(-60, 61)), key=abs)]
+    at = None
+    for width in (6.0, 5.0, 4.5, 4.0, 3.5):
+        g, clear = brand.mark_mm(width)
+        at = bot.geom(g, col, clear=clear, vias='fewest', quiet=True)
         if at:
-            placed = (g, clear, at)
+            below = at[1] + width / 2 + clear
             break
-    runs = [('sans', 'Cheap drone ESC'), ('mono', 'v1')]
-    if placed:
-        g, clear, (x, y) = placed
-        near = (x, y + (g.bounds[3] - g.bounds[1]) / 2 + clear + 0.9)
-    else:
-        near = None
-        for width in (4.0, 3.5, 3.0):
-            g, clear = brand.mark_mm(width)
-            near = top.geom(g, top.grid_spots((0.0, 0.0), radius=17.0, step=0.25), clear=clear, vias='fewest',
-                            quiet=True)
-            if near:
+    for runs, cap in (([('sans', PRODUCT + ' ESC')], 1.4), ([('mono', FIRMWARE)], 1.1)):
+        g0 = brand.line(runs, cap)[0].bounds
+        mid = (g0[1] + g0[3]) / 2
+        start = (below + 0.8) if at else 0.0
+        spots = [(0.0, y - mid, 0, None) for y in sorted((start + 0.1 * k for k in range(-80, 120)),
+                                                         key=lambda v: abs(v - start))]
+        for c in (cap, cap - 0.1, cap - 0.2):
+            if bot.text(runs, spots, size=c, vias='fewest'):
+                below = bot.placed[-1].bounds[3] - pcb.CY
                 break
-        near = near or (0.0, 0.0)
-    # what the board is: near the mark if it fits, else anywhere on top,
-    # upright then on its side, a little smaller, and last on the bottom
-    done = False
-    for pl, caps in ((top, (1.2, 1.1, 1.0)), (bot, (1.2, 1.1))):
-        pts = pl.grid_spots(near if pl is top else (0.0, 0.0), radius=17.0, step=0.25)
-        for cap in caps:
-            for rot in (0, 90):
-                # vias here are filled and capped under the mask: silk may
-                # cross them, so take the fitting spot that crosses fewest
-                if pl.text(runs, [(sx, sy, rot, None) for sx, sy in pts], size=cap, vias='fewest'):
-                    done = True
-                    break
-            if done:
-                break
-        if done:
-            break
     # which way is forward: the ESC must sit in the stack the same way round
-    # as the FC, or every motor number is wrong.  Kept well clear of the
-    # pad labels so the word reads on its own.
+    # as the FC, or every motor number is wrong
     for pl in (top, bot):
         spots = pl.grid_spots((0.0, -6.0), radius=11.0, step=0.25)
         if not any(pl.geom(brand.arrow_mm(2.6, 'Front', cap=1.2, mirror=pl.side == 'B'), spots, vias='fewest',
                            margin=m, quiet=True) for m in (0.6, 0.35)):
-            pl.geom(brand.arrow_mm(2.6), spots, vias='fewest', margin=0.4)
+            pl.geom(brand.arrow_mm(2.6, mirror=pl.side == 'B'), spots, vias='fewest', margin=0.4)
+
+
+if __name__ == '__main__':
+    import sys
+    build_placed(sys.argv[1] if len(sys.argv) > 1 else '/tmp/esc3.kicad_pcb', legal='--nolegal' not in sys.argv)

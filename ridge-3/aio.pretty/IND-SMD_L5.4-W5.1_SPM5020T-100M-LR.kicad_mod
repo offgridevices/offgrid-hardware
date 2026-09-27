@@ -1,0 +1,158 @@
+(footprint "IND-SMD_L5.4-W5.1_SPM5020T-100M-LR"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "4d216325-a5a3-4dc0-b0a8-d49a7709453a")
+		(effects
+			(font
+				(size 0.5 0.5)
+				(thickness 0.08)
+			)
+		)
+	)
+	(property "Value" "IND-SMD_L5.4-W5.1_SPM5020T-100M-LR"
+		(at 0 4 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "9abc0dff-0365-420d-af68-bdcde938d28b")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "d1d2d5bd-57c4-474c-8046-fc62c6058061")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "addcfa67-03e2-47d0-80e7-6d4b36898001")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "LCSC Part" "C307807"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "44cb0680-7fc1-4d98-a446-e6cd7e936583")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr smd)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -3.47 -2.65)
+		(end 3.47 -2.65)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "a104b31a-5cd5-4817-a85e-ba70d208f435")
+	)
+	(fp_line
+		(start -3.47 2.65)
+		(end -3.47 -2.65)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "7860d537-d3d8-4b32-9712-c313337c0e0e")
+	)
+	(fp_line
+		(start 3.47 -2.65)
+		(end 3.47 2.65)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "c9d6aaaf-2c17-454a-b9b0-7424e0d9878c")
+	)
+	(fp_line
+		(start 3.47 2.65)
+		(end -3.47 2.65)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "898876ee-01a8-452d-926c-120fd486f5b8")
+	)
+	(fp_line
+		(start -2.7 2.55)
+		(end 2.7 2.55)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "b242c45b-353b-4b71-b610-d7ffc949258f")
+	)
+	(fp_line
+		(start 2.7 -2.55)
+		(end -2.7 2.55)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "9cdb9130-458e-48bb-944f-6cecbd53ae5e")
+	)
+	(fp_line
+		(start 2.7 2.55)
+		(end 2.7 -2.55)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "6e6c4873-511f-4d6f-85e7-8758d4145283")
+	)
+	(pad "1" smd rect
+		(at -2.37 0)
+		(size 2 3)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "a702ce11-1031-4204-a63e-1c90a0d799b2")
+	)
+	(pad "2" smd rect
+		(at 2.37 0)
+		(size 2 3)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "d7429f68-39ec-4794-bcb6-408d1d15491a")
+	)
+	(embedded_fonts no)
+	(model "${KIPRJMOD}/../aio.3dshapes/IND-SMD_L5.4-W5.1_SPM5020T-100M-LR.stpZ"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

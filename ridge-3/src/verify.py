@@ -14,6 +14,8 @@ against sources other than the design itself:
     capacitor values in circuit.py
   * the installed boards: DRC, netlist, fab outputs, stackup
   * the silkscreen: every stroke printable, the mark against the brand art
+  * the firmware's scale factors (battery dividers, current sense) against
+    the circuit, and the AM32 target patch applied to the AM32 source
   * the firmware images against the hashes in firmware/README.md
 """
 import os, re, sys, hashlib, glob, zipfile
@@ -89,6 +91,121 @@ def find(board, note):
     return [c for c in circuit.build(board) if c.note == note]
 
 
+# ------------------------------------------------------------------ firmware sources
+FW = os.path.join(V1, 'firmware')
+BF_CONFIGS = ('RIDGE3', 'RIDGE3_ICM')           # BMI270 build, ICM-42688-P build
+AM32_PATCH = 'am32/AM32_55c9684_RIDGE3_G071_targets.patch'
+AM32_COMMIT = '55c9684'
+AM32_TARGET = 'RIDGE3_G071'
+AM32 = os.environ.get('AM32_SRC', '')
+
+
+def bf_configs():
+    return {k: open(os.path.join(FW, 'betaflight/configs/%s/config.h' % k)).read() for k in BF_CONFIGS}
+
+
+def cdefine(text, name):
+    """The value of '#define NAME value' in C source ('' for a bare define, None if absent)."""
+    m = re.search(r'^[ \t]*#define[ \t]+%s(?:[ \t]+(.*?))?[ \t]*(?://.*)?$' % name, text, re.M)
+    return None if m is None else (m.group(1) or '')
+
+
+def cli_set(cli, name):
+    """The value of an uncommented 'set name = value' line in cli-setup.txt."""
+    m = re.search(r'^set\s+%s\s*=\s*(.*?)\s*$' % name, cli, re.M)
+    return m.group(1) if m else None
+
+
+def c_block(text, ifdef):
+    """'#ifdef NAME' up to its own '#endif' (nested #if blocks included)."""
+    i = text.index('#ifdef %s\n' % ifdef)
+    depth, out = 0, []
+    for line in text[i:].split('\n'):
+        s = line.strip()
+        if s.startswith('#if'):
+            depth += 1
+        elif s.startswith('#endif'):
+            depth -= 1
+            if depth == 0:
+                break
+        out.append(line)
+    return '\n'.join(out)
+
+
+def read_ihex(path):
+    """address -> byte, from an Intel hex file."""
+    mem, base = {}, 0
+    for line in open(path):
+        line = line.strip()
+        if not line.startswith(':'):
+            continue
+        n, addr, typ = int(line[1:3], 16), int(line[3:7], 16), int(line[7:9], 16)
+        data = bytes.fromhex(line[9:9 + 2 * n])
+        if typ == 0:
+            for i, byte in enumerate(data):
+                mem[base + addr + i] = byte
+        elif typ == 2:
+            base = int.from_bytes(data, 'big') << 4
+        elif typ == 4:
+            base = int.from_bytes(data, 'big') << 16
+    return mem
+
+
+def symbol_alts(lib, name):
+    """pin number -> (pin name, [alternate functions]), from a KiCad symbol."""
+    text = open(os.path.join(SYMBOLS, lib + '.kicad_sym')).read()
+    i = text.index('\t(symbol "%s"' % name)
+    j = text.find('\n\t(symbol "', i + 5)
+    block = text[i:j if j > 0 else len(text)]
+    m = re.search(r'\(extends "([^"]+)"\)', block)
+    if m:
+        return symbol_alts(lib, m.group(1))
+    pins = {}
+    for chunk in block.split('(pin ')[1:]:
+        nm = re.search(r'\(name "([^"]*)"', chunk)
+        no = re.search(r'\(number "([^"]*)"', chunk)
+        if nm and no:
+            pins[no.group(1)] = (nm.group(1), re.findall(r'\(alternate "([^"]*)"', chunk))
+    return pins
+
+
+def alt_fns(pin, port):
+    """The alternate functions of one port on a symbol pin ('TIM1_CH2 (PA9)' counts for PA9 only)."""
+    out = set()
+    for a in pin[1]:
+        m = re.match(r'(\S+)(?: \((P[A-F]\d+)\))?$', a)
+        if m and m.group(2) in (None, port):
+            out.add(m.group(1))
+    return out
+
+
+def am32_source(rel):
+    return open(os.path.join(AM32, rel)).read()
+
+
+def am32_targets():
+    """(Inc/targets.h of the AM32 checkout with firmware/am32's patch applied in memory, how)."""
+    t = am32_source('Inc/targets.h')
+    if '#ifdef %s\n' % AM32_TARGET in t:
+        return t, 'the checkout already has %s' % AM32_TARGET
+    patch = open(os.path.join(FW, AM32_PATCH)).read()
+    for hunk in re.split(r'^@@[^\n]*\n', patch, flags=re.M)[1:]:
+        old, new = [], []
+        for line in hunk.rstrip('\n').split('\n'):
+            if line.startswith('\\'):
+                continue
+            tag, body = (line[:1], line[1:]) if line else (' ', '')
+            if tag in ' -':
+                old.append(body)
+            if tag in ' +':
+                new.append(body)
+        o, n = '\n'.join(old) + '\n', '\n'.join(new) + '\n'
+        if t.count(o) != 1:
+            return None, 'a hunk of %s does not apply' % os.path.basename(AM32_PATCH)
+        t = t.replace(o, n)
+    return t, '%s applied' % os.path.basename(AM32_PATCH)
+
+
 # ------------------------------------------------------------------ pin maps
 def check_fc_pins():
     S = 'FC pin map'
@@ -104,13 +221,16 @@ def check_fc_pins():
                 bad.append('%s=%s' % (name, nets))
     check(S, 'every VDD/VDDA/VREF+/VBAT pin on +3V3, every VSS on GND', not bad, ', '.join(bad))
     # Betaflight config.h, one per gyro chip: the pin map must be the same
-    cfgs = {k: open(os.path.join(V1, 'firmware/betaflight/configs/%s/config.h' % k)).read()
-            for k in ('CHEAPDRONE_G473', 'CHEAPDRONE_G473_ICM')}
-    pinmap = {k: re.findall(r'#define\s+(\w+_PIN|TIMER_PIN_MAPPING|\w+_INSTANCE|\w+_DMA_OPT)\s+(.*)', v)
+    cfgs = bf_configs()
+    pinmap = {k: [(a, b.split('//')[0].strip()) for a, b in re.findall(
+                  r'#define\s+(\w+_PIN|TIMER_PIN_MAPPING|\w+_INSTANCE|\w+_DMA_OPT|\w+_UART|PINIO\d_\w+)\s+(.*)', v)]
               for k, v in cfgs.items()}
-    check(S, 'the BMI270 and ICM-42688-P configs have the same pin, timer and bus map',
-          pinmap['CHEAPDRONE_G473'] == pinmap['CHEAPDRONE_G473_ICM'])
-    cfg = cfgs['CHEAPDRONE_G473']
+    check(S, 'the BMI270 and ICM-42688-P configs have the same pin, timer, bus, UART and PINIO map',
+          pinmap['RIDGE3'] == pinmap['RIDGE3_ICM'])
+    cfg = cfgs['RIDGE3']
+    d = lambda k: cdefine(cfg, k)
+    fc = circuit.build('fc')
+    VTX_SWITCH = ('VTX_EN_N', 'VTX_OFF')        # the net name circuit.py gives PB5's VTX switch line
     want = {'MOTOR1': 'M1_SIG', 'MOTOR2': 'M2_SIG', 'MOTOR3': 'M3_SIG', 'MOTOR4': 'M4_SIG',
             'BEEPER': 'BEEPER', 'LED0': 'LED0', 'LED_STRIP': 'LED_STRIP',
             'UART1_TX': 'UART1_TX', 'UART1_RX': 'UART1_RX', 'UART2_TX': 'UART2_TX', 'UART2_RX': 'UART2_RX',
@@ -118,24 +238,67 @@ def check_fc_pins():
             'SPI1_SCK': 'SPI1_SCK', 'SPI1_SDI': 'SPI1_MISO', 'SPI1_SDO': 'SPI1_MOSI',
             'SPI2_SCK': 'SPI2_SCK', 'SPI2_SDI': 'SPI2_MISO', 'SPI2_SDO': 'SPI2_MOSI',
             'GYRO_1_CS': 'GYRO_CS', 'GYRO_1_EXTI': 'GYRO_INT', 'FLASH_CS': 'FLASH_CS',
+            'MAX7456_SPI_CS': 'OSD_CS', 'PINIO1': VTX_SWITCH,
             'ADC_VBAT': 'ADC_VBAT', 'ADC_CURR': 'ADC_CURR'}
     seen = set()
     for fn, port in re.findall(r'#define\s+(\w+)_PIN\s+(P[A-G]\d+)', cfg):
         seen.add(fn)
         net = ports.get(port, 'no such port')
         exp = want.get(fn, '?')
-        check(S, 'Betaflight %s_PIN %s' % (fn, port), net == exp,
+        check(S, 'Betaflight %s_PIN %s' % (fn, port), net in exp if isinstance(exp, tuple) else net == exp,
               'carries %s' % net if net else 'not connected (unused on this board)')
-    check(S, 'every function this board needs is defined in config.h', set(want) <= seen,
-          ', '.join(sorted(set(want) - seen)))
+    check(S, 'every function this board needs is defined in config.h (and nothing else, e.g. no camera control)',
+          set(want) <= seen, ', '.join(sorted(set(want) - seen)))
     # the peripherals on the far end of those nets
-    far = {'GYRO_CS': ('U_IMU', '12'), 'SPI1_SCK': ('U_IMU', '13'), 'SPI1_MOSI': ('U_IMU', '14'),
-           'SPI1_MISO': ('U_IMU', '1'), 'GYRO_INT': ('U_IMU', '4'), 'FLASH_CS': ('U_FLASH', '1'),
-           'SPI2_MISO': ('U_FLASH', '2'), 'SPI2_MOSI': ('U_FLASH', '5'), 'SPI2_SCK': ('U_FLASH', '6')}
+    far = [('GYRO_CS', 'U_IMU', '12'), ('SPI1_SCK', 'U_IMU', '13'), ('SPI1_MOSI', 'U_IMU', '14'),
+           ('SPI1_MISO', 'U_IMU', '1'), ('GYRO_INT', 'U_IMU', '4'),
+           ('FLASH_CS', 'U_FLASH', '1'), ('SPI2_MISO', 'U_FLASH', '2'), ('SPI2_MOSI', 'U_FLASH', '5'),
+           ('SPI2_SCK', 'U_FLASH', '6'),
+           ('OSD_CS', 'U_OSD', '8'), ('SPI2_MOSI', 'U_OSD', '9'), ('SPI2_SCK', 'U_OSD', '10'),
+           ('SPI2_MISO', 'U_OSD', '11')]
     names = {'U_IMU': 'BMI270 sec. 7.1 / ICM-42688-P table 9 (same pins)',
-             'U_FLASH': 'W25Q128 / PY25Q128HA (same SOIC/WSON-8 pinout)'}
-    for net, (ref, pin) in far.items():
+             'U_FLASH': 'W25Q128JV, WSON-8 (Winbond datasheet pinout)',
+             'U_OSD': 'AT7456E, the MAX7456 pinout: 8 /CS, 9 SDIN, 10 SCLK, 11 SDOUT (MAX7456 pin description)'}
+    for net, ref, pin in far:
         check(S, '%s reaches %s pin %s' % (net, ref, pin), comp('fc', ref).pins.get(pin) == net, names[ref])
+    pullup = lambda n: any(re.match(r'R\d', x.ref) and set(x.pins.values()) == {'+3V3', n} for x in fc)
+    check(S, 'OSD and flash share SPI2 (MAX7456_SPI_INSTANCE %s, FLASH_SPI_INSTANCE %s) on separate chip selects '
+             '(%s, %s), each pulled up to 3.3 V so neither drives MISO while the MCU boots'
+          % (d('MAX7456_SPI_INSTANCE'), d('FLASH_SPI_INSTANCE'), d('MAX7456_SPI_CS_PIN'), d('FLASH_CS_PIN')),
+          d('MAX7456_SPI_INSTANCE') == 'SPI2' and d('FLASH_SPI_INSTANCE') == 'SPI2'
+          and d('MAX7456_SPI_CS_PIN') != d('FLASH_CS_PIN') and pullup('OSD_CS') and pullup('FLASH_CS'))
+    check(S, 'USE_MAX7456 in both builds (a CONFIG= build does not get it from common_pre.h)',
+          all(cdefine(v, 'USE_MAX7456') is not None for v in cfgs.values()))
+    # HD VTX: MSP DisplayPort on UART1, to the 6-pin connector
+    hd = comp('fc', 'J_HD').pins
+    tx, rx = ports.get(d('UART1_TX_PIN')), ports.get(d('UART1_RX_PIN'))
+    check(S, 'HD VTX: MSP_DISPLAYPORT_UART %s; UART1 TX/RX (%s/%s) on HD connector pins 3/4 '
+             '(Betaflight connector standard: 1 V+, 2 GND, 3 FC TX, 4 FC RX, 5 GND, 6 SBUS)'
+          % (d('MSP_DISPLAYPORT_UART'), tx, rx),
+          d('MSP_DISPLAYPORT_UART') == 'SERIAL_PORT_USART1' and hd.get('3') == tx and hd.get('4') == rx
+          and hd.get('2') == 'GND' and hd.get('5') == 'GND')
+    # VTX power switch: PINIO1 -> gate resistor -> N-FET on the 9 V regulator's EN
+    sw = ports.get(d('PINIO1_PIN'))
+    ser = [x for x in fc if re.match(r'R\d', x.ref) and sw in x.pins.values() and len(set(x.pins.values())) == 2]
+    gate = [n for n in ser[0].pins.values() if n != sw][0] if len(ser) == 1 else None
+    fet = [x for x in fc if x.part == 'AO3400A' and gate and x.pins.get('1') == gate]     # SOT-23: 1 G, 2 S, 3 D
+    en = fet[0].pins.get('3') if fet else None
+    reg = [x for x in fc if x.part == 'LM76003' and en and x.pins.get('18') == en]      # LM76003 pin 18 = EN
+    pulldown = gate is not None and any(re.match(r'R\d', x.ref) and set(x.pins.values()) == {gate, 'GND'} for x in fc)
+    rail = None
+    if reg:
+        lx = reg[0].pins.get('1')                                                        # pins 1-5 = SW
+        ind = [x for x in fc if x.ref.startswith('L') and lx in x.pins.values()]
+        rail = [n for n in ind[0].pins.values() if n != lx][0] if ind else None
+    check(S, 'VTX switch: PINIO1_PIN %s (%s) -> %s -> %s gate, drain on %s pin 18 (LM76003 EN), gate pulled down: '
+             'PB5 high = EN low = rail %s off; low, and floating through reset = on'
+          % (d('PINIO1_PIN'), sw, ser[0].part if len(ser) == 1 else '?', fet[0].ref if fet else '?',
+             reg[0].ref if reg else '?', rail),
+          bool(fet) and fet[0].pins.get('2') == 'GND' and bool(reg) and pulldown and rail is not None)
+    check(S, 'the switched rail %s feeds HD connector pin 1' % rail, rail is not None and hd.get('1') == rail)
+    check(S, 'PINIO1_CONFIG %s (PINIO_CONFIG_MODE_OUT_PP, not inverted: low at boot and while its mode is off = '
+             'VTX on), PINIO1_BOX %s (BOXUSER1: the USER1 switch turns the VTX off)'
+          % (d('PINIO1_CONFIG'), d('PINIO1_BOX')), d('PINIO1_CONFIG') == '1' and d('PINIO1_BOX') == '40')
     imu = comp('fc', 'U_IMU')
     check(S, 'IMU pads take a BMI270 or an ICM-42688-P: pins 2/3 open (BMI270 aux I2C must not be grounded), '
              'SPI and supply pins shared', imu.pins.get('2') is None and imu.pins.get('3') is None
@@ -161,95 +324,248 @@ def check_fc_pins():
     align = {k: re.search(r'#define\s+GYRO_1_ALIGN\s+(\w+)', v).group(1) for k, v in cfgs.items()}
     drivers = {k: sorted(set(re.findall(r'#define\s+USE_(?:ACC|GYRO|ACCGYRO)_(?:SPI_)?(\w+)', v)))
                for k, v in cfgs.items()}
-    check(S, 'CHEAPDRONE_G473 (BMI270 build): GYRO_1_ALIGN CW270_DEG, BMI270 driver only',
-          align['CHEAPDRONE_G473'] == 'CW270_DEG' and drivers['CHEAPDRONE_G473'] == ['BMI270'],
-          '%s, drivers %s' % (align['CHEAPDRONE_G473'], drivers['CHEAPDRONE_G473']))
-    check(S, 'CHEAPDRONE_G473_ICM (ICM-42688-P build): GYRO_1_ALIGN CW0_DEG, ICM-42688-P driver only',
-          align['CHEAPDRONE_G473_ICM'] == 'CW0_DEG' and drivers['CHEAPDRONE_G473_ICM'] == ['ICM42688P'],
-          '%s, drivers %s' % (align['CHEAPDRONE_G473_ICM'], drivers['CHEAPDRONE_G473_ICM']))
+    check(S, 'RIDGE3 (BMI270 build): GYRO_1_ALIGN CW270_DEG, BMI270 driver only',
+          align['RIDGE3'] == 'CW270_DEG' and drivers['RIDGE3'] == ['BMI270'],
+          '%s, drivers %s' % (align['RIDGE3'], drivers['RIDGE3']))
+    check(S, 'RIDGE3_ICM (ICM-42688-P build): GYRO_1_ALIGN CW0_DEG, ICM-42688-P driver only',
+          align['RIDGE3_ICM'] == 'CW0_DEG' and drivers['RIDGE3_ICM'] == ['ICM42688P'],
+          '%s, drivers %s' % (align['RIDGE3_ICM'], drivers['RIDGE3_ICM']))
+    check(S, 'BOARD_NAME RIDGE3 / RIDGE3_ICM, MANUFACTURER_ID OFFG',
+          [cdefine(cfgs[k], 'BOARD_NAME') for k in BF_CONFIGS] == list(BF_CONFIGS)
+          and all(cdefine(v, 'MANUFACTURER_ID') == 'OFFG' for v in cfgs.values()))
     check(S, 'no board rotation in either build (DEFAULT_ALIGN_BOARD_* unset)',
           not any(re.search(r'#define\s+DEFAULT_ALIGN_BOARD', v) for v in cfgs.values()))
     check(S, 'PID loop: BMI270 3.2 kHz (denom 1), ICM 8 kHz / 2 = 4 kHz',
-          re.search(r'DEFAULT_PID_PROCESS_DENOM\s+1\b', cfgs['CHEAPDRONE_G473']) is not None
-          and re.search(r'DEFAULT_PID_PROCESS_DENOM\s+2\b', cfgs['CHEAPDRONE_G473_ICM']) is not None)
+          re.search(r'DEFAULT_PID_PROCESS_DENOM\s+1\b', cfgs['RIDGE3']) is not None
+          and re.search(r'DEFAULT_PID_PROCESS_DENOM\s+2\b', cfgs['RIDGE3_ICM']) is not None)
     check(S, 'HSE crystal on PF0/PF1 with SYSTEM_HSE_MHZ 8',
-          c.pins['5'] == 'HSE_IN' and c.pins['6'] == 'HSE_OUT' and 'SYSTEM_HSE_MHZ      8' in cfg
+          c.pins['5'] == 'HSE_IN' and c.pins['6'] == 'HSE_OUT' and d('SYSTEM_HSE_MHZ') == '8'
           and comp('fc', 'Y1').part == 'XTAL8M')
     check(S, 'USB D+/D- on PA12/PA11', ports['PA12'] == 'USB_DP' and ports['PA11'] == 'USB_DM')
     check(S, 'SWD on PA13/PA14 to test pads', ports['PA13'] == 'SWDIO' and ports['PA14'] == 'SWCLK'
           and comp('fc', 'TP_SWDIO').pins['1'] == 'SWDIO')
     check(S, 'BOOT0 (pin 46, PB8-BOOT0) pulled down 10k, DFU button to 3.3 V',
           pins['46'] == 'PB8' and ports['PB8'] == 'BOOT0'
-          and any(x.part == 'R10K' and set(x.pins.values()) == {'BOOT0', 'GND'} for x in circuit.build('fc'))
+          and any(x.part == 'R10K' and set(x.pins.values()) == {'BOOT0', 'GND'} for x in fc)
           and comp('fc', 'SW_BOOT').pins == {'1': '+3V3', '2': 'BOOT0'})
     check(S, 'NRST (pin 7, PG10-NRST) to the RST test pad, 100 nF to ground',
           pins['7'] == 'PG10' and ports['PG10'] == 'NRST' and comp('fc', 'TP_NRST').pins['1'] == 'NRST'
-          and any(x.part == 'C100N' and set(x.pins.values()) == {'NRST', 'GND'} for x in circuit.build('fc')))
+          and any(x.part == 'C100N' and set(x.pins.values()) == {'NRST', 'GND'} for x in fc))
 
 
-def am32_group(name):
-    t = open(os.path.join(AM32, 'Inc/targets.h')).read()
-    i = t.index('#ifdef %s\n' % name)
-    j = t.index('#endif', i)
-    return t[i:j]
-
-
-AM32 = os.environ.get('AM32_SRC', '')
+# The ESC MCU is an STM32G071GBU6 or G071G8U6 (UFQFPN28, "GP" pinout).  KiCad
+# 10 has no symbol for that package's GP variant (only the G071GxUxN "PD"
+# variant, whose pins 15 and 22-25 differ); the STM32G081GBUx is the same
+# die plus AES in the same GP pinout, so the pin numbers are read from it,
+# and cross-checked here against DS12232 (STM32G071x8/xB) table 12 / fig. 9.
+G071_SYMBOL = ('MCU_ST_STM32G0', 'STM32G081GBUx')
+DS12232_QFN28_GP = {'3': 'VDD', '4': 'VSS', '5': 'PF2', '8': 'PA2', '9': 'PA3', '11': 'PA5', '12': 'PA6',
+                    '13': 'PA7', '14': 'PB0', '15': 'PB1', '16': 'PA8', '18': 'PA9/PA11', '19': 'PA10/PA12',
+                    '20': 'PA13', '21': 'PA14', '23': 'PB3', '24': 'PB4', '27': 'PB7'}
 
 
 def check_esc_pins():
     S = 'ESC pin map'
-    pins = symbol_pins('MCU_ST_STM32F0', 'STM32F051K6Ux')
+    sym = symbol_alts(*G071_SYMBOL)
+    bad = ['pin %s is %s, not %s' % (k, sym.get(k, ('none',))[0], v) for k, v in DS12232_QFN28_GP.items()
+           if sym.get(k, ('',))[0] != v]
+    check(S, 'KiCad %s pin numbers = STM32G071 UFQFPN28 GP pinout (DS12232) for every pin the ESC uses'
+          % G071_SYMBOL[1], not bad, '; '.join(bad))
+    esc = circuit.build('esc')
     for n in (1, 2, 3, 4):
-        ports, power, _, c = port_nets('esc', 'U_ESC%d' % n, 'MCU_ST_STM32F0', 'STM32F051K6Ux')
-        bad = []
-        for name, nets in power.items():
-            if name.startswith(('VDD', 'VDDA')) and any(x != '+3V3' for x in nets):
-                bad.append('%s=%s' % (name, nets))
-            if name.startswith('VSS') and any(x != 'GND' for x in nets):
-                bad.append('%s=%s' % (name, nets))
-        check(S, 'ESC %d: VDD/VDDA on +3V3, VSS on GND (KiCad symbol STM32F051K6Ux)' % n, not bad, ', '.join(bad))
-    ports, _, _, c = port_nets('esc', 'U_ESC1', 'MCU_ST_STM32F0', 'STM32F051K6Ux')
-    tgt = open(os.path.join(AM32, 'Inc/targets.h')).read() if AM32 else None
-    if not tgt:
-        check(S, 'AM32 targets.h', 'SKIP', 'set AM32_SRC to an AM32 checkout to check against the firmware')
+        ports, power, _, c = port_nets('esc', 'U_ESC%d' % n, *G071_SYMBOL)
+        bad = ['%s=%s' % (k, v) for k, v in power.items()
+               if (k.startswith('VDD') and set(v) != {'+3V3'}) or (k.startswith('VSS') and set(v) != {'GND'})]
+        check(S, 'ESC %d: VDD/VDDA (pin 3) on +3V3, VSS/VSSA (pin 4) on GND' % n,
+              not bad and 'VDD' in power and 'VSS' in power, ', '.join(bad))
+        check(S, 'ESC %d: NRST (pin 5, PF2-NRST) filtered 100 nF to ground; SWDIO/SWCLK (PA13/PA14) to test pads '
+                 'TP_E%d_DIO/CLK' % (n, n),
+              ports.get('PF2') == 'M%d_NRST' % n
+              and any(x.part == 'C100N' and set(x.pins.values()) == {'M%d_NRST' % n, 'GND'} for x in esc)
+              and ports.get('PA13') == 'M%d_SWDIO' % n and ports.get('PA14') == 'M%d_SWCLK' % n
+              and comp('esc', 'TP_E%d_DIO' % n).pins.get('1') == 'M%d_SWDIO' % n
+              and comp('esc', 'TP_E%d_CLK' % n).pins.get('1') == 'M%d_SWCLK' % n)
+    if not AM32:
+        check(S, 'AM32 targets.h', 'SKIP', 'set AM32_SRC to an AM32 checkout (commit %s) to check against the firmware'
+              % AM32_COMMIT)
         return
-    fd = tgt[tgt.index('#ifdef FD6288_F051'):]
-    fd = fd[:fd.index('#endif')]
-    check(S, 'AM32 target FD6288_F051 uses HARDWARE_GROUP_F0_A', 'HARDWARE_GROUP_F0_A' in fd)
-    g = am32_group('HARDWARE_GROUP_F0_A')
-    d = dict(re.findall(r'#define\s+(\w+)\s+(\S+)', g))
-    def port(pin_key, port_key):
-        return 'P%s%s' % (d[port_key][-1], d[pin_key].split('_')[-1])
-    want = {port('INPUT_PIN', 'INPUT_PIN_PORT'): 'SIG'}
+    try:
+        import subprocess
+        head = subprocess.run(['git', '-C', AM32, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+    except Exception:
+        head = ''
+    check(S, 'AM32 checkout %s at commit %s (the patch and the images are for %s)' % (AM32, head[:7] or '?', AM32_COMMIT),
+          head.startswith(AM32_COMMIT) if head else 'INFO', '' if head else 'not a git checkout')
+    tgt, how = am32_targets()
+    check(S, 'firmware/%s applies to Inc/targets.h' % AM32_PATCH, tgt is not None, how)
+    if tgt is None:
+        return
+    tb = c_block(tgt, AM32_TARGET)
+    g = c_block(tgt, 'HARDWARE_GROUP_G0_A')
+    mcu = c_block(tgt, 'MCU_G071')
+    td = lambda k: cdefine(tb, k)
+    gd = dict(re.findall(r'#define\s+(\w+)\s+(\S+)', g))
+    main_c = am32_source('Src/main.c')
+    m = re.search(r'_Static_assert\(sizeof\(FIRMWARE_NAME\)\s*<=\s*(\d+)', main_c)
+    name_max = int(m.group(1)) - 1 if m else 12
+    fname = (td('FIRMWARE_NAME') or '').strip('"')
+    check(S, '%s: HARDWARE_GROUP_G0_A, SIXTY_FOUR_KB_MEMORY, FILE_NAME "%s", FIRMWARE_NAME "%s" (%d of %d characters, '
+             'main.c static assert)' % (AM32_TARGET, (td('FILE_NAME') or '').strip('"'), fname, len(fname), name_max),
+          td('HARDWARE_GROUP_G0_A') == '' and td('SIXTY_FOUR_KB_MEMORY') == ''
+          and td('FILE_NAME') == '"%s"' % AM32_TARGET and 0 < len(fname) <= name_max
+          and cdefine(g, 'MCU_G071') == '')
+    over = [k for k in ('CURRENT_ADC_PIN', 'VOLTAGE_ADC_PIN', 'CURRENT_ADC_CHANNEL', 'VOLTAGE_ADC_CHANNEL',
+                        'NO_PA11_PA12_REMAP', 'USE_SERIAL_TELEMETRY', 'NO_CURRENT_SENSE', 'N_VARIANT')
+            if cdefine(tb, k) is not None or cdefine(g, k) is not None]
+    check(S, '%s and G0_A leave the MCU_G071 defaults alone: no ADC pin overrides, no NO_PA11_PA12_REMAP, '
+             'no USE_SERIAL_TELEMETRY, current sense on' % AM32_TARGET, not over, ', '.join(over))
+    check(S, 'no serial telemetry: the ESC\'s stack connector pin 4 (TLM) is not connected',
+          comp('esc', 'J_FC').pins.get('4') is None and cdefine(tb, 'USE_SERIAL_TELEMETRY') is None)
+    # which port each function uses: G0_A group, MCU_G071 defaults, g071 drivers, ST's LL headers
+    port = lambda pin_key, port_key: 'P%s%s' % (gd[port_key][-1], gd[pin_key].split('_')[-1])
+    ll = am32_source('Mcu/g071/Drivers/STM32G0xx_HAL_Driver/Inc/stm32g0xx_ll_comp.h')
+    comp_io = {k: (a, b) for k, a, b in re.findall(
+        r'#define\s+(LL_COMP_INPUT_(?:MINUS|PLUS)_IO\d)\s.*?pin (P[A-F]\d+) for COMP1, pin (P[A-F]\d+) for COMP2', ll)}
+    main_comp = cdefine(mcu, 'MAIN_COMP')
+    ci = 1 if main_comp == 'COMP2' else 0
+    comparator_c = am32_source('Mcu/g071/Src/comparator.c')
+    plus = set(re.findall(r'LL_COMP_ConfigInputs\(active_COMP,\s*PHASE_\w_COMP,\s*(LL_COMP_INPUT_PLUS_IO\d)\)',
+                          comparator_c))
+    adc_c = am32_source('Mcu/g071/Src/ADC.c')
+    adc_port = dict(re.findall(r'Pin = (VOLTAGE|CURRENT)_ADC_PIN;[^}]*?LL_GPIO_Init\(GPIO([A-F])', adc_c))
+    cur_pin = 'P%s%s' % (adc_port.get('CURRENT', '?'), cdefine(mcu, 'CURRENT_ADC_PIN').split('_')[-1])
+    volt_pin = 'P%s%s' % (adc_port.get('VOLTAGE', '?'), cdefine(mcu, 'VOLTAGE_ADC_PIN').split('_')[-1])
+    tim = '%s_CH%s' % (gd['IC_TIMER_REGISTER'], gd['IC_TIMER_CHANNEL'][-1])
+    bysym = {nm: k for k, (nm0, _) in sym.items() for nm in nm0.split('/')}
+    want = {port('INPUT_PIN', 'INPUT_PIN_PORT'): ('SIG', {tim})}
     for ph in 'ABC':
-        want[port('PHASE_%s_GPIO_HIGH' % ph, 'PHASE_%s_GPIO_PORT_HIGH' % ph)] = 'H' + ph
-        want[port('PHASE_%s_GPIO_LOW' % ph, 'PHASE_%s_GPIO_PORT_LOW' % ph)] = 'L' + ph
-        want[d['PHASE_%s_COMP' % ph].replace('COMP_', '')] = 'CMP_' + ph
+        hi = port('PHASE_%s_GPIO_HIGH' % ph, 'PHASE_%s_GPIO_PORT_HIGH' % ph)
+        lo = port('PHASE_%s_GPIO_LOW' % ph, 'PHASE_%s_GPIO_PORT_LOW' % ph)
+        # a phase's high and low side must be one TIM1 channel and its complement
+        chans = [f for f in alt_fns(sym[bysym[hi]], hi) if re.match(r'TIM1_CH\d$', f)] if hi in bysym else []
+        ch = chans[0] if chans else 'TIM1_CH?'
+        want[hi] = ('H' + ph, {ch})
+        want[lo] = ('L' + ph, {ch + 'N'})
+        want[comp_io.get(gd['PHASE_%s_COMP' % ph], ('?', '?'))[ci]] = ('CMP_' + ph, {'%s_INM' % main_comp})
+    want[comp_io.get(plus.pop() if len(plus) == 1 else '?', ('?', '?'))[ci]] = ('NEUTRAL', {'%s_INP' % main_comp})
+    want[cur_pin] = ('ISENSE', {'ADC1_IN%s' % cdefine(mcu, 'CURRENT_ADC_CHANNEL').split('_')[-1]})
+    want[volt_pin] = ('ESC_VSENSE', {'ADC1_IN%s' % cdefine(mcu, 'VOLTAGE_ADC_CHANNEL').split('_')[-1]})
+    cant = ['%s (pin %s) cannot be %s' % (p, bysym.get(p), '/'.join(sorted(f)))
+            for p, (_, f) in want.items() if p not in bysym or not f <= alt_fns(sym[bysym[p]], p)]
+    check(S, 'every G0_A pin can do what AM32 uses it for (KiCad alternate functions): input %s; TIM1 CHx/CHxN '
+             'pairs per phase; %s inputs; ADC channels' % (tim, main_comp), not cant, '; '.join(cant))
     for n in (1, 2, 3, 4):
-        ports, _, _, _ = port_nets('esc', 'U_ESC%d' % n, 'MCU_ST_STM32F0', 'STM32F051K6Ux')
-        bad = ['%s wants %s, has %s' % (p, f, ports.get(p)) for p, f in want.items()
-               if ports.get(p) != 'M%d_%s' % (n, f)]
-        check(S, 'ESC %d: input, six gate outputs and three comparator inputs match group F0_A' % n,
-              not bad, '; '.join(bad) or ', '.join('%s %s' % (p, f) for p, f in sorted(want.items())))
-    # the MCU family defaults: which comparator, which ADC inputs
-    mcu = tgt[tgt.index('#ifdef MCU_F051\n'):]
-    mcu = mcu[:mcu.index('\n#endif\n\n')]
-    md = dict(re.findall(r'#define\s+(\w+)\s+(\S+)', mcu))
-    overridden = [k for k in ('CURRENT_ADC_PIN', 'VOLTAGE_ADC_PIN') if k in g or k in fd]
-    check(S, 'AM32 MCU_F051 uses COMP1 (MAIN_COMP %s); COMP1 + input is PA1 (RM0091): virtual neutral there'
-          % md.get('MAIN_COMP'), md.get('MAIN_COMP') == 'COMP1' and all(
-              port_nets('esc', 'U_ESC%d' % n, 'MCU_ST_STM32F0', 'STM32F051K6Ux')[0]['PA1'] == 'M%d_NEUTRAL' % n
-              for n in (1, 2, 3, 4)))
-    vpin = 'PA' + md.get('VOLTAGE_ADC_PIN', '?').split('_')[-1]
-    cpin = 'PA' + md.get('CURRENT_ADC_PIN', '?').split('_')[-1]
-    check(S, 'AM32 F051 battery voltage ADC on %s, current on %s (not overridden by the target): %s, %s'
-          % (vpin, cpin, ports.get(vpin), ports.get(cpin)),
-          not overridden and ports.get(vpin) == 'ESC_VSENSE' and ports.get(cpin) == 'GND',
-          'current input grounded: no sensor per ESC, reads 0 A')
-    check(S, 'ESC voltage divider matches TARGET_VOLTAGE_DIVIDER 65 (ratio 6.5)',
-          'TARGET_VOLTAGE_DIVIDER 65' in fd and abs(esc_vsense_ratio() - 6.5) < 1e-9,
-          'ratio %.3f' % esc_vsense_ratio())
+        ports = port_nets('esc', 'U_ESC%d' % n, *G071_SYMBOL)[0]
+        exp = lambda f: f if f == 'ESC_VSENSE' else 'M%d_%s' % (n, f)
+        bad = ['%s wants %s, has %s' % (p, exp(f), ports.get(p)) for p, (f, _) in want.items() if ports.get(p) != exp(f)]
+        check(S, 'ESC %d: input, six gate outputs, three comparator inputs, neutral, current and voltage match '
+                 'group G0_A and the MCU_G071 defaults' % n, not bad,
+              '; '.join(bad) or ', '.join('%s %s (pin %s)' % (p, f, bysym.get(p)) for p, (f, _) in sorted(want.items())))
+    per = am32_source('Mcu/g071/Src/peripherals.c')
+    remap = re.search(r'#ifndef NO_PA11_PA12_REMAP\s+LL_SYSCFG_EnablePinRemap\(LL_SYSCFG_PIN_RMP_PA11\);\s+'
+                      r'LL_SYSCFG_EnablePinRemap\(LL_SYSCFG_PIN_RMP_PA12\);', per)
+    check(S, 'pins 18/19 are PA11/PA12 until remapped to PA9/PA10 (KiCad names %s, %s); AM32\'s g071 '
+             'peripherals.c remaps them at start-up unless NO_PA11_PA12_REMAP is defined' % (sym['18'][0], sym['19'][0]),
+          remap is not None and sym['18'][0] == 'PA9/PA11' and sym['19'][0] == 'PA10/PA12'
+          and cdefine(tb, 'NO_PA11_PA12_REMAP') is None and cdefine(g, 'NO_PA11_PA12_REMAP') is None)
+    # dead time: TIM1 on PCLK (64 MHz), clock division 1
+    mhz = int(cdefine(mcu, 'CPU_FREQUENCY_MHZ'))
+    dt = int(td('DEAD_TIME'))
+    tim1 = 'LL_RCC_TIM1_CLKSOURCE_PCLK1' in per and 'LL_TIM_CLOCKDIVISION_DIV1' in per
+    check(S, 'DEAD_TIME %d = %.0f ns at %d MHz (TIM1 on PCLK, clock division 1; DTG linear below 128), plus the '
+             'DRV8300\'s own 150-280 ns (DT pin open): not checked on a scope' % (dt, dt * 1e3 / mhz, mhz),
+          'INFO' if tim1 and dt < 128 else False)
+
+
+# ------------------------------------------------------------------ firmware scales
+INA180_GAIN = {'A1': 20, 'A2': 50, 'A3': 100, 'A4': 200}      # TI INA180 datasheet, device comparison table
+
+
+def shunt_mohm(part):
+    """SHUNT_0M5 -> 0.5 (milliohm)."""
+    m = re.match(r'SHUNT_(\d+)M(\d*)$', part)
+    return float(m.group(1) + ('.' + m.group(2) if m.group(2) else '')) if m else None
+
+
+def check_fw_scales():
+    """The firmware's voltage and current scale factors against the circuit's resistors and amplifiers."""
+    S = 'Firmware scales'
+    cfg = bf_configs()['RIDGE3']
+    cli = open(os.path.join(FW, 'betaflight/cli-setup.txt')).read()
+    esc, fc = circuit.build('esc'), circuit.build('fc')
+    # ESC: one shunt and one INA180 per channel -> MILLIVOLT_PER_AMP at PA5
+    sens, bad = set(), []
+    for n in (1, 2, 3, 4):
+        sh, amp = comp('esc', 'R_SH%d' % n), comp('esc', 'U_CS%d' % n)
+        g = re.match(r'INA180(A\d)$', amp.part)
+        src = 'M%d_SRC' % n
+        # INA180A, pinout A (DBV): 1 OUT, 2 GND, 3 IN+, 4 IN-, 5 VS; low side: IN- to ground
+        if not (g and shunt_mohm(sh.part) and set(sh.pins.values()) == {src, 'GND'}
+                and amp.pins == {'1': 'M%d_IOUT' % n, '2': 'GND', '3': src, '4': 'GND', '5': '+3V3'}):
+            bad.append('ESC %d: %s %s %s' % (n, sh.part, amp.part, amp.pins))
+            continue
+        sens.add(shunt_mohm(sh.part) * INA180_GAIN[g.group(1)])
+        filt = [x for x in esc if re.match(r'R\d', x.ref) and set(x.pins.values()) == {'M%d_IOUT' % n, 'M%d_ISENSE' % n}]
+        if not filt:
+            bad.append('ESC %d: no series resistor from IOUT to ISENSE' % n)
+    mv_a = sens.pop() if len(sens) == 1 and not bad else None
+    tgt = am32_targets()[0] if AM32 else None
+    mpa = cdefine(c_block(tgt, AM32_TARGET), 'MILLIVOLT_PER_AMP') if tgt else None
+    check(S, 'ESC current: %s mOhm shunt x INA180 gain = %s mV/A at PA5 (low-side, INA180A pinout A) = '
+             'AM32 MILLIVOLT_PER_AMP %s' % (shunt_mohm(comp('esc', 'R_SH1').part), mv_a, mpa),
+          (mv_a is not None and mpa is not None and abs(mv_a - float(mpa)) < 1e-9) if tgt else 'SKIP',
+          '; '.join(bad) or ('66 A full scale at 3.3 V' if mv_a else ''))
+    if tgt:
+        tdv = cdefine(c_block(tgt, AM32_TARGET), 'TARGET_VOLTAGE_DIVIDER')
+        r = esc_vsense_ratio()
+        check(S, 'ESC battery divider ratio %.2f = AM32 TARGET_VOLTAGE_DIVIDER %s / 10; 6S full 25.2 V -> %.2f V at PA6'
+              % (r, tdv, 25.2 / r), tdv is not None and round(r * 10) == int(tdv) and 25.2 / r < 3.3)
+    # FC: CUR = the four channel outputs averaged through equal resistors, loaded by the FC's input
+    avg = [x for x in esc if re.match(r'R\d', x.ref) and 'CUR' in x.pins.values()
+           and any(re.match(r'M\d_IOUT$', v or '') for v in x.pins.values())]
+    ravg = {value(x.part) for x in avg}
+    load = [value(x.part) for b in (esc, fc) for x in b
+            if re.match(r'R\d', x.ref) and set(x.pins.values()) == {'CUR', 'GND'}]
+    if len(avg) == 4 and len(ravg) == 1 and mv_a is not None:
+        rs = ravg.pop() / 4                                     # Thevenin: four equal resistors in parallel
+        rl = 1 / sum(1 / r for r in load) if load else float('inf')
+        k = rl / (rl + rs)
+        per_a = mv_a / 4 * k                                    # mV per amp of total battery current
+        scale = cdefine(cfg, 'DEFAULT_CURRENT_METER_SCALE')
+        err = int(scale) / (per_a * 10) - 1 if scale else None
+        check(S, 'FC current: CUR = average of 4 x %g mV/A through %d x %gk, loaded by %s: %.2f mV/A = ibata_scale '
+                 '%.1f (mV per 10 A); config.h DEFAULT_CURRENT_METER_SCALE %s (%+.1f %%)'
+              % (mv_a, len(avg), rs * 4 / 1e3, ' || '.join('%gk' % (r / 1e3) for r in load) or 'nothing',
+                 per_a, per_a * 10, scale, 100 * err if err is not None else 0),
+              err is not None and abs(err) < 0.03,
+              'the ESC\'s %.1fk source into the FC\'s %gk makes CUR read %.1f %% low; %d would be exact'
+              % (rs / 1e3, rl / 1e3, 100 * (1 - k), round(per_a * 10)) if k < 1 else '')
+    else:
+        check(S, 'FC current: four equal averaging resistors from the channels to CUR', False,
+              '%d found, values %s' % (len(avg), sorted(ravg)))
+    check(S, 'config.h: current meter ADC, offset 0 (0 A = 0 V: INA180 output from ground), voltage meter ADC',
+          cdefine(cfg, 'DEFAULT_CURRENT_METER_SOURCE') == 'CURRENT_METER_ADC'
+          and cdefine(cfg, 'DEFAULT_CURRENT_METER_OFFSET') == '0'
+          and cdefine(cfg, 'DEFAULT_VOLTAGE_METER_SOURCE') == 'VOLTAGE_METER_ADC')
+    t, b = value(find('fc', 'VBAT divider top')[0].part), value(find('fc', 'VBAT divider bottom')[0].part)
+    k = (t + b) / b
+    vs = cdefine(cfg, 'DEFAULT_VOLTAGE_METER_SCALE')
+    check(S, 'FC battery divider %gk/%gk: ratio %.1f -> vbat_scale %d = config.h DEFAULT_VOLTAGE_METER_SCALE %s '
+             '(uint8, max 255); 6S full 25.2 V -> %.2f V at PB2' % (t / 1e3, b / 1e3, k, round(k * 10), vs, 25.2 / k),
+          vs is not None and round(k * 10) == int(vs) <= 255 and 25.2 / k < 3.3)
+    same = {'vbat_scale': cdefine(cfg, 'DEFAULT_VOLTAGE_METER_SCALE'),
+            'ibata_scale': cdefine(cfg, 'DEFAULT_CURRENT_METER_SCALE'),
+            'ibata_offset': cdefine(cfg, 'DEFAULT_CURRENT_METER_OFFSET'),
+            'current_meter': 'ADC', 'battery_meter': 'ADC',
+            'pinio_config': cdefine(cfg, 'PINIO1_CONFIG') + ',1,1,1',
+            'pinio_box': cdefine(cfg, 'PINIO1_BOX') + ',255,255,255',
+            'vcd_video_system': 'HD', 'osd_displayport_device': 'MSP',
+            'dshot_bidir': 'ON', 'serialrx_provider': 'CRSF'}
+    bad = ['%s = %s, want %s' % (k_, cli_set(cli, k_), v) for k_, v in same.items() if cli_set(cli, k_) != v]
+    hd_uart = re.search(r'^serial\s+UART1\s+131073\b', cli, re.M) is not None
+    check(S, 'cli-setup.txt agrees with config.h (scales, PINIO) and sets up an HD system: UART1 131073 '
+             '(MSP + VTX_MSP), vcd_video_system HD, displayport MSP', not bad and hd_uart,
+          '; '.join(bad) + ('' if hd_uart else '; no "serial UART1 131073"'))
 
 
 # ------------------------------------------------------------------ circuit arithmetic
@@ -261,78 +577,113 @@ def esc_vsense_ratio():
 
 def check_power():
     S = 'Power and analog'
-    VREF = 0.6          # LMR51420 feedback reference (datasheet 7.5: 0.6 V)
-    t, b = value(find('fc', 'BEC feedback top')[0].part), value(find('fc', 'BEC feedback bottom')[0].part)
-    v = VREF * (1 + t / b)
-    check(S, 'FC BEC: 0.6 V x (1 + %gk/%gk) = %.2f V (5 V rail, USB-safe)' % (t / 1e3, b / 1e3, v), 4.9 <= v <= 5.25)
-    t, b = value(find('esc', 'buck feedback top')[0].part), value(find('esc', 'buck feedback bottom')[0].part)
-    v = VREF * (1 + t / b)
-    check(S, 'ESC buck: 0.6 V x (1 + %gk/%gk) = %.3f V (STM32F051: 2.0-3.6 V)' % (t / 1e3, b / 1e3, v),
-          3.2 <= v <= 3.45)
+    VMAX = 25.2          # a full 6S pack
+    # --- FC supplies (reference voltages: datasheet electrical tables)
+    t, b = value(find('fc', '5V BEC feedback top')[0].part), value(find('fc', '5V BEC feedback bottom')[0].part)
+    v = 1.0 * (1 + t / b)
+    check(S, 'FC 5 V BEC (LMR38020F, VREF 1.00 V): 1.0 x (1 + %gk/%gk) = %.2f V (USB-safe 5 V rail)'
+          % (t / 1e3, b / 1e3, v), 4.9 <= v <= 5.25)
+    t, b = value(find('fc', '9V BEC feedback top')[0].part), value(find('fc', '9V BEC feedback bottom')[0].part)
+    v = 1.006 * (1 + t / b)
+    check(S, 'FC 9 V VTX BEC (LM76003, VFB 1.006 V typ): %.2f V (DJI O3/O4, Walksnail, HDZero, analog VTX: 7-26 V '
+             'inputs, HDZero 7-13 V)' % v, 8.6 <= v <= 9.5)
+    t, b = value(find('fc', '9V BEC UVLO top')[0].part), value(find('fc', '9V BEC UVLO bottom')[0].part)
+    v = 1.204 * (1 + t / b)
+    check(S, '9 V BEC turns on above %.2f V (EN 1.204 V typ x (1 + %gk/%gk)): a 2S pack (6.0 V empty) still '
+             'runs it; below that the rail stays off instead of browning out' % (v, t / 1e3, b / 1e3), 5.5 <= v <= 6.5)
+    # --- ESC supplies
+    t, b = value(find('esc', 'gate-drive LDO feedback top')[0].part), value(find('esc', 'gate-drive LDO feedback bottom')[0].part)
+    v = 1.175 * (1 + t / b)
+    check(S, 'ESC gate drive (TPS7A4101, VFB 1.175 V): %.2f V: %.0f %% of the FETs\' +/-20 V gate rating and of '
+             'the DRV8300\'s 20 V GVDD maximum' % (v, 100 * v / 20), 10.0 <= v <= 12.0 and v / 20 <= 0.6)
+    i_gvdd = 4 * (1.5e-3 + 2 * 41e-9 * 48e3)      # 4 drivers: IQ + 2 gates switching at 48 kHz, 41 nC each
+    p = (VMAX - v) * i_gvdd
+    check(S, 'gate-drive LDO at 6S: %.0f mA x %.1f V = %.2f W in an MSOP-8 with exposed pad' % (i_gvdd * 1e3, VMAX - v, p),
+          p < 0.5)
+    check(S, 'ESC 3.3 V: MAX15062A fixed 3.3 V (no divider), 60 V input', find('esc', 'ESC 3.3V buck')[0].part == 'MAX15062A')
+    # battery dividers
+    r = esc_vsense_ratio()
+    check(S, 'ESC battery sense: %.1f V / %.1f = %.2f V at PA6 (< 3.3 V)' % (VMAX, r, VMAX / r), VMAX / r < 3.0)
     t, b = value(find('fc', 'VBAT divider top')[0].part), value(find('fc', 'VBAT divider bottom')[0].part)
     k = (t + b) / b
-    check(S, 'FC VBAT divider %gk/%gk: ratio %.1f -> vbat_scale %d; 4S full 16.8 V -> %.2f V at the ADC'
-          % (t / 1e3, b / 1e3, k, round(k * 10), 16.8 / k), round(k * 10) == 110 and 16.8 / k < 3.3)
-    cli = open(os.path.join(V1, 'firmware/betaflight/cli-setup.txt')).read()
-    check(S, 'cli-setup.txt sets vbat_scale 110', 'set vbat_scale = 110' in cli)
-    r = esc_vsense_ratio()
-    check(S, 'ESC battery sense: 16.8 V / %.1f = %.2f V at PA3 (< 3.3 V)' % (r, 16.8 / r), 16.8 / r < 3.3)
-    bt, bb = value(find('esc', 'BEMF A')[0].part), value(find('esc', 'BEMF A')[1].part)
+    check(S, 'FC battery sense: %.1f V / %.0f = %.2f V at PB2 (< 3.3 V; vbat_scale 160)' % (VMAX, k, VMAX / k), VMAX / k < 3.0)
+    # back-EMF and virtual neutral
+    ph = find('esc', 'BEMF A')
+    bt = value([c for c in ph if c.part == 'R20K'][0].part); bb = value([c for c in ph if c.part != 'R20K'][0].part)
     kr = bb / (bt + bb)
-    check(S, 'BEMF divider %gk/%gk: 16.8 V phase -> %.2f V at the comparator (< VDDA 3.33 V)'
-          % (bt / 1e3, bb / 1e3, 16.8 * kr), 16.8 * kr < 3.3)
+    check(S, 'BEMF divider %gk/%gk: %.1f V phase -> %.2f V at the comparator; a 35 V spike -> %.2f V (< VDDA 3.3 V)'
+          % (bt / 1e3, bb / 1e3, VMAX, VMAX * kr, 35 * kr), 35 * kr < 3.3)
     rn = value(find('esc', 'neutral to ground')[0].part)
     rs = value(find('esc', 'neutral A')[0].part) / 3
     kn = rn / (rs + rn)
     check(S, 'virtual neutral scales like the phases: %.4f vs %.4f (%.1f %% apart)' % (kn, kr, 100 * (kn / kr - 1)),
           abs(kn / kr - 1) < 0.03)
-    # gate drive: VCC from the pack through a resistor, clamped by a Zener
-    rv = [x for x in circuit.build('esc') if x.note == 'driver VCC filter']
-    dz = [x for x in circuit.build('esc') if x.note == 'driver VCC clamp']
-    VZ_MAX = 15.75       # BZX585-C15: 14.25-15.75 V (Nexperia datasheet)
-    check(S, 'gate driver VCC: pack through %d x %s, clamped by %d x %s (15 V, max 15.75 V): '
-             'gates at most 15.75 V against the AON7934\'s +/-20 V (4.25 V to spare) and inside the '
-             'JSM6288Q\'s 8-20 V VCC range' % (len(rv), rv[0].part if rv else '?', len(dz), dz[0].part if dz else '?'),
-          len(rv) == 4 and len(dz) == 4 and all(x.part == 'R330' for x in rv) and all(
-              x.part == 'BZX585C15' and x.pins['2'] == 'GND' and x.pins['1'].endswith('_VCC') for x in dz)
-          and 20 - VZ_MAX >= 4)
-    i_drv = 5e-3        # driver supply: IQ + 6 gates x ~25 nC at 48 kHz, upper estimate
-    for vb in (12.0, 16.8):
-        v = min(vb - i_drv * 330, 15.0)
-        check(S, 'gate drive at a %.1f V pack: VCC about %.1f V (330 ohm drop at %d mA)' % (vb, v, i_drv * 1e3),
-              8.0 <= v <= VZ_MAX, 'JSM6288Q UVLO below 8 V; AON7934 RDS(on) specified at 10 V and 4.5 V')
-    # BEC inductor against the regulator's current limit
-    ind = find('fc', 'BEC inductor')[0]
-    ISAT = {'L4U7H': 5.0, 'L4U7': 1.4}[ind.part]
-    check(S, 'FC BEC inductor %s: Isat %.1f A against the LMR51420 current limit 2.7 / 3.5 / 5.1 A (min/typ/max)'
-          % (parts.PARTS[ind.part]['mpn'], ISAT), ISAT >= 3.5,
-          'saturates only in a hard short at a worst-case-high limit' if ISAT < 5.1 else '')
-    cb = value(find('esc', 'bootstrap A')[1].part) if find('esc', 'bootstrap A')[1].part.startswith('C') \
-        else value(find('esc', 'bootstrap A')[0].part)
-    QG = 11e-9      # AON7934 Q1 (the high side, D1 on the battery) Qg at 10 V, datasheet max
-    dv = QG / cb
-    check(S, 'bootstrap %.1f uF vs high-side gate charge <= %d nC: droop %.3f V per turn-on' % (cb * 1e6, QG * 1e9, dv),
-          dv < 0.5, 'AON7934 datasheet: Q1 Qg(10 V) max 11 nC')
-    # conduction loss, for the record: two FETs conduct at a time in six-step
-    # drive, one high side (Q1, <10.2 mOhm) and one low side (Q2, <7.7 mOhm)
-    for i in (5, 10, 15):
-        p = i * i * (10.2e-3 + 7.7e-3)
-        check(S, 'conduction loss per motor at %d A: %.2f W (datasheet max RDS(on) at 25 C)' % (i, p), 'INFO',
-              'hot (125 C) max: %.2f W' % (i * i * (13.7e-3 + 10.3e-3)))
-    # HSE load caps
+    # current sense
+    sh = find('esc', 'ESC 1 shunt')[0]; amp = find('esc', 'ESC 1 current amplifier')[0]
+    gain = {'INA180A1': 20, 'INA180A2': 50, 'INA180A3': 100, 'INA180A4': 200}[amp.part]
+    mv_a = shunt_mohm(sh.part) * gain
+    check(S, 'current sense: %.1f mOhm x %d V/V = %.0f mV/A; the 3.3 V ADC range is %.0f A per motor' %
+          (shunt_mohm(sh.part), gain, mv_a, 3300 / mv_a), 3300 / mv_a >= 40)
+    check(S, 'shunt dissipation at 20 A per motor: %.2f W in a 2 W 1206 (%.0f %%)' % (20 ** 2 * shunt_mohm(sh.part) * 1e-3,
+          100 * 20 ** 2 * shunt_mohm(sh.part) * 1e-3 / 2), 20 ** 2 * shunt_mohm(sh.part) * 1e-3 <= 0.6 * 2)
+    check(S, 'current sense is Kelvin: the amplifier inputs are nets of their own, tied to the shunt only by its '
+             'footprint\'s net-tie pads', sh.pins.get('3', '').endswith('SNSP') and amp.pins['3'] == sh.pins['3']
+          and sh.pins.get('4', '').endswith('SNSN') and amp.pins['4'] == sh.pins['4'])
+    # --- voltage derating: every part that sees the pack, against 25.2 V
+    RATED = {   # absolute maximum or rated voltage, datasheet
+        'TPN2R304PL': 40, 'DRV8300D': 100, 'MAX15062A': 60, 'TPS7A4101': 50, 'C_BRIDGE': 50, 'C1U_100': 100,
+        'C10U50_1210': 50, 'C100N_100': 100, 'LMR38020F': 80, 'LM76003': 60, 'SMF26A': 26, 'SMF33A': 33,
+    }
+    seen = set()
+    for bd in ('esc', 'fc'):
+        for c in circuit.build(bd):
+            if c.part in seen or c.part not in RATED:
+                continue
+            if not any(n == 'VBAT' or n.endswith(('_A', '_B', '_C')) for n in c.pins.values() if n):
+                continue
+            seen.add(c.part)
+            rv = RATED[c.part]
+            if c.part.startswith('SMF'):
+                check(S, '%s TVS: stand-off %d V >= %.1f V (conducts only above a full pack)' % (c.part, rv, VMAX),
+                      rv >= VMAX)
+                continue
+            ratio = VMAX / rv
+            if c.part == 'TPN2R304PL':
+                check(S, '40 V FETs at 6S: %.0f %% of their rating (the chosen "Balanced: 40 V parts, 2-6S"; the 60 %% '
+                         'rule holds to 5S, 21 V = 53 %%)' % (100 * ratio), 'INFO',
+                      'switching spikes are held down by the bridge capacitors under every half-bridge and the '
+                      'low-ESR capacitor on the battery leads')
+                continue
+            check(S, '%s: %.0f %% of its %d V rating at 6S (60 %% rule)' % (c.part, 100 * ratio, rv), ratio <= 0.6)
+    # --- inductors against their regulators' current limits (datasheets)
+    for bd, note, reg, limit in (('fc', '5V BEC inductor', 'LMR38020F high-side limit', 3.8),
+                                 ('fc', '9V BEC inductor', 'LM76003 high-side limit', 6.8),
+                                 ('esc', 'buck inductor', 'MAX15062A peak limit', 0.62)):
+        ind = find(bd, note)[0]
+        isat = parts.PARTS[ind.part].get('isat')
+        check(S, '%s %s: Isat %s A vs the %s %.2f A max' % (bd.upper(), parts.PARTS[ind.part]['mpn'], isat, reg, limit),
+              isat is not None and isat >= limit if isat is not None else 'INFO', '' if isat else 'isat not in parts.py')
+    # --- gate drive
+    cb = value('C1U')
+    QG = 41e-9      # TPN2R304PL Qg at 10 V (datasheet)
+    dv = QG / (cb * 0.4)      # a 1 uF 25 V 0402 keeps about 40 % at 11 V
+    check(S, 'bootstrap 1 uF (about 0.4 uF at 11 V) vs 41 nC gate charge: %.2f V droop per turn-on' % dv, dv < 0.5)
+    for i in (5, 10, 15, 20):
+        p = i * i * 2 * 2.3e-3
+        check(S, 'conduction loss per motor at %d A: %.2f W (two FETs at 2.3 mOhm max, 25 C)' % (i, p), 'INFO',
+              'hot (about 1.5 x at 125 C): %.2f W' % (1.5 * p))
+    # --- FC details
     cl = value(find('fc', 'crystal load')[0].part)
     check(S, 'HSE load caps %d pF each: CL = %.1f pF with 3 pF stray (crystal CL 10 pF)' % (cl * 1e12, cl * 1e12 / 2 + 3),
           abs(cl * 1e12 / 2 + 3 - 10) <= 1.5)
-    # USB
     cc = [x for x in circuit.build('fc') if x.note.startswith('CC') and x.note.endswith('Rd')]
     check(S, 'USB-C: 5.1k Rd on CC1 and CC2 (C-to-C cables supply 5 V)', len(cc) == 2 and all(x.part == 'R5K1' for x in cc))
-    # every MCU VDD pin has a 100 nF
     fc_caps = [x for x in circuit.build('fc') if x.note.startswith('U_FC pin')]
     check(S, 'FC MCU: one 100 nF per VDD/VBAT/VDDA pin group (%d) plus 1 uF and 4.7 uF bulk' % len(fc_caps),
           len(fc_caps) == 5)
     for n in (1, 2, 3, 4):
         e = [x for x in circuit.build('esc') if x.note.startswith('U_ESC%d V' % n)]
-        check(S, 'ESC %d MCU: 100 nF on VDD pins 1 and 17, 1 uF on VDDA' % n, len(e) == 3)
+        check(S, 'ESC %d MCU: 100 nF and 4.7 uF on VDD/VDDA' % n, len(e) == 2)
 
 
 # ------------------------------------------------------------------ boards
@@ -356,7 +707,7 @@ def check_board(board, name):
             for p in (d.GetStart(), d.GetEnd()):
                 xs.append(p.x / 1e6); ys.append(p.y / 1e6)
     w, h = max(xs) - min(xs), max(ys) - min(ys)
-    check(S, 'outline %.2f x %.2f mm, square corners' % (w, h), abs(w - 33.8) < 0.01 and abs(h - 33.8) < 0.01)
+    check(S, 'outline %.2f x %.2f mm, square corners' % (w, h), abs(w - 36.0) < 0.01 and abs(h - 36.0) < 0.01)
     holes = sorted((round(p.GetPosition().x / 1e6 - pcb.CX, 2), round(p.GetPosition().y / 1e6 - pcb.CY, 2))
                    for fp in b.GetFootprints() if fp.GetReference().startswith('H') for p in fp.Pads())
     check(S, 'mounting holes on the 25.5 mm square: %s' % holes,
@@ -498,11 +849,60 @@ def check_brand():
 # ------------------------------------------------------------------ firmware
 def check_firmware():
     S = 'Firmware'
-    readme = open(os.path.join(V1, 'firmware/README.md')).read()
+    readme = open(os.path.join(FW, 'README.md')).read()
     for h, f in re.findall(r'^([0-9a-f]{64})  (\S+)$', readme, re.M):
-        p = os.path.join(V1, 'firmware', f)
+        p = os.path.join(FW, f)
         ok = os.path.exists(p) and hashlib.sha256(open(p, 'rb').read()).hexdigest() == h
         check(S, '%s matches the sha256 in firmware/README.md' % f, ok)
+    stale = sorted(os.path.relpath(p, FW) for p in glob.glob(os.path.join(FW, '**', '*'), recursive=True)
+                   if re.search(r'CHEAPDRONE|F051|F421|at32', os.path.basename(p), re.I))
+    check(S, 'no files left from the F051/AT32 ESC or the CHEAPDRONE configs', not stale, ', '.join(stale))
+    # Betaflight: one image per config, carrying its board name
+    for k, cfg in bf_configs().items():
+        name = cdefine(cfg, 'BOARD_NAME')
+        p = os.path.join(FW, 'betaflight/betaflight_2025.12.5_STM32G47X_%s.hex' % name)
+        img = bytes(read_ihex(p).values()) if os.path.exists(p) else b''
+        check(S, 'betaflight/%s carries BOARD_NAME %s' % (os.path.basename(p), name),
+              re.search(rb'[^A-Z0-9_]' + name.encode() + rb'\x00', img) is not None)
+    # AM32 firmware: application at 0x08001000, FILE_NAME just below the settings page
+    fw = glob.glob(os.path.join(FW, 'am32', 'AM32_%s_*.hex' % AM32_TARGET))
+    bl = glob.glob(os.path.join(FW, 'am32', 'AM32_G071_BOOTLOADER_*.hex'))
+    if len(fw) == 1:
+        mem = read_ihex(fw[0])
+        eeprom, app = 0x0800F800, 0x08001000          # SIXTY_FOUR_KB_MEMORY / APPLICATION_ADDRESS (MCU_G071)
+        if AM32:
+            tgt = am32_targets()[0]
+            mcu = c_block(tgt, 'MCU_G071') if tgt else ''
+            m = re.search(r'#ifdef SIXTY_FOUR_KB_MEMORY\s*\n\s*#define EEPROM_START_ADD \(uint32_t\)(0x[0-9A-Fa-f]+)', mcu)
+            eeprom = int(m.group(1), 16) if m else eeprom
+            app = int(cdefine(mcu, 'APPLICATION_ADDRESS') or hex(app), 16)
+        fname = bytes(mem.get(a, 0) for a in range(eeprom - 32, eeprom)).split(b'\x00')[0].decode('ascii', 'replace')
+        code = [a for a in mem if a < eeprom - 32]
+        check(S, 'am32/%s: code 0x%08X-0x%08X (from APPLICATION_ADDRESS, below the settings page at 0x%08X), '
+                 'FILE_NAME "%s" at 0x%08X' % (os.path.basename(fw[0]), min(code), max(code), eeprom, fname, eeprom - 32),
+              min(code) == app and max(mem) < eeprom and fname == AM32_TARGET)
+    else:
+        check(S, 'one AM32 %s image in firmware/am32' % AM32_TARGET, False, str(fw))
+    # AM32 bootloader: its device-info block names the comms pin and the flash layout
+    if len(bl) == 1:
+        mem = read_ihex(bl[0])
+        info = bytes(mem.get(a, 0xFF) for a in range(0x08000FE0, 0x08000FE0 + 17))
+        m = re.search(r'BOOTLOADER_(P[A-C])(\d+)_(\d+)K', os.path.basename(bl[0]))
+        pin_code = ((ord(m.group(1)[1]) - ord('A')) << 4 | int(m.group(2))) if m else None
+        size_code = {32: 0x1F, 64: 0x35, 128: 0x2B}.get(int(m.group(3))) if m else None
+        want_pin = None
+        if AM32 and am32_targets()[0]:
+            gd = dict(re.findall(r'#define\s+(\w+)\s+(\S+)', c_block(am32_targets()[0], 'HARDWARE_GROUP_G0_A')))
+            want_pin = 'P%s%s' % (gd['INPUT_PIN_PORT'][-1], gd['INPUT_PIN'].split('_')[-1])
+        check(S, 'am32/%s: device info at 0x08000FE0 (AM32-bootloader main.c devinfo): magic, "471", pin code 0x%02X '
+                 '(%s%s; the ESC input is %s), flash size code 0x%02X (%sK: settings at 0x0800F800), no code past '
+                 '0x08001000' % (os.path.basename(bl[0]), info[11], m.group(1) if m else '?', m.group(2) if m else '?',
+                                 want_pin or '?', info[12], m.group(3) if m else '?'),
+              info[:8] == bytes.fromhex('dae32559d963b84e') and info[8:11] == b'471' and info[11] == pin_code
+              and info[12] == size_code and m.group(3) == '64' and max(mem) < 0x08001000
+              and (want_pin is None or want_pin == '%s%s' % (m.group(1), m.group(2))))
+    else:
+        check(S, 'one AM32 G071 bootloader in firmware/am32', False, str(bl))
 
 
 def main():
@@ -514,6 +914,7 @@ def main():
                 break
     check_fc_pins()
     check_esc_pins()
+    check_fw_scales()
     check_power()
     for board, name in (('fc', 'ridge3-fc'), ('esc', 'ridge3-esc')):
         check_board(board, name)

@@ -84,13 +84,10 @@ def run(board_name, work, passes=None, log=print):
         pcb.pour_ground(fin, [pcbnew.F_Cu, pcbnew.B_Cu])
         artwork.remove_dangling(fin)
     else:
-        import pofv, esc_fixes
-        protect = planes + ['+3V3', 'BUCK_SW', 'BUCK_CB']
-        # the one connection the routers leave (see esc_fixes), then rip-up
-        # and re-route for anything else, then the other end of that one
-        glc = 'M1_GLC' in finish.unrouted_nets(pcbnew.LoadBoard(fin))
-        if glc:
-            esc_fixes.pin_escape(fin, L.VIA_SIG, widths, clmap, log=log)
+        import pofv
+        protect = planes + ['+3V3', 'BUCK_LX', 'GVDD']
+        # rip-up and re-route for anything the routers left, then the
+        # order-varying repair for the last few
         b = pcbnew.LoadBoard(fin)
         todo = [x for x in finish.unrouted_nets(b) if x not in planes]
         if todo:
@@ -99,9 +96,6 @@ def run(board_name, work, passes=None, log=print):
             b.Save(fin)
             _copy_project(placed, fin)
         pcb.tidy_tracks(fin)
-        if glc:
-            esc_fixes.fet_end(fin, widths, clmap, log=log)
-            _copy_project(placed, fin)
         b = pcbnew.LoadBoard(fin)
         left = [x for x in finish.unrouted_nets(b) if x not in planes]
         if left:
@@ -114,6 +108,13 @@ def run(board_name, work, passes=None, log=print):
         e, w, u = pcb.drc(fin, os.path.join(work, 'esc_pofv_drc.json'))
         if any(v['type'] == 'hole_to_hole' for v in e):
             pofv.nudge_vias(fin, os.path.join(work, 'esc_pofv_drc.json'), clearances=clmap, log=log)
+    if os.environ.get('NO_ARTWORK') == '1':
+        pcb.set_stackup(fin)
+        e, w, u = pcb.drc(fin, os.path.join(work, board_name + '_final_drc.json'))
+        log('%s DRC (no artwork): %d errors %s, %d warnings %s, %d unconnected'
+            % (board_name, len(e), dict(Counter(v['type'] for v in e)), len(w),
+               dict(Counter(v['type'] for v in w)), len(u)))
+        return fin
     b = pcbnew.LoadBoard(fin)
     if board_name == 'fc':
         L.artwork(b)

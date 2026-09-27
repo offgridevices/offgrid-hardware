@@ -13,8 +13,16 @@ Two kinds of footprint go in:
      silk is noise that lands on pads; the assembly drawing carries the
      outlines and reference designators instead.
    - 3D models point at ../aio.3dshapes (gzip STEP, KiCad reads .stpZ).
-2. Copper-only footprints generated here: battery, motor and signal solder
-   pads, test points, and the M3 mounting hole.
+   - custom (polygon) pads that are plain rectangles become rect pads; any
+     other polygon (a QFN's chamfered corner pads, a FET's drain) stays a
+     polygon, drawn with no outline width so the copper is exactly the
+     polygon EasyEDA gives.
+   - FIXUPS below renames pads to the datasheet / circuit.py names and
+     resizes the few exposed pads where the maker's land pattern is larger
+     than EasyEDA's.  The raw files stay verbatim.
+2. Footprints generated here: battery, motor and signal solder pads, test
+   points, the open solder jumper and the M3 mounting hole (copper only),
+   plus the Stackpole HCS1206 shunt land (no EasyEDA entry exists for it).
 
 Run with KiCad's Python (python3.12 on Ubuntu): it uses pcbnew to read and
 write footprints so the output is exactly KiCad's own format.
@@ -63,13 +71,54 @@ def _get(n, key):
             return c
     return None
 
+def _poly_pts(p):
+    """(x, y) points of a custom pad's polygon, relative to the pad."""
+    pts = _get(_get(_get(p, 'primitives'), 'gr_poly'), 'pts')
+    return [(float(q[1]), float(q[2])) for q in pts[1:]]
+
 def _pad_box(p):
     at = _get(p, 'at'); sz = _get(p, 'size')
     x, y = float(at[1]), float(at[2]); rot = float(at[3]) if len(at) > 3 else 0.0
+    if p[3] == 'custom':                  # EasyEDA custom pads are never rotated
+        pts = _poly_pts(p)
+        return (x + min(q[0] for q in pts), y + min(q[1] for q in pts),
+                x + max(q[0] for q in pts), y + max(q[1] for q in pts))
     w, h = float(sz[1]), float(sz[2])
     if round(rot) % 180 == 90:
         w, h = h, w
     return x - w / 2, y - h / 2, x + w / 2, y + h / 2
+
+def _area(pts):
+    return abs(sum(pts[i][0] * pts[i - 1][1] - pts[i - 1][0] * pts[i][1] for i in range(len(pts)))) / 2
+
+# Per-footprint corrections, applied to the parsed EasyEDA file.
+#   'rename': {EasyEDA pad name: pad name used here}
+#   'resize': {pad name: (w, h)} in the footprint's own axes (rotation 0)
+FIXUPS = {
+    # GCT USB4105-GF-A-120: EasyEDA names the doubled contacts 'A1-B12';
+    # circuit.py uses 'A1B12' (as the v1 receptacle did).  Shell 1-4.
+    'USB-C-SMD_MC-311D': dict(rename={'A1-B12': 'A1B12', 'B1-A12': 'B1A12',
+                                      'A4-B9': 'A4B9', 'B4-A9': 'B4A9'}),
+    # TI TPS7A4101 DGN (HVSSOP-8): TI's land (DGN0008B) has a 1.98 x 1.88 mm
+    # thermal pad; EasyEDA's is 1.8 x 1.5.  Rows run along x here.
+    'MSOP-8_L3.0-W3.0-P0.65-LS5.0-BL-EP': dict(resize={'9': (1.98, 1.88)}),
+    # TI LMR38020 DDA (SO-8 PowerPAD): TI's land (DDA0008B) has a
+    # 3.4 x 2.71 mm thermal pad; EasyEDA's is 3.3 x 2.4.
+    'ESOP-8_L4.9-W3.9-P1.27-LS6.0-BL-EP-1': dict(resize={'9': (3.4, 2.71)}),
+}
+
+def _fix_pad(name, p):
+    fx = FIXUPS.get(name, {})
+    num = p[1].strip('"')
+    if num in fx.get('rename', {}):
+        num = fx['rename'][num]
+        p[1] = '"%s"' % num
+    if num in fx.get('resize', {}):
+        w, h = fx['resize'][num]
+        at = _get(p, 'at')
+        if len(at) > 3 and round(float(at[3])) % 180 == 90:
+            w, h = h, w
+        _get(p, 'size')[1:] = ['%.3f' % w, '%.3f' % h]
 
 def _item_box(it):
     xs, ys = [], []
@@ -104,12 +153,25 @@ def clean_easyeda(path):
             if b: boxes.append(b)
             out.append(c)
         elif k == 'pad':
-            if c[3] == 'custom':           # USB-C GND/VBUS: plain rectangles
-                pts = _get(_get(_get(c, 'primitives'), 'gr_poly'), 'pts')
-                px = [float(q[1]) for q in pts[1:]]; py = [float(q[2]) for q in pts[1:]]
-                c = [x for x in c if not (isinstance(x, list) and x[0] == 'primitives')]
-                c[3] = 'rect'
-                _get(c, 'size')[1:] = ['%.3f' % (max(px) - min(px)), '%.3f' % (max(py) - min(py))]
+            if c[3] == 'custom':
+                pts = _poly_pts(c)
+                px = [q[0] for q in pts]; py = [q[1] for q in pts]
+                bw, bh = max(px) - min(px), max(py) - min(py)
+                if _area(pts) > 0.98 * bw * bh:
+                    # a plain rectangle (the v1 USB-C's GND/VBUS pads)
+                    c = [x for x in c if not (isinstance(x, list) and x[0] == 'primitives')]
+                    c[3] = 'rect'
+                    _get(c, 'size')[1:] = ['%.3f' % bw, '%.3f' % bh]
+                    cx, cy = (max(px) + min(px)) / 2, (max(py) + min(py)) / 2
+                    if abs(cx) > 0.001 or abs(cy) > 0.001:
+                        at = _get(c, 'at')
+                        at[1] = '%.3f' % (float(at[1]) + cx); at[2] = '%.3f' % (float(at[2]) + cy)
+                else:
+                    # chamfered QFN corner pads, a FET's drain: keep the
+                    # polygon, but with no outline width (EasyEDA's 0.1 mm
+                    # would grow every edge by 0.05 mm)
+                    _get(_get(_get(c, 'primitives'), 'gr_poly'), 'width')[1] = '0'
+            _fix_pad(name, c)
             if c[1] == '""' and c[2] == 'thru_hole':
                 # locating pegs are drawn as plated holes with no copper
                 # ring; they are plastic posts, so make them non-plated
@@ -178,6 +240,30 @@ def pad_fp(name, w, h, shape='roundrect', paste=False, desc=''):
     fp.Value().SetVisible(False)
     return fp
 
+def pth_pad_fp(name, d, drill, desc=''):
+    """Plated through-hole solder pad.  The wire goes through the board and
+    the joint wets both sides and the barrel, so a crash cannot peel it off
+    the way it lifts a surface pad, and the current reaches every copper
+    layer (the inner planes included) through the barrel."""
+    fp = pcbnew.FOOTPRINT(None)
+    fp.SetFPID(pcbnew.LIB_ID('aio', name))
+    fp.SetAttributes(pcbnew.FP_THROUGH_HOLE | pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
+    fp.SetLibDescription(desc)
+    p = pcbnew.PAD(fp)
+    p.SetNumber('1'); p.SetAttribute(pcbnew.PAD_ATTRIB_PTH); p.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+    p.SetSize(pcbnew.VECTOR2I(MM(d), MM(d))); p.SetDrillSize(pcbnew.VECTOR2I(MM(drill), MM(drill)))
+    ls = pcbnew.LSET.AllCuMask(); ls.AddLayer(pcbnew.F_Mask); ls.AddLayer(pcbnew.B_Mask)
+    p.SetLayerSet(ls)
+    fp.Add(p)
+    for lay in (pcbnew.F_CrtYd, pcbnew.B_CrtYd):
+        c = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_CIRCLE)
+        c.SetCenter(pcbnew.VECTOR2I(0, 0)); c.SetEnd(pcbnew.VECTOR2I(MM(d / 2 + 0.1), 0))
+        c.SetLayer(lay); c.SetWidth(MM(0.05)); fp.Add(c)
+    fp.Reference().SetLayer(pcbnew.F_Fab); fp.Reference().SetTextSize(pcbnew.VECTOR2I(MM(0.4), MM(0.4)))
+    fp.Reference().SetTextThickness(MM(0.06))
+    fp.Value().SetVisible(False)
+    return fp
+
 def hole_fp():
     fp = pcbnew.FOOTPRINT(None)
     fp.SetFPID(pcbnew.LIB_ID('aio', 'HOLE_M3'))
@@ -195,7 +281,81 @@ def hole_fp():
     fp.Reference().SetVisible(False); fp.Value().SetVisible(False)
     return fp
 
+def _nm(v):
+    return int(round(v * 1e6))
+
+def _smd_pad(fp, num, x, y, w, h, paste=True):
+    p = pcbnew.PAD(fp)
+    p.SetNumber(num); p.SetAttribute(pcbnew.PAD_ATTRIB_SMD); p.SetShape(pcbnew.PAD_SHAPE_RECT)
+    p.SetSize(pcbnew.VECTOR2I(_nm(w), _nm(h)))
+    p.SetPosition(pcbnew.VECTOR2I(_nm(x), _nm(y)))
+    ls = pcbnew.LSET(); ls.AddLayer(pcbnew.F_Cu); ls.AddLayer(pcbnew.F_Mask)
+    if paste: ls.AddLayer(pcbnew.F_Paste)
+    p.SetLayerSet(ls)
+    fp.Add(p)
+    return p
+
+def solder_jumper_fp(name='SJ_OPEN', w=0.8, h=1.2, gap=0.3):
+    """Open solder jumper: two pads, `gap` apart, one mask opening over both
+    so a blob of solder bridges them.  No paste: it ships open."""
+    fp = pcbnew.FOOTPRINT(None)
+    fp.SetFPID(pcbnew.LIB_ID('aio', name))
+    fp.SetAttributes(pcbnew.FP_SMD | pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
+    fp.SetLibDescription('Solder jumper, normally open: 2 pads %.1f x %.1f mm, %.2f mm gap' % (w, h, gap))
+    dx = (w + gap) / 2
+    _smd_pad(fp, '1', -dx, 0, w, h, paste=False)
+    _smd_pad(fp, '2', dx, 0, w, h, paste=False)
+    x1, y1 = dx + w / 2 + 0.05, h / 2 + 0.05
+    m = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_RECT)
+    m.SetStart(pcbnew.VECTOR2I(-MM(x1), -MM(y1))); m.SetEnd(pcbnew.VECTOR2I(MM(x1), MM(y1)))
+    m.SetFilled(True); m.SetLayer(pcbnew.F_Mask); m.SetWidth(0)
+    fp.Add(m)
+    _rect(fp, pcbnew.F_CrtYd, -MM(x1 + 0.05), -MM(y1 + 0.05), MM(x1 + 0.05), MM(y1 + 0.05), 0.05)
+    fp.Reference().SetLayer(pcbnew.F_Fab); fp.Reference().SetTextSize(pcbnew.VECTOR2I(MM(0.4), MM(0.4)))
+    fp.Reference().SetTextThickness(MM(0.06))
+    fp.Value().SetVisible(False)
+    return fp
+
+def shunt_hcs1206_fp():
+    """Stackpole HCS1206 metal-element shunt (0.5 mOhm, 2 W): EasyEDA has no
+    entry for C346511, so the land is Stackpole's recommended pad layout
+    (HCS datasheet p.5, 1206 row): current pads b 1.70 long x c 1.80 wide,
+    gap a 1.40 (4.8 x 1.8 mm of copper).  Pad 1 left, pad 2 right.
+    Kelvin sense pads 3 (tied to 1) and 4 (tied to 2) leave from the inner
+    corner of each current pad, where Stackpole's drawing takes its sense
+    traces, 0.25 x 0.5 mm, no paste; footprint net-tie groups 1-3 and 2-4
+    let them overlap the current pads.  Courtyard 5.0 x 2.45 mm."""
+    name = 'RES-SMD_1206_HCS1206'
+    fp = pcbnew.FOOTPRINT(None)
+    fp.SetFPID(pcbnew.LIB_ID('aio', name))
+    fp.SetAttributes(pcbnew.FP_SMD)
+    fp.SetLibDescription('Stackpole HCS1206 current shunt, 3.2 x 1.65 mm; Stackpole land '
+                         'a=1.40 b=1.70 c=1.80; Kelvin sense pads 3 (=1) and 4 (=2)')
+    b, c, a = 1.70, 1.80, 1.40
+    dx = (a + b) / 2
+    _smd_pad(fp, '1', -dx, 0, b, c)
+    _smd_pad(fp, '2', dx, 0, b, c)
+    sw, sh, ov = 0.25, 0.50, 0.05            # sense pad size, overlap into the current pad
+    sx, sy = a / 2 + sw / 2, c / 2 + sh / 2 - ov
+    _smd_pad(fp, '3', -sx, sy, sw, sh, paste=False)
+    _smd_pad(fp, '4', sx, sy, sw, sh, paste=False)
+    fp.AddNetTiePadGroup('1, 3')
+    fp.AddNetTiePadGroup('2, 4')
+    _rect(fp, pcbnew.F_Fab, -MM(1.6), -MM(0.825), MM(1.6), MM(0.825), 0.1)
+    x1, y0, y1 = dx + b / 2 + 0.1, -(c / 2 + 0.1), sy + sh / 2 + 0.1
+    _rect(fp, pcbnew.F_CrtYd, -MM(x1), MM(y0), MM(x1), MM(y1), 0.05)
+    fp.Reference().SetLayer(pcbnew.F_Fab); fp.Reference().SetTextSize(pcbnew.VECTOR2I(MM(0.5), MM(0.5)))
+    fp.Reference().SetTextThickness(MM(0.08))
+    fp.Value().SetText(name); fp.Value().SetVisible(False)
+    if os.path.exists(os.path.join(MODELS, 'R_1206_3216Metric.stpZ')):
+        m = pcbnew.FP_3DMODEL()
+        m.m_Filename = '${KIPRJMOD}/../aio.3dshapes/R_1206_3216Metric.stpZ'
+        fp.Models().append(m)
+    return fp
+
 def main():
+    # fixed item IDs: regenerating the library changes only what changed
+    pcbnew.KIID.SeedGenerator(1)
     os.makedirs(LIB, exist_ok=True)
     for f in glob.glob(os.path.join(LIB, '*.kicad_mod')):
         os.remove(f)
@@ -204,12 +364,13 @@ def main():
         fp = clean_easyeda(path)
         _save(LIB, fp); n += 1
     gen = [
-        pad_fp('PAD_BAT', 2.6, 5.0, desc='Battery lead pad, 18 AWG + bulk capacitor leg'),
+        pth_pad_fp('PAD_BAT', 3.0, 1.6, desc='Battery lead pad, plated through-hole: 16-18 AWG lead + bulk capacitor leg'),
         pad_fp('PAD_MOTOR', 2.0, 2.3, desc='Motor phase wire pad'),
         pad_fp('PAD_SIG', 1.1, 1.6, desc='Signal / power solder pad'),
         pad_fp('PAD_TP', 0.9, 0.9, shape='circle', desc='Test point'),
         hole_fp(),
     ]
+    gen += [solder_jumper_fp(), shunt_hcs1206_fp()]
     for fp in gen:
         _save(LIB, fp); n += 1
     print('wrote %d footprints to %s' % (n, LIB))

@@ -6,20 +6,21 @@ check it against a datasheet: the part, then pin by pin what it connects to,
 with the reason for anything that is not obvious.
 
 Pin numbers are footprint pad numbers, which for every IC here are the
-datasheet pin numbers.  Two exceptions are called out where they occur: the
-USB-C receptacle (pads named by USB-C contact) and the AON7934's two exposed
-pads (numbered 9 and 10 by the footprint, assigned by geometry - see there).
+datasheet pin numbers.  Exceptions are called out where they occur: the
+USB-C receptacle (pads named by USB-C contact) and the ESC shunt's Kelvin
+sense pads (3 and 4, net-tied to its current pads).
 
-Two boards, one stack, both 33.8 x 33.8 mm on the 25.5 mm M3/M2-grommet
-pattern of the GEPRC TAKER G4 AIO that Phase 1 flew:
+Two boards, one stack (Ridge 3), both 36 x 36 mm on the 25.5 mm
+M3/M2-grommet pattern of the GEPRC TAKER G4 AIO that Phase 1 flew:
 
-  FC   STM32G473CEU6 + BMI270 (or ICM-42688-P) + 16 MB flash, USB-C, three UARTs,
-       beeper, LED strip, battery voltage and current inputs, 5 V 2 A BEC.
-       Pin map mirrors Betaflight target GEPR/TAKERG4AIO; firmware/ has the
-       board's own target, one build per gyro (stock TAKERG4AIO has no
-       BMI270 driver).
-  ESC  4 x (STM32F051K6U6 + JSM6288Q + 3 x AON7934 half-bridge), wired to
-       AM32 target FD6288_F051 so the stock AM32 release runs it.
+  FC   STM32G473CEU6 + BMI270 (or ICM-42688-P) + 16 MB flash, USB-C, boot
+       button, analog OSD (AT7456E) and an HD VTX port (DJI / Walksnail /
+       HDZero, MSP DisplayPort), 5 V 2 A BEC and a switchable 9 V VTX BEC,
+       all rated for 6S.  firmware/ has the board's Betaflight target,
+       one build per gyro.
+  ESC  4 x (STM32G071GBU6 + DRV8300D + 6 x TPN2R304PL 40 V FETs + 0.5 mOhm
+       shunt and INA180 current sense), 2-6S, wired to the AM32 target
+       RIDGE3_G071 (firmware/am32).
 
 They connect through one 8-pin JST-SH lead, pin 1 to pin 1:
 """
@@ -62,44 +63,97 @@ def mounting():
 # =====================================================================
 def fc_power():
     B = 'power'
-    # Battery comes in on the ESC lead.  A VBAT/GND pad pair is broken out
-    # for accessories (a VTX later), fed from the same lead.
+    # Battery.  Two ways in: the ESC lead (pin 1, a 1 A JST-SH contact,
+    # enough for the FC alone) and a pair of solder pads for 20-22 AWG from
+    # the battery pads, which a digital VTX needs (18 W at 9 V is 2 A from
+    # a sagging 2S pack).
     add('J', 'SH8_RA', dict(STACK_PINS, **{'9': None, '10': None}), B,
         'to 4-in-1 ESC (pads 9/10 are mechanical tabs)', ref='J_ESC')
-    # Current input: our ESC has no sensor, but a commercial one on this
-    # lead may.  The 100k keeps an unconnected input at 0 A, not noise.
+    add('P', 'PAD_MOTOR', {'1': 'VBAT'}, B, 'battery in +', ref='P_BAT')
+    add('P', 'PAD_MOTOR', {'1': GND}, B, 'battery in -', ref='P_BATG')
+    # 33 V stand-off, 53 V clamp at 7.5 A: above a full 6S pack (25.2 V),
+    # below the 5 V buck's 85 V and the 9 V buck's 65 V absolute maximum.
+    add('D', 'SMF33A', {'1': 'VBAT', '2': GND}, B, 'VBAT TVS', ref='D_TVS')
+    cap('C10U50_1210', 'VBAT', GND, B, 'VBAT bulk')
+
+    # Current from the ESC: the average of its four channels' sense
+    # amplifiers, 12.5 mV per amp of battery current (ibata_scale 125).
+    # The 100k keeps an unconnected input at 0 A, not noise.
     res('R100K', 'CUR', GND, B, 'CUR default low')
     res('R1K', 'CUR', 'ADC_CURR', B, 'CUR RC filter')
     cap('C100N', 'ADC_CURR', GND, B, 'CUR RC filter')
 
-    # Battery voltage divider 10k/1k -> Betaflight vbat_scale 110.
-    res('R10K', 'VBAT', 'ADC_VBAT', B, 'VBAT divider top')
-    res('R1K', 'ADC_VBAT', GND, B, 'VBAT divider bottom')
+    # Battery voltage: 30k / 2k (ratio 16, vbat_scale 160).  25.2 V gives
+    # 1.58 V at PB2, and the 53 V TVS clamp 3.3 V, under PB2's 4.0 V
+    # absolute maximum (TT_a pin).  The 30k dissipates 19 mW, 30% of 1/16 W.
+    res('R30K', 'VBAT', 'ADC_VBAT', B, 'VBAT divider top')
+    res('R2K', 'ADC_VBAT', GND, B, 'VBAT divider bottom')
     cap('C100N', 'ADC_VBAT', GND, B, 'VBAT filter')
 
-    # 5 V BEC, TI LMR51420 datasheet table 9-2 (1.1 MHz, 5 V): L 4.7 uH,
-    # Cout 2 x >= 10 uF.  Vout = 0.6 V x (1 + 15k/2k) = 5.1 V.  36 V part:
-    # 4S is 16.8 V charged and regen spikes ride on top of that.
-    add('U', 'LMR51420', {'1': GND, '2': 'BUCK_SW', '3': 'VBAT', '4': 'BUCK_FB',
-                          '5': 'VBAT', '6': 'BUCK_CB'}, B, '5V BEC', ref='U_BUCK')
-    cap('C10U50', 'VBAT', GND, B, 'BEC input')
-    cap('C100N', 'VBAT', GND, B, 'BEC input HF')
-    cap('C100N', 'BUCK_CB', 'BUCK_SW', B, 'BEC bootstrap')
-    add('L', 'L4U7H', {'1': 'BUCK_SW', '2': '+5V'}, B, 'BEC inductor', ref='L1')
-    cap('C22U25', '+5V', GND, B, 'BEC output')
-    cap('C22U25', '+5V', GND, B, 'BEC output')
-    res('R15K', '+5V', 'BUCK_FB', B, 'BEC feedback top')
-    res('R2K', 'BUCK_FB', GND, B, 'BEC feedback bottom')
+    # 5 V, 2 A: TI LMR38020F (80 V, forced PWM at 1 MHz; datasheet
+    # SNVSC40E tables 8-1, 9-1).  Vout = 1.0 V x (1 + 100k/24.9k) = 5.02 V.
+    # RT 25.5k = 1.0 MHz.  Loaded to 1.2 A (60% of 2 A): MCU, receiver,
+    # camera, LED strip, buzzer.
+    add('U', 'LMR38020F', {'1': GND, '2': 'VBAT', '3': 'VBAT', '4': 'BUCK5_RT', '5': 'BUCK5_FB',
+                           '6': None, '7': 'BUCK5_CB', '8': 'BUCK5_SW', '9': GND},
+        B, '5V BEC', ref='U_BUCK5')
+    cap('C10U50_1210', 'VBAT', GND, B, '5V BEC input')
+    cap('C100N_100', 'VBAT', GND, B, '5V BEC input HF')
+    res('R25K5', 'BUCK5_RT', GND, B, '5V BEC 1 MHz')
+    cap('C100N', 'BUCK5_CB', 'BUCK5_SW', B, '5V BEC bootstrap')
+    add('L', 'L4U7_5V', {'1': 'BUCK5_SW', '2': '+5V'}, B, '5V BEC inductor', ref='L_5V')
+    for _ in range(3):
+        cap('C22U25', '+5V', GND, B, '5V BEC output')
+    res('R100K', '+5V', 'BUCK5_FB', B, '5V BEC feedback top')
+    res('R24K9', 'BUCK5_FB', GND, B, '5V BEC feedback bottom')
 
-    # 3.3 V for the MCU, gyro and flash.
-    add('U', 'ME6211', {'1': '+5V', '2': GND, '3': '+5V', '4': None, '5': '+3V3'},
-        B, '3.3V LDO', ref='U_LDO')
-    cap('C1U', '+5V', GND, B, 'LDO in')
+    # 9 V, 2 A for the video transmitter and camera: TI LM76003 (60 V,
+    # 3.5 A, forced PWM for a steady 1 MHz under analog video; datasheet
+    # SNVSAK0A 8.2.2).  Vout = 1.006 V x (1 + 100k/12.4k) = 9.1 V; for a
+    # 10 V rail change the 12.4k to 11.0k.  9 V fits every HD VTX's input
+    # range (O4 Lite 3.7-13.2 V, HDZero Race V3 4-12 V, O3 7.4-26.4 V) and
+    # keeps regulating down to about 9.5 V of battery (3S).
+    # EN: UVLO at 6.0 V (100k / 24.9k), so the rail stays off while USB
+    # back-feeds about 4 V to VBAT through the 5 V buck; and an N-FET from
+    # EN to ground, driven by PB5 (Betaflight PINIO1), turns the VTX off.
+    # PB5 is pulled low at boot: the VTX is on unless the pilot switches it.
+    add('U', 'LM76003', dict(
+        [(str(k), 'BUCK9_SW') for k in (1, 2, 3, 4, 5)] +
+        [(str(k), GND) for k in (7, 19, 23, 27, 28, 29, 30, 13, 14, 15, 24, 25, 26, 31)] +
+        [(str(k), 'VBAT') for k in (20, 21, 22)] +
+        [('6', 'BUCK9_CB'), ('8', 'BUCK9_VCC'), ('9', '+9V'), ('10', 'BUCK9_RT'),
+         ('11', None), ('12', 'BUCK9_FB'), ('16', None), ('17', 'BUCK9_VCC'), ('18', 'BUCK9_EN')]),
+        B, '9V VTX BEC', ref='U_BUCK9')
+    cap('C10U50_1210', 'VBAT', GND, B, '9V BEC input')
+    cap('C100N_100', 'VBAT', GND, B, '9V BEC input HF')
+    cap('C470N', 'BUCK9_CB', 'BUCK9_SW', B, '9V BEC bootstrap')
+    cap('C2U2', 'BUCK9_VCC', GND, B, '9V BEC VCC')
+    cap('C1U_25', '+9V', GND, B, '9V BEC BIAS')
+    res('R24K3', 'BUCK9_RT', GND, B, '9V BEC 994 kHz')
+    res('R100K', 'VBAT', 'BUCK9_EN', B, '9V BEC UVLO top')
+    res('R24K9', 'BUCK9_EN', GND, B, '9V BEC UVLO bottom')
+    add('Q', 'AO3400A', {'1': 'VTX_OFF_G', '2': GND, '3': 'BUCK9_EN'}, B, 'VTX power switch', ref='Q_VTX')
+    res('R100', 'VTX_OFF', 'VTX_OFF_G', B, 'VTX switch gate')
+    res('R100K', 'VTX_OFF_G', GND, B, 'VTX switch gate pulldown')
+    add('L', 'L6U8_BIG', {'1': 'BUCK9_SW', '2': '+9V'}, B, '9V BEC inductor', ref='L_9V')
+    for _ in range(4):
+        cap('C22U25', '+9V', GND, B, '9V BEC output')
+    res('R100K', '+9V', 'BUCK9_FB', B, '9V BEC feedback top')
+    res('R12K4', 'BUCK9_FB', GND, B, '9V BEC feedback bottom')
+
+    # 3.3 V for the MCU, gyro, flash and OSD: TI TLV76733 (16 V, 1 A) from
+    # the 5 V rail.
+    # DRV package: 1 OUT, 2 SNS (tied to OUT, per TI), 3 and 5 GND, 4 EN,
+    # 6 IN, 7 thermal pad.
+    add('U', 'TLV76733', {'1': '+3V3', '2': '+3V3', '3': GND, '4': '+5V', '5': GND,
+                          '6': '+5V', '7': GND}, B, '3.3V LDO', ref='U_LDO')
+    cap('C1U_25', '+5V', GND, B, 'LDO in')
     cap('C4U7', '+3V3', GND, B, 'LDO out')
 
 def fc_core():
     B = 'fc'
-    # STM32G473CEU6 (UFQFPN-48).  Pin assignment is TAKERG4AIO's.
+    # STM32G473CEU6 (UFQFPN-48).  Pin assignment is TAKERG4AIO's, plus the
+    # OSD chip select (PA8, as TAKERG4AIO) and the VTX power switch (PB5).
     pins = {
         '1': '+3V3',        # VBAT (backup domain) - no RTC battery, tie to 3.3 V
         '2': None,          # PC13
@@ -126,12 +180,12 @@ def fc_core():
         '23': '+3V3',       # VDD
         '24': 'TLM',        # PB11 LPUART1 RX <- ESC telemetry, if an ESC sends it
         '25': None,         # PB12
-        '26': 'SPI2_SCK',   # PB13 flash
-        '27': 'SPI2_MISO',  # PB14
+        '26': 'SPI2_SCK',   # PB13 flash + OSD
+        '27': 'SPI2_MISO',  # PB14 (TT_a, 4.0 V max: the OSD runs at 3.3 V)
         '28': 'SPI2_MOSI',  # PB15
         '29': 'FLASH_CS',   # PC6
-        '30': None,         # PA8  (OSD CS in the stock target; no OSD fitted)
-        '31': 'UART1_TX',   # PA9
+        '30': 'OSD_CS',     # PA8  MAX7456_SPI_CS_PIN
+        '31': 'UART1_TX',   # PA9  HD VTX (MSP DisplayPort) / analog VTX control
         '32': 'UART1_RX',   # PA10
         '33': 'USB_DM',     # PA11
         '34': 'USB_DP',     # PA12
@@ -139,11 +193,11 @@ def fc_core():
         '36': 'SWDIO',      # PA13
         '37': 'SWCLK',      # PA14
         '38': 'BEEPER',     # PA15 (BEEPER_INVERTED: high = on)
-        '39': 'UART4_TX',   # PC10
+        '39': 'UART4_TX',   # PC10 GPS
         '40': 'UART4_RX',   # PC11
         '41': 'UART2_TX',   # PB3  receiver (CRSF)
         '42': 'UART2_RX',   # PB4
-        '43': None,         # PB5
+        '43': 'VTX_OFF',    # PB5  PINIO1: high = 9 V rail off
         '44': 'LED_STRIP',  # PB6
         '45': 'LED0',       # PB7  status LED, active low
         '46': 'BOOT0',      # PB8-BOOT0
@@ -158,8 +212,8 @@ def fc_core():
     cap('C4U7', '+3V3', GND, B, 'U_FC bulk')
     cap('C100N', 'NRST', GND, B, 'U_FC reset filter')
 
-    # 8 MHz crystal (Betaflight SYSTEM_HSE_MHZ 8).  CL = 10 pF, so the load
-    # caps are 2 x (10 - ~3 pF stray) = 14 pF -> 12 pF nearest basic part.
+    # 8 MHz crystal (Betaflight SYSTEM_HSE_MHZ 8), 10 pF load: 2 x (10 - ~3
+    # pF stray) = 14 pF -> 12 pF.
     add('Y', 'XTAL8M', {'1': 'HSE_IN', '2': GND, '3': 'HSE_OUT', '4': GND}, B, 'HSE crystal', ref='Y1')
     cap('C12P', 'HSE_IN', GND, B, 'crystal load')
     cap('C12P', 'HSE_OUT', GND, B, 'crystal load')
@@ -191,12 +245,45 @@ def fc_core():
     cap('C100N', '+3V3_GYRO', GND, B, 'gyro VDD')
     cap('C100N', '+3V3_GYRO', GND, B, 'gyro VDDIO')
 
-    # 16 MB blackbox flash on SPI2.  /WP and /HOLD held high (plain SPI).
-    add('U', 'PY25Q128', {'1': 'FLASH_CS', '2': 'SPI2_MISO', '3': '+3V3', '4': GND,
-                         '5': 'SPI2_MOSI', '6': 'SPI2_SCK', '7': '+3V3', '8': '+3V3',
-                         '9': GND}, B, 'blackbox flash', ref='U_FLASH')
+    # 16 MB blackbox flash on SPI2 (Winbond).  /WP and /HOLD held high.
+    add('U', 'W25Q128JVPIM', {'1': 'FLASH_CS', '2': 'SPI2_MISO', '3': '+3V3', '4': GND,
+                              '5': 'SPI2_MOSI', '6': 'SPI2_SCK', '7': '+3V3', '8': '+3V3',
+                              '9': GND}, B, 'blackbox flash', ref='U_FLASH')
     cap('C100N', '+3V3', GND, B, 'flash')
     res('R10K', '+3V3', 'FLASH_CS', B, 'flash CS pullup')
+
+    # Analog OSD: AT7456E (MAX7456-compatible; the only one still made) on
+    # SPI2 with the flash, at 3.3 V: PB14 (SPI2 MISO) is a 4.0 V-maximum
+    # pin, and the chip is specified from 3.15 V.  27 MHz crystal on
+    # CLKIN/XFB (the oscillator's capacitors are on chip).  Camera video:
+    # 75 ohm termination, AC-coupled into VIN.  Out: VOUT and SAG tied (no
+    # sag correction), 75 ohm back-termination to the VTX.
+    add('U', 'AT7456E', {'1': None, '2': None, '3': '+3V3_OSD', '4': GND, '5': 'OSD_XI',
+                         '6': 'OSD_XO', '7': None, '8': 'OSD_CS', '9': 'SPI2_MOSI',
+                         '10': 'SPI2_SCK', '11': 'SPI2_MISO', '12': None, '13': None,
+                         '14': None, '15': None, '16': None, '17': None, '18': None,
+                         '19': 'OSD_RST', '20': GND, '21': '+3V3_OSD', '22': 'OSD_VIN',
+                         '23': GND, '24': '+3V3_OSD', '25': 'OSD_VOUT', '26': 'OSD_VOUT',
+                         '27': None, '28': None, '29': GND}, B, 'analog OSD', ref='U_OSD')
+    add('FB', 'FB600', {'1': '+3V3', '2': '+3V3_OSD'}, B, 'OSD supply filter', ref='FB_OSD')
+    cap('C4U7', '+3V3_OSD', GND, B, 'OSD bulk')
+    for n in ('DVDD', 'AVDD', 'PVDD'):
+        cap('C100N', '+3V3_OSD', GND, B, 'OSD ' + n)
+    res('R10K', '+3V3_OSD', 'OSD_RST', B, 'OSD reset pullup')
+    res('R10K', '+3V3', 'OSD_CS', B, 'OSD CS pullup')
+    add('Y', 'XTAL27M', {'1': 'OSD_XI', '2': GND, '3': 'OSD_XO', '4': GND}, B, 'OSD crystal', ref='Y2')
+    res('R75', 'CAM_VIDEO', GND, B, 'camera termination')
+    cap('C100N', 'CAM_VIDEO', 'OSD_VIN', B, 'camera coupling')
+    res('R75', 'OSD_VOUT', 'VTX_VIDEO', B, 'VTX back-termination')
+
+    # Digital HD VTX: JST-SH 6-pin, Betaflight connector standard, which is
+    # DJI's O3/O4 cable pin for pin: 1 V+ (9 V rail), 2 GND, 3 FC TX,
+    # 4 FC RX, 5 GND, 6 SBUS/HDL.  Pin 6 reaches UART2 RX (the receiver
+    # port) only through a solder jumper, closed only when a DJI radio
+    # replaces the receiver.
+    add('J', 'SH6_V', {'1': '+9V', '2': GND, '3': 'UART1_TX', '4': 'UART1_RX', '5': GND,
+                       '6': 'HD_SBUS', '7': None, '8': None}, B, 'HD VTX (DJI / Walksnail / HDZero)', ref='J_HD')
+    add('SJ', 'SJ_OPEN', {'1': 'HD_SBUS', '2': 'UART2_RX'}, B, 'SBUS jumper (open)', ref='SJ_SBUS')
 
     # USB-C.  5.1k Rd on each CC so a C-to-C cable supplies 5 V.  VBUS feeds
     # the 5 V rail through a Schottky so the board runs (and configures) on
@@ -209,13 +296,13 @@ def fc_core():
     res('R5K1', 'USB_CC2', GND, B, 'CC2 Rd')
     add('U', 'USBLC6', {'1': 'USB_DP', '2': GND, '3': 'USB_DM', '4': 'USB_DM',
                         '5': 'USB_VBUS', '6': 'USB_DP'}, B, 'USB ESD', ref='U_ESD')
-    add('D', '1N5819WS', {'1': '+5V', '2': 'USB_VBUS'}, B, 'USB VBUS OR-ing', ref='D_USB')
+    add('D', 'RB160VAM40', {'1': '+5V', '2': 'USB_VBUS'}, B, 'USB VBUS OR-ing', ref='D_USB')
 
     # Status LEDs.  LED0 is active-low (Betaflight drives the pin low = on).
-    add('LED', 'LED_RED', {'1': 'LED_PWR_A', '2': GND}, B, 'power LED', ref='LED_PWR')
+    add('LED', 'LED_RED', {'1': GND, '2': 'LED_PWR_A'}, B, 'power LED', ref='LED_PWR')   # pad 1 cathode
     res('R1K', '+3V3', 'LED_PWR_A', B, 'power LED')
     add('LED', 'LED_BLUE', {'2': 'LED0_A', '1': 'LED0'}, B, 'status LED', ref='LED_STAT')
-    res('R330', '+3V3', 'LED0_A', B, 'status LED')     # blue LED, Vf ~3 V: 1k left it dim
+    res('R330', '+3V3', 'LED0_A', B, 'status LED')
 
     # Beeper: low-side AO3400A, buzzer between 5 V and BZ-.  FPV buzzers are
     # active (self-driven) 5 V parts, which Betaflight switches with a
@@ -228,8 +315,10 @@ def fc_core():
     pads = [('P_RX5V', '+5V'), ('P_RXG', GND), ('P_R2', 'UART2_RX'), ('P_T2', 'UART2_TX'),
             ('P_T1', 'UART1_TX'), ('P_R1', 'UART1_RX'), ('P_T4', 'UART4_TX'), ('P_R4', 'UART4_RX'),
             ('P_5V', '+5V'), ('P_G1', GND), ('P_LED', 'LED_STRIP'),
-            ('P_BZ+', '+5V'), ('P_BZ-', 'BZ-'), ('P_VBAT', 'VBAT'), ('P_G2', GND),
-            ('P_3V3', '+3V3'), ('P_G3', GND)]
+            ('P_BZ+', '+5V'), ('P_BZ-', 'BZ-'),
+            # analog video: camera (5 V, G, video) and VTX (9 V, G, video)
+            ('P_CAM5V', '+5V'), ('P_CAMG', GND), ('P_CAM', 'CAM_VIDEO'),
+            ('P_VTX9V', '+9V'), ('P_VTXG', GND), ('P_VTX', 'VTX_VIDEO')]
     for ref, net in pads:
         add('P', 'PAD_SIG', {'1': net}, B, 'pad', ref=ref)
     for ref, net in [('TP_SWDIO', 'SWDIO'), ('TP_SWCLK', 'SWCLK'), ('TP_NRST', 'NRST')]:
@@ -240,133 +329,157 @@ def fc_core():
 # =====================================================================
 def esc_power():
     B = 'power'
-    # Battery pads.  The XT30 pigtail and the low-ESR bulk capacitor
-    # (470 uF 35 V, soldered across these same pads) land here.
+    # Battery pads, sized for 14-16 AWG.  The pigtail and the low-ESR bulk
+    # capacitors (2 x 100 uF 50 V, soldered across these pads) land here.
     add('P', 'PAD_BAT', {'1': 'VBAT'}, B, 'BAT+', ref='P_BAT+')
     add('P', 'PAD_BAT', {'1': GND}, B, 'BAT-', ref='P_BAT-')
-    # To the flight controller.  CUR and TLM are not driven by this ESC.
-    add('J', 'SH8_V', dict(STACK_PINS, **{'3': None, '4': None, '9': None, '10': None}), B,
+    # 26 V stand-off (a full 6S pack is 25.2 V), 29 V minimum breakdown.
+    add('D', 'SMF26A', {'1': 'VBAT', '2': GND}, B, 'VBAT TVS', ref='D_TVS')
+    # To the flight controller.  CUR is the average of the four channels'
+    # current-sense outputs.  TLM is not driven: bidirectional DShot
+    # carries RPM, and AM32's serial telemetry is left unwired.
+    add('J', 'SH8_V', dict(STACK_PINS, **{'4': None, '9': None, '10': None}), B,
         'to flight controller (pads 9/10 are mechanical tabs)', ref='J_FC')
+    for n in (1, 2, 3, 4):
+        res('R10K', 'M%d_IOUT' % n, 'CUR', B, 'CUR average %d' % n)
+    cap('C100N', 'CUR', GND, B, 'CUR filter')
 
-    # 3.3 V for the four ESC MCUs, straight from the pack with the same
-    # buck as the FC's BEC: table 9-2 gives Rfbt 100k / Rfbb 22.1k for
-    # 3.3 V; 22k (basic part) gives 3.33 V.  A linear regulator from 16.8 V
-    # would burn over a watt.
-    add('U', 'LMR51420', {'1': GND, '2': 'BUCK_SW', '3': 'VBAT', '4': 'BUCK_FB',
-                          '5': 'VBAT', '6': 'BUCK_CB'}, B, 'ESC 3.3V buck', ref='U_BUCK')
-    cap('C10U50', 'VBAT', GND, B, 'buck input')
-    cap('C100N', 'VBAT', GND, B, 'buck input HF')
-    cap('C100N', 'BUCK_CB', 'BUCK_SW', B, 'buck bootstrap')
-    add('L', 'L4U7', {'1': 'BUCK_SW', '2': '+3V3'}, B, 'buck inductor', ref='L1')
-    cap('C22U25', '+3V3', GND, B, 'buck output')
-    cap('C22U25', '+3V3', GND, B, 'buck output')
-    res('R100K', '+3V3', 'BUCK_FB', B, 'buck feedback top')
-    res('R22K', 'BUCK_FB', GND, B, 'buck feedback bottom')
-    add('LED', 'LED_RED', {'1': 'LED_PWR_A', '2': GND}, B, 'power LED', ref='LED_PWR')
+    # 3.3 V for the four MCUs and current-sense amplifiers (about 60 mA):
+    # ADI MAX15062A (60 V in, fixed 3.3 V, 300 mA), 33 uH per its table 1.
+    # MODE to ground: fixed-frequency PWM.
+    add('U', 'MAX15062A', {'1': 'VBAT', '2': 'VBAT', '3': 'BUCK_VCC', '4': '+3V3',
+                           '5': GND, '6': None, '7': GND, '8': 'BUCK_LX'},
+        B, 'ESC 3.3V buck', ref='U_BUCK')
+    cap('C1U_100', 'VBAT', GND, B, 'buck input')
+    cap('C1U_25', 'BUCK_VCC', GND, B, 'buck VCC')
+    add('L', 'L33U', {'1': 'BUCK_LX', '2': '+3V3'}, B, 'buck inductor', ref='L1')
+    cap('C10U_25', '+3V3', GND, B, 'buck output')
+    add('LED', 'LED_RED', {'1': GND, '2': 'LED_PWR_A'}, B, 'power LED', ref='LED_PWR')   # pad 1 cathode
     res('R1K', '+3V3', 'LED_PWR_A', B, 'power LED')
 
-    # Shared battery-voltage divider for AM32 (target FD6288_F051 uses
-    # TARGET_VOLTAGE_DIVIDER 65, i.e. a ratio of 6.5 = (11k + 2k) / 2k).
-    res('R11K', 'VBAT', 'ESC_VSENSE', B, 'ESC vsense top')
-    res('R2K', 'ESC_VSENSE', GND, B, 'ESC vsense bottom')
+    # Gate-drive supply for the four DRV8300s: TI TPS7A4101 LDO at 11.4 V
+    # (1.173 V x (1 + 88.7k / 10.2k)); 57% of the FETs' +/-20 V gate
+    # rating and of the driver's 20 V GVDD maximum.  About 25 mA worst case
+    # (50% of 50 mA).  22 ohm + 1 uF ahead of it blunt spikes.  On 2S it
+    # passes the pack through at about VBAT - 0.3 V.
+    add('U', 'TPS7A4101', {'1': 'GVDD', '2': 'GVDD_FB', '3': None, '4': GND, '5': 'GVDD_IN',
+                           '6': None, '7': None, '8': 'GVDD_IN', '9': GND},
+        B, 'gate-drive LDO', ref='U_GVDD')
+    res('R22R', 'VBAT', 'GVDD_IN', B, 'gate-drive LDO input filter')
+    cap('C1U_100', 'GVDD_IN', GND, B, 'gate-drive LDO input')
+    res('R88K7', 'GVDD', 'GVDD_FB', B, 'gate-drive LDO feedback top')
+    res('R10K2', 'GVDD_FB', GND, B, 'gate-drive LDO feedback bottom')
+    # TI asks > 4.7 uF effective; a 25 V 0805 keeps about 1.9 uF at 11.4 V
+    cap('C10U50_1210', 'GVDD', GND, B, 'gate-drive LDO output')
+
+    # Shared battery-voltage divider for AM32: 100k / 10k, ratio 11
+    # (TARGET_VOLTAGE_DIVIDER 110): 25.2 V -> 2.29 V at PA6.
+    res('R100K', 'VBAT', 'ESC_VSENSE', B, 'ESC vsense top')
+    res('R10K', 'ESC_VSENSE', GND, B, 'ESC vsense bottom')
     cap('C100N', 'ESC_VSENSE', GND, B, 'ESC vsense filter')
     # Common points for the SWD programming lead.
     add('TP', 'PAD_TP', {'1': '+3V3'}, B, 'SWD 3V3', ref='TP_3V3')
     add('TP', 'PAD_TP', {'1': GND}, B, 'SWD GND', ref='TP_GND')
 
-# One ESC channel.  Wired to AM32 hardware group F0_A (target FD6288_F051):
-#   input PA2 (TIM15_CH1)
-#   phase A: high PA10, low PB1, comparator PA5
-#   phase B: high PA9,  low PB0, comparator PA4
-#   phase C: high PA8,  low PA7, comparator PA0
-#   virtual neutral on PA1 (COMP1 non-inverting input)
-#   battery voltage on PA3, current on PA6 (no sensor: tied to ground)
+# One ESC channel.  Wired to AM32 hardware group G0_A (targets.h), which
+# the RIDGE3_G071 target in firmware/am32 uses, on the STM32G071's 28-pin
+# package (pin numbers: DS12232 table 12, "GP" version):
+#   input PB4 (TIM3_CH1)
+#   phase A: high PA10 (pad PA12, remapped), low PB1, comparator PB7
+#   phase B: high PA9  (pad PA11, remapped), low PB0, comparator PB3
+#   phase C: high PA8, low PA7, comparator PA2
+#   virtual neutral PA3 (COMP2 +), current PA5, battery voltage PA6
 def esc(n):
     B = 'esc%d' % n
     p = lambda s: 'M%d_%s' % (n, s)
-    add('U', 'STM32F051', {
-        '1': '+3V3', '5': '+3V3', '17': '+3V3', '33': GND,
-        '2': None, '3': None,                  # PF0/PF1: AM32 runs on HSI
-        '4': p('NRST'),
-        '6': p('CMP_C'),                       # PA0
-        '7': p('NEUTRAL'),                     # PA1
-        '8': p('SIG'),                         # PA2  DShot in
-        '9': 'ESC_VSENSE',                     # PA3
-        '10': p('CMP_B'),                      # PA4
-        '11': p('CMP_A'),                      # PA5
-        '12': GND,                             # PA6  current ADC, no sensor per ESC
-        '13': p('LC'),                         # PA7  TIM1_CH1N
-        '14': p('LB'),                         # PB0  TIM1_CH2N
-        '15': p('LA'),                         # PB1  TIM1_CH3N
-        '16': None,                            # PB2
-        '18': p('HC'),                         # PA8  TIM1_CH1
-        '19': p('HB'),                         # PA9  TIM1_CH2
-        '20': p('HA'),                         # PA10 TIM1_CH3
-        '21': None, '22': None,                # PA11/PA12
-        '23': p('SWDIO'),                      # PA13
-        '24': p('SWCLK'),                      # PA14
-        '25': None, '26': None, '27': None, '28': None, '29': None, '30': None,
-        '31': GND,                             # BOOT0: always boot from flash
-        '32': None,
+    add('U', 'STM32G071G', {
+        '1': None, '2': None,                   # PC14/PC15
+        '3': '+3V3',                            # VDD/VDDA
+        '4': GND,                               # VSS/VSSA
+        '5': p('NRST'),
+        '6': None, '7': None,                   # PA0/PA1
+        '8': p('CMP_C'),                        # PA2
+        '9': p('NEUTRAL'),                      # PA3
+        '10': None,                             # PA4
+        '11': p('ISENSE'),                      # PA5  ADC_IN5
+        '12': 'ESC_VSENSE',                     # PA6  ADC_IN6
+        '13': p('LC'),                          # PA7  TIM1_CH1N
+        '14': p('LB'),                          # PB0  TIM1_CH2N
+        '15': p('LA'),                          # PB1  TIM1_CH3N
+        '16': p('HC'),                          # PA8  TIM1_CH1
+        '17': None,                             # PC6
+        '18': p('HB'),                          # PA11 [PA9]  TIM1_CH2
+        '19': p('HA'),                          # PA12 [PA10] TIM1_CH3
+        '20': p('SWDIO'),                       # PA13
+        '21': p('SWCLK'),                       # PA14-BOOT0
+        '22': None,                             # PA15
+        '23': p('CMP_B'),                       # PB3
+        '24': p('SIG'),                         # PB4  DShot in (and bootloader)
+        '25': None, '26': None,                 # PB5, PB6 (serial telemetry: unwired)
+        '27': p('CMP_A'),                       # PB7
+        '28': None,                             # PB8
     }, B, 'ESC %d MCU' % n, ref='U_ESC%d' % n)
-    cap('C100N', '+3V3', GND, B, 'U_ESC%d VDD pin 1' % n)
-    cap('C4U7', '+3V3', GND, B, 'U_ESC%d VDD pin 17' % n)     # ST's 4.7 uF bulk, at the MCU
-    cap('C1U', '+3V3', GND, B, 'U_ESC%d VDDA' % n)
+    cap('C100N', '+3V3', GND, B, 'U_ESC%d VDD' % n)
+    cap('C4U7', '+3V3', GND, B, 'U_ESC%d VDD bulk' % n)
     cap('C100N', p('NRST'), GND, B, 'U_ESC%d reset filter' % n)
 
-    # Gate driver.  VCC from the pack through 330 ohm into 10 uF, clamped
-    # at 15 V: 4S gives 10-15 V at the gates, inside the driver's 8-20 V
-    # range, with 5 V to spare below the AON7934's +/-20 V gate rating.
-    # (Not for 2S or 3S: too close to the driver's undervoltage lockout.)
-    add('U', 'JSM6288Q', {
-        '1': p('LA'), '2': p('LB'), '3': p('LC'),          # LIN1..3
-        '4': p('VCC'), '5': None, '6': GND, '7': None, '8': None,
-        '9': p('GLC'), '10': p('GLB'), '11': p('GLA'),    # LO3..1
-        '12': p('C'), '13': p('GHC'), '14': p('VBC'),      # VS3 HO3 VB3
-        '15': p('B'), '16': p('GHB'), '17': p('VBB'),      # VS2 HO2 VB2
-        '18': p('A'), '19': p('GHA'), '20': p('VBA'),      # VS1 HO1 VB1
-        '21': None,
-        '22': p('HA'), '23': p('HB'), '24': p('HC'),      # HIN1..3
-        '25': GND,                                          # exposed pad -> COM
+    # Gate driver: TI DRV8300D (bootstrap diodes inside).  MODE and DT
+    # open: inputs non-inverting, 215 ns dead time of its own on top of
+    # AM32's.  10 ohm in every gate keeps the switch-node slew near the
+    # 2 V/ns the D variant specifies (tune on a scope).
+    add('U', 'DRV8300D', {
+        '1': p('LA'), '2': p('LB'), '3': p('LC'),           # INLA..C
+        '4': 'GVDD', '5': None, '6': GND, '7': None, '8': None,
+        '9': p('GLC_D'), '10': p('GLB_D'), '11': p('GLA_D'),
+        '12': p('C'), '13': p('GHC_D'), '14': p('BSTC'),    # SHC GHC BSTC
+        '15': p('B'), '16': p('GHB_D'), '17': p('BSTB'),    # SHB GHB BSTB
+        '18': p('A'), '19': p('GHA_D'), '20': p('BSTA'),    # SHA GHA BSTA
+        '21': None,                                         # DT open
+        '22': p('HA'), '23': p('HB'), '24': p('HC'),        # INHA..C
+        '25': GND,                                          # exposed pad
     }, B, 'ESC %d gate driver' % n, ref='U_GD%d' % n)
-    res('R330', 'VBAT', p('VCC'), B, 'driver VCC filter')
-    # 15 V clamp: the gates see VCC (low side) and VCC - Vf (high side), so
-    # this keeps them 5 V inside the AON7934's +/-20 V at a full 16.8 V pack
-    # plus regen.  330 ohm: the driver draws a few mA (1.7 V drop at 5 mA),
-    # and at 16.8 V the Zener takes the rest, (16.8 - 15) / 330 = 5.5 mA.
-    add('D', 'BZX585C15', {'1': p('VCC'), '2': GND}, B, 'driver VCC clamp')
-    cap('C10U50', p('VCC'), GND, B, 'driver VCC bulk')
-    cap('C100N', p('VCC'), GND, B, 'driver VCC HF')
+    cap('C1U_25', 'GVDD', GND, B, 'driver GVDD')
+    cap('C100N', 'GVDD', GND, B, 'driver GVDD HF')
 
     for ph in 'ABC':
-        # Bootstrap: Schottky from VCC, 1 uF from VB to VS (the phase node).
-        add('D', 'RB521S30', {'2': p('VCC'), '1': p('VB' + ph)}, B, 'bootstrap ' + ph)
-        cap('C1U', p('VB' + ph), p(ph), B, 'bootstrap ' + ph)
-        # Half-bridge.  AON7934 pads: 1 G1, 2-4 D1, 5-7 S2, 8 G2.  The two
-        # exposed pads are numbered 9 and 10 by the footprint: 9 is the
-        # narrow one beside the D1 pins (D1, battery), 10 the wide one beside
-        # the S2 pins (S1/D2, the switch node) - datasheet bottom view.
-        # The driver drives the gates directly, as small ESCs do: its
-        # 1.5 A / 1.8 A outputs and the FETs' own 1.3-1.8 ohm internal gate
-        # resistance set the edge rate.
-        add('Q', 'AON7934', {'1': p('GH' + ph), '2': 'VBAT', '3': 'VBAT', '4': 'VBAT',
-                             '9': 'VBAT', '10': p(ph),
-                             '5': GND, '6': GND, '7': GND, '8': p('GL' + ph)},
-            B, 'half-bridge ' + ph, ref='Q%d%s' % (n, ph))
-        # Back-EMF divider: 10k / 2.2k (ratio 5.5, 16.8 V -> 3.05 V).
-        res('R10K', p(ph), p('CMP_' + ph), B, 'BEMF ' + ph)
-        res('R2K2', p('CMP_' + ph), GND, B, 'BEMF ' + ph)
-        # Virtual neutral: one 10k from each phase to a star point, which
-        # has 2.2k/3 = 733 -> 750 ohm to ground so it scales exactly like
-        # the phase dividers.
-        res('R10K', p(ph), p('NEUTRAL'), B, 'neutral ' + ph)
-    res('R750', p('NEUTRAL'), GND, B, 'neutral to ground')
+        cap('C1U_25', p('BST' + ph), p(ph), B, 'bootstrap ' + ph)
+        res('R10R', p('GH%s_D' % ph), p('GH' + ph), B, 'gate high ' + ph)
+        res('R10R', p('GL%s_D' % ph), p('GL' + ph), B, 'gate low ' + ph)
+        # Half-bridge of two 40 V FETs.  Pads 1-3 source, 4 gate, 5-8 and
+        # the tab (9) drain.  The low side's source goes to the channel's
+        # sense node, which returns to ground through the shunt.
+        add('Q', 'TPN2R304PL', {'1': p(ph), '2': p(ph), '3': p(ph), '4': p('GH' + ph),
+                                '5': 'VBAT', '6': 'VBAT', '7': 'VBAT', '8': 'VBAT', '9': 'VBAT'},
+            B, 'high side ' + ph, ref='Q%d%sH' % (n, ph))
+        add('Q', 'TPN2R304PL', {'1': p('SRC'), '2': p('SRC'), '3': p('SRC'), '4': p('GL' + ph),
+                                '5': p(ph), '6': p(ph), '7': p(ph), '8': p(ph), '9': p(ph)},
+            B, 'low side ' + ph, ref='Q%d%sL' % (n, ph))
+        # Bridge decoupling right under the half-bridge, VBAT to the sense
+        # node, so the switching loop closes through the board's thickness
+        # and stays on the bridge side of the shunt.
+        cap('C_BRIDGE', 'VBAT', p('SRC'), B, 'bridge ' + ph)
+        # Back-EMF divider 20k / 2k (ratio 11: a 35 V spike reaches 3.2 V).
+        res('R20K', p(ph), p('CMP_' + ph), B, 'BEMF ' + ph)
+        res('R2K', p('CMP_' + ph), GND, B, 'BEMF ' + ph)
+        # Virtual neutral: 20k from each phase to a star point, with
+        # 2k/3 -> 680 ohm to ground so it scales like the phase dividers.
+        res('R20K', p(ph), p('NEUTRAL'), B, 'neutral ' + ph)
+    res('R680', p('NEUTRAL'), GND, B, 'neutral to ground')
 
-    # Local decoupling right at the half-bridges (the 470 uF on the
-    # battery pads does the heavy lifting; these kill the switching edges).
-    cap('C10U50', 'VBAT', GND, B, 'ESC %d bulk' % n)
-    cap('C10U50', 'VBAT', GND, B, 'ESC %d bulk' % n)
-    cap('C100N', 'VBAT', GND, B, 'ESC %d HF' % n)
+    # Current sense: 0.5 mOhm from the sense node to ground, read by an
+    # INA180A3 (100 V/V): 50 mV/A at PA5 through 1k / 100 nF (1.6 kHz).
+    # 0.2 W in the shunt at 20 A (3% of 6 W).
+    # The shunt's footprint has Kelvin sense pads (3 on the sense-node end,
+    # 4 on the ground end, net-tied to the current pads), so the amplifier
+    # reads the voltage across the resistor itself, not across the pour or
+    # plane carrying 20 A: a millivolt of plane drop would read as 2 A.
+    add('R', 'SHUNT_0M5', {'1': p('SRC'), '2': GND, '3': p('SNSP'), '4': p('SNSN')}, B,
+        'ESC %d shunt' % n, ref='R_SH%d' % n)
+    add('U', 'INA180A3', {'1': p('IOUT'), '2': GND, '3': p('SNSP'), '4': p('SNSN'), '5': '+3V3'},
+        B, 'ESC %d current amplifier' % n, ref='U_CS%d' % n)
+    cap('C100N', '+3V3', GND, B, 'U_CS%d supply' % n)
+    res('R1K', p('IOUT'), p('ISENSE'), B, 'current filter')
+    cap('C100N', p('ISENSE'), GND, B, 'current filter')
 
     for ph in 'ABC':
         add('P', 'PAD_MOTOR', {'1': p(ph)}, B, 'motor %d phase %s' % (n, ph), ref='P_M%d%s' % (n, ph))

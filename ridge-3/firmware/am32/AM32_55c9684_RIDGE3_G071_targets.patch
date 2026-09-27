@@ -1,0 +1,39 @@
+diff --git a/Inc/targets.h b/Inc/targets.h
+index e5148f6..0beaed6 100644
+--- a/Inc/targets.h
++++ b/Inc/targets.h
+@@ -2617,6 +2617,34 @@
+ #define SIXTY_FOUR_KB_MEMORY
+ #endif
+ 
++// OffGrid Ridge 3 4-in-1 ESC (ridge-3/esc): four STM32G071GBU6 or G071G8U6
++// (UFQFPN28 "GP" pinout), TI DRV8300D gate drivers, 40 V FETs, 2S-6S.
++// Pins are HARDWARE_GROUP_G0_A's: input PB4 (TIM3_CH1); phase A PA10/PB1,
++// B PA9/PB0, C PA8/PA7 (TIM1); comparators A PB7, B PB3, C PA2, neutral PA3
++// (COMP2).  PA9/PA10 are the package's PA11/PA12 pads, remapped by
++// Mcu/g071/Src/peripherals.c unless NO_PA11_PA12_REMAP is defined (it is not).
++// Current: 0.5 mOhm shunt x INA180A3 (100 V/V) = 50 mV/A at PA5 (ADC_IN5),
++// 0 A = 0 V.  Battery: 100k/10k (ratio 11) at PA6 (ADC_IN6).  Both are the
++// MCU_G071 defaults.
++// DEAD_TIME: TIM1 runs at 64 MHz, so 40 counts = 625 ns; the DRV8300 adds
++// its own ~215 ns (DT pin open, 150-280 ns).  Conservative: check the gate
++// waveforms on a scope and shorten it only then.  DEAD_TIME is also AM32's
++// minimum duty.
++// No USE_SERIAL_TELEMETRY: the TLM line is not wired on this ESC.
++// Bidirectional DShot carries eRPM (and extended telemetry, if enabled).
++// SIXTY_FOUR_KB_MEMORY: settings at 0x0800F800, so one image runs on the
++// 64 KB G8U6 and the 128 KB GBU6 (bootloader: G071_64K build, pin PB4).
++#ifdef RIDGE3_G071
++#define FILE_NAME "RIDGE3_G071"
++#define FIRMWARE_NAME "OffGrid Rdg3"
++#define DEAD_TIME 40
++#define MILLIVOLT_PER_AMP 50
++#define CURRENT_OFFSET 0
++#define TARGET_VOLTAGE_DIVIDER 110
++#define HARDWARE_GROUP_G0_A
++#define SIXTY_FOUR_KB_MEMORY
++#endif
++
+ #ifdef  ZTW_A_HV_G071
+ #define FILE_NAME "ZTW_A_HV_G071"
+ #define FIRMWARE_NAME "ZTW_A_HV_G0 "
