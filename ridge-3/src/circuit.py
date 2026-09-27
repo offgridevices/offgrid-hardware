@@ -454,7 +454,7 @@ def esc(n):
     cap('C100N', 'GVDD', GND, B, 'driver GVDD HF')
 
     for ph in 'ABC':
-        cap('C1U_25', p('BST' + ph), p(ph), B, 'bootstrap ' + ph)
+        cap('C1U_16_0201', p('BST' + ph), p(ph), B, 'bootstrap ' + ph)
         res('R10R_0201', p('GH%s_D' % ph), p('GH' + ph), B, 'gate high ' + ph)
         res('R10R_0201', p('GL%s_D' % ph), p('GL' + ph), B, 'gate low ' + ph)
         # Half-bridge of two 40 V FETs.  Pads 1-3 source, 4 gate, 5-8 and

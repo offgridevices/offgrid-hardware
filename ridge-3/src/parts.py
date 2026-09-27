@@ -40,6 +40,7 @@ until the circuit is final.
 """
 
 R0402 = 'Resistor_SMD:R_0402_1005Metric'
+C0201 = 'Capacitor_SMD:C_0201_0603Metric'
 C0402 = 'Capacitor_SMD:C_0402_1005Metric'
 C0603 = 'Capacitor_SMD:C_0603_1608Metric'
 C0805 = 'Capacitor_SMD:C_0805_2012Metric'
@@ -625,6 +626,13 @@ PARTS = {
     'C1U':    C('1uF',   C0402, 'C52923',  'CL05A105KA5NQNC',  '25V X5R 0402', '1276-1445-1-ND'),
     # Same part as C1U (bootstrap, GVDD, LDO in, VCC, BIAS).
     'C1U_25': C('1uF',   C0402, 'C52923',  'CL05A105KA5NQNC',  '25V X5R 0402', '1276-1445-1-ND'),
+    # ESC bootstrap: the same 1 uF from Samsung in 0201, 16 V X5R (it sees
+    # GVDD, 11.3 V, less the driver's diode), small enough for three to sit
+    # over the gate driver inside the ring of its pins' escape vias.  JLC
+    # C318540 18,691 ext, $0.018 (27 Sep 2026); DK 1276-CL03A105MO3NRNCCT-ND
+    # 89,232 (findchips' DigiKey feed, 27 Sep 2026).
+    'C1U_16_0201': C('1uF', C0201, 'C318540', 'CL03A105MO3NRNC', '16V X5R 0201',
+                     '1276-CL03A105MO3NRNCCT-ND'),
     # 1 uF on VBAT (buck and gate-drive LDO inputs): Yageo 100 V X7R 0805
     # (25 %); no 100 V 1 uF is a JLC basic part.  JLC 504,724 ext, $0.058 /
     # 0.052; DK web 13-CC0805KKX7R0BB105CT-ND 50,440.

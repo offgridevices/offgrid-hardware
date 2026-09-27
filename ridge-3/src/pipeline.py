@@ -60,6 +60,7 @@ def run(board_name, work, passes=None, log=print):
     L.build(placed)
     pcb.write_rules(placed, EXTRA_RULES)
     finish.ROUTE_LAYERS = getattr(L, 'ROUTE_LAYERS', [pcbnew.F_Cu, pcbnew.B_Cu])
+    finish.RES = getattr(L, 'FINISH_RES', 0.05)
     if hasattr(L, 'VIA_SIG'):
         finish.VIA_D, finish.VIA_DRILL = L.VIA_SIG
     route.PRE_EXPORT = getattr(L, 'routing_keepouts', None)

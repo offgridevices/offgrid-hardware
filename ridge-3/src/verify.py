@@ -669,10 +669,14 @@ def check_power():
         check(S, '%s %s: Isat %s A vs the %s %.2f A max' % (bd.upper(), parts.PARTS[ind.part]['mpn'], isat, reg, limit),
               isat is not None and isat >= limit if isat is not None else 'INFO', '' if isat else 'isat not in parts.py')
     # --- gate drive
-    cb = value('C1U')
+    bs = find('esc', 'bootstrap A')[0].part
+    cb = value(bs)
     QG = 41e-9      # TPN2R304PL Qg at 10 V (datasheet)
-    dv = QG / (cb * 0.4)      # a 1 uF 25 V 0402 keeps about 40 % at 11 V
-    check(S, 'bootstrap 1 uF (about 0.4 uF at 11 V) vs 41 nC gate charge: %.2f V droop per turn-on' % dv, dv < 0.5)
+    KEEP = 0.2      # a 1 uF 16 V X5R 0201 at ~10.5 V of bias: taken as 20 % left (an estimate; X5R MLCCs of
+                    # this size keep 20-30 % there -- check Samsung's DC-bias curve for CL03A105MO3NRNC)
+    dv = QG / (cb * KEEP)
+    check(S, 'bootstrap %s 1 uF (taken as %.1f uF at 11 V) vs 41 nC gate charge: %.2f V droop per turn-on'
+          % (parts.PARTS[bs]['mpn'], cb * KEEP * 1e6, dv), dv < 0.5)
     for i in (5, 10, 15, 20):
         p = i * i * 2 * 2.3e-3
         check(S, 'conduction loss per motor at %d A: %.2f W (two FETs at 2.3 mOhm max, 25 C)' % (i, p), 'INFO',

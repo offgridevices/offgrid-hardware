@@ -179,7 +179,8 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                         for j in range(int((maxy - miny) / 0.25) + 1)]
                 extra = sorted(fine, key=lambda q: (round((q[0] - cx0) ** 2 + (q[1] - cy0) ** 2, 6), q))
                 for k, (x, y) in enumerate(spots + extra):
-                    if k == len(spots) and n >= 2:
+                    # past the grid, fill in only up to two vias
+                    if k >= len(spots) and n >= 2:
                         break
                     vg = Point(x, y).buffer(rv)
                     if pg.buffer(-0.05).contains(vg) and obs.clear(vg, net, layers, clearance) \
@@ -505,9 +506,14 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
                 if not obs.clear(vg, net, layers, cl) or not obs.hole_room(vx, vy, via_drill / 2, hole_gap) \
                         or not obs.clear(Point(vx, vy).buffer(via_drill / 2), net, layers, hole_cl):
                     continue
-                # stub: straight out of the pad, then over to the via
+                # stub: straight out of the pad, then over to the via; it
+                # starts where it leaves the pad (inside it, it is the pad's
+                # own copper: a sense pad tied to a neighbour has that one
+                # closer than the clearance at its centre)
+                s0 = max(0.0, h - width / 2)
+                sx, sy = qx + nx * s0, qy + ny * s0
                 ex, ey = qx + nx * (d - 0.0), qy + ny * (d - 0.0)
-                pts = [(qx, qy), (ex, ey)] if lat == 0 else [(qx, qy), (qx + nx * (d - abs(lat)), qy + ny * (d - abs(lat))), (vx, vy)]
+                pts = [(sx, sy), (ex, ey)] if lat == 0 else [(sx, sy), (qx + nx * (d - abs(lat)), qy + ny * (d - abs(lat))), (vx, vy)]
                 sg = LineString(pts).buffer(width / 2)
                 if not obs.clear(sg, net, [L], cl):
                     continue
