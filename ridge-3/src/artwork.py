@@ -121,6 +121,11 @@ class SilkPlacer:
                     # courtyards carry 0.25 mm of margin round the part
                     self.blocks.append(box(bb.GetLeft() / 1e6 + 0.25, bb.GetTop() / 1e6 + 0.25,
                                            bb.GetRight() / 1e6 - 0.25, bb.GetBottom() / 1e6 - 0.25))
+        # the soft-mount grommets' flanges cover the board round the mounting
+        # holes: the copper keep-out there is no place for ink either
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                self.blocks.append(Point(pcb.CX + sx * pcb.HOLE, pcb.CY + sy * pcb.HOLE).buffer(pcb.HOLE_KEEPOUT_R))
         # vias: tented, but the drill still punches through the ink.  Artwork
         # placed with vias=True keeps clear of them.
         self.vias = []
@@ -163,15 +168,17 @@ class SilkPlacer:
         from shapely import affinity
         return brand.add(self.b, affinity.translate(g, -pcb.CX, -pcb.CY), self.layer)
 
-    def geom(self, g, spots, clear=0.0, vias=True, margin=0.4, quiet=False):
+    def geom(self, g, spots, clear=0.0, vias=True, margin=0.4, quiet=False, hull=False):
         """Place a ready-made shapely geometry (board-centre mm, drawn round
         the origin) at the first (x, y) where it fits; `clear` is extra room
-        kept round it for the next items (the mark's clear space)."""
+        kept round it for the next items (the mark's clear space).  It fits
+        by its bounding box, or with hull=True by its outline (for a round
+        mark, whose box would claim room it does not use)."""
         from shapely import affinity
         best = None
         for x, y in spots:
             h = affinity.translate(g, pcb.CX + x, pcb.CY + y)
-            env = h.envelope
+            env = h.convex_hull if hull else h.envelope
             if vias == 'fewest':
                 # tented vias under silk are harmless; take the spot where
                 # the fewest drills land on the ink, earliest spot on a tie
@@ -293,6 +300,25 @@ class SilkPlacer:
                 pcb.remove(self.b, i)
         print('   silk: no room for shape')
         return None
+
+    def roomiest(self, need=0.0, step=0.1, res=0.025):
+        """The free grid points of this side with a free circle of radius
+        `need` round them, the roomiest first: by that circle's largest
+        radius (to 0.05 mm), then the front-most (-y), then the left-most.
+        Radii come from a distance transform of the free area drawn in
+        `res` mm pixels."""
+        import numpy as np, shapely
+        from scipy import ndimage
+        from shapely.ops import unary_union
+        free = self.inside.difference(unary_union(self.blocks + [p.buffer(self.silk_clear) for p in self.placed]))
+        shapely.prepare(free)
+        n, k = int(round(pcb.HALF / res)), int(round(step / res))
+        X, Y = np.meshgrid(np.arange(-n, n + 1) * res, np.arange(-n, n + 1) * res)
+        r = ndimage.distance_transform_edt(shapely.contains_xy(free, X + pcb.CX, Y + pcb.CY)) * res
+        r, X, Y = r[::k, ::k].ravel(), X[::k, ::k].ravel(), Y[::k, ::k].ravel()
+        ok = (r > 0) & (r >= need)
+        spots = sorted(zip(np.round(r[ok] / 0.05).astype(int), Y[ok], X[ok]), key=lambda t: (-t[0], t[1], t[2]))
+        return [(round(float(x), 4), round(float(y), 4)) for _, y, x in spots]
 
     def grid_spots(self, prefer, radius=16.0, step=0.4):
         """Every grid point of the board, nearest to `prefer` first."""

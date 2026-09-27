@@ -123,7 +123,9 @@ way.
 2. Wire the ST-Link to the pads on the ESC's top (the side that faces the
    flight controller): `GND` to `GND`, `3.3V` to `3V3`, `SWCLK` to `CLK`
    (one pad, shared by all four MCUs), and `SWDIO` to `Dn`, where *n* is the
-   ESC being flashed.  NRST is not on a pad;
+   ESC being flashed.  `3V3`, `CLK`, `D1` and `GND` sit in a row along the
+   rear edge, between the battery pads; `D2`, `D3` and `D4` are at the
+   right, left and front edges, each beside its motor's pads.  NRST is not on a pad;
    resets are software resets.  An MCU whose SWDIO pad is not connected
    sees only ones on its SWDIO line, which is never a valid SWD request, so
    it ignores the shared clock.

@@ -173,15 +173,21 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                 cx0, cy0 = (maxx + minx) / 2, (maxy + miny) / 2
                 if len(spots) > 1 and not any(pg.buffer(-0.05).contains(Point(x, y).buffer(rv)) for x, y in spots):
                     spots = [(cx0, cy0)]
-                for x, y in spots:
-                    if True:
-                        vg = Point(x, y).buffer(rv)
-                        if pg.buffer(-0.05).contains(vg) and obs.clear(vg, net, layers, clearance) \
-                                and obs.via_room(x, y, via_d + 0.15) and (via_ok is None or via_ok(x, y, net)):
-                            v = pcbnew.PCB_VIA(board); v.SetPosition(pcbnew.VECTOR2I(MM(x), MM(y)))
-                            v.SetWidth(MM(via_d)); v.SetDrill(MM(via_drill)); v.SetNet(pad.GetNet())
-                            board.Add(v); obs.add(vg, net, layers); obs.vias.append((x, y)); n += 1
-                            obs.netvias.append((x, y, net)); obs.holes.append((x, y, via_drill / 2))
+                # where parts on the far side cover the grid: any spot in the
+                # pad that clears them (0.25 mm steps), nearest the centre first
+                fine = [(minx + 0.25 * i, miny + 0.25 * j) for i in range(int((maxx - minx) / 0.25) + 1)
+                        for j in range(int((maxy - miny) / 0.25) + 1)]
+                extra = sorted(fine, key=lambda q: (round((q[0] - cx0) ** 2 + (q[1] - cy0) ** 2, 6), q))
+                for k, (x, y) in enumerate(spots + extra):
+                    if k == len(spots) and n >= 2:
+                        break
+                    vg = Point(x, y).buffer(rv)
+                    if pg.buffer(-0.05).contains(vg) and obs.clear(vg, net, layers, clearance) \
+                            and obs.via_room(x, y, via_d + 0.15) and (via_ok is None or via_ok(x, y, net)):
+                        v = pcbnew.PCB_VIA(board); v.SetPosition(pcbnew.VECTOR2I(MM(x), MM(y)))
+                        v.SetWidth(MM(via_d)); v.SetDrill(MM(via_drill)); v.SetNet(pad.GetNet())
+                        board.Add(v); obs.add(vg, net, layers); obs.vias.append((x, y)); n += 1
+                        obs.netvias.append((x, y, net)); obs.holes.append((x, y, via_drill / 2))
                 placed += n
                 if n == 0:
                     ep_failed.append((fp.GetReference(), pad.GetNumber(), pg, net))

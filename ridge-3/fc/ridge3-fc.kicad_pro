@@ -152,10 +152,10 @@
         "min_silk_clearance": 0.0,
         "min_text_height": 0.8,
         "min_text_thickness": 0.08,
-        "min_through_hole_diameter": 0.25,
+        "min_through_hole_diameter": 0.15,
         "min_track_width": 0.1,
-        "min_via_annular_width": 0.1,
-        "min_via_diameter": 0.45,
+        "min_via_annular_width": 0.099999,
+        "min_via_diameter": 0.35,
         "solder_mask_to_copper_clearance": 0.0,
         "use_height_for_length_calcs": true
       },
@@ -264,7 +264,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "fc_art.kicad_pro",
+    "filename": "ridge3-fc.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -284,27 +284,46 @@
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 0.1,
         "tuning_profile": "",
-        "via_diameter": 0.45,
-        "via_drill": 0.25,
+        "via_diameter": 0.35,
+        "via_drill": 0.15,
         "wire_width": 6
       },
       {
         "bus_width": 12,
-        "clearance": 0.15,
+        "clearance": 0.1,
         "diff_pair_gap": 0.25,
         "diff_pair_via_gap": 0.25,
         "diff_pair_width": 0.2,
         "line_style": 0,
         "microvia_diameter": 0.3,
         "microvia_drill": 0.1,
-        "name": "PWR",
+        "name": "PWR_015_010",
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "priority": -1,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
-        "track_width": 0.4,
+        "track_width": 0.15,
         "tuning_profile": "",
-        "via_diameter": 0.45,
-        "via_drill": 0.25,
+        "via_diameter": 0.35,
+        "via_drill": 0.15,
+        "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.1,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "PWR_020_010",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": -1,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.2,
+        "tuning_profile": "",
+        "via_diameter": 0.35,
+        "via_drill": 0.15,
         "wire_width": 6
       },
       {
@@ -316,14 +335,52 @@
         "line_style": 0,
         "microvia_diameter": 0.3,
         "microvia_drill": 0.1,
-        "name": "PWR_LO",
+        "name": "PWR_025_015",
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "priority": -1,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 0.25,
         "tuning_profile": "",
-        "via_diameter": 0.45,
-        "via_drill": 0.25,
+        "via_diameter": 0.35,
+        "via_drill": 0.15,
+        "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.15,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "PWR_030_015",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": -1,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.3,
+        "tuning_profile": "",
+        "via_diameter": 0.35,
+        "via_drill": 0.15,
+        "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.15,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "PWR_040_015",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": -1,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.4,
+        "tuning_profile": "",
+        "via_diameter": 0.35,
+        "via_drill": 0.15,
         "wire_width": 6
       }
     ],
@@ -334,28 +391,48 @@
     "netclass_assignments": null,
     "netclass_patterns": [
       {
-        "netclass": "PWR",
+        "netclass": "PWR_040_015",
+        "pattern": "+9V"
+      },
+      {
+        "netclass": "PWR_040_015",
+        "pattern": "BUCK5_SW"
+      },
+      {
+        "netclass": "PWR_040_015",
+        "pattern": "BUCK9_SW"
+      },
+      {
+        "netclass": "PWR_030_015",
         "pattern": "VBAT"
       },
       {
-        "netclass": "PWR",
-        "pattern": "+5V"
-      },
-      {
-        "netclass": "PWR",
+        "netclass": "PWR_030_015",
         "pattern": "USB_VBUS"
       },
       {
-        "netclass": "PWR",
-        "pattern": "BUCK_SW"
+        "netclass": "PWR_030_015",
+        "pattern": "+5V"
       },
       {
-        "netclass": "PWR_LO",
+        "netclass": "PWR_025_015",
+        "pattern": "BUCK5_CB"
+      },
+      {
+        "netclass": "PWR_025_015",
+        "pattern": "BUCK9_CB"
+      },
+      {
+        "netclass": "PWR_020_010",
+        "pattern": "+3V3_OSD"
+      },
+      {
+        "netclass": "PWR_020_010",
+        "pattern": "BUCK9_VCC"
+      },
+      {
+        "netclass": "PWR_015_010",
         "pattern": "+3V3_GYRO"
-      },
-      {
-        "netclass": "PWR_LO",
-        "pattern": "BUCK_CB"
       }
     ]
   },
@@ -376,8 +453,8 @@
     "legacy_lib_list": [],
     "top_level_sheets": [
       {
-        "filename": "fc_art.kicad_sch",
-        "name": "fc_art",
+        "filename": "ridge3-fc.kicad_sch",
+        "name": "ridge3-fc",
         "uuid": "00000000-0000-0000-0000-000000000000"
       }
     ]

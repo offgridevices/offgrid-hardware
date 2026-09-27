@@ -1,6 +1,16 @@
 > Research notes written while designing Ridge 3 (September 2026; the working name was OG3).
 > Prices and stock are as found on the dates given and will have moved. The design decisions they led to
 > are in `src/circuit.py` and `src/parts.py`; where the two disagree, the code is current.
+>
+> Later changes, made while laying the ESC out (the code has them):
+> - **No TVS on the ESC.** The bulk and bridge capacitors across the battery pads absorb
+>   the lead-inductance spike, and the flight controller's SMF33A sits on the same battery
+>   line through the stack lead.
+> - **No 4.7 uF per MCU.** Each G071 keeps its 100 nF at VDD; the bulk ST asks for is the
+>   3.3 V buck's shared 10 uF output capacitor.
+> - **Back-EMF and neutral dividers:** 20k/2k per phase; the virtual neutral is 30k from
+>   each phase to a star with 1k to ground. The neutral then scales like the phases
+>   (1k / (10k + 1k) = 2k / 22k).
 
 # OG3 ESC: power stage, gate drive, MCU and current sensing (research notes)
 

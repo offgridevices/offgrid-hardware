@@ -333,8 +333,10 @@ def esc_power():
     # capacitors (2 x 100 uF 50 V, soldered across these pads) land here.
     add('P', 'PAD_BAT', {'1': 'VBAT'}, B, 'BAT+', ref='P_BAT+')
     add('P', 'PAD_BAT', {'1': GND}, B, 'BAT-', ref='P_BAT-')
-    # 26 V stand-off (a full 6S pack is 25.2 V), 29 V minimum breakdown.
-    add('D', 'SMF26A', {'1': 'VBAT', '2': GND}, B, 'VBAT TVS', ref='D_TVS')
+    # No TVS of its own: the capacitors across these pads and the twelve
+    # bridge capacitors are what holds the FETs under 40 V, and the flight
+    # controller's TVS sits on the same battery line through the stack
+    # lead.  The board's middle has no room left for one.
     # To the flight controller.  CUR is the average of the four channels'
     # current-sense outputs.  TLM is not driven: bidirectional DShot
     # carries RPM, and AM32's serial telemetry is left unwired.
@@ -426,8 +428,11 @@ def esc(n):
         '27': p('CMP_A'),                       # PB7
         '28': None,                             # PB8
     }, B, 'ESC %d MCU' % n, ref='U_ESC%d' % n)
+    # 100 nF at the VDD pin for the fast edges; the 4.7 uF of bulk ST asks
+    # for is shared: the buck's 10 uF output capacitor on the same +3V3
+    # copper (bulk serves the slow load steps, where a centimetre of copper
+    # adds nothing that matters)
     cap('C100N', '+3V3', GND, B, 'U_ESC%d VDD' % n)
-    cap('C4U7', '+3V3', GND, B, 'U_ESC%d VDD bulk' % n)
     cap('C100N', p('NRST'), GND, B, 'U_ESC%d reset filter' % n)
 
     # Gate driver: TI DRV8300D (bootstrap diodes inside).  MODE and DT
@@ -468,10 +473,10 @@ def esc(n):
         # Back-EMF divider 20k / 2k (ratio 11: a 35 V spike reaches 3.2 V).
         res('R20K', p(ph), p('CMP_' + ph), B, 'BEMF ' + ph)
         res('R2K_0201', p('CMP_' + ph), GND, B, 'BEMF ' + ph)
-        # Virtual neutral: 20k from each phase to a star point, with
-        # 2k/3 -> 680 ohm to ground so it scales like the phase dividers.
-        res('R20K', p(ph), p('NEUTRAL'), B, 'neutral ' + ph)
-    res('R680', p('NEUTRAL'), GND, B, 'neutral to ground')
+        # Virtual neutral: 30k from each phase to a star point and 1k to
+        # ground, 1k / (1k + 30k / 3) = 1/11, as the phase dividers.
+        res('R30K', p(ph), p('NEUTRAL'), B, 'neutral ' + ph)
+    res('R1K_0201', p('NEUTRAL'), GND, B, 'neutral to ground')
 
     # Current sense: 0.5 mOhm from the sense node to ground, read by an
     # INA186A3 (100 V/V): 50 mV/A at PA5 through 1k / 100 nF (1.6 kHz).

@@ -18,7 +18,7 @@ against sources other than the design itself:
     the circuit, and the AM32 target patch applied to the AM32 source
   * the firmware images against the hashes in firmware/README.md
 """
-import os, re, sys, hashlib, glob, zipfile
+import math, os, re, sys, hashlib, glob, zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 V1 = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
@@ -688,7 +688,8 @@ def check_power():
           len(fc_caps) == 5)
     for n in (1, 2, 3, 4):
         e = [x for x in circuit.build('esc') if x.note.startswith('U_ESC%d V' % n)]
-        check(S, 'ESC %d MCU: 100 nF and 4.7 uF on VDD/VDDA' % n, len(e) == 2)
+        check(S, 'ESC %d MCU: 100 nF on VDD/VDDA; the 4.7 uF of bulk is the buck\'s shared 10 uF '
+                 '(its distance: Board ESC)' % n, len(e) == 1 and e[0].part == 'C100N')
 
 
 # ------------------------------------------------------------------ boards
@@ -728,6 +729,17 @@ def check_board(board, name):
                    for fp in b.GetFootprints() if fp.GetReference().startswith('H') for p in fp.Pads())
     check(S, 'mounting holes on the 25.5 mm square: %s' % holes,
           all(abs(abs(x) - 12.75) < 0.01 and abs(abs(y) - 12.75) < 0.01 for x, y in holes) and len(holes) == 4)
+    if board == 'esc':
+        # the four MCUs share the buck's 10 uF output capacitor as bulk
+        bulk = find('esc', 'buck output')[0].ref
+        c = [p for p in b.FindFootprintByReference(bulk).Pads() if p.GetNetname() == '+3V3'][0].GetPosition()
+        far = []
+        for n in (1, 2, 3, 4):
+            vdd = [p for p in b.FindFootprintByReference('U_ESC%d' % n).Pads() if p.GetNetname() == '+3V3']
+            far.append(min(math.hypot(p.GetPosition().x - c.x, p.GetPosition().y - c.y) for p in vdd) / 1e6)
+        check(S, 'MCU bulk: the buck\'s 10 uF (%s) to each ESC MCU\'s VDD pin: %s mm on +3V3'
+              % (bulk, ', '.join('%.1f' % d for d in far)), 'INFO',
+              'the 100 nF at each pin takes the fast edges; bulk serves the slow load steps')
     ds = b.GetDesignSettings()
     check(S, '%d copper layers; min track %.2f mm, clearance %.2f mm, via %.2f/%.2f mm (JLCPCB/PCBWay standard)'
           % (b.GetCopperLayerCount(), ds.m_TrackMinWidth / 1e6, ds.m_MinClearance / 1e6, ds.m_ViasMinSize / 1e6,
@@ -832,6 +844,33 @@ def check_silk(board, name):
               if thin else 'every outline has its median stroke over the floor')
         check(S, '%s: no stroke-font text left (brand faces only)' % lname,
               not any(isinstance(d, pcbnew.PCB_TEXT) and d.GetLayer() == layer for d in b.GetDrawings()))
+        # the OffGrid mark: its ring, found by shape, at or over the brand's
+        # minimum (16 px for the mark; 24 px in the lockup, the FC's bottom)
+        ring = max(brand.mark().geoms, key=lambda g: g.area)
+        found = []
+        for p in polys:
+            x0, y0, x1, y1 = p.bounds
+            if x1 - x0 < 1.0:
+                continue
+            k = (x1 - x0) / (ring.bounds[2] - ring.bounds[0])
+            from shapely import affinity
+            r = affinity.scale(ring, k, k, origin=(0, 0))
+            r = affinity.translate(r, x0 - r.bounds[0], y0 - r.bounds[1])
+            if p.symmetric_difference(r).area < 0.1 * p.area:
+                found.append((x1 - x0) * 200 / 138 / (25.4 / 96))
+        if found or (board, lname) in (('fc', 'top'), ('fc', 'bottom'), ('esc', 'top')):
+            need = 24 if (board, lname) == ('fc', 'bottom') else 16
+            check(S, '%s: OffGrid mark at %s px (brand minimum %d px, 1 px = 1/96 in)'
+                  % (lname, ', '.join('%.1f' % v for v in found) or 'none', need),
+                  bool(found) and min(found) >= need)
+        from shapely.geometry import Point
+        flanges = unary_union([Point(pcb.CX + sx * pcb.HOLE, pcb.CY + sy * pcb.HOLE).buffer(pcb.HOLE_KEEPOUT_R)
+                               for sx in (-1, 1) for sy in (-1, 1)])
+        under = [p for p in polys if p.intersects(flanges)]
+        check(S, '%s: no ink under the grommet flanges (%.1f mm round each mounting hole)' % (lname, pcb.HOLE_KEEPOUT_R),
+              not under, '%d outlines, the first at %s' % (len(under), tuple(round(v - 100, 1) for v in
+                                                                               under[0].centroid.coords[0]))
+              if under else '')
 
 
 def check_brand():

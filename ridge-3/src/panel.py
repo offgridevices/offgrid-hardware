@@ -804,7 +804,8 @@ def _geometry_checks(pb, box, offsets, feats, shape):
     from shapely.affinity import translate
     boards = [translate(shape, dx, dy) for dx, dy in offsets.values()]
     for b_ in boards:
-        if not sub.buffer(1).contains(b_):
+        # 1 um: KiKit re-segments the outline's arcs, a few nm off the source's
+        if not sub.buffer(1000).contains(b_):
             raise SystemExit('a board copy is not inside the panel outline')
     fid = [f for f in feats if f.GetReference().startswith('KiKit_FID')]
     tool = [f for f in feats if f.GetReference().startswith('KiKit_TO')]

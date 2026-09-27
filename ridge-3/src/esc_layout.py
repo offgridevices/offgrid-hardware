@@ -101,8 +101,10 @@ def template():
     # over its supply and reset pins.
     for i, role in enumerate(('CBS_A', 'CBS_B', 'CBS_C', 'C_GV', 'C_GVHF', 'C_VDD')):
         t[role] = (-4.15 + 1.2 * i, 3.7, 90, 'B')
-    t['C_VDDB'] = (1.9, 5.5, 0, 'T')
-    t['C_RST'] = (3.9, 5.5, 0, 'T')
+    # the MCU's reset capacitor on top, over the MCU's FET end, inside the
+    # ring of its pins' escape vias; the rest of the top over the MCU is
+    # left to the shared parts
+    t['C_RST'] = (2.4, 8.45, 0, 'T')
     # shunt along the row in the diagonal zone at the channel's +u end:
     # its sense-node pad (1) at +u, where the channel's return copper comes
     # in from the FET band, its ground pad inwards
@@ -112,22 +114,32 @@ def template():
     # ground, the current filter and the CUR-average resistor.  In the
     # diagonal zone at the +u end, over the shunt: the current amplifier
     # and its supply capacitor.
+    # The gate resistors stand upright in a 2 x 3 grid over the driver's
+    # body, inside the ring of its pins' escape vias (the pins' own spots
+    # take no other net's pad).
+    # The rows stand apart, so the driver's ground pad keeps a row of
+    # plane vias between them, under its centre line.
     for i, ph in enumerate('ABC'):
-        t['RGH_' + ph] = (-4.4 + 2.0 * i, 9.65, 0, 'T')
-        t['RGL_' + ph] = (-4.4 + 2.0 * i, 8.65, 0, 'T')
-    # SWD test points on top, the side that faces the flight controller:
-    # the bootloader is flashed once, before the stack goes together, and
-    # the bottom has no room left for seven pads
-    t['TP_DIO'] = (7.0, 6.0, 0, 'T')
-    t['R_CUR'] = (1.6, 7.65, 0, 'T')
+        t['RGH_' + ph] = (-3.6 + 0.9 * i, 6.2, 90, 'T')
+        t['RGL_' + ph] = (-3.6 + 0.9 * i, 8.35, 90, 'T')
+    # SWD test points on top, the side that faces the flight controller
+    # (the bootloader is flashed once, before the stack goes together), at
+    # the board's edge in the gap between motor pads B and C: a clip reaches
+    # them there, and the middle of the board has no room left
+    t['TP_DIO'] = (2.5, 16.3, 0, 'T')
     # the back-EMF dividers' low legs, the neutral's leg to ground and the
-    # current filter all end on MCU pins: on the bottom, packed round the
-    # MCU and into the diagonal zone beside it
-    for role, pos in (('RBL_A', (5.3, 4.6)), ('RBL_B', (6.5, 4.6)), ('RBL_C', (7.7, 4.6)),
-                      ('RNG', (5.3, 5.6)), ('R_IF', (6.5, 5.6)), ('C_IF', (7.7, 5.6))):
-        t[role] = pos + (0, 'B')
-    t['U_CS'] = (7.4, 7.6, 0, 'T')
-    t['C_CS'] = (5.6, 6.0, 90, 'T')
+    # current filter's resistor end on the MCU's pins: one row of upright
+    # 0201s on the bottom, in the strip between the MCU, the next channel's
+    # driver and the shunt, the neutral's nearest its pin (PA3)
+    for i, role in enumerate(('RNG', 'RBL_C', 'RBL_A', 'RBL_B', 'R_IF')):
+        t[role] = (5.41 + 0.9 * i, 5.99, 90, 'B')
+    # the current amplifier on top over the shunt's sense end, clear of the
+    # shunt's ground vias (reserved), its capacitors beside it
+    t['U_CS'] = (8.9, 7.1, 0, 'T')
+    t['C_CS'] = (6.6, 9.6, 0, 'T')
+    t['C_IF'] = (5.6, 6.1, 90, 'T')
+    # the CUR-average resistor from the amplifier's output, beside the filter
+    t['R_CUR'] = (6.9, 4.8, 0, 'T')
     return t
 
 
@@ -147,7 +159,6 @@ def roles(comps, n):
         elif ref.startswith('P_M%d' % n): out['P' + ref[-1]] = ref
         elif ref == 'TP_E%d_DIO' % n: out['TP_DIO'] = ref
         elif note == 'U_ESC%d VDD' % n: out['C_VDD'] = ref
-        elif note == 'U_ESC%d VDD bulk' % n: out['C_VDDB'] = ref
         elif note == 'U_ESC%d reset filter' % n: out['C_RST'] = ref
         elif note == 'driver GVDD': out['C_GV'] = ref
         elif note == 'driver GVDD HF': out['C_GVHF'] = ref
@@ -176,39 +187,44 @@ BAT_U, BAT_YR = 9.5, 16.1
 GLOBAL = {
     'P_BAT+': (-BAT_U, BAT_YR, 0, 'T'),
     'P_BAT-': (BAT_U, BAT_YR, 0, 'T'),
-    'J_FC': (0.0, 1.75, 0, 'T'),
+    # The stack connector turned half round, its pins towards motor 1: its
+    # two mechanical tabs then land between the escape vias of channels 2's
+    # and 3's chips (the tabs' band, |y| < 1.65, is the only one free of
+    # them on both sides), and the strip in front of it takes the supplies
+    'J_FC': (0.0, 1.8, 180, 'T'),
     'H1': (-pcb.HOLE, -pcb.HOLE, 0, 'T'), 'H2': (pcb.HOLE, -pcb.HOLE, 0, 'T'),
     'H3': (pcb.HOLE, pcb.HOLE, 0, 'T'), 'H4': (-pcb.HOLE, pcb.HOLE, 0, 'T'),
-    # TVS in the rear-left corner slot beside the battery pads; the 3.3 V
-    # buck and the gate-drive LDO in front of the stack connector
-    'D_TVS': (-8.4, 11.6, 90, 'T'),
-    # the inductor exactly fills the strip between the stack connector and
-    # the front channel's parts, so it is fixed there
-    'L1': (1.0, -2.75, 0, 'T'),
-    'U_BUCK': (-2.9, -2.8, 0, 'T'),
-    # the gate-drive LDO at the rear left, next to the battery pads it
-    # feeds from, between channel 1's and channel 3's chips
-    'U_GVDD': (-7.4, 7.3, 90, 'T'),
+    # in that strip, left to right: the buck's input and output capacitors,
+    # the buck, the gate-drive LDO and its output capacitor; the buck's
+    # inductor fills the bottom's centre, under the buck, inside the four
+    # channels' capacitor rows
+    'L1': (0.0, 0.0, 0, 'B'),
+    'U_BUCK': (-0.6, -2.2, 0, 'T'),
+    'U_GVDD': (2.6, -3.1, 90, 'T'),
     'LED_PWR': (16.8, 13.2, 90, 'T'),
-    # the SWD lead's supply and clock pads, on top with the SWD pads
-    'TP_3V3': (-3.4, 3.4, 0, 'T'),
-    'TP_GND': (3.4, -3.4, 0, 'T'),
-    'TP_SWCLK': (-3.4, -3.4, 0, 'T'),
+    # the SWD lead's supply, clock and ground pads in the rear edge's other
+    # gaps, in one row with motor 1's SWDIO pad: 3V3, CLK, (motor pads),
+    # DIO 1, GND
+    'TP_3V3': (-7.3, 16.3, 0, 'T'),
+    'TP_SWCLK': (-2.5, 16.3, 0, 'T'),
+    'TP_GND': (7.3, 16.3, 0, 'T'),
 }
 GLOBAL_BY_NOTE = {
-    'CUR filter': (-5.0, 0.5, 90, 'T'),
-    'buck input': (-2.9, -4.6, 0, 'T'),
-    'buck VCC': (-4.5, -2.8, 90, 'T'),
-    'buck output': (4.3, -2.6, 90, 'T'),
+    'buck input': (-3.7, -1.85, 0, 'T'),
+    'buck output': (-3.7, -4.0, 0, 'T'),
+    'buck VCC': (-0.6, -4.3, 0, 'T'),
+    'gate-drive LDO output': (6.3, -2.7, 90, 'T'),
+    'gate-drive LDO feedback top': (4.9, -5.1, 0, 'T'),
+    'gate-drive LDO feedback bottom': (6.6, -5.1, 0, 'T'),
+    # behind the stack connector, over motor 1's MCU: the LDO's input
+    # filter, the CUR filter and the battery divider
+    'gate-drive LDO input': (2.4, 6.6, 0, 'T'),
+    'gate-drive LDO input filter': (2.4, 4.6, 0, 'T'),
+    'CUR filter': (0.9, 4.85, 90, 'T'),
+    'ESC vsense top': (-3.6, 4.6, 0, 'T'),
+    'ESC vsense bottom': (-2.1, 4.6, 0, 'T'),
+    'ESC vsense filter': (-0.8, 4.6, 90, 'T'),
     'power LED': (16.8, 15.4, 90, 'T'),
-    'gate-drive LDO input filter': (-7.4, 9.9, 0, 'T'),
-    'gate-drive LDO input': (-9.3, 7.3, 90, 'T'),
-    'gate-drive LDO feedback top': (-5.6, 6.0, 90, 'T'),
-    'gate-drive LDO feedback bottom': (-5.6, 7.1, 90, 'T'),
-    'gate-drive LDO output': (-5.6, 8.6, 90, 'T'),
-    'ESC vsense top': (5.0, 0.5, 90, 'T'),
-    'ESC vsense bottom': (6.0, 0.5, 90, 'T'),
-    'ESC vsense filter': (7.0, 0.5, 90, 'T'),
 }
 
 
@@ -233,7 +249,7 @@ FIXED_ROLES = ('QAH', 'QBH', 'QCH', 'QAL', 'QBL', 'QCL', 'PA', 'PB', 'PC', 'CBR_
 
 # global parts that stay exactly where the table puts them; the others
 # are only hints for the packer
-GLOBAL_FIXED = ('P_BAT+', 'P_BAT-', 'J_FC', 'L1', 'H1', 'H2', 'H3', 'H4')
+GLOBAL_FIXED = ('P_BAT+', 'P_BAT-', 'J_FC', 'H1', 'H2', 'H3', 'H4')
 
 
 # Packing order: the parts that must sit at a channel chip's pins first,
@@ -241,16 +257,18 @@ GLOBAL_FIXED = ('P_BAT+', 'P_BAT-', 'J_FC', 'L1', 'H1', 'H2', 'H3', 'H4')
 # rest (filters, dividers, test points).  A supply's parts move with their
 # chip (pack_anchor).
 def pack_priority(c):
-    # the supplies first, while there is room for them: the 3.3 V buck
-    # beside its (fixed) inductor, then the gate-drive LDO, each chip
-    # before (it is larger) the parts that belong at its pins, which follow
-    # it (pack_anchor); then the battery TVS
+    # the channels' parts first: the template places every one of them
+    # clear of the others, so they keep their spots.  Then the shared
+    # parts in what is left, the supplies first, while there is room for
+    # them: the 3.3 V buck and its inductor, then the gate-drive
+    # LDO, each chip before (it is larger) the parts that belong at its
+    # pins, which follow it (pack_anchor)
+    if c.block.startswith('esc') or c.note.startswith('CUR average '):
+        return -10
     if c.ref == 'U_BUCK' or (c.block == 'power' and 'buck' in c.note):
         return -3
     if c.ref == 'U_GVDD' or (c.block == 'power' and 'gate-drive LDO' in c.note):
         return -2
-    if c.ref == 'D_TVS':
-        return -1
     if c.note.startswith(('bootstrap ', 'driver GVDD')) or c.note.endswith((' VDD', ' VDD bulk', ' supply')) \
             or 'current amplifier' in c.note:
         return 0
@@ -262,7 +280,7 @@ def pack_priority(c):
 
 
 def pack_anchor(c):
-    if c.block == 'power' and c.ref != 'U_BUCK' and 'buck' in c.note:
+    if c.block == 'power' and c.ref not in ('U_BUCK', 'L1') and 'buck' in c.note:
         return 'U_BUCK'
     if c.block == 'power' and c.ref != 'U_GVDD' and 'gate-drive LDO' in c.note:
         return 'U_GVDD'
@@ -303,11 +321,7 @@ EITHER_SIDE = ('current filter', 'CUR filter', 'ESC vsense top', 'ESC vsense bot
 
 
 def either_side(c):
-    # the gate-drive LDO and its parts, and the battery TVS, go wherever
-    # there is room: the LDO feeds all four drivers and the TVS only needs
-    # the battery pads' copper, which is on both sides
-    return c.note in EITHER_SIDE or c.ref in ('U_GVDD', 'D_TVS') or \
-        (c.block == 'power' and 'gate-drive LDO' in c.note)
+    return c.note in EITHER_SIDE
 
 
 def escape_keep(comps, place):
@@ -327,8 +341,6 @@ def escape_keep(comps, place):
         out.append((far, (x - r, y - r, x + r, y + r), net))
     for n in CHANNELS:
         r = roles(comps, n)
-        # the six PWM lines join the two chips on their own side
-        same = {'M%d_%s' % (n, k) for k in ('HA', 'HB', 'HC', 'LA', 'LB', 'LC')}
         for role in ('MCU', 'GD'):
             c = next(c for c in comps if c.ref == r[role])
             x, y, rot, side = place[c.ref][:4]
@@ -337,7 +349,7 @@ def escape_keep(comps, place):
                 net = c.pins.get(num)
                 px, py = (bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2
                 w, h = bb[2] - bb[0], bb[3] - bb[1]
-                if net not in (None, 'GND', 'VBAT') and net not in same:
+                if net not in (None, 'GND', 'VBAT'):
                     # outward along the pad's long axis, as fanout.dogbones puts it
                     if abs(px) >= abs(py):
                         s_ = max(0.0, w / 2 - VIA_ESCAPE[0] / 2 - 0.08)
@@ -407,7 +419,6 @@ VIA_RING = HOLE_CL - 0.1
 VIA_IN_PAD = VIA_SIG
 
 GAPS = (-7.5, -2.5, 2.5, 7.5)  # via corridors: the gaps between phases and both ends
-MARK_R = 2.6                   # half-size of the bottom-centre square kept for the mark
 SRC_VIA = ((-0.4, 11.85), (0.4, 11.85))          # per corridor, from its centre
 LS_GATE_VIA = (2.0, 13.15)     # from the phase centre (low-side gate, bottom pin 4 at +0.97)
 HS_GATE_VIA = (2.5, 14.05)     # from the phase centre (high-side gate, top pin 4 at +0.97)
@@ -439,9 +450,6 @@ def reserved():
             bb = (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts))
             for side in ('T', 'B') if sd == 'TB' else (sd,):
                 out.append((side, bb))
-    # the bottom's centre, inside the four channels' capacitor rows, is kept
-    # for the OffGrid mark (artwork): no parts there, only vias and traces
-    out.append(('B', (-MARK_R, -MARK_R, MARK_R, MARK_R)))
     # the panel's tab zones at the corners
     out += [(side, z) for z in pcb.tab_zones() for side in ('T', 'B')]
     return out
@@ -770,9 +778,10 @@ def build(out_path):
 
 
 def escape_pins(b, comps):
-    """QFN pins (MCUs and drivers) that get a dog-bone escape via: every
-    pin whose net's nearest pad on another part is on the other side of the
-    board, or whose net leaves the channel (signal, SWD, current sense)."""
+    """QFN pins (MCUs and drivers) that get an escape via: every signal
+    pin.  Both sides are packed round the chips, so a pin's own pad is the
+    one sure spot for its via; unused ones are removed after routing
+    (cleanup.py)."""
     qfn = set()
     for n in CHANNELS:
         r = roles(comps, n)
@@ -790,9 +799,7 @@ def escape_pins(b, comps):
             net = p.GetNetname()
             if not net or net in ('GND', 'VBAT') or p.GetNumber() == '25':
                 continue
-            q = p.GetPosition(); x, y = q.x / 1e6, q.y / 1e6
-            others = [(math.hypot(ox - x, oy - y), fl) for r_, fl, ox, oy in pads[net] if r_ != ref]
-            if others and min(others)[1] != fp.IsFlipped():
+            if any(r_ != ref for r_, fl, ox, oy in pads[net]):
                 out.append((ref, p.GetNumber()))
     return out
 
@@ -804,11 +811,16 @@ FIRMWARE = 'RIDGE3_G071'          # the AM32 build to flash (firmware/am32)
 
 def artwork(b, comps):
     """OffGrid silkscreen.  Top (it faces the flight controller): the
-    motor number by every motor's pads, battery polarity, the pack range,
-    pin 1 of the stack connector, the SWD pad names, the board's name, the
-    front arrow.  Bottom (the side seen under the quad): the OffGrid mark at
-    the board's centre, battery polarity, the front arrow.  Codes in JetBrains Mono, words in Instrument Sans.  Nothing
-    lands on a pad, a hole or a part body."""
+    OffGrid mark, the motor number by every motor's pads, battery polarity,
+    the pack range, pin 1 of the stack connector, the SWD pad names, the
+    board's name and firmware, the front arrow.  Bottom: battery polarity
+    and the front arrow.  Codes in JetBrains Mono, words in Instrument
+    Sans.  Nothing lands on a pad, a hole, a part body or under a grommet.
+
+    Both sides are full of parts; the mark takes the roomiest free spot of
+    the top (the brand's minimum is 16 px, 2.92 mm of ink), and the top's
+    front arrow the mirror spot across the centre line, so the two frame
+    the front edge."""
     import artwork as A, brand
     from shapely.geometry import box
     from shapely.ops import unary_union
@@ -830,6 +842,30 @@ def artwork(b, comps):
             beside = [(x0 + out * (1.5 + d), y0 + dy) for d in (0.6, 0.75, 0.9, 1.1) for dy in (0.0, -0.5, 0.5, -1.0)]
             beside += [(x0 + dx, y0 - (1.5 + d)) for d in (0.6, 0.8, 1.0) for dx in (0.0, out * 0.5, -out * 0.5)]
             pl.geom(sign(plus), beside, vias=False, margin=0.12)
+    # the OffGrid mark, as large as the roomiest spot takes, with its clear
+    # space (1 x node radius) kept from everything; then the front arrow
+    mark_at = None
+    for width in (4.0, 3.5, 3.0):
+        g, clear = brand.mark_mm(width)
+        reach = max(math.hypot(x, y) for x, y in g.convex_hull.exterior.coords)
+        mark_at = top.geom(g, top.roomiest(reach + clear), clear=clear, vias='fewest', margin=clear, quiet=True,
+                           hull=True)
+        if mark_at:
+            break
+    else:
+        raise SystemExit('esc: no room on the top for the OffGrid mark')
+    mirror = [(x, y) for x, y in top.grid_spots((-mark_at[0], mark_at[1]), radius=11.0, step=0.1)]
+    if not any(top.geom(brand.arrow_mm(2.6, 'Front', cap=1.2), mirror, vias='fewest', margin=m, quiet=True)
+               for m in (0.35, 0.2)):
+        top.geom(brand.arrow_mm(2.6), mirror, vias='fewest', margin=0.2)
+    # SWD and supply test points, on whichever side they are, before the
+    # motor numbers: each has one pad to sit by
+    for n in CHANNELS:
+        r = roles(comps, n)
+        pl = top if side[r['TP_DIO']] == 'T' else bot
+        pl.label(r['TP_DIO'], 'D%d' % n, size=1.2, dist=0.7, smallest=1.0, face='mono')
+    for ref, s_ in (('TP_3V3', '3V3'), ('TP_GND', 'GND'), ('TP_SWCLK', 'CLK')):
+        (top if side[ref] == 'T' else bot).label(ref, s_, size=1.2, smallest=1.0, face='mono')
     # one number per motor on top, as large as fits, in the nearest free
     # spot that is clearly this motor's: at least 2 mm nearer its own three
     # pads than any other motor's pads or the battery pads
@@ -849,46 +885,39 @@ def artwork(b, comps):
                 top.label_along(roles(comps, n)['P' + ph], str(n), sizes=(1.5, 1.3, 1.2), face='mono')
     # the pack range, between the battery pads
     xb = (GLOBAL['P_BAT+'][0] + GLOBAL['P_BAT-'][0]) / 2
-    for pl in (top, bot):
-        pl.text([('mono', '2-6S')], [(x, y, 0, None) for x, y in pl.grid_spots((xb, 14.0), radius=12.0, step=0.2)],
-                size=1.2)
+    top.text([('mono', '2-6S')], [(x, y, 0, None) for x, y in top.grid_spots((xb, 14.0), radius=12.0, step=0.2)],
+             size=1.2)
     # the name and the firmware to flash, on top, before the small labels
     # take the room: on the centre line if anywhere there is room, else as
     # near it as fits, else turned to read along a free strip
     at = None
-    for runs, cap in (([('sans', PRODUCT + ' ESC')], 1.4), ([('mono', FIRMWARE)], 1.1)):
-        g0 = brand.line(runs, cap)[0].bounds
-        mid = (g0[1] + g0[3]) / 2
+    # (sizes down to the floors: 1.1 mm capitals in Instrument Sans, 1.0 in
+    # JetBrains Mono, whose strokes stay over the fabs' 0.15 mm there)
+    for runs, caps in (([('sans', PRODUCT + ' ESC')], (1.4, 1.3, 1.2, 1.1)), ([('mono', FIRMWARE)], (1.1, 1.0))):
         near = (0.0, at + 1.9) if at is not None else (0.0, 0.0)
-        centred = [(0.0, near[1] + dy - mid, 0, None) for dy in sorted((0.1 * k for k in range(-90, 91)), key=abs)]
         pts = top.grid_spots(near, radius=16.0, step=0.25)
-        anywhere = [(x, y - mid, 0, None) for x, y in pts]
-        turned = [(x - mid, y, 90, None) for x, y in pts]
-        for c in (cap, cap - 0.1, cap - 0.2, cap - 0.3):
-            if any(top.text(runs, sp, size=c, vias='fewest') for sp in (centred, anywhere, turned)):
+        tries = []
+        for c in caps:
+            g0 = brand.line(runs, c)[0].bounds
+            mid = (g0[1] + g0[3]) / 2
+            tries.append((c, [(0.0, near[1] + dy - mid, 0, None) for dy in sorted((0.1 * k for k in range(-340, 341)),
+                                                                                  key=abs) if abs(near[1] + dy) < pcb.HALF]))
+        for c in caps:
+            g0 = brand.line(runs, c)[0].bounds
+            mid = (g0[1] + g0[3]) / 2
+            tries.append((c, [(x, y - mid, 0, None) for x, y in pts]))
+            tries.append((c, [(x - mid, y, 90, None) for x, y in pts]))
+        for c, sp in tries:
+            if top.text(runs, sp, size=c, vias='fewest'):
                 at = top.placed[-1].centroid.y - pcb.CY
                 break
-    # SWD and supply test points, on whichever side they are
-    for n in CHANNELS:
-        r = roles(comps, n)
-        pl = top if side[r['TP_DIO']] == 'T' else bot
-        pl.label(r['TP_DIO'], 'D%d' % n, size=1.2, dist=0.7, smallest=1.0, face='mono')
-    for ref, s_ in (('TP_3V3', '3V3'), ('TP_GND', 'GND'), ('TP_SWCLK', 'CLK')):
-        (top if side[ref] == 'T' else bot).label(ref, s_, size=1.2, smallest=1.0, face='mono')
     top.label('J_FC', '1', pad='1', dist=0.8, size=1.2, smallest=0.9, face='mono')
-    # the OffGrid mark at the exact centre of the bottom, in the square
-    # kept free of parts for it (reserved()); only vias may sit under it
-    for width in (2 * MARK_R - 0.4, 5.0, 4.5, 4.0):
-        g, clear = brand.mark_mm(width)
-        if bot.geom(g, [(0.0, 0.0)], clear=clear, vias='fewest', margin=0.0, quiet=True):
-            break
-    # which way is forward: the ESC must sit in the stack the same way round
-    # as the FC, or every motor number is wrong
-    for pl in (top, bot):
-        spots = pl.grid_spots((0.0, -6.0), radius=11.0, step=0.25)
-        if not any(pl.geom(brand.arrow_mm(2.6, 'Front', cap=1.2, mirror=pl.side == 'B'), spots, vias='fewest',
-                           margin=m, quiet=True) for m in (0.6, 0.35)):
-            pl.geom(brand.arrow_mm(2.6, mirror=pl.side == 'B'), spots, vias='fewest', margin=0.4)
+    # which way is forward on the bottom too: the ESC must sit in the stack
+    # the same way round as the FC, or every motor number is wrong
+    spots = bot.grid_spots((0.0, -6.0), radius=11.0, step=0.25)
+    if not any(bot.geom(brand.arrow_mm(2.6, 'Front', cap=1.2, mirror=True), spots, vias='fewest',
+                        margin=m, quiet=True) for m in (0.6, 0.35)):
+        bot.geom(brand.arrow_mm(2.6, mirror=True), spots, vias='fewest', margin=0.4)
 
 
 if __name__ == '__main__':
