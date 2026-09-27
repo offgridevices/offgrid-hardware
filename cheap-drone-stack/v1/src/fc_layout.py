@@ -12,6 +12,9 @@ import pcbnew
 import pcb, circuit
 from pcb import MM
 
+PRODUCT = 'OG3'                  # the lineup: OG3 / OG7 / OG12, by prop size
+FIRMWARE = 'OFFGRID_OG3'         # the Betaflight build to flash (firmware/)
+
 T, Bo = 'T', 'B'
 
 # ref: (x, y, rotation, side)
@@ -199,23 +202,21 @@ def artwork(b):
 
     bot = A.SilkPlacer(b, 'B', brand=True, via_clear=0.1)
     # three bands are free on the bottom: between the front holes (the
-    # lockup, its line under it), between the USB-C shell tabs and the far
-    # edge (the arrow), and between the rear holes (what the board is)
+    # lockup), between the USB-C shell tabs and the far edge (the arrow),
+    # and between the rear holes (what the board is).  The lockup and the
+    # name sit exactly on the board's centre line: only their height may
+    # move to clear a via or a part.
     g, clear = brand.lockup_mm(20.0, mirror=True)
-    at = bot.geom(g, [(x, y) for y in (-9.5, -9.25, -9.0, -9.75, -10.0, -8.75, -8.5)
-                      for x in (0.0, 0.25, -0.25, 0.5, -0.5)], clear=clear, vias='fewest')
-    y = at[1] + (g.bounds[3] - g.bounds[1]) / 2 + clear
-    bot.text([('sans', 'Built to be checked.')], [(x, y + 0.6 + dy, 0, None) for dy in (0, 0.2, 0.4, 0.6)
-                                                  for x in (0, 0.3, -0.3)], size=1.2, vias='fewest')
+    bot.geom(g, [(0.0, y) for y in (-9.5, -9.25, -9.75, -9.0, -10.0, -8.75, -8.5)], clear=clear, vias='fewest')
     bot.geom(brand.arrow_mm(6.0, 'Front', cap=1.2, mirror=True),
              [(x, y) for x in (13.0, 13.25, 12.75, 13.5, 12.5) for y in (0.0, 0.5, -0.5, 1.0, -1.0)], vias='fewest')
-    # what the board is, three lines between the rear holes, 1.9 mm from
-    # baseline to baseline
-    base = 7.6
-    for runs, cap in (([('sans', 'Cheap drone flight controller')], 1.2),
-                      ([('mono', 'v1 \u00b7 CHEAPDRONE_G473')], 1.15)):
+    # what the board is: the product name, then the firmware to flash
+    base = 6.9
+    for runs, cap, step in (([('sans', PRODUCT)], 2.4, 2.2),
+                            ([('sans', 'Flight controller')], 1.2, 1.9),
+                            ([('mono', FIRMWARE)], 1.1, 0)):
         g0 = brand.line(runs, cap)[0].bounds
         mid = (g0[1] + g0[3]) / 2           # box centre below the baseline
         spots = [(0.0, base + mid + dy, 0, None) for dy in (0.0, 0.1, -0.1, 0.2)]
         if bot.text(runs, spots, size=cap, vias='fewest'):
-            base = bot.placed[-1].centroid.y - pcb.CY - mid + 2.0
+            base = bot.placed[-1].centroid.y - pcb.CY - mid + step
