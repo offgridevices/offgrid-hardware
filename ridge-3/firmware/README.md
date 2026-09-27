@@ -120,11 +120,15 @@ way.
 1. Flash the ESC while it is bare: **no battery**, no capacitors on the
    battery pads, not stacked.  The ST-Link's 3.3 V powers the four MCUs and
    the current amplifiers.
-2. Wire the ST-Link to the pads on the ESC's bottom: `GND` to `GND`, `3.3V`
-   to `3V3`, `SWDIO` to `Dn`, and `SWCLK` to `Cn`, where *n* is the ESC being
-   flashed.  NRST is not on a pad; resets are software resets.
-3. Run `am32/flash_esc.sh`.  It asks for each ESC in turn (move `SWDIO` and
-   `SWCLK` to `D1/C1`, `D2/C2`, ...), or takes the numbers to flash as
+2. Wire the ST-Link to the pads on the ESC's top (the side that faces the
+   flight controller): `GND` to `GND`, `3.3V` to `3V3`, `SWCLK` to `CLK`
+   (one pad, shared by all four MCUs), and `SWDIO` to `Dn`, where *n* is the
+   ESC being flashed.  NRST is not on a pad;
+   resets are software resets.  An MCU whose SWDIO pad is not connected
+   sees only ones on its SWDIO line, which is never a valid SWD request, so
+   it ignores the shared clock.
+3. Run `am32/flash_esc.sh`.  It asks for each ESC in turn (move `SWDIO` to
+   `D1`, `D2`, ...), or takes the numbers to flash as
    arguments (`./flash_esc.sh 3`).  It uses OpenOCD (`target/stm32g0x.cfg`);
    `TOOL=cubeprog ./flash_esc.sh` uses STM32CubeProgrammer instead.  For each
    MCU it:
@@ -218,7 +222,7 @@ table 12):
 | Virtual neutral (COMP2 +) | PA3 | 9 | `Mn_NEUTRAL` |
 | Current, 50 mV/A (ADC_IN5) | PA5 | 11 | `Mn_ISENSE` |
 | Battery voltage, 100k/10k (ADC_IN6) | PA6 | 12 | `ESC_VSENSE` |
-| SWDIO / SWCLK (BOOT0) | PA13 / PA14 | 20 / 21 | `Mn_SWDIO` / `Mn_SWCLK` |
+| SWDIO / SWCLK (BOOT0) | PA13 / PA14 | 20 / 21 | `Mn_SWDIO` / `ESC_SWCLK` (shared) |
 
 Pins 18 and 19 are PA11 and PA12 until the firmware remaps them to PA9 and
 PA10.  AM32's G071 code does that at start-up unless a target defines

@@ -94,11 +94,18 @@ def _area(pts):
 # Per-footprint corrections, applied to the parsed EasyEDA file.
 #   'rename': {EasyEDA pad name: pad name used here}
 #   'resize': {pad name: (w, h)} in the footprint's own axes (rotation 0)
+#   'trim':   {pad name: d} shortens a pad by d mm at its +y end (the pad
+#             keeps its -y end), footprint axes
 FIXUPS = {
     # GCT USB4105-GF-A-120: EasyEDA names the doubled contacts 'A1-B12';
     # circuit.py uses 'A1B12' (as the v1 receptacle did).  Shell 1-4.
+    # The two outer ground pads' inner ends come 0.18 mm from the 0.65 mm
+    # peg holes, under the 0.2 mm the fab keeps between a non-plated hole
+    # and copper; 0.04 mm off those ends (the heel, not the toe that carries
+    # the fillet) leaves 0.22 mm.
     'USB-C-SMD_MC-311D': dict(rename={'A1-B12': 'A1B12', 'B1-A12': 'B1A12',
-                                      'A4-B9': 'A4B9', 'B4-A9': 'B4A9'}),
+                                      'A4-B9': 'A4B9', 'B4-A9': 'B4A9'},
+                              trim={'A1B12': 0.04, 'B1A12': 0.04}),
     # TI TPS7A4101 DGN (HVSSOP-8): TI's land (DGN0008B) has a 1.98 x 1.88 mm
     # thermal pad; EasyEDA's is 1.8 x 1.5.  Rows run along x here.
     'MSOP-8_L3.0-W3.0-P0.65-LS5.0-BL-EP': dict(resize={'9': (1.98, 1.88)}),
@@ -119,6 +126,13 @@ def _fix_pad(name, p):
         if len(at) > 3 and round(float(at[3])) % 180 == 90:
             w, h = h, w
         _get(p, 'size')[1:] = ['%.3f' % w, '%.3f' % h]
+    if num in fx.get('trim', {}):
+        d = fx['trim'][num]
+        at, size = _get(p, 'at'), _get(p, 'size')
+        if len(at) > 3 and round(float(at[3])) % 180:
+            raise ValueError('trim: pad %s of %s is rotated' % (num, name))
+        at[2] = '%.4f' % (float(at[2]) - d / 2)
+        size[2] = '%.4f' % (float(size[2]) - d)
 
 def _item_box(it):
     xs, ys = [], []
@@ -265,19 +279,24 @@ def pth_pad_fp(name, d, drill, desc=''):
     return fp
 
 def hole_fp():
+    """Mounting position for the slotted grommet hole.  The hole and its
+    slot are cut by the board outline (pcb.outline), so this footprint has
+    no pad: it carries the grommet's keepout as a courtyard on both sides
+    (so no part lands on the flange) and the hole and slot on the fab
+    layer.  Drawn for the top-right corner; placed rotated per corner."""
+    import math
     fp = pcbnew.FOOTPRINT(None)
-    fp.SetFPID(pcbnew.LIB_ID('aio', 'HOLE_M3'))
+    fp.SetFPID(pcbnew.LIB_ID('aio', 'MOUNT_M2_SLOT'))
     fp.SetAttributes(pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
-    fp.SetLibDescription('3.2 mm non-plated hole: M3, or M2 through a soft-mount grommet')
-    p = pcbnew.PAD(fp)
-    p.SetNumber(''); p.SetAttribute(pcbnew.PAD_ATTRIB_NPTH); p.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
-    p.SetSize(pcbnew.VECTOR2I(MM(3.2), MM(3.2))); p.SetDrillSize(pcbnew.VECTOR2I(MM(3.2), MM(3.2)))
-    ls = pcbnew.LSET.AllCuMask(); ls.AddLayer(pcbnew.F_Mask); ls.AddLayer(pcbnew.B_Mask)
-    p.SetLayerSet(ls)
-    fp.Add(p)
+    fp.SetLibDescription('Slotted mounting hole: 3.2 mm hole for an M2 soft-mount grommet, 2.5 mm slot to the '
+                         'corner; the board outline cuts it, this marks the grommet keepout')
+    for lay in (pcbnew.F_CrtYd, pcbnew.B_CrtYd):
+        c = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_CIRCLE)
+        c.SetCenter(pcbnew.VECTOR2I(0, 0)); c.SetEnd(pcbnew.VECTOR2I(MM(3.0), 0))
+        c.SetLayer(lay); c.SetWidth(MM(0.05)); fp.Add(c)
     c = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_CIRCLE)
-    c.SetCenter(pcbnew.VECTOR2I(0, 0)); c.SetEnd(pcbnew.VECTOR2I(MM(3.0), 0))
-    c.SetLayer(pcbnew.F_CrtYd); c.SetWidth(MM(0.05)); fp.Add(c)
+    c.SetCenter(pcbnew.VECTOR2I(0, 0)); c.SetEnd(pcbnew.VECTOR2I(MM(1.6), 0))
+    c.SetLayer(pcbnew.F_Fab); c.SetWidth(MM(0.1)); fp.Add(c)
     fp.Reference().SetVisible(False); fp.Value().SetVisible(False)
     return fp
 
@@ -301,6 +320,7 @@ def solder_jumper_fp(name='SJ_OPEN', w=0.8, h=1.2, gap=0.3):
     fp = pcbnew.FOOTPRINT(None)
     fp.SetFPID(pcbnew.LIB_ID('aio', name))
     fp.SetAttributes(pcbnew.FP_SMD | pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
+    fp.SetAllowSolderMaskBridges(True)       # the one opening over both pads is the point
     fp.SetLibDescription('Solder jumper, normally open: 2 pads %.1f x %.1f mm, %.2f mm gap' % (w, h, gap))
     dx = (w + gap) / 2
     _smd_pad(fp, '1', -dx, 0, w, h, paste=False)

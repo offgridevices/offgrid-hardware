@@ -37,7 +37,7 @@ In3 signals + channel return pours | In4 VBAT | B signals + power.
 """
 import math, os
 import pcbnew
-import pcb, circuit
+import pcb, circuit, parts
 from pcb import MM
 
 H = pcb.HALF
@@ -115,10 +115,10 @@ def template():
     for i, ph in enumerate('ABC'):
         t['RGH_' + ph] = (-4.4 + 2.0 * i, 9.65, 0, 'T')
         t['RGL_' + ph] = (-4.4 + 2.0 * i, 8.65, 0, 'T')
-    # SWD test points on the bottom, in the diagonal zone under the shunt
-    # (pogo pins from below at programming time)
-    t['TP_DIO'] = (7.0, 6.0, 0, 'B')
-    t['TP_CLK'] = (8.3, 6.0, 0, 'B')
+    # SWD test points on top, the side that faces the flight controller:
+    # the bootloader is flashed once, before the stack goes together, and
+    # the bottom has no room left for seven pads
+    t['TP_DIO'] = (7.0, 6.0, 0, 'T')
     t['R_CUR'] = (1.6, 7.65, 0, 'T')
     # the back-EMF dividers' low legs, the neutral's leg to ground and the
     # current filter all end on MCU pins: on the bottom, packed round the
@@ -145,7 +145,7 @@ def roles(comps, n):
         elif ref == 'U_CS%d' % n: out['U_CS'] = ref
         elif ref.startswith('Q%d' % n): out['Q' + ref[-2:]] = ref
         elif ref.startswith('P_M%d' % n): out['P' + ref[-1]] = ref
-        elif ref.startswith('TP_E%d' % n): out['TP_DIO' if ref.endswith('DIO') else 'TP_CLK'] = ref
+        elif ref == 'TP_E%d_DIO' % n: out['TP_DIO'] = ref
         elif note == 'U_ESC%d VDD' % n: out['C_VDD'] = ref
         elif note == 'U_ESC%d VDD bulk' % n: out['C_VDDB'] = ref
         elif note == 'U_ESC%d reset filter' % n: out['C_RST'] = ref
@@ -188,9 +188,10 @@ GLOBAL = {
     'U_BUCK': (-2.9, -2.8, 0, 'T'),
     'U_GVDD': (3.4, -7.0, 0, 'T'),
     'LED_PWR': (16.8, 13.2, 90, 'T'),
-    # the SWD lead's supply pads, on the bottom with the SWD pads
-    'TP_3V3': (-3.4, 3.4, 0, 'B'),
-    'TP_GND': (3.4, -3.4, 0, 'B'),
+    # the SWD lead's supply and clock pads, on top with the SWD pads
+    'TP_3V3': (-3.4, 3.4, 0, 'T'),
+    'TP_GND': (3.4, -3.4, 0, 'T'),
+    'TP_SWCLK': (-3.4, -3.4, 0, 'T'),
 }
 GLOBAL_BY_NOTE = {
     'CUR filter': (-5.0, 0.5, 90, 'T'),
@@ -258,6 +259,37 @@ def pack_anchor(c):
     return None
 
 
+# An IC's exposed pad on a plane net (the gate-drive LDO's) carries its
+# heat to the planes through filled vias in the pad, so the packer keeps
+# the bottom under it free.  Smaller plane pads get their via beside the
+# pad (fanout).
+EP_AREA = 2.0
+_via_pads = {}
+
+
+def via_pads(c):
+    if c.ref not in _via_pads:
+        out = []
+        if c.ref.startswith('U'):
+            fpid = {**parts.PARTS, **parts.PADS}[c.part]['fp']
+            for p in pcb.load_fp(fpid).Pads():
+                sz = p.GetSize(pcbnew.F_Cu)
+                if c.pins.get(p.GetNumber()) in ('GND', 'VBAT') and sz.x * sz.y / 1e12 >= EP_AREA:
+                    out.append(p.GetNumber())
+        _via_pads[c.ref] = out
+    return _via_pads[c.ref]
+
+
+# parts that work equally well on either side (a via costs them nothing):
+# the current and voltage filters, the dividers and the power LED
+EITHER_SIDE = ('current filter', 'CUR filter', 'ESC vsense top', 'ESC vsense bottom', 'ESC vsense filter',
+               'power LED')
+
+
+def either_side(c):
+    return c.note in EITHER_SIDE
+
+
 def fixed(comps):
     f = set(GLOBAL_FIXED)
     for n in CHANNELS:
@@ -279,9 +311,10 @@ def build_placed(out_path, legal=True, strict=True):
         raise KeyError('no placement for %s' % missing)
     if legal:
         import legalize
-        two_pad = lambda c: c.ref[:1] in 'RC' and not c.ref.startswith(('R_SH', 'CBR'))
-        place, left = legalize.pack(comps, place, fixed(comps), rotatable=two_pad, reserved=reserved(),
-                                    priority=pack_priority, anchor=pack_anchor)
+        # the passives and the two supply chips may turn 90 degrees to fit
+        turn = lambda c: (c.ref[:1] in 'RC' and not c.ref.startswith(('R_SH', 'CBR'))) or c.ref in ('U_BUCK', 'U_GVDD')
+        place, left = legalize.pack(comps, place, fixed(comps), rotatable=turn, reserved=reserved(),
+                                    priority=pack_priority, anchor=pack_anchor, through=via_pads, flip=either_side)
         if left and strict:
             raise SystemExit('no room for %s' % left)
     fps = pcb.place_components(b, comps, place)
@@ -333,6 +366,8 @@ def reserved():
     # the bottom's centre, inside the four channels' capacitor rows, is kept
     # for the OffGrid mark (artwork): no parts there, only vias and traces
     out.append(('B', (-MARK_R, -MARK_R, MARK_R, MARK_R)))
+    # the panel's tab zones at the corners
+    out += [(side, z) for z in pcb.tab_zones() for side in ('T', 'B')]
     return out
 
 
@@ -515,12 +550,27 @@ def routing_keepouts(b):
         pcb.rule_area(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], cu, tracks=True, vias=True, pads=False,
                       pours=False, name='edge keepout')
         k += 1
+    # the mounting slots, widened by the same 0.3 mm (the holes themselves
+    # sit inside the grommet keepouts)
+    a = pcb.SLOT_W / 2 + w
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            d = (sx / math.sqrt(2), sy / math.sqrt(2)); nn = (sx / math.sqrt(2), -sy / math.sqrt(2))
+            c = (sx * pcb.HOLE, sy * pcb.HOLE)
+            pts = [(c[0] + t * d[0] + s_ * a * nn[0], c[1] + t * d[1] + s_ * a * nn[1])
+                   for t, s_ in ((0, 1), (8.5, 1), (8.5, -1), (0, -1))]
+            pcb.rule_area(b, pts, cu, tracks=True, vias=True, pads=False, pours=False, name='slot keepout')
+            k += 1
     return k
 
 
 # Six layers: F signals + power | In1 GND | In2 signals | In3 signals +
 # channel returns | In4 VBAT | B signals + power.
 LAYERS = 6
+# 2 oz inner copper: In1 (ground) and In4 (battery) carry all four motors'
+# current, and In3 the channel returns; twice the copper halves their loss
+# and spreads the FETs' heat further.
+INNER_OZ = 2.0
 ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
 
 
@@ -596,6 +646,7 @@ def build(out_path):
     b, comps, fps = build_placed(out_path)
     cu = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
     pcb.hole_keepouts(b, cu)
+    pcb.tab_keepouts(b, cu)
     via_rules(b)
     e = H - 0.35
     full = [(-e, -e), (e, -e), (e, e), (-e, e)]
@@ -667,10 +718,9 @@ FIRMWARE = 'RIDGE3_G071'          # the AM32 build to flash (firmware/am32)
 def artwork(b, comps):
     """OffGrid silkscreen.  Top (it faces the flight controller): the
     motor number by every motor's pads, battery polarity, the pack range,
-    pin 1 of the stack connector, the front arrow.  Bottom (the side seen
-    under the quad): the OffGrid mark and the board's name, both centred on
-    the board's centre line, battery polarity, SWD pad names, the front
-    arrow.  Codes in JetBrains Mono, words in Instrument Sans.  Nothing
+    pin 1 of the stack connector, the SWD pad names, the board's name, the
+    front arrow.  Bottom (the side seen under the quad): the OffGrid mark at
+    the board's centre, battery polarity, the front arrow.  Codes in JetBrains Mono, words in Instrument Sans.  Nothing
     lands on a pad, a hole or a part body."""
     import artwork as A, brand
     from shapely.geometry import box
@@ -715,34 +765,36 @@ def artwork(b, comps):
     for pl in (top, bot):
         pl.text([('mono', '2-6S')], [(x, y, 0, None) for x, y in pl.grid_spots((xb, 14.0), radius=12.0, step=0.2)],
                 size=1.2)
-    # SWD and supply test points, on whichever side they are
-    for n in CHANNELS:
-        r = roles(comps, n)
-        for key, s_ in (('TP_DIO', 'D%d' % n), ('TP_CLK', 'C%d' % n)):
-            pl = top if side[r[key]] == 'T' else bot
-            pl.label(r[key], s_, size=1.2, dist=0.7, smallest=1.0, face='mono')
-    for ref, s_ in (('TP_3V3', '3V3'), ('TP_GND', 'GND')):
-        (top if side[ref] == 'T' else bot).label(ref, s_, size=1.2, smallest=1.0, face='mono')
-    top.label('J_FC', '1', pad='1', dist=0.8, size=1.2, face='mono')
-    # the OffGrid mark at the exact centre of the bottom, in the square
-    # kept free of parts for it (reserved()); only vias may sit under it
-    for width in (2 * MARK_R - 0.4, 5.0, 4.5, 4.0):
-        g, clear = brand.mark_mm(width)
-        if bot.geom(g, [(0.0, 0.0)], clear=clear, vias='fewest', margin=0.0, quiet=True):
-            break
-    # the name and the firmware to flash, on top: on the centre line if
-    # anywhere there is room, else as near it as fits
+    # the name and the firmware to flash, on top, before the small labels
+    # take the room: on the centre line if anywhere there is room, else as
+    # near it as fits, else turned to read along a free strip
     at = None
     for runs, cap in (([('sans', PRODUCT + ' ESC')], 1.4), ([('mono', FIRMWARE)], 1.1)):
         g0 = brand.line(runs, cap)[0].bounds
         mid = (g0[1] + g0[3]) / 2
         near = (0.0, at + 1.9) if at is not None else (0.0, 0.0)
         centred = [(0.0, near[1] + dy - mid, 0, None) for dy in sorted((0.1 * k for k in range(-90, 91)), key=abs)]
-        anywhere = [(x, y - mid, 0, None) for x, y in top.grid_spots(near, radius=16.0, step=0.25)]
-        for c in (cap, cap - 0.1, cap - 0.2):
-            if top.text(runs, centred, size=c, vias='fewest') or top.text(runs, anywhere, size=c, vias='fewest'):
+        pts = top.grid_spots(near, radius=16.0, step=0.25)
+        anywhere = [(x, y - mid, 0, None) for x, y in pts]
+        turned = [(x - mid, y, 90, None) for x, y in pts]
+        for c in (cap, cap - 0.1, cap - 0.2, cap - 0.3):
+            if any(top.text(runs, sp, size=c, vias='fewest') for sp in (centred, anywhere, turned)):
                 at = top.placed[-1].centroid.y - pcb.CY
                 break
+    # SWD and supply test points, on whichever side they are
+    for n in CHANNELS:
+        r = roles(comps, n)
+        pl = top if side[r['TP_DIO']] == 'T' else bot
+        pl.label(r['TP_DIO'], 'D%d' % n, size=1.2, dist=0.7, smallest=1.0, face='mono')
+    for ref, s_ in (('TP_3V3', '3V3'), ('TP_GND', 'GND'), ('TP_SWCLK', 'CLK')):
+        (top if side[ref] == 'T' else bot).label(ref, s_, size=1.2, smallest=1.0, face='mono')
+    top.label('J_FC', '1', pad='1', dist=0.8, size=1.2, smallest=0.9, face='mono')
+    # the OffGrid mark at the exact centre of the bottom, in the square
+    # kept free of parts for it (reserved()); only vias may sit under it
+    for width in (2 * MARK_R - 0.4, 5.0, 4.5, 4.0):
+        g, clear = brand.mark_mm(width)
+        if bot.geom(g, [(0.0, 0.0)], clear=clear, vias='fewest', margin=0.0, quiet=True):
+            break
     # which way is forward: the ESC must sit in the stack the same way round
     # as the FC, or every motor number is wrong
     for pl in (top, bot):

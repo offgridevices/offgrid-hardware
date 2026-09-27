@@ -56,7 +56,7 @@ GND = 'GND'
 
 def mounting():
     for i in range(1, 5):
-        add('H', 'HOLE', {}, 'mech', 'M3 hole (M2 with grommet)', ref='H%d' % i)
+        add('H', 'HOLE', {}, 'mech', 'slotted M2 grommet hole', ref='H%d' % i)
 
 # =====================================================================
 #  FLIGHT CONTROLLER BOARD
@@ -377,9 +377,13 @@ def esc_power():
     res('R100K', 'VBAT', 'ESC_VSENSE', B, 'ESC vsense top')
     res('R10K', 'ESC_VSENSE', GND, B, 'ESC vsense bottom')
     cap('C100N', 'ESC_VSENSE', GND, B, 'ESC vsense filter')
-    # Common points for the SWD programming lead.
+    # Common points for the SWD programming lead.  SWCLK is shared: each
+    # MCU has its own SWDIO pad, and an MCU whose SWDIO is not connected
+    # reads only ones, which is never a valid SWD request, so it stays
+    # silent while another is programmed.
     add('TP', 'PAD_TP', {'1': '+3V3'}, B, 'SWD 3V3', ref='TP_3V3')
     add('TP', 'PAD_TP', {'1': GND}, B, 'SWD GND', ref='TP_GND')
+    add('TP', 'PAD_TP', {'1': 'ESC_SWCLK'}, B, 'SWD CLK', ref='TP_SWCLK')
 
 # One ESC channel.  Wired to AM32 hardware group G0_A (targets.h), which
 # the RIDGE3_G071 target in firmware/am32 uses, on the STM32G071's 28-pin
@@ -411,7 +415,7 @@ def esc(n):
         '18': p('HB'),                          # PA11 [PA9]  TIM1_CH2
         '19': p('HA'),                          # PA12 [PA10] TIM1_CH3
         '20': p('SWDIO'),                       # PA13
-        '21': p('SWCLK'),                       # PA14-BOOT0
+        '21': 'ESC_SWCLK',                      # PA14-BOOT0 (SWCLK shared by the four MCUs)
         '22': None,                             # PA15
         '23': p('CMP_B'),                       # PB3
         '24': p('SIG'),                         # PB4  DShot in (and bootloader)
@@ -485,7 +489,6 @@ def esc(n):
     for ph in 'ABC':
         add('P', 'PAD_MOTOR', {'1': p(ph)}, B, 'motor %d phase %s' % (n, ph), ref='P_M%d%s' % (n, ph))
     add('TP', 'PAD_TP', {'1': p('SWDIO')}, B, 'ESC%d SWDIO' % n, ref='TP_E%d_DIO' % n)
-    add('TP', 'PAD_TP', {'1': p('SWCLK')}, B, 'ESC%d SWCLK' % n, ref='TP_E%d_CLK' % n)
 
 def build(board):
     COMPS.clear(); _counts.clear()

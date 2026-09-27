@@ -1,197 +1,490 @@
 # -*- coding: utf-8 -*-
-"""Flight controller board: placement, planes and silkscreen.
+"""Ridge 3 flight controller (36 x 36 mm, 25.5 mm slotted holes):
+placement, power copper, planes and silkscreen.
 
-Every part is on the top side, so the board is single-sided assembly.
-Front of the quad is -y (top of every plot).  USB-C faces LEFT, as the
-TAKER G4's did in the Phase 1 frame; the ESC lead leaves from the rear.
+Double-sided assembly.  Top: MCU, gyro, flash, OSD and both crystals,
+connectors, solder pads, LEDs, boot button.  Bottom: the two switching
+supplies (5 V at the rear, 9 V on the right), the 3.3 V LDO and the
+USB-C's VBUS diode and CC resistors.  Front of the quad is -y (top of
+every plot).  USB-C faces LEFT, as in v1; the ESC lead leaves from the
+rear.
 
-Stackup (4 layers): F.Cu signals, In1 solid GND, In2 power (VBAT / 5 V /
-3.3 V areas) + signals, B.Cu signals + GND fill.
+Power: the battery comes in on the ESC lead (pin 1) and the P_BAT pad.  A
+top pour behind the lead's pins joins them and runs down a leg inside the
+rear-right hole to the 9 V BEC's vias; each BEC's input capacitor, IC and
+inductor sit together on the bottom with their switch node, input and
+ground as pours (routers kept out of them).  5 V and 9 V leave their BECs
+as pours; the rest of their nets is routed at 0.4 mm.
+
+Stackup (4 layers): F.Cu signals | In1 solid GND | In2 solid 3.3 V |
+B.Cu signals, parts and the supplies' copper.
 """
+import math
 import pcbnew
 import pcb, circuit
 from pcb import MM
 
-PRODUCT = 'OG3'                  # the lineup: OG3 / OG7 / OG12, by prop size
-FIRMWARE = 'OFFGRID_OG3'         # the Betaflight build to flash (firmware/)
+PRODUCT = 'Ridge 3'
+FIRMWARE = 'RIDGE3'              # the Betaflight build to flash (firmware/)
 
 T, Bo = 'T', 'B'
+PE = 16.8                        # edge solder pads: centre distance from the board centre
 
-# ref: (x, y, rotation, side)
+# Anchors: the two BEC ICs.  Their passives and pours are placed relative
+# to them.
+A5 = (-3.0, 11.9)                # U_BUCK5, rot 180, bottom: VIN/GND pins rear, SW front right
+A9 = (13.0, 5.0)                 # U_BUCK9, rot 0, bottom: SW pins front, PVIN/PGND rear
+
+
+def at(a, dx, dy, rot, side=Bo):
+    return (round(a[0] + dx, 3), round(a[1] + dy, 3), rot, side)
+
+
+# ref: (x, y, rotation, side).  Parts named here by reference.
 PLACE = {
     # MCU at 0 deg.  Its pins, by side:
-    #   rear  (1-12)  VBAT, crystal, NRST, MOTOR1-4, gyro INT -> ESC lead
-    #   right (13-24) SPI1 gyro, ADC, VDDA/VREF, TLM          -> gyro, dividers
-    #   front (25-36) SPI2 flash, UART1, USB, SWDIO           -> flash, USB, pads
-    #   left  (37-48) SWCLK, beeper, UART4, UART2, LED strip,
-    #                 LED0, BOOT0                              -> left-side pads
-    'U_FC':   (0.0, -1.5, 0, T),
-    # Decoupling caps sit radially, in line with their own supply pin, so
-    # each blocks only that pin's escape and leaves its neighbours free.
-    'C10':    (-2.75, 3.2, 270, T),    # pin 1 VBAT
-    'C13':    (-4.68, 1.25, 180, T),   # pin 48 VDD
-    'C12':    (-3.7, -6.3, 180, T),    # pin 35 VDD (no room radially under the flash)
-    'C11':    (4.68, -3.75, 0, T),     # pin 23 VDD
-    'C14':    (4.68, -2.75, 0, T),     # pin 21 VDDA (pin 20 VREF+ beside it)
-    'C15':    (6.7, -2.75, 0, T),      # VDDA bulk, in line behind C14
-    'C16':    (4.3, 4.6, 90, T),       # bulk, clear of the motor lines
-    'C17':    (-6.4, -11.2, 90, T),    # NRST, by its test point
-    'Y1':     (-3.3, 5.3, 0, T),
-    'C18':    (-6.0, 5.6, 90, T),
-    'C19':    (-3.3, 7.6, 0, T),
-    # --- gyro right of the MCU (rotation fixed at 90: see circuit.py)
-    'U_IMU':  (6.8, 1.8, 90, T),
-    'R8':     (9.6, -0.6, 90, T),
-    'C20':    (9.6, 1.5, 90, T),
-    'C21':    (9.6, 3.6, 90, T),
-    'C22':    (6.8, 4.7, 0, T),
-    # --- flash in front of the MCU, pushed to the front edge so the SPI2 and
-    #     UART1 lines have a 3 mm corridor between the two packages
-    'U_FLASH': (0.0, -12.3, 0, T),
-    'C23':    (-3.3, -14.0, 90, T),    # by VCC (pin 8, front row)
-    'R9':     (-3.3, -9.9, 90, T),     # CS pull-up, by pin 1
-    # --- USB-C on the left edge
-    'J_USB':  (-12.21, 0.0, 270, T),
-    # ESD array and CC resistors hug the connector, leaving a 2 mm corridor
-    # beside the MCU's left pins (SWCLK, beeper, UART4, UART2, LEDs, BOOT0)
-    'U_ESD':  (-7.4, -3.0, 0, T),
-    'D_USB':  (-7.6, -6.4, 0, T),
-    'R10':    (-7.6, 0.2, 0, T),
-    'R11':    (-7.6, 1.3, 0, T),
-    # --- rear-left: status LED and beeper driver, kept 2.6 mm clear of the
-    #     left-edge pads so their labels fit
-    'R7':     (-5.3, 6.6, 90, T),      # BOOT0 pulldown
-    'LED_STAT': (-7.9, 6.2, 0, T),
-    'R13':    (-7.9, 7.5, 0, T),
-    'Q_BZ':   (-10.9, 7.3, 90, T),
-    # DFU button on the free right-rear edge: hold while plugging in USB
-    'SW_BOOT': (14.8, 7.4, 90, T),
-    'R14':    (-6.2, 9.4, 90, T),
-    'R15':    (-7.3, 9.4, 90, T),
-    # --- 5 V BEC, front-right (VBAT comes forward from the ESC lead).
-    #     Buck at 90 deg: GND/SW/VIN on its right, CB/EN/FB on its left.
-    'U_BUCK': (6.8, -8.0, 90, T),
-    'L1':     (10.3, -6.4, 0, T),
-    'C3':     (7.0, -11.2, 0, T),
-    'C4':     (9.3, -10.2, 90, T),
-    'C5':     (6.8, -5.7, 0, T),
-    'C6':     (11.8, -3.0, 90, T),
-    'C7':     (13.9, -3.0, 90, T),
-    'R5':     (4.2, -9.6, 90, T),
-    'R6':     (4.2, -11.6, 90, T),
-    # --- 3.3 V LDO, rear-right
-    'U_LDO':  (6.4, 7.6, 0, T),
-    'C8':     (6.4, 10.0, 0, T),
-    'C9':     (9.2, 7.4, 90, T),
-    # --- battery voltage and current inputs, beside the ESC lead
-    'R3':     (-6.4, 11.8, 90, T),
-    'R4':     (-7.5, 11.8, 90, T),
-    'C2':     (-8.6, 11.8, 90, T),
-    'R1':     (6.4, 12.0, 90, T),
-    'R2':     (7.5, 12.0, 90, T),
-    'C1':     (8.6, 12.0, 90, T),
-    # --- ESC lead at the rear edge, opening outwards
-    'J_ESC':  (0.0, 13.5, 0, T),
-    'LED_PWR':  (11.2, 4.6, 90, T),
-    'R12':      (12.3, 4.6, 90, T),
-    # --- solder pads.  Left edge, front: receiver (5 V, G, UART2).
-    #     Front edge: UART4 left of the flash, UART1 right of it.
-    'P_RX5V': (-15.8, -10.0, 90, T), 'P_RXG': (-15.8, -8.6, 90, T),
-    'P_R2':   (-15.8, -7.2, 90, T),  'P_T2':  (-15.8, -5.8, 90, T),
-    'P_T4':   (-7.0, -15.8, 0, T),  'P_R4':  (-5.6, -15.8, 0, T),
-    'P_R1':   (4.4, -15.8, 0, T),   'P_T1':  (5.8, -15.8, 0, T),
-    # right edge: 3.3 V / GND / 5 V for accessories, SWD
-    'P_3V3':  (15.8, -1.4, 90, T), 'P_G3':  (15.8, 0.0, 90, T), 'P_5V': (15.8, 1.4, 90, T),
-    'TP_SWDIO': (-5.0, -8.4, 0, T), 'TP_SWCLK': (-5.0, -9.8, 0, T), 'TP_NRST': (-5.0, -11.2, 0, T),
-    # left edge, rear: LED strip, buzzer, ground
-    'P_G1':   (-15.8, 5.8, 90, T), 'P_BZ+': (-15.8, 7.2, 90, T),
-    'P_BZ-':  (-15.8, 8.6, 90, T), 'P_LED': (-15.8, 10.0, 90, T),   # LED last: its label needs the room
-    'P_VBAT': (-8.4, 15.8, 0, T),  'P_G2':  (-7.0, 15.8, 0, T),
-    # --- mounting
+    #   rear  (1-12)  crystal, NRST, MOTOR1-4, gyro INT      -> ESC lead
+    #   right (13-24) SPI1 gyro, ADC, VDDA/VREF, TLM         -> gyro
+    #   front (25-36) SPI2 flash + OSD, UART1, USB, SWDIO     -> flash, OSD, USB
+    #   left  (37-48) SWCLK, beeper, UART4, UART2, VTX switch,
+    #                 LED strip, LED0, BOOT0                  -> left pads
+    'U_FC':    (-1.0, 1.1, 0, T),
+    # gyro right of the MCU, rotation fixed at 90 (circuit.py, firmware CW270)
+    'U_IMU':   (5.2, 2.2, 90, T),
+    # OSD in front of the MCU: SPI towards it, video towards the front pads
+    'U_OSD':   (-1.0, -8.8, 0, T),
+    'U_FLASH': (6.75, -8.6, 0, T),
+    'Y1':      (-2.2, 7.5, 0, T),
+    'Y2':      (-8.1, -6.6, 270, T),
+    'J_USB':   (-12.21, 0.0, 270, T),
+    # ESD array diagonally in front of the MCU's left pins: D- on its
+    # left column, D+ on its right, so the two lines leave its front row
+    # nested, D- outside, towards pins 33/34
+    'U_ESD':   (-6.8, -3.6, 180, T),
+    # under the USB-C (bottom): VBUS diode
+    'D_USB':   (-13.2, 1.3, 180, Bo),
+    'J_ESC':   (-1.0, 14.6, 0, T),
+    'P_BATG':  (6.0, 16.2, 0, T),
+    'P_BAT':   (8.5, 16.2, 0, T),
+    'J_HD':    (15.4, -4.5, 90, T),
+    'SW_BOOT': (16.3, 6.0, 90, T),
+    'SJ_SBUS': (12.0, -8.0, 90, T),
+    'Q_BZ':    (11.0, 1.2, 0, T),
+    'LED_STAT': (-7.0, 6.0, 0, T),
+    'LED_PWR':  (13.2, 5.0, 90, T),
+    'FB_OSD':  (-7.0, -9.5, 90, T),
+    # SWD (debugging only: the FC flashes over USB) on the bottom, left of
+    # the name band, near the MCU's SWD pins; reset on top
+    'TP_SWDIO': (-9.0, -6.0, 0, Bo), 'TP_SWCLK': (-9.0, -4.4, 0, Bo), 'TP_NRST': (-3.0, 10.4, 0, T),
+    # ---- solder pads.  Left edge: receiver at the front, LED strip at the rear.
+    'P_RX5V': (-PE, -10.3, 90, T), 'P_RXG': (-PE, -8.8, 90, T),
+    'P_R2':   (-PE, -7.3, 90, T),  'P_T2':  (-PE, -5.8, 90, T),
+    'P_5V':   (-PE, 6.4, 90, T), 'P_G1': (-PE, 7.9, 90, T), 'P_LED': (-PE, 9.4, 90, T),
+    # front edge: UART4, then the analog video pads under the OSD's video
+    # pins (VTX left of the camera, as VOUT is left of VIN), then UART1
+    'P_T4':    (-10.0, -PE, 0, T), 'P_R4': (-8.5, -PE, 0, T),
+    'P_VTX9V': (-6.8, -PE, 0, T), 'P_VTXG': (-5.3, -PE, 0, T), 'P_VTX': (-3.8, -PE, 0, T),
+    'P_CAM':   (-2.3, -PE, 0, T), 'P_CAMG': (-0.8, -PE, 0, T), 'P_CAM5V': (0.7, -PE, 0, T),
+    'P_T1':    (6.5, -PE, 0, T), 'P_R1': (8.0, -PE, 0, T),
+    # right edge: buzzer
+    'P_BZ+':   (PE, 0.9, 90, T), 'P_BZ-': (PE, 2.4, 90, T),
+    # ---- bottom, 9 V BEC on the right: switch pins forward to the
+    # inductor, PVIN/PGND pins back to the input capacitor
+    'U_BUCK9': at(A9, 0, 0, 0),
+    'L_9V':    at(A9, 0.5, -8.3, 90),
+    # ---- bottom, 5 V BEC at the rear: IC and inductor side by side, the
+    # IC's SW pin (front right) at the inductor's SW end, its VIN/GND pins
+    # (rear) at the input capacitor
+    'U_BUCK5': at(A5, 0, 0, 180),
+    'L_5V':    at(A5, 5.45, -0.3, 270),
+    # ---- mounting
     'H1': (-pcb.HOLE, -pcb.HOLE, 0, T), 'H2': (pcb.HOLE, -pcb.HOLE, 0, T),
     'H3': (pcb.HOLE, pcb.HOLE, 0, T),   'H4': (-pcb.HOLE, pcb.HOLE, 0, T),
 }
-# Routed first, by the in-house maze router, shortest first.
-# The flash's rear-row lines go first (straight across the corridor), then
-# the nets whose pins they box in (UART1) or that others would wall off
-# (the beeper among the left-side UARTs), so their vias land at the pin.
-PREROUTE = ['HSE_IN', 'HSE_OUT', 'FLASH_CS', 'SPI2_MISO', 'UART1_TX', 'UART1_RX', 'BEEPER', 'LED0',
-            'SPI2_MOSI', 'SPI2_SCK', 'GYRO_INT', 'SPI1_SCK', 'SPI1_MISO', 'SPI1_MOSI', 'GYRO_CS',
-            'USB_DP', 'USB_DM', 'M1_SIG', 'M2_SIG', 'M3_SIG', 'M4_SIG']
-CLMAP = {k: 0.15 for k in ('VBAT', '+5V', 'USB_VBUS', 'BUCK_SW', '+3V3_GYRO', 'BUCK_CB')}
+# Passives, by their circuit.py note; a list for notes that repeat (in
+# circuit order).
+PLACE_BY_NOTE = {
+    # battery: bulk capacitor on the top VBAT pour, TVS at its left end
+    'VBAT bulk':            (5.3, 9.3, 90, T),
+    'VBAT TVS':             (-8.2, 13.8, 90, T),
+    # current and battery-voltage dividers and filters: right front, clear
+    # of the gyro
+    'CUR default low':      (10.6, -3.4, 0, T),
+    'CUR RC filter':        [(10.6, -2.4, 0, T), (10.6, -1.4, 0, T)],
+    'VBAT divider top':     (12.4, -3.4, 0, T),
+    'VBAT divider bottom':  (12.4, -2.4, 0, T),
+    'VBAT filter':          (12.4, -1.4, 0, T),
+    # 5 V BEC: hot loop (input capacitor, IC, bootstrap) fixed to the IC
+    '5V BEC input HF':      at(A5, 0.63, 4.55, 0),
+    '5V BEC bootstrap':     at(A5, 1.27, -4.5, 0),
+    '5V BEC input':         at(A5, -4.4, -0.9, 90),
+    '5V BEC 1 MHz':         at(A5, -3.5, 2.5, 90),
+    '5V BEC output':        [(6.2, 14.3, 270, Bo), (6.2, 10.7, 90, Bo), (8.4, 12.5, 90, Bo)],
+    '5V BEC feedback top':  at(A5, -2.4, -4.5, 0),
+    '5V BEC feedback bottom': at(A5, -2.4, -5.5, 0),
+    '3.3V LDO':             (8.4, 8.0, 0, Bo),
+    'LDO in':               (8.4, 9.6, 0, Bo),
+    'LDO out':              (8.4, 6.5, 0, Bo),
+    # 9 V BEC: input capacitors behind PVIN/PGND, the pin-6..11 parts in
+    # the strip between the IC and the inductor, feedback at FB (right)
+    '9V BEC input HF':      at(A9, -1.0, 3.2, 180),
+    '9V BEC input':         (11.5, 7.2, 0, T),
+    '9V BEC bootstrap':     at(A9, -0.3, -3.25, 180),
+    '9V BEC BIAS':          at(A9, 2.3, -3.25, 0),
+    '9V BEC 994 kHz':       at(A9, 4.0, -3.0, 90),
+    '9V BEC VCC':           at(A9, 2.8, 3.2, 0),
+    '9V BEC UVLO top':      at(A9, 2.6, 4.3, 0),
+    '9V BEC UVLO bottom':   at(A9, 3.6, 5.0, 90),
+    'VTX power switch':     (12.2, 3.8, 0, T),
+    'VTX switch gate':      (10.0, 3.4, 90, T),
+    'VTX switch gate pulldown': (10.0, 5.2, 90, T),
+    '9V BEC output':        [(9.0, -2.4, 270, Bo), (9.0, -6.0, 90, Bo), (9.0, -9.4, 90, Bo), (16.0, -8.9, 0, Bo)],
+    '9V BEC feedback top':  at(A9, 4.1, -2.4, 90),
+    '9V BEC feedback bottom': at(A9, 4.1, -4.4, 90),
+    # MCU decoupling, in line with its own supply pin
+    # (pin 35's under the MCU's front-left corner, on the bottom: the
+    # strip in front of the MCU stays free for its front pins' lines)
+    'U_FC pin 1 VBAT':      (-3.75, 5.8, 90, T),
+    'U_FC pin 23 VDD':      (3.9, -1.15, 0, T),
+    'U_FC pin 35 VDD':      (-4.4, -3.9, 0, Bo),
+    'U_FC pin 48 VDD':      (-5.7, 3.85, 0, T),
+    'U_FC pin 20/21 VREF+/VDDA': (3.9, -0.15, 0, T),
+    'U_FC VDDA bulk':       (5.6, -0.6, 0, T),
+    'U_FC bulk':            (-5.7, 4.9, 0, T),
+    'U_FC reset filter':    (-0.75, 5.9, 90, T),
+    'crystal load':         [(-4.2, 7.5, 90, T), (-0.2, 7.5, 90, T)],
+    'BOOT0 pulldown':       (-5.7, 2.85, 0, T),
+    # gyro filter and decoupling, at its supply pins (right and front)
+    'gyro supply filter':   (8.6, 2.2, 90, T),
+    'gyro VDD bulk':        (9.6, 2.2, 90, T),
+    'gyro VDD':             (7.4, 2.6, 90, T),
+    'gyro VDDIO':           (6.2, 0.1, 0, T),
+    # flash; the chip-select pull-ups on the bottom, the strip in front of
+    # the MCU stays free
+    'flash':                (4.2, -13.0, 0, T),
+    'flash CS pullup':      (3.45, -10.9, 90, Bo),
+    'OSD CS pullup':        (2.3, -10.9, 90, Bo),
+    # OSD: supply filter at its rear-left, decoupling and the video parts
+    # on the bottom under its front pins, so the pads' labels keep the
+    # band between it and the front edge
+    'OSD bulk':             (-8.2, -11.0, 90, T),
+    'OSD DVDD':             (-6.9, -5.6, 0, T),
+    'OSD AVDD':             (0.0, -10.9, 90, Bo),
+    'OSD PVDD':             (-3.45, -10.9, 90, Bo),
+    'OSD reset pullup':     (1.15, -10.9, 90, Bo),
+    'camera termination':   (-1.15, -10.9, 90, Bo),
+    'camera coupling':      (-2.3, -10.9, 90, Bo),
+    'VTX back-termination': (-4.6, -10.9, 90, Bo),
+    # USB: CC resistors under the connector (bottom)
+    'CC1 Rd':               (-13.2, -1.2, 0, Bo),
+    'CC2 Rd':               (-13.2, -0.1, 0, Bo),
+    # LEDs, beeper
+    'power LED':            (13.2, 7.0, 90, T),
+    'status LED':           (-7.0, 7.7, 0, T),
+    'beeper gate':          (11.0, 3.0, 0, T),
+    'beeper gate pulldown': (11.0, 4.0, 0, T),
+}
+# parts that stay exactly where the tables put them; the rest are hints
+# for the packer
+FIXED_REFS = {'U_FC', 'U_IMU', 'U_OSD', 'U_FLASH', 'J_USB', 'J_ESC', 'J_HD', 'SW_BOOT', 'P_BAT', 'P_BATG',
+              'L_9V', 'U_BUCK9', 'U_BUCK5', 'L_5V', 'D_USB'}
+FIXED_NOTES = {'5V BEC input HF', '5V BEC bootstrap', '5V BEC input', '5V BEC 1 MHz', '5V BEC output',
+               '9V BEC input HF', '9V BEC input', '9V BEC bootstrap', '9V BEC VCC', '9V BEC output',
+               'VBAT bulk', 'VBAT TVS', 'CC1 Rd', 'CC2 Rd'}
 
-FIXED = {'U_FC', 'J_USB', 'J_ESC', 'U_IMU', 'U_FLASH'} | {k for k in PLACE if k.startswith(('P_', 'H'))}
-EDGE_OK = {'J_USB'}
 
-def build(out_path):
-    b = pcb.new_board(4)
+def placement(comps):
+    place = dict(PLACE)
+    seen = {}
+    for c in comps:
+        if c.ref in place:
+            continue
+        if c.note not in PLACE_BY_NOTE:
+            raise KeyError('no placement for %s (%s)' % (c.ref, c.note))
+        p = PLACE_BY_NOTE[c.note]
+        if isinstance(p, list):
+            k = seen.get(c.note, 0); seen[c.note] = k + 1
+            p = p[k]
+        place[c.ref] = p
+    return place
+
+
+def fixed(comps):
+    return (FIXED_REFS | {c.ref for c in comps if c.ref.startswith(('P_', 'H'))}
+            | {c.ref for c in comps if c.note in FIXED_NOTES and c.ref not in PLACE})
+
+
+def _rects(poly):
+    """A rectilinear polygon as covering rectangles (its horizontal slabs)."""
+    ys = sorted(set(p[1] for p in poly))
+    out, n = [], len(poly)
+    for y0, y1 in zip(ys, ys[1:]):
+        ym = (y0 + y1) / 2
+        xs = sorted(ax for (ax, ay), (bx, by) in ((poly[i], poly[(i + 1) % n]) for i in range(n))
+                    if ax == bx and min(ay, by) < ym < max(ay, by))
+        out += [(x0, y0, x1, y1) for x0, x1 in zip(xs[::2], xs[1::2])]
+    return out
+
+
+# Kept free of parts on top: the strip between the MCU's front pins and
+# the OSD (their lines), the bands inboard of the edge pads (their labels).
+KEEP_FREE = [
+    (T, (-5.4, -5.0, 3.6, -3.0)),          # MCU front strip
+    (T, (-11.5, -15.7, 1.4, -12.8)),       # front pads' labels
+    (T, (5.8, -15.7, 8.7, -13.5)),
+    (T, (-15.8, -11.0, -12.8, -5.1)),      # left pads' labels
+    (T, (-15.8, 5.7, -12.8, 10.1)),
+    (T, (12.6, 0.2, 15.8, 3.1)),           # buzzer pads' labels
+    (T, (-12.4, 5.4, -8.4, 10.2)),         # the OffGrid mark
+    (Bo, (-10.0, -17.7, 10.0, -12.5)),     # the lockup (bottom, front band)
+    (Bo, (-7.0, -3.0, 7.0, 4.6)),          # the board's name (bottom, under the MCU)
+]
+
+
+def reserved():
+    """Board regions (side, bbox) the packer keeps free: the power pours
+    and the power vias (both sides), and KEEP_FREE."""
+    out = [(side, r) for net, side, poly in pours() if net != 'GND' for r in _rects(poly)] + KEEP_FREE
+    # the production panel's tab zones along the edges, near the corners
+    out += [(side, z) for z in pcb.tab_zones() for side in (T, Bo)]
+    for net, pts in vias():
+        for x, y in pts:
+            for side in (T, Bo):
+                out.append((side, (x - 0.35, y - 0.35, x + 0.35, y + 0.35)))
+    return out
+
+
+def build_placed(out_path, legal=True, strict=True):
+    b = pcb.new_board(LAYERS)
     pcb.outline(b)
     comps = circuit.build('fc')
-    import legalize
-    place, left = legalize.legalize(comps, PLACE, FIXED, edge_ok=EDGE_OK)
+    place = placement(comps)
+    if legal:
+        import legalize
+        two_pad = lambda c: c.ref[:1] in 'RC' and c.note not in FIXED_NOTES
+        place, left = legalize.pack(comps, place, fixed(comps), rotatable=two_pad, reserved=reserved())
+        if left and strict:
+            raise SystemExit('no room for %s' % left)
     fps = pcb.place_components(b, comps, place)
+    b.Save(out_path)
+    return b, comps, fps
+
+
+# ============================================================ power copper
+# Zones connect solidly (no spokes): these carry the supplies' current.
+VIA_PWR = (0.5, 0.25)
+
+
+def _rel(a, pts):
+    return [(round(a[0] + x, 3), round(a[1] + y, 3)) for x, y in pts]
+
+
+def pours():
+    """(net, side, polygon) of every power pour, board mm."""
+    return [
+        # top: battery.  Pin 1 of the ESC lead and the P_BAT pad joined
+        # behind the lead's pins; a leg down inside the rear-right hole to
+        # the 9 V BEC's vias and bulk capacitor; arms to the battery bulk
+        # capacitor and the TVS
+        ('VBAT', T, [(-5.0, 12.2), (-4.0, 12.2), (-4.0, 13.75), (3.9, 13.75), (3.9, 11.4), (7.4, 11.4),
+                     (7.4, 8.45), (14.9, 8.45), (14.9, 9.55), (9.5, 9.55), (9.5, 17.4), (7.4, 17.4),
+                     (7.4, 14.95), (-3.8, 14.95), (-3.8, 17.4), (-5.0, 17.4), (-5.0, 15.35), (-7.5, 15.35),
+                     (-7.5, 16.15), (-8.9, 16.15), (-8.9, 14.75), (-5.0, 14.75)]),
+        # 5 V BEC (bottom, relative to its IC): input round the back of
+        # its VIN/EN pins and the input capacitors, switch node to the
+        # inductor, ground at the IC's GND pin and the HF capacitor
+        ('VBAT', Bo, _rel(A5, [(-5.9, -0.15), (-4.25, -0.15), (-4.25, 3.85), (-0.95, 3.85), (-0.95, 3.2),
+                               (0.95, 3.2), (0.95, 5.45), (-5.9, 5.45)])),
+        ('BUCK5_SW', Bo, _rel(A5, [(1.3, -4.9), (2.3, -4.9), (2.3, -3.75), (7.0, -3.75), (7.0, -1.6),
+                                   (1.3, -1.6)])),
+        ('GND', Bo, _rel(A5, [(1.2, 1.6), (3.4, 1.6), (3.4, 5.45), (1.2, 5.45)])),
+        ('+5V', Bo, [(0.8, 11.2), (7.1, 11.2), (7.1, 12.8), (9.0, 12.8), (9.0, 14.0), (7.1, 14.0),
+                     (7.1, 13.9), (0.8, 13.9)]),
+        # 9 V BEC (bottom, relative to its IC)
+        ('VBAT', Bo, _rel(A9, [(-0.75, 1.55), (0.72, 1.55), (0.72, 2.9), (2.2, 2.9), (2.2, 4.55),
+                               (-0.9, 4.55), (-0.9, 2.5), (-0.75, 2.5)])),
+        ('BUCK9_SW', Bo, _rel(A9, [(-2.9, -1.95), (-0.37, -1.95), (-0.37, -3.95), (2.35, -3.95),
+                                   (2.35, -6.7), (-1.35, -6.7), (-1.35, -3.95), (-2.9, -3.95)])),
+        ('GND', Bo, _rel(A9, [(-3.3, 0.6), (-1.05, 0.6), (-1.05, 4.3), (-3.3, 4.3)])),
+        # 9 V: the inductor's output end, the output capacitors (left
+        # column and front right) and the vias up to the HD connector
+        ('+9V', Bo, [(8.3, -2.85), (11.6, -2.85), (11.6, -4.85), (15.7, -4.85), (15.7, -9.75), (13.5, -9.75),
+                     (13.5, -7.9), (11.6, -7.9), (11.6, -9.1), (8.3, -9.1), (8.3, -8.0), (9.93, -8.0),
+                     (9.93, -5.6), (8.3, -5.6)]),
+        # top: from those vias to pin 1 of the HD connector
+        ('+9V', T, [(13.3, -8.75), (15.2, -8.75), (15.2, -6.5), (13.3, -6.5)]),
+    ]
+
+
+def vias():
+    """(net, [(x, y)]) of the power vias."""
+    return [
+        ('VBAT', [(-4.4, 16.55), (-4.4, 17.25)]),                   # top pour to the 5 V BEC
+        ('VBAT', [(12.7, 9.1), (13.5, 9.1), (14.3, 9.1)]),           # top pour to the 9 V BEC
+        ('+9V', [(13.9, -8.3), (14.7, -8.3)]),                      # 9 V to the HD connector (pin 1 above)
+    ]
+
+
+def power_copper(b):
+    k = 0
+    for net, side, poly in pours():
+        layer = pcbnew.F_Cu if side == T else pcbnew.B_Cu
+        pcb.zone(b, net, layer, poly, clearance=0.2, min_width=0.2, priority=2 if net == 'GND' else 3,
+                 thermal=False, name='%s pour' % net)
+    for net, pts in vias():
+        for x, y in pts:
+            v = pcb.via(b, x, y, net, d=VIA_PWR[0], drill=VIA_PWR[1]); v.SetLocked(True)
+            k += 1
+    return k
+
+
+def routing_keepouts(b):
+    """Rule areas (no tracks, no vias) over the power pours, added only to
+    the copy of the board handed to Freerouting, which treats pours as
+    planes other nets may cross.  Plus a 0.3 mm strip along each edge and
+    over each mounting slot (Freerouting keeps only its own clearance from
+    the outline)."""
+    k = 0
+    for net, side, poly in pours():
+        layer = pcbnew.F_Cu if side == T else pcbnew.B_Cu
+        pcb.rule_area(b, poly, [layer], tracks=True, vias=True, pads=False, pours=False, name='pour keepout')
+        k += 1
+    h, w = pcb.HALF, 0.3
+    cu = [l for l in CU if b.IsLayerEnabled(l)]
+    for x0, y0, x1, y1 in ((-h, -h, h, -h + w), (-h, h - w, h, h), (-h, -h, -h + w, h), (h - w, -h, h, h)):
+        pcb.rule_area(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], cu, tracks=True, vias=True, pads=False,
+                      pours=False, name='edge keepout')
+        k += 1
+    a = pcb.SLOT_W / 2 + w
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            d = (sx / math.sqrt(2), sy / math.sqrt(2)); nn = (sx / math.sqrt(2), -sy / math.sqrt(2))
+            c = (sx * pcb.HOLE, sy * pcb.HOLE)
+            pts = [(c[0] + t * d[0] + s_ * a * nn[0], c[1] + t * d[1] + s_ * a * nn[1])
+                   for t, s_ in ((0, 1), (8.5, 1), (8.5, -1), (0, -1))]
+            pcb.rule_area(b, pts, cu, tracks=True, vias=True, pads=False, pours=False, name='slot keepout')
+            k += 1
+    return k
+
+
+# The USB-C land (GCT's) puts its GND contact pads 0.18 mm from its own
+# locating-peg holes; accept that inside the connector only.
+DRU_EXTRA = ''
+
+# ============================================================ board
+LAYERS = 4
+if LAYERS == 4:
+    CU = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+    ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.B_Cu]
+    PLANES = [('GND', pcbnew.In1_Cu), ('+3V3', pcbnew.In2_Cu)]
+else:
+    CU = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
+    ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
+    PLANES = [('GND', pcbnew.In1_Cu), ('+3V3', pcbnew.In4_Cu)]
+# Router widths (netclasses): supplies 0.4 mm, local supply filters 0.25.
+POWER = ['VBAT', '+5V', '+9V', 'USB_VBUS', 'BUCK5_SW', 'BUCK9_SW']
+POWER_LO = ['+3V3_GYRO', '+3V3_OSD', 'BUCK5_CB', 'BUCK9_CB', 'BUCK9_VCC']
+# Routed first, by the in-house maze router, shortest first: the crystals,
+# the gyro's SPI, the video lines and USB, while their area is still open.
+# The gyro's MISO and MOSI run straight across, so they go before SCK,
+# which has to cross them.
+PREROUTE = ['HSE_IN', 'HSE_OUT', 'OSD_XI', 'OSD_XO', 'OSD_VIN', 'CAM_VIDEO', 'OSD_VOUT', 'VTX_VIDEO',
+            'SPI1_MISO', 'SPI1_MOSI', 'GYRO_CS', 'GYRO_INT', 'SPI1_SCK', 'USB_DP', 'USB_DM']
+CLMAP = {k: 0.15 for k in POWER}
+
+
+def widths(comps):
+    """Track width per net for the finishing routers (pipeline.py)."""
+    return dict({n: 0.4 for n in POWER}, **{n: 0.25 for n in POWER_LO})
+
+
+def clearances(comps):
+    return {n: 0.15 for n in widths(comps)}
+
+
+def build(out_path):
+    b, comps, fps = build_placed(out_path)
     pcb.usb_c_tie(b, fps['J_USB'])
     # USBLC6-2SC6 is flow-through: pins 1/6 and 3/4 are the same line.
     # Join each pair straight under the package.
     esd = {p.GetNumber(): p for p in fps['U_ESD'].Pads()}
+    esd_layer = pcbnew.B_Cu if fps['U_ESD'].IsFlipped() else pcbnew.F_Cu
     for a, c in (('1', '6'), ('3', '4')):
         pa, pc = esd[a].GetPosition(), esd[c].GetPosition()
         pcb.track(b, [(pa.x / 1e6 - pcb.CX, pa.y / 1e6 - pcb.CY), (pc.x / 1e6 - pcb.CX, pc.y / 1e6 - pcb.CY)],
-                  0.2, pcbnew.F_Cu, esd[a].GetNetname())
-    cu = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
-    pcb.hole_keepouts(b, cu)
+                  0.2, esd_layer, esd[a].GetNetname())
+    pcb.hole_keepouts(b, CU)
+    pcb.tab_keepouts(b, CU)
     e = pcb.HALF - 0.35
     full = [(-e, -e), (e, -e), (e, e), (-e, e)]
-    # In1: unbroken ground under everything
-    pcb.zone(b, 'GND', pcbnew.In1_Cu, full, name='GND plane')
-    b.SetLayerType(pcbnew.In1_Cu, pcbnew.LT_POWER)
-    b.SetLayerType(pcbnew.In2_Cu, pcbnew.LT_POWER)
-    # In2: unbroken 3.3 V under everything
-    pcb.zone(b, '+3V3', pcbnew.In2_Cu, full, name='3V3 plane')
-    # VBAT and 5 V are short, few-pin runs: wide tracks, not planes.
-    pcb.netclass(b, 'PWR', ['VBAT', '+5V', 'USB_VBUS', 'BUCK_SW'], width=0.4, clearance=0.15)
-    pcb.netclass(b, 'PWR_LO', ['+3V3_GYRO', 'BUCK_CB'], width=0.25, clearance=0.15)
+    # unbroken ground and 3.3 V planes under everything
+    for net, layer in PLANES:
+        pcb.zone(b, net, layer, full, name='%s plane' % net)
+    for l in CU[1:-1]:
+        b.SetLayerType(l, pcbnew.LT_POWER if l in [p[1] for p in PLANES] else pcbnew.LT_SIGNAL)
+    print('power vias:', power_copper(b))
+    pcb.netclass(b, 'PWR', POWER, width=0.4, clearance=0.15)
+    pcb.netclass(b, 'PWR_LO', POWER_LO, width=0.25, clearance=0.15)
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     import fanout, finish
     e2 = pcb.HALF - 0.4
-    n, failed = fanout.fanout(b, {'GND', '+3V3'}, (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2))
-    print('fanout: %d plane vias, %d pads without one: %s' % (n, len(failed), failed))
+    bounds = (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2)
+    # plane vias: the supplies' exposed pads on a 1 mm grid (heat), the
+    # signal ICs' on a 1.6 mm grid, so tracks still pass under them
+    bec = {'U_BUCK5', 'U_BUCK9', 'U_LDO'}
+    n1, f1 = fanout.fanout(b, {'GND', '+3V3'}, bounds, skip={c.ref for c in comps} - bec, ep_pitch=1.0)
+    n2, f2 = fanout.fanout(b, {'GND', '+3V3'}, bounds, skip=bec, ep_pitch=1.6)
+    print('fanout: %d plane vias, pads without one: %s' % (n1 + n2, f1 + f2))
     # Pre-route the short, critical nets while their area is still open,
     # and lock them so the autorouter works around them.
     left = {}
     for net in PREROUTE:
         left[net] = finish.route_net(b, net, clmap=CLMAP)
     print('pre-routed %d nets, unfinished: %s' % (len(PREROUTE), {k: v for k, v in left.items() if v}))
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     b.Save(out_path)
     return b
 
+
 if __name__ == '__main__':
     import sys
-    build(sys.argv[1] if len(sys.argv) > 1 else '/tmp/fc.kicad_pcb')
+    if '--full' in sys.argv:
+        build(sys.argv[1])
+    else:
+        build_placed(sys.argv[1] if len(sys.argv) > 1 else '/tmp/fc.kicad_pcb', legal='--nolegal' not in sys.argv,
+                     strict=False)
+
 
 # ---------------------------------------------------------------- artwork
 LABELS = [
-    ('P_T4', 'T4'), ('P_R4', 'R4'), ('P_R1', 'R1'), ('P_T1', 'T1'),
+    ('P_T4', 'T4'), ('P_R4', 'R4'), ('P_T1', 'T1'), ('P_R1', 'R1'),
     ('P_RX5V', '5V'), ('P_RXG', 'G'), ('P_R2', 'R2'), ('P_T2', 'T2'),
-    ('P_3V3', '3V3'), ('P_G3', 'G'), ('P_5V', '5V'),
-    ('P_G1', 'G'), ('P_BZ+', '5V'), ('P_BZ-', 'BZ-'), ('P_LED', 'LED'),   # buzzer: 5V and BZ-
-    ('P_VBAT', 'VB'), ('P_G2', 'G'),
+    ('P_5V', '5V'), ('P_G1', 'G'), ('P_LED', 'LED'),
+    ('P_BZ+', '5V'), ('P_BZ-', 'BZ-'),                                    # buzzer: 5V and BZ-
+    ('P_VTX9V', '9V'), ('P_VTXG', 'G'), ('P_VTX', 'VTX'),
+    ('P_CAM', 'CAM'), ('P_CAMG', 'G'), ('P_CAM5V', '5V'),
+    ('P_BAT', 'BAT'), ('P_BATG', 'G'),
     ('TP_SWDIO', 'DIO'), ('TP_SWCLK', 'CLK'), ('TP_NRST', 'RST'),
 ]
 
+
 def artwork(b):
     """OffGrid silkscreen: codes in JetBrains Mono, words in Instrument Sans,
-    the lockup on the empty bottom, the bare mark on the top."""
+    the bare mark and the front arrow on the top; the lockup and what the
+    board is on the bottom, on the centre line."""
     import artwork as A, brand
     A.hide_fields(b)
     A.strip(b)
     top = A.SilkPlacer(b, 'T', brand=True, via_clear=0.1, bodies=True)
     # 1.2 mm capitals, 1.1 at the least: at weight 500 that keeps the
-    # median stroke of every glyph over the fabs' 0.15 mm silkscreen floor
-    # pad names are signal codes: JetBrains Mono; words (Boot, Front) are
-    # Instrument Sans.  RST has the least room, so it goes first.
+    # median stroke of every glyph over the fabs' 0.15 mm silkscreen floor.
+    # RST has the least room, so it goes first.
+    side = {fp.GetReference(): ('B' if fp.IsFlipped() else 'T') for fp in b.GetFootprints()}
     for ref, s in sorted(LABELS, key=lambda rs: rs[0] != 'TP_NRST'):
-        top.label(ref, s, size=1.2, smallest=1.1, face='mono')
+        if side[ref] == 'T':
+            top.label(ref, s, size=1.2, smallest=1.1, face='mono')
     top.label('J_ESC', '1', pad='1', dist=0.8, size=1.2, face='mono')
+    top.label('J_HD', '1', pad='1', dist=0.8, size=1.2, face='mono')
     top.label('SW_BOOT', 'Boot', pad='1', size=1.2)
     everywhere = top.grid_spots((0.0, 0.0), radius=17.0, step=0.25)
     if not top.geom(brand.arrow_mm(2.6, 'Front', cap=1.2, side=True), [s for s in everywhere if s[1] < -8],
@@ -201,22 +494,34 @@ def artwork(b):
     top.geom(mark, everywhere, clear=clear, vias='fewest')
 
     bot = A.SilkPlacer(b, 'B', brand=True, via_clear=0.1)
-    # three bands are free on the bottom: between the front holes (the
-    # lockup), between the USB-C shell tabs and the far edge (the arrow),
-    # and between the rear holes (what the board is).  The lockup and the
-    # name sit exactly on the board's centre line: only their height may
-    # move to clear a via or a part.
-    g, clear = brand.lockup_mm(20.0, mirror=True)
-    bot.geom(g, [(0.0, y) for y in (-9.5, -9.25, -9.75, -9.0, -10.0, -8.75, -8.5)], clear=clear, vias='fewest')
-    bot.geom(brand.arrow_mm(6.0, 'Front', cap=1.2, mirror=True),
-             [(x, y) for x in (13.0, 13.25, 12.75, 13.5, 12.5) for y in (0.0, 0.5, -0.5, 1.0, -1.0)], vias='fewest')
+    # The bottom carries the supplies at the rear and right.  Two bands
+    # are kept free on the centre line: the front edge (the lockup) and
+    # under the MCU (what the board is).  The lockup and the name sit
+    # exactly on the centre line: only their height may move to clear a via
+    # or a part.
+    for w in (20.0, 18.0, 16.0):
+        g, clear = brand.lockup_mm(w, mirror=True)
+        h = g.bounds[3] - g.bounds[1]
+        y0 = -pcb.HALF + 0.35 + 0.4 + h / 2 + 0.01       # edge, then the placer's 0.4 mm margin
+        if bot.geom(g, [(0.0, y0 + 0.05 * k) for k in range(30)], clear=clear, vias='fewest', quiet=True):
+            break
+    # the front arrow: along the left edge, under the USB-C (with its
+    # word if there is room)
+    spots = [(x, y) for x in (-16.2, -16.0, -15.8, -15.6) for y in (0.0, -0.5, 0.5, -1.0, 1.0)]
+    if not bot.geom(brand.arrow_mm(5.0, 'Front', cap=1.2, mirror=True, side=True), spots, vias='fewest',
+                    margin=0.2, quiet=True):
+        bot.geom(brand.arrow_mm(5.0, mirror=True), spots, vias='fewest', margin=0.2)
     # what the board is: the product name, then the firmware to flash
-    base = 6.9
+    base = -0.8
     for runs, cap, step in (([('sans', PRODUCT)], 2.4, 2.2),
                             ([('sans', 'Flight controller')], 1.2, 1.9),
                             ([('mono', FIRMWARE)], 1.1, 0)):
         g0 = brand.line(runs, cap)[0].bounds
         mid = (g0[1] + g0[3]) / 2           # box centre below the baseline
-        spots = [(0.0, base + mid + dy, 0, None) for dy in (0.0, 0.1, -0.1, 0.2)]
+        spots = [(0.0, base + mid + dy, 0, None) for dy in (0.0, 0.1, -0.1, 0.2, 0.3, 0.4, 0.6, 0.8)]
         if bot.text(runs, spots, size=cap, vias='fewest'):
             base = bot.placed[-1].centroid.y - pcb.CY - mid + step
+    # the bottom's pad names (SWD), after the name has its place
+    for ref, s in LABELS:
+        if side[ref] == 'B':
+            bot.label(ref, s, size=1.2, smallest=1.1, face='mono')

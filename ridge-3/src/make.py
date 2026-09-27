@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Build the Cheap Drone stack v1: every committed output, with gates.
+"""Build the Ridge 3 stack (flight controller + 4-in-1 ESC): every committed output, with gates.
 
     python3 make.py              outputs from the committed .kicad_pcb files
     python3 make.py --artwork    lay the silkscreen and stackup out again first
@@ -77,7 +77,7 @@ def artwork(dst, board):
     else:
         L.artwork(b, circuit.build(board))
     b.Save(dst)
-    pcb.set_stackup(dst)
+    pcb.set_stackup(dst, getattr(L, 'INNER_OZ', 0.5))
 
 
 def make_panel(board, name, dst):

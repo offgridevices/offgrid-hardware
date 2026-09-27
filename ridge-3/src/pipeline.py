@@ -46,13 +46,12 @@ def run(board_name, work, passes=None, log=print):
     passes = passes or (15 if board_name == 'esc' else 60)      # Freerouting passes per round
     if board_name == 'fc':
         import fc_layout as L
-        widths = {'VBAT': 0.4, '+5V': 0.4, 'USB_VBUS': 0.4, 'BUCK_SW': 0.4, '+3V3_GYRO': 0.25, 'BUCK_CB': 0.25}
         planes = ['GND', '+3V3']
     else:
         import esc_layout as L
-        widths = L.widths(circuit.build('esc'))
         planes = ['GND', 'VBAT']
-    clmap = L.clearances(circuit.build('esc')) if board_name == 'esc' else {n: 0.15 for n in widths}
+    widths = L.widths(circuit.build(board_name))
+    clmap = L.clearances(circuit.build(board_name))
     placed = os.path.join(work, board_name + '.kicad_pcb')
     routed = os.path.join(work, board_name + '_routed.kicad_pcb')
     fin = os.path.join(work, board_name + '_fin.kicad_pcb')
@@ -109,7 +108,7 @@ def run(board_name, work, passes=None, log=print):
         if any(v['type'] == 'hole_to_hole' for v in e):
             pofv.nudge_vias(fin, os.path.join(work, 'esc_pofv_drc.json'), clearances=clmap, log=log)
     if os.environ.get('NO_ARTWORK') == '1':
-        pcb.set_stackup(fin)
+        pcb.set_stackup(fin, getattr(L, 'INNER_OZ', 0.5))
         e, w, u = pcb.drc(fin, os.path.join(work, board_name + '_final_drc.json'))
         log('%s DRC (no artwork): %d errors %s, %d warnings %s, %d unconnected'
             % (board_name, len(e), dict(Counter(v['type'] for v in e)), len(w),
@@ -121,7 +120,7 @@ def run(board_name, work, passes=None, log=print):
     else:
         L.artwork(b, circuit.build('esc'))
     b.Save(fin)
-    pcb.set_stackup(fin)
+    pcb.set_stackup(fin, getattr(L, 'INNER_OZ', 0.5))
     e, w, u = pcb.drc(fin, os.path.join(work, board_name + '_final_drc.json'))
     log('%s DRC: %d errors %s, %d warnings %s, %d unconnected'
         % (board_name, len(e), dict(Counter(v['type'] for v in e)), len(w),

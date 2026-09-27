@@ -226,7 +226,7 @@ def step(board, out_path):
 
 FP_LIB_TABLE = """(fp_lib_table
   (version 7)
-  (lib (name "aio")(type "KiCad")(uri "${KIPRJMOD}/../aio.pretty")(options "")(descr "Cheap Drone stack footprints"))
+  (lib (name "aio")(type "KiCad")(uri "${KIPRJMOD}/../aio.pretty")(options "")(descr "Ridge 3 stack footprints"))
 )
 """
 

@@ -34,9 +34,12 @@ Why the panel looks the way it does (numbers are JLCPCB's published guidance):
   its edge on every layer, and its USB-C shell overhangs the edge by ~0.5 mm,
   which a zero-gap panel would drive into the neighbouring board.
 * Boards 2 mm apart (JLC: 1.6-2 mm, 1.2 mm minimum), 5 mm rails on the two
-  long sides (JLC minimum 5 mm process edge), 2 mm from the boards.  With
-  33.8 mm boards a 2 x 2 grid is 69.6 mm across the rail-less direction, under
-  the 70 mm minimum, so the default is 3 x 2: 105.4 x 83.6 mm, 6 boards.
+  long sides (JLC minimum 5 mm process edge), 2 mm from the boards.  The
+  36 mm boards would allow 2 x 2 (74 x 88 mm); the default is 3 x 2,
+  112 x 88 mm, 6 boards, for fewer panels per order.
+* The boards' corners are slotted for the mounting grommets: the outline
+  is taken from Edge.Cuts as drawn, and no tab goes within 1.5 mm of a
+  stretch of edge the slot has cut away.
 * Mouse bites: 0.5 mm holes at 0.85 mm pitch (0.35 mm web: JLC asks for
   0.35-0.4 mm, 0.3 mm minimum), 5 holes per tab (JLC: 5-8), 2 tabs per side
   (JLC: at least 2 sets, one more per 50-60 mm).  The holes sit in the tab,
@@ -113,17 +116,44 @@ def _mm(v):
 
 
 # ------------------------------------------------------------ board model
-def _outline(b):
-    """Board outline as (x0, y0, x1, y1) in nm; the board must be a rectangle."""
+def _shape(b):
+    """The board's outline as one shapely polygon, in nm."""
     from kikit.substrate import Substrate
     from kikit.common import collectEdges
     from kikit.defs import Layer
-    from shapely.geometry import Polygon
     g = Substrate(collectEdges(b, Layer.Edge_Cuts)).substrates
-    x0, y0, x1, y1 = g.bounds
-    if g.geom_type != 'Polygon' or abs(Polygon(g.exterior).area - (x1 - x0) * (y1 - y0)) > 1e-6 * (x1 - x0) * (y1 - y0):
-        raise SystemExit('panel.py lays out rectangular boards only; %s is not one' % b.GetFileName())
-    return tuple(int(round(v)) for v in (x0, y0, x1, y1))
+    if g.geom_type != 'Polygon':
+        raise SystemExit('panel.py lays out one-piece boards only; %s is not one' % b.GetFileName())
+    return g
+
+
+def _outline(b):
+    """Bounding box of the board outline as (x0, y0, x1, y1) in nm."""
+    return tuple(int(round(v)) for v in _shape(b).bounds)
+
+
+def outline_cutouts(b, box, step=0.05):
+    """Stretches of the bounding box's edges that are not board edge (the
+    corner slots), as edge features of kind 'outline'."""
+    from shapely.geometry import Point
+    g = _shape(b)
+    x0, y0, x1, y1 = (_mm(v) for v in box)
+    out = []
+    for side, length, at in (('top', x1 - x0, lambda t: (x0 + t, y0)), ('bottom', x1 - x0, lambda t: (x0 + t, y1)),
+                             ('left', y1 - y0, lambda t: (x0, y0 + t)), ('right', y1 - y0, lambda t: (x1, y0 + t))):
+        n = int(round(length / step))
+        on = [g.boundary.distance(Point(*(v * MM for v in at(i * step)))) < 0.01 * MM for i in range(n + 1)]
+        i = 0
+        while i <= n:
+            if on[i]:
+                i += 1
+                continue
+            j = i
+            while j + 1 <= n and not on[j + 1]:
+                j += 1
+            out.append((side, i * step, j * step, 0.0, 'slot in the outline', 'outline'))
+            i = j + 1
+    return out
 
 
 def _placed(fp):
@@ -183,7 +213,7 @@ def tab_centres(feats, sides, length, width, count, m_part, m_cu, spread=True, c
     free = [(corner, length - corner)]
     for side, lo, hi, depth, what, kind in feats:
         if side in sides:
-            m = m_part if kind == 'part' else m_cu
+            m = m_part if kind in ('part', 'outline') else m_cu
             free = _subtract(free, lo - m, hi + m)
     feas = []
     for a, b in free:
@@ -215,7 +245,7 @@ def plan_tabs(b, box, width=TAB_WIDTH):
     """Tab positions for the two edge directions, with the margins used:
     spread along the edge at the strictest margins that allow it, else at
     relaxed margins, else (flagged) wherever they fit."""
-    feats = edge_features(b, box)
+    feats = edge_features(b, box) + outline_cutouts(b, box)
     w, h = _mm(box[2] - box[0]), _mm(box[3] - box[1])
     plan = {}
     for axis, sides, length in (('x', ('top', 'bottom'), w), ('y', ('left', 'right'), h)):
@@ -760,7 +790,7 @@ def renders(pcb, out_dir, name, size):
 
 
 # ----------------------------------------------------------------- main
-def _geometry_checks(pb, box, offsets, feats):
+def _geometry_checks(pb, box, offsets, feats, shape):
     """Panel size and rail features against the JLC numbers."""
     from kikit.substrate import Substrate
     from kikit.common import collectEdges
@@ -771,7 +801,8 @@ def _geometry_checks(pb, box, offsets, feats):
     size = (round((x1 - x0) / MM, 4), round((y1 - y0) / MM, 4))
     if not (MIN_PANEL <= min(size) and max(size) <= MAX_PANEL):
         raise SystemExit('panel is %.2f x %.2f mm; JLCPCB Standard PCBA takes %g-%g mm' % (size + (MIN_PANEL, MAX_PANEL)))
-    boards = [sbox(box[0] + dx, box[1] + dy, box[2] + dx, box[3] + dy) for dx, dy in offsets.values()]
+    from shapely.affinity import translate
+    boards = [translate(shape, dx, dy) for dx, dy in offsets.values()]
     for b_ in boards:
         if not sub.buffer(1).contains(b_):
             raise SystemExit('a board copy is not inside the panel outline')
@@ -853,7 +884,7 @@ def make_panel(board_pcb, out_dir, name, cols=3, rows=2, board_name=None, rails=
     out['drc_refilled'] = _drc_summary(pdrc_r, copy_boxes)
 
     if verify:
-        out['geometry'] = _geometry_checks(pb, box, offsets, feats)
+        out['geometry'] = _geometry_checks(pb, box, offsets, feats, _shape(src))
         with tempfile.TemporaryDirectory() as tmp:
             # the single board's own outputs, made by fab exactly as make.py makes them
             fab.gerbers(board_pcb, tmp, name)

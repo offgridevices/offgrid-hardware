@@ -147,7 +147,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                           pcbnew.In4_Cu, pcbnew.B_Cu) if board.IsLayerEnabled(l)]
     obs = Obstacles(board, layers)
     rv = via_d / 2
-    placed, failed = 0, []
+    placed, failed, ep_failed = 0, [], []
     for fp in board.GetFootprints():
         fc = fp.GetPosition(); fcx, fcy = mm(fc.x), mm(fc.y)
         if fp.GetReference() in skip:
@@ -168,9 +168,13 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                 ny = max(1, int((maxy - miny - via_d) / pitch) + 1)
                 ox = (maxx + minx) / 2 - (nx - 1) * pitch / 2
                 oy = (maxy + miny) / 2 - (ny - 1) * pitch / 2
-                for i in range(nx):
-                    for j in range(ny):
-                        x, y = ox + i * pitch, oy + j * pitch
+                spots = [(ox + i * pitch, oy + j * pitch) for i in range(nx) for j in range(ny)]
+                # a pad too small for the grid's outer vias takes one at its centre
+                cx0, cy0 = (maxx + minx) / 2, (maxy + miny) / 2
+                if len(spots) > 1 and not any(pg.buffer(-0.05).contains(Point(x, y).buffer(rv)) for x, y in spots):
+                    spots = [(cx0, cy0)]
+                for x, y in spots:
+                    if True:
                         vg = Point(x, y).buffer(rv)
                         if pg.buffer(-0.05).contains(vg) and obs.clear(vg, net, layers, clearance) \
                                 and obs.via_room(x, y, via_d + 0.15) and (via_ok is None or via_ok(x, y, net)):
@@ -180,7 +184,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                             obs.netvias.append((x, y, net)); obs.holes.append((x, y, via_drill / 2))
                 placed += n
                 if n == 0:
-                    failed.append((fp.GetReference(), pad.GetNumber()))
+                    ep_failed.append((fp.GetReference(), pad.GetNumber(), pg, net))
                 continue
             # ordinary pad: candidates outward from the part first
             ang0 = math.atan2(py - fcy, px - fcx) if (abs(px - fcx) + abs(py - fcy)) > 0.05 else 0.0
@@ -324,6 +328,11 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                     board.Add(t); obs.add(sg, net, [layer]); done = True
             if not done:
                 failed.append((fp.GetReference(), pad.GetNumber()))
+    # an exposed pad with no room for a via of its own is still connected
+    # by a same-net via inside it (the far side's exposed pad's)
+    for ref, num, pg, net in ep_failed:
+        if not any(vn == net and pg.buffer(-0.05).contains(Point(vx, vy).buffer(rv)) for vx, vy, vn in obs.netvias):
+            failed.append((ref, num))
     return placed, failed
 
 

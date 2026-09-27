@@ -46,6 +46,29 @@ def through_hole(fpid):
                                for p in pcb.load_fp(fpid).Pads())
     return _pth_cache[fpid]
 
+_pad_cache = {}
+
+def pad_bbox(fpid, nums):
+    """Bbox of the named pads of a footprint at rotation 0, in mm, about
+    its origin (None if it has none of them)."""
+    key = (fpid, tuple(sorted(nums)))
+    if key not in _pad_cache:
+        bbs = [p.GetBoundingBox() for p in pcb.load_fp(fpid).Pads() if p.GetNumber() in nums]
+        _pad_cache[key] = (min(b.GetLeft() for b in bbs) / 1e6, min(b.GetTop() for b in bbs) / 1e6,
+                           max(b.GetRight() for b in bbs) / 1e6, max(b.GetBottom() for b in bbs) / 1e6) if bbs else None
+    return _pad_cache[key]
+
+def pad_boxes(fpid, rot, side):
+    """[(pad number, bbox)] of a footprint's pads at a rotation and side,
+    about its origin, and whether each pad is on both sides (plated hole)."""
+    import pcbnew
+    out = []
+    for p in pcb.load_fp(fpid).Pads():
+        b = p.GetBoundingBox()
+        bb = rot_bbox((b.GetLeft() / 1e6, b.GetTop() / 1e6, b.GetRight() / 1e6, b.GetBottom() / 1e6), rot, side)
+        out.append((p.GetNumber(), bb, p.GetAttribute() in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH)))
+    return out
+
 def boxes(comps, placement):
     allp = {**parts.PARTS, **parts.PADS}
     out = {}
@@ -144,6 +167,8 @@ def legalize(comps, placement, fixed, half=pcb.HALF, iters=400, gap=0.02, verbos
 # Deterministic: same tables, same result.
 
 CELL = 0.05
+# changing sides costs as much as being 2 mm further away (in cells squared)
+FLIP_COST = int((2.0 / CELL) ** 2)
 
 
 def _grid_setup(half):
@@ -166,7 +191,7 @@ def _sat(np, occ):
 
 
 def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0, verbose=True,
-         rotatable=None, reserved=(), priority=None, anchor=None):
+         rotatable=None, reserved=(), priority=None, anchor=None, through=None, flip=None):
     """Returns (placement, unplaced refs).  `gap` is kept between
     courtyards; `edge` between a courtyard and the board edge; hole
     keepouts are occupied on both sides; `reserved` is a list of
@@ -175,17 +200,25 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
     parts that must sit at a pin (decoupling, bootstrap) go before the
     ones that only need to be somewhere near.  `anchor(comp)` names the
     part a part belongs with (a regulator's capacitors: the regulator);
-    once the anchor is placed, the part's table position moves with it."""
+    once the anchor is placed, the part's table position moves with it.
+    `through(comp)` lists the pads that take vias to the planes in the pad
+    itself (a regulator's exposed pad): the far side of the board under
+    them must have no pad of another net (a same-net pad, such as another
+    chip's ground pad, shares the vias), and the parts placed after it
+    keep off that spot.
+    `flip(comp)` true: the part may go on the other side of the board if
+    that puts it nearer its table position by more than FLIP_COST."""
     np, n = _grid_setup(half)
     allp = {**parts.PARTS, **parts.PADS}
     occ = {'T': np.zeros((n, n), dtype=bool), 'B': np.zeros((n, n), dtype=bool)}
-    # board edge margin
-    m = int(round(edge / CELL))
-    for s in occ.values():
-        s[:m, :] = s[-m:, :] = s[:, :m] = s[:, -m:] = True
-    # hole keepouts
+    # board edge margin: everything outside the outline (the mounting
+    # slots included) shrunk by `edge` is occupied
     ys, xs = np.mgrid[0:n, 0:n]
     cx = (xs + 0.5) * CELL - half; cy = (ys + 0.5) * CELL - half
+    from shapely import vectorized
+    inside = vectorized.contains(pcb.board_polygon().buffer(-edge), cx, cy)
+    for s in occ.values():
+        s |= ~inside
     for sx in (-1, 1):
         for sy in (-1, 1):
             hole = (cx - sx * pcb.HOLE) ** 2 + (cy - sy * pcb.HOLE) ** 2 < (pcb.HOLE_KEEPOUT_R + gap) ** 2
@@ -203,6 +236,28 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
     def sides(sd):
         return ('T', 'B') if sd == 'TB' else (sd,)
 
+    # pads of the parts placed so far, for the far-side check of the
+    # through pads: foreign[(side, net)] marks every pad not on `net`
+    via_nets = set()
+    if through:
+        for c in comps:
+            via_nets |= {c.pins.get(k) for k in through(c)}
+    via_nets.discard(None)
+    foreign = {(sd, nt): np.zeros((n, n), dtype=bool) for sd in ('T', 'B') for nt in via_nets}
+    fsat = {}
+
+    def mark_pads(c, x, y, rot, side):
+        if not via_nets:
+            return
+        for num, bb, th in pad_boxes(info[c.ref][0], rot, side):
+            net = c.pins.get(num)
+            box = (x + bb[0] - gap / 2, y + bb[1] - gap / 2, x + bb[2] + gap / 2, y + bb[3] + gap / 2)
+            for s in (('T', 'B') if th else (side,)):
+                for nt in via_nets:
+                    if net != nt:
+                        _mark(foreign[(s, nt)], box, half, n)
+                        fsat.pop((s, nt), None)
+
     # fixed parts (and holes) first, exactly where they are
     for c in comps:
         if c.ref in fixed or c.ref.startswith('H'):
@@ -214,6 +269,7 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
             for s in sides(sd):
                 _mark(occ[s], (x + bb[0] - gap / 2, y + bb[1] - gap / 2, x + bb[2] + gap / 2, y + bb[3] + gap / 2),
                       half, n)
+            mark_pads(c, x, y, rot, side)
     movable = [c for c in comps if c.ref not in fixed and not c.ref.startswith('H')]
 
     def size(c):
@@ -242,30 +298,53 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
         rots = [rot]
         if rotatable and rotatable(c):
             rots.append((rot + 90) % 360)
+        # a part that may change sides tries the other one too, at a cost
+        opts = [(side, r) for r in rots]
+        if flip and flip(c) and sd != 'TB':
+            opts += [('B' if side == 'T' else 'T', r) for r in rots]
         best = None
-        for r in rots:
-            bb = rot_bbox(local_bbox(fpid), r, side)
+        for s_, r in opts:
+            sd_ = sd if sd == 'TB' else s_
+            bb = rot_bbox(local_bbox(fpid), r, s_)
             w = int(math.ceil((bb[2] - bb[0] + gap) / CELL)); h = int(math.ceil((bb[3] - bb[1] + gap) / CELL))
+            # the in-pad via pads, as a box on the far side, in cells from
+            # the part box's corner
+            far = None
+            if through and through(c) and sd != 'TB':
+                pb = pad_bbox(fpid, through(c))
+                if pb:
+                    pb = rot_bbox(pb, r, s_)
+                    far = (('B' if s_ == 'T' else 'T', c.pins.get(through(c)[0])), int(math.floor((pb[0] - bb[0]) / CELL)),
+                           int(math.floor((pb[1] - bb[1]) / CELL)),
+                           int(math.ceil((pb[2] - pb[0] + gap) / CELL)) + 1, int(math.ceil((pb[3] - pb[1] + gap) / CELL)) + 1)
             # cell index of the box's lower-left corner for the hint position
             i0 = int(round((x + bb[0] - gap / 2 + half) / CELL)); j0 = int(round((y + bb[1] - gap / 2 + half) / CELL))
             ii = i0 + di; jj = j0 + dj
             ok = (ii >= 0) & (jj >= 0) & (ii + w <= n) & (jj + h <= n)
             ii, jj, dd = ii[ok], jj[ok], (di[ok] ** 2 + dj[ok] ** 2)
             free = np.ones(len(ii), dtype=bool)
-            for s in sides(sd):
+            for s in sides(sd_):
                 S = sats[s]
                 tot = S[jj + h, ii + w] - S[jj, ii + w] - S[jj + h, ii] + S[jj, ii]
                 free &= tot == 0
+            if far:
+                fs, fi, fj, fw, fh = far
+                pi, pj = np.clip(ii + fi, 0, n - fw), np.clip(jj + fj, 0, n - fh)
+                if fs not in fsat:
+                    fsat[fs] = _sat(np, foreign[fs])
+                S = fsat[fs]
+                free &= (S[pj + fh, pi + fw] - S[pj, pi + fw] - S[pj + fh, pi] + S[pj, pi]) == 0
             if not free.any():
                 continue
             k = int(np.argmax(free))       # candidates are sorted by distance
-            cand = (int(dd[k]) + (0 if r == rot else 4), r, ii[k], jj[k], bb, w, h)
+            cand = (int(dd[k]) + (0 if r == rot else 4) + (0 if s_ == side else FLIP_COST), r, ii[k], jj[k], bb, w, h,
+                    far, s_, sd_)
             if best is None or cand[0] < best[0]:
                 best = cand
         if best is None:
             left.append(c.ref)
             continue
-        _, r, i, j, bb, w, h = best
+        _, r, i, j, bb, w, h, far, side, sd = best
         nx = i * CELL - half - bb[0] + gap / 2; ny = j * CELL - half - bb[1] + gap / 2
         x0, y0 = placement[c.ref][:2]
         moved.append((math.hypot(nx - x0, ny - y0), c.ref))
@@ -274,9 +353,18 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
         for s in sides(sd):
             occ[s][j:j + h, i:i + w] = True
             sats[s] = _sat(np, occ[s])
+        mark_pads(c, float(nx), float(ny), r, side)
+        if far:
+            (fs, _), fi, fj, fw, fh = far
+            pi, pj = min(max(i + fi, 0), n - fw), min(max(j + fj, 0), n - fh)
+            occ[fs][pj:pj + fh, pi:pi + fw] = True
+            sats[fs] = _sat(np, occ[fs])
     if verbose:
         moved.sort(reverse=True)
-        print('pack: %d parts placed, %d without room%s; largest moves: %s' % (
+        flipped = sorted(c.ref for c in movable if c.ref in pl and c.ref not in left
+                         and pl[c.ref][3] != placement[c.ref][3])
+        print('pack: %d parts placed, %d without room%s; largest moves: %s%s' % (
             len(movable) - len(left), len(left), (' ' + str(left)) if left else '',
-            ', '.join('%s %.2f' % (r, d) for d, r in moved[:8] if d > 0.05)))
+            ', '.join('%s %.2f' % (r, d) for d, r in moved[:8] if d > 0.05),
+            ('; to the other side: ' + ', '.join(flipped)) if flipped else ''))
     return pl, left

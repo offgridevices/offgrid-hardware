@@ -17,6 +17,13 @@ CX, CY = 100.0, 100.0            # board centre on KiCad's page
 HALF = 18.0                      # 36 mm square (SpeedyBee F405 AIO V2 size), 25.5 mm holes
 HOLE = 12.75                     # 25.5 mm pattern
 HOLE_KEEPOUT_R = 3.1             # grommet flange + clearance, no copper
+# Mounting: each 3.2 mm hole (an M2 soft-mount grommet's neck; the grommet
+# turns it into M2) opens to its corner through a 2.5 mm slot along the
+# diagonal, so the grommet slides in from outside instead of being pushed
+# through.  The rubber neck squeezes through the narrower slot and seats
+# in the hole.
+HOLE_D = 3.2
+SLOT_W = 2.5
 STD_FP = '/usr/share/kicad/footprints'
 
 def P(x, y):
@@ -69,11 +76,78 @@ def add_net(b, name):
         b.Add(n)
     return n
 
+def _slot(sx, sy):
+    """One corner's mounting slot: (edge point on the vertical edge, its
+    point on the hole circle, arc mid-point, the other circle point, edge
+    point on the horizontal edge), in board-centre mm."""
+    import math
+    r, a = HOLE_D / 2, SLOT_W / 2
+    cx, cy = sx * HOLE, sy * HOLE
+    d = (sx / math.sqrt(2), sy / math.sqrt(2))          # towards the corner
+    n = (sx / math.sqrt(2), -sy / math.sqrt(2))         # across the slot
+    t0 = math.sqrt(r * r - a * a)
+    s_plus = (cx + t0 * d[0] + a * n[0], cy + t0 * d[1] + a * n[1])
+    s_minus = (cx + t0 * d[0] - a * n[0], cy + t0 * d[1] - a * n[1])
+    e_plus = (sx * HALF, sy * HALF - sy * math.sqrt(2) * a)      # on x = +-HALF
+    e_minus = (sx * HALF - sx * math.sqrt(2) * a, sy * HALF)     # on y = +-HALF
+    mid = (cx - r * d[0], cy - r * d[1])
+    return e_plus, s_plus, mid, s_minus, e_minus
+
+
+def outline_path():
+    """The board outline, clockwise on screen from the top-left corner:
+    a list of ('line', p0, p1) and ('arc', p0, mid, p1)."""
+    path, pts = [], []
+    for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+        e_plus, s_plus, mid, s_minus, e_minus = _slot(sx, sy)
+        if (sx, sy) in ((1, -1), (-1, 1)):
+            seq = (e_minus, s_minus, mid, s_plus, e_plus)
+        else:
+            seq = (e_plus, s_plus, mid, s_minus, e_minus)
+        pts.append(seq)
+    for i, (a0, a1, am, a2, a3) in enumerate(pts):
+        path.append(('line', a0, a1))
+        path.append(('arc', a1, am, a2))
+        path.append(('line', a2, a3))
+        nxt = pts[(i + 1) % 4][0]
+        path.append(('line', a3, nxt))
+    return path
+
+
+def board_polygon(n_arc=24):
+    """The board as a shapely polygon in board-centre mm (arcs as
+    polylines)."""
+    import math
+    from shapely.geometry import Polygon
+    ring = []
+    for item in outline_path():
+        if item[0] == 'line':
+            ring.append(item[1])
+        else:
+            (x0, y0), (xm, ym), (x1, y1) = item[1:]
+            cx, cy = math.copysign(HOLE, x0), math.copysign(HOLE, y0)
+            a0 = math.atan2(y0 - cy, x0 - cx); am = math.atan2(ym - cy, xm - cx); a1 = math.atan2(y1 - cy, x1 - cx)
+            # go from a0 to a1 the way that passes am
+            def norm(v):
+                while v < 0: v += 2 * math.pi
+                return v
+            span = norm(a1 - a0); via = norm(am - a0)
+            if via > span:
+                span -= 2 * math.pi
+            for k in range(n_arc):
+                t = a0 + span * k / n_arc
+                ring.append((cx + HOLE_D / 2 * math.cos(t), cy + HOLE_D / 2 * math.sin(t)))
+    return Polygon(ring)
+
+
 def outline(b):
-    pts = [(-HALF, -HALF), (HALF, -HALF), (HALF, HALF), (-HALF, HALF)]
-    for i in range(4):
-        s = pcbnew.PCB_SHAPE(b, pcbnew.SHAPE_T_SEGMENT)
-        s.SetStart(P(*pts[i])); s.SetEnd(P(*pts[(i + 1) % 4]))
+    for item in outline_path():
+        if item[0] == 'line':
+            s = pcbnew.PCB_SHAPE(b, pcbnew.SHAPE_T_SEGMENT)
+            s.SetStart(P(*item[1])); s.SetEnd(P(*item[2]))
+        else:
+            s = pcbnew.PCB_SHAPE(b, pcbnew.SHAPE_T_ARC)
+            s.SetArcGeometry(P(*item[1]), P(*item[2]), P(*item[3]))
         s.SetLayer(pcbnew.Edge_Cuts); s.SetWidth(MM(0.1))
         b.Add(s)
 
@@ -161,6 +235,28 @@ def hole_keepouts(b, cu_layers):
         for sy in (-1, 1):
             rule_area(b, circle_poly(sx * HOLE, sy * HOLE, HOLE_KEEPOUT_R), cu_layers,
                       tracks=True, vias=True, pads=False, pours=True, name='hole keepout')
+
+# Mouse-bite tab zones (panel.py): along each edge, from the corner's slot
+# to TAB_TO from the corner, TAB_DEPTH deep.  No part, track or via goes
+# there, so the production panel always has room for its tabs clear of the
+# slots and of the pads near the corners.
+TAB_FROM, TAB_TO, TAB_DEPTH = 1.5, 7.0, 1.6
+
+
+def tab_zones():
+    """The eight tab zones as (x0, y0, x1, y1), board mm."""
+    h, a, c, d = HALF, TAB_FROM, TAB_TO, TAB_DEPTH
+    out = []
+    for lo, hi in ((-h + a, -h + c), (h - c, h - a)):
+        out += [(lo, -h, hi, -h + d), (lo, h - d, hi, h), (-h, lo, -h + d, hi), (h - d, lo, h, hi)]
+    return out
+
+
+def tab_keepouts(b, cu_layers):
+    for x0, y0, x1, y1 in tab_zones():
+        rule_area(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], cu_layers, tracks=True, vias=True, pads=False,
+                  pours=False, name='panel tab keepout')
+
 
 def via(b, x, y, net, d=0.5, drill=0.25):
     v = pcbnew.PCB_VIA(b)
@@ -385,7 +481,8 @@ def write_rules(board_path, extra=''):
     open(os.path.splitext(board_path)[0] + '.kicad_dru', 'w').write(RULES + extra)
 
 
-# Stackups, 1.6 mm, 1 oz outer and 0.5 oz inner copper.  4 layers:
+# Stackups, 1.6 mm, 1 oz outer copper; inner copper per board (the ESC's
+# inner planes carry the motor current: 2 oz; the FC: 0.5 oz).  4 layers:
 # JLCPCB's standard JLC04161H-7628.  6 layers: nominal figures for the fab's
 # standard 6-layer 1.6 mm build (nothing here needs controlled impedance).
 # Mask and silk colours follow the OffGrid brand: Pitch ground (black
@@ -395,7 +492,10 @@ DIELECTRIC = {4: [('prepreg', 0.2104, '7628', 4.4), ('core', 1.065, 'FR4', 4.6),
                   ('core', 0.4, 'FR4', 4.6), ('prepreg', 0.1, 'FR4', 4.4)]}
 
 
-def stackup_text(n):
+CU_MM = {0.5: '0.0175', 1.0: '0.035', 2.0: '0.07'}
+
+
+def stackup_text(n, inner_oz=0.5):
     cu = ['F.Cu'] + ['In%d.Cu' % i for i in range(1, n - 1)] + ['B.Cu']
     L = ['\t\t(stackup',
          '\t\t\t(layer "F.SilkS" (type "Top Silk Screen") (color "White"))',
@@ -403,7 +503,7 @@ def stackup_text(n):
          '\t\t\t(layer "F.Mask" (type "Top Solder Mask") (color "Black") (thickness 0.01))']
     for k, name in enumerate(cu):
         outer = k in (0, n - 1)
-        L.append('\t\t\t(layer "%s" (type "copper") (thickness %s))' % (name, '0.035' if outer else '0.0152'))
+        L.append('\t\t\t(layer "%s" (type "copper") (thickness %s))' % (name, '0.035' if outer else CU_MM[inner_oz]))
         if k < n - 1:
             kind, t, mat, er = DIELECTRIC[n][k]
             L.append('\t\t\t(layer "dielectric %d" (type "%s") (color "FR4 natural") (thickness %s) '
@@ -417,13 +517,13 @@ def stackup_text(n):
     return '\n'.join(L) + '\n'
 
 
-def set_stackup(path):
-    """Write the stackup (colours, finish, dielectric) into a saved board.
+def set_stackup(path, inner_oz=0.5):
+    """Write the stackup (colours, finish, copper, dielectric) into a saved board.
     KiCad's Python API does not reach BOARD_STACKUP, so this edits the
     file; KiCad keeps the block on every later load and save."""
     import re
     n = pcbnew.LoadBoard(path).GetCopperLayerCount()
     s = open(path).read()
     s = re.sub(r'\t\t\(stackup\n.*?\n\t\t\)\n', '', s, flags=re.S)
-    s = s.replace('\t(setup\n', '\t(setup\n' + stackup_text(n), 1)
+    s = s.replace('\t(setup\n', '\t(setup\n' + stackup_text(n, inner_oz), 1)
     open(path, 'w').write(s)

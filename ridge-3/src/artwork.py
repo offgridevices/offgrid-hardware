@@ -129,8 +129,8 @@ class SilkPlacer:
                 if isinstance(t, pcbnew.PCB_VIA):
                     q = t.GetPosition()
                     self.vias.append(Point(q.x / 1e6, q.y / 1e6).buffer(t.GetDrillValue() / 2e6 + via_clear))
-        e = pcb.HALF - edge
-        self.inside = box(pcb.CX - e, pcb.CY - e, pcb.CX + e, pcb.CY + e)
+        from shapely import affinity
+        self.inside = affinity.translate(pcb.board_polygon(), pcb.CX, pcb.CY).buffer(-edge)
         self.silk_clear = silk_clear
         self.placed = []
 

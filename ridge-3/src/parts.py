@@ -648,5 +648,5 @@ PADS = {
     # Normally-open solder jumper: pads 1, 2 (0.8 x 1.2 mm, 0.3 mm gap),
     # one mask opening over both, no paste.
     'SJ_OPEN':   dict(fp='aio:SJ_OPEN',   kind='PAD'),
-    'HOLE':      dict(fp='aio:HOLE_M3',   kind='H'),
+    'HOLE':      dict(fp='aio:MOUNT_M2_SLOT', kind='H'),
 }
