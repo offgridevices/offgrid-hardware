@@ -311,19 +311,20 @@ def either_side(c):
 
 
 def escape_keep(comps, place):
-    """Where the MCUs' and drivers' vias come through to the far side, so no
-    other part puts a pad there: each signal pin that leaves its side of the
-    board has its via inside the pad at the pad's outer end (VIA_MICRO,
-    fanout.dogbones), and each driver's ground pad has the plane fan-out's
-    2 x 2 grid (FANOUT ep_pitch, VIA_INPAD).  Each spot is the via plus
-    0.1 mm."""
+    """Where the MCUs' and drivers' signal vias come through to the far
+    side, so no other part puts a pad there: each signal pin that leaves its
+    side of the board has its via in the pad at the pad's outer end
+    (VIA_ESCAPE, fanout.dogbones).  Each spot is the via plus 0.1 mm, and
+    takes a pad of the via's own net.  The
+    drivers' ground-pad vias are not kept: they are plane vias, parts may
+    sit over them, and the fan-out drops any a far-side pad covers."""
     import legalize
     allp = {**parts.PARTS, **parts.PADS}
     out = []
 
-    def spot(far, x, y, d):
+    def spot(far, x, y, d, net):
         r = d / 2 + 0.1
-        out.append((far, (x - r, y - r, x + r, y + r)))
+        out.append((far, (x - r, y - r, x + r, y + r), net))
     for n in CHANNELS:
         r = roles(comps, n)
         # the six PWM lines join the two chips on their own side
@@ -336,21 +337,15 @@ def escape_keep(comps, place):
                 net = c.pins.get(num)
                 px, py = (bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2
                 w, h = bb[2] - bb[0], bb[3] - bb[1]
-                if net == 'GND' and w * h > 2.0:
-                    # exposed pad: the fan-out's via grid
-                    k = FANOUT['ep_pitch'] / 2
-                    for dx in (-k, k):
-                        for dy in (-k, k):
-                            spot(far, x + px + dx, y + py + dy, FANOUT['via_d'])
-                elif net not in (None, 'GND', 'VBAT') and net not in same:
+                if net not in (None, 'GND', 'VBAT') and net not in same:
                     # outward along the pad's long axis, as fanout.dogbones puts it
                     if abs(px) >= abs(py):
-                        s_ = max(0.0, w / 2 - VIA_MICRO[0] / 2 - 0.08)
+                        s_ = max(0.0, w / 2 - VIA_ESCAPE[0] / 2 - 0.08)
                         vx, vy = px + (s_ if px > 0 else -s_), py
                     else:
-                        s_ = max(0.0, h / 2 - VIA_MICRO[0] / 2 - 0.08)
+                        s_ = max(0.0, h / 2 - VIA_ESCAPE[0] / 2 - 0.08)
                         vx, vy = px, py + (s_ if py > 0 else -s_)
-                    spot(far, x + vx, y + vy, VIA_MICRO[0])
+                    spot(far, x + vx, y + vy, VIA_ESCAPE[0], net)
     return out
 
 
@@ -398,9 +393,18 @@ VIA_PWR = (0.5, 0.3)           # power vias: FET tabs, motor pads, returns
 # QFN escapes: a via inside the pin's own pad, at its outer end, filled and
 # capped with the rest (JLCPCB multilayer minimum 0.15 mm hole / 0.25 mm
 # via; POFV takes 0.15-0.55 mm).  The chips sit too close to their
-# neighbours for a ring of dog-bone vias beside the pins.
-VIA_MICRO = (0.25, 0.15)
+# neighbours for a ring of dog-bone vias beside the pins.  Its ring is
+# 0.05 mm, so other copper keeps 0.15 mm from it (VIA_RING: the routers
+# see it with a 0.1 mm ring).
+VIA_ESCAPE = (0.25, 0.15)
 HOLE_CL = 0.2                  # via hole to other copper (JLCPCB multilayer)
+# The routers keep only copper clearances (0.1 mm): they see every via with
+# at least this ring, so their copper stays HOLE_CL from its hole.
+VIA_RING = HOLE_CL - 0.1
+# Freerouting may also drop a signal via onto a same-net pad (route.py):
+# under the chips both sides are full of parts, and a pad is often the
+# only spot left.  Its 0.1 mm ring keeps the hole 0.2 mm from other copper.
+VIA_IN_PAD = VIA_SIG
 
 GAPS = (-7.5, -2.5, 2.5, 7.5)  # via corridors: the gaps between phases and both ends
 MARK_R = 2.6                   # half-size of the bottom-centre square kept for the mark
@@ -655,14 +659,28 @@ def net_groups(comps):
     return nets, gate, drv
 
 
+# Routed supplies (width, clearance): the battery's current runs in the
+# planes and pours, so what is left on tracks is small.  Gate-drive
+# supply 0.2 mm (the four drivers average ~25 mA, their bootstrap pulses
+# come from the capacitors beside them); 3.3 V 0.15 mm (four MCUs and
+# four amplifiers, ~60 mA); the battery's taps 0.2 mm (the buck's ~10 mA
+# input, the LDO's 25 mA, the voltage divider); the buck's switch node
+# 0.4 mm.
+SUPPLY_RULES = {
+    'GVDD': (0.2, 0.1), 'GVDD_IN': (0.2, 0.1),
+    '+3V3': (0.15, 0.1), 'BUCK_VCC': (0.15, 0.1),
+    'VBAT': (0.2, 0.13), 'BUCK_LX': (0.4, 0.15),
+}
+
+
 def widths(comps):
     """Router widths: gate drive and bootstrap 0.2 mm, the driver's
-    switch-node sense 0.2 mm, supplies 0.25 mm, the buck's switch node
-    0.4 mm, everything else the 0.1 mm default."""
+    switch-node sense 0.2 mm, the supplies per SUPPLY_RULES, everything
+    else the 0.1 mm default."""
     nets, gate, drv = net_groups(comps)
     w = {x: 0.2 for x in gate}
     w.update({x: 0.2 for x in drv})
-    w.update({'+3V3': 0.25, 'GVDD': 0.25, 'GVDD_IN': 0.25, 'BUCK_LX': 0.4, 'BUCK_VCC': 0.2, 'VBAT': 0.3})
+    w.update({n: r[0] for n, r in SUPPLY_RULES.items()})
     return w
 
 
@@ -674,30 +692,24 @@ def clearances(comps):
     drive, 0.1 mm (B4 and B1 both allow it below 30 V)."""
     nets, gate, drv = net_groups(comps)
     cl = {x: 0.1 for x in widths(comps)}
-    for x in drv + ['VBAT']:
+    for x in drv:
         cl[x] = 0.13
-    cl['BUCK_LX'] = 0.15
+    cl.update({n: r[1] for n, r in SUPPLY_RULES.items()})
     return cl
 
 
 def via_rules(b):
     ds = b.GetDesignSettings()
     # the smallest via on the board is the QFN in-pad escape
-    ds.m_ViasMinSize = MM(VIA_MICRO[0])
-    ds.m_MinThroughDrill = MM(VIA_MICRO[1])
-    ds.m_ViasMinAnnularWidth = MM((VIA_MICRO[0] - VIA_MICRO[1]) / 2)
+    ds.m_ViasMinSize = MM(VIA_ESCAPE[0])
+    ds.m_MinThroughDrill = MM(VIA_ESCAPE[1])
+    ds.m_ViasMinAnnularWidth = MM((VIA_ESCAPE[0] - VIA_ESCAPE[1]) / 2)
     ds.m_HoleClearance = MM(HOLE_CL)
     nc = ds.m_NetSettings.GetDefaultNetclass()
     nc.SetViaDiameter(MM(VIA_SIG[0])); nc.SetViaDrill(MM(VIA_SIG[1]))
 
 
-DRU_EXTRA = """# JLCPCB via-in-pad (POFV): ordered "Epoxy Filled & Capped", every via is
-# filled; holes drilled afterwards (the unplated mounting holes and the
-# plated battery pads) keep 0.45 mm from them.
-(rule "POFV to drilled holes"
-  (condition "A.Type == 'Via' && B.Type == 'Pad'")
-  (constraint hole_to_hole (min 0.45mm)))
-"""
+DRU_EXTRA = pcb.POFV_RULES
 
 FANOUT = dict(ep_pitch=1.5, share=0.9, ep_join=0.2, via_d=VIA_INPAD[0], via_drill=VIA_INPAD[1],
               off_drill=0.25, clearance=0.1, steps=(0.02, 0.15, 0.3, 0.5, 0.75, 1.0, 1.3, 1.7, 2.1, 2.5),
@@ -735,16 +747,18 @@ def build(out_path):
     cl = clearances(comps)
     pcb.netclass(b, 'GATE', gate, width=0.2, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
     pcb.netclass(b, 'SWITCH', drv, width=0.2, clearance=0.13, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
-    pcb.netclass(b, 'PWR', ['+3V3', 'GVDD', 'GVDD_IN', 'BUCK_VCC'], width=0.25, clearance=0.1,
-                 via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
-    pcb.netclass(b, 'BUCKSW', ['BUCK_LX'], width=0.4, clearance=0.15, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
-    pcb.netclass(b, 'BAT', ['VBAT'], width=0.3, clearance=0.13, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    groups = {}
+    for n, rule in SUPPLY_RULES.items():
+        groups.setdefault(rule, []).append(n)
+    for (w, c), members in sorted(groups.items(), reverse=True):
+        pcb.netclass(b, 'PWR_%03d_%03d' % (round(w * 100), round(c * 100)), members, width=w, clearance=c,
+                     via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
     import fanout
     fanout.Obstacles.NET_CL = {x: c for x, c in cl.items() if c > 0.1}
     fanout.Obstacles.MARGIN = 0.01
     e2 = H - 0.4
     pins = escape_pins(b, comps)
-    k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_MICRO, hole_cl=HOLE_CL)
+    k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL)
     print('QFN escape vias: %d of %d, none for %s' % (k, len(pins), bad))
     k, failed = fanout.fanout(b, {'GND', 'VBAT'}, (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2),
                               skip=power_refs(comps), **{x: y for x, y in FANOUT.items() if x != 'inpad'},

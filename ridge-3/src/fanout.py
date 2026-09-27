@@ -433,7 +433,7 @@ def drop_unused_escapes(path):
 
 
 def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap=0.25, lock=True, inpad=None,
-             hole_cl=0.0):
+             hole_cl=0.0, inpad_overhang=0.005):
     """A dog-bone escape for each (ref, pad number) of a QFN: a via just
     outside the pad, straight out from the package (or a little to either
     side), joined to the pad by a stub on the pad's layer.  Adjacent
@@ -441,9 +441,10 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
     clears every other net by `cl` on every layer and keeps `hole_gap` to
     via holes (the POFV gap to pad holes); the stub clears every other net
     on its layer.  inpad=(d, drill): first try a via of that size inside
-    the pad itself, at its outer end (filled and capped, POFV); the
-    dog-bone is the fallback.  hole_cl: every via's hole also clears other
-    nets' copper by this much.  Returns (placed, failed pins)."""
+    the pad itself, at its outer end (filled and capped, POFV), reaching
+    at most `inpad_overhang` past the pad's edge; the dog-bone is the
+    fallback.  hole_cl: every via's hole also clears other nets' copper by
+    this much.  Returns (placed, failed pins)."""
     layers = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu,
                           pcbnew.In4_Cu, pcbnew.B_Cu) if board.IsLayerEnabled(l)]
     obs = Obstacles(board, layers)
@@ -479,7 +480,7 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
             s_ = max(0.0, h - d_in / 2 - 0.08)
             vx, vy = qx + nx * s_, qy + ny * s_
             vg = Point(vx, vy).buffer(d_in / 2)
-            if (pp.buffer(0.005).contains(vg) and obs.clear(vg, net, layers, cl)
+            if (pp.buffer(inpad_overhang).contains(vg) and obs.clear(vg, net, layers, cl)
                     and obs.clear(Point(vx, vy).buffer(dr_in / 2), net, layers, hole_cl)
                     and obs.hole_room(vx, vy, dr_in / 2, hole_gap)):
                 v = pcbnew.PCB_VIA(board); v.SetPosition(pcbnew.VECTOR2I(MM(vx), MM(vy)))

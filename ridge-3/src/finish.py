@@ -81,7 +81,10 @@ class Grid:
             soft = (t.GetNetname() in self.soft_nets and t.GetNetname() != net_exclude and not t.IsLocked())
             if t.GetClass() == 'PCB_VIA':
                 p = t.GetPosition()
-                g = Point(mm(p.x), mm(p.y)).buffer(mm(t.GetWidth(pcbnew.F_Cu)) / 2)
+                # at least VIA_RING of ring: other copper then keeps the
+                # hole-to-copper rule from a thin-ringed via's hole
+                r = max(mm(t.GetWidth(pcbnew.F_Cu)) / 2, mm(t.GetDrillValue()) / 2 + VIA_RING)
+                g = Point(mm(p.x), mm(p.y)).buffer(r)
                 for l in self.layers:
                     if soft:
                         self.soft[l].append((g, self.netcl(t.GetNetname()), t.GetNetname()))
@@ -190,6 +193,8 @@ def _same_cells(grid, same, layer):
 
 # Via the maze router drops (a board may set smaller ones, see esc_layout)
 VIA_D, VIA_DRILL = 0.45, 0.25
+# Every via is an obstacle with at least this ring (see route.VIA_RING)
+VIA_RING = 0.0
 HOLE_TO_HOLE = 0.25
 # JLCPCB via-in-pad (POFV): the in-pad vias (0.3 mm drill here; every
 # 0.3 mm-drill via is treated as one) keep more than 0.45 mm hole to hole
@@ -466,6 +471,68 @@ def _dist(a, b):
             for y in [g for gs in b.values() for g in gs]:
                 d = min(d, x.distance(y))
     return d
+
+def route_taps(board, taps, clmap=None, layers=None, via=None, log=print):
+    """Join the low-current pins of supply nets to the rest of their net at
+    their own, narrower width, before the autorouter fills the board: a
+    feedback divider's top, a converter's bias pin and its capacitor, a
+    small regulator's input.  The net's full width is for the paths that
+    carry its current; these pins cannot carry it, and a feedback line
+    should be thin anyway.  taps: {(ref, pad number): width}.  A tap's
+    island is joined to its nearest neighbour until it holds a pour of the
+    net or a pad that is not a tap.  Returns the taps left unjoined."""
+    global ROUTE_LAYERS, VIA_D, VIA_DRILL
+    saved = ROUTE_LAYERS, VIA_D, VIA_DRILL
+    if layers:
+        ROUTE_LAYERS = list(layers)
+    if via:
+        VIA_D, VIA_DRILL = via
+    left = []
+    try:
+        pads = {(fp.GetReference(), p.GetNumber()): p for fp in board.GetFootprints() for p in fp.Pads()}
+        for key, w in sorted(taps.items()):
+            pad = pads[key]
+            net = pad.GetNetname()
+            trunk = [_geom_of(p) for k, p in pads.items() if p.GetNetname() == net and k not in taps]
+            for z in board.Zones():
+                if not z.GetIsRuleArea() and z.GetNetname() == net and z.IsFilled():
+                    for l in ROUTE_LAYERS:
+                        if z.GetLayerSet().Contains(l):
+                            fp_ = z.GetFilledPolysList(l)
+                            for k in range(fp_.OutlineCount()):
+                                ol = fp_.Outline(k)
+                                pts = [(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())]
+                                if len(pts) >= 3:
+                                    trunk.append({l: [Polygon(pts).buffer(0)]})
+            for _ in range(8):
+                comps = _net_components(board, net)
+                mine = [c for c in comps if _touch(c, _geom_of(pad))]
+                if not mine or any(_touch(mine[0], t) for t in trunk):
+                    break
+                others = [c for c in comps if c is not mine[0]]
+                if not others:
+                    break
+                before = set(t.m_Uuid.AsString() for t in board.GetTracks())
+                # the nearest island first; if it is walled in, the next ones
+                for near in sorted(others, key=lambda c: _dist(mine[0], c))[:4]:
+                    res = route_connection(board, net, mine[0], near, track_w=w, clmap=clmap)
+                    if res:
+                        break
+                if not res:
+                    left.append(key)
+                    break
+                for t in board.GetTracks():
+                    if t.m_Uuid.AsString() not in before:
+                        t.SetLocked(True)
+            log('   tap %-10s %s.%s at %.2f mm%s' % (net, key[0], key[1], w, ' NOT JOINED' if key in left else ''))
+    finally:
+        ROUTE_LAYERS, VIA_D, VIA_DRILL = saved
+    return left
+
+
+def _touch(a, b):
+    return any(x.intersects(y) for l in a if l in b for x in a[l] for y in b[l])
+
 
 def route_net(board, net, track_w=0.1, clmap=None, lock=True, soft_nets=None, victims_out=None):
     """Join every island of `net`, nearest pair first.  Returns islands left."""

@@ -63,46 +63,45 @@ def run(board_name, work, passes=None, log=print):
     if hasattr(L, 'VIA_SIG'):
         finish.VIA_D, finish.VIA_DRILL = L.VIA_SIG
     route.PRE_EXPORT = getattr(L, 'routing_keepouts', None)
-    n = route.route(placed, routed, passes=passes, rounds=1 if board_name == 'fc' else 2)
+    route.VIA_IN_PAD = getattr(L, 'VIA_IN_PAD', None)
+    route.VIA_RING = getattr(L, 'VIA_RING', None)
+    finish.VIA_RING = getattr(L, 'VIA_RING', None) or 0.0
+    n = route.route(placed, routed, passes=passes, rounds=2)
     log('%s: %d connections left after Freerouting, %d duplicate vias removed'
         % (board_name, n, pcb.dedupe_vias(routed)))
     _copy_project(placed, routed); _copy_project(placed, fin)
-    if board_name == 'esc':
-        finish.POFV_GAP = None           # every via is filled: via to via is the normal rule
+    finish.POFV_GAP = None               # every via is filled (POFV): via to via is the normal rule
     n = finish.finish_board(routed, fin, os.path.join(work, board_name + '_fin.json'), rules=widths, clmap=clmap)
     _copy_project(placed, fin)
     if board_name == 'fc':
         pcb.tidy_tracks(fin)             # the maze router's near-duplicate ends and segments
-        if n:
-            b = pcbnew.LoadBoard(fin)
-            todo = [x for x in finish.unrouted_nets(b) if x not in planes]
-            left = finish.repair(b, todo, protect=planes + list(widths), widths=widths, clmap=clmap, log=log)
-            b.Save(fin)
-            log('%s: repair left %s' % (board_name, [x for x in left if x not in planes]))
-            pcb.tidy_tracks(fin)
+        protect = planes + list(widths)
+    else:
+        protect = planes + ['+3V3', 'BUCK_LX', 'GVDD']
+    # rip-up and re-route for anything the routers left, then the
+    # order-varying repair for the last few.  Both are transactions: an
+    # attempt that leaves any net with more islands than before is undone.
+    b = pcbnew.LoadBoard(fin)
+    todo = [x for x in finish.unrouted_nets(b) if x not in planes]
+    if todo:
+        finish.repair_tx(b, todo, protect=protect, widths=widths, clmap=clmap, max_victims=14,
+                         max_rounds=80, log=log)
+        b.Save(fin)
+        _copy_project(placed, fin)
+    pcb.tidy_tracks(fin)
+    b = pcbnew.LoadBoard(fin)
+    left = [x for x in finish.unrouted_nets(b) if x not in planes]
+    if left:
+        left = finish.repair_orders(b, left, protect=protect, widths=widths, clmap=clmap, log=log)
+        b.Save(fin)
+        _copy_project(placed, fin)
+    log('%s: left after repair %s' % (board_name, left))
+    pcb.tidy_tracks(fin)
+    if board_name == 'fc':
         pcb.pour_ground(fin, [pcbnew.F_Cu, pcbnew.B_Cu])
         artwork.remove_dangling(fin)
     else:
         import pofv
-        protect = planes + ['+3V3', 'BUCK_LX', 'GVDD']
-        # rip-up and re-route for anything the routers left, then the
-        # order-varying repair for the last few
-        b = pcbnew.LoadBoard(fin)
-        todo = [x for x in finish.unrouted_nets(b) if x not in planes]
-        if todo:
-            finish.repair_tx(b, todo, protect=protect, widths=widths, clmap=clmap, max_victims=14,
-                             max_rounds=80, log=log)
-            b.Save(fin)
-            _copy_project(placed, fin)
-        pcb.tidy_tracks(fin)
-        b = pcbnew.LoadBoard(fin)
-        left = [x for x in finish.unrouted_nets(b) if x not in planes]
-        if left:
-            left = finish.repair_orders(b, left, protect=protect, widths=widths, clmap=clmap, log=log)
-            b.Save(fin)
-            _copy_project(placed, fin)
-        log('%s: left after repair %s' % (board_name, left))
-        pcb.tidy_tracks(fin)
         cleanup.clean(fin, EXTRA_RULES, log=log)
         e, w, u = pcb.drc(fin, os.path.join(work, 'esc_pofv_drc.json'))
         if any(v['type'] == 'hole_to_hole' for v in e):

@@ -14,7 +14,7 @@ top pour behind the lead's pins joins them and runs down a leg inside the
 rear-right hole to the 9 V BEC's vias; each BEC's input capacitor, IC and
 inductor sit together on the bottom with their switch node, input and
 ground as pours (routers kept out of them).  5 V and 9 V leave their BECs
-as pours; the rest of their nets is routed at 0.4 mm.
+as pours; the rest of their nets is routed at 0.4 and 0.3 mm.
 
 Stackup (6 layers): F.Cu signals | In1 solid GND | In2 signals | In3
 signals | In4 solid 3.3 V | B.Cu signals, parts and the supplies' copper.
@@ -283,6 +283,10 @@ def build_placed(out_path, legal=True, strict=True):
 # ============================================================ power copper
 # Zones connect solidly (no spokes): these carry the supplies' current.
 VIA_PWR = (0.5, 0.25)
+VIA_SIG = (0.35, 0.15)           # routers and the signal ICs' plane vias
+# Freerouting may drop a signal via onto a same-net pad (route.py), filled
+# and capped; the 0.1 mm ring keeps its hole 0.2 mm from other copper.
+VIA_IN_PAD = VIA_SIG
 
 
 def _rel(a, pts):
@@ -315,7 +319,9 @@ def pours():
                                (-0.9, 4.55), (-0.9, 2.5), (-0.75, 2.5)])),
         ('BUCK9_SW', Bo, _rel(A9, [(-2.9, -1.95), (-0.37, -1.95), (-0.37, -3.95), (2.35, -3.95),
                                    (2.35, -6.7), (-1.35, -6.7), (-1.35, -3.95), (-2.9, -3.95)])),
-        ('GND', Bo, _rel(A9, [(-3.3, 0.6), (-1.05, 0.6), (-1.05, 4.3), (-3.3, 4.3)])),
+        # (its left edge 0.8 mm clear of the 3.3 V LDO's pins: the lane
+        # where the LDO's EN pin loops round its GND pin to IN)
+        ('GND', Bo, _rel(A9, [(-3.05, 0.6), (-1.05, 0.6), (-1.05, 4.3), (-3.05, 4.3)])),
         # 9 V: the inductor's output end, the output capacitors (left
         # column and front right) and the vias up to the HD connector
         ('+9V', Bo, [(8.3, -2.85), (11.6, -2.85), (11.6, -4.85), (15.7, -4.85), (15.7, -9.75), (13.5, -9.75),
@@ -377,7 +383,9 @@ def routing_keepouts(b):
     return k
 
 
-DRU_EXTRA = ''
+# Every via filled and capped (POFV): the exposed pads' plane vias and the
+# routers' vias in pads.
+DRU_EXTRA = pcb.POFV_RULES
 
 # ============================================================ board
 LAYERS = 6
@@ -389,25 +397,78 @@ else:
     CU = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
     ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
     PLANES = [('GND', pcbnew.In1_Cu), ('+3V3', pcbnew.In4_Cu)]
-# Router widths (netclasses): supplies 0.4 mm, local supply filters 0.25.
-POWER = ['VBAT', '+5V', '+9V', 'USB_VBUS', 'BUCK5_SW', 'BUCK9_SW']
-POWER_LO = ['+3V3_GYRO', '+3V3_OSD', 'BUCK5_CB', 'BUCK9_CB', 'BUCK9_VCC']
+# Router rules per supply net (netclasses): (width, clearance) in mm.
+# 9 V and the switch nodes 0.4 mm.  The battery's current runs in its
+# pours; its tracks feed the dividers and the 9 V BEC's input capacitor:
+# 0.3 mm, as USB's 0.5 A.  5 V 0.3 mm: its heavy
+# current stays in the BEC's pour, and no branch carries more than the
+# camera's or the LED strip's ~0.7 A (0.3 mm outer copper: 1 A at a
+# 10 C rise), while 0.4 mm could not pass between the LDO's input
+# capacitor and its thermal pad.  The bootstrap nodes swing with the
+# switch nodes, 0.25 mm.  The filtered 3.3 V feeds (OSD ~0.1 A, gyro ~1
+# mA) and the 9 V BEC's VCC reach 0.5 mm pitch pins: 0.2 and 0.15 mm, and
+# 3.3-5 V needs only the 0.1 mm clearance.
+NET_RULES = {
+    'VBAT': (0.3, 0.15), '+9V': (0.4, 0.15), 'USB_VBUS': (0.3, 0.15),
+    'BUCK5_SW': (0.4, 0.15), 'BUCK9_SW': (0.4, 0.15),
+    '+5V': (0.3, 0.15),
+    'BUCK5_CB': (0.25, 0.15), 'BUCK9_CB': (0.25, 0.15),
+    '+3V3_OSD': (0.2, 0.1), 'BUCK9_VCC': (0.2, 0.1), '+3V3_GYRO': (0.15, 0.1),
+}
+# Low-current pins on the supply nets, by part note and net: joined to
+# their net at this width before the autorouter runs (finish.route_taps).
+# The BECs' feedback tops and the 9 V BEC's BIAS pin and capacitor are
+# sense lines (TI: thin, from the output capacitors); the 3.3 V LDO draws
+# at most ~0.3 A from 5 V (0.2 mm outer copper: 0.7 A), its EN pin none.
+# The 9 V BEC's two VCC pins, on opposite sides of the IC, join their
+# capacitor while the space round the IC is still open.
+TAPS = {
+    ('5V BEC feedback top', '+5V'): 0.2, ('9V BEC feedback top', '+9V'): 0.2,
+    ('9V BEC BIAS', '+9V'): 0.2, ('9V VTX BEC', '+9V'): 0.2,
+    ('3.3V LDO', '+5V'): 0.2, ('LDO in', '+5V'): 0.2,
+    ('9V VTX BEC', 'BUCK9_VCC'): 0.2,
+}
+
+
+def taps(comps):
+    return {(c.ref, num): TAPS[(c.note, net)] for c in comps for num, net in c.pins.items()
+            if (c.note, net) in TAPS}
+
+
 # Routed first, by the in-house maze router, shortest first: the crystals,
 # the gyro's SPI, the video lines and USB, while their area is still open.
 # The gyro's MISO and MOSI run straight across, so they go before SCK,
 # which has to cross them.
 PREROUTE = ['HSE_IN', 'HSE_OUT', 'OSD_XI', 'OSD_XO', 'OSD_VIN', 'CAM_VIDEO', 'OSD_VOUT', 'VTX_VIDEO',
             'SPI1_MISO', 'SPI1_MOSI', 'GYRO_CS', 'GYRO_INT', 'SPI1_SCK', 'USB_DP', 'USB_DM']
-CLMAP = {k: 0.15 for k in POWER}
+CLMAP = {n: c for n, (w, c) in NET_RULES.items()}
 
 
 def widths(comps):
     """Track width per net for the finishing routers (pipeline.py)."""
-    return dict({n: 0.4 for n in POWER}, **{n: 0.25 for n in POWER_LO})
+    return {n: w for n, (w, c) in NET_RULES.items()}
 
 
 def clearances(comps):
-    return {n: 0.15 for n in widths(comps)}
+    return dict(CLMAP)
+
+
+def via_rules(b):
+    """Signal vias 0.35 / 0.15 mm (JLCPCB's 0.15 mm hole; free with the
+    6-layer POFV, every via filled and capped): the board's minimum, the
+    default netclass and the supply classes."""
+    ds = b.GetDesignSettings()
+    ds.m_ViasMinSize = MM(VIA_SIG[0])
+    ds.m_MinThroughDrill = MM(VIA_SIG[1])
+    ds.m_ViasMinAnnularWidth = MM((VIA_SIG[0] - VIA_SIG[1]) / 2)
+    nc = ds.m_NetSettings.GetDefaultNetclass()
+    nc.SetViaDiameter(MM(VIA_SIG[0])); nc.SetViaDrill(MM(VIA_SIG[1]))
+    groups = {}
+    for n, rule in NET_RULES.items():
+        groups.setdefault(rule, []).append(n)
+    for (w, c), nets in sorted(groups.items(), reverse=True):
+        pcb.netclass(b, 'PWR_%03d_%03d' % (round(w * 100), round(c * 100)), nets, width=w, clearance=c,
+                     via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
 
 
 def build(out_path):
@@ -431,8 +492,7 @@ def build(out_path):
     for l in CU[1:-1]:
         b.SetLayerType(l, pcbnew.LT_POWER if l in [p[1] for p in PLANES] else pcbnew.LT_SIGNAL)
     print('power vias:', power_copper(b))
-    pcb.netclass(b, 'PWR', POWER, width=0.4, clearance=0.15)
-    pcb.netclass(b, 'PWR_LO', POWER_LO, width=0.25, clearance=0.15)
+    via_rules(b)
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     import fanout, finish
     e2 = pcb.HALF - 0.4
@@ -440,15 +500,28 @@ def build(out_path):
     # plane vias: the supplies' exposed pads on a 1 mm grid (heat), the
     # signal ICs' on a 1.6 mm grid, so tracks still pass under them
     bec = {'U_BUCK5', 'U_BUCK9', 'U_LDO'}
-    n1, f1 = fanout.fanout(b, {'GND', '+3V3'}, bounds, skip={c.ref for c in comps} - bec, ep_pitch=1.0)
-    n2, f2 = fanout.fanout(b, {'GND', '+3V3'}, bounds, skip=bec, ep_pitch=1.6)
+    # ground pins beside a ground exposed pad join it with a stub, which
+    # leaves the spot outside them to the pins round them (the LDO's
+    # thermal pad is 1.6 mm2: exposed pads from 1 mm2 in this group)
+    n1, f1 = fanout.fanout(b, {'GND', '+3V3'}, bounds, skip={c.ref for c in comps} - bec, ep_pitch=1.0,
+                           ep_join=0.2, ep_min_area=1.0)
+    n2, f2 = fanout.fanout(b, {'GND', '+3V3'}, bounds, skip=bec, ep_pitch=1.6, via_d=VIA_SIG[0],
+                           via_drill=VIA_SIG[1], ep_join=0.2)
     print('fanout: %d plane vias, pads without one: %s' % (n1 + n2, f1 + f2))
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    left = finish.route_taps(b, taps(comps), clmap=CLMAP, layers=ROUTE_LAYERS, via=VIA_SIG)
+    print('supply taps: %d, not joined: %s' % (len(taps(comps)), left))
     # Pre-route the short, critical nets while their area is still open,
     # and lock them so the autorouter works around them.
     left = {}
     for net in PREROUTE:
+        before = set(t.m_Uuid.AsString() for t in b.GetTracks())
         left[net] = finish.route_net(b, net, clmap=CLMAP)
-    print('pre-routed %d nets, unfinished: %s' % (len(PREROUTE), {k: v for k, v in left.items() if v}))
+        if left[net]:
+            # half a net, locked, only walls the autorouter in: it gets all of it
+            for t in [t for t in b.GetTracks() if t.m_Uuid.AsString() not in before]:
+                b.Remove(t)
+    print('pre-routed %d nets; left to the autorouter: %s' % (len(PREROUTE), sorted(k for k, v in left.items() if v)))
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     b.Save(out_path)
     return b

@@ -26,6 +26,24 @@ PRE_EXPORT = None
 # SMD pin before general routing, so dense QFN pins keep a way out.
 AUTOROUTE = None
 
+# Vias in SMD pads.  KiCad's DSN export forbids them (every via padstack
+# "(attach off)", no via_at_smd control); where both sides of a board are
+# packed, a pad is often the only spot left for its net's via.  Set to a
+# via's (diameter, drill) in mm: Freerouting may then drop that via onto a
+# same-net SMD pad (Specctra "(control (via_at_smd on))" plus "(attach on)"
+# on its padstack).  Such vias must be ordered filled and capped (POFV),
+# and the via's ring must already meet the fab's hole-to-copper rule, as
+# Freerouting keeps only copper clearances.  None: no vias in pads.
+VIA_IN_PAD = None
+
+# Freerouting keeps copper clearances only.  A via whose ring is thinner
+# than VIA_RING (mm) goes to it with that ring, so its copper keeps the
+# fab's hole-to-copper distance from the hole.  Only locked vias can be
+# shown larger: KiCad's session import keeps the board's own locked tracks
+# and vias (they go out as fixed wiring) instead of taking them back from
+# Freerouting.  None: vias as they are.
+VIA_RING = None
+
 
 def _autoroute_block(a, layers):
     lines = ['    (autoroute_settings', '      (fanout %s)' % ('on' if a.get('fanout') else 'off'),
@@ -48,9 +66,17 @@ def export_dsn(pcb_path, dsn_path):
     b = pcbnew.LoadBoard(pcb_path)
     if PRE_EXPORT:
         PRE_EXPORT(b)
+    if VIA_RING:
+        for t in b.GetTracks():
+            if t.GetClass() == 'PCB_VIA' and t.IsLocked():
+                d = t.GetDrillValue() + 2 * int(round(VIA_RING * 1e6))
+                if t.GetWidth(pcbnew.F_Cu) < d:
+                    t.SetWidth(d)
     ok = pcbnew.ExportSpecctraDSN(b, dsn_path)
     if not ok:
         raise SystemExit('DSN export failed')
+    if VIA_IN_PAD:
+        allow_via_in_pad(dsn_path, *VIA_IN_PAD)
     if AUTOROUTE:
         import re
         txt = open(dsn_path).read()
@@ -60,6 +86,20 @@ def export_dsn(pcb_path, dsn_path):
         j = txt.index('\n    (boundary') + 1
         txt = txt[:j] + _autoroute_block(AUTOROUTE, sig) + txt[j:]
         open(dsn_path, 'w').write(txt)
+
+def allow_via_in_pad(dsn_path, d, drill):
+    import re
+    txt = open(dsn_path).read()
+    name = '_%d:%d_um"' % (round(d * 1000), round(drill * 1000))
+    m = re.search(r'\(padstack "Via\[\d+-\d+\]' + re.escape(name) + r'.*?\(attach off\)', txt, re.S)
+    if not m:
+        raise SystemExit('VIA_IN_PAD: no %.2f / %.2f mm via padstack in %s' % (d, drill, dsn_path))
+    txt = txt[:m.end() - len('(attach off)')] + '(attach on)' + txt[m.end():]
+    # the control scope sits in the structure, after its via list
+    j = txt.index('\n', re.search(r'\n    \(via "', txt).end()) + 1
+    txt = txt[:j] + '    (control\n      (via_at_smd on)\n    )\n' + txt[j:]
+    open(dsn_path, 'w').write(txt)
+
 
 def freeroute(dsn_path, ses_path, passes=20, timeout=None, log=None):
     timeout = timeout or int(os.environ.get('FREEROUTING_TIMEOUT', 1800))

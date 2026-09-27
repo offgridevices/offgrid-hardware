@@ -476,6 +476,19 @@ RULES = """(version 1)
   (constraint min_resolved_spokes 1))
 """
 
+# JLCPCB via-in-pad (POFV, "Epoxy Filled & Capped", free on 6 layers): every
+# via is filled, and holes drilled afterwards (unplated mounting slots,
+# plated pads) keep 0.45 mm from them.  Boards that put vias in pads add
+# this to their rules.
+POFV_RULES = """# JLCPCB via-in-pad (POFV): ordered "Epoxy Filled & Capped", every via is
+# filled; holes drilled afterwards (the unplated mounting holes and plated
+# pads) keep 0.45 mm from them.
+(rule "POFV to drilled holes"
+  (condition "A.Type == 'Via' && B.Type == 'Pad'")
+  (constraint hole_to_hole (min 0.45mm)))
+"""
+
+
 def write_rules(board_path, extra=''):
     import os
     open(os.path.splitext(board_path)[0] + '.kicad_dru', 'w').write(RULES + extra)

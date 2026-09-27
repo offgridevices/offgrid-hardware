@@ -213,9 +213,10 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
     keep off that spot.
     `flip(comp)` true: the part may go on the other side of the board if
     that puts it nearer its table position by more than FLIP_COST.
-    `pad_keep` is a list of (side, bbox) where no part may put a pad (its
-    body may pass over): the far side of a chip's pins that take vias in
-    the pad."""
+    `pad_keep` is a list of (side, bbox) or (side, bbox, net) where no part
+    may put a pad (its body may pass over): the far side of a chip's pins
+    that take vias in the pad.  A spot with a net takes a pad of that net
+    (the via then lands in it)."""
     np, n = _grid_setup(half)
     allp = {**parts.PARTS, **parts.PADS}
     occ = {'T': np.zeros((n, n), dtype=bool), 'B': np.zeros((n, n), dtype=bool)}
@@ -235,9 +236,14 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
     for sd, bb in reserved:
         _mark(occ[sd], bb, half, n)
     padkeep = {'T': np.zeros((n, n), dtype=bool), 'B': np.zeros((n, n), dtype=bool)}
-    for sd, bb in pad_keep:
+    netkeep = {}
+    for spot in pad_keep:
+        sd, bb = spot[:2]
         _mark(padkeep[sd], bb, half, n)
+        if len(spot) > 2 and spot[2]:
+            _mark(netkeep.setdefault((sd, spot[2]), np.zeros((n, n), dtype=bool)), bb, half, n)
     ksat = {s: _sat(np, k) for s, k in padkeep.items()}
+    nsat = {k: _sat(np, v) for k, v in netkeep.items()}
     pl = {k: tuple(v) for k, v in placement.items()}
     info = {}
     for c in comps:
@@ -346,9 +352,15 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
                     pw = int(math.ceil((pb[2] - pb[0] + gap) / CELL)) + 1
                     ph = int(math.ceil((pb[3] - pb[1] + gap) / CELL)) + 1
                     pi, pj = np.clip(ii + pi0, 0, n - pw), np.clip(jj + pj0, 0, n - ph)
+                    pnet = c.pins.get(num)
                     for ks in (('T', 'B') if th else (s_,)):
                         S = ksat[ks]
-                        free &= (S[pj + ph, pi + pw] - S[pj, pi + pw] - S[pj + ph, pi] + S[pj, pi]) == 0
+                        hit = S[pj + ph, pi + pw] - S[pj, pi + pw] - S[pj + ph, pi] + S[pj, pi]
+                        if (ks, pnet) in nsat:
+                            # spots of the pad's own net take it
+                            N_ = nsat[(ks, pnet)]
+                            hit = hit - (N_[pj + ph, pi + pw] - N_[pj, pi + pw] - N_[pj + ph, pi] + N_[pj, pi])
+                        free &= hit == 0
             if far:
                 fs, fi, fj, fw, fh = far
                 pi, pj = np.clip(ii + fi, 0, n - fw), np.clip(jj + fj, 0, n - fh)
