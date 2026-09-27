@@ -42,7 +42,7 @@ def _copy_project(src_pcb, dst_pcb):
 def run(board_name, work, passes=None, log=print):
     """Returns the path of the finished board in `work`."""
     os.makedirs(work, exist_ok=True)
-    pcbnew.KIID.SeedGenerator(SEEDS[board_name])
+    pcbnew.KIID.SeedGenerator(int(os.environ.get('PIPELINE_SEED', SEEDS[board_name])))
     passes = passes or (15 if board_name == 'esc' else 60)      # Freerouting passes per round
     if board_name == 'fc':
         import fc_layout as L

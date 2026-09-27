@@ -166,11 +166,16 @@ def _sat(np, occ):
 
 
 def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0, verbose=True,
-         rotatable=None, reserved=()):
+         rotatable=None, reserved=(), priority=None, anchor=None):
     """Returns (placement, unplaced refs).  `gap` is kept between
     courtyards; `edge` between a courtyard and the board edge; hole
     keepouts are occupied on both sides; `reserved` is a list of
-    (side 'T'/'B', (x0, y0, x1, y1)) kept free for copper (via corridors)."""
+    (side 'T'/'B', (x0, y0, x1, y1)) kept free for copper (via corridors).
+    `priority(comp)` (lower first) orders the parts before size does: the
+    parts that must sit at a pin (decoupling, bootstrap) go before the
+    ones that only need to be somewhere near.  `anchor(comp)` names the
+    part a part belongs with (a regulator's capacitors: the regulator);
+    once the anchor is placed, the part's table position moves with it."""
     np, n = _grid_setup(half)
     allp = {**parts.PARTS, **parts.PADS}
     occ = {'T': np.zeros((n, n), dtype=bool), 'B': np.zeros((n, n), dtype=bool)}
@@ -214,7 +219,7 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
     def size(c):
         bb = local_bbox(info[c.ref][0])
         return (bb[2] - bb[0]) * (bb[3] - bb[1])
-    movable.sort(key=lambda c: (-round(size(c), 2), c.ref))
+    movable.sort(key=lambda c: ((priority(c) if priority else 0), -round(size(c), 2), c.ref))
     # search offsets, nearest first, out to twice `radius` (a part only
     # goes past `radius` when nothing nearer is free)
     R = int(2 * radius / CELL)
@@ -227,9 +232,13 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
     left = []
     moved = []
     sats = {s: _sat(np, o) for s, o in occ.items()}
+    shift = {}
     for c in movable:
         fpid, sd = info[c.ref]
         x, y, rot, side = pl[c.ref][:4]
+        a = anchor(c) if anchor else None
+        if a in shift:
+            x, y = x + shift[a][0], y + shift[a][1]
         rots = [rot]
         if rotatable and rotatable(c):
             rots.append((rot + 90) % 360)
@@ -258,7 +267,9 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
             continue
         _, r, i, j, bb, w, h = best
         nx = i * CELL - half - bb[0] + gap / 2; ny = j * CELL - half - bb[1] + gap / 2
-        moved.append((math.hypot(nx - x, ny - y), c.ref))
+        x0, y0 = placement[c.ref][:2]
+        moved.append((math.hypot(nx - x0, ny - y0), c.ref))
+        shift[c.ref] = (float(nx) - x0, float(ny) - y0)
         pl[c.ref] = (round(float(nx), 3), round(float(ny), 3), r, side)
         for s in sides(sd):
             occ[s][j:j + h, i:i + w] = True

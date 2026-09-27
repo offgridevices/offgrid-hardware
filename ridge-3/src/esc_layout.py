@@ -95,10 +95,14 @@ def template():
     t['MCU'] = (2.38, Y_CHIP, 0, 'B')
     # a row of capacitors inside the chips, on the bottom: the driver's
     # bootstrap and gate-drive supply capacitors (its supply pin faces the
-    # centre), then the MCU's supply and reset capacitors (its supply and
-    # reset pins face the centre too)
-    for i, role in enumerate(('CBS_A', 'CBS_B', 'CBS_C', 'C_GV', 'C_GVHF', 'C_VDD', 'C_VDDB', 'C_RST')):
-        t[role] = (-4.4 + 1.1 * i, 3.9, 90, 'B')
+    # centre), then the MCU's 100 nF (its supply pins face the centre too).
+    # Six fit between the neighbouring channel's MCU and the next row,
+    # turned 90 degrees.  The MCU's bulk and reset capacitors go on top,
+    # over its supply and reset pins.
+    for i, role in enumerate(('CBS_A', 'CBS_B', 'CBS_C', 'C_GV', 'C_GVHF', 'C_VDD')):
+        t[role] = (-4.15 + 1.2 * i, 3.7, 90, 'B')
+    t['C_VDDB'] = (1.9, 5.5, 0, 'T')
+    t['C_RST'] = (3.9, 5.5, 0, 'T')
     # shunt along the row in the diagonal zone at the channel's +u end:
     # its sense-node pad (1) at +u, where the channel's return copper comes
     # in from the FET band, its ground pad inwards
@@ -115,10 +119,13 @@ def template():
     # (pogo pins from below at programming time)
     t['TP_DIO'] = (7.0, 6.0, 0, 'B')
     t['TP_CLK'] = (8.3, 6.0, 0, 'B')
-    for role, pos in (('RBL_A', (1.6, 9.65)), ('RBL_B', (3.6, 9.65)), ('RBL_C', (5.6, 9.65)),
-                      ('RNG', (1.6, 8.65)), ('R_IF', (3.6, 8.65)), ('C_IF', (3.6, 7.65)),
-                      ('R_CUR', (1.6, 7.65))):
-        t[role] = pos + (0, 'T')
+    t['R_CUR'] = (1.6, 7.65, 0, 'T')
+    # the back-EMF dividers' low legs, the neutral's leg to ground and the
+    # current filter all end on MCU pins: on the bottom, packed round the
+    # MCU and into the diagonal zone beside it
+    for role, pos in (('RBL_A', (5.3, 4.6)), ('RBL_B', (6.5, 4.6)), ('RBL_C', (7.7, 4.6)),
+                      ('RNG', (5.3, 5.6)), ('R_IF', (6.5, 5.6)), ('C_IF', (7.7, 5.6))):
+        t[role] = pos + (0, 'B')
     t['U_CS'] = (7.4, 7.6, 0, 'T')
     t['C_CS'] = (5.6, 6.0, 90, 'T')
     return t
@@ -169,33 +176,36 @@ BAT_U, BAT_YR = 9.5, 16.1
 GLOBAL = {
     'P_BAT+': (-BAT_U, BAT_YR, 0, 'T'),
     'P_BAT-': (BAT_U, BAT_YR, 0, 'T'),
-    'J_FC': (0.0, 1.6, 0, 'T'),
+    'J_FC': (0.0, 1.75, 0, 'T'),
     'H1': (-pcb.HOLE, -pcb.HOLE, 0, 'T'), 'H2': (pcb.HOLE, -pcb.HOLE, 0, 'T'),
     'H3': (pcb.HOLE, pcb.HOLE, 0, 'T'), 'H4': (-pcb.HOLE, pcb.HOLE, 0, 'T'),
     # TVS in the rear-left corner slot beside the battery pads; the 3.3 V
     # buck and the gate-drive LDO in front of the stack connector
     'D_TVS': (-8.4, 11.6, 90, 'T'),
-    'L1': (-3.2, -3.2, 0, 'T'),
-    'U_BUCK': (-0.2, -2.6, 0, 'T'),
-    'U_GVDD': (3.4, -3.0, 0, 'T'),
+    # the inductor exactly fills the strip between the stack connector and
+    # the front channel's parts, so it is fixed there
+    'L1': (1.0, -2.75, 0, 'T'),
+    'U_BUCK': (-2.9, -2.8, 0, 'T'),
+    'U_GVDD': (3.4, -7.0, 0, 'T'),
     'LED_PWR': (16.8, 13.2, 90, 'T'),
-    'TP_3V3': (-15.2, 7.0, 0, 'T'),
-    'TP_GND': (-15.2, 8.6, 0, 'T'),
+    # the SWD lead's supply pads, on the bottom with the SWD pads
+    'TP_3V3': (-3.4, 3.4, 0, 'B'),
+    'TP_GND': (3.4, -3.4, 0, 'B'),
 }
 GLOBAL_BY_NOTE = {
-    'CUR filter': (0.0, -1.6, 0, 'B'),
-    'buck input': (-0.2, -4.4, 0, 'T'),
-    'buck VCC': (1.4, -2.6, 90, 'T'),
-    'buck output': (-6.0, -2.4, 90, 'T'),
+    'CUR filter': (-5.0, 0.5, 90, 'T'),
+    'buck input': (-2.9, -4.6, 0, 'T'),
+    'buck VCC': (-4.5, -2.8, 90, 'T'),
+    'buck output': (4.3, -2.6, 90, 'T'),
     'power LED': (16.8, 15.4, 90, 'T'),
     'gate-drive LDO input filter': (1.8, -4.6, 0, 'T'),
     'gate-drive LDO input': (3.4, -4.9, 0, 'T'),
     'gate-drive LDO feedback top': (5.8, -2.4, 90, 'T'),
     'gate-drive LDO feedback bottom': (6.8, -2.4, 90, 'T'),
     'gate-drive LDO output': (6.3, -4.4, 0, 'T'),
-    'ESC vsense top': (-1.0, 0.0, 90, 'B'),
-    'ESC vsense bottom': (0.1, 0.0, 90, 'B'),
-    'ESC vsense filter': (1.2, 0.0, 90, 'B'),
+    'ESC vsense top': (5.0, 0.5, 90, 'T'),
+    'ESC vsense bottom': (6.0, 0.5, 90, 'T'),
+    'ESC vsense filter': (7.0, 0.5, 90, 'T'),
 }
 
 
@@ -220,7 +230,32 @@ FIXED_ROLES = ('QAH', 'QBH', 'QCH', 'QAL', 'QBL', 'QCL', 'PA', 'PB', 'PC', 'CBR_
 
 # global parts that stay exactly where the table puts them; the others
 # are only hints for the packer
-GLOBAL_FIXED = ('P_BAT+', 'P_BAT-', 'J_FC', 'H1', 'H2', 'H3', 'H4')
+GLOBAL_FIXED = ('P_BAT+', 'P_BAT-', 'J_FC', 'L1', 'H1', 'H2', 'H3', 'H4')
+
+
+# Packing order: the parts that must sit at a channel chip's pins first,
+# then the supplies' chips and inductor, then their other parts, then the
+# rest (filters, dividers, test points).  A supply's parts move with their
+# chip (pack_anchor).
+def pack_priority(c):
+    if c.note.startswith(('bootstrap ', 'driver GVDD')) or c.note.endswith((' VDD', ' VDD bulk', ' supply')) \
+            or 'current amplifier' in c.note:
+        return 0
+    if c.ref in ('U_BUCK', 'U_GVDD'):
+        return 1
+    if c.block == 'power' and ('buck' in c.note or 'gate-drive LDO' in c.note):
+        return 2
+    return 3
+
+
+def pack_anchor(c):
+    if c.block == 'power' and c.ref != 'U_BUCK' and 'buck' in c.note:
+        return 'U_BUCK'
+    if c.block == 'power' and c.ref != 'U_GVDD' and 'gate-drive LDO' in c.note:
+        return 'U_GVDD'
+    if c.note.startswith('U_CS') and c.note.endswith(' supply'):
+        return 'U_CS' + c.note[4]
+    return None
 
 
 def fixed(comps):
@@ -245,7 +280,8 @@ def build_placed(out_path, legal=True, strict=True):
     if legal:
         import legalize
         two_pad = lambda c: c.ref[:1] in 'RC' and not c.ref.startswith(('R_SH', 'CBR'))
-        place, left = legalize.pack(comps, place, fixed(comps), rotatable=two_pad, reserved=reserved())
+        place, left = legalize.pack(comps, place, fixed(comps), rotatable=two_pad, reserved=reserved(),
+                                    priority=pack_priority, anchor=pack_anchor)
         if left and strict:
             raise SystemExit('no room for %s' % left)
     fps = pcb.place_components(b, comps, place)
@@ -262,6 +298,7 @@ VIA_PWR = (0.5, 0.3)           # power vias: FET tabs, motor pads, returns
 HOLE_CL = 0.15
 
 GAPS = (-7.5, -2.5, 2.5, 7.5)  # via corridors: the gaps between phases and both ends
+MARK_R = 2.6                   # half-size of the bottom-centre square kept for the mark
 SRC_VIA = ((-0.4, 11.85), (0.4, 11.85))          # per corridor, from its centre
 LS_GATE_VIA = (2.0, 13.15)     # from the phase centre (low-side gate, bottom pin 4 at +0.97)
 HS_GATE_VIA = (2.5, 14.05)     # from the phase centre (high-side gate, top pin 4 at +0.97)
@@ -293,6 +330,9 @@ def reserved():
             bb = (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts))
             for side in ('T', 'B') if sd == 'TB' else (sd,):
                 out.append((side, bb))
+    # the bottom's centre, inside the four channels' capacitor rows, is kept
+    # for the OffGrid mark (artwork): no parts there, only vias and traces
+    out.append(('B', (-MARK_R, -MARK_R, MARK_R, MARK_R)))
     return out
 
 
@@ -673,7 +713,7 @@ def artwork(b, comps):
     # the pack range, between the battery pads
     xb = (GLOBAL['P_BAT+'][0] + GLOBAL['P_BAT-'][0]) / 2
     for pl in (top, bot):
-        pl.text([('mono', '2-6S')], [(x, y, 0, None) for x, y in pl.grid_spots((xb, 17.2), radius=6.0, step=0.2)],
+        pl.text([('mono', '2-6S')], [(x, y, 0, None) for x, y in pl.grid_spots((xb, 14.0), radius=12.0, step=0.2)],
                 size=1.2)
     # SWD and supply test points, on whichever side they are
     for n in CHANNELS:
@@ -684,25 +724,24 @@ def artwork(b, comps):
     for ref, s_ in (('TP_3V3', '3V3'), ('TP_GND', 'GND')):
         (top if side[ref] == 'T' else bot).label(ref, s_, size=1.2, smallest=1.0, face='mono')
     top.label('J_FC', '1', pad='1', dist=0.8, size=1.2, face='mono')
-    # the mark and the name on the bottom, on the board's centre line
-    # (x = 0): only their height may move, to clear a part
-    col = [(0.0, y) for y in sorted((0.25 * k for k in range(-60, 61)), key=abs)]
-    at = None
-    for width in (6.0, 5.0, 4.5, 4.0, 3.5):
+    # the OffGrid mark at the exact centre of the bottom, in the square
+    # kept free of parts for it (reserved()); only vias may sit under it
+    for width in (2 * MARK_R - 0.4, 5.0, 4.5, 4.0):
         g, clear = brand.mark_mm(width)
-        at = bot.geom(g, col, clear=clear, vias='fewest', quiet=True)
-        if at:
-            below = at[1] + width / 2 + clear
+        if bot.geom(g, [(0.0, 0.0)], clear=clear, vias='fewest', margin=0.0, quiet=True):
             break
+    # the name and the firmware to flash, on top: on the centre line if
+    # anywhere there is room, else as near it as fits
+    at = None
     for runs, cap in (([('sans', PRODUCT + ' ESC')], 1.4), ([('mono', FIRMWARE)], 1.1)):
         g0 = brand.line(runs, cap)[0].bounds
         mid = (g0[1] + g0[3]) / 2
-        start = (below + 0.8) if at else 0.0
-        spots = [(0.0, y - mid, 0, None) for y in sorted((start + 0.1 * k for k in range(-80, 120)),
-                                                         key=lambda v: abs(v - start))]
+        near = (0.0, at + 1.9) if at is not None else (0.0, 0.0)
+        centred = [(0.0, near[1] + dy - mid, 0, None) for dy in sorted((0.1 * k for k in range(-90, 91)), key=abs)]
+        anywhere = [(x, y - mid, 0, None) for x, y in top.grid_spots(near, radius=16.0, step=0.25)]
         for c in (cap, cap - 0.1, cap - 0.2):
-            if bot.text(runs, spots, size=c, vias='fewest'):
-                below = bot.placed[-1].bounds[3] - pcb.CY
+            if top.text(runs, centred, size=c, vias='fewest') or top.text(runs, anywhere, size=c, vias='fewest'):
+                at = top.placed[-1].centroid.y - pcb.CY
                 break
     # which way is forward: the ESC must sit in the stack the same way round
     # as the FC, or every motor number is wrong

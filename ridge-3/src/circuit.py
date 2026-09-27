@@ -19,7 +19,7 @@ M3/M2-grommet pattern of the GEPRC TAKER G4 AIO that Phase 1 flew:
        all rated for 6S.  firmware/ has the board's Betaflight target,
        one build per gyro.
   ESC  4 x (STM32G071GBU6 + DRV8300D + 6 x TPN2R304PL 40 V FETs + 0.5 mOhm
-       shunt and INA180 current sense), 2-6S, wired to the AM32 target
+       shunt and INA186 current sense), 2-6S, wired to the AM32 target
        RIDGE3_G071 (firmware/am32).
 
 They connect through one 8-pin JST-SH lead, pin 1 to pin 1:
@@ -467,7 +467,7 @@ def esc(n):
     res('R680', p('NEUTRAL'), GND, B, 'neutral to ground')
 
     # Current sense: 0.5 mOhm from the sense node to ground, read by an
-    # INA180A3 (100 V/V): 50 mV/A at PA5 through 1k / 100 nF (1.6 kHz).
+    # INA186A3 (100 V/V): 50 mV/A at PA5 through 1k / 100 nF (1.6 kHz).
     # 0.2 W in the shunt at 20 A (3% of 6 W).
     # The shunt's footprint has Kelvin sense pads (3 on the sense-node end,
     # 4 on the ground end, net-tied to the current pads), so the amplifier
@@ -475,7 +475,8 @@ def esc(n):
     # plane carrying 20 A: a millivolt of plane drop would read as 2 A.
     add('R', 'SHUNT_0M5', {'1': p('SRC'), '2': GND, '3': p('SNSP'), '4': p('SNSN')}, B,
         'ESC %d shunt' % n, ref='R_SH%d' % n)
-    add('U', 'INA180A3', {'1': p('IOUT'), '2': GND, '3': p('SNSP'), '4': p('SNSN'), '5': '+3V3'},
+    # INA186A3 (100 V/V, SC-70-6): REF to ground, output from 0 V up.
+    add('U', 'INA186A3', {'1': GND, '2': GND, '3': '+3V3', '4': p('SNSP'), '5': p('SNSN'), '6': p('IOUT')},
         B, 'ESC %d current amplifier' % n, ref='U_CS%d' % n)
     cap('C100N', '+3V3', GND, B, 'U_CS%d supply' % n)
     res('R1K', p('IOUT'), p('ISENSE'), B, 'current filter')

@@ -478,7 +478,7 @@ def check_esc_pins():
 
 
 # ------------------------------------------------------------------ firmware scales
-INA180_GAIN = {'A1': 20, 'A2': 50, 'A3': 100, 'A4': 200}      # TI INA180 datasheet, device comparison table
+INA_GAIN = {'A1': 20, 'A2': 50, 'A3': 100, 'A4': 200}      # TI INA180 / INA186 datasheets, device comparison tables
 
 
 def shunt_mohm(part):
@@ -493,25 +493,28 @@ def check_fw_scales():
     cfg = bf_configs()['RIDGE3']
     cli = open(os.path.join(FW, 'betaflight/cli-setup.txt')).read()
     esc, fc = circuit.build('esc'), circuit.build('fc')
-    # ESC: one shunt and one INA180 per channel -> MILLIVOLT_PER_AMP at PA5
+    # ESC: one shunt and one INA186 per channel -> MILLIVOLT_PER_AMP at PA5
     sens, bad = set(), []
     for n in (1, 2, 3, 4):
         sh, amp = comp('esc', 'R_SH%d' % n), comp('esc', 'U_CS%d' % n)
-        g = re.match(r'INA180(A\d)$', amp.part)
-        src = 'M%d_SRC' % n
-        # INA180A, pinout A (DBV): 1 OUT, 2 GND, 3 IN+, 4 IN-, 5 VS; low side: IN- to ground
-        if not (g and shunt_mohm(sh.part) and set(sh.pins.values()) == {src, 'GND'}
-                and amp.pins == {'1': 'M%d_IOUT' % n, '2': 'GND', '3': src, '4': 'GND', '5': '+3V3'}):
+        g = re.match(r'INA186(A\d)$', amp.part)
+        src, m = 'M%d_SRC' % n, 'M%d_' % n
+        # INA186 DCK: 1 REF, 2 GND, 3 VS, 4 IN+, 5 IN-, 6 OUT; low side, Kelvin:
+        # IN+ on the shunt's sense-node sense pad, IN- on its ground sense pad
+        if not (g and shunt_mohm(sh.part)
+                and sh.pins == {'1': src, '2': 'GND', '3': m + 'SNSP', '4': m + 'SNSN'}
+                and amp.pins == {'1': 'GND', '2': 'GND', '3': '+3V3', '4': m + 'SNSP', '5': m + 'SNSN',
+                                 '6': m + 'IOUT'}):
             bad.append('ESC %d: %s %s %s' % (n, sh.part, amp.part, amp.pins))
             continue
-        sens.add(shunt_mohm(sh.part) * INA180_GAIN[g.group(1)])
+        sens.add(shunt_mohm(sh.part) * INA_GAIN[g.group(1)])
         filt = [x for x in esc if re.match(r'R\d', x.ref) and set(x.pins.values()) == {'M%d_IOUT' % n, 'M%d_ISENSE' % n}]
         if not filt:
             bad.append('ESC %d: no series resistor from IOUT to ISENSE' % n)
     mv_a = sens.pop() if len(sens) == 1 and not bad else None
     tgt = am32_targets()[0] if AM32 else None
     mpa = cdefine(c_block(tgt, AM32_TARGET), 'MILLIVOLT_PER_AMP') if tgt else None
-    check(S, 'ESC current: %s mOhm shunt x INA180 gain = %s mV/A at PA5 (low-side, INA180A pinout A) = '
+    check(S, 'ESC current: %s mOhm shunt x INA186 gain = %s mV/A at PA5 (low-side, Kelvin) = '
              'AM32 MILLIVOLT_PER_AMP %s' % (shunt_mohm(comp('esc', 'R_SH1').part), mv_a, mpa),
           (mv_a is not None and mpa is not None and abs(mv_a - float(mpa)) < 1e-9) if tgt else 'SKIP',
           '; '.join(bad) or ('66 A full scale at 3.3 V' if mv_a else ''))
@@ -543,7 +546,8 @@ def check_fw_scales():
     else:
         check(S, 'FC current: four equal averaging resistors from the channels to CUR', False,
               '%d found, values %s' % (len(avg), sorted(ravg)))
-    check(S, 'config.h: current meter ADC, offset 0 (0 A = 0 V: INA180 output from ground), voltage meter ADC',
+    check(S, 'config.h: current meter ADC, offset 0 (0 A = 0 V: INA186 output from ground, REF grounded), '
+             'voltage meter ADC',
           cdefine(cfg, 'DEFAULT_CURRENT_METER_SOURCE') == 'CURRENT_METER_ADC'
           and cdefine(cfg, 'DEFAULT_CURRENT_METER_OFFSET') == '0'
           and cdefine(cfg, 'DEFAULT_VOLTAGE_METER_SOURCE') == 'VOLTAGE_METER_ADC')
@@ -620,15 +624,16 @@ def check_power():
           abs(kn / kr - 1) < 0.03)
     # current sense
     sh = find('esc', 'ESC 1 shunt')[0]; amp = find('esc', 'ESC 1 current amplifier')[0]
-    gain = {'INA180A1': 20, 'INA180A2': 50, 'INA180A3': 100, 'INA180A4': 200}[amp.part]
+    gain = {'INA180A1': 20, 'INA180A2': 50, 'INA180A3': 100, 'INA180A4': 200, 'INA186A3': 100}[amp.part]
     mv_a = shunt_mohm(sh.part) * gain
     check(S, 'current sense: %.1f mOhm x %d V/V = %.0f mV/A; the 3.3 V ADC range is %.0f A per motor' %
           (shunt_mohm(sh.part), gain, mv_a, 3300 / mv_a), 3300 / mv_a >= 40)
     check(S, 'shunt dissipation at 20 A per motor: %.2f W in a 2 W 1206 (%.0f %%)' % (20 ** 2 * shunt_mohm(sh.part) * 1e-3,
           100 * 20 ** 2 * shunt_mohm(sh.part) * 1e-3 / 2), 20 ** 2 * shunt_mohm(sh.part) * 1e-3 <= 0.6 * 2)
-    check(S, 'current sense is Kelvin: the amplifier inputs are nets of their own, tied to the shunt only by its '
-             'footprint\'s net-tie pads', sh.pins.get('3', '').endswith('SNSP') and amp.pins['3'] == sh.pins['3']
-          and sh.pins.get('4', '').endswith('SNSN') and amp.pins['4'] == sh.pins['4'])
+    check(S, 'current sense is Kelvin: the amplifier inputs (IN+ pin 4, IN- pin 5) are nets of their own, tied to '
+             'the shunt only by its footprint\'s net-tie pads', sh.pins.get('3', '').endswith('SNSP')
+          and amp.pins['4'] == sh.pins['3'] and sh.pins.get('4', '').endswith('SNSN') and amp.pins['5'] == sh.pins['4']
+          and amp.pins['1'] == 'GND')
     # --- voltage derating: every part that sees the pack, against 25.2 V
     RATED = {   # absolute maximum or rated voltage, datasheet
         'TPN2R304PL': 40, 'DRV8300D': 100, 'MAX15062A': 60, 'TPS7A4101': 50, 'C_BRIDGE': 50, 'C1U_100': 100,

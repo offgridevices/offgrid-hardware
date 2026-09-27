@@ -166,6 +166,15 @@ PARTS = {
     # TI INA180A3IDBVR, 100 V/V, SOT-23-5: 1 OUT, 2 GND, 3 IN+, 4 IN-, 5 VS.
     # Common mode -0.2 to 26 V (low-side shunt: ~0 V).
     # JLC 89,459 ext, $0.19 / 0.14; DK web 296-47654-1-ND 4,197.
+    # ESC current sense: TI INA186A3 (100 V/V, 35 kHz, 40 V common mode,
+    # +/-50 uV offset = 0.1 A on a 0.5 mOhm shunt), SC-70-6: half the
+    # area of the INA180's SOT-23-5, which the ESC's top side needed.
+    # Pins (DCK): 1 REF, 2 GND, 3 VS, 4 IN+, 5 IN-, 6 OUT.  JLC 6,229 ext,
+    # $0.66 / 0.58; DK 296-INA186A3IDCKRCT-ND 9,071, $0.57 at 100.
+    'INA186A3': dict(fp='aio:SC-70-6_L2.0-W1.3-P0.65-LS2.1-BL', lcsc='C2058245',
+                     mpn='INA186A3IDCKR', value='INA186A3',
+                     desc='Current-sense amp 100 V/V, SC-70-6', kind='U',
+                     dk='296-INA186A3IDCKRCT-ND', maker=TI),
     'INA180A3': dict(fp='aio:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR', lcsc='C122882',
                      mpn='INA180A3IDBVR', value='INA180A3',
                      desc='Current-sense amp 100 V/V, SOT-23-5', kind='U',
