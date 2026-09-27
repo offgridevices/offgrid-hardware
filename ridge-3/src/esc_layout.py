@@ -390,15 +390,17 @@ def build_placed(out_path, legal=True, strict=True):
 # ============================================================ power copper
 # All in template coordinates (u, yr), stamped for every channel.  Zones
 # connect solidly (no thermal spokes): these are current paths.
-VIA_SIG = (0.35, 0.2)          # signal vias (routers, escapes)
-VIA_INPAD = (0.45, 0.3)        # plane vias in pads (POFV, filled and capped)
+# Every via keeps a 0.1 mm ring, so copper at the usual 0.1 mm clearance
+# is 0.2 mm from its hole: JLCPCB's multilayer via-hole-to-track minimum.
+VIA_SIG = (0.35, 0.15)         # signal vias (routers, escapes)
+VIA_INPAD = (0.45, 0.25)       # plane vias in pads (POFV, filled and capped)
 VIA_PWR = (0.5, 0.3)           # power vias: FET tabs, motor pads, returns
 # QFN escapes: a via inside the pin's own pad, at its outer end, filled and
 # capped with the rest (JLCPCB multilayer minimum 0.15 mm hole / 0.25 mm
 # via; POFV takes 0.15-0.55 mm).  The chips sit too close to their
 # neighbours for a ring of dog-bone vias beside the pins.
 VIA_MICRO = (0.25, 0.15)
-HOLE_CL = 0.15
+HOLE_CL = 0.2                  # via hole to other copper (JLCPCB multilayer)
 
 GAPS = (-7.5, -2.5, 2.5, 7.5)  # via corridors: the gaps between phases and both ends
 MARK_R = 2.6                   # half-size of the bottom-centre square kept for the mark
@@ -742,7 +744,7 @@ def build(out_path):
     fanout.Obstacles.MARGIN = 0.01
     e2 = H - 0.4
     pins = escape_pins(b, comps)
-    k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_MICRO)
+    k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_MICRO, hole_cl=HOLE_CL)
     print('QFN escape vias: %d of %d, none for %s' % (k, len(pins), bad))
     k, failed = fanout.fanout(b, {'GND', 'VBAT'}, (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2),
                               skip=power_refs(comps), **{x: y for x, y in FANOUT.items() if x != 'inpad'},

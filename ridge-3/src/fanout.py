@@ -432,7 +432,8 @@ def drop_unused_escapes(path):
     return n
 
 
-def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap=0.25, lock=True, inpad=None):
+def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap=0.25, lock=True, inpad=None,
+             hole_cl=0.0):
     """A dog-bone escape for each (ref, pad number) of a QFN: a via just
     outside the pad, straight out from the package (or a little to either
     side), joined to the pad by a stub on the pad's layer.  Adjacent
@@ -441,7 +442,8 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
     via holes (the POFV gap to pad holes); the stub clears every other net
     on its layer.  inpad=(d, drill): first try a via of that size inside
     the pad itself, at its outer end (filled and capped, POFV); the
-    dog-bone is the fallback.  Returns (placed, failed pins)."""
+    dog-bone is the fallback.  hole_cl: every via's hole also clears other
+    nets' copper by this much.  Returns (placed, failed pins)."""
     layers = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu,
                           pcbnew.In4_Cu, pcbnew.B_Cu) if board.IsLayerEnabled(l)]
     obs = Obstacles(board, layers)
@@ -478,6 +480,7 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
             vx, vy = qx + nx * s_, qy + ny * s_
             vg = Point(vx, vy).buffer(d_in / 2)
             if (pp.buffer(0.005).contains(vg) and obs.clear(vg, net, layers, cl)
+                    and obs.clear(Point(vx, vy).buffer(dr_in / 2), net, layers, hole_cl)
                     and obs.hole_room(vx, vy, dr_in / 2, hole_gap)):
                 v = pcbnew.PCB_VIA(board); v.SetPosition(pcbnew.VECTOR2I(MM(vx), MM(vy)))
                 v.SetWidth(MM(d_in)); v.SetDrill(MM(dr_in)); v.SetNet(pad.GetNet())
@@ -492,7 +495,8 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
             for lat in (0.0, 0.25, -0.25, 0.5, -0.5):
                 vx, vy = qx + nx * d + tx * lat, qy + ny * d + ty * lat
                 vg = Point(vx, vy).buffer(via_d / 2)
-                if not obs.clear(vg, net, layers, cl) or not obs.hole_room(vx, vy, via_drill / 2, hole_gap):
+                if not obs.clear(vg, net, layers, cl) or not obs.hole_room(vx, vy, via_drill / 2, hole_gap) \
+                        or not obs.clear(Point(vx, vy).buffer(via_drill / 2), net, layers, hole_cl):
                     continue
                 # stub: straight out of the pad, then over to the via
                 ex, ey = qx + nx * (d - 0.0), qy + ny * (d - 0.0)
