@@ -16,8 +16,11 @@ inductor sit together on the bottom with their switch node, input and
 ground as pours (routers kept out of them).  5 V and 9 V leave their BECs
 as pours; the rest of their nets is routed at 0.4 mm.
 
-Stackup (4 layers): F.Cu signals | In1 solid GND | In2 solid 3.3 V |
-B.Cu signals, parts and the supplies' copper.
+Stackup (6 layers): F.Cu signals | In1 solid GND | In2 signals | In3
+signals | In4 solid 3.3 V | B.Cu signals, parts and the supplies' copper.
+On 4 layers (LAYERS = 4) the routers left 28 nets unfinished: the MCU,
+OSD, flash and gyro share 36 mm with two switching supplies and 30 edge
+pads.
 """
 import math
 import pcbnew
@@ -367,12 +370,10 @@ def routing_keepouts(b):
     return k
 
 
-# The USB-C land (GCT's) puts its GND contact pads 0.18 mm from its own
-# locating-peg holes; accept that inside the connector only.
 DRU_EXTRA = ''
 
 # ============================================================ board
-LAYERS = 4
+LAYERS = 6
 if LAYERS == 4:
     CU = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
     ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.B_Cu]
