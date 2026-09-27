@@ -161,7 +161,7 @@ def roles(comps, n):
         elif note.startswith('neutral '): out['RN_' + note[-1]] = ref
         elif note == 'U_CS%d supply' % n: out['C_CS'] = ref
         elif note == 'current filter':
-            out['R_IF' if c.part == 'R1K' else 'C_IF'] = ref
+            out['R_IF' if c.part.startswith('R') else 'C_IF'] = ref
         elif note == 'CUR average %d' % n: out['R_CUR'] = ref
         else:
             raise KeyError('unplaced role for %s (%s)' % (ref, note))
@@ -186,7 +186,9 @@ GLOBAL = {
     # the front channel's parts, so it is fixed there
     'L1': (1.0, -2.75, 0, 'T'),
     'U_BUCK': (-2.9, -2.8, 0, 'T'),
-    'U_GVDD': (3.4, -7.0, 0, 'T'),
+    # the gate-drive LDO at the rear left, next to the battery pads it
+    # feeds from, between channel 1's and channel 3's chips
+    'U_GVDD': (-7.4, 7.3, 90, 'T'),
     'LED_PWR': (16.8, 13.2, 90, 'T'),
     # the SWD lead's supply and clock pads, on top with the SWD pads
     'TP_3V3': (-3.4, 3.4, 0, 'T'),
@@ -199,11 +201,11 @@ GLOBAL_BY_NOTE = {
     'buck VCC': (-4.5, -2.8, 90, 'T'),
     'buck output': (4.3, -2.6, 90, 'T'),
     'power LED': (16.8, 15.4, 90, 'T'),
-    'gate-drive LDO input filter': (1.8, -4.6, 0, 'T'),
-    'gate-drive LDO input': (3.4, -4.9, 0, 'T'),
-    'gate-drive LDO feedback top': (5.8, -2.4, 90, 'T'),
-    'gate-drive LDO feedback bottom': (6.8, -2.4, 90, 'T'),
-    'gate-drive LDO output': (6.3, -4.4, 0, 'T'),
+    'gate-drive LDO input filter': (-7.4, 9.9, 0, 'T'),
+    'gate-drive LDO input': (-9.3, 7.3, 90, 'T'),
+    'gate-drive LDO feedback top': (-5.6, 6.0, 90, 'T'),
+    'gate-drive LDO feedback bottom': (-5.6, 7.1, 90, 'T'),
+    'gate-drive LDO output': (-5.6, 8.6, 90, 'T'),
     'ESC vsense top': (5.0, 0.5, 90, 'T'),
     'ESC vsense bottom': (6.0, 0.5, 90, 'T'),
     'ESC vsense filter': (7.0, 0.5, 90, 'T'),
@@ -239,6 +241,16 @@ GLOBAL_FIXED = ('P_BAT+', 'P_BAT-', 'J_FC', 'L1', 'H1', 'H2', 'H3', 'H4')
 # rest (filters, dividers, test points).  A supply's parts move with their
 # chip (pack_anchor).
 def pack_priority(c):
+    # the supplies first, while there is room for them: the 3.3 V buck
+    # beside its (fixed) inductor, then the gate-drive LDO, each chip
+    # before (it is larger) the parts that belong at its pins, which follow
+    # it (pack_anchor); then the battery TVS
+    if c.ref == 'U_BUCK' or (c.block == 'power' and 'buck' in c.note):
+        return -3
+    if c.ref == 'U_GVDD' or (c.block == 'power' and 'gate-drive LDO' in c.note):
+        return -2
+    if c.ref == 'D_TVS':
+        return -1
     if c.note.startswith(('bootstrap ', 'driver GVDD')) or c.note.endswith((' VDD', ' VDD bulk', ' supply')) \
             or 'current amplifier' in c.note:
         return 0
@@ -259,11 +271,15 @@ def pack_anchor(c):
     return None
 
 
-# An IC's exposed pad on a plane net (the gate-drive LDO's) carries its
-# heat to the planes through filled vias in the pad, so the packer keeps
-# the bottom under it free.  Smaller plane pads get their via beside the
-# pad (fanout).
-EP_AREA = 2.0
+# An IC's exposed pad on a plane net can take its ground vias inside the
+# pad; the packer then keeps the far side under it free (legalize.pack's
+# `through`).  None of this board's movable ICs needs it: the gate-drive
+# LDO (TPS7A1601, VSON-8) dissipates at most about 0.3 W ((25.2 - 11.3) V
+# x 22 mA: four drivers' gate charge at 48 kHz plus their quiescent
+# current), which its pad soldered to the top ground copper, with its
+# ground vias beside it, carries.  EP_AREA sets the size above which an
+# exposed pad would count.
+EP_AREA = 1e9
 _via_pads = {}
 
 
@@ -287,7 +303,55 @@ EITHER_SIDE = ('current filter', 'CUR filter', 'ESC vsense top', 'ESC vsense bot
 
 
 def either_side(c):
-    return c.note in EITHER_SIDE
+    # the gate-drive LDO and its parts, and the battery TVS, go wherever
+    # there is room: the LDO feeds all four drivers and the TVS only needs
+    # the battery pads' copper, which is on both sides
+    return c.note in EITHER_SIDE or c.ref in ('U_GVDD', 'D_TVS') or \
+        (c.block == 'power' and 'gate-drive LDO' in c.note)
+
+
+def escape_keep(comps, place):
+    """Where the MCUs' and drivers' vias come through to the far side, so no
+    other part puts a pad there: each signal pin that leaves its side of the
+    board has its via inside the pad at the pad's outer end (VIA_MICRO,
+    fanout.dogbones), and each driver's ground pad has the plane fan-out's
+    2 x 2 grid (FANOUT ep_pitch, VIA_INPAD).  Each spot is the via plus
+    0.1 mm."""
+    import legalize
+    allp = {**parts.PARTS, **parts.PADS}
+    out = []
+
+    def spot(far, x, y, d):
+        r = d / 2 + 0.1
+        out.append((far, (x - r, y - r, x + r, y + r)))
+    for n in CHANNELS:
+        r = roles(comps, n)
+        # the six PWM lines join the two chips on their own side
+        same = {'M%d_%s' % (n, k) for k in ('HA', 'HB', 'HC', 'LA', 'LB', 'LC')}
+        for role in ('MCU', 'GD'):
+            c = next(c for c in comps if c.ref == r[role])
+            x, y, rot, side = place[c.ref][:4]
+            far = 'B' if side == 'T' else 'T'
+            for num, bb, th in legalize.pad_boxes(allp[c.part]['fp'], rot, side):
+                net = c.pins.get(num)
+                px, py = (bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2
+                w, h = bb[2] - bb[0], bb[3] - bb[1]
+                if net == 'GND' and w * h > 2.0:
+                    # exposed pad: the fan-out's via grid
+                    k = FANOUT['ep_pitch'] / 2
+                    for dx in (-k, k):
+                        for dy in (-k, k):
+                            spot(far, x + px + dx, y + py + dy, FANOUT['via_d'])
+                elif net not in (None, 'GND', 'VBAT') and net not in same:
+                    # outward along the pad's long axis, as fanout.dogbones puts it
+                    if abs(px) >= abs(py):
+                        s_ = max(0.0, w / 2 - VIA_MICRO[0] / 2 - 0.08)
+                        vx, vy = px + (s_ if px > 0 else -s_), py
+                    else:
+                        s_ = max(0.0, h / 2 - VIA_MICRO[0] / 2 - 0.08)
+                        vx, vy = px, py + (s_ if py > 0 else -s_)
+                    spot(far, x + vx, y + vy, VIA_MICRO[0])
+    return out
 
 
 def fixed(comps):
@@ -314,7 +378,8 @@ def build_placed(out_path, legal=True, strict=True):
         # the passives and the two supply chips may turn 90 degrees to fit
         turn = lambda c: (c.ref[:1] in 'RC' and not c.ref.startswith(('R_SH', 'CBR'))) or c.ref in ('U_BUCK', 'U_GVDD')
         place, left = legalize.pack(comps, place, fixed(comps), rotatable=turn, reserved=reserved(),
-                                    priority=pack_priority, anchor=pack_anchor, through=via_pads, flip=either_side)
+                                    priority=pack_priority, anchor=pack_anchor, through=via_pads, flip=either_side,
+                                    pad_keep=escape_keep(comps, place))
         if left and strict:
             raise SystemExit('no room for %s' % left)
     fps = pcb.place_components(b, comps, place)
@@ -328,6 +393,11 @@ def build_placed(out_path, legal=True, strict=True):
 VIA_SIG = (0.35, 0.2)          # signal vias (routers, escapes)
 VIA_INPAD = (0.45, 0.3)        # plane vias in pads (POFV, filled and capped)
 VIA_PWR = (0.5, 0.3)           # power vias: FET tabs, motor pads, returns
+# QFN escapes: a via inside the pin's own pad, at its outer end, filled and
+# capped with the rest (JLCPCB multilayer minimum 0.15 mm hole / 0.25 mm
+# via; POFV takes 0.15-0.55 mm).  The chips sit too close to their
+# neighbours for a ring of dog-bone vias beside the pins.
+VIA_MICRO = (0.25, 0.15)
 HOLE_CL = 0.15
 
 GAPS = (-7.5, -2.5, 2.5, 7.5)  # via corridors: the gaps between phases and both ends
@@ -610,9 +680,10 @@ def clearances(comps):
 
 def via_rules(b):
     ds = b.GetDesignSettings()
-    ds.m_ViasMinSize = MM(VIA_SIG[0])
-    ds.m_MinThroughDrill = MM(VIA_SIG[1])
-    ds.m_ViasMinAnnularWidth = MM((VIA_SIG[0] - VIA_SIG[1]) / 2)
+    # the smallest via on the board is the QFN in-pad escape
+    ds.m_ViasMinSize = MM(VIA_MICRO[0])
+    ds.m_MinThroughDrill = MM(VIA_MICRO[1])
+    ds.m_ViasMinAnnularWidth = MM((VIA_MICRO[0] - VIA_MICRO[1]) / 2)
     ds.m_HoleClearance = MM(HOLE_CL)
     nc = ds.m_NetSettings.GetDefaultNetclass()
     nc.SetViaDiameter(MM(VIA_SIG[0])); nc.SetViaDrill(MM(VIA_SIG[1]))
@@ -671,7 +742,7 @@ def build(out_path):
     fanout.Obstacles.MARGIN = 0.01
     e2 = H - 0.4
     pins = escape_pins(b, comps)
-    k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_MICRO)
     print('QFN escape vias: %d of %d, none for %s' % (k, len(pins), bad))
     k, failed = fanout.fanout(b, {'GND', 'VBAT'}, (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2),
                               skip=power_refs(comps), **{x: y for x, y in FANOUT.items() if x != 'inpad'},

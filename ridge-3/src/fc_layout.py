@@ -57,7 +57,9 @@ PLACE = {
     # OSD in front of the MCU: SPI towards it, video towards the front pads
     'U_OSD':   (-1.0, -8.8, 0, T),
     'U_FLASH': (6.75, -8.6, 0, T),
-    'Y1':      (-2.2, 7.5, 0, T),
+    # the crystal left of the stack lead's corridor (KEEP_FREE), its pins
+    # (5, 6) at the corridor's left edge
+    'Y1':      (-5.3, 7.6, 90, T),
     'Y2':      (-8.1, -6.6, 270, T),
     'J_USB':   (-12.21, 0.0, 270, T),
     # ESD array diagonally in front of the MCU's left pins: D- on its
@@ -78,7 +80,7 @@ PLACE = {
     'FB_OSD':  (-7.0, -9.5, 90, T),
     # SWD (debugging only: the FC flashes over USB) on the bottom, left of
     # the name band, near the MCU's SWD pins; reset on top
-    'TP_SWDIO': (-9.0, -6.0, 0, Bo), 'TP_SWCLK': (-9.0, -4.4, 0, Bo), 'TP_NRST': (-3.0, 10.4, 0, T),
+    'TP_SWDIO': (-9.0, -6.0, 0, Bo), 'TP_SWCLK': (-9.0, -4.4, 0, Bo), 'TP_NRST': (-5.3, 10.4, 0, T),
     # ---- solder pads.  Left edge: receiver at the front, LED strip at the rear.
     'P_RX5V': (-PE, -10.3, 90, T), 'P_RXG': (-PE, -8.8, 90, T),
     'P_R2':   (-PE, -7.3, 90, T),  'P_T2':  (-PE, -5.8, 90, T),
@@ -155,7 +157,7 @@ PLACE_BY_NOTE = {
     'U_FC VDDA bulk':       (5.6, -0.6, 0, T),
     'U_FC bulk':            (-5.7, 4.9, 0, T),
     'U_FC reset filter':    (-0.75, 5.9, 90, T),
-    'crystal load':         [(-4.2, 7.5, 90, T), (-0.2, 7.5, 90, T)],
+    'crystal load':         [(-7.3, 7.6, 90, T), (-3.5, 7.6, 90, T)],
     'BOOT0 pulldown':       (-5.7, 2.85, 0, T),
     # gyro filter and decoupling, at its supply pins (right and front)
     'gyro supply filter':   (8.6, 2.2, 90, T),
@@ -241,6 +243,11 @@ KEEP_FREE = [
     (T, (-12.4, 5.4, -8.4, 10.2)),         # the OffGrid mark
     (Bo, (-10.0, -17.7, 10.0, -12.5)),     # the lockup (bottom, front band)
     (Bo, (-7.0, -3.0, 7.0, 4.6)),          # the board's name (bottom, under the MCU)
+    # the stack lead's corridor: from the ESC lead's signal pins (3-8) to
+    # the MCU's rear pins, kept free of parts on top so the six lines run
+    # straight on the top layer (the 5 V BEC's pours under it leave no
+    # room for vias)
+    (T, (-3.0, 5.7, 3.2, 11.7)),
 ]
 
 

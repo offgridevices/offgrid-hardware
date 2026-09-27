@@ -61,6 +61,11 @@ def R(value, lcsc, mpn, dk=None, dk_mpn=None, maker=UNIROYAL):
         e.update(dk=dk, dk_mpn=dk_mpn, maker=maker)
     return e
 
+def R0201(value, lcsc, mpn, dk):
+    """Yageo RC0201 1 %: the same part at JLC/LCSC and DigiKey."""
+    return dict(fp='Resistor_SMD:R_0201_0603Metric', lcsc=lcsc, mpn=mpn, value=value,
+                desc='Resistor %s 1%% 0201' % value, kind='R', dk=dk, dk_mpn=mpn, maker='Yageo (Taiwan)')
+
 def C(value, fp, lcsc, mpn, rating, dk=None, dk_mpn=None, maker=SAMSUNG):
     e = dict(fp=fp, lcsc=lcsc, mpn=mpn, value=value,
              desc='Capacitor %s %s' % (value, rating), kind='C')
@@ -196,6 +201,19 @@ PARTS = {
                       mpn='MAX15062AATA+T', value='MAX15062A 3.3V',
                       desc='Buck 60 V in, 3.3 V fixed, 300 mA, TDFN-8 2x2', kind='U',
                       dk='MAX15062AATA+TCT-ND', maker='Analog Devices (USA)'),
+    # TI TPS7A1601 LDO (3-60 V in, 100 mA, adjustable, VFB 1.169 V), VSON-8
+    # 3 x 3 mm (DRB): 1 OUT, 2 FB, 3 PG, 4 GND, 5 EN, 6 NC, 7 DELAY, 8 IN,
+    # 9 = PowerPAD (GND); TI SBVS171F.  RthJA 44.5 C/W.  OUT >= 2.2 uF,
+    # IN >= 0.1 uF.  KiCad's VSON-8 3x3 EP1.65x2.4 land is TI's DRB.
+    # Replaces the TPS7A4101 on the ESC: same job at 42 % of its rating on
+    # 6S instead of 50 %, in 3 x 3 mm instead of the HVSSOP's 3 x 5 mm lead
+    # span, which the ESC's top had no room for.
+    # JLC 2,696 ext ($2.17).  DigiKey 296-40969-1-ND (product 4494487).
+    'TPS7A1601': dict(fp='Package_SON:VSON-8-1EP_3x3mm_P0.65mm_EP1.65x2.4mm', lcsc='C2867753',
+                      mpn='TPS7A1601DRBR', value='TPS7A1601',
+                      desc='LDO 60 V in, 100 mA, adjustable (1.169 V ref), VSON-8 3x3', kind='U',
+                      dk='296-40969-1-ND', maker=TI),
+    # No longer placed (ESC gate-drive LDO before the TPS7A1601).
     # TI TPS7A4101 LDO (7-50 V in, 50 mA), HVSSOP-8 PowerPAD (DGN):
     # 1 OUT, 2 FB, 3 NC, 4 GND, 5 EN, 6 NC, 7 NC, 8 IN, 9 = PowerPAD (GND).
     # footprints.py widens EasyEDA's 1.8 x 1.5 mm thermal pad to TI's
@@ -566,6 +584,25 @@ PARTS = {
     # Panasonic ERJ-2GE0R00X, DK web P0.0JCT-ND 9,890,212.
     'R0R':   R('0R',   'C17168', '0402WGF0000TCE', 'P0.0JCT-ND', 'ERJ-2GE0R00X', UNIROYAL + '; DK: Panasonic (Japan)'),
 
+    # =================================================================
+    #  Resistors, 0201 1 %, Yageo RC0201: the ESC's low-voltage resistors
+    #  (gates, back-EMF low legs, current filters and average, vsense
+    #  bottom, LED).  Half the area of 0402, which the channels need for
+    #  their chips' escapes.  Rated 25 V working and 1/20 W: none of them
+    #  sees more than 11.4 V (a gate resistor only sees the gate current's
+    #  drop) or 14 mW (a gate resistor at 48 kHz).  JLC has no 0201 basic
+    #  resistors, so the same Yageo part at JLC and DigiKey.  JLC stock on
+    #  27 Sep 2026; DigiKey numbers from DigiKey's RC0201 kit list
+    #  (RC0201-R-SKE24L).
+    # =================================================================
+    # JLC 80,353 ext (3,300 ESCs at 24 each).
+    'R10R_0201': R0201('10R', 'C106226', 'RC0201FR-0710RL', '311-10.0MCT-ND'),
+    # JLC 2,415,899 ext.
+    'R1K_0201':  R0201('1k', 'C138165', 'RC0201FR-071KL', '311-1KMCT-ND'),
+    # JLC 17,212 ext (1,400 ESCs at 12 each).
+    'R2K_0201':  R0201('2k', 'C327392', 'RC0201FR-072KL', 'YAG2280CT-ND'),
+    # JLC 2,582,336 ext.
+    'R10K_0201': R0201('10k', 'C106225', 'RC0201FR-0710KL', '311-10.0KMCT-ND'),
     # =================================================================
     #  Capacitors.  Effective capacitance under DC bias from Murata's
     #  SimSurfing data (25 C) for the Murata part or its Murata equivalent.

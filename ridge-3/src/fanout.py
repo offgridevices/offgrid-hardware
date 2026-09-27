@@ -432,14 +432,16 @@ def drop_unused_escapes(path):
     return n
 
 
-def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap=0.25, lock=True):
+def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap=0.25, lock=True, inpad=None):
     """A dog-bone escape for each (ref, pad number) of a QFN: a via just
     outside the pad, straight out from the package (or a little to either
     side), joined to the pad by a stub on the pad's layer.  Adjacent
     escapes are staggered (near / far) so traces can still pass.  The via
     clears every other net by `cl` on every layer and keeps `hole_gap` to
     via holes (the POFV gap to pad holes); the stub clears every other net
-    on its layer.  Returns (placed, failed pins)."""
+    on its layer.  inpad=(d, drill): first try a via of that size inside
+    the pad itself, at its outer end (filled and capped, POFV); the
+    dog-bone is the fallback.  Returns (placed, failed pins)."""
     layers = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu,
                           pcbnew.In4_Cu, pcbnew.B_Cu) if board.IsLayerEnabled(l)]
     obs = Obstacles(board, layers)
@@ -468,6 +470,24 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
             dists = [near + 0.45, near + 0.9, near]
         net = pad.GetNetname()
         spot = None
+        if inpad:
+            d_in, dr_in = inpad
+            # towards the pad's outer end, clear of its rounded corners
+            pp = pad_poly(pad, L)
+            s_ = max(0.0, h - d_in / 2 - 0.08)
+            vx, vy = qx + nx * s_, qy + ny * s_
+            vg = Point(vx, vy).buffer(d_in / 2)
+            if (pp.buffer(0.005).contains(vg) and obs.clear(vg, net, layers, cl)
+                    and obs.hole_room(vx, vy, dr_in / 2, hole_gap)):
+                v = pcbnew.PCB_VIA(board); v.SetPosition(pcbnew.VECTOR2I(MM(vx), MM(vy)))
+                v.SetWidth(MM(d_in)); v.SetDrill(MM(dr_in)); v.SetNet(pad.GetNet())
+                if lock:
+                    v.SetLocked(True)
+                board.Add(v)
+                obs.add(vg, net, layers); obs.vias.append((vx, vy)); obs.netvias.append((vx, vy, net))
+                obs.holes.append((vx, vy, dr_in / 2))
+                placed += 1
+                continue
         for k, d in enumerate(dists):
             for lat in (0.0, 0.25, -0.25, 0.5, -0.5):
                 vx, vy = qx + nx * d + tx * lat, qy + ny * d + ty * lat

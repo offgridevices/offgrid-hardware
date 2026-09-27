@@ -341,7 +341,7 @@ def esc_power():
     add('J', 'SH8_V', dict(STACK_PINS, **{'4': None, '9': None, '10': None}), B,
         'to flight controller (pads 9/10 are mechanical tabs)', ref='J_FC')
     for n in (1, 2, 3, 4):
-        res('R10K', 'M%d_IOUT' % n, 'CUR', B, 'CUR average %d' % n)
+        res('R10K_0201', 'M%d_IOUT' % n, 'CUR', B, 'CUR average %d' % n)
     cap('C100N', 'CUR', GND, B, 'CUR filter')
 
     # 3.3 V for the four MCUs and current-sense amplifiers (about 60 mA):
@@ -355,27 +355,30 @@ def esc_power():
     add('L', 'L33U', {'1': 'BUCK_LX', '2': '+3V3'}, B, 'buck inductor', ref='L1')
     cap('C10U_25', '+3V3', GND, B, 'buck output')
     add('LED', 'LED_RED', {'1': GND, '2': 'LED_PWR_A'}, B, 'power LED', ref='LED_PWR')   # pad 1 cathode
-    res('R1K', '+3V3', 'LED_PWR_A', B, 'power LED')
+    res('R1K_0201', '+3V3', 'LED_PWR_A', B, 'power LED')
 
-    # Gate-drive supply for the four DRV8300s: TI TPS7A4101 LDO at 11.4 V
-    # (1.173 V x (1 + 88.7k / 10.2k)); 57% of the FETs' +/-20 V gate
-    # rating and of the driver's 20 V GVDD maximum.  About 25 mA worst case
-    # (50% of 50 mA).  22 ohm + 1 uF ahead of it blunt spikes.  On 2S it
-    # passes the pack through at about VBAT - 0.3 V.
-    add('U', 'TPS7A4101', {'1': 'GVDD', '2': 'GVDD_FB', '3': None, '4': GND, '5': 'GVDD_IN',
+    # Gate-drive supply for the four DRV8300s: TI TPS7A1601 LDO at 11.3 V
+    # (1.169 V x (1 + 88.7k / 10.2k)); 57% of the FETs' +/-20 V gate
+    # rating and of the driver's 20 V GVDD maximum; 42% of its own 60 V
+    # input rating on 6S.  About 25 mA worst case (25% of 100 mA); at
+    # (25.2 - 11.3) V that is 0.35 W, +16 C through its 44.5 C/W package.
+    # 22 ohm + 1 uF ahead of it blunt spikes.  On 2S it passes the pack
+    # through at about VBAT - 0.8 V.  PG and DELAY unused, EN on IN.
+    add('U', 'TPS7A1601', {'1': 'GVDD', '2': 'GVDD_FB', '3': None, '4': GND, '5': 'GVDD_IN',
                            '6': None, '7': None, '8': 'GVDD_IN', '9': GND},
         B, 'gate-drive LDO', ref='U_GVDD')
     res('R22R', 'VBAT', 'GVDD_IN', B, 'gate-drive LDO input filter')
     cap('C1U_100', 'GVDD_IN', GND, B, 'gate-drive LDO input')
     res('R88K7', 'GVDD', 'GVDD_FB', B, 'gate-drive LDO feedback top')
     res('R10K2', 'GVDD_FB', GND, B, 'gate-drive LDO feedback bottom')
-    # TI asks > 4.7 uF effective; a 25 V 0805 keeps about 1.9 uF at 11.4 V
-    cap('C10U50_1210', 'GVDD', GND, B, 'gate-drive LDO output')
+    # TI asks >= 2.2 uF: the bridge capacitor (4.7 uF 50 V 0805) keeps
+    # 2.26 uF at 11.4 V (Murata bias data, parts.py)
+    cap('C_BRIDGE', 'GVDD', GND, B, 'gate-drive LDO output')
 
     # Shared battery-voltage divider for AM32: 100k / 10k, ratio 11
     # (TARGET_VOLTAGE_DIVIDER 110): 25.2 V -> 2.29 V at PA6.
     res('R100K', 'VBAT', 'ESC_VSENSE', B, 'ESC vsense top')
-    res('R10K', 'ESC_VSENSE', GND, B, 'ESC vsense bottom')
+    res('R10K_0201', 'ESC_VSENSE', GND, B, 'ESC vsense bottom')
     cap('C100N', 'ESC_VSENSE', GND, B, 'ESC vsense filter')
     # Common points for the SWD programming lead.  SWCLK is shared: each
     # MCU has its own SWDIO pad, and an MCU whose SWDIO is not connected
@@ -447,8 +450,8 @@ def esc(n):
 
     for ph in 'ABC':
         cap('C1U_25', p('BST' + ph), p(ph), B, 'bootstrap ' + ph)
-        res('R10R', p('GH%s_D' % ph), p('GH' + ph), B, 'gate high ' + ph)
-        res('R10R', p('GL%s_D' % ph), p('GL' + ph), B, 'gate low ' + ph)
+        res('R10R_0201', p('GH%s_D' % ph), p('GH' + ph), B, 'gate high ' + ph)
+        res('R10R_0201', p('GL%s_D' % ph), p('GL' + ph), B, 'gate low ' + ph)
         # Half-bridge of two 40 V FETs.  Pads 1-3 source, 4 gate, 5-8 and
         # the tab (9) drain.  The low side's source goes to the channel's
         # sense node, which returns to ground through the shunt.
@@ -464,7 +467,7 @@ def esc(n):
         cap('C_BRIDGE', 'VBAT', p('SRC'), B, 'bridge ' + ph)
         # Back-EMF divider 20k / 2k (ratio 11: a 35 V spike reaches 3.2 V).
         res('R20K', p(ph), p('CMP_' + ph), B, 'BEMF ' + ph)
-        res('R2K', p('CMP_' + ph), GND, B, 'BEMF ' + ph)
+        res('R2K_0201', p('CMP_' + ph), GND, B, 'BEMF ' + ph)
         # Virtual neutral: 20k from each phase to a star point, with
         # 2k/3 -> 680 ohm to ground so it scales like the phase dividers.
         res('R20K', p(ph), p('NEUTRAL'), B, 'neutral ' + ph)
@@ -483,7 +486,7 @@ def esc(n):
     add('U', 'INA186A3', {'1': GND, '2': GND, '3': '+3V3', '4': p('SNSP'), '5': p('SNSN'), '6': p('IOUT')},
         B, 'ESC %d current amplifier' % n, ref='U_CS%d' % n)
     cap('C100N', '+3V3', GND, B, 'U_CS%d supply' % n)
-    res('R1K', p('IOUT'), p('ISENSE'), B, 'current filter')
+    res('R1K_0201', p('IOUT'), p('ISENSE'), B, 'current filter')
     cap('C100N', p('ISENSE'), GND, B, 'current filter')
 
     for ph in 'ABC':

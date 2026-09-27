@@ -597,13 +597,13 @@ def check_power():
              'runs it; below that the rail stays off instead of browning out' % (v, t / 1e3, b / 1e3), 5.5 <= v <= 6.5)
     # --- ESC supplies
     t, b = value(find('esc', 'gate-drive LDO feedback top')[0].part), value(find('esc', 'gate-drive LDO feedback bottom')[0].part)
-    v = 1.175 * (1 + t / b)
-    check(S, 'ESC gate drive (TPS7A4101, VFB 1.175 V): %.2f V: %.0f %% of the FETs\' +/-20 V gate rating and of '
+    v = 1.169 * (1 + t / b)
+    check(S, 'ESC gate drive (TPS7A1601, VFB 1.169 V): %.2f V: %.0f %% of the FETs\' +/-20 V gate rating and of '
              'the DRV8300\'s 20 V GVDD maximum' % (v, 100 * v / 20), 10.0 <= v <= 12.0 and v / 20 <= 0.6)
     i_gvdd = 4 * (1.5e-3 + 2 * 41e-9 * 48e3)      # 4 drivers: IQ + 2 gates switching at 48 kHz, 41 nC each
     p = (VMAX - v) * i_gvdd
-    check(S, 'gate-drive LDO at 6S: %.0f mA x %.1f V = %.2f W in an MSOP-8 with exposed pad' % (i_gvdd * 1e3, VMAX - v, p),
-          p < 0.5)
+    check(S, 'gate-drive LDO at 6S: %.0f mA (of 100 mA) x %.1f V = %.2f W; +%.0f C through the VSON-8\'s 44.5 C/W '
+             '(TI SBVS171F)' % (i_gvdd * 1e3, VMAX - v, p, p * 44.5), p < 0.5 and i_gvdd < 0.06)
     check(S, 'ESC 3.3 V: MAX15062A fixed 3.3 V (no divider), 60 V input', find('esc', 'ESC 3.3V buck')[0].part == 'MAX15062A')
     # battery dividers
     r = esc_vsense_ratio()
@@ -636,7 +636,7 @@ def check_power():
           and amp.pins['1'] == 'GND')
     # --- voltage derating: every part that sees the pack, against 25.2 V
     RATED = {   # absolute maximum or rated voltage, datasheet
-        'TPN2R304PL': 40, 'DRV8300D': 100, 'MAX15062A': 60, 'TPS7A4101': 50, 'C_BRIDGE': 50, 'C1U_100': 100,
+        'TPN2R304PL': 40, 'DRV8300D': 100, 'MAX15062A': 60, 'TPS7A1601': 60, 'C_BRIDGE': 50, 'C1U_100': 100,
         'C10U50_1210': 50, 'C100N_100': 100, 'LMR38020F': 80, 'LM76003': 60, 'SMF26A': 26, 'SMF33A': 33,
     }
     seen = set()

@@ -58,16 +58,21 @@ def pad_bbox(fpid, nums):
                            max(b.GetRight() for b in bbs) / 1e6, max(b.GetBottom() for b in bbs) / 1e6) if bbs else None
     return _pad_cache[key]
 
+_padbox_cache = {}
+
 def pad_boxes(fpid, rot, side):
     """[(pad number, bbox)] of a footprint's pads at a rotation and side,
     about its origin, and whether each pad is on both sides (plated hole)."""
     import pcbnew
-    out = []
-    for p in pcb.load_fp(fpid).Pads():
-        b = p.GetBoundingBox()
-        bb = rot_bbox((b.GetLeft() / 1e6, b.GetTop() / 1e6, b.GetRight() / 1e6, b.GetBottom() / 1e6), rot, side)
-        out.append((p.GetNumber(), bb, p.GetAttribute() in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH)))
-    return out
+    key = (fpid, rot, side)
+    if key not in _padbox_cache:
+        out = []
+        for p in pcb.load_fp(fpid).Pads():
+            b = p.GetBoundingBox()
+            bb = rot_bbox((b.GetLeft() / 1e6, b.GetTop() / 1e6, b.GetRight() / 1e6, b.GetBottom() / 1e6), rot, side)
+            out.append((p.GetNumber(), bb, p.GetAttribute() in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH)))
+        _padbox_cache[key] = out
+    return _padbox_cache[key]
 
 def boxes(comps, placement):
     allp = {**parts.PARTS, **parts.PADS}
@@ -191,7 +196,7 @@ def _sat(np, occ):
 
 
 def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0, verbose=True,
-         rotatable=None, reserved=(), priority=None, anchor=None, through=None, flip=None):
+         rotatable=None, reserved=(), priority=None, anchor=None, through=None, flip=None, pad_keep=()):
     """Returns (placement, unplaced refs).  `gap` is kept between
     courtyards; `edge` between a courtyard and the board edge; hole
     keepouts are occupied on both sides; `reserved` is a list of
@@ -207,7 +212,10 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
     chip's ground pad, shares the vias), and the parts placed after it
     keep off that spot.
     `flip(comp)` true: the part may go on the other side of the board if
-    that puts it nearer its table position by more than FLIP_COST."""
+    that puts it nearer its table position by more than FLIP_COST.
+    `pad_keep` is a list of (side, bbox) where no part may put a pad (its
+    body may pass over): the far side of a chip's pins that take vias in
+    the pad."""
     np, n = _grid_setup(half)
     allp = {**parts.PARTS, **parts.PADS}
     occ = {'T': np.zeros((n, n), dtype=bool), 'B': np.zeros((n, n), dtype=bool)}
@@ -226,6 +234,10 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
                 s |= hole
     for sd, bb in reserved:
         _mark(occ[sd], bb, half, n)
+    padkeep = {'T': np.zeros((n, n), dtype=bool), 'B': np.zeros((n, n), dtype=bool)}
+    for sd, bb in pad_keep:
+        _mark(padkeep[sd], bb, half, n)
+    ksat = {s: _sat(np, k) for s, k in padkeep.items()}
     pl = {k: tuple(v) for k, v in placement.items()}
     info = {}
     for c in comps:
@@ -327,6 +339,16 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
                 S = sats[s]
                 tot = S[jj + h, ii + w] - S[jj, ii + w] - S[jj + h, ii] + S[jj, ii]
                 free &= tot == 0
+            if pad_keep:
+                # every pad of the part clear of the kept spots on its side(s)
+                for num, pb, th in pad_boxes(fpid, r, s_):
+                    pi0 = int(math.floor((pb[0] - bb[0]) / CELL)); pj0 = int(math.floor((pb[1] - bb[1]) / CELL))
+                    pw = int(math.ceil((pb[2] - pb[0] + gap) / CELL)) + 1
+                    ph = int(math.ceil((pb[3] - pb[1] + gap) / CELL)) + 1
+                    pi, pj = np.clip(ii + pi0, 0, n - pw), np.clip(jj + pj0, 0, n - ph)
+                    for ks in (('T', 'B') if th else (s_,)):
+                        S = ksat[ks]
+                        free &= (S[pj + ph, pi + pw] - S[pj, pi + pw] - S[pj + ph, pi] + S[pj, pi]) == 0
             if far:
                 fs, fi, fj, fw, fh = far
                 pi, pj = np.clip(ii + fi, 0, n - fw), np.clip(jj + fj, 0, n - fh)
