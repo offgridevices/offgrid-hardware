@@ -7,7 +7,7 @@ from one finished .kicad_pcb.
 
     python3 panel.py fc  OUT_DIR                  (the committed FC board)
     python3 panel.py esc OUT_DIR --cols 3 --rows 2
-    python3 panel.py path/to/x.kicad_pcb OUT_DIR --name cheapdrone-fc --board fc
+    python3 panel.py path/to/x.kicad_pcb OUT_DIR --name ridge3-fc --board fc
 
 Writes into OUT_DIR:
 
@@ -923,7 +923,7 @@ if __name__ == '__main__':
     ap.add_argument('--no-verify', action='store_true')
     ap.add_argument('--no-render', action='store_true')
     a = ap.parse_args()
-    boards = {'fc': 'cheapdrone-fc', 'esc': 'cheapdrone-esc'}
+    boards = {'fc': 'ridge3-fc', 'esc': 'ridge3-esc'}
     if a.board in boards:
         pcb, board_name = os.path.join(V1, a.board, boards[a.board] + '.kicad_pcb'), a.board
     else:

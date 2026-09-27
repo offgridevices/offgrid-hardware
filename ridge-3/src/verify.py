@@ -147,7 +147,7 @@ def check_fc_pins():
     # (+x, +y) corner.  Betaflight body frame: +X forward, +Y left; the
     # board's front is -y in KiCad.  So with pin 1 rear-left and the pad
     # 12-14 edge on the left, the ICM is CW0 and the BMI270 CW270.
-    b = pcbnew.LoadBoard(os.path.join(V1, 'fc', 'cheapdrone-fc.kicad_pcb'))
+    b = pcbnew.LoadBoard(os.path.join(V1, 'fc', 'ridge3-fc.kicad_pcb'))
     fp = b.FindFootprintByReference('U_IMU')
     ctr = fp.GetPosition()
     pad = {p.GetNumber(): p.GetPosition() for p in fp.Pads()}
@@ -515,7 +515,7 @@ def main():
     check_fc_pins()
     check_esc_pins()
     check_power()
-    for board, name in (('fc', 'cheapdrone-fc'), ('esc', 'cheapdrone-esc')):
+    for board, name in (('fc', 'ridge3-fc'), ('esc', 'ridge3-esc')):
         check_board(board, name)
         if os.path.exists(os.path.join(V1, board, name + '.kicad_pcb')):
             check_silk(board, name)

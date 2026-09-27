@@ -34,7 +34,7 @@ sys.path.insert(0, HERE)
 import pcbnew
 import pcb, parts, circuit, fab
 
-BOARDS = {'fc': 'cheapdrone-fc', 'esc': 'cheapdrone-esc'}
+BOARDS = {'fc': 'ridge3-fc', 'esc': 'ridge3-esc'}
 
 
 def gate(ok, what):
@@ -84,7 +84,7 @@ def make_panel(board, name, dst):
     """3 x 2 panel for bulk assembly: order files into production/panel/,
     renders into images/.  panel.make_panel stops on any failed check."""
     import panel
-    tmp = tempfile.mkdtemp(prefix='cheapdrone-%s-panel-' % board)
+    tmp = tempfile.mkdtemp(prefix='ridge3-%s-panel-' % board)
     out = panel.make_panel(dst, tmp, name, board_name=board)
     prod = os.path.join(V1, board, 'production', 'panel')
     shutil.rmtree(prod, ignore_errors=True)
@@ -105,7 +105,7 @@ def build(board, reroute, art=False, pan=True):
     dst = os.path.join(V1, board, name + '.kicad_pcb')
     if reroute:
         import pipeline
-        work = tempfile.mkdtemp(prefix='cheapdrone-%s-' % board)
+        work = tempfile.mkdtemp(prefix='ridge3-%s-' % board)
         fin = pipeline.run(board, work)
         fab.install(fin, os.path.join(V1, board), name)
     elif art:
