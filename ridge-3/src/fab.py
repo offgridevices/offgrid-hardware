@@ -211,6 +211,52 @@ def silk_from_gerbers(gdir, out_png, name):
     return out_png
 
 
+# The brand's dark theme (tokens.json color.pitch / bone / dim)
+PITCH, BONE, DIM = (0x1B, 0x18, 0x13), (0xF1, 0xEC, 0xE0), (0x9A, 0x90, 0x82)
+
+
+def stack_sheet(v1_dir, out_png, boards, title, subtitle, tile=900):
+    """Both sides of every board on one sheet: a column per board (its
+    kicad-cli top and bottom renders), on the brand's Pitch ground with
+    Bone and Dim type in Instrument Sans.  boards: [(folder, name,
+    heading)]."""
+    from PIL import Image, ImageDraw, ImageFont
+    font = os.path.join(v1_dir, 'fonts', 'InstrumentSans-VariableFont.ttf')
+
+    def face(px, weight):
+        f = ImageFont.truetype(font, px)
+        f.set_variation_by_axes([100, weight])          # width, weight
+        return f
+
+    def board_img(path):
+        im = Image.open(path).convert('RGBA')
+        box = im.getchannel('A').point(lambda a: 255 if a > 128 else 0).getbbox()
+        im = im.crop(box)
+        k = tile / max(im.size)
+        return im.resize((round(im.width * k), round(im.height * k)), Image.LANCZOS)
+
+    pad, head, side_w = 60, 220, 150
+    W = side_w + len(boards) * (tile + pad) + pad
+    H = head + 2 * (tile + pad) + pad
+    sheet = Image.new('RGB', (W, H), PITCH)
+    d = ImageDraw.Draw(sheet)
+    d.text((pad, 50), title, font=face(72, 600), fill=BONE)
+    d.text((pad + d.textlength(title, font=face(72, 600)) + 30, 76), subtitle, font=face(38, 400), fill=DIM)
+    for i, (folder, name, heading) in enumerate(boards):
+        x = side_w + pad + i * (tile + pad)
+        d.text((x, head - 70), heading, font=face(44, 500), fill=BONE)
+        for j, s in enumerate(('top', 'bottom')):
+            im = board_img(os.path.join(v1_dir, folder, 'images', '%s-%s.png' % (name, s)))
+            y = head + j * (tile + pad)
+            sheet.paste(im, (x + (tile - im.width) // 2, y + (tile - im.height) // 2), im)
+    for j, s in enumerate(('Top', 'Bottom')):
+        f = face(40, 500)
+        d.text((pad, head + j * (tile + pad) + tile // 2 - 20), s, font=f, fill=DIM)
+    os.makedirs(os.path.dirname(out_png), exist_ok=True)
+    sheet.save(out_png, optimize=True)
+    return out_png
+
+
 def step(board, out_path):
     """STEP of the assembled board, zipped: the raw file is ~18 MB, the zip
     a fifth of that, and every CAD tool reads the STEP inside."""

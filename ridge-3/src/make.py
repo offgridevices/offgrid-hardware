@@ -124,8 +124,18 @@ def build(board, reroute, art=False, pan=True):
         make_panel(board, name, dst)
 
 
+def stack_sheet():
+    """Both sides of both boards on one sheet, from their renders."""
+    out = fab.stack_sheet(V1, os.path.join(V1, 'images', 'ridge3-stack.png'),
+                          [('fc', BOARDS['fc'], 'Flight controller'), ('esc', BOARDS['esc'], '4-in-1 ESC')],
+                          'Ridge 3', '36 × 36 mm · 2-6S · 25.5 mm mount')
+    print('  wrote %s' % os.path.relpath(out, V1))
+
+
 if __name__ == '__main__':
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     for bd in (args or ['fc', 'esc']):
         build(bd, '--reroute' in sys.argv, '--artwork' in sys.argv, '--no-panel' not in sys.argv)
+    if not args:
+        stack_sheet()
     print('all gates passed')
