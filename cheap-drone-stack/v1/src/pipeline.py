@@ -25,6 +25,10 @@ import pcbnew
 import pcb, route, finish, artwork, circuit, cleanup
 
 EXTRA_RULES = ''       # board-specific DRC rules (esc_layout.DRU_EXTRA)
+# KiCad gives every new item a random ID, and the order items reach
+# Freerouting follows those IDs.  A fixed seed per board makes the IDs, and
+# so the routing, the same on every run (with PYTHONHASHSEED=0, see make.py).
+SEEDS = {'fc': 3, 'esc': 3}
 
 
 def _copy_project(src_pcb, dst_pcb):
@@ -38,6 +42,7 @@ def _copy_project(src_pcb, dst_pcb):
 def run(board_name, work, passes=None, log=print):
     """Returns the path of the finished board in `work`."""
     os.makedirs(work, exist_ok=True)
+    pcbnew.KIID.SeedGenerator(SEEDS[board_name])
     passes = passes or (15 if board_name == 'esc' else 60)      # Freerouting passes per round
     if board_name == 'fc':
         import fc_layout as L

@@ -22,6 +22,12 @@ Freerouting 1.9 (FREEROUTING_JAR=path/to/freerouting-1.9.0.jar) with java
 and xvfb-run.
 """
 import os, sys, csv, shutil, tempfile
+# one fixed hash seed: set and dict iteration over strings then runs in the
+# same order every time, and with the seeded item IDs (pipeline.SEEDS) a
+# reroute gives the same board, byte for byte in its copper
+if os.environ.get('PYTHONHASHSEED') != '0':
+    os.environ['PYTHONHASHSEED'] = '0'
+    os.execv(sys.executable, [sys.executable] + sys.argv)
 HERE = os.path.dirname(os.path.abspath(__file__))
 V1 = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
