@@ -489,6 +489,25 @@ POFV_RULES = """# JLCPCB via-in-pad (POFV): ordered "Epoxy Filled & Capped", eve
 """
 
 
+# JLCPCB's finest track and gap on multilayer boards, by copper weight (oz)
+# (capabilities page, "Min. track width and spacing"): 1 oz 0.09 / 0.09 mm,
+# 2 oz 0.15 / 0.15 mm.  The board-setup minimums cover 1 oz and less.
+FAB_MIN = {0.5: 0.09, 1.0: 0.09, 2.0: 0.15}
+
+
+def copper_rules(inner_oz):
+    """DRC rules holding the inner layers to the fab's finest track and gap
+    for their copper weight; '' where the board-setup minimums do."""
+    m = FAB_MIN[inner_oz]
+    if m <= FAB_MIN[1.0]:
+        return ''
+    return ('# %g oz inner copper: JLCPCB etches it no finer than %.2f mm track and %.2f mm gap\n'
+            '(rule "%g oz inner copper"\n'
+            '  (layer inner)\n'
+            '  (constraint track_width (min %.2fmm))\n'
+            '  (constraint clearance (min %.2fmm)))\n' % (inner_oz, m, m, inner_oz, m, m))
+
+
 def write_rules(board_path, extra=''):
     import os
     open(os.path.splitext(board_path)[0] + '.kicad_dru', 'w').write(RULES + extra)

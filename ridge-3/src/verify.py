@@ -772,6 +772,20 @@ def check_board(board, name):
           % (b.GetCopperLayerCount(), ds.m_TrackMinWidth / 1e6, ds.m_MinClearance / 1e6, ds.m_ViasMinSize / 1e6,
              ds.m_MinThroughDrill / 1e6), ds.m_TrackMinWidth >= 90000 and ds.m_MinThroughDrill >= 200000)
     txt = open(path).read()
+    # inner copper weight (the board file's stackup) against the fab's
+    # finest track and gap for it: 2 oz etches no finer than 0.15 mm, and
+    # the DRC above holds the inner layers to that when the board has it
+    # (pcb.copper_rules in its .kicad_dru)
+    inner = sorted(set(float(t) for t in re.findall(r'\(layer "In\d+\.Cu"\s+\(type "copper"\)\s+\(thickness ([\d.]+)\)',
+                                                      txt)))
+    oz = {0.0175: 0.5, 0.035: 1.0, 0.07: 2.0}
+    weights = [oz.get(t) for t in inner]
+    dru = open(os.path.splitext(path)[0] + '.kicad_dru').read() if os.path.exists(os.path.splitext(path)[0] + '.kicad_dru') else ''
+    held = all(w is not None and (pcb.FAB_MIN[w] <= pcb.FAB_MIN[1.0] or pcb.copper_rules(w) in dru) for w in weights)
+    check(S, 'inner copper %s oz: the fab\'s finest track and gap for it, %s mm, %s'
+          % ('/'.join('%g' % w for w in weights if w), '/'.join('%.2f' % pcb.FAB_MIN[w] for w in weights if w),
+             'are what the board-setup minimums and the DRC hold every layer to'),
+          len(weights) == 1 and held, str(inner))
     check(S, 'stackup in the board file: black mask, white silk, ENIG',
           '(color "Black")' in txt and '(color "White")' in txt and '(copper_finish "ENIG")' in txt)
     prod = os.path.join(V1, board, 'production')

@@ -480,26 +480,38 @@ def _route_stage(src, work, tag, targets, keep, temp_cls, variants, passes, log,
         _repair_all(res, order, src, targets, work, repair, log)
         pos = {i: k for k, i in enumerate(order)}
         order.sort(key=lambda i: (len(res[i][1]), pos[i]))
+        fewest = len(res[order[0]][1])
+        if fewest:
+            # a longer go (the repair's deep mode) at the routings that came
+            # closest, as many as there are cores
+            close = [i for i in order if len(res[i][1]) == fewest][:os.cpu_count() or 4]
+            _repair_all(res, close, src, targets, work, repair, log, deep=True)
+            pos = {i: k for k, i in enumerate(order)}
+            order.sort(key=lambda i: (len(res[i][1]), pos[i]))
     return res[order[0]]
 
 
-def _repair_all(res, order, src, targets, work, repair, log):
+def _repair_all(res, order, src, targets, work, repair, log, deep=False):
     """The router's rip-up and re-route on each of Freerouting's routings
     in `order` (how far it gets does not follow from where it starts), as
     many at once as there are cores, each in a process of its own.  It
     stops at the first routing, in `order`, that the repair leaves with
     nothing open, once every routing before it is done too: the ones after
     it could only tie with it, so the result is the same however the
-    processes happen to finish.  res[i] becomes (repaired board, open)."""
+    processes happen to finish.  res[i] becomes (repaired board, open).
+    deep: the repair's deep mode, on boards it has repaired once."""
     import time
     todo = [i for i in order]
     running, done = {}, {}
 
     def start(i):
         out = res[i][0]
-        rep = out.replace('_routed.kicad_pcb', '_repaired.kicad_pcb')
+        if deep:
+            rep = os.path.splitext(out)[0] + '_deep.kicad_pcb'
+        else:
+            rep = out.replace('_routed.kicad_pcb', '_repaired.kicad_pcb')
         job = os.path.splitext(rep)[0] + '.json'
-        json.dump({'open': sorted(res[i][1]), 'mine': sorted(targets)}, open(job, 'w'))
+        json.dump({'open': sorted(res[i][1]), 'mine': sorted(targets), 'deep': deep}, open(job, 'w'))
         logf = open(os.path.splitext(rep)[0] + '.log', 'w')
         running[i] = (rep, logf, subprocess.Popen(list(repair) + [out, rep, job], stdout=logf,
                                                   stderr=subprocess.STDOUT))
@@ -527,9 +539,11 @@ def _repair_all(res, order, src, targets, work, repair, log):
             for ext in ('.kicad_pro', '.kicad_dru'):
                 shutil.copy(os.path.splitext(src)[0] + ext, os.path.splitext(rep)[0] + ext)
             left, _ = _open_nets(rep, targets, work)
-            log('stamp: %s repaired: %d open %s' % (os.path.basename(rep), len(left), sorted(left)))
-            res[i] = (rep, left)
-            done[i] = left
+            log('stamp: %s repaired%s: %d open %s' % (os.path.basename(rep), ' (deep)' if deep else '', len(left),
+                                                       sorted(left)))
+            if len(left) <= len(res[i][1]):
+                res[i] = (rep, left)
+            done[i] = res[i][1]
     for i, (rep, logf, p) in running.items():
         p.kill(); p.wait(); logf.close()
     if running:

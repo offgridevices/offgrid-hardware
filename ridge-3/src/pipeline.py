@@ -26,7 +26,7 @@ from collections import Counter
 import pcbnew
 import pcb, route, finish, artwork, circuit, cleanup
 
-EXTRA_RULES = ''       # board-specific DRC rules (esc_layout.DRU_EXTRA)
+EXTRA_RULES = ''       # board-specific DRC rules (esc_layout.DRU_EXTRA, the inner copper's fab limits)
 # KiCad gives every new item a random ID, and the order items reach
 # Freerouting follows those IDs.  A fixed seed per board makes the IDs, and
 # so the routing, the same on every run (with PYTHONHASHSEED=0, see make.py).
@@ -54,15 +54,20 @@ def setup_routers(L):
     route.VIA_RING = getattr(L, 'VIA_RING', None)
 
 
-def template_repair(b, open_nets, mine, widths, clmap, log=print):
+def template_repair(b, open_nets, mine, widths, clmap, log=print, deep=False):
     """The maze router's rip-up and re-route on stamp.py's template channel:
     only the channel's own nets move (a temporary net X~ takes X's rules),
-    and fixed copper stays."""
+    and fixed copper stays.  deep: a second, longer go at a routing the
+    first left nearly finished: random orders only, with more of them,
+    two passes, and up to 16 nets torn up round each open one."""
     w = dict(widths, **{n + '~': x for n, x in widths.items()})
     c = dict(clmap, **{n + '~': x for n, x in clmap.items()})
     nets = set(p.GetNetname() for fp in b.GetFootprints() for p in fp.Pads() if p.GetNetname())
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     protect = sorted(nets - set(mine))
+    if deep:
+        return finish.repair_orders(b, list(open_nets), protect=protect, widths=w, clmap=c, log=log,
+                                    keep_locked=True, tries=40, passes=2, max_victims=16)
     left = finish.repair_tx(b, open_nets, protect=protect, widths=w, clmap=c, max_victims=14, max_rounds=40, log=log,
                             keep_locked=True)
     left = [n for n in left if n in set(mine)]
@@ -89,7 +94,7 @@ def run(board_name, work, passes=None, log=print):
     routed = os.path.join(work, board_name + '_routed.kicad_pcb')
     fin = os.path.join(work, board_name + '_fin.kicad_pcb')
     global EXTRA_RULES
-    EXTRA_RULES = getattr(L, 'DRU_EXTRA', '')
+    EXTRA_RULES = getattr(L, 'DRU_EXTRA', '') + pcb.copper_rules(getattr(L, 'INNER_OZ', 0.5))
     L.build(placed)
     pcb.write_rules(placed, EXTRA_RULES)
     setup_routers(L)
@@ -176,7 +181,7 @@ def _template_repair_main(board_name, src, dst, job):
     j = json.load(open(job))
     b = pcbnew.LoadBoard(src)
     template_repair(b, j['open'], j['mine'], L.widths(comps), L.clearances(comps),
-                    log=lambda s: print(s, flush=True))
+                    log=lambda s: print(s, flush=True), deep=j.get('deep', False))
     b.Save(dst)
 
 
