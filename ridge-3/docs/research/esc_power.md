@@ -11,14 +11,20 @@
 > - **Back-EMF and neutral dividers:** 20k/2k per phase; the virtual neutral is 30k from
 >   each phase to a star with 1k to ground. The neutral then scales like the phases
 >   (1k / (10k + 1k) = 2k / 22k).
-> - **One SWD clock pad per MCU.** Each channel has its own `Cn` (SWCLK) pad beside its
->   `Dn` (SWDIO) pad. A clock shared by all four MCUs had to run through every other
->   channel to reach each one.
+> - **One SWD clock pad per MCU.** Each channel has its own `Cn` (SWCLK) and `Dn` (SWDIO)
+>   pads, on top over its MCU. A clock shared by all four MCUs had to run through every
+>   other channel to reach each one. At the board's edge the two SWD lines took two of
+>   the FET-row corridors' tracks, which the gate drive needs.
+> - **1 oz inner copper, not 2 oz.** The fab sets one weight for all four inner layers.
+>   On 2 oz, JLCPCB etches no finer than 0.15 mm track / 0.15 mm gap on multilayer
+>   boards, and In2/In3 carry the gate drive through the FET row at 0.12 / 0.1 mm. The
+>   ground and battery planes have twice the resistance they would have at 2 oz. The
+>   20 A burst / 10-15 A sustained per motor target is unchanged, with less margin.
 > - **Gate-drive tracks 0.12 mm, switch-node sense 0.15 mm.** Every one crosses the FET
 >   row in the corridors between the phases. 10 mm of 0.12 mm copper adds about 0.04 ohm
 >   to a gate loop that already has a 10 ohm resistor.
-> - **One return via per corridor, not two.** The corridors pass the gate, sense, back-EMF,
->   neutral and SWD lines across the FET row. A centred via leaves room for a track on
+> - **One return via per corridor, not two.** The corridors pass the gate, sense, back-EMF
+>   and neutral lines across the FET row. A centred via leaves room for a track on
 >   each side of it. The return's bottom and In3 pours are still tied by these vias and
 >   the five at the shunt. In3 is needed: the low-side gate stubs cut the bottom pour at
 >   every corridor.

@@ -329,15 +329,28 @@ def _open_nets(path, nets, work):
     return left, r
 
 
-# Freerouting cost settings the template channel is routed with, all at
-# once; the routing that leaves the fewest of its nets open is kept (the
-# first of equals).  None: Freerouting's own defaults.  Freerouting is
-# deterministic for a given input, and different costs give different
-# routings (route.AUTOROUTE).
+# Freerouting cost settings the template channel is routed with, as many
+# at once as there are cores; the routing that leaves the fewest of its
+# nets open is kept (see _route_stage for the order among equals).  None:
+# Freerouting's own defaults.  Freerouting is deterministic for a given
+# input, and different costs give different routings (route.AUTOROUTE);
+# which of them the rip-up repair then finishes does not follow from how
+# many each left open, so it takes a dozen of them to find one that ends
+# with nothing open.  _VERT: every layer prefers the direction across the
+# FET row, which is where nearly every channel net goes.
+_VERT = {'F.Cu': 'vertical', 'In2.Cu': 'vertical', 'In3.Cu': 'horizontal', 'B.Cu': 'vertical'}
 VARIANTS = [dict(via_costs=20, start_ripup_costs=100),
             dict(via_costs=25, start_ripup_costs=100),
             dict(via_costs=30, start_ripup_costs=100),
-            None]
+            None,
+            dict(via_costs=15, start_ripup_costs=100),
+            dict(via_costs=40, start_ripup_costs=100),
+            dict(via_costs=20, start_ripup_costs=50),
+            dict(via_costs=30, start_ripup_costs=200),
+            dict(via_costs=20, start_ripup_costs=100, directions=_VERT),
+            dict(via_costs=30, start_ripup_costs=100, directions=_VERT),
+            dict(via_costs=25, start_ripup_costs=100, against=1.5),
+            dict(via_costs=25, start_ripup_costs=100, against=3.0)]
 
 
 def _with_costs(dsn, out, costs):
@@ -431,10 +444,10 @@ def route_template(placed, work, parts, channels, passes=30, log=print, variants
 
 
 def _route_stage(src, work, tag, targets, keep, temp_cls, variants, passes, log, repair=None):
-    """One Freerouting stage on the template board: `targets` routed, with
-    every cost variant at once, each routing then repaired (see
-    route_template); the one leaving the fewest of them open is kept.
-    Returns (board path, targets left open)."""
+    """One Freerouting stage on the template board: `targets` routed with
+    every cost variant, each routing then repaired (see route_template);
+    the one leaving the fewest of them open is kept.  Returns (board path,
+    targets left open)."""
     from concurrent.futures import ThreadPoolExecutor
     dsn = os.path.join(work, tag + '.dsn')
     route.export_dsn(src, dsn)
@@ -447,7 +460,7 @@ def _route_stage(src, work, tag, targets, keep, temp_cls, variants, passes, log,
                         extra=['-inc', ','.join(ignored)])
         return ses
 
-    with ThreadPoolExecutor(max_workers=len(variants)) as ex:
+    with ThreadPoolExecutor(max_workers=min(len(variants), os.cpu_count() or 4)) as ex:
         sessions = list(ex.map(run, range(len(variants))))
     res = []
     for i, ses in enumerate(sessions):
@@ -461,32 +474,66 @@ def _route_stage(src, work, tag, targets, keep, temp_cls, variants, passes, log,
         log('stamp: %s, costs %s: %d of %d nets open %s' % (tag, variants[i] or 'default', len(left), len(targets),
                                                               sorted(left)))
         res.append((out, left))
-    if repair:
-        # the router's rip-up and re-route on every routing (how far it
-        # gets does not follow from where it starts), each in a process of
-        # its own, all at once
-        procs = []
-        for i, (out, left) in enumerate(res):
-            if not left:
-                continue
-            rep = out.replace('_routed.kicad_pcb', '_repaired.kicad_pcb')
-            job = os.path.splitext(rep)[0] + '.json'
-            json.dump({'open': sorted(left), 'mine': sorted(targets)}, open(job, 'w'))
-            logf = open(os.path.splitext(rep)[0] + '.log', 'w')
-            procs.append((i, rep, logf, subprocess.Popen(list(repair) + [out, rep, job], stdout=logf,
-                                                         stderr=subprocess.STDOUT)))
-        for i, rep, logf, p in procs:
-            p.wait()
+    # routings in order: fewest open first, then as listed in `variants`
+    order = sorted(range(len(res)), key=lambda i: (len(res[i][1]), i))
+    if repair and res[order[0]][1]:
+        _repair_all(res, order, src, targets, work, repair, log)
+        pos = {i: k for k, i in enumerate(order)}
+        order.sort(key=lambda i: (len(res[i][1]), pos[i]))
+    return res[order[0]]
+
+
+def _repair_all(res, order, src, targets, work, repair, log):
+    """The router's rip-up and re-route on each of Freerouting's routings
+    in `order` (how far it gets does not follow from where it starts), as
+    many at once as there are cores, each in a process of its own.  It
+    stops at the first routing, in `order`, that the repair leaves with
+    nothing open, once every routing before it is done too: the ones after
+    it could only tie with it, so the result is the same however the
+    processes happen to finish.  res[i] becomes (repaired board, open)."""
+    import time
+    todo = [i for i in order]
+    running, done = {}, {}
+
+    def start(i):
+        out = res[i][0]
+        rep = out.replace('_routed.kicad_pcb', '_repaired.kicad_pcb')
+        job = os.path.splitext(rep)[0] + '.json'
+        json.dump({'open': sorted(res[i][1]), 'mine': sorted(targets)}, open(job, 'w'))
+        logf = open(os.path.splitext(rep)[0] + '.log', 'w')
+        running[i] = (rep, logf, subprocess.Popen(list(repair) + [out, rep, job], stdout=logf,
+                                                  stderr=subprocess.STDOUT))
+
+    def settled():
+        for i in order:
+            if i not in done:
+                return False
+            if not done[i]:
+                return True
+        return False
+
+    workers = os.cpu_count() or 4
+    while (todo or running) and not settled():
+        while todo and len(running) < workers:
+            start(todo.pop(0))
+        time.sleep(2)
+        for i in [i for i, (_, _, p) in running.items() if p.poll() is not None]:
+            rep, logf, p = running.pop(i)
             logf.close()
             if p.returncode != 0 or not os.path.exists(rep):
                 log('stamp: repair of %s failed, see %s' % (os.path.basename(res[i][0]), logf.name))
+                done[i] = res[i][1]
                 continue
             for ext in ('.kicad_pro', '.kicad_dru'):
                 shutil.copy(os.path.splitext(src)[0] + ext, os.path.splitext(rep)[0] + ext)
             left, _ = _open_nets(rep, targets, work)
             log('stamp: %s repaired: %d open %s' % (os.path.basename(rep), len(left), sorted(left)))
             res[i] = (rep, left)
-    return min(res, key=lambda r: len(r[1]))
+            done[i] = left
+    for i, (rep, logf, p) in running.items():
+        p.kill(); p.wait(); logf.close()
+    if running:
+        log('stamp: repairs stopped, not needed: %s' % ', '.join(os.path.basename(res[i][0]) for i in sorted(running)))
 
 
 def _key(t, net=None):

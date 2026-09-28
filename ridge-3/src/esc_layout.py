@@ -129,12 +129,14 @@ def template():
         t['RGH_' + ph] = (u + GATE_CELL[0], GATE_CELL[1], 270, 'T')
         t['RGL_' + ph] = (u + GATE_CELL[0], GATE_CELL[2], 90, 'B')
     # SWD test points on top, the side that faces the flight controller
-    # (the bootloader is flashed once, before the stack goes together), at
-    # the board's edge in the gaps either side of motor pad B: a clip
-    # reaches them there, and the middle of the board has no room left.
-    # Clock left, data right.
-    t['TP_DIO'] = (2.5, 16.3, 0, 'T')
-    t['TP_CLK'] = (-2.5, 16.3, 0, 'T')
+    # (the bootloader is flashed once, before the stack goes together),
+    # over the MCU, on this side of the FET row: nearly every other channel
+    # net has to cross that row, and its corridors have no track to spare
+    # (at the board's edge the SWD lines took two of them).  Clock beside
+    # its pin's via; data at the MCU's far corner, 4.7 mm away for a probe.
+    # Both spots are clear of every channel's parts and fixed copper.
+    t['TP_CLK'] = (0.2, 8.95, 0, 'T')
+    t['TP_DIO'] = (4.8, 8.3, 0, 'T')
     # the back-EMF dividers' low legs, the neutral's leg to ground and the
     # current filter's resistor end on the MCU's pins: one row of upright
     # 0201s on the bottom, in the strip between the MCU, the next channel's
@@ -226,9 +228,9 @@ GLOBAL = {
     'U_BUCK': (-0.6, -2.2, 0, 'T'),
     'U_GVDD': (2.6, -3.1, 90, 'T'),
     'LED_PWR': (16.8, 13.2, 90, 'T'),
-    # the SWD lead's supply, clock and ground pads in the rear edge's other
-    # gaps, in one row with motor 1's SWDIO pad: 3V3, CLK, (motor pads),
-    # DIO 1, GND
+    # the SWD lead's supply and ground pads in the rear edge's end slots,
+    # outboard of motor 1's pads (each MCU's clock and data pads are over
+    # the MCU, in its channel)
     'TP_3V3': (-7.3, 16.3, 0, 'T'),
     'TP_GND': (7.3, 16.3, 0, 'T'),
 }
@@ -706,10 +708,13 @@ def routing_keepouts(b):
 # Six layers: F signals + power | In1 GND | In2 signals | In3 signals +
 # channel returns | In4 VBAT | B signals + power.
 LAYERS = 6
-# 2 oz inner copper: In1 (ground) and In4 (battery) carry all four motors'
-# current, and In3 the channel returns; twice the copper halves their loss
-# and spreads the FETs' heat further.
-INNER_OZ = 2.0
+# 1 oz inner copper.  2 oz would halve the loss in In1 (ground) and In4
+# (battery), which carry all four motors' current, but the fab sets one
+# weight for every inner layer, and on 2 oz it etches no finer than
+# 0.15 mm track / 0.15 mm gap (JLCPCB, multilayer): In2 and In3 carry the
+# gate drive through the FET row at 0.12 / 0.1 mm, and at 0.15 / 0.15 the
+# channel does not route.
+INNER_OZ = 1.0
 ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
 # the maze router's cell (mm): round the 0.5 mm-pitch escape vias its
 # rounding margin (1.2 cells) closes gaps a 0.05 mm grid cannot see
@@ -731,7 +736,7 @@ def net_groups(comps):
 # (SRC_VIA), where a 0.12 mm track leaves room for two a side of the
 # corridor's via and a 0.2 mm one for one.  The DRV8300 drives 0.75 A /
 # 1.5 A peaks through its 10 ohm gate resistors: 10 mm of 0.12 mm track adds
-# ~0.04 ohm (outer layer; half that on 2 oz In2), under 0.5 % of the gate
+# ~0.04 ohm (1 oz copper, outer or inner), under 0.5 % of the gate
 # loop.  The bootstrap lines keep 0.2 mm: they are short stubs, and they
 # carry the capacitor's recharge.
 GATE_W = 0.12

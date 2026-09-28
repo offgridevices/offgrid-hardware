@@ -122,13 +122,12 @@ way.
    the current amplifiers.
 2. Wire the ST-Link to the pads on the ESC's top (the side that faces the
    flight controller): `GND` to `G`, `3.3V` to `3V3`, and `SWCLK` to `Cn`
-   and `SWDIO` to `Dn`, where *n* is the ESC being flashed.  `3V3`, `C1`,
-   `D1` and `G` sit in a row along the rear edge, between the battery pads;
-   `C2`/`D2`, `C3`/`D3` and `C4`/`D4` are at the right, left and front
-   edges, each pair either side of its motor's middle pad.  NRST is not on a
-   pad; resets are software resets.
-3. Run `am32/flash_esc.sh`.  It asks for each ESC in turn (move `SWDIO` to
-   `D1`, `D2`, ...), or takes the numbers to flash as
+   and `SWDIO` to `Dn`, where *n* is the ESC being flashed.  `3V3` and `G`
+   are at the two ends of the rear edge, outboard of motor 1's pads.  Each
+   MCU's `Cn` and `Dn` are over that MCU, on the board's middle side of
+   motor n's FETs.  NRST is not on a pad; resets are software resets.
+3. Run `am32/flash_esc.sh`.  It asks for each ESC in turn (move `SWCLK` and
+   `SWDIO` to `C1`/`D1`, `C2`/`D2`, ...), or takes the numbers to flash as
    arguments (`./flash_esc.sh 3`).  It uses OpenOCD (`target/stm32g0x.cfg`);
    `TOOL=cubeprog ./flash_esc.sh` uses STM32CubeProgrammer instead.  For each
    MCU it:

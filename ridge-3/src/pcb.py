@@ -495,7 +495,7 @@ def write_rules(board_path, extra=''):
 
 
 # Stackups, 1.6 mm, 1 oz outer copper; inner copper per board (the ESC's
-# inner planes carry the motor current: 2 oz; the FC: 0.5 oz).  4 layers:
+# inner planes carry the motor current: 1 oz; the FC: 0.5 oz).  4 layers:
 # JLCPCB's standard JLC04161H-7628.  6 layers: nominal figures for the fab's
 # standard 6-layer 1.6 mm build (nothing here needs controlled impedance).
 # Mask and silk colours follow the OffGrid brand: Pitch ground (black
