@@ -128,12 +128,10 @@ def template():
     # over the MCU, on this side of the FET row: nearly every other channel
     # net has to cross that row, and its corridors have no track to spare
     # (at the board's edge the SWD lines took two of them).  Clock beside
-    # its pin's via; data past the MCU's far corner, 5.1 mm away for a
-    # probe, clear of the in-pad vias of the MCU's pins 12-14 (closer, it
-    # sat on them and walled three lines into the gap by the shunt).
+    # its pin's via; data at the MCU's far corner, 4.7 mm away for a probe.
     # Both spots are clear of every channel's parts and fixed copper.
     t['TP_CLK'] = (0.2, 8.95, 0, 'T')
-    t['TP_DIO'] = (5.25, 8.35, 0, 'T')
+    t['TP_DIO'] = (4.8, 8.3, 0, 'T')
     # the back-EMF dividers' low legs, phase C's neutral leg and the
     # current filter's resistor end on the MCU's pins: one row of upright
     # 0201s on the bottom, in the strip between the MCU, the next channel's
