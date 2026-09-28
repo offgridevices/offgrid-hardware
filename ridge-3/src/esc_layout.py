@@ -130,9 +130,11 @@ def template():
         t['RGL_' + ph] = (u + GATE_CELL[0], GATE_CELL[2], 90, 'B')
     # SWD test points on top, the side that faces the flight controller
     # (the bootloader is flashed once, before the stack goes together), at
-    # the board's edge in the gap between motor pads B and C: a clip reaches
-    # them there, and the middle of the board has no room left
+    # the board's edge in the gaps either side of motor pad B: a clip
+    # reaches them there, and the middle of the board has no room left.
+    # Clock left, data right.
     t['TP_DIO'] = (2.5, 16.3, 0, 'T')
+    t['TP_CLK'] = (-2.5, 16.3, 0, 'T')
     # the back-EMF dividers' low legs, the neutral's leg to ground and the
     # current filter's resistor end on the MCU's pins: one row of upright
     # 0201s on the bottom, in the strip between the MCU, the next channel's
@@ -168,6 +170,7 @@ def roles(comps, n):
         elif ref.startswith('Q%d' % n): out['Q' + ref[-2:]] = ref
         elif ref.startswith('P_M%d' % n): out['P' + ref[-1]] = ref
         elif ref == 'TP_E%d_DIO' % n: out['TP_DIO'] = ref
+        elif ref == 'TP_E%d_CLK' % n: out['TP_CLK'] = ref
         elif note == 'U_ESC%d VDD' % n: out['C_VDD'] = ref
         elif note == 'U_ESC%d reset filter' % n: out['C_RST'] = ref
         elif note == 'driver GVDD': out['C_GV'] = ref
@@ -187,6 +190,16 @@ def roles(comps, n):
         else:
             raise KeyError('unplaced role for %s (%s)' % (ref, note))
     return out
+
+
+def channel_parts(comps):
+    """{channel: {role: reference}}: the parts stamp.py routes as one."""
+    return {n: roles(comps, n) for n in CHANNELS}
+
+
+# Freerouting passes for the one channel routed alone (stamp.py)
+STAMP_PASSES = 30
+
 
 
 # ---------------------------------------------------------------- global parts
@@ -216,7 +229,6 @@ GLOBAL = {
     # gaps, in one row with motor 1's SWDIO pad: 3V3, CLK, (motor pads),
     # DIO 1, GND
     'TP_3V3': (-7.3, 16.3, 0, 'T'),
-    'TP_SWCLK': (-2.5, 16.3, 0, 'T'),
     'TP_GND': (7.3, 16.3, 0, 'T'),
 }
 GLOBAL_BY_NOTE = {
@@ -430,9 +442,17 @@ VIA_RING = HOLE_CL - 0.1
 VIA_IN_PAD = VIA_SIG
 
 GAPS = (-7.5, -2.5, 2.5, 7.5)  # via corridors: the gaps between phases and both ends
-# per corridor, from its centre: 0.9 mm apart, so a 0.1 mm trace up the
-# corridor (an MCU's SWD line to its test point) keeps 0.2 mm from both holes
-SRC_VIA = ((-0.45, 11.85), (0.45, 11.85))
+# per corridor, from its centre: one return via on the centre line.  Every
+# signal between the driver and MCU and the FETs, the motor pads and the
+# back-EMF resistors (gate drives, switch-node taps, back-EMF, neutral, SWD:
+# 14 a channel) passes the band of vias across the FET row in these
+# corridors, on top and on In2 (In3 carries the return there).  A pair of
+# vias passed one track between them a layer; one via passes one either side
+# (0.45 mm from its centre keeps a 0.2 mm track 0.2 mm from its hole).  The
+# return's layers stay tied by these and the leg's vias at the shunt: the
+# bottom's pour alone would not do, the low-side gate stubs cut it at every
+# corridor, so each phase's piece reaches the shunt through In3.
+SRC_VIA = ((0.0, 11.85),)
 # gate resistors (0201, upright): u from the phase centre (the corridor's
 # centre line), the high side's yr (top), the low side's yr (bottom).  The
 # FETs' gate pins are at +0.97: the high side's at yr 13.98 (top), the low
@@ -696,9 +716,23 @@ def net_groups(comps):
     nets = set(net for c in comps for net in c.pins.values() if net)
     gate = sorted(x for x in nets if x[:1] == 'M' and x[2:] in ('_GHA', '_GHB', '_GHC', '_GLA', '_GLB', '_GLC',
                                                                  '_GHA_D', '_GHB_D', '_GHC_D', '_GLA_D',
-                                                                 '_GLB_D', '_GLC_D', '_BSTA', '_BSTB', '_BSTC'))
+                                                                 '_GLB_D', '_GLC_D'))
+    boot = sorted(x for x in nets if x[:1] == 'M' and x[2:] in ('_BSTA', '_BSTB', '_BSTC'))
     drv = sorted(x for x in nets if x[:1] == 'M' and x[2:] in ('_A', '_B', '_C'))
-    return nets, gate, drv
+    return nets, gate, boot, drv
+
+
+# Gate drive (driver to gate resistor to gate) and the driver's switch-node
+# sense lines.  Every one of them crosses the FET row in the via corridors
+# (SRC_VIA), where a 0.12 mm track leaves room for two a side of the
+# corridor's via and a 0.2 mm one for one.  The DRV8300 drives 0.75 A /
+# 1.5 A peaks through its 10 ohm gate resistors: 10 mm of 0.12 mm track adds
+# ~0.04 ohm (outer layer; half that on 2 oz In2), under 0.5 % of the gate
+# loop.  The bootstrap lines keep 0.2 mm: they are short stubs, and they
+# carry the capacitor's recharge.
+GATE_W = 0.12
+SENSE_W = 0.15
+BOOT_W = 0.2
 
 
 # Routed supplies (width, clearance): the battery's current runs in the
@@ -716,12 +750,13 @@ SUPPLY_RULES = {
 
 
 def widths(comps):
-    """Router widths: gate drive and bootstrap 0.2 mm, the driver's
-    switch-node sense 0.2 mm, the supplies per SUPPLY_RULES, everything
+    """Router widths: gate drive GATE_W, bootstrap BOOT_W, the driver's
+    switch-node sense SENSE_W, the supplies per SUPPLY_RULES, everything
     else the 0.1 mm default."""
-    nets, gate, drv = net_groups(comps)
-    w = {x: 0.2 for x in gate}
-    w.update({x: 0.2 for x in drv})
+    nets, gate, boot, drv = net_groups(comps)
+    w = {x: GATE_W for x in gate}
+    w.update({x: BOOT_W for x in boot})
+    w.update({x: SENSE_W for x in drv})
     w.update({n: r[0] for n, r in SUPPLY_RULES.items()})
     return w
 
@@ -732,7 +767,7 @@ def clearances(comps):
     solder mask (B4) and 0.1 mm on inner layers (B1).  0.13 mm round those
     nets everywhere; everything else is 3.3 V or 11.4 V logic and gate
     drive, 0.1 mm (B4 and B1 both allow it below 30 V)."""
-    nets, gate, drv = net_groups(comps)
+    nets, gate, boot, drv = net_groups(comps)
     cl = {x: 0.1 for x in widths(comps)}
     for x in drv:
         cl[x] = 0.13
@@ -785,10 +820,11 @@ def build(out_path):
     print('power vias:', power_copper(b, comps))
     print('shunt ground vias:', shunt_vias(b, comps))
     print('gate cells:', gate_cells(b, comps))
-    nets, gate, drv = net_groups(comps)
+    nets, gate, boot, drv = net_groups(comps)
     cl = clearances(comps)
-    pcb.netclass(b, 'GATE', gate, width=0.2, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
-    pcb.netclass(b, 'SWITCH', drv, width=0.2, clearance=0.13, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    pcb.netclass(b, 'GATE', gate, width=GATE_W, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    pcb.netclass(b, 'BOOT', boot, width=BOOT_W, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    pcb.netclass(b, 'SWITCH', drv, width=SENSE_W, clearance=0.13, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
     groups = {}
     for n, rule in SUPPLY_RULES.items():
         groups.setdefault(rule, []).append(n)
@@ -902,12 +938,16 @@ def kelvin_pins(comps):
     output: its via lands on the filter resistor's pad below.  And the
     back-EMF and neutral resistors' MCU ends (pin 2): they stand on the
     bottom among the FETs' pads, where no router finds a spot for a via of
-    its own, and their nets come in on the inner layers."""
+    its own, and their nets come in on the inner layers.  Likewise the
+    signal ends of the row of dividers' low legs by the MCU (back-EMF,
+    neutral, current filter output): five 0201s side by side at 0.9 mm,
+    walled in by the MCU, the next channel's driver and the shunt."""
     out = []
     for n in CHANNELS:
         r = roles(comps, n)
         out += [(r['R_SH'], '3'), (r['R_SH'], '4'), (r['U_CS'], '4'), (r['U_CS'], '5'), (r['U_CS'], '6')]
         out += [(r[k + ph], '2') for k in ('RBH_', 'RN_') for ph in 'ABC']
+        out += [(r['RBL_' + ph], '1') for ph in 'ABC'] + [(r['RNG'], '1'), (r['R_IF'], '2')]
     return out
 
 
@@ -921,18 +961,21 @@ def escape_pins(b, comps):
     the chip in on every layer (0.5 mm apart, no track passes between),
     and a pin that can do without one leaves a gap in the wall.  Unless its
     net has a pad over the chip on the other side (a bootstrap capacitor):
-    that pad is reached through the pin's own via."""
-    qfn = set()
+    that pad is reached through the pin's own via.  A pin that needs one in
+    any channel gets one in every channel: the channels are routed as one
+    (stamp.py), and the copies must find the same vias."""
+    qfn = {}
     for n in CHANNELS:
         r = roles(comps, n)
-        qfn |= {r['MCU'], r['GD']}
+        qfn[r['MCU']] = 'MCU'
+        qfn[r['GD']] = 'GD'
     pads = {}
     for fp in b.GetFootprints():
         for p in fp.Pads():
             if p.GetNetname():
                 q = p.GetPosition()
                 pads.setdefault(p.GetNetname(), []).append((fp.GetReference(), fp.IsFlipped(), q.x / 1e6, q.y / 1e6))
-    out = []
+    need = set()
     for ref in sorted(qfn):
         fp = b.FindFootprintByReference(ref)
         bb = fp.GetBoundingBox(False)
@@ -946,8 +989,8 @@ def escape_pins(b, comps):
             over = any(fl != fp.IsFlipped() and x0 <= ox <= x1 and y0 <= oy <= y1
                        for r_, fl, ox, oy in pads[net])
             if over or outward_room(b, fp, p) < ESCAPE_ROOM:
-                out.append((ref, p.GetNumber()))
-    return out
+                need.add((qfn[ref], p.GetNumber()))
+    return sorted((ref, num) for ref, role in qfn.items() for r_, num in need if r_ == role)
 
 
 # ============================================================ artwork
@@ -1008,10 +1051,11 @@ def artwork(b, comps):
     # motor numbers: each has one pad to sit by
     for n in CHANNELS:
         r = roles(comps, n)
-        pl = top if side[r['TP_DIO']] == 'T' else bot
-        pl.label(r['TP_DIO'], 'D%d' % n, size=1.2, dist=0.7, smallest=1.0, face='mono')
+        for role, s_ in (('TP_DIO', 'D%d'), ('TP_CLK', 'C%d')):
+            pl = top if side[r[role]] == 'T' else bot
+            pl.label(r[role], s_ % n, size=1.2, dist=0.7, smallest=1.0, face='mono')
     # (ground is 'G', as on the flight controller's pads)
-    for ref, s_ in (('TP_3V3', '3V3'), ('TP_GND', 'G'), ('TP_SWCLK', 'CLK')):
+    for ref, s_ in (('TP_3V3', '3V3'), ('TP_GND', 'G')):
         (top if side[ref] == 'T' else bot).label(ref, s_, size=1.2, smallest=1.0, face='mono')
     # one number per motor on top, as large as fits, in the nearest free
     # spot that is clearly this motor's: at least 2 mm nearer its own three

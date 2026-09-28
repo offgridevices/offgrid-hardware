@@ -731,17 +731,22 @@ def repair(board, nets, protect=(), widths=None, clmap=None, max_rips=4, max_rou
     return unrouted_nets(board)
 
 
-def repair_tx(board, nets, protect=(), widths=None, clmap=None, max_rounds=60, max_victims=4, log=print):
+def repair_tx(board, nets, protect=(), widths=None, clmap=None, max_rounds=60, max_victims=4, log=print,
+              keep_locked=False):
     """Rip-up and re-route, one transaction at a time.  An open net may be
-    routed through the copper of other (unprotected) signal nets; those nets
-    are torn up and routed again.  The attempt is kept only if afterwards the
-    open net and every torn-up net have no more islands than before;
-    otherwise every track and via is put back as it was.  Returns the nets
-    still open."""
+    routed through the copper of other (unprotected) signal nets.  First
+    only the pieces of those nets that its new path runs into are taken out
+    and each net's ends are joined again round the path; if that fails, the
+    nets are torn up whole and routed again after it.  Either attempt is
+    kept only if afterwards the open net is joined and every torn-up net
+    has no more islands than before; otherwise every track and via is put
+    back as it was.  Locked tracks and vias of other nets may be torn up
+    too, unless keep_locked.  Returns the nets still open."""
     protect = set(protect)
-    for t in board.GetTracks():
-        if t.GetNetname() not in protect:
-            t.SetLocked(False)
+    if not keep_locked:
+        for t in board.GetTracks():
+            if t.GetNetname() not in protect:
+                t.SetLocked(False)
 
     def islands(n):
         return len(_net_components(board, n))
@@ -784,7 +789,24 @@ def repair_tx(board, nets, protect=(), widths=None, clmap=None, max_rounds=60, m
             log('   repair %-12s no path (%d victims)' % (net, len(victims)))
             continue
         score0 = {v: islands(v) for v in victims}
-        score0[net] = None
+        # local: keep the new path, take out only what it runs into
+        new = [t for t in board.GetTracks() if t.m_Uuid.AsString() not in before]
+        for t in _in_the_way(board, new, victims, clmap):
+            removed.append(t); pcb.remove(board, t)
+        for v in victims:
+            removed.extend(_drop_floating(board, v))
+        ok = True
+        for v in sorted(victims):
+            route_net(board, v, track_w=(widths or {}).get(v, 0.1), clmap=clmap, lock=False)
+            if islands(v) > score0[v]:
+                ok = False
+                break
+        if ok:
+            log('   repair %-12s routed, patched %s' % (net, sorted(victims)))
+            continue
+        rollback(before, removed)
+        # whole: tear the nets up and route them again after this one
+        before = snapshot(); removed = []
         rip(net, removed)
         for v in victims:
             rip(v, removed)
@@ -801,21 +823,96 @@ def repair_tx(board, nets, protect=(), widths=None, clmap=None, max_rounds=60, m
     return unrouted_nets(board)
 
 
+def _in_the_way(board, new, nets, clmap=None, clearance=0.1):
+    """Unlocked tracks and vias of `nets` that break clearance to the
+    tracks and vias in `new`."""
+    clmap = clmap or {}
+    mine = {}
+    for t in new:
+        for l, gs in _geom_all(t).items():
+            mine.setdefault(l, []).extend((g, clmap.get(t.GetNetname(), clearance)) for g in gs)
+    out = []
+    for t in board.GetTracks():
+        if t.GetNetname() not in nets or t.IsLocked():
+            continue
+        c = clmap.get(t.GetNetname(), clearance)
+        if any(g.distance(h) < max(c, ch) - 1e-4
+               for l, gs in _geom_all(t).items() for g in gs for h, ch in mine.get(l, [])):
+            out.append(t)
+    return out
+
+
+def _geom_all(item):
+    """_geom_of, with a via on every copper layer it passes (it is drilled
+    through all of them, routed or not)."""
+    if item.GetClass() == 'PCB_VIA':
+        p = item.GetPosition()
+        r = max(mm(item.GetWidth(pcbnew.F_Cu)) / 2, mm(item.GetDrillValue()) / 2 + VIA_RING)
+        g = Point(mm(p.x), mm(p.y)).buffer(r)
+        return {l: [g] for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu,
+                                 pcbnew.B_Cu)}
+    return _geom_of(item)
+
+
+def _drop_floating(board, net):
+    """Remove the net's unlocked track pieces that no longer reach a pad or
+    a pour of the net.  Returns what was removed."""
+    items = []
+    for fp in board.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname() == net:
+                items.append((None, _geom_all(p)))
+    for z in board.Zones():
+        if z.GetIsRuleArea() or z.GetNetname() != net or not z.IsFilled():
+            continue
+        for l in ROUTE_LAYERS:
+            if z.GetLayerSet().Contains(l):
+                fp_ = z.GetFilledPolysList(l)
+                for k in range(fp_.OutlineCount()):
+                    ol = fp_.Outline(k)
+                    pts = [(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())]
+                    if len(pts) >= 3:
+                        items.append((None, {l: [Polygon(pts).buffer(0)]}))
+    anchored = len(items)
+    for t in board.GetTracks():
+        if t.GetNetname() == net:
+            items.append((t, _geom_all(t)))
+    parent = list(range(len(items)))
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]; a = parent[a]
+        return a
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            gi, gj = items[i][1], items[j][1]
+            if any(a.intersects(b) for l in gi if l in gj for a in gi[l] for b in gj[l]):
+                parent[find(i)] = find(j)
+    roots = set(find(i) for i in range(anchored))
+    out = []
+    for i in range(anchored, len(items)):
+        t = items[i][0]
+        if find(i) not in roots and not t.IsLocked():
+            out.append(t); pcb.remove(board, t)
+    return out
+
+
 def repair_orders(board, nets, protect=(), widths=None, clmap=None, tries=40, max_victims=10, seed=1,
-                  passes=2, log=print):
+                  passes=2, log=print, keep_locked=False):
     """Rip-up and re-route in random orders, one jam at a time.  For each
     open net: a 'soft' route (other signal nets may be crossed, at a cost)
     names the nets in its way.  The net and those nets are torn up and
     routed again in up to `tries` random orders (seeded: the same board
     gives the same result); the first order in which the net joins up and
     no torn-up net has more islands than before is kept, otherwise every
-    track and via is put back.  Returns the nets still open."""
+    track and via is put back.  Locked copper of other nets may be torn up
+    too, unless keep_locked.  Returns the nets still open."""
     import random
     rnd = random.Random(seed)
     protect = set(protect)
-    for t in board.GetTracks():
-        if t.GetNetname() not in protect:
-            t.SetLocked(False)
+    if not keep_locked:
+        for t in board.GetTracks():
+            if t.GetNetname() not in protect:
+                t.SetLocked(False)
 
     def islands(n):
         return len(_net_components(board, n))

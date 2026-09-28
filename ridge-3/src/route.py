@@ -101,9 +101,12 @@ def allow_via_in_pad(dsn_path, d, drill):
     open(dsn_path, 'w').write(txt)
 
 
-def freeroute(dsn_path, ses_path, passes=20, timeout=None, log=None):
+def freeroute(dsn_path, ses_path, passes=20, timeout=None, log=None, extra=()):
+    """extra: more command-line options (e.g. -inc CLASS,... to leave
+    those net classes unrouted)."""
     timeout = timeout or int(os.environ.get('FREEROUTING_TIMEOUT', 1800))
     cmd = ['xvfb-run', '-a', 'java', '-jar', JAR, '-de', dsn_path, '-do', ses_path, '-mp', str(passes)]
+    cmd += list(extra)
     with open(log or os.devnull, 'w') as f:
         p = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, start_new_session=True,
                              cwd=os.path.dirname(os.path.abspath(dsn_path)))

@@ -379,12 +379,12 @@ def check_esc_pins():
         check(S, 'ESC %d: VDD/VDDA (pin 3) on +3V3, VSS/VSSA (pin 4) on GND' % n,
               not bad and 'VDD' in power and 'VSS' in power, ', '.join(bad))
         check(S, 'ESC %d: NRST (pin 5, PF2-NRST) filtered 100 nF to ground; SWDIO (PA13) to its own test pad '
-                 'TP_E%d_DIO, SWCLK (PA14) to the shared pad TP_SWCLK' % (n, n),
+                 'TP_E%d_DIO, SWCLK (PA14) to its own test pad TP_E%d_CLK' % (n, n, n),
               ports.get('PF2') == 'M%d_NRST' % n
               and any(x.part == 'C100N' and set(x.pins.values()) == {'M%d_NRST' % n, 'GND'} for x in esc)
-              and ports.get('PA13') == 'M%d_SWDIO' % n and ports.get('PA14') == 'ESC_SWCLK'
+              and ports.get('PA13') == 'M%d_SWDIO' % n and ports.get('PA14') == 'M%d_SWCLK' % n
               and comp('esc', 'TP_E%d_DIO' % n).pins.get('1') == 'M%d_SWDIO' % n
-              and comp('esc', 'TP_SWCLK').pins.get('1') == 'ESC_SWCLK')
+              and comp('esc', 'TP_E%d_CLK' % n).pins.get('1') == 'M%d_SWCLK' % n)
     if not AM32:
         check(S, 'AM32 targets.h', 'SKIP', 'set AM32_SRC to an AM32 checkout (commit %s) to check against the firmware'
               % AM32_COMMIT)

@@ -20,8 +20,8 @@
 # that faces the flight controller):
 #   ST-Link GND   -> "GND"   (one pad, shared by all four MCUs)
 #   ST-Link 3.3V  -> "3V3"   (powers the four MCUs and current amplifiers)
-#   ST-Link SWCLK -> "CLK"   (one pad, shared by all four MCUs)
-#   ST-Link SWDIO -> "Dn"    of the MCU being flashed (n = 1..4)
+#   ST-Link SWCLK -> "Cn"    of the MCU being flashed (n = 1..4)
+#   ST-Link SWDIO -> "Dn"    of the same MCU
 # NRST is not on a pad: every reset here is a software (SYSRESETREQ) reset.
 #
 # Per MCU this does:
@@ -109,7 +109,7 @@ for n in $ESCS; do
     1|2|3|4) ;;
     *) echo "ESC number must be 1..4, not '$n'" >&2; exit 2 ;;
     esac
-    printf 'ESC %s: SWDIO to pad D%s (GND, 3V3 and CLK stay). Enter to flash, Ctrl-C to stop: ' "$n" "$n"
+    printf 'ESC %s: SWCLK to pad C%s, SWDIO to pad D%s (GND and 3V3 stay). Enter to flash, Ctrl-C to stop: ' "$n" "$n" "$n"
     read -r _
     flash_one
     echo "ESC $n done."

@@ -5,7 +5,9 @@
   1. <board>_layout.build()   placement, planes, power copper, plane fan-out,
                               pre-routed critical nets (ESC: gate, bootstrap
                               and QFN escape vias)
-  2. Freerouting             everything else (ESC: two rounds, tidied between)
+  2. ESC: one channel routed alone by Freerouting and stamped, turned, onto
+     the other three (stamp.py)
+     Freerouting             everything else (ESC: two rounds, tidied between)
   3. finish.finish_board()   in-house maze router for what Freerouting left
   4. rip-up and re-route for the last few: finish.repair (FC),
      finish.repair_tx then finish.repair_orders (ESC)
@@ -39,6 +41,24 @@ def _copy_project(src_pcb, dst_pcb):
     pcb.write_rules(dst_pcb, EXTRA_RULES)
 
 
+def template_repair(b, open_nets, mine, widths, clmap, log=print):
+    """The maze router's rip-up and re-route on stamp.py's template channel:
+    only the channel's own nets move (a temporary net X~ takes X's rules),
+    and fixed copper stays."""
+    w = dict(widths, **{n + '~': x for n, x in widths.items()})
+    c = dict(clmap, **{n + '~': x for n, x in clmap.items()})
+    nets = set(p.GetNetname() for fp in b.GetFootprints() for p in fp.Pads() if p.GetNetname())
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    protect = sorted(nets - set(mine))
+    left = finish.repair_tx(b, open_nets, protect=protect, widths=w, clmap=c, max_victims=14, max_rounds=40, log=log,
+                            keep_locked=True)
+    left = [n for n in left if n in set(mine)]
+    if left:
+        left = finish.repair_orders(b, left, protect=protect, widths=w, clmap=c, log=log, keep_locked=True,
+                                    tries=10, passes=1)
+    return left
+
+
 def run(board_name, work, passes=None, log=print):
     """Returns the path of the finished board in `work`."""
     os.makedirs(work, exist_ok=True)
@@ -67,7 +87,18 @@ def run(board_name, work, passes=None, log=print):
     route.VIA_IN_PAD = getattr(L, 'VIA_IN_PAD', None)
     route.VIA_RING = getattr(L, 'VIA_RING', None)
     finish.VIA_RING = getattr(L, 'VIA_RING', None) or 0.0
-    n = route.route(placed, routed, passes=passes, rounds=2)
+    src = placed
+    if getattr(L, 'CHANNELS', None) and hasattr(L, 'channel_parts'):
+        # one channel routed alone, stamped onto the others (stamp.py)
+        import stamp
+        stamp.VIA_RING = getattr(L, 'VIA_RING', None) or 0.0
+        comps = circuit.build(board_name)
+        tmpl, nets, left, _ = stamp.route_template(placed, work, L.channel_parts(comps), L.CHANNELS,
+                                                   passes=L.STAMP_PASSES, log=log, planes=planes,
+                                                   repair=lambda b, o, m: template_repair(b, o, m, widths, clmap, log))
+        src = os.path.join(work, board_name + '_stamped.kicad_pcb')
+        stamp.stamp(placed, tmpl, src, nets, L.CHANNELS, rules=EXTRA_RULES, log=log)
+    n = route.route(src, routed, passes=passes, rounds=2)
     log('%s: %d connections left after Freerouting, %d duplicate vias removed'
         % (board_name, n, pcb.dedupe_vias(routed)))
     _copy_project(placed, routed); _copy_project(placed, fin)

@@ -121,14 +121,12 @@ way.
    battery pads, not stacked.  The ST-Link's 3.3 V powers the four MCUs and
    the current amplifiers.
 2. Wire the ST-Link to the pads on the ESC's top (the side that faces the
-   flight controller): `GND` to `G`, `3.3V` to `3V3`, `SWCLK` to `CLK`
-   (one pad, shared by all four MCUs), and `SWDIO` to `Dn`, where *n* is the
-   ESC being flashed.  `3V3`, `CLK`, `D1` and `G` sit in a row along the
-   rear edge, between the battery pads; `D2`, `D3` and `D4` are at the
-   right, left and front edges, each beside its motor's pads.  NRST is not on a pad;
-   resets are software resets.  An MCU whose SWDIO pad is not connected
-   sees only ones on its SWDIO line, which is never a valid SWD request, so
-   it ignores the shared clock.
+   flight controller): `GND` to `G`, `3.3V` to `3V3`, and `SWCLK` to `Cn`
+   and `SWDIO` to `Dn`, where *n* is the ESC being flashed.  `3V3`, `C1`,
+   `D1` and `G` sit in a row along the rear edge, between the battery pads;
+   `C2`/`D2`, `C3`/`D3` and `C4`/`D4` are at the right, left and front
+   edges, each pair either side of its motor's middle pad.  NRST is not on a
+   pad; resets are software resets.
 3. Run `am32/flash_esc.sh`.  It asks for each ESC in turn (move `SWDIO` to
    `D1`, `D2`, ...), or takes the numbers to flash as
    arguments (`./flash_esc.sh 3`).  It uses OpenOCD (`target/stm32g0x.cfg`);
@@ -224,7 +222,7 @@ table 12):
 | Virtual neutral (COMP2 +) | PA3 | 9 | `Mn_NEUTRAL` |
 | Current, 50 mV/A (ADC_IN5) | PA5 | 11 | `Mn_ISENSE` |
 | Battery voltage, 100k/10k (ADC_IN6) | PA6 | 12 | `ESC_VSENSE` |
-| SWDIO / SWCLK (BOOT0) | PA13 / PA14 | 20 / 21 | `Mn_SWDIO` / `ESC_SWCLK` (shared) |
+| SWDIO / SWCLK (BOOT0) | PA13 / PA14 | 20 / 21 | `Mn_SWDIO` / `Mn_SWCLK` |
 
 Pins 18 and 19 are PA11 and PA12 until the firmware remaps them to PA9 and
 PA10.  AM32's G071 code does that at start-up unless a target defines
