@@ -847,9 +847,25 @@ def build(out_path):
     fanout.Obstacles.NET_CL = {x: c for x, c in cl.items() if c > 0.1}
     fanout.Obstacles.MARGIN = 0.01
     e2 = H - 0.4
-    pins = escape_pins(b, comps) + kelvin_pins(comps)
+    need, maybe = escape_pins(b, comps)
+    pins = need + kelvin_pins(comps)
     k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL)
     print('escape vias (QFN pins, Kelvin sense): %d of %d, none for %s' % (k, len(pins), bad))
+    # pins whose run out on their own layer has no spot for a via: one in
+    # or beside the pad, in every channel or in none (the channels are
+    # routed as one)
+    got, skipped = [], []
+    for group in maybe:
+        before = {t.m_Uuid.AsString() for t in b.GetTracks()}
+        kk, bb = fanout.dogbones(b, group, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL)
+        if bb:
+            for t in [t for t in b.GetTracks() if t.m_Uuid.AsString() not in before]:
+                b.Remove(t)
+            skipped.append(group[0][1])
+        else:
+            got.append(group[0])
+    print('escape vias where the run out has no via spot: %s; no room in some channel: MCU/driver pins %s'
+          % (', '.join('%s pin %s' % g for g in got) or 'none', ', '.join(skipped) or 'none'))
     print('bootstrap stubs:', bootstrap_stubs(b, comps))
     k, failed = fanout.fanout(b, {'GND', 'VBAT'}, (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2),
                               skip=power_refs(comps), **{x: y for x, y in FANOUT.items() if x != 'inpad'},
@@ -1076,6 +1092,58 @@ def outward_room(b, fp, pad, reach=1.5):
     return free
 
 
+def _via_obstacles(b):
+    """What a through via must keep 0.1 mm from, on every layer: other
+    pads on either side, the fixed tracks and vias, the pours and keepouts
+    on the outer layers.  (The inner planes let a via through.)"""
+    from shapely.geometry import box, LineString, Point, Polygon
+    from shapely.ops import unary_union
+    mm = lambda v: v / 1e6
+    obst = []
+    for o in b.GetFootprints():
+        for q in o.Pads():
+            if q.IsOnLayer(pcbnew.F_Cu) or q.IsOnLayer(pcbnew.B_Cu) or q.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH:
+                bb = q.GetBoundingBox()
+                obst.append(box(mm(bb.GetLeft()), mm(bb.GetTop()), mm(bb.GetRight()), mm(bb.GetBottom())))
+    for t in b.GetTracks():
+        a = t.GetPosition()
+        if isinstance(t, pcbnew.PCB_VIA):
+            obst.append(Point(mm(a.x), mm(a.y)).buffer(mm(t.GetWidth(pcbnew.F_Cu)) / 2))
+        else:
+            s, e = t.GetStart(), t.GetEnd()
+            obst.append(LineString([(mm(s.x), mm(s.y)), (mm(e.x), mm(e.y))]).buffer(mm(t.GetWidth()) / 2))
+    for z in b.Zones():
+        if z.IsOnLayer(pcbnew.F_Cu) or z.IsOnLayer(pcbnew.B_Cu) or (z.GetIsRuleArea() and z.GetDoNotAllowVias()):
+            ol = z.Outline().Outline(0)
+            obst.append(Polygon([(mm(ol.CPoint(i).x), mm(ol.CPoint(i).y)) for i in range(ol.PointCount())]))
+    return unary_union(obst)
+
+
+def via_spots(obst, fp, pad, room, step=0.05):
+    """Distances along `pad`'s outward run (from its edge, up to `room`) at
+    which a signal via, 0.1 mm clear of `obst` (_via_obstacles) and of
+    every pad but this one, fits: where a pin that escapes on its own layer
+    can change layers."""
+    from shapely.geometry import Point, box
+    mm = lambda v: v / 1e6
+    cx, cy = mm(fp.GetPosition().x), mm(fp.GetPosition().y)
+    px, py = mm(pad.GetPosition().x), mm(pad.GetPosition().y)
+    dx, dy = px - cx, py - cy
+    ux, uy = (math.copysign(1, dx), 0.0) if abs(dx) > abs(dy) else (0.0, math.copysign(1, dy))
+    half = max(mm(pad.GetSize().x), mm(pad.GetSize().y)) / 2
+    bb = pad.GetBoundingBox()
+    own = box(mm(bb.GetLeft()), mm(bb.GetTop()), mm(bb.GetRight()), mm(bb.GetBottom()))
+    rest = obst.difference(own)
+    r = VIA_SIG[0] / 2 + 0.1
+    out = set()
+    for k in range(1, int(room / step) + 1):
+        d = round(step * k, 3)
+        c = Point(px + ux * (half + d), py + uy * (half + d)).buffer(r)
+        if not c.intersects(rest):
+            out.add(d)
+    return out
+
+
 def bootstrap_stubs(b, comps):
     """Each bootstrap capacitor's pads to its driver pins' escape vias (the
     nearest via of the pad's net), by short fixed tracks on top."""
@@ -1130,8 +1198,10 @@ def escape_pins(b, comps):
     every signal pin that has no room beyond its pad on the chip's own
     layer.  Both sides are packed round the chips, so for those a pin's own
     pad is the one sure spot for its via; unused ones are removed after
-    routing (cleanup.py).  A pin with ESCAPE_ROOM clear beyond its pad
-    escapes outwards on its own layer instead: a row of in-pad vias walls
+    routing (cleanup.py).  A pin with ESCAPE_ROOM clear beyond its pad, and
+    a spot along that run where a via fits (the same spot in every
+    channel), escapes outwards on its own layer instead: a row of in-pad
+    vias walls
     the chip in on every layer (0.5 mm apart, no track passes between),
     and a pin that can do without one leaves a gap in the wall.  Unless its
     net has a pad over the chip on the other side (a bootstrap capacitor):
@@ -1150,6 +1220,8 @@ def escape_pins(b, comps):
                 q = p.GetPosition()
                 pads.setdefault(p.GetNetname(), []).append((fp.GetReference(), fp.IsFlipped(), q.x / 1e6, q.y / 1e6))
     need = set()
+    obst = _via_obstacles(b)
+    spots = {}               # (role, pin) -> via spots common to every channel so far
     for ref in sorted(qfn):
         fp = b.FindFootprintByReference(ref)
         bb = fp.GetBoundingBox(False)
@@ -1160,11 +1232,22 @@ def escape_pins(b, comps):
                 continue
             if not any(r_ != ref for r_, fl, ox, oy in pads[net]):
                 continue
+            key = (qfn[ref], p.GetNumber())
             over = any(fl != fp.IsFlipped() and x0 <= ox <= x1 and y0 <= oy <= y1
                        for r_, fl, ox, oy in pads[net])
-            if over or outward_room(b, fp, p) < ESCAPE_ROOM:
-                need.add((qfn[ref], p.GetNumber()))
-    return sorted((ref, num) for ref, role in qfn.items() for r_, num in need if r_ == role)
+            room = outward_room(b, fp, p)
+            if over or room < ESCAPE_ROOM:
+                need.add(key)
+                continue
+            # a clear run is not enough: the net must be able to change
+            # layers somewhere along it, at the same spot in every channel
+            # (the channels share one routing, which sees every channel's
+            # neighbours at once)
+            s = via_spots(obst, fp, p, room)
+            spots[key] = s if key not in spots else spots[key] & s
+    pins = lambda keys: sorted((ref, num) for ref, role in qfn.items() for r_, num in keys if r_ == role)
+    maybe = sorted(k for k, s in spots.items() if not s and k not in need)
+    return pins(need), [pins([k]) for k in maybe]
 
 
 # ============================================================ artwork
