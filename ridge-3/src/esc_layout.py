@@ -848,27 +848,36 @@ def build(out_path):
                               inpad=FANOUT['inpad'])
     print('fanout: %d plane vias, %d pads without one: %s' % (k, len(failed), failed))
     local, left = route_local(b, comps)
-    print('shared parts\' own nets, routed first: %s, %d open %s' % (', '.join(local), len(left), left))
+    print('routed first (shared parts\' own nets, channels\' lines to them): %s, %d open %s'
+          % (', '.join(local), len(left), left))
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     b.Save(out_path)
     return b
 
 
 def route_local(b, comps):
-    """The nets whose every pad is on a shared part (the buck's switch node
-    and supply pin, the gate-drive LDO's input and feedback, the power LED):
-    short loops in the crowded middle, joined by the maze router before
-    anything else is routed there, and fixed.  Routed with the rest, they
-    found the middle taken.  Returns (the nets, those left open)."""
+    """Joined by the maze router before anything else, and fixed:
+      * the nets whose every pad is on a shared part (the buck's switch
+        node and supply pin, the gate-drive LDO's input and feedback, the
+        power LED): short loops in the crowded middle;
+      * a channel's own line to a shared part (each MCU's signal input from
+        the stack connector): its pin sits in the ring of escape vias round
+        the MCU, facing the driver, and the channel's routing, stamped the
+        same in every channel (stamp.py), walls it in.
+    Routed with the rest, they found their way taken.  Returns (the nets,
+    those left open)."""
     import finish
-    chan = set(r for n in CHANNELS for r in roles(comps, n).values())
+    chan_of = {r: n for n in CHANNELS for r in roles(comps, n).values()}
     refs = {}
     for c in comps:
         for n in c.pins.values():
             if n:
                 refs.setdefault(n, set()).add(c.ref)
-    local = sorted((n for n, r in refs.items() if n not in ('GND', 'VBAT') and not r & chan),
-                   key=lambda n: (finish.mst_length(b, n), n))
+    shared_only = [n for n, r in refs.items() if not any(x in chan_of for x in r)]
+    lines = [n for n, r in refs.items() if len(set(chan_of[x] for x in r if x in chan_of)) == 1
+             and any(x not in chan_of for x in r)]
+    order = lambda n: (finish.mst_length(b, n), n)
+    local = [n for n in sorted(shared_only, key=order) + sorted(lines, key=order) if n not in ('GND', 'VBAT')]
     finish.ROUTE_LAYERS, finish.RES = ROUTE_LAYERS, FINISH_RES
     finish.VIA_D, finish.VIA_DRILL = VIA_SIG
     finish.VIA_RING, finish.POFV_GAP = VIA_RING, None
