@@ -847,9 +847,35 @@ def build(out_path):
                               skip=power_refs(comps), **{x: y for x, y in FANOUT.items() if x != 'inpad'},
                               inpad=FANOUT['inpad'])
     print('fanout: %d plane vias, %d pads without one: %s' % (k, len(failed), failed))
+    local, left = route_local(b, comps)
+    print('shared parts\' own nets, routed first: %s, %d open %s' % (', '.join(local), len(left), left))
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     b.Save(out_path)
     return b
+
+
+def route_local(b, comps):
+    """The nets whose every pad is on a shared part (the buck's switch node
+    and supply pin, the gate-drive LDO's input and feedback, the power LED):
+    short loops in the crowded middle, joined by the maze router before
+    anything else is routed there, and fixed.  Routed with the rest, they
+    found the middle taken.  Returns (the nets, those left open)."""
+    import finish
+    chan = set(r for n in CHANNELS for r in roles(comps, n).values())
+    refs = {}
+    for c in comps:
+        for n in c.pins.values():
+            if n:
+                refs.setdefault(n, set()).add(c.ref)
+    local = sorted((n for n, r in refs.items() if n not in ('GND', 'VBAT') and not r & chan),
+                   key=lambda n: (finish.mst_length(b, n), n))
+    finish.ROUTE_LAYERS, finish.RES = ROUTE_LAYERS, FINISH_RES
+    finish.VIA_D, finish.VIA_DRILL = VIA_SIG
+    finish.VIA_RING, finish.POFV_GAP = VIA_RING, None
+    w, cl = widths(comps), clearances(comps)
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    left = [n for n in local if finish.route_net(b, n, track_w=w.get(n, 0.1), clmap=cl, lock=True)]
+    return local, left
 
 
 ESCAPE_ROOM = 0.6     # clear run beyond a QFN pin's pad that lets it escape on its own layer
