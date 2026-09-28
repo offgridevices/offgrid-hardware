@@ -136,18 +136,21 @@ def template():
     # current filter's resistor end on the MCU's pins: one row of upright
     # 0201s on the bottom, in the strip between the MCU, the next channel's
     # driver and the shunt, the neutral leg nearest its pin (PA3) and
-    # beside its CMP partner.  The other two neutral legs lie one above the
-    # other at the MCU's inner +u corner, the last spot on the bottom that
-    # walls in no pin: standing in the gap between the MCU and the shunt a
-    # leg walls in pins 12-14; on top beside the MCU it takes the way the
-    # PWM lines from pins 13 and 14 climb out; on top over the row it sits
-    # on the next channel's driver inputs' vias.
+    # beside its CMP partner.  Phase A's leg lies at the MCU's inner +u
+    # corner, the last spot on the bottom that walls in no pin; phase B's
+    # stands on top over the shunt, between the current filter and the
+    # amplifier, where its CMP net and the neutral come up through the vias
+    # in the row's pads.  (A second leg at the corner cannot be reached;
+    # standing in the gap between the MCU and the shunt a leg walls in pins
+    # 12-14; on top beside the MCU it takes the way the PWM lines from pins
+    # 13 and 14 climb out; on top over the row it sits on the next channel's
+    # driver inputs' vias.)
     # The current filter's resistor stands straight under the amplifier's
     # output pin, turned so its input end is there: the output drops onto
     # it through a via in its own pad (kelvin_pins), no routing.
     for i, role in enumerate(('RS_C', 'RBL_C', 'RBL_A', 'R_IF', 'RBL_B')):
         t[role] = (5.41 + 0.9 * i, 5.99, 270 if role == 'R_IF' else 90, 'B')
-    t['RS_B'] = (4.2, 3.75, 0, 'B')
+    t['RS_B'] = (7.4, 7.6, 90, 'T')
     t['RS_A'] = (3.75, 4.45, 0, 'B')
     # the current amplifier on top over the shunt's sense end, clear of the
     # shunt's ground vias (reserved), its supply capacitor beside its
