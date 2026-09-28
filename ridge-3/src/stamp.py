@@ -318,27 +318,58 @@ def _with_costs(dsn, out, costs):
     open(out, 'w').write(txt)
 
 
-def local_shared(b, parts, channels, nets, planes=()):
-    """A shared net with two or more pads on the template channel's parts
-    (a chip's supply pin and its capacitors) is routed with the channel as
-    far as those pads go: on the template board they (and the fixed copper
-    on them) get a temporary net of their own, X~, which the copies turn
-    back into X in every channel.  Plane nets are left out (their pads have
-    plane vias).  Returns {X~: {channel: X}}."""
+def local_shared(b, parts, channels, nets, planes=(), reg=None):
+    """The shared nets the template channel's parts are on (a chip's supply
+    pin and its capacitors, the stack connector's signal line, the battery
+    voltage) are routed with the channel as far as its own pads go, and on
+    to the nearest pad of the net on a shared part (the stack connector's
+    pin, the supply's capacitor): on the template board those pads (and
+    the fixed copper on them) get a temporary net of their own, X~.  The
+    copies turn X~ back into each channel's net on the same pad.  In the
+    template channel the route is whole; in the others the copy is a stub
+    that heads for the shared parts, and the board's router only finishes
+    it (otherwise the channel's routing walls such a pin in).  Only a
+    shared pad inside the region `reg`, and nearer the board's centre than
+    the channel's own, is a target.  Plane nets are left
+    out (their pads have plane vias).  Returns {X~: {channel: net}}."""
     t = template_channel(channels)
+    chan = set(r for rr in parts.values() for r in rr.values())
+    role_of = {ref: role for role, ref in parts[t].items()}
     pads = {}
     for ref in sorted(parts[t].values()):
         for p in b.FindFootprintByReference(ref).Pads():
             x = p.GetNetname()
             if x and x not in nets and x not in planes:
                 pads.setdefault(x, []).append(p)
+    shared = {}
+    for fp in b.GetFootprints():
+        if fp.GetReference() not in chan:
+            for p in fp.Pads():
+                q = p.GetPosition()
+                if p.GetNetname() in pads and (reg is None or reg.contains(Point(mm(q.x), mm(q.y)))):
+                    shared.setdefault(p.GetNetname(), []).append(p)
     out = {}
     for x, pl in sorted(pads.items()):
-        if len(pl) < 2:
+        cx = sum(mm(p.GetPosition().x) for p in pl) / len(pl)
+        cy = sum(mm(p.GetPosition().y) for p in pl) / len(pl)
+        # towards the middle only: a shared pad further out than the
+        # channel's own (a test pad at the board's edge) would take its
+        # route across the FET row
+        inward = [p for p in shared.get(x, []) if math.hypot(mm(p.GetPosition().x) - pcb.CX, mm(p.GetPosition().y)
+                                                             - pcb.CY) < math.hypot(cx - pcb.CX, cy - pcb.CY)]
+        far = sorted(inward, key=lambda p: (math.hypot(mm(p.GetPosition().x) - cx, mm(p.GetPosition().y) - cy),
+                                            p.GetParentFootprint().GetReference(), p.GetNumber()))
+        if len(pl) < 2 and not far:
             continue
+        # each channel's net on the same pad
+        ref0, num0 = pl[0].GetParentFootprint().GetReference(), pl[0].GetNumber()
+        m = {}
+        for k in channels:
+            fp = b.FindFootprintByReference(parts[k][role_of[ref0]])
+            m[k] = next(p.GetNetname() for p in fp.Pads() if p.GetNumber() == num0)
         ni = pcb.add_net(b, x + '~')
         mine = []
-        for p in pl:
+        for p in pl + far[:1]:
             p.SetNet(ni)
             mine.append({l: _pad_poly(p, l) for l in ALL_CU if p.IsOnLayer(l)})
         moved = True
@@ -348,9 +379,9 @@ def local_shared(b, parts, channels, nets, planes=()):
                 if tr.GetNetname() != x:
                     continue
                 g = _item_geoms(tr)
-                if any(l in m and g[l].intersects(m[l]) for m in mine for l in g):
+                if any(l in m_ and g[l].intersects(m_[l]) for m_ in mine for l in g):
                     tr.SetNet(ni); mine.append(g); moved = True
-        out[x + '~'] = {k: x for k in channels}
+        out[x + '~'] = m
     return out
 
 
@@ -388,10 +419,14 @@ def route_template(placed, work, parts, channels, passes=30, log=print, variants
         s = os.path.splitext(placed)[0] + ext
         if os.path.exists(s):
             shutil.copy(s, os.path.splitext(src)[0] + ext)
-    temp = local_shared(b, parts, channels, nets, planes)
+    temp = local_shared(b, parts, channels, nets, planes, reg)
     b.Save(src)
-    log('stamp: shared nets routed with the channel as far as its pads go: %s'
-        % ', '.join(sorted(v[template_channel(channels)] for v in temp.values())))
+    log('stamp: shared nets routed with the channel: %s'
+        % ', '.join('%s (to %s)' % (v[template_channel(channels)], ', '.join(sorted(
+            '%s.%s' % (p.GetParentFootprint().GetReference(), p.GetNumber()) for fp in b.GetFootprints()
+            if fp.GetReference() not in set(r for rr in parts.values() for r in rr.values())
+            for p in fp.Pads() if p.GetNetname() == tn)) or 'its own pads')
+            for tn, v in sorted(temp.items())))
     nets = dict(nets, **temp)
     temp_cls = {tn: m[template_channel(channels)] for tn, m in temp.items()}
     out, left = _route_stage(src, work, 'template', set(nets), keep, temp_cls, variants, passes, log, repair)
