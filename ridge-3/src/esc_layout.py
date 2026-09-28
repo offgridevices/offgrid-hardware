@@ -855,6 +855,60 @@ def build(out_path):
     return b
 
 
+def _clashing(b, items, clmap, default=0.1):
+    """The tracks and vias in `items` closer to another net's copper (pads,
+    tracks, vias, pours) than the clearance."""
+    from shapely.geometry import LineString, Point, Polygon
+    mm = lambda v: v / 1e6
+    cu = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
+
+    def geoms(t):
+        if t.GetClass() == 'PCB_VIA':
+            q = t.GetPosition()
+            g = Point(mm(q.x), mm(q.y)).buffer(max(mm(t.GetWidth(pcbnew.F_Cu)) / 2,
+                                                   mm(t.GetDrillValue()) / 2 + VIA_RING))
+            return [(l, g) for l in cu]
+        s, e = t.GetStart(), t.GetEnd()
+        return [(t.GetLayer(), LineString([(mm(s.x), mm(s.y)), (mm(e.x), mm(e.y))]).buffer(mm(t.GetWidth()) / 2))]
+
+    ids = set(id(t) for t in items)
+    other = []
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            for l in cu:
+                if p.IsOnLayer(l):
+                    sp = p.GetEffectivePolygon(l)
+                    for k in range(sp.OutlineCount()):
+                        o = sp.Outline(k)
+                        other.append((l, p.GetNetname(), Polygon([(mm(o.CPoint(i).x), mm(o.CPoint(i).y))
+                                                                   for i in range(o.PointCount())])))
+    for t in b.GetTracks():
+        if id(t) not in ids:
+            other += [(l, t.GetNetname(), g) for l, g in geoms(t)]
+    for z in b.Zones():
+        if z.GetIsRuleArea():
+            continue
+        for l in cu:
+            if z.GetLayerSet().Contains(l) and z.IsFilled():
+                sp = z.GetFilledPolysList(l)
+                for k in range(sp.OutlineCount()):
+                    o = sp.Outline(k)
+                    other.append((l, z.GetNetname(), Polygon([(mm(o.CPoint(i).x), mm(o.CPoint(i).y))
+                                                              for i in range(o.PointCount())])))
+    out = []
+    for t in items:
+        c = clmap.get(t.GetNetname(), default)
+        if any(ol == l and on != t.GetNetname() and g.distance(og) < max(c, clmap.get(on, default)) - 1e-6
+               for l, g in geoms(t) for ol, on, og in other):
+            out.append(t)
+    return out
+
+
+# a channel's line to a shared part is copied from channel 1 as far as this
+# (template yr): the chips' inner edge, where the middle begins
+LINE_EXIT = 5.0
+
+
 def route_local(b, comps):
     """Joined by the maze router before anything else, and fixed:
       * the nets whose every pad is on a shared part (the buck's switch
@@ -883,7 +937,79 @@ def route_local(b, comps):
     finish.VIA_RING, finish.POFV_GAP = VIA_RING, None
     w, cl = widths(comps), clearances(comps)
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
-    left = [n for n in local if finish.route_net(b, n, track_w=w.get(n, 0.1), clmap=cl, lock=True)]
+    left = [n for n in local if n not in lines
+            and finish.route_net(b, n, track_w=w.get(n, 0.1), clmap=cl, lock=True)]
+    # the lines: channel 1's routed, the part of it inside the chips' band
+    # (template yr >= LINE_EXIT) copied, turned, onto every channel, then
+    # each channel's line finished in the middle
+    import stamp
+    for t1, m in sorted(stamp.lines(b, channel_parts(comps), CHANNELS).items()):
+        before = set(t.m_Uuid.AsString() for t in b.GetTracks())
+        if finish.route_net(b, t1, track_w=w.get(t1, 0.1), clmap=cl, lock=True):
+            left.append(t1)
+            continue
+        # (template frame = channel 1's: board mm relative to the centre)
+        tp = lambda p: (p.x / 1e6 - pcb.CX, p.y / 1e6 - pcb.CY)
+        exit_ = []
+        for t in b.GetTracks():
+            if t.m_Uuid.AsString() in before:
+                continue
+            if t.GetClass() == 'PCB_VIA':
+                if tp(t.GetPosition())[1] >= LINE_EXIT:
+                    exit_.append(('via', tp(t.GetPosition()), t))
+                continue
+            a, c = tp(t.GetStart()), tp(t.GetEnd())
+            if a[1] < LINE_EXIT and c[1] < LINE_EXIT:
+                continue
+            # a segment across the edge ends there
+            if a[1] < LINE_EXIT:
+                a, c = c, a
+            if c[1] < LINE_EXIT:
+                f = (a[1] - LINE_EXIT) / (a[1] - c[1])
+                c = (a[0] + f * (c[0] - a[0]), LINE_EXIT)
+            exit_.append(('track', (a, c), t))
+        for n, net in m.items():
+            if n == 1:
+                continue
+            copies = []
+            for kind, g, t in exit_:
+                if kind == 'via':
+                    c = pcb.via(b, *xf_point(n, *g), net, d=t.GetWidth(pcbnew.F_Cu) / 1e6,
+                                drill=t.GetDrillValue() / 1e6)
+                else:
+                    c = pcbnew.PCB_TRACK(b)
+                    c.SetStart(pcb.P(*xf_point(n, *g[0]))); c.SetEnd(pcb.P(*xf_point(n, *g[1])))
+                    c.SetWidth(t.GetWidth()); c.SetLayer(t.GetLayer()); c.SetNet(b.FindNet(net))
+                    b.Add(c)
+                copies.append(c)
+            # a copy that runs into this channel's shared parts goes, and
+            # with it what is then cut off from the pin
+            for c in _clashing(b, copies, cl):
+                pcb.remove(b, c)
+            finish._drop_floating(b, net)
+            kept = [c for c in b.GetTracks() if c.GetNetname() == net and c.GetClass() != 'PCB_VIA']
+            for c in b.GetTracks():
+                if c.GetNetname() == net:
+                    c.SetLocked(True)
+            # on from the copy's far end (the maze router would otherwise
+            # leave from the pin whichever way is cheapest), to the shared
+            # part's pad
+            if kept:
+                ends = [(t, p) for t in kept for p in (t.GetStart(), t.GetEnd())]
+                t, p = min(ends, key=lambda e: _to_template(n, e[1].x / 1e6 - pcb.CX, e[1].y / 1e6 - pcb.CY)[1])
+                from shapely.geometry import Point
+                a = {t.GetLayer(): [Point(p.x / 1e6, p.y / 1e6).buffer(t.GetWidth() / 2e6)]}
+                chan_refs = set(r for rr in channel_parts(comps).values() for r in rr.values())
+                far = [q for fp in b.GetFootprints() if fp.GetReference() not in chan_refs
+                       for q in fp.Pads() if q.GetNetname() == net]
+                before = set(x.m_Uuid.AsString() for x in b.GetTracks())
+                if far and finish.route_connection(b, net, a, finish._geom_of(far[0]), track_w=w.get(net, 0.1),
+                                                   clmap=cl):
+                    for x in b.GetTracks():
+                        if x.m_Uuid.AsString() not in before:
+                            x.SetLocked(True)
+            if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
+                left.append(net)
     return local, left
 
 

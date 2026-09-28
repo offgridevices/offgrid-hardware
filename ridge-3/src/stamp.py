@@ -186,6 +186,31 @@ def _simple(g):
     return out
 
 
+def lines(b, parts, channels):
+    """{template channel's net: {channel: net}} for the nets that run from
+    one channel's parts to shared parts only (each MCU's signal input from
+    the stack connector), matched by the channel pad (role, number)."""
+    t = template_channel(channels)
+    chan_of = {ref: (n, role) for n, rr in parts.items() for role, ref in rr.items()}
+    on = {}
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname():
+                on.setdefault(p.GetNetname(), []).append((chan_of.get(fp.GetReference()), p.GetNumber()))
+    out = {}
+    for net, pl in on.items():
+        mine = [(c, num) for c, num in pl if c]
+        if not mine or len(mine) == len(pl) or len(set(c[0] for c, num in mine)) != 1 or mine[0][0][0] != t:
+            continue
+        (n, role), num = mine[0]
+        m = {}
+        for k in channels:
+            fp = b.FindFootprintByReference(parts[k][role])
+            m[k] = next(p.GetNetname() for p in fp.Pads() if p.GetNumber() == num)
+        out[net] = m
+    return out
+
+
 def foreign(b, parts, channels, nets, reg, clear=0.13, match=0.08):
     """{layer: geometry} in the template's frame: what another channel's
     region holds that the template channel's does not.  The shared parts'
@@ -197,6 +222,12 @@ def foreign(b, parts, channels, nets, reg, clear=0.13, match=0.08):
     for tn, m in nets.items():
         for k, net in m.items():
             local[net] = (k, tn)
+    # a channel's own line to a shared part (each MCU's signal input from
+    # the stack connector) is compared with the template channel's line
+    # on the same pad
+    for tn, m in lines(b, parts, channels).items():
+        for k, net in m.items():
+            local.setdefault(net, (k, tn))
     own = {}
     for tr in b.GetTracks():
         own.setdefault(tr.GetNetname(), []).append(_item_geoms(tr))
