@@ -355,11 +355,12 @@ def local_shared(b, parts, channels, nets, planes=()):
 
 
 def route_template(placed, work, parts, channels, passes=30, log=print, variants=None, planes=(), repair=None):
-    """Route the template channel alone.  repair: repair(board, open nets,
-    nets it may move), run on each of Freerouting's
-    routings (the region and the obstacles are rule areas on the template
-    board, so a router working on it keeps to them too).  Returns (routed
-    board path, nets map, nets it left open, region)."""
+    """Route the template channel alone.  repair: a command, run as
+    `repair + [board in, board out, job.json]` (job: the open nets and the
+    nets it may move) on each of Freerouting's routings, all at once (the
+    region and the obstacles are rule areas on the template board, so a
+    router working on it keeps to them too).  Returns (routed board path,
+    nets map, nets it left open, region)."""
     variants = VARIANTS if variants is None else variants
     os.makedirs(work, exist_ok=True)
     b = pcbnew.LoadBoard(placed)
@@ -430,23 +431,30 @@ def _route_stage(src, work, tag, targets, keep, temp_cls, variants, passes, log,
                                                               sorted(left)))
         res.append((out, left))
     if repair:
-        # the router's rip-up and re-route on every routing, fewest open
-        # first (how far it gets does not follow from where it starts)
-        fixed = []
-        for out, left in sorted(res, key=lambda r: len(r[1])):
-            if left:
-                fb = pcbnew.LoadBoard(out)
-                repair(fb, sorted(left), set(targets))
-                out = out.replace('_routed.kicad_pcb', '_repaired.kicad_pcb')
-                fb.Save(out)
-                for ext in ('.kicad_pro', '.kicad_dru'):
-                    shutil.copy(os.path.splitext(src)[0] + ext, os.path.splitext(out)[0] + ext)
-                left, _ = _open_nets(out, targets, work)
-                log('stamp: %s repaired: %d open %s' % (os.path.basename(out), len(left), sorted(left)))
-            fixed.append((out, left))
+        # the router's rip-up and re-route on every routing (how far it
+        # gets does not follow from where it starts), each in a process of
+        # its own, all at once
+        procs = []
+        for i, (out, left) in enumerate(res):
             if not left:
-                break
-        res = fixed
+                continue
+            rep = out.replace('_routed.kicad_pcb', '_repaired.kicad_pcb')
+            job = os.path.splitext(rep)[0] + '.json'
+            json.dump({'open': sorted(left), 'mine': sorted(targets)}, open(job, 'w'))
+            logf = open(os.path.splitext(rep)[0] + '.log', 'w')
+            procs.append((i, rep, logf, subprocess.Popen(list(repair) + [out, rep, job], stdout=logf,
+                                                         stderr=subprocess.STDOUT)))
+        for i, rep, logf, p in procs:
+            p.wait()
+            logf.close()
+            if p.returncode != 0 or not os.path.exists(rep):
+                log('stamp: repair of %s failed, see %s' % (os.path.basename(res[i][0]), logf.name))
+                continue
+            for ext in ('.kicad_pro', '.kicad_dru'):
+                shutil.copy(os.path.splitext(src)[0] + ext, os.path.splitext(rep)[0] + ext)
+            left, _ = _open_nets(rep, targets, work)
+            log('stamp: %s repaired: %d open %s' % (os.path.basename(rep), len(left), sorted(left)))
+            res[i] = (rep, left)
     return min(res, key=lambda r: len(r[1]))
 
 

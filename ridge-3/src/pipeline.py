@@ -21,7 +21,7 @@ gives every item a new ID, and with it a new order, so a fresh run routes
 differently from the committed boards (the reference) and is checked by the
 same gates.
 """
-import os, shutil
+import os, sys, json, shutil
 from collections import Counter
 import pcbnew
 import pcb, route, finish, artwork, circuit, cleanup
@@ -39,6 +39,19 @@ def _copy_project(src_pcb, dst_pcb):
         if os.path.exists(s):
             shutil.copy(s, os.path.splitext(dst_pcb)[0] + ext)
     pcb.write_rules(dst_pcb, EXTRA_RULES)
+
+
+def setup_routers(L):
+    """Module settings of the routers for one board's layout module."""
+    finish.ROUTE_LAYERS = getattr(L, 'ROUTE_LAYERS', [pcbnew.F_Cu, pcbnew.B_Cu])
+    finish.RES = getattr(L, 'FINISH_RES', 0.05)
+    if hasattr(L, 'VIA_SIG'):
+        finish.VIA_D, finish.VIA_DRILL = L.VIA_SIG
+    finish.VIA_RING = getattr(L, 'VIA_RING', None) or 0.0
+    finish.POFV_GAP = None               # every via is filled (POFV): via to via is the normal rule
+    route.PRE_EXPORT = getattr(L, 'routing_keepouts', None)
+    route.VIA_IN_PAD = getattr(L, 'VIA_IN_PAD', None)
+    route.VIA_RING = getattr(L, 'VIA_RING', None)
 
 
 def template_repair(b, open_nets, mine, widths, clmap, log=print):
@@ -79,14 +92,7 @@ def run(board_name, work, passes=None, log=print):
     EXTRA_RULES = getattr(L, 'DRU_EXTRA', '')
     L.build(placed)
     pcb.write_rules(placed, EXTRA_RULES)
-    finish.ROUTE_LAYERS = getattr(L, 'ROUTE_LAYERS', [pcbnew.F_Cu, pcbnew.B_Cu])
-    finish.RES = getattr(L, 'FINISH_RES', 0.05)
-    if hasattr(L, 'VIA_SIG'):
-        finish.VIA_D, finish.VIA_DRILL = L.VIA_SIG
-    route.PRE_EXPORT = getattr(L, 'routing_keepouts', None)
-    route.VIA_IN_PAD = getattr(L, 'VIA_IN_PAD', None)
-    route.VIA_RING = getattr(L, 'VIA_RING', None)
-    finish.VIA_RING = getattr(L, 'VIA_RING', None) or 0.0
+    setup_routers(L)
     src = placed
     if getattr(L, 'CHANNELS', None) and hasattr(L, 'channel_parts'):
         # one channel routed alone, stamped onto the others (stamp.py)
@@ -95,14 +101,14 @@ def run(board_name, work, passes=None, log=print):
         comps = circuit.build(board_name)
         tmpl, nets, left, _ = stamp.route_template(placed, work, L.channel_parts(comps), L.CHANNELS,
                                                    passes=L.STAMP_PASSES, log=log, planes=planes,
-                                                   repair=lambda b, o, m: template_repair(b, o, m, widths, clmap, log))
+                                                   repair=[sys.executable, os.path.abspath(__file__),
+                                                           'template-repair', board_name])
         src = os.path.join(work, board_name + '_stamped.kicad_pcb')
         stamp.stamp(placed, tmpl, src, nets, L.CHANNELS, rules=EXTRA_RULES, log=log)
     n = route.route(src, routed, passes=passes, rounds=2)
     log('%s: %d connections left after Freerouting, %d duplicate vias removed'
         % (board_name, n, pcb.dedupe_vias(routed)))
     _copy_project(placed, routed); _copy_project(placed, fin)
-    finish.POFV_GAP = None               # every via is filled (POFV): via to via is the normal rule
     n = finish.finish_board(routed, fin, os.path.join(work, board_name + '_fin.json'), rules=widths, clmap=clmap)
     _copy_project(placed, fin)
     if board_name == 'fc':
@@ -159,3 +165,25 @@ def run(board_name, work, passes=None, log=print):
     if e or w or u:
         raise SystemExit('%s: DRC not clean, see %s_final_drc.json' % (board_name, board_name))
     return fin
+
+
+def _template_repair_main(board_name, src, dst, job):
+    """template_repair on the board file `src`, saved as `dst`; `job` is a
+    JSON file with the open nets and the nets that may move."""
+    L = __import__(board_name + '_layout')
+    setup_routers(L)
+    comps = circuit.build(board_name)
+    j = json.load(open(job))
+    b = pcbnew.LoadBoard(src)
+    template_repair(b, j['open'], j['mine'], L.widths(comps), L.clearances(comps),
+                    log=lambda s: print(s, flush=True))
+    b.Save(dst)
+
+
+if __name__ == '__main__':
+    # python3 pipeline.py template-repair <board> <in.kicad_pcb> <out.kicad_pcb> <job.json>
+    # (stamp.py runs one of these per routing of the template channel, all at once)
+    if sys.argv[1:2] == ['template-repair']:
+        _template_repair_main(*sys.argv[2:6])
+    else:
+        raise SystemExit('usage: pipeline.py template-repair BOARD IN OUT JOB')
