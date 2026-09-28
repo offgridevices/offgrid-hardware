@@ -734,6 +734,29 @@ def check_board(board, name):
     check(S, 'mounting holes on the 25.5 mm square: %s' % holes,
           all(abs(abs(x) - 12.75) < 0.01 and abs(abs(y) - 12.75) < 0.01 for x, y in holes) and len(holes) == 4)
     if board == 'esc':
+        # gate resistors at their FETs' gate pins, bootstrap caps at their
+        # driver's BST and SH pins (pad centre to pad centre)
+        pos = {}
+        for fp_ in b.GetFootprints():
+            for p_ in fp_.Pads():
+                if p_.GetNumber():
+                    pos[(fp_.GetReference(), p_.GetNumber())] = p_.GetPosition()
+        dist = lambda a, c: math.hypot(pos[a].x - pos[c].x, pos[a].y - pos[c].y) / 1e6
+        comps_ = circuit.build('esc')
+        far_g, far_b = [], []
+        for c in comps_:
+            if c.note.startswith(('gate high ', 'gate low ')):
+                fet = [x for x in comps_ if x.part == 'TPN2R304PL' and x.pins.get('4') == c.pins['2']][0]
+                far_g.append(dist((c.ref, '2'), (fet.ref, '4')))
+            if c.note.startswith('bootstrap '):
+                gd = [x for x in comps_ if x.ref.startswith('U_GD') and c.pins['1'] in x.pins.values()][0]
+                bst = [k for k, v in gd.pins.items() if v == c.pins['1']][0]
+                sh = [k for k, v in gd.pins.items() if v == c.pins['2']][0]
+                far_b.append(max(dist((c.ref, '1'), (gd.ref, bst)), dist((c.ref, '2'), (gd.ref, sh))))
+        check(S, 'gate resistors at their FETs: %d, each within %.2f mm of its FET\'s gate pin'
+              % (len(far_g), max(far_g)), len(far_g) == 24 and max(far_g) <= 2.0)
+        check(S, 'bootstrap capacitors at their drivers: %d, each pad within %.2f mm of its BST or SH pin'
+              % (len(far_b), max(far_b)), len(far_b) == 12 and max(far_b) <= 1.5)
         # the four MCUs share the buck's 10 uF output capacitor as bulk
         bulk = find('esc', 'buck output')[0].ref
         c = [p for p in b.FindFootprintByReference(bulk).Pads() if p.GetNetname() == '+3V3'][0].GetPosition()

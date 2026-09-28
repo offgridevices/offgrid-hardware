@@ -22,11 +22,18 @@ RES = 0.05                      # mm per cell
 def mm(v): return v / 1e6
 
 class Grid:
-    def __init__(self, board, layers, clearance, track_w, via_d, edge=0.3, clmap=None, soft_nets=None):
+    def __init__(self, board, layers, clearance, track_w, via_d, edge=0.3, clmap=None, soft_nets=None,
+                 window=None):
+        """window: (x0, y0, x1, y1) mm, the part of the board the grid
+        covers (its border is kept free like the board edge); default the
+        whole board."""
         bb = board.GetBoardEdgesBoundingBox()
-        self.x0, self.y0 = mm(bb.GetLeft()), mm(bb.GetTop())
-        self.W = int(math.ceil(mm(bb.GetWidth()) / RES)) + 1
-        self.H = int(math.ceil(mm(bb.GetHeight()) / RES)) + 1
+        if window is None:
+            window = (mm(bb.GetLeft()), mm(bb.GetTop()), mm(bb.GetRight()), mm(bb.GetBottom()))
+        self.window = window
+        self.x0, self.y0 = window[0], window[1]
+        self.W = int(math.ceil((window[2] - window[0]) / RES)) + 1
+        self.H = int(math.ceil((window[3] - window[1]) / RES)) + 1
         self.board, self.layers = board, layers
         self.cl, self.tw, self.vd, self.edge = clearance, track_w, via_d, edge
         self.clmap = clmap or {}
@@ -62,7 +69,14 @@ class Grid:
         self.pofv_holes = []
         holes = []
         b = self.board
+        wx0, wy0, wx1, wy1 = self.window
+        def out(bb):
+            # wholly outside the grid (with a margin for clearances)
+            return (mm(bb.GetRight()) < wx0 - 1 or mm(bb.GetLeft()) > wx1 + 1 or
+                    mm(bb.GetBottom()) < wy0 - 1 or mm(bb.GetTop()) > wy1 + 1)
         for fp in b.GetFootprints():
+            if out(fp.GetBoundingBox()):
+                continue
             for pad in fp.Pads():
                 for l in self.layers:
                     if pad.IsOnLayer(l):
@@ -78,6 +92,8 @@ class Grid:
                     p = pad.GetPosition()
                     holes.append(Point(mm(p.x), mm(p.y)).buffer(mm(pad.GetDrillSize().x) / 2))
         for t in b.GetTracks():
+            if out(t.GetBoundingBox()):
+                continue
             soft = (t.GetNetname() in self.soft_nets and t.GetNetname() != net_exclude and not t.IsLocked())
             if t.GetClass() == 'PCB_VIA':
                 p = t.GetPosition()
@@ -202,14 +218,41 @@ HOLE_TO_HOLE = 0.25
 POFV_GAP, POFV_DRILL = 0.46, 0.3
 
 
+# WINDOW (mm): a search may first stay within this margin of the two
+# islands' bounding box, and cover the whole board only if that finds
+# nothing.  Off: on the ESC it neither sped the searches up (the expansions
+# dominate, not the grid) nor routed as much (local paths block others).
+WINDOW = None
+
+
 def route_connection(board, net, a_items, b_items, clearance=0.1, track_w=0.1, via_d=None, via_drill=None,
-                     max_expand=3_000_000, clmap=None, soft_nets=None, rip_cost=60, victims_out=None):
+                     max_expand=None, clmap=None, soft_nets=None, rip_cost=60, victims_out=None):
     """Route from copper island A to island B of `net`.  a_items/b_items are
-    lists of shapely geometries per layer: {layer: [geom,...]}."""
+    lists of shapely geometries per layer: {layer: [geom,...]}.  The search
+    budget (cells expanded) scales with the grid's cell count per mm^2."""
+    if max_expand is None:
+        max_expand = int(3_000_000 * (0.05 / RES) ** 2)
+    bb = board.GetBoardEdgesBoundingBox()
+    full = (mm(bb.GetLeft()), mm(bb.GetTop()), mm(bb.GetRight()), mm(bb.GetBottom()))
+    win = full
+    if WINDOW is not None:
+        bx = [g.bounds for items in (a_items, b_items) for gl in items.values() for g in gl]
+        win = (max(full[0], min(b[0] for b in bx) - WINDOW), max(full[1], min(b[1] for b in bx) - WINDOW),
+               min(full[2], max(b[2] for b in bx) + WINDOW), min(full[3], max(b[3] for b in bx) + WINDOW))
+    for w in ([win, full] if win != full else [full]):
+        res = _route_in(board, net, a_items, b_items, clearance, track_w, via_d, via_drill, max_expand, clmap,
+                        soft_nets, rip_cost, victims_out, w)
+        if res:
+            return res
+    return None
+
+
+def _route_in(board, net, a_items, b_items, clearance, track_w, via_d, via_drill, max_expand, clmap, soft_nets,
+              rip_cost, victims_out, window):
     via_d = VIA_D if via_d is None else via_d
     via_drill = VIA_DRILL if via_drill is None else via_drill
     layers = list(ROUTE_LAYERS)
-    g = Grid(board, layers, clearance, track_w, via_d, clmap=clmap, soft_nets=soft_nets)
+    g = Grid(board, layers, clearance, track_w, via_d, clmap=clmap, soft_nets=soft_nets, window=window)
     g.build(net)
     src = {}; dst = {}
     for li, l in enumerate(layers):

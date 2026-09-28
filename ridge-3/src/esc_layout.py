@@ -137,8 +137,11 @@ def template():
     # current filter's resistor end on the MCU's pins: one row of upright
     # 0201s on the bottom, in the strip between the MCU, the next channel's
     # driver and the shunt, the neutral's nearest its pin (PA3)
-    for i, role in enumerate(('RNG', 'RBL_C', 'RBL_A', 'RBL_B', 'R_IF')):
-        t[role] = (5.41 + 0.9 * i, 5.99, 90, 'B')
+    # The current filter's resistor stands straight under the amplifier's
+    # output pin, turned so its input end is there: the output drops onto
+    # it through a via in its own pad (kelvin_pins), no routing.
+    for i, role in enumerate(('RNG', 'RBL_C', 'RBL_A', 'R_IF', 'RBL_B')):
+        t[role] = (5.41 + 0.9 * i, 5.99, 270 if role == 'R_IF' else 90, 'B')
     # the current amplifier on top over the shunt's sense end, clear of the
     # shunt's ground vias (reserved), its supply capacitor beside its
     # supply pin, clear of the sense vias below the shunt's sense pads
@@ -427,7 +430,9 @@ VIA_RING = HOLE_CL - 0.1
 VIA_IN_PAD = VIA_SIG
 
 GAPS = (-7.5, -2.5, 2.5, 7.5)  # via corridors: the gaps between phases and both ends
-SRC_VIA = ((-0.4, 11.85), (0.4, 11.85))          # per corridor, from its centre
+# per corridor, from its centre: 0.9 mm apart, so a 0.1 mm trace up the
+# corridor (an MCU's SWD line to its test point) keeps 0.2 mm from both holes
+SRC_VIA = ((-0.45, 11.85), (0.45, 11.85))
 # gate resistors (0201, upright): u from the phase centre (the corridor's
 # centre line), the high side's yr (top), the low side's yr (bottom).  The
 # FETs' gate pins are at +0.97: the high side's at yr 13.98 (top), the low
@@ -542,23 +547,17 @@ def power_copper(b, comps):
                 q = [_to_template(n, x, y) for x, y in ((x0, y0), (x1, y1))]
                 pu0, pu1 = min(q[0][0], q[1][0]), max(q[0][0], q[1][0])
                 py0, py1 = min(q[0][1], q[1][1]), max(q[0][1], q[1][1])
-                # a strip from the pad to the nearest point well inside
-                # the pour (0.25 mm in from its edge)
+                # copper from the pad to the nearest point well inside the
+                # pour (0.25 mm in from its edge): the box spanning both, so
+                # it overlaps the pour whichever way the pad lies from it
                 cu_ = min(max((pu0 + pu1) / 2, u - 1.35), u + 1.35)
                 cy_ = min(max((py0 + py1) / 2, 13.9), 16.6)
                 if u - 1.6 <= (pu0 + pu1) / 2 <= u + 1.6 and 13.65 <= (py0 + py1) / 2 <= 16.85:
                     continue
                 w2 = 0.25
-                if abs(cu_ - (pu0 + pu1) / 2) >= abs(cy_ - (py0 + py1) / 2):
-                    ya, yb = max(py0, cy_ - w2), min(py1, cy_ + w2)
-                    if ya > yb - 0.3:
-                        ya, yb = (py0 + py1) / 2 - w2, (py0 + py1) / 2 + w2
-                    tab = [(min(pu0, cu_), ya), (max(pu1, cu_), ya), (max(pu1, cu_), yb), (min(pu0, cu_), yb)]
-                else:
-                    ua, ub = max(pu0, cu_ - w2), min(pu1, cu_ + w2)
-                    if ua > ub - 0.3:
-                        ua, ub = (pu0 + pu1) / 2 - w2, (pu0 + pu1) / 2 + w2
-                    tab = [(ua, min(py0, cy_)), (ub, min(py0, cy_)), (ub, max(py1, cy_)), (ua, max(py1, cy_))]
+                ua, ub = min(pu0, cu_ - w2), max(pu1, cu_ + w2)
+                ya, yb = min(py0, cy_ - w2), max(py1, cy_ + w2)
+                tab = [(ua, ya), (ub, ya), (ub, yb), (ua, yb)]
                 _zone(b, n, sw, pcbnew.B_Cu, tab, prio=4, name='bemf tab')
             # bottom: battery island round the bridge capacitor's VBAT pad
             # and the high-side drain's vias beside the low-side sources
@@ -649,6 +648,15 @@ def routing_keepouts(b):
         for layer, pts in areas:
             pcb.rule_area(b, [xf_point(n, u, yr) for u, yr in pts], [layer], tracks=True, vias=True,
                           pads=False, pours=False, name='pour keepout')
+            k += 1
+    # the back-EMF resistors' tabs into the switch-node pours too: a trace
+    # of another net across one cuts the resistor off its phase
+    for z in list(b.Zones()):
+        if not z.GetIsRuleArea() and z.GetZoneName() == 'bemf tab':
+            ol = z.Outline().Outline(0)
+            pts = [(ol.CPoint(i).x / 1e6 - pcb.CX, ol.CPoint(i).y / 1e6 - pcb.CY) for i in range(ol.PointCount())]
+            pcb.rule_area(b, pts, [pcbnew.B_Cu], tracks=True, vias=True, pads=False, pours=False,
+                          name='pour keepout')
             k += 1
     h, w = pcb.HALF, 0.3
     cu = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu)
@@ -890,11 +898,16 @@ def kelvin_pins(comps):
     """The current sense's Kelvin pads: the shunt's sense pads (bottom)
     and the amplifier's inputs (top), a via each in or beside the pad.  The
     shunt's sense pads sit inside the channel's return pour, where no
-    router could find a spot for a via of its own."""
+    router could find a spot for a via of its own.  Also the amplifier's
+    output: its via lands on the filter resistor's pad below.  And the
+    back-EMF and neutral resistors' MCU ends (pin 2): they stand on the
+    bottom among the FETs' pads, where no router finds a spot for a via of
+    its own, and their nets come in on the inner layers."""
     out = []
     for n in CHANNELS:
         r = roles(comps, n)
-        out += [(r['R_SH'], '3'), (r['R_SH'], '4'), (r['U_CS'], '4'), (r['U_CS'], '5')]
+        out += [(r['R_SH'], '3'), (r['R_SH'], '4'), (r['U_CS'], '4'), (r['U_CS'], '5'), (r['U_CS'], '6')]
+        out += [(r[k + ph], '2') for k in ('RBH_', 'RN_') for ph in 'ABC']
     return out
 
 
@@ -997,7 +1010,8 @@ def artwork(b, comps):
         r = roles(comps, n)
         pl = top if side[r['TP_DIO']] == 'T' else bot
         pl.label(r['TP_DIO'], 'D%d' % n, size=1.2, dist=0.7, smallest=1.0, face='mono')
-    for ref, s_ in (('TP_3V3', '3V3'), ('TP_GND', 'GND'), ('TP_SWCLK', 'CLK')):
+    # (ground is 'G', as on the flight controller's pads)
+    for ref, s_ in (('TP_3V3', '3V3'), ('TP_GND', 'G'), ('TP_SWCLK', 'CLK')):
         (top if side[ref] == 'T' else bot).label(ref, s_, size=1.2, smallest=1.0, face='mono')
     # one number per motor on top, as large as fits, in the nearest free
     # spot that is clearly this motor's: at least 2 mm nearer its own three
