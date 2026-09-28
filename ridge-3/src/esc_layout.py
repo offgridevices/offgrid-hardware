@@ -74,17 +74,12 @@ def template():
         # pad at -u, straight above the low-side source pins 1 and 2
         t['CBR_' + ph] = (u, Y_CAP, 180, 'B')
     # back-EMF: the phase-side 20k resistors on the bottom beside the
-    # low-side drains they tap: in each gap between two phases one
-    # standing (courtyards leave room for one) and one lying across the
-    # gap's outer end, and one standing in each end slot.  Each one's
-    # phase end reaches its own drain copper through a short tab
-    # (power_copper); pin 1 is the phase end.
+    # low-side drains they tap, standing in the gaps between two phases
+    # and in the +u end slot.  Each one's phase end reaches its own drain
+    # copper through a short tab (power_copper); pin 1 is the phase end.
     ga, gb = (PH_U['A'] + PH_U['B']) / 2, (PH_U['B'] + PH_U['C']) / 2
     t['RBH_A'] = (ga, Y_LS + 0.7, 90, 'B')
-    t['RN_B'] = (ga, Y_LS + 2.6, 180, 'B')
     t['RBH_B'] = (gb, Y_LS + 0.7, 90, 'B')
-    t['RN_C'] = (gb, Y_LS + 2.6, 180, 'B')
-    t['RN_A'] = (PH_U['A'] - 2.36, Y_LS + 0.7, 90, 'B')
     t['RBH_C'] = (PH_U['C'] + 2.36, Y_LS + 0.7, 90, 'B')
     # Driver and MCU side by side on the bottom behind the FET row.  The
     # pair spans u -5.04 .. 4.8: the next channel's pair starts at
@@ -137,15 +132,23 @@ def template():
     # Both spots are clear of every channel's parts and fixed copper.
     t['TP_CLK'] = (0.2, 8.95, 0, 'T')
     t['TP_DIO'] = (4.8, 8.3, 0, 'T')
-    # the back-EMF dividers' low legs, the neutral's leg to ground and the
+    # the back-EMF dividers' low legs, phase C's neutral leg and the
     # current filter's resistor end on the MCU's pins: one row of upright
     # 0201s on the bottom, in the strip between the MCU, the next channel's
-    # driver and the shunt, the neutral's nearest its pin (PA3)
+    # driver and the shunt, the neutral leg nearest its pin (PA3) and
+    # beside its CMP partner.  The other two neutral legs lie one above the
+    # other at the MCU's inner +u corner, the last spot on the bottom that
+    # walls in no pin: standing in the gap between the MCU and the shunt a
+    # leg walls in pins 12-14; on top beside the MCU it takes the way the
+    # PWM lines from pins 13 and 14 climb out; on top over the row it sits
+    # on the next channel's driver inputs' vias.
     # The current filter's resistor stands straight under the amplifier's
     # output pin, turned so its input end is there: the output drops onto
     # it through a via in its own pad (kelvin_pins), no routing.
-    for i, role in enumerate(('RNG', 'RBL_C', 'RBL_A', 'R_IF', 'RBL_B')):
+    for i, role in enumerate(('RS_C', 'RBL_C', 'RBL_A', 'R_IF', 'RBL_B')):
         t[role] = (5.41 + 0.9 * i, 5.99, 270 if role == 'R_IF' else 90, 'B')
+    t['RS_B'] = (4.2, 3.75, 0, 'B')
+    t['RS_A'] = (3.75, 4.45, 0, 'B')
     # the current amplifier on top over the shunt's sense end, clear of the
     # shunt's ground vias (reserved), its supply capacitor beside its
     # supply pin, clear of the sense vias below the shunt's sense pads
@@ -184,8 +187,7 @@ def roles(comps, n):
         elif note.startswith('bridge '): out['CBR_' + note[-1]] = ref
         elif note.startswith('BEMF '):
             out[('RBH_' if c.part == 'R20K' else 'RBL_') + note[-1]] = ref
-        elif note.startswith('neutral to'): out['RNG'] = ref
-        elif note.startswith('neutral '): out['RN_' + note[-1]] = ref
+        elif note.startswith('neutral '): out['RS_' + note[-1]] = ref
         elif note == 'U_CS%d supply' % n: out['C_CS'] = ref
         elif note == 'current filter':
             out['R_IF' if c.part.startswith('R') else 'C_IF'] = ref
@@ -269,7 +271,7 @@ def placement(comps):
 
 
 FIXED_ROLES = ('QAH', 'QBH', 'QCH', 'QAL', 'QBL', 'QCL', 'PA', 'PB', 'PC', 'CBR_A', 'CBR_B', 'CBR_C',
-               'GD', 'MCU', 'R_SH', 'RBH_A', 'RBH_B', 'RBH_C', 'RN_A', 'RN_B', 'RN_C',
+               'GD', 'MCU', 'R_SH', 'RBH_A', 'RBH_B', 'RBH_C', 'RS_A', 'RS_B', 'RS_C',
                'RGH_A', 'RGH_B', 'RGH_C', 'RGL_A', 'RGL_B', 'RGL_C', 'CBS_A', 'CBS_B', 'CBS_C')
 
 
@@ -450,8 +452,8 @@ VIA_IN_PAD = VIA_SIG
 GAPS = (-7.5, -2.5, 2.5, 7.5)  # via corridors: the gaps between phases and both ends
 # per corridor, from its centre: one return via on the centre line.  Every
 # signal between the driver and MCU and the FETs, the motor pads and the
-# back-EMF resistors (gate drives, switch-node taps, back-EMF, neutral, SWD:
-# 14 a channel) passes the band of vias across the FET row in these
+# back-EMF resistors (gate drives, switch-node taps, back-EMF: 12 a
+# channel) passes the band of vias across the FET row in these
 # corridors, on top and on In2 (In3 carries the return there).  A pair of
 # vias passed one track between them a layer; one via passes one either side
 # (0.45 mm from its centre keeps a 0.2 mm track 0.2 mm from its hole).  The
@@ -561,13 +563,11 @@ def power_copper(b, comps):
             _zone(b, n, 'VBAT', pcbnew.F_Cu, [(u - 1.6, 10.15), (u + 1.6, 10.15), (u + 1.6, 13.25),
                                               (u - 1.6, 13.25)], name='high-side drain')
             # bottom: switch node over the low-side drain, reaching out to
-            # the phase ends of the back-EMF resistors that tap it
+            # the phase end of the back-EMF resistor that taps it
             pts = [(u - 1.6, 13.65), (u + 1.6, 13.65), (u + 1.6, 16.85), (u - 1.6, 16.85)]
             _zone(b, n, sw, pcbnew.B_Cu, pts, name='switch node')
             for c in comps:
-                if c.block != 'esc%d' % n or not c.note.startswith(('BEMF ', 'neutral ')) or c.pins.get('1') != sw:
-                    continue
-                if c.note.startswith('neutral to'):
+                if c.block != 'esc%d' % n or not c.note.startswith('BEMF ') or c.pins.get('1') != sw:
                     continue
                 x0, y0, x1, y1 = _pad_box(b, c.ref, '1')
                 q = [_to_template(n, x, y) for x, y in ((x0, y0), (x1, y1))]
@@ -712,7 +712,7 @@ LAYERS = 6
 # (battery), which carry all four motors' current, but the fab sets one
 # weight for every inner layer, and on 2 oz it etches no finer than
 # 0.15 mm track / 0.15 mm gap (JLCPCB, multilayer): In2 and In3 carry the
-# gate drive through the FET row at 0.12 / 0.1 mm, and at 0.15 / 0.15 the
+# gate drive through the FET row at 0.1 / 0.1 mm, and at 0.15 / 0.15 the
 # channel does not route.
 INNER_OZ = 1.0
 ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
@@ -733,14 +733,14 @@ def net_groups(comps):
 
 # Gate drive (driver to gate resistor to gate) and the driver's switch-node
 # sense lines.  Every one of them crosses the FET row in the via corridors
-# (SRC_VIA), where a 0.12 mm track leaves room for two a side of the
-# corridor's via and a 0.2 mm one for one.  The DRV8300 drives 0.75 A /
-# 1.5 A peaks through its 10 ohm gate resistors: 10 mm of 0.12 mm track adds
-# ~0.04 ohm (1 oz copper, outer or inner), under 0.5 % of the gate
-# loop.  The bootstrap lines keep 0.2 mm: they are short stubs, and they
-# carry the capacitor's recharge.
-GATE_W = 0.12
-SENSE_W = 0.15
+# (SRC_VIA), and the channel has no track to spare there: gate drive
+# 0.1 mm, sense 0.12 mm.  The DRV8300 drives 0.75 A / 1.5 A peaks, for tens
+# of nanoseconds, through its 10 ohm gate resistors (41 nC a switch: a few
+# mA on average): 10 mm of 0.1 mm 1 oz track adds 0.05 ohm, 0.5 % of the
+# gate loop.  The bootstrap lines keep 0.2 mm: they are short stubs, and
+# they carry the capacitor's recharge.
+GATE_W = 0.1
+SENSE_W = 0.12
 BOOT_W = 0.2
 
 
@@ -1106,18 +1106,19 @@ def kelvin_pins(comps):
     shunt's sense pads sit inside the channel's return pour, where no
     router could find a spot for a via of its own.  Also the amplifier's
     output: its via lands on the filter resistor's pad below.  And the
-    back-EMF and neutral resistors' MCU ends (pin 2): they stand on the
-    bottom among the FETs' pads, where no router finds a spot for a via of
-    its own, and their nets come in on the inner layers.  Likewise the
-    signal ends of the row of dividers' low legs by the MCU (back-EMF,
-    neutral, current filter output): five 0201s side by side at 0.9 mm,
-    walled in by the MCU, the next channel's driver and the shunt."""
+    back-EMF resistors' MCU ends (pin 2): they stand on the bottom among
+    the FETs' pads, where no router finds a spot for a via of its own, and
+    their nets come in on the inner layers.  Likewise the signal ends of
+    the row of dividers' low legs by the MCU (back-EMF, neutral, current
+    filter output): five 0201s side by side at 0.9 mm, walled in by the
+    MCU, the next channel's driver and the shunt.  (The neutral leg's CMP
+    end sits beside its partner's, where a track joins them.)"""
     out = []
     for n in CHANNELS:
         r = roles(comps, n)
         out += [(r['R_SH'], '3'), (r['R_SH'], '4'), (r['U_CS'], '4'), (r['U_CS'], '5'), (r['U_CS'], '6')]
-        out += [(r[k + ph], '2') for k in ('RBH_', 'RN_') for ph in 'ABC']
-        out += [(r['RBL_' + ph], '1') for ph in 'ABC'] + [(r['RNG'], '1'), (r['R_IF'], '2')]
+        out += [(r['RBH_' + ph], '2') for ph in 'ABC']
+        out += [(r['RBL_' + ph], '1') for ph in 'ABC'] + [(r['RS_C'], '2'), (r['R_IF'], '2')]
     return out
 
 

@@ -617,11 +617,26 @@ def check_power():
     kr = bb / (bt + bb)
     check(S, 'BEMF divider %gk/%gk: %.1f V phase -> %.2f V at the comparator; a 35 V spike -> %.2f V (< VDDA 3.3 V)'
           % (bt / 1e3, bb / 1e3, VMAX, VMAX * kr, 35 * kr), 35 * kr < 3.3)
-    rn = value(find('esc', 'neutral to ground')[0].part)
-    rs = value(find('esc', 'neutral A')[0].part) / 3
-    kn = rn / (rs + rn)
-    check(S, 'virtual neutral scales like the phases: %.4f vs %.4f (%.1f %% apart)' % (kn, kr, 100 * (kn / kr - 1)),
-          abs(kn / kr - 1) < 0.03)
+    # virtual neutral: equal legs from the three divided phases to a star
+    # that only the MCU's comparator input loads; the star is then the mean
+    # of the three CMP nodes, and CMP - NEUTRAL crosses zero where the
+    # phase crosses the mean of the phases
+    comps_ = circuit.build('esc')
+    bad, rleg = [], set()
+    for n in (1, 2, 3, 4):
+        m = lambda s: 'M%d_%s' % (n, s)
+        on = [(c, k) for c in comps_ for k, v in c.pins.items() if v == m('NEUTRAL')]
+        legs = [c for c, k in on if c.note.startswith('neutral ')]
+        others = [c.ref for c, k in on if not c.note.startswith('neutral ') and c.ref != 'U_ESC%d' % n]
+        if others or sorted(set(c.pins.values()) - {m('NEUTRAL')} for c in legs) != \
+                sorted({m('CMP_' + ph)} for ph in 'ABC'):
+            bad.append(n)
+        rleg |= set(value(c.part) for c in legs)
+    rl = min(rleg)
+    rth = bt * bb / (bt + bb)
+    check(S, 'virtual neutral: %gk from each of CMP_A/B/C to a star only the comparator loads, in all four ESCs: '
+             'the star is their mean; the comparator sees %.2f of CMP minus that mean'
+          % (rl / 1e3, rl / (rl + rth)), not bad and len(rleg) == 1, str(bad))
     # current sense
     sh = find('esc', 'ESC 1 shunt')[0]; amp = find('esc', 'ESC 1 current amplifier')[0]
     gain = {'INA180A1': 20, 'INA180A2': 50, 'INA180A3': 100, 'INA180A4': 200, 'INA186A3': 100}[amp.part]

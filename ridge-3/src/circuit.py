@@ -472,10 +472,14 @@ def esc(n):
         # Back-EMF divider 20k / 2k (ratio 11: a 35 V spike reaches 3.2 V).
         res('R20K', p(ph), p('CMP_' + ph), B, 'BEMF ' + ph)
         res('R2K_0201', p('CMP_' + ph), GND, B, 'BEMF ' + ph)
-        # Virtual neutral: 30k from each phase to a star point and 1k to
-        # ground, 1k / (1k + 30k / 3) = 1/11, as the phase dividers.
-        res('R30K', p(ph), p('NEUTRAL'), B, 'neutral ' + ph)
-    res('R1K_0201', p('NEUTRAL'), GND, B, 'neutral to ground')
+        # Virtual neutral: 10k from each divided phase (CMP) to a star.  The
+        # star sits at the mean of the three CMP nodes, so CMP - NEUTRAL
+        # crosses zero where the phase crosses the mean of the three phases,
+        # as a star of the phases themselves would; the comparator sees
+        # 10k / (10k + 20k || 2k) = 0.85 of that difference.  The star is
+        # made on the MCU's side of the FET row from nets that are there
+        # already, so it adds no line across the row.
+        res('R10K_0201', p('CMP_' + ph), p('NEUTRAL'), B, 'neutral ' + ph)
 
     # Current sense: 0.5 mOhm from the sense node to ground, read by an
     # INA186A3 (100 V/V): 50 mV/A at PA5 through 1k / 100 nF (1.6 kHz).
