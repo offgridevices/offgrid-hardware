@@ -11,6 +11,17 @@
 > - **Back-EMF and neutral dividers:** 20k/2k per phase; the virtual neutral is 30k from
 >   each phase to a star with 1k to ground. The neutral then scales like the phases
 >   (1k / (10k + 1k) = 2k / 22k).
+> - **One SWD clock pad per MCU.** Each channel has its own `Cn` (SWCLK) pad beside its
+>   `Dn` (SWDIO) pad. A clock shared by all four MCUs had to run through every other
+>   channel to reach each one.
+> - **Gate-drive tracks 0.12 mm, switch-node sense 0.15 mm.** Every one crosses the FET
+>   row in the corridors between the phases. 10 mm of 0.12 mm copper adds about 0.04 ohm
+>   to a gate loop that already has a 10 ohm resistor.
+> - **One return via per corridor, not two.** The corridors pass the gate, sense, back-EMF,
+>   neutral and SWD lines across the FET row. A centred via leaves room for a track on
+>   each side of it. The return's bottom and In3 pours are still tied by these vias and
+>   the five at the shunt. In3 is needed: the low-side gate stubs cut the bottom pour at
+>   every corridor.
 
 # OG3 ESC: power stage, gate drive, MCU and current sensing (research notes)
 

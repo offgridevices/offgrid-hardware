@@ -148,10 +148,11 @@ def template():
     # shunt's ground vias (reserved), its supply capacitor beside its
     # supply pin, clear of the sense vias below the shunt's sense pads
     t['U_CS'] = (8.9, 7.1, 0, 'T')
-    t['C_CS'] = (10.6, 7.6, 90, 'T')
+    t['C_CS'] = (10.7, 8.0, 90, 'T')
     t['C_IF'] = (5.6, 6.1, 90, 'T')
-    # the CUR-average resistor from the amplifier's output, beside the filter
-    t['R_CUR'] = (6.9, 4.8, 0, 'T')
+    # the CUR-average resistor from the amplifier's output, beside the
+    # filter, upright: lying, it covers the next channel's driver pins
+    t['R_CUR'] = (6.9, 5.6, 90, 'T')
     return t
 
 
@@ -385,10 +386,13 @@ def escape_keep(comps, place):
 
 
 def fixed(comps):
+    """Every channel part stays exactly on its turned template spot (the
+    packer's grid would move a part a few hundredths differently in each
+    channel, and the channels are routed as one, stamp.py); the shared parts
+    pack round them."""
     f = set(GLOBAL_FIXED)
     for n in CHANNELS:
-        r = roles(comps, n)
-        f |= {r[k] for k in FIXED_ROLES}
+        f |= set(roles(comps, n).values())
     return f
 
 

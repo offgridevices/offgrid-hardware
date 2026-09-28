@@ -177,13 +177,25 @@ class Grid:
                             img = Image.fromarray(self.block[l]); self._draw(img, g.buffer(self.tw / 2 + M)); self.block[l] = np.array(img, dtype=bool)
                 if z.GetDoNotAllowVias():
                     self._draw(vmask, g.buffer(self.vd / 2 + M))
-        # board edge
+        # board edge: everything outside the outline shrunk by the edge
+        # clearance (the outline itself, not the bounding box of the edge
+        # graphics, which their line width widens, and with the corner slots)
         e = int(math.ceil((self.edge + self.tw / 2) / RES)); ev = int(math.ceil((self.edge + self.vd / 2) / RES))
         for l in self.layers:
             self.block[l][:e, :] = True; self.block[l][-e:, :] = True
             self.block[l][:, :e] = True; self.block[l][:, -e:] = True
         vb = np.array(vmask, dtype=bool)
         vb[:ev, :] = True; vb[-ev:, :] = True; vb[:, :ev] = True; vb[:, -ev:] = True
+        ps = pcbnew.SHAPE_POLY_SET()
+        if self.board.GetBoardPolygonOutlines(ps, False) and ps.OutlineCount():
+            ol = ps.Outline(0)
+            outline = Polygon([(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())])
+            for pad, masks in ((self.tw / 2, [self.block[l] for l in self.layers]), (self.vd / 2, [vb])):
+                img = Image.new('1', (self.W, self.H), 0)
+                self._draw(img, outline.buffer(-(self.edge + pad + M), 8))
+                inside = np.array(img, dtype=bool)
+                for m in masks:
+                    m |= ~inside
         self.vblock = vb
         # soft (rippable) copper: passable at a price
         self.sblock = {}

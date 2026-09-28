@@ -430,7 +430,8 @@ def _route_stage(src, work, tag, targets, keep, temp_cls, variants, passes, log,
                                                               sorted(left)))
         res.append((out, left))
     if repair:
-        # the router's rip-up and re-route on every routing, fewest open first
+        # the router's rip-up and re-route on every routing, fewest open
+        # first (how far it gets does not follow from where it starts)
         fixed = []
         for out, left in sorted(res, key=lambda r: len(r[1])):
             if left:
