@@ -21,7 +21,7 @@ gives every item a new ID, and with it a new order, so a fresh run routes
 differently from the committed boards (the reference) and is checked by the
 same gates.
 """
-import os, sys, json, shutil
+import os, sys, json, shutil, subprocess
 from collections import Counter
 import pcbnew
 import pcb, route, finish, artwork, circuit, cleanup
@@ -77,39 +77,30 @@ def template_repair(b, open_nets, mine, widths, clmap, log=print, deep=False):
     return left
 
 
-def run(board_name, work, passes=None, log=print):
-    """Returns the path of the finished board in `work`."""
-    os.makedirs(work, exist_ok=True)
-    pcbnew.KIID.SeedGenerator(int(os.environ.get('PIPELINE_SEED', SEEDS[board_name])))
-    passes = passes or (15 if board_name == 'esc' else 60)      # Freerouting passes per round
+def _setup(board_name, routers=True):
+    """The board's layout module, its plane nets, router widths and
+    clearances; sets EXTRA_RULES and (routers) the routers' settings."""
+    global EXTRA_RULES
     if board_name == 'fc':
         import fc_layout as L
         planes = ['GND', '+3V3']
     else:
         import esc_layout as L
         planes = ['GND', 'VBAT']
-    widths = L.widths(circuit.build(board_name))
-    clmap = L.clearances(circuit.build(board_name))
-    placed = os.path.join(work, board_name + '.kicad_pcb')
+    EXTRA_RULES = getattr(L, 'DRU_EXTRA', '') + pcb.copper_rules(getattr(L, 'INNER_OZ', 0.5))
+    if routers:
+        setup_routers(L)
+    return L, planes, L.widths(circuit.build(board_name)), L.clearances(circuit.build(board_name))
+
+
+def board_stage(board_name, placed, src, work, passes, log=print):
+    """From the placed board `src` (for a stamped board, its channels'
+    copies on it): Freerouting over the whole board, the finisher, the
+    repairs, cleanup.  Files go to `work`; `placed` lends its project and
+    rules.  Returns (finished board, nets still open)."""
+    L, planes, widths, clmap = _setup(board_name)
     routed = os.path.join(work, board_name + '_routed.kicad_pcb')
     fin = os.path.join(work, board_name + '_fin.kicad_pcb')
-    global EXTRA_RULES
-    EXTRA_RULES = getattr(L, 'DRU_EXTRA', '') + pcb.copper_rules(getattr(L, 'INNER_OZ', 0.5))
-    L.build(placed)
-    pcb.write_rules(placed, EXTRA_RULES)
-    setup_routers(L)
-    src = placed
-    if getattr(L, 'CHANNELS', None) and hasattr(L, 'channel_parts'):
-        # one channel routed alone, stamped onto the others (stamp.py)
-        import stamp
-        stamp.VIA_RING = getattr(L, 'VIA_RING', None) or 0.0
-        comps = circuit.build(board_name)
-        tmpl, nets, left, _ = stamp.route_template(placed, work, L.channel_parts(comps), L.CHANNELS,
-                                                   passes=L.STAMP_PASSES, log=log, planes=planes,
-                                                   repair=[sys.executable, os.path.abspath(__file__),
-                                                           'template-repair', board_name])
-        src = os.path.join(work, board_name + '_stamped.kicad_pcb')
-        stamp.stamp(placed, tmpl, src, nets, L.CHANNELS, rules=EXTRA_RULES, log=log)
     n = route.route(src, routed, passes=passes, rounds=2)
     log('%s: %d connections left after Freerouting, %d duplicate vias removed'
         % (board_name, n, pcb.dedupe_vias(routed)))
@@ -149,6 +140,56 @@ def run(board_name, work, passes=None, log=print):
         e, w, u = pcb.drc(fin, os.path.join(work, 'esc_pofv_drc.json'))
         if any(v['type'] == 'hole_to_hole' for v in e):
             pofv.nudge_vias(fin, os.path.join(work, 'esc_pofv_drc.json'), clearances=clmap, log=log)
+    return fin, left
+
+
+def _stamped_stage(board_name, placed, tmpl, nets_json, work, passes, log=print):
+    """A template routing stamped onto the placed board, then board_stage."""
+    import stamp
+    L, planes, widths, clmap = _setup(board_name)
+    stamp.VIA_RING = getattr(L, 'VIA_RING', None) or 0.0
+    nets = json.load(open(nets_json))
+    nets = {t: {int(k): v for k, v in m.items()} for t, m in nets.items()}
+    os.makedirs(work, exist_ok=True)
+    src = os.path.join(work, board_name + '_stamped.kicad_pcb')
+    stamp.stamp(placed, tmpl, src, nets, L.CHANNELS, rules=EXTRA_RULES, log=log)
+    return board_stage(board_name, placed, src, work, passes, log=log)
+
+
+def run(board_name, work, passes=None, log=print):
+    """Returns the path of the finished board in `work`."""
+    os.makedirs(work, exist_ok=True)
+    seed = int(os.environ.get('PIPELINE_SEED', SEEDS[board_name]))
+    pcbnew.KIID.SeedGenerator(seed)
+    passes = passes or (15 if board_name == 'esc' else 60)      # Freerouting passes per round
+    # the board is built before the routers are set up for it, as ever
+    L, planes, widths, clmap = _setup(board_name, routers=False)
+    placed = os.path.join(work, board_name + '.kicad_pcb')
+    fin = os.path.join(work, board_name + '_fin.kicad_pcb')
+    L.build(placed)
+    pcb.write_rules(placed, EXTRA_RULES)
+    setup_routers(L)
+    if getattr(L, 'CHANNELS', None) and hasattr(L, 'channel_parts'):
+        # one channel routed alone, stamped onto the others (stamp.py)
+        import stamp
+        stamp.VIA_RING = getattr(L, 'VIA_RING', None) or 0.0
+        comps = circuit.build(board_name)
+        tmpl, nets, left, _, ties = stamp.route_template(placed, work, L.channel_parts(comps), L.CHANNELS,
+                                                         passes=L.STAMP_PASSES, log=log, planes=planes,
+                                                         repair=[sys.executable, os.path.abspath(__file__),
+                                                                 'template-repair', board_name])
+        nets_json = os.path.join(work, 'template_nets.json')
+        json.dump(nets, open(nets_json, 'w'), indent=0, sort_keys=True)
+        ties = ties[:os.cpu_count() or 4]
+        if left and len(ties) > 1:
+            fin_, left = _board_stages(board_name, placed, ties, nets_json, work, passes, seed, log)
+        else:
+            fin_, left = _stamped_stage(board_name, placed, tmpl, nets_json, work, passes, log=log)
+    else:
+        fin_, left = board_stage(board_name, placed, placed, work, passes, log=log)
+    if os.path.abspath(fin_) != os.path.abspath(fin):
+        shutil.copy(fin_, fin)
+        _copy_project(placed, fin)
     if os.environ.get('NO_ARTWORK') == '1':
         pcb.set_stackup(fin, getattr(L, 'INNER_OZ', 0.5))
         e, w, u = pcb.drc(fin, os.path.join(work, board_name + '_final_drc.json'))
@@ -172,6 +213,48 @@ def run(board_name, work, passes=None, log=print):
     return fin
 
 
+def _board_stages(board_name, placed, ties, nets_json, work, passes, seed, log):
+    """The template channel came out with nets open in several routings
+    that tie; which of them the whole board can finish (each channel has
+    only its own neighbours there, not all four channels' at once) shows
+    only by trying.  Each is stamped and taken through board_stage in a
+    process of its own, all at once; the one leaving the fewest nets open
+    wins (the first of equals).  Returns (its finished board, nets open)."""
+    procs = []
+    for i, tmpl in enumerate(ties):
+        d = os.path.join(work, 'try%d' % i)
+        os.makedirs(d, exist_ok=True)
+        logf = open(os.path.join(d, 'log.txt'), 'w')
+        env = dict(os.environ, PIPELINE_SEED=str(seed + 1 + i))
+        procs.append((i, d, logf, subprocess.Popen(
+            [sys.executable, os.path.abspath(__file__), 'board-stage', board_name, placed, tmpl, nets_json, d,
+             str(passes)], stdout=logf, stderr=subprocess.STDOUT, env=env)))
+    res = []
+    for i, d, logf, p in procs:
+        p.wait()
+        logf.close()
+        out = os.path.join(d, 'result.json')
+        if p.returncode != 0 or not os.path.exists(out):
+            log('%s: whole board from template routing %d failed, see %s' % (board_name, i, logf.name))
+            continue
+        r = json.load(open(out))
+        log('%s: whole board from template routing %d (%s): %d nets open %s'
+            % (board_name, i, os.path.basename(ties[i]), len(r['left']), r['left']))
+        res.append((len(r['left']), i, r['fin'], r['left']))
+    if not res:
+        raise SystemExit('%s: no whole-board stage finished' % board_name)
+    n, i, fin, left = min(res)
+    log('%s: kept the whole board from template routing %d' % (board_name, i))
+    return fin, left
+
+
+def _board_stage_main(board_name, placed, tmpl, nets_json, work, passes):
+    pcbnew.KIID.SeedGenerator(int(os.environ.get('PIPELINE_SEED', SEEDS[board_name])))
+    fin, left = _stamped_stage(board_name, placed, tmpl, nets_json, work, int(passes),
+                               log=lambda s: print(s, flush=True))
+    json.dump({'fin': fin, 'left': sorted(left)}, open(os.path.join(work, 'result.json'), 'w'))
+
+
 def _template_repair_main(board_name, src, dst, job):
     """template_repair on the board file `src`, saved as `dst`; `job` is a
     JSON file with the open nets and the nets that may move."""
@@ -190,5 +273,9 @@ if __name__ == '__main__':
     # (stamp.py runs one of these per routing of the template channel, all at once)
     if sys.argv[1:2] == ['template-repair']:
         _template_repair_main(*sys.argv[2:6])
+    elif sys.argv[1:2] == ['board-stage']:
+        # python3 pipeline.py board-stage <board> <placed> <template> <nets.json> <work> <passes>
+        _board_stage_main(*sys.argv[2:8])
     else:
-        raise SystemExit('usage: pipeline.py template-repair BOARD IN OUT JOB')
+        raise SystemExit('usage: pipeline.py template-repair BOARD IN OUT JOB | '
+                         'board-stage BOARD PLACED TEMPLATE NETS WORK PASSES')

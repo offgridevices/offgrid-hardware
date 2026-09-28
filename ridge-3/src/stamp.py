@@ -404,7 +404,8 @@ def route_template(placed, work, parts, channels, passes=30, log=print, variants
     nets it may move) on each of Freerouting's routings, all at once (the
     region and the obstacles are rule areas on the template board, so a
     router working on it keeps to them too).  Returns (routed board path,
-    nets map, nets it left open, region)."""
+    nets map, nets it left open, region, every routing tied with it, best
+    first)."""
     variants = VARIANTS if variants is None else variants
     os.makedirs(work, exist_ok=True)
     b = pcbnew.LoadBoard(placed)
@@ -438,16 +439,16 @@ def route_template(placed, work, parts, channels, passes=30, log=print, variants
         % ', '.join(sorted(v[template_channel(channels)] for v in temp.values())))
     nets = dict(nets, **temp)
     temp_cls = {tn: m[template_channel(channels)] for tn, m in temp.items()}
-    out, left = _route_stage(src, work, 'template', set(nets), keep, temp_cls, variants, passes, log, repair)
+    (out, left), ties = _route_stage(src, work, 'template', set(nets), keep, temp_cls, variants, passes, log, repair)
     log('stamp: template channel routed, %d of its nets open %s' % (len(left), sorted(left)))
-    return out, nets, left, reg
+    return out, nets, left, reg, [o for o, l in ties]
 
 
 def _route_stage(src, work, tag, targets, keep, temp_cls, variants, passes, log, repair=None):
     """One Freerouting stage on the template board: `targets` routed with
     every cost variant, each routing then repaired (see route_template);
-    the one leaving the fewest of them open is kept.  Returns (board path,
-    targets left open)."""
+    the one leaving the fewest of them open is kept.  Returns ((board path,
+    targets left open), every routing tied with it, best first)."""
     from concurrent.futures import ThreadPoolExecutor
     dsn = os.path.join(work, tag + '.dsn')
     route.export_dsn(src, dsn)
@@ -488,7 +489,7 @@ def _route_stage(src, work, tag, targets, keep, temp_cls, variants, passes, log,
             _repair_all(res, close, src, targets, work, repair, log, deep=True)
             pos = {i: k for k, i in enumerate(order)}
             order.sort(key=lambda i: (len(res[i][1]), pos[i]))
-    return res[order[0]]
+    return res[order[0]], [res[i] for i in order if len(res[i][1]) == len(res[order[0]][1])]
 
 
 def _repair_all(res, order, src, targets, work, repair, log, deep=False):
