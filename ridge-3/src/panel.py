@@ -31,7 +31,7 @@ Why the panel looks the way it does (numbers are JLCPCB's published guidance):
 * Mouse-bite tabs, not V-cut.  V-cut needs copper >= 0.4 mm from the cut
   line and zero gap between boards (jlcpcb.com/blog/v-cut-panelization-
   standards); the FC has wire pads 0.3 mm and ground/3V3 pours 0.35 mm from
-  its edge on every layer, and its USB-C shell overhangs the edge by ~0.5 mm,
+  its edge on every layer, and its USB-C shell overhangs the edge by ~0.1 mm,
   which a zero-gap panel would drive into the neighbouring board.
 * Boards 2 mm apart (JLC: 1.6-2 mm, 1.2 mm minimum), 5 mm rails on the two
   long sides (JLC minimum 5 mm process edge), 2 mm from the boards.  The

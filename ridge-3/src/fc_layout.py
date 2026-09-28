@@ -61,7 +61,11 @@ PLACE = {
     # (5, 6) at the corridor's left edge
     'Y1':      (-5.3, 7.6, 90, T),
     'Y2':      (-8.1, -6.6, 270, T),
-    'J_USB':   (-12.21, 0.0, 270, T),
+    # the USB-C's mouth at the board's edge: GCT's USB4105 drawing puts the
+    # PCB edge 2.60 mm in front of the front shell tabs, which sit 2.38 mm
+    # in front of the footprint's origin (a plug's overmould hangs below
+    # the board's top, and an edge proud of the mouth would stop it short)
+    'J_USB':   (-pcb.HALF + 2.38 + 2.60, 0.0, 270, T),
     # ESD array diagonally in front of the MCU's left pins: D- on its
     # left column, D+ on its right, so the two lines leave its front row
     # nested, D- outside, towards pins 33/34
