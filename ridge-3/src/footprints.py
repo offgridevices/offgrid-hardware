@@ -373,6 +373,132 @@ def shunt_hcs1206_fp():
         fp.Models().append(m)
     return fp
 
+# EasyEDA's 3D models of these connectors sit off their pads (the JST SH
+# models' origin is at pin 1, 2.5 / 3.5 mm along the row; the USB-C's is
+# 2.75 mm back), so renders drew the connector bodies over their
+# neighbours' pads.  Their land patterns are KiCad's own footprints for the
+# same parts, pad for pad, so they take KiCad's models instead, placed by
+# that match (official_model).  EasyEDA's other models sit on their body
+# outlines to 0.01 mm.
+STD_FP = '/usr/share/kicad/footprints'          # as pcb.STD_FP
+OFFICIAL_MODELS = {
+    'CONN-SMD-6P-P1.00_BM06B-SRSS-TB-LF-SN': 'Connector_JST:JST_SH_BM06B-SRSS-TB_1x06-1MP_P1.00mm_Vertical',
+    'CONN-TH_BM08B-SRSS-TB-LF-SN': 'Connector_JST:JST_SH_BM08B-SRSS-TB_1x08-1MP_P1.00mm_Vertical',
+    'CONN-TH_SM08B-SRSS-TB-LF-SN': 'Connector_JST:JST_SH_SM08B-SRSS-TB_1x08-1MP_P1.00mm_Horizontal',
+    'USB-C-SMD_MC-311D': 'Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal',
+}
+
+
+def _official(ref):
+    """KiCad's footprint 'lib:name', read as text (loading it through
+    pcbnew would draw on the seeded item IDs): its pads {number: [(x, y)]}
+    and its models [(file, offset, rotation, scale)]."""
+    lib, name = ref.split(':')
+    path = os.path.join(STD_FP, lib + '.pretty', name + '.kicad_mod')
+    if not os.path.exists(path):
+        raise SystemExit('KiCad footprint %s not found' % ref)
+    t = _parse(open(path).read())
+    pads, models = {}, []
+    xyz = lambda n, k: tuple(float(v) for v in _get(_get(n, k), 'xyz')[1:4]) if _get(n, k) else None
+    for c in t[2:]:
+        if isinstance(c, list) and c[0] == 'pad':
+            at = _get(c, 'at')
+            pads.setdefault(c[1].strip('"'), []).append((float(at[1]), float(at[2])))
+        elif isinstance(c, list) and c[0] == 'model':
+            models.append((c[1].strip('"'), xyz(c, 'offset') or (0, 0, 0), xyz(c, 'rotate') or (0, 0, 0),
+                           xyz(c, 'scale') or (1, 1, 1)))
+    return pads, models
+
+
+def official_model(fp, ref):
+    """Give `fp` the 3D models of KiCad's footprint `ref` ('lib:name') for
+    the same part.  The pads both number alike fix where KiCad's footprint
+    sits in `fp`: a quarter turn th and a shift t (p -> R(th) p + t, KiCad's
+    y-down frame).  Every pad of KiCad's (mounting pads too) must then land
+    on a pad of `fp`'s, to 0.025 mm (FIXUPS' trims move a pad's centre by
+    0.02 mm): the land patterns are the same."""
+    import math
+    theirs, kmodels = _official(ref)
+    xy = lambda p: (p.GetPosition().x / 1e6, p.GetPosition().y / 1e6)
+    ours = {}
+    for p in fp.Pads():
+        ours.setdefault(p.GetNumber(), []).append(xy(p))
+    common = [n for n in ours if n and len(ours[n]) == 1 and len(theirs.get(n, [])) == 1]
+    if len(common) < 2:
+        raise SystemExit('%s: fewer than two pads in common with %s' % (fp.GetFPID().GetLibItemName(), ref))
+    best = None
+    for th in (0, 90, 180, 270):
+        c, s = round(math.cos(math.radians(th))), round(math.sin(math.radians(th)))
+        turn = lambda q: (q[0] * c + q[1] * s, -q[0] * s + q[1] * c)
+        d = [(ours[n][0][0] - turn(theirs[n][0])[0], ours[n][0][1] - turn(theirs[n][0])[1]) for n in common]
+        t = (sum(v[0] for v in d) / len(d), sum(v[1] for v in d) / len(d))
+        mine = [q for v in ours.values() for q in v]
+        err = max(min(math.hypot(turn(q)[0] + t[0] - o[0], turn(q)[1] + t[1] - o[1]) for o in mine)
+                  for v in theirs.values() for q in v)
+        if best is None or err < best[0]:
+            best = (err, th, c, s, t)
+    err, th, c, s, t = best
+    if err > 0.025:
+        raise SystemExit('%s: land pattern differs from %s by %.3f mm' % (fp.GetFPID().GetLibItemName(), ref, err))
+    fp.Models().clear()
+    for f, off, rot, sc in kmodels:
+        n = pcbnew.FP_3DMODEL()
+        n.m_Filename = f
+        # the model frame has y up; its offset turns and shifts with the
+        # footprint, its turn adds th (both counter-clockwise seen from top)
+        ox, oy = off[0], -off[1]
+        n.m_Offset = pcbnew.VECTOR3D(ox * c + oy * s + t[0], -(-ox * s + oy * c + t[1]), off[2])
+        n.m_Rotation = pcbnew.VECTOR3D(rot[0], rot[1], (rot[2] + th) % 360)
+        n.m_Scale = pcbnew.VECTOR3D(*sc)
+        fp.Models().append(n)
+    return th, t
+
+
+def seat_models():
+    """Not all of EasyEDA's models start at the board: some sink into it
+    (TSSOP-28 0.55 mm, ESOP-8 0.8 mm) and the 6.5 mm IHLP inductor's hangs
+    2.5 mm below its origin, so on the bottom side it pokes through to the
+    top in the renders.  KiCad's own conversion of each model (models3d)
+    gives its lowest point, and a surface-mount part's model is raised or
+    lowered so that point sits on the board.  (A part with plated leads
+    keeps its model as it is: the leads go into the board.)  Only the z of
+    each model's offset changes in the library files."""
+    import tempfile
+    import models3d
+    b = pcbnew.BOARD()
+    names = []
+    for i, f in enumerate(sorted(glob.glob(os.path.join(LIB, '*.kicad_mod')))):
+        name = os.path.splitext(os.path.basename(f))[0]
+        fp = pcbnew.FootprintLoad(LIB, name)
+        if not len(fp.Models()):
+            continue
+        fp.SetPosition(pcbnew.VECTOR2I(MM(20 * (i % 10)), MM(20 * (i // 10))))
+        b.Add(fp)
+        names.append((name, fp))
+    d = tempfile.mkdtemp(prefix='seat-')
+    path = os.path.join(d, 'models.kicad_pcb')
+    b.Save(path)
+    pts = models3d.model_points(path, prjmod=os.path.join(os.path.dirname(LIB), 'fc'))
+    moved = []
+    for name, fp in names:
+        if any(p.GetAttribute() == pcbnew.PAD_ATTRIB_PTH for p in fp.Pads()):
+            continue
+        zr = models3d.z_range(fp, pts)
+        if zr is None or abs(zr[0]) <= 0.02:
+            continue
+        f = os.path.join(LIB, name + '.kicad_mod')
+        txt = open(f).read()
+        m = re.search(r'(\(model "[^"]*"\s*\(offset\s*\(xyz )([-\d.e]+) ([-\d.e]+) ([-\d.e]+)\)', txt)
+        if not m or len(re.findall(r'\(model ', txt)) != 1:
+            raise SystemExit('%s: cannot seat its model' % name)
+        z = float(m.group(4)) - zr[0]
+        txt = txt[:m.start()] + m.group(1) + '%s %s %s)' % (m.group(2), m.group(3), ('%.4f' % z).rstrip('0').rstrip('.')) \
+            + txt[m.end():]
+        open(f, 'w').write(txt)
+        moved.append('%s %+.2f' % (name, -zr[0]))
+    return moved
+
+
 def main():
     # fixed item IDs: regenerating the library changes only what changed
     pcbnew.KIID.SeedGenerator(1)
@@ -382,6 +508,10 @@ def main():
     n = 0
     for path in sorted(glob.glob(os.path.join(RAW, '*.kicad_mod'))):
         fp = clean_easyeda(path)
+        name = os.path.splitext(os.path.basename(path))[0]
+        if name in OFFICIAL_MODELS:
+            th, t = official_model(fp, OFFICIAL_MODELS[name])
+            print('%s: KiCad model of %s (turned %d, shifted %.3f, %.3f)' % (name, OFFICIAL_MODELS[name], th, *t))
         _save(LIB, fp); n += 1
     gen = [
         pth_pad_fp('PAD_BAT', 3.0, 1.6, desc='Battery lead pad, plated through-hole: 16-18 AWG lead + bulk capacitor leg'),
@@ -394,6 +524,8 @@ def main():
     for fp in gen:
         _save(LIB, fp); n += 1
     print('wrote %d footprints to %s' % (n, LIB))
+    for s in seat_models():
+        print('model seated on the board: %s mm' % s)
 
 if __name__ == '__main__':
     main()

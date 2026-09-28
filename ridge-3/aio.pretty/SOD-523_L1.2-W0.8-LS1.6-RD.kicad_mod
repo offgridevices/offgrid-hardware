@@ -181,7 +181,7 @@
 	(embedded_fonts no)
 	(model "${KIPRJMOD}/../aio.3dshapes/SOD-523_L1.2-W0.8-H0.7-LS1.6.stpZ"
 		(offset
-			(xyz 0 0 0)
+			(xyz 0 0 0.71)
 		)
 		(scale
 			(xyz 1 1 1)

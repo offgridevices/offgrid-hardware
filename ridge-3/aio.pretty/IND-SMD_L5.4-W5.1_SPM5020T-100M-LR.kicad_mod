@@ -146,7 +146,7 @@
 	(embedded_fonts no)
 	(model "${KIPRJMOD}/../aio.3dshapes/IND-SMD_L5.4-W5.1_SPM5020T-100M-LR.stpZ"
 		(offset
-			(xyz 0 0 0)
+			(xyz 0 0 0.2)
 		)
 		(scale
 			(xyz 1 1 1)

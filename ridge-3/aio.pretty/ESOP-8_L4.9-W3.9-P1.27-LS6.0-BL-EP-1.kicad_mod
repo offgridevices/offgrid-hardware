@@ -198,7 +198,7 @@
 	(embedded_fonts no)
 	(model "${KIPRJMOD}/../aio.3dshapes/ESOP-8_L4.9-W3.9-P1.27-LS6.0-BL-EP-1.stpZ"
 		(offset
-			(xyz 0 0 0)
+			(xyz 0 0 0.8)
 		)
 		(scale
 			(xyz 1 1 1)

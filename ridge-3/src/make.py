@@ -110,6 +110,12 @@ def build(board, reroute, art=False, pan=True):
         fab.install(fin, os.path.join(V1, board), name)
     elif art:
         artwork(dst, board)
+    # 3D models as the footprint library has them (renders, STEP): models
+    # only, the copper stays
+    import models3d
+    got = models3d.refresh(dst)
+    if got:
+        print('  3D models from the library: %s' % ', '.join(sorted(got)))
     tmp = tempfile.mkdtemp()
     e, w, u = pcb.drc(dst, os.path.join(tmp, 'drc.json'))
     gate(not e and not w and not u, '%s: DRC %d errors, %d warnings, %d unconnected' % (board, len(e), len(w), len(u)))

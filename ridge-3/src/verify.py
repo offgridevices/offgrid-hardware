@@ -838,6 +838,71 @@ def check_board(board, name):
         check(S, 'production/%s%s present' % (name, f), os.path.exists(os.path.join(prod, name + f)))
 
 
+# ------------------------------------------------------------------ solder pads, 3D models
+def check_pads_models(board, name):
+    """The pads things are soldered to by hand (battery and motor leads,
+    signal wires, test clips, the solder jumper): mask open over each, and
+    no other part over any of them, neither its courtyard nor its 3D body as
+    the renders draw it, on every side the pad has copper (a plated pad's
+    joint wets both).  And every 3D model inside its part's courtyard: a
+    model drawn off its part shows bodies over pads the board keeps clear."""
+    import models3d
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    S = 'Board %s' % board.upper()
+    path = os.path.join(V1, board, name + '.kicad_pcb')
+    b = pcbnew.LoadBoard(path)
+    comps = {c.ref: c for c in circuit.build(board)}
+    outl = models3d.board_outlines(path, b)
+
+    def polys(sps):
+        return [Polygon([(sps.Outline(k).CPoint(i).x / 1e6, sps.Outline(k).CPoint(i).y / 1e6)
+                         for i in range(sps.Outline(k).PointCount())]) for k in range(sps.OutlineCount())]
+    court = {fp.GetReference(): {'T': unary_union(polys(fp.GetCourtyard(pcbnew.F_CrtYd))),
+                                 'B': unary_union(polys(fp.GetCourtyard(pcbnew.B_CrtYd)))} for fp in b.GetFootprints()}
+    off, sunk = [], []
+    for ref, (side, pg, lb, zr) in sorted(outl.items()):
+        cy = court[ref][side]
+        if cy.is_empty:
+            off.append('%s (no courtyard)' % ref)
+        elif pg.difference(cy.buffer(0.15)).area > 0.01:
+            off.append('%s %.1f mm2 out' % (ref, pg.difference(cy.buffer(0.15)).area))
+        tht = any(p.GetAttribute() == pcbnew.PAD_ATTRIB_PTH for p in b.FindFootprintByReference(ref).Pads())
+        if not tht and abs(zr[0]) > 0.02:
+            sunk.append('%s %+.2f mm' % (ref, zr[0]))
+    check(S, '3D models: all %d inside their parts\' courtyards (0.15 mm), so the renders show each body '
+             'where the part goes' % len(outl), not off, ', '.join(off))
+    check(S, '3D models: every surface-mount part\'s model starts at the board (0.02 mm), none sunk into it '
+             'or showing through to the other side', not sunk, ', '.join(sunk))
+    padrefs = sorted(r for r, c in comps.items() if c.part in parts.PADS and parts.PADS[c.part]['kind'] == 'PAD')
+    bad, n, near = [], 0, (99.0, '')
+    for ref in padrefs:
+        fp = b.FindFootprintByReference(ref)
+        for p in fp.Pads():
+            for side, cu, mask in (('T', pcbnew.F_Cu, pcbnew.F_Mask), ('B', pcbnew.B_Cu, pcbnew.B_Mask)):
+                if not p.IsOnLayer(cu):
+                    continue
+                n += 1
+                where = '%s.%s %s' % (ref, p.GetNumber() or '-', 'top' if side == 'T' else 'bottom')
+                if not p.IsOnLayer(mask):
+                    bad.append(where + ': no mask opening')
+                pg = unary_union(polys(p.GetEffectivePolygon(cu)))
+                for other, cys in court.items():
+                    if other != ref and cys[side].intersection(pg).area > 1e-4:
+                        bad.append('%s: under %s\'s courtyard' % (where, other))
+                for other, (s2, body, lb, zr) in outl.items():
+                    if other == ref or s2 != side:
+                        continue
+                    if body.intersection(pg).area > 1e-4:
+                        bad.append('%s: under %s\'s 3D body' % (where, other))
+                    elif comps[ref].part != 'PAD_TP' and body.distance(pg) < near[0]:
+                        near = (body.distance(pg), '%s from %s' % (other, where))
+    check(S, 'solder pads: %d pad faces on %d parts (battery, motor, wire and test pads, jumpers), mask open '
+             'over every one, no part\'s courtyard or 3D body over any' % (n, len(padrefs)), not bad, '; '.join(bad[:6]))
+    check(S, 'nearest part body to a wire pad: %.2f mm (%s)' % near, 'INFO',
+          'room for the iron and the wire beside it')
+
+
 # ------------------------------------------------------------------ silkscreen
 def stroke_widths(p, px=400):
     import numpy as np
@@ -1030,6 +1095,7 @@ def main():
     for board, name in (('fc', 'ridge3-fc'), ('esc', 'ridge3-esc')):
         check_board(board, name)
         if os.path.exists(os.path.join(V1, board, name + '.kicad_pcb')):
+            check_pads_models(board, name)
             check_silk(board, name)
     check_brand()
     check_firmware()

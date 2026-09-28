@@ -190,9 +190,9 @@
 		(uuid "52a77b68-d6c9-4a61-86cc-ad3cc2ba4ec3")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../aio.3dshapes/CONN-SMD_SR1.00-LS-6P.stpZ"
+	(model "${KICAD10_3DMODEL_DIR}/Connector_JST.3dshapes/JST_SH_BM06B-SRSS-TB_1x06-1MP_P1.00mm_Vertical.step"
 		(offset
-			(xyz 0 0 0)
+			(xyz 0 -0.065 0)
 		)
 		(scale
 			(xyz 1 1 1)

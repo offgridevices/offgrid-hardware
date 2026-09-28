@@ -156,7 +156,7 @@
 	(embedded_fonts no)
 	(model "${KIPRJMOD}/../aio.3dshapes/IND-SMD_L6.5-W6.5-IHLP2525CZER6R8M01.stpZ"
 		(offset
-			(xyz 0 0 0)
+			(xyz 0 0 2.495)
 		)
 		(scale
 			(xyz 1 1 1)

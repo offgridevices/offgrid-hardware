@@ -202,9 +202,9 @@
 		(uuid "592ead3a-e9bb-4202-9ffb-126feec9dbf8")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../aio.3dshapes/CONN-SMD_SR1.00-WS-8P.stpZ"
+	(model "${KICAD10_3DMODEL_DIR}/Connector_JST.3dshapes/JST_SH_SM08B-SRSS-TB_1x08-1MP_P1.00mm_Horizontal.step"
 		(offset
-			(xyz 0 0 0)
+			(xyz 0 -0.06 0)
 		)
 		(scale
 			(xyz 1 1 1)
