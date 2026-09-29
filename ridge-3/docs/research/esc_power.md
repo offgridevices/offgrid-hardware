@@ -33,6 +33,15 @@
 >   each side of it. The return's bottom and In3 pours are still tied by these vias and
 >   the five at the shunt. In3 is needed: the low-side gate stubs cut the bottom pour at
 >   every corridor.
+> - **Buses routed before the channels.** ESC_VSENSE (the one battery divider to all
+>   four MCUs) and CUR (each current amplifier's output to the average) each have
+>   one pin in every channel. Each channel's stub is now routed first, the same in
+>   all four, like the MCU's signal line. Left until the end, the stubs found the
+>   way out from the MCU already taken.
+> - **Gate-drive LDO feedback divider under the LDO.** Both resistors now sit on the
+>   bottom, under the LDO. The top-side spots near it are over motor 2's MCU escape
+>   vias. The feedback node's copper went from 14.5 mm (the top resistor was beside
+>   motor 2's FETs) to 3.8 mm.
 
 # OG3 ESC: power stage, gate drive, MCU and current sensing (research notes)
 

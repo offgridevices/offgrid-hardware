@@ -211,6 +211,28 @@ def lines(b, parts, channels):
     return out
 
 
+def buses(b, parts, channels):
+    """{net: {channel: (reference, pad number)}} for the nets that run from
+    every channel's parts, one pad in each (the same role and pad number
+    everywhere), to shared parts (each MCU's battery voltage input from the
+    one divider)."""
+    chan_of = {ref: (n, role) for n, rr in parts.items() for role, ref in rr.items()}
+    on = {}
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname():
+                on.setdefault(p.GetNetname(), []).append((chan_of.get(fp.GetReference()), fp.GetReference(),
+                                                          p.GetNumber()))
+    out = {}
+    for net, pl in sorted(on.items()):
+        mine = [(c, ref, num) for c, ref, num in pl if c]
+        if len(mine) == len(pl) or sorted(c[0] for c, _, _ in mine) != sorted(channels) \
+                or len(set((c[1], num) for c, _, num in mine)) != 1:
+            continue
+        out[net] = {c[0]: (ref, num) for c, ref, num in mine}
+    return out
+
+
 def foreign(b, parts, channels, nets, reg, clear=0.13, match=0.08):
     """{layer: geometry} in the template's frame: what another channel's
     region holds that the template channel's does not.  The shared parts'
