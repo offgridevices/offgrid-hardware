@@ -1322,7 +1322,9 @@ def artwork(b, comps):
     OffGrid mark, the motor number by every motor's pads, battery polarity,
     the pack range, pin 1 of the stack connector, the SWD pad names, the
     board's name and firmware, the front arrow.  Bottom: battery polarity
-    and the front arrow (and the firmware, when the top has no room).  Codes in JetBrains Mono, words in Instrument
+    and the front arrow (and the firmware, when the top has no room; with
+    no room on either side it is left off, and firmware/README.md names
+    the build).  Codes in JetBrains Mono, words in Instrument
     Sans.  Nothing lands on a pad, a hole, a part body or under a grommet.
 
     Both sides are full of parts; the mark takes the roomiest free spot of
@@ -1426,6 +1428,9 @@ def artwork(b, comps):
                 if pl is top:
                     at = top.placed[-1].centroid.y - pcb.CY
                 break
+        else:
+            print('   silk: %s left off: no room on %s at its smallest size'
+                  % (runs[0][1], ' or '.join('the ' + {'T': 'top', 'B': 'bottom'}[pl.side] for pl in sides)))
     top.label('J_FC', '1', pad='1', dist=0.8, size=1.2, smallest=0.9, face='mono')
     # which way is forward on the bottom too: the ESC must sit in the stack
     # the same way round as the FC, or every motor number is wrong

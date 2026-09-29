@@ -1,99 +1,204 @@
-# Cheap Drone stack v1: flight controller + 4-in-1 ESC for the Phase 1 3" quad
+# Ridge 3: flight controller + 4-in-1 ESC for 3-inch quads, 2-6S
 
-Two 33.8 × 33.8 mm boards on the 25.5 mm (M3, or M2 with grommets) pattern.
-Together they replace the GEPRC TAKER G4 AIO that Phase 1 flew. They are
-drawn for the Phase 1 hardware:
+Two 36 × 36 mm boards on the 25.5 mm hole pattern: a flight controller with
+HD and analog video, and a 4-in-1 ESC with current sensing on every motor.
+They connect with the standard 8-pin FPV stack lead, so either board also
+works with another maker's FC or ESC. When one breaks, you replace that
+board, not the whole stack.
 
-| | Phase 1 part | What this stack does for it |
-|---|---|---|
-| Motors | iFlight XING2 1404 3800KV (9N12P: 12 magnet poles) | Four AM32 ESCs, 30 V half-bridges, bidirectional DShot for the RPM filter |
-| Props | Gemfan 3016 | – |
-| Battery | OVONIC 4S 650 mAh, XT30 | 4S only (see [Limits](#limits)); battery pads on the ESC's rear edge |
-| Receiver | RadioMaster RP3 ELRS (CRSF, 5 V) | 5 V / G / R2 / T2 pads on the FC's front-left edge, CRSF on UART2 by default |
-| Frame | 25.5 mm mount, USB-C out the left side, lead out the back | Same hole pattern, board size, and USB and lead directions as the TAKER G4 |
+Ridge 3 is the first of a line named by prop size: **Ridge 3**, **Ridge 7**,
+**Ridge 12**. Only Ridge 3 is designed so far.
 
-**Status: designed, not yet built.** Both boards pass KiCad DRC with **zero
-errors, zero warnings and zero unconnected items** against JLCPCB's rules
-(FC 4 layers, ESC 6 layers). The routed copper was checked pad by pad
-against the circuit in `src/circuit.py`, and
+**Status: designed, not yet built.** Both boards pass KiCad DRC with zero
+errors, zero warnings and zero unconnected items against JLCPCB's rules.
+The copper matches `src/circuit.py` pad for pad, and
 [`VERIFICATION.md`](VERIFICATION.md) checks the design against sources other
-than itself: the pin maps against KiCad's STM32 libraries and the Betaflight
-and AM32 sources, the regulator and divider arithmetic, the fab outputs, and
-the silkscreen. **No board has been made or measured yet.** Order the
-minimum quantity, assemble one stack, and go through the
+than itself (191 checks, all passing). No board has been made or
+measured. Order the minimum quantity, build one stack, and go through the
 [bring-up](#bring-up) steps before building more.
 
-![flight controller](fc/images/cheapdrone-fc-iso.png)
+![Ridge 3: both sides of both boards](images/ridge3-stack.png)
 
 ---
 
-## What is on each board
+## What it does
 
-**Flight controller**, `fc/`: all parts on the top side, 53 parts, 4 layers.
+| | Flight controller (`fc/`) | 4-in-1 ESC (`esc/`) |
+|---|---|---|
+| Battery | 2-6S (up to 25.2 V). Every part on the battery runs at 60 % or less of its rating | 2-6S. The 40 V FETs run at 63 % on 6S (see [Headroom](#headroom-and-what-the-stack-cannot-do)) |
+| Brain | STM32G473 (170 MHz). Betaflight target `RIDGE3` | 4 × STM32G071. AM32 target `RIDGE3_G071` |
+| Sensors | BMI270 gyro (an ICM-42688-P fits the same pads), battery voltage, current from the ESC | Current per motor (0.5 mΩ Kelvin shunt + TI INA186), battery voltage, MCU temperature |
+| Video | **HD:** 6-pin JST-SH port for DJI O3/O4, Walksnail and HDZero (MSP DisplayPort on UART1, SBUS jumper). **Analog:** AT7456E OSD with camera and VTX pads | – |
+| Power out | 5 V 2 A (TI LMR38020F, 80 V). **9 V 2 A for the VTX** (TI LM76003, 60 V), which Betaflight can switch off. 3.3 V | – |
+| Power stage | – | 24 × Toshiba TPN2R304PL (40 V, 2.3 mΩ), TI DRV8300 gate drivers at 11.3 V |
+| Protection | TVS on the battery. The 9 V rail stays off below 6 V | Capacitors across the battery pads (the FC's TVS guards the same battery line). Current limit and temperature limit per motor (AM32), stuck-rotor cut-out |
+| Connectors | USB-C, BOOT button, 8-pin stack lead, 6-pin HD lead, solder pads | Through-hole battery pads, motor pads, 8-pin stack lead |
+| Blackbox | 16 MB Winbond flash | – |
+| Layers | 6 | 6 |
+| Mounting | 25.5 mm, M2 soft-mount grommets or M3 | same |
 
-- **MCU:** STM32G473CEU6 (170 MHz Cortex-M4). Same MCU and pin map as the
-  TAKER G4. Flash the board's own `CHEAPDRONE_G473` build from `firmware/`:
-  stock `TAKERG4AIO` has no BMI270 driver.
-- **Gyro:** Bosch BMI270 on SPI1, on its own filtered 3.3 V supply. The
-  same pads take a TDK ICM-42688-P. The two chips' axes differ by 90° on the
-  same pads, so `firmware/` has one Betaflight build for each chip
-  (`CW270` for the BMI270, `CW0` for the ICM). The wrong build shows no gyro
-  and will not arm. Board rotation is 0/0/0 with either chip.
-- **Blackbox:** 16 MB SPI NOR flash on SPI2: Puya PY25Q128HA in the BOM, or a
-  Winbond W25Q128 on the same pads. Betaflight knows both.
-- **Power:** 5 V 2 A buck (LMR51420, 36 V input) from the battery, and a
-  3.3 V LDO. USB-C alone powers the board for setup.
-- **Pads:**
-  - UART2 for the receiver.
-  - UART4 and UART1 spare (VTX, GPS).
-  - 5 V and 3.3 V outputs, a VBAT output for a VTX.
-  - LED strip, and buzzer (low-side switched): the left-rear column reads
-    `G`, `5V`, `BZ-`, `LED`. The buzzer goes between `5V` (its +) and
-    `BZ-`.
-  - SWD.
-- **Also:** voltage divider for battery monitoring, current input from the
-  ESC lead, status LED, and a DFU **BOOT** button.
+**Mounting holes.** Each corner hole (3.2 mm) has a 2.5 mm slot cut out to
+the corner. A standard M3-to-M2 rubber grommet slides in from the corner and
+snaps into the hole, rather than being forced through a closed hole. An M3
+screw also fits for a hard mount.
 
-**4-in-1 ESC**, `esc/`: parts on both sides, 6 layers, 4S.
-
-- **Per motor:**
-  - STM32F051K6U6 running AM32 (target `FD6288_F051`).
-  - JSM6288Q 3-phase gate driver (pin-for-pin with FD6288Q).
-  - Three AON7934 dual N-MOSFET half-bridges (30 V).
-  - Back-EMF dividers and a virtual-neutral network.
-  - Bulk capacitors directly under the FETs.
-- **Layout:**
-  - Each channel owns one board edge, and its three half-bridges face their
-    motor pads. Each gate driver sits behind the middle of its FET row, and
-    each MCU sits in its own corner.
-  - Every chip is on the bottom: the four MCUs, the four gate drivers, the
-    twelve FETs and the buck. The four channels are one drawing turned by
-    90°. A channel built on the other side would come out mirrored, and its
-    MCU would land in a neighbour's corner.
-  - The top carries the passives that need not sit against a chip:
-    back-EMF dividers, bootstrap diodes and part of the decoupling. The top
-    also holds all twelve motor pads, the battery pads and the stack
-    connector, so everything can be soldered with the stack assembled.
-  - Six layers: signals on the outer layers and on In2 and In3, a solid
-    ground plane on In1 and a solid battery plane on In4. Every FET pin
-    reaches its plane through a column of vias beside the pin.
-  - Vias in pads: the small parts, the chips' ground pads and the FET gates
-    connect through vias inside their own pads. QFN pins that change layer
-    escape through a via just outside the pin. JLCPCB fills and caps every
-    via free on 6-layer boards (see [Ordering](#ordering)).
-- **Also:**
-  - 3.3 V buck for the four MCUs.
-  - Shared battery-voltage divider for AM32.
-  - SWD pads for each MCU.
-  - Vertical 8-pin JST-SH to the FC.
-
-**Stack lead:** JST-SH 1.0 mm, 8 pins, pin 1 to pin 1. This is the FPV
-standard pinout: `1 VBAT, 2 GND, 3 CUR, 4 TLM, 5 M1, 6 M2, 7 M3, 8 M4`.
+**Stack lead:** JST-SH 1.0 mm, 8 pins, pin 1 to pin 1, the FPV standard:
+`1 VBAT, 2 GND, 3 CUR, 4 TLM, 5 M1, 6 M2, 7 M3, 8 M4`. The ESC's CUR output
+is the average of its four channels' sensors: 12.5 mV per amp of battery
+current (Betaflight `ibata_scale` 125, which the firmware sets).
 
 **Motor numbering:** Betaflight's Quad X. Motor 1 is rear-right, 2
-front-right, 3 rear-left and 4 front-left. On the ESC, each motor's number
-is printed beside its three pads. The order of the three wires within
-a motor does not matter: set the direction in ESC-configurator.
+front-right, 3 rear-left and 4 front-left. On the ESC, each motor's number is
+printed beside its three pads. The order of the three wires within a motor
+does not matter: set the direction in ESC-configurator.
+
+---
+
+## Headroom, and what the stack cannot do
+
+**Voltage.** The design rule was that no part runs above 60 % of its rating
+on a full 6S pack (25.2 V). Every part that touches the battery meets it
+except the 24 power FETs:
+
+| Part | Rating | At 25.2 V |
+|---|---|---|
+| ESC FETs, Toshiba TPN2R304PL | 40 V | **63 %** (53 % on 5S) |
+| ESC gate drivers, TI DRV8300 | 100 V | 25 % |
+| ESC 3.3 V buck, ADI MAX15062A | 60 V | 42 % |
+| ESC gate-drive LDO, TI TPS7A1601 | 60 V | 42 % |
+| FC 5 V BEC, TI LMR38020F | 80 V | 32 % |
+| FC 9 V BEC, TI LM76003 | 60 V | 42 % |
+| Bridge, bulk and input capacitors | 50-100 V | 25-50 % |
+
+The FETs are the chosen compromise ("Balanced: 40 V parts, 2-6S"). The
+60 V FETs that would meet the rule have about twice the on-resistance in the
+same package, which costs more heat than it buys in margin. Three things
+keep the FETs inside 40 V: the low-ESR capacitors on the battery leads
+(**always fit them**), the ceramic capacitor under every half-bridge, and
+short battery leads. The ESC has no TVS of its own. The FC's SMF33A sits
+on the same battery line through the stack lead and clamps slow surges, but
+at its full rated surge it clamps at 53 V, above 40 V, so it does not replace
+the capacitors.
+
+**Current.** Each FET is rated 80 A with its case at 25 °C (200 A pulsed,
+2.3 mΩ maximum at 10 V gate drive; the gates get 11.3 V). A 3" motor's
+20-30 A bursts stay under 40 % of that rating. What limits current is heat
+in a 36 mm board. From the datasheet on-resistance, the two FETs conducting
+in each motor dissipate:
+
+| Per motor | 5 A | 10 A | 15 A | 20 A |
+|---|---|---|---|---|
+| Conduction loss (25 °C / hot) | 0.11 / 0.17 W | 0.46 / 0.69 W | 1.0 / 1.6 W | 1.8 / 2.8 W |
+
+A board this size sheds about 2.5 W in still air, about 6 W with some
+airflow and about 10 W in strong prop wash. These are estimates, not
+measurements. So:
+
+- **Bursts of 20 A per motor** (punch-outs) are fine.
+- **Sustained 10-15 A per motor with airflow** is the design target. That
+  covers every common 3" motor on 4S-6S at cruise and most of the throttle
+  range.
+- **Sustained 20 A on all four motors** is more heat than the board can shed.
+  Firmware settings stop it cooking itself: AM32's per-motor current limit
+  (20 A, read from this board's shunts), its temperature limit (110 °C, from
+  each MCU's own sensor) and stuck-rotor protection, which cuts a jammed
+  motor. See [`firmware/README.md`](firmware/README.md).
+
+The inner copper carries the motor current in the ground (In1) and battery
+(In4) planes and the channel returns (In3), and spreads the FETs' heat. It
+is 1 oz, not 2 oz: the fab sets one weight for every inner layer, and at
+2 oz it etches no finer than 0.15 mm. The inner signal layers need 0.1 mm to
+get the gate drive through the FET row. None of this is measured yet:
+bring-up step 6 measures it.
+
+**What it cannot do:**
+
+- 7S or 8S. That is Ridge 7's job.
+- Serial ESC telemetry: the stack lead's TLM wire is not connected.
+  Bidirectional DShot carries RPM, and AM32's extended DShot telemetry
+  carries temperature, voltage and current, instead.
+- A barometer or a magnetometer. GPS goes on UART4.
+
+---
+
+## Cost, against an $80 AIO
+
+The reference is the GEPRC TAKER G4 AIO this stack replaces, about $80.
+Component cost comes from JLC's live catalogue prices on 28 September 2026, before
+assembly fees and bare boards:
+
+| | 1 set | 100 sets | 1,000 sets |
+|---|---|---|---|
+| FC | $29.82 | $19.16 | $17.44 |
+| ESC | $46.22 | $31.89 | $29.98 |
+| **Stack** | **$76.04** | **$51.05** | **$47.42** |
+
+- **One-off, it costs more than the AIO.** On top of the parts come JLC's
+  per-order assembly fees: setup, stencil, and a loading fee for each unique
+  extended part (31 on the FC, 19 on the ESC). Those fees are what a
+  prototype order pays.
+- **In volume, the parts cost about 60 % of the AIO's price.** Bare boards
+  and assembly add to that. The 6-layer ESC is the expensive board. Get a
+  JLC or PCBWay quote for the panels at the volume you plan: they were not
+  priced here.
+- **The point is the repair.** A crash that kills a motor channel costs one
+  ESC, about $30 in parts at volume, not a whole $80 AIO. The same goes for
+  a flight controller. And either board works with another maker's stack.
+- **What costs most:** the 24 FETs ($11 a set at 1 off), the four ESC MCUs
+  ($8.83), the FC MCU ($5.19) and the flash ($2.19).
+
+## Sourcing: LCSC/JLCPCB and DigiKey
+
+Every part has an LCSC number (for JLCPCB assembly) and a DigiKey part
+number (in `src/parts.py`). The same boards can be built by JLCPCB today and
+by a US or allied assembler from a DigiKey kit later, with no copper change.
+The chips that matter come from non-Chinese makers: ST (MCUs), Bosch
+(gyro), TI (supplies, gate drivers, current amplifiers), Analog Devices (ESC
+buck), Toshiba (FETs), Winbond (flash), and Vishay, Murata, TDK, Taiyo
+Yuden, Stackpole, Yageo, Lite-On, GCT, JST and Omron (passives and
+connectors).
+
+The exceptions and thin spots, checked 27 September 2026:
+
+| Part | Issue | What to do |
+|---|---|---|
+| AT7456E analog OSD | Made in China. It is the only analog OSD chip still in production (the Maxim MAX7456 it copies is discontinued) | Accepted exception. An HD-only variant can leave it off: Betaflight runs without it |
+| STM32G071 (ESC MCUs) | DigiKey has almost none (0-19 of the GBU6; 79 of the 64 KB G8U6, which has the same pads and firmware) | Buy ahead. JLC/LCSC had 999 GBU6 (249 ESCs) |
+| TPN2R304PL (ESC FETs) | JLC/LCSC stock covers 107 ESCs (DigiKey: 50,515) | For bigger runs, consign DigiKey reels to the assembler, or fit the Diodes Inc. DMTH43M8LFGQ (same pads, 3.0 mΩ; check placement on the first boards) |
+| Resistors | JLC's are UNI-ROYAL (operations in China) | Yageo equivalents are listed as `dk_mpn` in `parts.py` |
+
+## Selling in the US and allied countries (not legal advice)
+
+- **FCC Covered List (22 Dec 2025).** New foreign-produced UAS critical
+  components, flight controllers and motors among them, cannot get FCC
+  equipment authorization, whichever country made them (allies included).
+  The exemptions are the Blue UAS list and US-made "domestic end products"
+  (US-assembled, over 65 % US component value), both extended to 1 Jan 2028,
+  plus DoW Conditional Approvals for producers with an onshoring plan.
+  Whether a radio-less FC/ESC needs FCC authorization at all is arguable
+  (47 CFR 15.103(a)). Get a TCB or FCC counsel opinion before selling in the
+  US.
+- **NDAA §848 (DoD) and the American Security Drone Act (federal
+  agencies).** These bind government buyers. §848 bars flight controllers
+  (not ESCs) made in China, Russia, Iran or North Korea; ASDA looks at who
+  manufactured or assembled the product. A JLCPCB-assembled FC fails both.
+  The same design assembled in the US or an allied country by a non-PRC
+  firm passes, which is what the DigiKey BOM is for.
+- **From 1 Jan 2027** (10 U.S.C. 4873), DoD may not buy PCBs made in those
+  four countries, so a compliant build also needs a non-PRC bare-board fab.
+  The Gerbers suit any 4- and 6-layer ENIG fab; the ESC's filled
+  vias-in-pad are a standard option.
+- **Claims.** Say what is true and documented ("assembled in USA; key
+  chips from US, EU and Japanese makers"). Do not claim "NDAA compliant" or
+  "Blue UAS" until it is.
+
+## The name
+
+"Ridge" names the line by prop size: Ridge 3, Ridge 7, Ridge 12. A web
+search found no FPV product called Ridge. Still to do: a trademark search
+(USPTO, EUIPO, UKIPO, CIPO) and attorney clearance, and a check of the house
+mark. "OFFGRID" is registered in class 9 by another company (Faraday bags,
+Reg. 6076046).
 
 ---
 
@@ -104,136 +209,112 @@ not need KiCad or Python.
 
 ### Bare boards (JLCPCB or PCBWay)
 
-Upload `cheapdrone-fc-gerbers.zip` and `cheapdrone-esc-gerbers.zip` as two
-separate orders. They differ only in layer count:
+Upload `ridge3-fc-gerbers.zip` and `ridge3-esc-gerbers.zip` as two separate
+orders:
 
-| Setting | Value |
-|---|---|
-| Layers | **FC 4, ESC 6** |
-| Dimensions | 33.8 × 33.8 mm (read from the outline) |
-| Thickness | 1.6 mm |
-| Material | FR-4, TG155 or better |
-| Solder mask | **Black** (JLCPCB) / **Matte black** (PCBWay): the brand's Pitch ground |
-| Silkscreen | **White**: the brand's Bone |
-| Surface finish | **ENIG** (the QFN and LGA parts need a flat finish; HASL is a gamble on the 0.5 mm pitch and the gyro) |
-| Outer copper | 1 oz |
-| Inner copper | **1 oz for the ESC** (its In1/In4 planes carry the motor current); 0.5 oz is fine for the FC |
-| Via covering | FC: tented (the default). **ESC: "Epoxy Filled & Capped" (POFV)**: the ESC has vias in pads. JLCPCB makes POFV the free default on 6–20 layer boards. At PCBWay, ask for via-in-pad filled and capped, which is a paid option there |
-| Min track / spacing | 0.1 / 0.1 mm (JLCPCB standard multilayer capability) |
-| Min via | FC 0.45 mm pad / 0.25 mm drill. ESC 0.35 mm / 0.2 mm (JLCPCB's 6-layer standard allows 0.25 / 0.15); vias in pads are 0.45 / 0.3. Every via keeps 0.45 mm from the unplated mounting holes, which are drilled after the via fill, as JLC's POFV rules ask |
-| Stackup | The fab's standard 1.6 mm build: JLC04161H-7628 for the FC; any standard 6-layer 1.6 mm for the ESC (no impedance control needed) |
-| Order number | "Remove" or "specify location". The boards have no free spot reserved for it. |
+| Setting | FC | ESC |
+|---|---|---|
+| Layers | **6** | **6** |
+| Dimensions | 36 × 36 mm (read from the outline) | same |
+| Thickness | 1.6 mm | 1.6 mm |
+| Material | FR-4, TG155 or better | same |
+| Solder mask | **Black** (JLCPCB) / **Matte black** (PCBWay): the brand's Pitch | same |
+| Silkscreen | **White**: the brand's Bone | same |
+| Surface finish | **ENIG**: the QFN and LGA parts need a flat finish | same |
+| Outer copper | 1 oz | 1 oz |
+| Inner copper | 0.5 oz | **1 oz**. Not 2 oz: JLCPCB's finest on 2 oz is 0.15 / 0.15 mm, and the inner signal layers use 0.1 mm |
+| Via covering | **Epoxy filled and capped (POFV)**: vias sit in pads | **Epoxy filled and capped (POFV)**: vias sit in pads, down to 0.25 mm vias inside the chips' 0.25 mm pins. JLCPCB makes POFV the free default on 6-layer boards; at PCBWay it is a paid option |
+| Min track / spacing | 0.1 / 0.1 mm | 0.1 / 0.1 mm |
+| Min via | 0.35 mm / 0.15 mm drill (JLCPCB's multilayer minimum drill) | 0.25 mm / 0.15 mm drill (inside the chips' pins); 0.35 / 0.15 elsewhere. JLCPCB's multilayer minimum, at its small-via surcharge |
+| Stackup | The fab's standard 1.6 mm 6-layer build | Any standard 1.6 mm 6-layer build with 1 oz inner layers. No impedance control needed |
+| Order number | "Specify location" or "Remove": no spot is kept free for it | same |
+
+The outline includes the four corner slots. They are routed with the
+outline, so no special order option is needed: the slot is 2.5 mm wide,
+above every fab's minimum router slot.
 
 ### Assembly (JLCPCB PCBA)
 
 | | FC | ESC |
 |---|---|---|
-| Sides | Top only | **Both sides** |
-| BOM | `cheapdrone-fc-bom-jlcpcb.csv` | `cheapdrone-esc-bom-jlcpcb.csv` |
-| CPL (pick & place) | `cheapdrone-fc-cpl-jlcpcb.csv` | `cheapdrone-esc-cpl-jlcpcb.csv` |
+| Sides | **Both sides** | **Both sides** |
+| BOM | `ridge3-fc-bom-jlcpcb.csv` | `ridge3-esc-bom-jlcpcb.csv` |
+| CPL (pick and place) | `ridge3-fc-cpl-jlcpcb.csv` | `ridge3-esc-cpl-jlcpcb.csv` |
 
-Every part has an LCSC number. All were in stock at JLCPCB when the boards
-were designed. Most passives are "basic" parts; the ICs, connectors, FETs
-and a few values are "extended".
+Every part has an LCSC number, and all were in stock at JLCPCB on 27 September 2026.
 
 - **Placement preview:** in JLCPCB's placement preview, check pin 1 of the
-  QFN parts and the orientation of the two SH connectors before paying.
+  QFN parts and the orientation of the SH connectors before paying.
   Rotations follow each part's JLCPCB library footprint, so they should need
   no changes.
-- **PCBWay:** use `*-bom-pcbway.csv`. It lists the manufacturer part numbers
-  and the LCSC numbers, together with the same CPL.
-- **Not assembled:** the battery lead, the 470 µF capacitor, motor wires,
-  the receiver and the stack cable. These are hand-soldered or plugged in.
+- **PCBWay:** use `*-bom-pcbway.csv`. It lists the manufacturer part
+  numbers and the LCSC numbers, with the same CPL.
+- **Not assembled:** the battery lead, the bulk capacitors, motor wires, the
+  receiver, the VTX and the stack cable. These are hand-soldered or plugged
+  in.
 
 ### Also needed (not on the boards)
 
-- **Bulk capacitor for the ESC:** 470 µF 35 V low-ESR electrolytic, e.g.
-  Panasonic EEU-FR1V471 or any "FPV ESC capacitor". Solder it across BAT+
-  and BAT- together with the XT30 lead. **Do not fly without it.** It
-  absorbs the voltage spikes that otherwise kill the FETs.
-- **XT30 pigtail:** 18 AWG.
+- **Bulk capacitors for the ESC:** two 100 µF 50 V low-ESR electrolytics,
+  Rubycon 50ZLH100MEFC8X11.5 (LCSC C109393, DigiKey 1189-2327-ND). Solder
+  them across BAT+ and BAT- together with the battery lead, observing their
+  polarity. **Do not fly without them:** they absorb the voltage spikes that
+  otherwise kill the 40 V FETs on 6S.
+- **Battery lead:** XT30 or XT60 pigtail, 16-18 AWG.
 - **Stack cable:** 8-pin JST-SH, pin 1 to pin 1. Most 4-in-1 ESCs come with
-  one. Check it with a multimeter: VBAT (pin 1) must go to pin 1 at both ends.
-- **ST-Link V2** (or clone) to flash the ESC bootloaders once.
+  one. Check it with a multimeter: VBAT (pin 1) must reach pin 1 at both ends.
+- **Grommets:** four M3-to-M2 soft-mount grommets per board (the usual FPV
+  stack grommets).
+- **ST-Link V2** (or a clone) to flash the ESC bootloaders once.
 
 ### Ordering in volume
 
-The boards use no exotic parts. Every part is a stocked JLCPCB/LCSC
-catalogue part, most passives are JLC "basic" parts, and each part that
-matters has a second source that fits the same pads.
-
-**Panels.** JLCPCB's Standard assembly, which is the only JLC service that
-places both sides and takes large quantities, needs a board or panel of at
-least 70 × 70 mm. `make.py` therefore also writes a **3 × 2 panel** of each
-board to `production/panel/`: Gerbers, BOM and CPL, ready to upload in
-place of the single-board files. The panel is 105.4 × 83.6 mm with six
-boards, 5 mm rails, mouse-bite tabs, three fiducials per side and four 2 mm
-tooling holes. The tabs sit only where no part or copper is near the edge.
+**Panels.** JLCPCB's Standard assembly is the only JLC service that places
+both sides and takes large quantities. It needs a board or panel of at least
+70 × 70 mm. `make.py` therefore also writes a **3 × 2 panel** of each board
+to `production/panel/`: Gerbers, BOM and CPL, ready to upload in place of
+the single-board files. The panel is 112 × 88 mm with six boards, 5 mm
+rails, mouse-bite tabs, three fiducials per side and four 2 mm tooling
+holes. Every board keeps a strip at each corner of every edge free of parts
+and copper, so the tabs never sit on the grommet slots or next to a part.
 The rail reads `JLCJLCJLCJLC`, so JLC prints its order number there rather
-than on a board. After depanelling, sand the tab stubs flush (up to 0.25 mm).
-`make.py` checks that every copy on the panel is the single board exactly:
-Gerbers, BOM and CPL, every copy. It also checks that the panel's DRC
-result equals six copies of the board's own.
+than on a board. After depanelling, sand the tab stubs flush (up to
+0.25 mm). `make.py` checks every copy on the panel against the single board:
+Gerbers, BOM and CPL. It also checks that the panel's DRC result equals six
+copies of the board's own.
 
-![FC panel](fc/images/cheapdrone-fc-panel-top.png)
-
-**Second sources.** These fit the same pads without any copper change:
-
-| Part | In the BOM | Drop-in alternative | What changes |
-|---|---|---|---|
-| Gyro | Bosch BMI270 (C2836813) | TDK ICM-42688-P (C1850418) | Flash the `_ICM` Betaflight image |
-| Blackbox flash | Puya PY25Q128HA (C18208279) | Winbond W25Q128JVPIQ (C190862) | Nothing |
-| FC MCU | STM32G473CEU6 (C1342773) | STM32G474CEU6 (C1235412), a superset in the same package | Nothing: Betaflight's G47x target is built for the G474 |
-| BEC inductor | cjiang FXL0530-4R7-M (C177246) | Sunlord MWSA0503S-4R7MT (C408410) | Nothing |
-| ESC MCU | STM32F051K6U6 (C81451) | Artery AT32F421K8U7 (C2965611), **untested** | AM32 image and flashing tool, see `firmware/README.md` |
-| Gate driver | JSMSEMI JSM6288Q (C19077370) | DOINGTER DO6288Q (C42386238), YLPTEC YC6288Q (C54157432) | Nothing; build one ESC first |
-| Bootstrap diode | JSCJ RB521S-30 (C8523) | onsemi RB521S30T1G (C145179) | Nothing |
-| 10 µF 50 V 0805 | Samsung CL21A106KBYQNNE (C2932476) | Murata GRM21BR61H106KE43L (C440198) | Nothing |
-
-**Component cost** (JLC catalogue prices on 26 Sep 2026, before assembly
-fees and bare boards):
-
-| | 1 set | 100 sets | 1,000 sets |
-|---|---|---|---|
-| FC | $15.62 | $9.79 | $9.13 |
-| ESC | $16.91 | $10.73 | $9.51 |
-| **Stack** | **$32.53** | **$20.52** | **$18.64** |
-| Stack with AT32F421 ESC MCUs | | | about $16.1 |
-
-- **What limits a large run is stock, not price.** On 26 Sep 2026, JLC's
-  866 STM32F051K6U6 were enough for 216 ESCs. That is why the AT32F421 path
-  exists: build and test one AT32 ESC before a big order. The next limit is
-  the STM32G473 (1,690 FCs). Reserve it, or buy it in, before committing.
-- **Assembly fees at JLC:** Standard assembly has a setup, stencil and
-  $1.53-per-unique-part loading fee per order: about $78 for the FC and
-  $100 for the ESC. On top of that is $0.0016 per solder joint: 208 joints
-  per FC and about 600 per ESC. At 1,000 sets this adds roughly $0.40 per
-  FC and $0.90 per ESC.
-- **Bare boards** (6-layer ESC, 4-layer FC, ENIG, black) were not priced
-  here. Get a JLC or PCBWay quote for the panels at the volume you need.
-- **Programming** is the one per-unit labour step. Each FC flashes over USB
-  (hold BOOT, plug in). Each ESC needs four SWD sessions on its test pads.
-  At volume, use a pogo-pin fixture on those pads, or the assembler's
-  pre-programming service.
+**Programming** is the one per-unit labour step. Each FC flashes over USB
+(hold BOOT, plug in). Each ESC needs four short SWD sessions on its test
+pads. At volume, use a pogo-pin fixture on those pads, or the assembler's
+pre-programming service.
 
 ---
 
 ## Assembly
 
-1. **FC to receiver:** receiver on the FC's front-left pads: `5V`, `G`,
-   `R2` to the receiver's TX, `T2` to the receiver's RX.
-2. **Flash the ESCs** while the ESC board is still bare: no battery lead,
-   no capacitor, not stacked. See [`firmware/README.md`](firmware/README.md).
-   The ST-Link's 3.3 V also reaches the battery net through the 3.3 V
-   buck's body diode. With the 470 µF fitted it would have to charge that
-   too.
-3. **XT30 lead and capacitor:** onto the ESC's rear-left pads, `+` outer,
-   `-` inner. The capacitor goes across the same two pads, observing its
-   polarity.
-4. **Motor wires:** each motor's three wires to the three pads beside its
+1. **Receiver on the FC:** the left edge's front pads, `5V`, `G`, `R2` to
+   the receiver's TX, `T2` to the receiver's RX. CRSF on UART2 is the
+   default.
+2. **Video:**
+   - **HD** (DJI O3/O4, Walksnail, HDZero): plug the air unit's 6-pin lead
+     into the FC's HD port. If the air unit carries the receiver's SBUS
+     (DJI), close the `SBUS` jumper.
+   - **Analog:** camera on `CAM`, `G`, `5V`; VTX on `VTX`, `G` and `9V`,
+     along the front edge.
+3. **Flash the ESCs** while the ESC board is bare: no battery lead, no
+   capacitors, not stacked. See [`firmware/README.md`](firmware/README.md).
+   The SWD pads are on the ESC's top. `3V3` and `G` are at the two ends of
+   the rear edge. Each MCU's `Cn` (clock) and `Dn` (data) pads are over that
+   MCU, on the board's middle side of motor n's FETs. The ST-Link's 3.3 V
+   powers all four MCUs.
+4. **Battery lead and capacitors** onto the ESC's rear pads: `+` left,
+   `-` right, as printed on both sides. The two capacitors go across the
+   same pads.
+5. **Motor wires:** each motor's three wires to the three pads beside its
    number.
-5. **Stack:** ESC at the bottom, FC on top, both with the **Front arrow
-   forward**. Fit the stack cable.
+6. **Stack:** ESC at the bottom, FC on top, both with the **front arrow
+   forward**. Slide the grommets into the corner slots, then fit the stack
+   cable.
 
 ## Bring-up
 
@@ -242,78 +323,40 @@ Do these in order. Each step catches a fault before it can damage the next.
 1. **No power:**
    - Measure BAT+ to BAT- on the ESC. It must not read as a short: the
      meter should climb past a few kΩ as the capacitors charge.
-   - Measure the FC's `5V` and `3V3` pads to `G` in the same way.
+   - Measure the FC's `5V`, `9V` and `3V3` pads to `G` the same way.
 2. **FC on USB only:**
    - The red power LED lights.
    - Flash Betaflight: hold **BOOT**, plug in USB, and follow
-     `firmware/README.md`.
+     [`firmware/README.md`](firmware/README.md). There are two images, one
+     per gyro chip: flash the one for the chip on the board.
    - Paste `firmware/betaflight/cli-setup.txt` into the CLI.
 3. **Orientation, before anything spins.** Phase 1 lost three crashes to a
    wrong board alignment, so check it on the bench, not in the air. In the
    Setup tab:
-   - Nose down, and the model goes nose down.
-   - Right side down, and the model rolls right.
-   - Yaw right, and the model yaws right.
-   Then calibrate the accelerometer on a level surface: `acc_calibration`
-   should come out as small numbers, not about -4000 (see the Phase 1
-   notes).
-4. **ESC on a current-limited supply:** 15 V, 0.3 A limit, or use a smoke
-   stopper on the battery.
+   - Tilt the nose down: the model goes nose down.
+   - Tilt the right side down: the model rolls right.
+   - Yaw right: the model yaws right.
+   Then calibrate the accelerometer on a level surface.
+4. **ESC on a current-limited supply:** 15 V with a 0.3 A limit, or a
+   smoke stopper on the battery.
    - It should idle at a few tens of mA.
-   - Check the 3.3 V buck at the `3V3` test pad.
+   - Check 3.3 V at the `3V3` test pad.
 5. **Stack plus battery, props off:**
-   - ESC-configurator via Betaflight passthrough must see four AM32 ESCs.
-     Set KV 3800 and 12 poles.
+   - ESC-configurator, through Betaflight passthrough, must see four AM32
+     ESCs. Set the motor KV and pole count, the current limit (20 A) and
+     the temperature limit (110 °C).
    - In Betaflight's Motors tab, spin each motor slowly. Confirm the order
      is 1 rear-right, 2 front-right, 3 rear-left, 4 front-left, and fix the
      directions in ESC-configurator.
-   - Check the RPM readout. Bidirectional DShot working means the ESC
-     telemetry path is sound.
+   - Check the RPM and current readouts. Bidirectional DShot working means
+     the motor signal path is sound. The current reading should rise with
+     throttle.
 6. **Heat, props on, before the first real flight.** Tape a thermocouple
-   to the hottest FET package (the channel with the longest run to the
-   battery pads). Run 10 s, then 30 s, at full throttle with the quad
-   held down. Stop at 100 °C. This is the ESC's only current rating
-   until it has been measured: see [Limits](#limits).
-7. **Props on:** hover test on a leash or in a net first.
-
-## Limits
-
-- **4S only.**
-  - Each gate driver runs straight from the pack through 10 Ω. That puts
-    12–16.8 V on the FETs' gates, which is inside the driver's range and
-    the AON7934's ±20 V gate rating.
-  - 3S (9–12.6 V) is near the driver's undervoltage lockout: do not.
-  - 5S/6S exceed the FETs' 30 V rating: do not.
-- **Current.** The ESC is built for the 1404 3800KV on 4S with 3" props;
-  it is not a 35 A-per-motor racing ESC. Its current rating has not been
-  measured. From the AON7934 datasheet's maximum on-resistance, conduction
-  loss is about 0.45 W per motor at 5 A, 1.8 W at 10 A and 4 W at 15 A (the
-  arithmetic is in `VERIFICATION.md`): check FET temperatures during
-  bring-up before long full-throttle runs. The ESC has no current sensor.
-  Betaflight shows voltage but reports current as 0; `cli-setup.txt` sets
-  `current_meter = NONE`.
-- **Heat.** All twelve FETs are on the ESC's underside, facing the frame,
-  away from the FC. They dump heat into the ground and battery planes.
-  Keep the stack in the airflow and do not run full throttle on the bench.
-  The XING2 1404's published maximum is 15.8 A for 60 s. At that current
-  each motor's FETs dissipate about 4 W, which suits full-throttle bursts
-  of a few seconds, not a full minute without airflow. Bring-up step 6
-  measures it. If it runs hot, order the ESC with **2 oz inner copper**
-  (the In1/In4 planes carry all four motors' current) before changing parts.
-- **USB power back-feeds the battery net.** On USB alone, about 3.9 V
-  reaches VBAT through the FC's 5 V buck (its high-side FET's body diode).
-  That powers the `VBAT` pad and the stack lead at a level where the ESC's
-  buck may start and stop. It does no harm, but unplug the stack lead
-  and the VTX while configuring on USB. Betaflight will show a "1S"
-  battery.
-- **VTX power.** The stack lead's JST-SH contacts are rated 1 A, and they
-  already carry the FC's own BEC current. Wire a VTX that draws more than
-  about 300 mA (any digital or 800 mW analog VTX) to the ESC's battery
-  pads, not to the FC's `VBAT` pad.
-- **Dead time.** AM32's `FD6288_F051` inserts about 0.94 µs, about five
-  times what the gate driver needs. That is safe, and costs about 0.3 W per
-  motor at 8 A in body-diode conduction. A shorter value needs a custom
-  AM32 build, and should be checked on a scope first.
+   to the hottest FET (the channel farthest from the battery pads). Hold
+   the quad down and run full throttle for 10 s, then 30 s. Stop at 100 °C.
+   Until this is measured, this is the ESC's only current rating: see
+   [Headroom](#headroom-and-what-the-stack-cannot-do).
+7. **First flight:** hover on a leash or in a net first.
 
 ---
 
@@ -323,94 +366,87 @@ Both boards follow the OffGrid brand hand-off (v3.2). Dark is the brand's
 default expression, so the boards are **Pitch** (black solder mask) with
 **Bone** type (white silkscreen) and ENIG gold pads.
 
-- The FC's bottom carries the horizontal lockup: the Beacon Ring and
-  "OffGrid" in Instrument Sans 600, at the lockup SVG's own proportions.
-  Under it sit the company line and what the board is. The top carries the
-  bare mark.
-- Pad names, part codes and numerals are JetBrains Mono 500, uppercase and
-  tracked 0.06 em. Words ("Boot", "Front") are Instrument Sans 500. Both
-  follow `tokens.json`.
+- The FC's bottom carries the horizontal lockup (the mark and "OffGrid")
+  centred on the front edge, with no tagline, and under it, on the centre
+  line, the product name and the firmware to flash. Its top carries the
+  mark on its own.
+- The ESC is full of parts on both sides. Its mark sits on top in the
+  roomiest free spot, at the front edge, and the front arrow takes the
+  mirror spot across the centre line. The top also carries the name, each
+  motor's number, the pack range, the SWD pad names and the stack
+  connector's pin 1. Neither side has room for the firmware code at the
+  smallest size the fab prints cleanly (1 mm), so it is not printed: the
+  build to flash is `RIDGE3_G071` ([`firmware/README.md`](firmware/README.md)).
+- Every mark is at or over the brand's minimum size (16 px for the mark,
+  24 px for the lockup, at 1/96 in per px) with its clear space kept, and no
+  ink goes under the grommets.
+- Pad names, part codes and numerals are JetBrains Mono. Words ("Boot",
+  "Flight controller") are Instrument Sans. Both follow the brand's `tokens.json`.
 - Everything is drawn as filled outlines from the fonts in `fonts/` (SIL
   OFL), not KiCad's stroke font. The Gerbers carry the exact letterforms,
   and nobody needs the fonts installed.
-- No Ember: silkscreen prints one colour, and the brand's rule is one accent
-  or none.
-
-**Black or white, and heat:** mask colour makes almost no difference to how
-hot the board runs. Solder mask of any colour emits infrared about equally
-well, and the heat leaves through the copper planes and the airflow. White
-only helps under direct sun. Black is the brand's default, so both boards
-are specified black.
-
-## Why two boards, not one
-
-An all-in-one board (FC and four ESCs on one 33.8 mm square) was checked
-first. The parts alone cover about 1,080 mm², over half of both sides.
-Every channel would then share its patch of board with the flight
-controller's MCU, gyro and flash, on at least six layers. The gyro would
-also sit next to the switching FETs. Two boards keep the gyro away from the
-power stage and let either board be replaced alone.
+- Silkscreen prints one colour, and the brand's rule is one accent or none,
+  so there is no Ember.
 
 ---
 
 ## Files
 
 ```
-v1/
+ridge-3/
   README.md               this file
+  images/                 both sides of both boards on one sheet
   VERIFICATION.md         every design check that can be made without
                           hardware, with its result (src/verify.py)
   fc/                     flight controller
-    cheapdrone-fc.kicad_pcb / .kicad_pro / .kicad_dru   open in KiCad 10
-    production/           gerbers zip, BOM + CPL (JLCPCB), BOM (PCBWay),
+    ridge3-fc.kicad_pcb / .kicad_pro / .kicad_dru   open in KiCad 10
+    production/           Gerbers zip, BOM + CPL (JLCPCB), BOM (PCBWay),
                           netlist, assembly drawing (PDF)
       panel/              the same for a 3 x 2 panel, for volume assembly
     images/               renders
   esc/                    4-in-1 ESC, same layout
   mechanical/             STEP models of both boards (zipped), for frame CAD
-  firmware/               Betaflight targets + hex (one per gyro chip), AM32
-                          bootloader + firmware (STM32F051, and AT32F421
-                          untested), flashing scripts, CLI setup
+  firmware/               Betaflight images (one per gyro chip), AM32
+                          bootloader and firmware, the AM32 target patch,
+                          flashing script, CLI setup
+  docs/research/          the research behind the part choices: ESC power
+                          stage, FC video, sourcing and market, final parts
   aio.pretty/ aio.3dshapes/   footprints and 3D models (from JLCPCB/EasyEDA's
-                          own library entries for the exact LCSC parts)
-  fonts/                  Instrument Sans and JetBrains Mono (SIL OFL), for
-                          the silkscreen
+                          own library entries for the exact LCSC parts; the
+                          JST-SH and USB-C connectors use KiCad's own models)
+  fonts/                  Instrument Sans and JetBrains Mono (SIL OFL)
   src/                    the design, as Python (see below)
   requirements.txt
 ```
 
 ## How it is made (and how to change it)
 
-The design is the Python in `src/`:
+The design is the Python in `src/`. Nothing is drawn by hand, and nothing
+is patched after the fact: every board comes out of the same code path.
 
 | File | What it holds |
 |---|---|
 | `circuit.py` | The schematic: every part and every connection, pin by pin, with the reasons. |
-| `parts.py` | Every orderable part, with its LCSC number, MPN and footprint. |
-| `footprints.py` | Builds `aio.pretty` from the JLCPCB/EasyEDA library entries. |
-| `fc_layout.py`, `esc_layout.py` | Placement, power copper, planes and silkscreen. The ESC is one motor channel written once and stamped onto four edges. |
-| `route.py`, `fanout.py`, `finish.py` | Plane fan-out and escape vias, then Freerouting for the signal routing, then an in-house maze router with rip-up to finish the last connections. |
-| `esc_fixes.py` | The ESC's last connection (motor 1's FET C low-side gate), which both routers left sealed at both ends: two written-down, deterministic edits, applied by the pipeline and checked by its DRC. |
+| `parts.py` | Every orderable part, with its LCSC and DigiKey numbers, MPN and footprint. |
+| `footprints.py` | Builds `aio.pretty` from the JLCPCB/EasyEDA library entries, plus the pads, test points and slotted mounting holes. |
+| `fc_layout.py`, `esc_layout.py` | Placement, power copper, planes and silkscreen. The ESC is one motor channel written once and stamped onto four edges: each gate resistor sits beside its FET's gate pin, each bootstrap capacitor over its driver's pins. |
+| `legalize.py` | Packs the parts round their intended spots: the parts that must sit at a pin first, each supply's parts with their chip, nothing in a reserved via corridor or tab strip. |
+| `route.py`, `fanout.py`, `finish.py` | Plane fan-out and escape vias, then Freerouting for the signal routing, then an in-house maze router with rip-up for the last connections. |
 | `cleanup.py`, `pofv.py` | ESC clean-up after routing: unused escape vias and stubs come out one at a time, each removal kept only if KiCad's DRC agrees; vias move off the POFV hole spacing if needed. |
 | `pipeline.py` | The order the above run in for `--reroute`. |
-| `artwork.py` | Silkscreen placement: labels go only where they touch no pad, hole, part body or other label. |
-| `brand.py` | The OffGrid mark, lockup and type as outlines, from the brand hand-off's numbers. |
+| `artwork.py`, `brand.py` | Silkscreen placement (labels go only where they touch no pad, hole, part body, grommet or other label) and the OffGrid mark, lockup and type as outlines. |
 | `fab.py` | Gerbers, drills, BOM, CPL, netlist, assembly PDF, renders, STEP. |
 | `panel.py` | The 3 × 2 production panel (KiKit), checked copy by copy against the single board. |
 | `make.py` | Runs it all with gates. |
 | `verify.py` | Writes `VERIFICATION.md`. |
 
 `python3 make.py` rebuilds every output from the committed `.kicad_pcb`
-files and fails unless each board has zero DRC errors and zero unconnected
-items, the copper matches `circuit.py` pad for pad, and every assembled part
-is in the BOM and the CPL. `python3 make.py --reroute` places and routes both
-boards from scratch first. A reroute must pass the same gates, but it does
-not reproduce the committed copper: every fresh build gives the board's
-items new IDs, which changes the order the router sees them in. On the ESC,
-a reroute also leaves a connection or two for someone to finish, the way
-`esc_fixes.py` finished the committed board's last one, so it can stop at
-the DRC gate. The committed `.kicad_pcb` files are the reference.
+files. It fails unless each board has zero DRC errors, zero warnings and
+zero unconnected items, the copper matches `circuit.py` pad for pad, and
+every assembled part is in the BOM and the CPL. `python3 make.py --reroute`
+places and routes both boards from scratch first, with a fixed seed per
+board, so the same inputs give the same boards.
 
-The tools: KiCad 10 (`pcbnew` Python module and `kicad-cli`), Freerouting 1.9
-(Java, headless via `xvfb-run`), KiKit 1.8 for the panel, and Python 3.12
-with the packages in `requirements.txt`.
+The tools: KiCad 10 (`pcbnew` Python module and `kicad-cli`), Freerouting
+1.9 (Java, headless via `xvfb-run`), KiKit 1.8 for the panel, and Python
+3.12 with the packages in `requirements.txt`.

@@ -493,6 +493,9 @@ POFV_RULES = """# JLCPCB via-in-pad (POFV): ordered "Epoxy Filled & Capped", eve
 # (capabilities page, "Min. track width and spacing"): 1 oz 0.09 / 0.09 mm,
 # 2 oz 0.15 / 0.15 mm.  The board-setup minimums cover 1 oz and less.
 FAB_MIN = {0.5: 0.09, 1.0: 0.09, 2.0: 0.15}
+# and its multilayer via minimum: a 0.15 mm hole in a 0.25 mm via (at its
+# small-via surcharge)
+FAB_MIN_DRILL, FAB_MIN_VIA = 0.15, 0.25
 
 
 def copper_rules(inner_oz):

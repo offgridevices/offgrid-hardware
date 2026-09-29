@@ -744,10 +744,12 @@ def check_board(board, name):
     check(S, 'mounting: four %.1f mm holes on the 25.5 mm pattern, each open to its corner through a %.1f mm slot '
              '(M2 soft-mount grommets slide in); outline closed' % (pcb.HOLE_D, pcb.SLOT_W),
           got == [tuple(round(v, 2) for v in t) for t in want] and closed, str(got))
-    holes = sorted((round(p.GetPosition().x / 1e6 - pcb.CX, 2), round(p.GetPosition().y / 1e6 - pcb.CY, 2))
-                   for fp in b.GetFootprints() if fp.GetReference().startswith('H') for p in fp.Pads())
-    check(S, 'mounting holes on the 25.5 mm square: %s' % holes,
-          all(abs(abs(x) - 12.75) < 0.01 and abs(abs(y) - 12.75) < 0.01 for x, y in holes) and len(holes) == 4)
+    # the grommets' places (H1-H4: no pads, the holes are the outline's)
+    # on those centres
+    hs = sorted((round(fp.GetPosition().x / 1e6 - pcb.CX, 2), round(fp.GetPosition().y / 1e6 - pcb.CY, 2))
+                for fp in b.GetFootprints() if fp.GetReference() in ('H1', 'H2', 'H3', 'H4'))
+    check(S, 'grommet places H1-H4 on the holes\' centres: %s' % hs,
+          len(hs) == 4 and all(abs(abs(x) - pcb.HOLE) < 0.01 and abs(abs(y) - pcb.HOLE) < 0.01 for x, y in hs))
     if board == 'esc':
         # gate resistors at their FETs' gate pins, bootstrap caps at their
         # driver's BST and SH pins (pad centre to pad centre)
@@ -783,9 +785,12 @@ def check_board(board, name):
               % (bulk, ', '.join('%.1f' % d for d in far)), 'INFO',
               'the 100 nF at each pin takes the fast edges; bulk serves the slow load steps')
     ds = b.GetDesignSettings()
-    check(S, '%d copper layers; min track %.2f mm, clearance %.2f mm, via %.2f/%.2f mm (JLCPCB/PCBWay standard)'
+    check(S, '%d copper layers; min track %.2f mm, clearance %.2f mm, via %.2f/%.2f mm (JLCPCB multilayer: '
+             '%.2f mm track and gap, %.2f mm via, %.2f mm hole)'
           % (b.GetCopperLayerCount(), ds.m_TrackMinWidth / 1e6, ds.m_MinClearance / 1e6, ds.m_ViasMinSize / 1e6,
-             ds.m_MinThroughDrill / 1e6), ds.m_TrackMinWidth >= 90000 and ds.m_MinThroughDrill >= 200000)
+             ds.m_MinThroughDrill / 1e6, pcb.FAB_MIN[1.0], pcb.FAB_MIN_VIA, pcb.FAB_MIN_DRILL),
+          ds.m_TrackMinWidth >= pcb.MM(pcb.FAB_MIN[1.0]) and ds.m_MinClearance >= pcb.MM(pcb.FAB_MIN[1.0])
+          and ds.m_ViasMinSize >= pcb.MM(pcb.FAB_MIN_VIA) and ds.m_MinThroughDrill >= pcb.MM(pcb.FAB_MIN_DRILL))
     txt = open(path).read()
     # inner copper weight (the board file's stackup) against the fab's
     # finest track and gap for it: 2 oz etches no finer than 0.15 mm, and
