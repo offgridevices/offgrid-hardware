@@ -1,21 +1,27 @@
 /*
- * Betaflight target for the OffGrid Ridge 3 flight controller (ridge-3/fc).
+ * Betaflight target for the OffGrid Ridge 3 flight controller (ridge-3/fc),
+ * ICM-45686 build.
  *
  * This file is part of Betaflight and is distributed under the terms of the
  * GNU General Public License v3 or later, like the rest of Betaflight.
  *
+ * The IMU pads take a TDK ICM-45686 or a Bosch BMI270.  The BOM fits the
+ * ICM-45686: this build.  A board assembled with the BMI270 runs
+ * configs/RIDGE3_BMI.  This one has no BMI270 driver on purpose: flashed onto
+ * a BMI270 board it reports no gyro and will not arm, instead of flying with
+ * the 90-degree axis error the two chips would have with one alignment (see
+ * GYRO_1_ALIGN below).
+ *
  * The pin map is the GEPRC TAKER G4 AIO's (Betaflight target GEPR/TAKERG4AIO),
  * minus the baro and magnetometer, plus a switch for the video transmitter's
- * 9 V rail.  The stock TAKERG4AIO firmware has no BMI270 driver, so it finds
- * no gyro on a BMI270 board.  This target exists for the things the stock
- * one gets wrong on this hardware:
+ * 9 V rail.  This target exists for the things the stock one gets wrong on
+ * this hardware:
  *
- *   1. Board alignment.  TAKERG4AIO ships DEFAULT_ALIGN_BOARD_YAW 45 because
- *      GEPRC mounted its gyro at 45 degrees.  Here the gyro is mounted square
- *      and there is no board rotation.  (A wrong default here cost Phase 1
- *      three crashes.)  The IMU pads take either an ICM-42688-P or a Bosch
- *      BMI270, and the two chips do NOT share an axis frame on those pads:
- *      see GYRO_1_ALIGN below.  This build's default is for the BMI270.
+ *   1. Alignment.  TAKERG4AIO ships GYRO_1_ALIGN CW270 plus
+ *      DEFAULT_ALIGN_BOARD_YAW 45 because GEPRC mounted its gyro at 45
+ *      degrees.  Here the ICM-45686 sits square, its axes ARE the board's
+ *      axes: GYRO_1_ALIGN CW0 and no board rotation.  (A wrong default here
+ *      cost Phase 1 three crashes.)
  *   2. Receiver on UART2 (the pads labelled 5V G R2 T2), CRSF.
  *   3. DShot300 with bidirectional DShot on, to suit the AM32 ESC board.
  *   4. Video: analog OSD (AT7456E) on SPI2 with the flash, HD VTX (MSP
@@ -33,7 +39,7 @@
 
 #define USE_ACC
 #define USE_GYRO
-#define USE_ACCGYRO_BMI270                  // BMI270 ONLY: an ICM-42688-P board finds no gyro and will not arm
+#define USE_ACCGYRO_ICM45686                // ICM-45686 ONLY: a BMI270 board finds no gyro and will not arm
 #define USE_FLASH
 #define USE_FLASH_W25Q128FV                 // m25p16 driver: W25Q128JV-IM (EF 70 18), -IQ (EF 40 18), PY25Q128HA (85 20 18)
 #define USE_MAX7456                         // AT7456E; a CONFIG= build does not get this from common_pre.h
@@ -68,16 +74,9 @@
 #define GYRO_1_SPI_INSTANCE SPI1
 #define GYRO_1_CS_PIN       PB0
 #define GYRO_1_EXTI_PIN     PA4
-// Alignment is for the BMI270, the default part.  On these pads the ICM-42688-P
-// has +X to the front and +Y to the left (pin 1 rear-left): CW0.  The BMI270's
-// axes sit 90 degrees counter-clockwise from the ICM's relative to pin 1
-// (Bosch BST-BMI270-DS000-08 sec. 8.2 p.144 vs TDK DS-000347 fig. 15 p.53), so
-// on the same pads its +X points left and +Y to the rear: CW270.
-// This variant has no ICM-42688-P driver on purpose: flashed onto an ICM board it
-// reports no gyro and refuses to arm, instead of flying with a 90-degree error.
-// ICM boards run configs/RIDGE3_ICM (GYRO_1_ALIGN CW0).  Bench-check in the
-// Setup tab before every first flight.
-#define GYRO_1_ALIGN        CW270_DEG
+// ICM-45686 on these pads (pin 1 rear-left): +X to the front, +Y to the left
+// (TDK DS-000577 fig. 13 p.50), so no rotation.
+#define GYRO_1_ALIGN        CW0_DEG
 
 #define FLASH_SPI_INSTANCE  SPI2
 #define FLASH_CS_PIN        PC6
@@ -116,7 +115,7 @@
 
 #define SYSTEM_HSE_MHZ      8
 
-#define DEFAULT_PID_PROCESS_DENOM       1     // BMI270 3.2 kHz gyro -> 3.2 kHz PID (2 would halve it)
+#define DEFAULT_PID_PROCESS_DENOM       2     // ICM-45686 6.4 kHz gyro -> 3.2 kHz PID (bidirectional DShot limit)
 #define DEFAULT_BLACKBOX_DEVICE         BLACKBOX_DEVICE_FLASH
 #define DEFAULT_VOLTAGE_METER_SOURCE    VOLTAGE_METER_ADC
 #define DEFAULT_VOLTAGE_METER_SCALE     160   // 30k / 2k divider: ratio 16 x 10

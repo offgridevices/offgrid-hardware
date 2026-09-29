@@ -1,6 +1,6 @@
 # Ridge 3 stack - Betaflight 2025.12 first-time setup
-# Paste into the Betaflight CLI after flashing RIDGE3 (BMI270 gyro) or
-# RIDGE3_ICM (ICM-42688-P gyro), then check the orientation in the Setup tab
+# Paste into the Betaflight CLI after flashing RIDGE3 (ICM-45686 gyro) or
+# RIDGE3_BMI (BMI270 gyro), then check the orientation in the Setup tab
 # BEFORE the first flight: tilt the nose down and the model must tilt nose
 # down; right side down, it must roll right; yaw right and it must yaw right.
 # Do not change the board alignment from 0/0/0.

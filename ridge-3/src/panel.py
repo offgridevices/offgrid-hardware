@@ -48,7 +48,8 @@ Why the panel looks the way it does (numbers are JLCPCB's published guidance):
   cut into the board; the price is a <= 0.25 mm nub to sand off.
 * Tabs go only where nothing is near the edge: no placed part's courtyard
   within 1.5 mm along the edge (JLC: 1.5 mm between tab and component or
-  pad), no pad, track or via within 1 mm, looking 1.5 mm into the board.
+  pad), no pad, track or via within 1 mm, looking 1.5 mm into the board
+  (a straight track counts only over the stretch of it inside that band).
   Worked out per board (both sides' parts), so it is the same code for the ESC.
 * Fiducials: 1 mm copper, 2 mm mask opening, 3 per side in an L (top and
   bottom layer), centres 3.85 mm from the rail's outer edge (JLC: "5 mm
@@ -200,10 +201,44 @@ def edge_features(b, box, band=EDGE_BAND):
             npth = p.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH
             add(p.GetBoundingBox(), '%s pad %s' % (ref, p.GetNumber()), 'hole' if npth else 'copper')
     for t in b.GetTracks():
+        if t.Type() == pcbnew.PCB_TRACE_T:
+            # a straight track: only the stretch of it inside the band, not
+            # its bounding box (a diagonal that touches the band at one end
+            # would otherwise block all the edge it spans)
+            w = _mm(t.GetWidth())
+            a, c = t.GetStart(), t.GetEnd()
+            out += _segment_in_band(((_mm(a.x), _mm(a.y)), (_mm(c.x), _mm(c.y))), w, (x0, y0, x1, y1), band,
+                                    'track %s' % t.GetNetname())
+            continue
         add(t.GetBoundingBox(), '%s %s' % ('via' if t.Type() == pcbnew.PCB_VIA_T else 'track', t.GetNetname()), 'copper')
     for d in b.GetDrawings():
         if d.IsOnCopperLayer():
             add(d.GetBoundingBox(), 'copper graphic', 'copper')
+    return out
+
+
+def _segment_in_band(seg, width, box, band, what):
+    """Edge features (as edge_features) of a straight track of `width` from
+    seg[0] to seg[1], all mm: for each edge, the part of the track whose
+    copper comes within `band` of it, spanning lo..hi along that edge."""
+    (ax, ay), (cx, cy) = seg
+    x0, y0, x1, y1 = box
+    out = []
+    for side, d0, d1, u0, u1 in (('top', ay - y0, cy - y0, ax - x0, cx - x0),
+                                 ('bottom', y1 - ay, y1 - cy, ax - x0, cx - x0),
+                                 ('left', ax - x0, cx - x0, ay - y0, cy - y0),
+                                 ('right', x1 - ax, x1 - cx, ay - y0, cy - y0)):
+        # copper depth along the track: d(s) = d0 + (d1 - d0) s - width/2, s in 0..1
+        d0, d1 = d0 - width / 2, d1 - width / 2
+        if d0 >= band and d1 >= band:
+            continue
+        if d0 < band and d1 < band:
+            s0, s1 = 0.0, 1.0
+        else:
+            s = (band - d0) / (d1 - d0)
+            s0, s1 = (0.0, s) if d0 < band else (s, 1.0)
+        u = sorted(u0 + (u1 - u0) * s for s in (s0, s1))
+        out.append((side, u[0] - width / 2, u[1] + width / 2, min(d0, d1), what, 'copper'))
     return out
 
 

@@ -6,15 +6,15 @@ committed.  None of it has run on this hardware yet: see "Bring-up" in
 
 | File | What | Built from |
 |---|---|---|
-| `betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex` | Flight controller, **BMI270** gyro (the BOM part) | Betaflight `2025.12.5` (commit `7348054`) + `betaflight/configs/RIDGE3/config.h` |
-| `betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3_ICM.hex` | Flight controller, **ICM-42688-P** gyro (alternative part) | same, + `betaflight/configs/RIDGE3_ICM/config.h` |
+| `betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex` | Flight controller, **ICM-45686** gyro (the BOM part) | Betaflight `2025.12.5` (commit `7348054`) + `betaflight/configs/RIDGE3/config.h` |
+| `betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3_BMI.hex` | Flight controller, **BMI270** gyro (second source) | same, + `betaflight/configs/RIDGE3_BMI/config.h` |
 | `am32/AM32_G071_BOOTLOADER_PB4_64K_V19.hex` | ESC bootloader, all four ESC MCUs | AM32-bootloader `578ff29`, target `AM32_G071_BOOTLOADER_PB4_64K` |
 | `am32/AM32_RIDGE3_G071_2.21.hex` | ESC firmware, all four ESC MCUs | AM32 `55c9684` (v2.21) + `am32/AM32_55c9684_RIDGE3_G071_targets.patch`, target `RIDGE3_G071` |
 | `am32/flash_esc.sh` | Writes both to each ESC MCU over SWD, plus the option bytes | – |
 
 ```
-a3e75f033409a6429b14e49da10283c96fbad3a13b3cfb50ad5082bf2e18e724  betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex
-55debb36b1cd24b0856424306d606517e0c45fc48902e83a6ff8f65d415b6bc7  betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3_ICM.hex
+4220e32da80d1cdb5d6fcb43254fa914d2fe878d6ae5fdd7d34128a5716fe632  betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex
+8f612b0a292fd5b5d1d582808367f0371c445afaf9bfeccc625c2fd76a6a8e3c  betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3_BMI.hex
 05f7109c5f5a0a8a8d4505e311b99599b6ca6ac7f5ea8e8c83c47c1089423f2d  am32/AM32_G071_BOOTLOADER_PB4_64K_V19.hex
 5d6558599c7e5e22c4787e2f06c030cc602f5667bf2db5540bfa4fc32d170087  am32/AM32_RIDGE3_G071_2.21.hex
 ff237ad28e60315feec38c1327ab1ec172fb0ebea7ce1a89433fa89451f2a6da  am32/AM32_55c9684_RIDGE3_G071_targets.patch
@@ -24,25 +24,29 @@ ff237ad28e60315feec38c1327ab1ec172fb0ebea7ce1a89433fa89451f2a6da  am32/AM32_55c9
 
 ### Which image
 
-The gyro pads take either a Bosch **BMI270** (the BOM part: cheaper, and
-stocked in the tens of thousands) or a TDK **ICM-42688-P**.  The two chips
-have the same pinout, but not the same axes: relative to pin 1, the BMI270's
-axes are the ICM's turned 90 degrees (BMI270 datasheet BST-BMI270-DS000-08
-sec. 8.2, p.144; ICM-42688-P DS-000347 fig. 15, p.53).  Betaflight 2025.12
-applies one alignment whichever chip it finds, and that alignment cannot be
-changed from the CLI.  So there is one image per chip:
+The gyro pads take a TDK **ICM-45686** (the BOM part) or a Bosch **BMI270**
+(the second source: cheaper, and stocked in the tens of thousands).  The two
+chips have the same pinout, but not the same axes: relative to pin 1, the
+BMI270's axes are the ICM-45686's turned 90 degrees (BMI270 datasheet
+BST-BMI270-DS000-08 sec. 8.2, p.144; ICM-45686 DS-000577 fig. 13, p.50).
+Betaflight 2025.12 applies one alignment whichever chip it finds, and that
+alignment cannot be changed from the CLI.  So there is one image per chip:
 
 | Gyro fitted (read the marking, or the assembly order) | Flash | `GYRO_1_ALIGN` | PID loop |
 |---|---|---|---|
-| BMI270 | `..._RIDGE3.hex` | `CW270_DEG` | 3.2 kHz (denom 1) |
-| ICM-42688-P | `..._RIDGE3_ICM.hex` | `CW0_DEG` | 4 kHz (8 kHz gyro, denom 2) |
+| ICM-45686 | `..._RIDGE3.hex` | `CW0_DEG` | 3.2 kHz (6.4 kHz gyro, denom 2) |
+| BMI270 | `..._RIDGE3_BMI.hex` | `CW270_DEG` | 3.2 kHz (denom 1) |
+
+The ICM-42688-P no longer fits these pads: it wants its pin 9 (an unused
+FSYNC) at ground, and the ICM-45686 and the BMI270 both want that pin left
+unconnected, which is how the board has it.
 
 Each image has only its own chip's driver.  The wrong image on a board finds
 **no gyro** and refuses to arm.  It cannot fly with the axes 90 degrees off.
 
 Stock Betaflight targets are not a substitute.  `TAKERG4AIO` (whose pin
-map this board copies) has no BMI270 driver.  On an ICM board it would need
-`align_board_yaw = 90`, not 0, because its chip alignment is fixed at CW270.
+map this board copies) fixes its chip alignment at CW270 and sets a 45° board
+yaw, both wrong for either chip here.
 
 Both configs also set these defaults for this board (see the top of
 `config.h`):
@@ -99,7 +103,7 @@ In a Betaflight 2025.12.5 checkout:
 make arm_sdk_install
 SOURCE_DATE_EPOCH=1790412014 make CONFIG=RIDGE3 \
   CONFIG_DIR=<this repo>/ridge-3/firmware/betaflight CONFIG_REVISION_DEFINE=
-# and CONFIG=RIDGE3_ICM for the ICM image
+# and CONFIG=RIDGE3_BMI for the BMI270 image
 ```
 
 With that build date, and with no git revision stamped in, the build

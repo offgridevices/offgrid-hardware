@@ -9,8 +9,9 @@
      the other three (stamp.py)
      Freerouting             everything else (ESC: two rounds, tidied between)
   3. finish.finish_board()   in-house maze router for what Freerouting left
-  4. rip-up and re-route for the last few: finish.repair (FC),
-     finish.repair_tx then finish.repair_orders (ESC)
+  4. rip-up and re-route for the last few: finish.repair_tx, then
+     finish.repair_orders.  FC: if nets are still open, steps 2-4 again
+     under other Freerouting costs, in parallel (WHOLE_VARIANTS)
   5. FC: ground pour on the outer layers, stray stubs removed.
      ESC: cleanup.clean (unused escape vias and stubs, each removal kept only
      if DRC agrees), POFV hole spacing (pofv.nudge_vias).  Silkscreen.
@@ -31,6 +32,17 @@ EXTRA_RULES = ''       # board-specific DRC rules (esc_layout.DRU_EXTRA, the inn
 # Freerouting follows those IDs.  A fixed seed per board makes the IDs, and
 # so the routing, the same on every run (with PYTHONHASHSEED=0, see make.py).
 SEEDS = {'fc': 3, 'esc': 3}
+
+# A board routed whole (no channel template: the FC) gets Freerouting's own
+# default costs first, the routing it has always had.  If the finisher and
+# the repairs still leave nets open after that, the whole stage is run
+# again under each of these costs, all at once, each in a process of its
+# own, and the routing that ends with the fewest nets open is kept (the
+# first of equals), so the result is the same on every run.  Freerouting is
+# deterministic for a given input, and different costs give genuinely
+# different routings (route.AUTOROUTE); which of them the repairs can
+# finish shows only by trying.
+WHOLE_VARIANTS = [dict(via_costs=30), dict(via_costs=70), dict(via_costs=50, start_ripup_costs=50)]
 
 
 def _copy_project(src_pcb, dst_pcb):
@@ -187,6 +199,8 @@ def run(board_name, work, passes=None, log=print):
             fin_, left = _stamped_stage(board_name, placed, tmpl, nets_json, work, passes, log=log)
     else:
         fin_, left = board_stage(board_name, placed, placed, work, passes, log=log)
+        if left:
+            fin_, left = _whole_variants(board_name, placed, work, passes, seed, (fin_, left), log)
     if os.path.abspath(fin_) != os.path.abspath(fin):
         shutil.copy(fin_, fin)
         _copy_project(placed, fin)
@@ -248,6 +262,46 @@ def _board_stages(board_name, placed, ties, nets_json, work, passes, seed, log):
     return fin, left
 
 
+def _whole_variants(board_name, placed, work, passes, seed, first, log):
+    """board_stage on the placed board again under each of WHOLE_VARIANTS'
+    router costs, all at once; `first` is (finished board, nets open) at
+    Freerouting's defaults.  Returns the (finished board, nets open) of the
+    routing that leaves the fewest nets open, the first of equals."""
+    log('%s: %d nets open at Freerouting\'s default costs %s; trying %d other costs'
+        % (board_name, len(first[1]), sorted(first[1]), len(WHOLE_VARIANTS)))
+    procs = []
+    for i, costs in enumerate(WHOLE_VARIANTS, 1):
+        d = os.path.join(work, 'costs%d' % i)
+        os.makedirs(d, exist_ok=True)
+        logf = open(os.path.join(d, 'log.txt'), 'w')
+        env = dict(os.environ, PIPELINE_SEED=str(seed))
+        procs.append((i, costs, logf, d, subprocess.Popen(
+            [sys.executable, os.path.abspath(__file__), 'whole-stage', board_name, placed, d, str(passes),
+             json.dumps(costs, sort_keys=True)], stdout=logf, stderr=subprocess.STDOUT, env=env)))
+    res = [(len(first[1]), 0, first[0], sorted(first[1]))]
+    for i, costs, logf, d, p in procs:
+        p.wait()
+        logf.close()
+        out = os.path.join(d, 'result.json')
+        if p.returncode != 0 or not os.path.exists(out):
+            log('%s: whole board at costs %s failed, see %s' % (board_name, costs, logf.name))
+            continue
+        r = json.load(open(out))
+        log('%s: whole board at costs %s: %d nets open %s' % (board_name, costs, len(r['left']), r['left']))
+        res.append((len(r['left']), i, r['fin'], r['left']))
+    n, i, fin, left = min(res)
+    log('%s: kept the routing at %s' % (board_name, 'the default costs' if i == 0 else
+                                        'costs %s' % WHOLE_VARIANTS[i - 1]))
+    return fin, left
+
+
+def _whole_stage_main(board_name, placed, work, passes, costs):
+    pcbnew.KIID.SeedGenerator(int(os.environ.get('PIPELINE_SEED', SEEDS[board_name])))
+    route.AUTOROUTE = json.loads(costs)
+    fin, left = board_stage(board_name, placed, placed, work, int(passes), log=lambda s: print(s, flush=True))
+    json.dump({'fin': fin, 'left': sorted(left)}, open(os.path.join(work, 'result.json'), 'w'))
+
+
 def _board_stage_main(board_name, placed, tmpl, nets_json, work, passes):
     pcbnew.KIID.SeedGenerator(int(os.environ.get('PIPELINE_SEED', SEEDS[board_name])))
     fin, left = _stamped_stage(board_name, placed, tmpl, nets_json, work, int(passes),
@@ -276,6 +330,10 @@ if __name__ == '__main__':
     elif sys.argv[1:2] == ['board-stage']:
         # python3 pipeline.py board-stage <board> <placed> <template> <nets.json> <work> <passes>
         _board_stage_main(*sys.argv[2:8])
+    elif sys.argv[1:2] == ['whole-stage']:
+        # python3 pipeline.py whole-stage <board> <placed> <work> <passes> <costs.json>
+        _whole_stage_main(*sys.argv[2:7])
     else:
         raise SystemExit('usage: pipeline.py template-repair BOARD IN OUT JOB | '
-                         'board-stage BOARD PLACED TEMPLATE NETS WORK PASSES')
+                         'board-stage BOARD PLACED TEMPLATE NETS WORK PASSES | '
+                         'whole-stage BOARD PLACED WORK PASSES COSTS')

@@ -84,15 +84,27 @@ PARTS = {
                       mpn='STM32G473CEU6', value='STM32G473CEU6',
                       desc='MCU Cortex-M4 170 MHz 512 KB, UFQFPN-48', kind='U',
                       dk='STM32G473CEU6-ND', maker='STMicroelectronics (Switzerland)'),
-    # v1 only (second source for the BMI270 on the same pads): JLC 335,
+    # v1 only.  No longer fits the v2 pads: it wants pin 9 (unused FSYNC)
+    # at GND, which the ICM-45686 and the BMI270 both forbid.  JLC 335,
     # LCSC 0, DK 0 on 2026-09-27.
     'ICM42688P': dict(fp='aio:LGA-14_L3.0-W2.5-P0.50-TL', lcsc='C1850418',
                       mpn='ICM-42688-P', value='ICM-42688-P',
                       desc='6-axis IMU, SPI, LGA-14 2.5x3', kind='U'),
-    # Bosch BMI270 on the ICM-42688-P's land pattern (pads within 0.09 mm;
-    # JLCPCB's library footprint for it is this one turned 180 degrees).
-    # Its pins 2/3 (aux I2C) must not be grounded, so circuit.py leaves
-    # them open, which the ICM-42688-P also allows: either part fits.
+    # TDK ICM-45686 (DS-000577 rev 1.1, via LCSC C22459454): the fitted
+    # gyro.  Same 14-lead 2.5 x 3 mm LGA as the ICM-42688-P (lead width,
+    # length, pitch and centres equal; 0.81 mm high, not 0.91), same pin
+    # functions and the same axes against pin 1 (fig. 13 = the 42688's fig.
+    # 15).  JLC 1,022 ext, $11.84 / 8.12 (1 / 100+) on 2026-09-29; DK
+    # 1428-ICM-45686CT-ND 0 (fc), $5.26 / 3.56 (1 / 1000).
+    'ICM45686': dict(fp='aio:LGA-14_L3.0-W2.5-P0.50-TL', lcsc='C22459454',
+                     mpn='ICM-45686', value='ICM-45686',
+                     desc='6-axis IMU (TDK InvenSense), SPI, LGA-14 2.5x3', kind='U',
+                     dk='1428-ICM-45686CT-ND', maker='TDK InvenSense (Japan/US)'),
+    # Bosch BMI270: second source on the same land pattern (pads within
+    # 0.09 mm; JLCPCB's library footprint for it is this one turned 180
+    # degrees).  Its pins 2/3 (aux I2C) must not be grounded, and an unused
+    # INT2 (pin 9) and OIS pins 10/11 are best not connected, so circuit.py
+    # leaves them open, which the ICM-45686 also allows: either part fits.
     # JLC 2,217 ext, $1.50 / 1.38; DK fc 828-1091-1-ND 54,195.
     'BMI270': dict(fp='aio:LGA-14_L3.0-W2.5-P0.50-TL', lcsc='C2836813',
                    mpn='BMI270', value='BMI270', jlc_rot=180,

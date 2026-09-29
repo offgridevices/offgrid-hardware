@@ -13,7 +13,7 @@ sense pads (3 and 4, net-tied to its current pads).
 Two boards, one stack (Ridge 3), both 36 x 36 mm on the 25.5 mm
 M3/M2-grommet pattern of the GEPRC TAKER G4 AIO that Phase 1 flew:
 
-  FC   STM32G473CEU6 + BMI270 (or ICM-42688-P) + 16 MB flash, USB-C, boot
+  FC   STM32G473CEU6 + ICM-45686 (or BMI270) + 16 MB flash, USB-C, boot
        button, analog OSD (AT7456E) and an HD VTX port (DJI / Walksnail /
        HDZero, MSP DisplayPort), 5 V 2 A BEC and a switchable 9 V VTX BEC,
        all rated for 6S.  firmware/ has the board's Betaflight target,
@@ -222,24 +222,33 @@ def fc_core():
     res('R10K', 'BOOT0', GND, B, 'BOOT0 pulldown')
     add('SW', 'BOOTSW', {'1': '+3V3', '2': 'BOOT0'}, B, 'DFU boot button', ref='SW_BOOT')
 
-    # IMU on SPI1: Bosch BMI270, or the ICM-42688-P on the same pads (both
-    # are LGA-14 2.5 x 3 with the same SPI/power pins; Betaflight detects
-    # either).  Pins 2 and 3 are left open: the BMI270's aux I2C must not
-    # be grounded (Bosch), and ICM-42688-P table 9 allows RESV pins 2, 3,
-    # 10, 11 "NC or GND".  Pins 10/11 (BMI270 OCSB/OSDO) grounded is fine
-    # with OIS off, its reset state; pin 9 grounded is the ICM's FSYNC
-    # when unused and the BMI270's INT2, which stays an input unless
-    # enabled.  Own 10-ohm / 4.7 uF filter off the 3.3 V rail.
-    # Placed rotated 90 degrees, pin 1 rear-left, so the ICM's +X points at the
-    # board's front arrow and its +Y to the left, which is Betaflight's body
-    # frame: GYRO_1_ALIGN = CW0.  Relative to pin 1 the BMI270's axes are the
-    # ICM's turned 90 degrees (Bosch DS sec. 8.2 vs TDK fig. 15), so on the
-    # same pads it needs CW270.  firmware/ has one build per chip; board
-    # alignment stays 0/0/0 with either.
-    add('U', 'BMI270', {'1': 'SPI1_MISO', '2': None, '3': None, '4': 'GYRO_INT',
-                           '5': '+3V3_GYRO', '6': GND, '7': GND, '8': '+3V3_GYRO',
-                           '9': GND, '10': GND, '11': GND, '12': 'GYRO_CS',
-                           '13': 'SPI1_SCK', '14': 'SPI1_MOSI'}, B, 'gyro', ref='U_IMU')
+    # IMU on SPI1: TDK ICM-45686, or a Bosch BMI270 on the same pads (both
+    # LGA-14 2.5 x 3 with the same SPI and power pins; Betaflight has a
+    # driver for each, one per build).  Every pin either chip leaves unused
+    # is left open, the first choice in both datasheets:
+    #   2, 3   ICM-45686 RESV/AUX1 "No Connect or Connect to VDDIO or GND"
+    #          (DS-000577 table 10); BMI270 aux I2C "Do not connect to GND"
+    #          (BST-BMI270-DS000 pin table, note **).
+    #   9      ICM-45686 INT2/FSYNC/CLKIN unused: "No Connect or Connect to
+    #          VDDIO", not GND; BMI270 INT2 unused: "do not connect".  (The
+    #          ICM-42688-P wants this pin at GND, so it no longer fits.)
+    #   10, 11 ICM-45686 RESV/AUX1: open keeps the internal pull-ups as they
+    #          reset (tied to GND they draw current until firmware turns
+    #          them off); BMI270 OCSB/OSDO (OIS): "DNC", GND only with OIS off.
+    # Pin 7 is the BMI270's GND, and the ICM-45686's RESV, which may be
+    # grounded.  Own 10-ohm / 4.7 uF filter off the 3.3 V rail (VDD
+    # 1.71-3.6 V, VDDIO 1.08-3.6 V on the ICM-45686).
+    # Placed rotated 90 degrees, pin 1 rear-left, so the ICM-45686's +X
+    # points at the board's front arrow and its +Y to the left, which is
+    # Betaflight's body frame: GYRO_1_ALIGN = CW0 (DS-000577 fig. 13, the
+    # same axes against pin 1 as the ICM-42688-P's fig. 15).  Relative to
+    # pin 1 the BMI270's axes are the TDK parts' turned 90 degrees (Bosch DS
+    # sec. 8.2), so on the same pads it needs CW270.  firmware/ has one
+    # build per chip; board alignment stays 0/0/0 with either.
+    add('U', 'ICM45686', {'1': 'SPI1_MISO', '2': None, '3': None, '4': 'GYRO_INT',
+                             '5': '+3V3_GYRO', '6': GND, '7': GND, '8': '+3V3_GYRO',
+                             '9': None, '10': None, '11': None, '12': 'GYRO_CS',
+                             '13': 'SPI1_SCK', '14': 'SPI1_MOSI'}, B, 'gyro', ref='U_IMU')
     res('R10', '+3V3', '+3V3_GYRO', B, 'gyro supply filter')
     cap('C4U7', '+3V3_GYRO', GND, B, 'gyro VDD bulk')
     cap('C100N', '+3V3_GYRO', GND, B, 'gyro VDD')

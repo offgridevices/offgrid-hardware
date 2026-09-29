@@ -13,7 +13,7 @@ Ridge 3 is the first of a line named by prop size: **Ridge 3**, **Ridge 7**,
 errors, zero warnings and zero unconnected items against JLCPCB's rules.
 The copper matches `src/circuit.py` pad for pad, and
 [`VERIFICATION.md`](VERIFICATION.md) checks the design against sources other
-than itself (205 checks, all passing). No board has been made or
+than itself (206 checks, all passing). No board has been made or
 measured. Order the minimum quantity, build one stack, and go through the
 [bring-up](#bring-up) steps before building more.
 
@@ -32,7 +32,7 @@ a change to the ESC alone moves only the ESC's.
 |---|---|---|
 | Battery | 2-6S (up to 25.2 V). Every part on the battery runs at 60 % or less of its rating | 2-6S. The 40 V FETs run at 63 % on 6S (see [Headroom](#headroom-and-what-the-stack-cannot-do)) |
 | Brain | STM32G473 (170 MHz). Betaflight target `RIDGE3` | 4 × STM32G071. AM32 target `RIDGE3_G071` |
-| Sensors | BMI270 gyro (an ICM-42688-P fits the same pads), battery voltage, current from the ESC | Current per motor (0.5 mΩ Kelvin shunt + TI INA186), battery voltage, MCU temperature |
+| Sensors | TDK ICM-45686 gyro (a Bosch BMI270 fits the same pads), battery voltage, current from the ESC | Current per motor (0.5 mΩ Kelvin shunt + TI INA186), battery voltage, MCU temperature |
 | Video | **HD:** 6-pin JST-SH port for DJI O3/O4, Walksnail and HDZero (MSP DisplayPort on UART1, SBUS jumper). **Analog:** AT7456E OSD with camera and VTX pads | – |
 | Power out | 5 V 2 A (TI LMR38020F, 80 V). **9 V 2 A for the VTX** (TI LM76003, 60 V), which Betaflight can switch off. 3.3 V | – |
 | Power stage | – | 24 × Toshiba TPN2R304PL (40 V, 2.3 mΩ), TI DRV8300 gate drivers at 11.3 V |
@@ -134,45 +134,51 @@ bring-up step 6 measures it.
 ## Cost, against an $80 AIO
 
 The reference is the GEPRC TAKER G4 AIO this stack replaces, about $80.
-Component cost comes from JLC's live catalogue prices on 28 September 2026, before
+Component cost comes from JLC's live catalogue prices on 29 September 2026, before
 assembly fees and bare boards:
 
 | | 1 set | 100 sets | 1,000 sets |
 |---|---|---|---|
-| FC | $29.82 | $19.16 | $17.44 |
-| ESC | $46.22 | $31.89 | $29.98 |
-| **Stack** | **$76.04** | **$51.05** | **$47.42** |
+| FC | $38.83 | $25.81 | $24.20 |
+| ESC | $45.65 | $31.31 | $29.40 |
+| **Stack** | **$84.48** | **$57.12** | **$53.60** |
 
-- **One-off, it costs more than the AIO.** On top of the parts come JLC's
-  per-order assembly fees: setup, stencil, and a loading fee for each unique
-  extended part (31 on the FC, 19 on the ESC). Those fees are what a
-  prototype order pays.
-- **In volume, the parts cost about 60 % of the AIO's price.** Bare boards
+- **One-off, it costs more than the AIO.** The parts alone pass $80, and
+  on top of them come JLC's per-order assembly fees: setup, stencil, and a
+  loading fee for each unique extended part (31 on the FC, 19 on the ESC).
+  Those fees are what a prototype order pays.
+- **In volume, the parts cost about 70 % of the AIO's price.** Bare boards
   and assembly add to that. The 6-layer ESC is the expensive board. Get a
   JLC or PCBWay quote for the panels at the volume you plan: they were not
   priced here.
 - **The point is the repair.** A crash that kills a motor channel costs one
   ESC, about $30 in parts at volume, not a whole $80 AIO. The same goes for
   a flight controller. And either board works with another maker's stack.
-- **What costs most:** the 24 FETs ($11 a set at 1 off), the four ESC MCUs
-  ($8.83), the FC MCU ($5.19) and the flash ($2.19).
+- **What costs most** (per set at 1,000): the 24 FETs ($10.37), the four
+  ESC MCUs ($8.84), the gyro ($8.12), the FC MCU ($5.19) and the flash
+  ($2.19).
+- **The gyro is a choice.** The TDK ICM-45686 costs about $9 a set more
+  than a Bosch BMI270 one-off, and about $7 more in volume. The BMI270 fits
+  the same pads and has its own firmware image, so a build can take either
+  part with no copper change (see [`firmware/README.md`](firmware/README.md)).
 
 ## Sourcing: LCSC/JLCPCB and DigiKey
 
 Every part has an LCSC number (for JLCPCB assembly) and a DigiKey part
 number (in `src/parts.py`). The same boards can be built by JLCPCB today and
 by a US or allied assembler from a DigiKey kit later, with no copper change.
-The chips that matter come from non-Chinese makers: ST (MCUs), Bosch
-(gyro), TI (supplies, gate drivers, current amplifiers), Analog Devices (ESC
-buck), Toshiba (FETs), Winbond (flash), and Vishay, Murata, TDK, Taiyo
-Yuden, Stackpole, Yageo, Lite-On, GCT, JST and Omron (passives and
-connectors).
+The chips that matter come from non-Chinese makers: ST (MCUs), TDK
+InvenSense (gyro, with Bosch as the second source), TI (supplies, gate
+drivers, current amplifiers), Analog Devices (ESC buck), Toshiba (FETs),
+Winbond (flash), and Vishay, Murata, TDK, Taiyo Yuden, Stackpole, Yageo,
+Lite-On, GCT, JST and Omron (passives and connectors).
 
 The exceptions and thin spots, checked 27 September 2026:
 
 | Part | Issue | What to do |
 |---|---|---|
 | AT7456E analog OSD | Made in China. It is the only analog OSD chip still in production (the Maxim MAX7456 it copies is discontinued) | Accepted exception. An HD-only variant can leave it off: Betaflight runs without it |
+| ICM-45686 (gyro) | DigiKey had none on 29 September 2026; JLC/LCSC had 1,022 | Buy ahead, or fit the Bosch BMI270 (same pads; flash the `RIDGE3_BMI` image) |
 | STM32G071 (ESC MCUs) | DigiKey has almost none (0-19 of the GBU6; 79 of the 64 KB G8U6, which has the same pads and firmware) | Buy ahead. JLC/LCSC had 999 GBU6 (249 ESCs) |
 | TPN2R304PL (ESC FETs) | JLC/LCSC stock covers 107 ESCs (DigiKey: 50,515) | For bigger runs, consign DigiKey reels to the assembler, or fit the Diodes Inc. DMTH43M8LFGQ (same pads, 3.0 mΩ; check placement on the first boards) |
 | Resistors | JLC's are UNI-ROYAL (operations in China) | Yageo equivalents are listed as `dk_mpn` in `parts.py` |

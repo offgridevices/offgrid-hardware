@@ -189,6 +189,7 @@ Price columns: LCSC at 100 / 1000 pieces, then DigiKey cut tape at 100 /
 |---|---|---|---|---|---|---|---|---|
 | `STM32G473` | STM32G473CEU6 | `UFQFPN-48_L7.0-W7.0-P0.50-BL-EP5.6` | 1-48, 49 EP | C1342773: JLC 1,430 ext, LCSC 1,430 | STM32G473CEU6-ND: 1,268 (fc) | STMicroelectronics (Switzerland) | LCSC $5.253 / $5.253; DK $5.971 / $5.539 |  |
 | `BMI270` | BMI270 | `LGA-14_L3.0-W2.5-P0.50-TL` | 1-14 | C2836813: JLC 2,222 ext, LCSC 2,222 | 828-1091-1-ND: 54,195 (fc) | Bosch Sensortec (Germany) | LCSC $1.496 / $1.378; DK $3.171 / $2.833 |  |
+| `ICM45686` | ICM-45686 | `LGA-14_L3.0-W2.5-P0.50-TL` | 1-14 | C22459454: JLC 1,022 ext (2026-09-29) | 1428-ICM-45686CT-ND: 0 (fc, 2026-09-29) | TDK InvenSense (Japan/US) | LCSC $8.122 / $8.122; DK $5.26 @1 / $3.56 @1000 | Added 2026-09-29 as the fitted gyro; `BMI270` became the second source. Same land pattern (TDK DS-000577 fig. 13 and JLC's footprint for C22459454 match `aio:`'s). |
 | `AO3400A` | AO3400A | `SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR` | 1 G, 2 S, 3 D | C20917: JLC 1,062,507 basic, LCSC 659,200 | 785-1000-1-ND: 316,253 (fc) | Alpha & Omega Semiconductor (USA) | LCSC $0.0683 / $0.0524; DK $0.2043 / $0.1532 |  |
 | `USBLC6` | USBLC6-2SC6 | `SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL` | 1-6 | C7519: JLC 46,765 ext, LCSC 44,995 | 497-11882-1-ND (USBLC6-2SC6Y): USBLC6-2SC6 0 (web, 3,000 past due) - USBLC6-2SC6Y 39,426 (web) | STMicroelectronics (Switzerland) | LCSC $0.1373 / $0.0993; DK (-Y) $0.71 @1 | DigiKey: order the -Y (automotive) variant. |
 | `SH8_RA` | SM08B-SRSS-TB(LF)(SN) | `CONN-TH_SM08B-SRSS-TB-LF-SN` | 1-8, 9-10 tabs | C160407: JLC 123,874 ext, LCSC 120,870 | 455-1808-1-ND (SM08B-SRSS-TB): 62,910 (fc) | JST (Japan) | LCSC $0.2702 / $0.2084; DK $0.6121 / $0.5202 |  |
@@ -354,6 +355,8 @@ right choice at 6S.
 - **Stock-rule failures** for existing parts not in the new circuit:
   ICM-42688-P (0 at LCSC and DigiKey), W25Q128JVPIQ (0 at LCSC), v1
   CL21A106KBYQNNE (0 at LCSC).
+- **ICM-45686 (added 2026-09-29):** 0 at DigiKey; JLC's 1,022 cover 1,022
+  FCs. The BMI270 fits the same pads as the fallback.
 
 ## 10. Entries marked `# v1 only`
 

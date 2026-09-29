@@ -93,7 +93,7 @@ def find(board, note):
 
 # ------------------------------------------------------------------ firmware sources
 FW = os.path.join(V1, 'firmware')
-BF_CONFIGS = ('RIDGE3', 'RIDGE3_ICM')           # BMI270 build, ICM-42688-P build
+BF_CONFIGS = ('RIDGE3', 'RIDGE3_BMI')           # ICM-45686 build (the BOM part), BMI270 build
 AM32_PATCH = 'am32/AM32_55c9684_RIDGE3_G071_targets.patch'
 AM32_COMMIT = '55c9684'
 AM32_TARGET = 'RIDGE3_G071'
@@ -225,8 +225,8 @@ def check_fc_pins():
     pinmap = {k: [(a, b.split('//')[0].strip()) for a, b in re.findall(
                   r'#define\s+(\w+_PIN|TIMER_PIN_MAPPING|\w+_INSTANCE|\w+_DMA_OPT|\w+_UART|PINIO\d_\w+)\s+(.*)', v)]
               for k, v in cfgs.items()}
-    check(S, 'the BMI270 and ICM-42688-P configs have the same pin, timer, bus, UART and PINIO map',
-          pinmap['RIDGE3'] == pinmap['RIDGE3_ICM'])
+    check(S, 'the ICM-45686 and BMI270 configs have the same pin, timer, bus, UART and PINIO map',
+          pinmap['RIDGE3'] == pinmap['RIDGE3_BMI'])
     cfg = cfgs['RIDGE3']
     d = lambda k: cdefine(cfg, k)
     fc = circuit.build('fc')
@@ -256,7 +256,7 @@ def check_fc_pins():
            ('SPI2_SCK', 'U_FLASH', '6'),
            ('OSD_CS', 'U_OSD', '8'), ('SPI2_MOSI', 'U_OSD', '9'), ('SPI2_SCK', 'U_OSD', '10'),
            ('SPI2_MISO', 'U_OSD', '11')]
-    names = {'U_IMU': 'BMI270 sec. 7.1 / ICM-42688-P table 9 (same pins)',
+    names = {'U_IMU': 'ICM-45686 DS-000577 table 10 / BMI270 sec. 7.1 (same pins)',
              'U_FLASH': 'W25Q128JV, WSON-8 (Winbond datasheet pinout)',
              'U_OSD': 'AT7456E, the MAX7456 pinout: 8 /CS, 9 SDIN, 10 SCLK, 11 SDOUT (MAX7456 pin description)'}
     for net, ref, pin in far:
@@ -300,16 +300,20 @@ def check_fc_pins():
              'VTX on), PINIO1_BOX %s (BOXUSER1: the USER1 switch turns the VTX off)'
           % (d('PINIO1_CONFIG'), d('PINIO1_BOX')), d('PINIO1_CONFIG') == '1' and d('PINIO1_BOX') == '40')
     imu = comp('fc', 'U_IMU')
-    check(S, 'IMU pads take a BMI270 or an ICM-42688-P: pins 2/3 open (BMI270 aux I2C must not be grounded), '
-             'SPI and supply pins shared', imu.pins.get('2') is None and imu.pins.get('3') is None
-          and imu.pins['12'] == 'GYRO_CS' and imu.pins['5'] == '+3V3_GYRO' and imu.pins['8'] == '+3V3_GYRO',
-          'BOM part: %s' % parts.PARTS[imu.part]['mpn'])
+    check(S, 'IMU pads take an ICM-45686 or a BMI270: pins 2/3 open (BMI270 aux I2C must not be grounded), pin 9 '
+             'open (ICM-45686 table 10: unused INT2/FSYNC/CLKIN "No Connect or Connect to VDDIO"; Bosch: an unused '
+             'INT2 not connected), pins 10/11 open (BMI270 OCSB/OSDO "DNC"; ICM-45686 RESV "No Connect" keeps its '
+             'pull-ups off GND), pin 7 GND (BMI270 GND, ICM-45686 RESV), SPI and supply pins shared',
+          all(imu.pins.get(n) is None for n in ('2', '3', '9', '10', '11')) and imu.pins['7'] == 'GND'
+          and imu.pins['6'] == 'GND' and imu.pins['12'] == 'GYRO_CS' and imu.pins['5'] == '+3V3_GYRO'
+          and imu.pins['8'] == '+3V3_GYRO', 'BOM part: %s' % parts.PARTS[imu.part]['mpn'])
     # Gyro alignment against the placed footprint.  Pad 1 is the chip's
-    # pin-1 corner.  TDK DS-000347 fig. 15: pin 1 is at the ICM's (-X, +Y)
-    # corner.  Bosch BST-BMI270-DS000-08 sec. 8.2: pin 1 is at the BMI270's
-    # (+x, +y) corner.  Betaflight body frame: +X forward, +Y left; the
-    # board's front is -y in KiCad.  So with pin 1 rear-left and the pad
-    # 12-14 edge on the left, the ICM is CW0 and the BMI270 CW270.
+    # pin-1 corner.  TDK DS-000577 fig. 13: pin 1 is at the ICM-45686's
+    # (-X, +Y) corner (as the ICM-42688-P's fig. 15).  Bosch
+    # BST-BMI270-DS000-08 sec. 8.2: pin 1 is at the BMI270's (+x, +y)
+    # corner.  Betaflight body frame: +X forward, +Y left; the board's front
+    # is -y in KiCad.  So with pin 1 rear-left and the pad 12-14 edge on the
+    # left, the ICM-45686 is CW0 and the BMI270 CW270.
     b = pcbnew.LoadBoard(os.path.join(V1, 'fc', 'ridge3-fc.kicad_pcb'))
     fp = b.FindFootprintByReference('U_IMU')
     ctr = fp.GetPosition()
@@ -324,20 +328,22 @@ def check_fc_pins():
     align = {k: re.search(r'#define\s+GYRO_1_ALIGN\s+(\w+)', v).group(1) for k, v in cfgs.items()}
     drivers = {k: sorted(set(re.findall(r'#define\s+USE_(?:ACC|GYRO|ACCGYRO)_(?:SPI_)?(\w+)', v)))
                for k, v in cfgs.items()}
-    check(S, 'RIDGE3 (BMI270 build): GYRO_1_ALIGN CW270_DEG, BMI270 driver only',
-          align['RIDGE3'] == 'CW270_DEG' and drivers['RIDGE3'] == ['BMI270'],
+    check(S, 'RIDGE3 (ICM-45686 build, the BOM part): GYRO_1_ALIGN CW0_DEG, ICM-45686 driver only',
+          align['RIDGE3'] == 'CW0_DEG' and drivers['RIDGE3'] == ['ICM45686'],
           '%s, drivers %s' % (align['RIDGE3'], drivers['RIDGE3']))
-    check(S, 'RIDGE3_ICM (ICM-42688-P build): GYRO_1_ALIGN CW0_DEG, ICM-42688-P driver only',
-          align['RIDGE3_ICM'] == 'CW0_DEG' and drivers['RIDGE3_ICM'] == ['ICM42688P'],
-          '%s, drivers %s' % (align['RIDGE3_ICM'], drivers['RIDGE3_ICM']))
-    check(S, 'BOARD_NAME RIDGE3 / RIDGE3_ICM, MANUFACTURER_ID OFFG',
+    check(S, 'RIDGE3_BMI (BMI270 build): GYRO_1_ALIGN CW270_DEG, BMI270 driver only',
+          align['RIDGE3_BMI'] == 'CW270_DEG' and drivers['RIDGE3_BMI'] == ['BMI270'],
+          '%s, drivers %s' % (align['RIDGE3_BMI'], drivers['RIDGE3_BMI']))
+    check(S, 'the BOM gyro (%s) is the one the default build RIDGE3 drives' % parts.PARTS[imu.part]['mpn'],
+          imu.part == 'ICM45686')
+    check(S, 'BOARD_NAME RIDGE3 / RIDGE3_BMI, MANUFACTURER_ID OFFG',
           [cdefine(cfgs[k], 'BOARD_NAME') for k in BF_CONFIGS] == list(BF_CONFIGS)
           and all(cdefine(v, 'MANUFACTURER_ID') == 'OFFG' for v in cfgs.values()))
     check(S, 'no board rotation in either build (DEFAULT_ALIGN_BOARD_* unset)',
           not any(re.search(r'#define\s+DEFAULT_ALIGN_BOARD', v) for v in cfgs.values()))
-    check(S, 'PID loop: BMI270 3.2 kHz (denom 1), ICM 8 kHz / 2 = 4 kHz',
-          re.search(r'DEFAULT_PID_PROCESS_DENOM\s+1\b', cfgs['RIDGE3']) is not None
-          and re.search(r'DEFAULT_PID_PROCESS_DENOM\s+2\b', cfgs['RIDGE3_ICM']) is not None)
+    check(S, 'PID loop 3.2 kHz in both builds: ICM-45686 6.4 kHz gyro / 2, BMI270 3.2 kHz / 1',
+          re.search(r'DEFAULT_PID_PROCESS_DENOM\s+2\b', cfgs['RIDGE3']) is not None
+          and re.search(r'DEFAULT_PID_PROCESS_DENOM\s+1\b', cfgs['RIDGE3_BMI']) is not None)
     check(S, 'HSE crystal on PF0/PF1 with SYSTEM_HSE_MHZ 8',
           c.pins['5'] == 'HSE_IN' and c.pins['6'] == 'HSE_OUT' and d('SYSTEM_HSE_MHZ') == '8'
           and comp('fc', 'Y1').part == 'XTAL8M')
