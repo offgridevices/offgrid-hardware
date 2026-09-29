@@ -1322,7 +1322,7 @@ def artwork(b, comps):
     OffGrid mark, the motor number by every motor's pads, battery polarity,
     the pack range, pin 1 of the stack connector, the SWD pad names, the
     board's name and firmware, the front arrow.  Bottom: battery polarity
-    and the front arrow.  Codes in JetBrains Mono, words in Instrument
+    and the front arrow (and the firmware, when the top has no room).  Codes in JetBrains Mono, words in Instrument
     Sans.  Nothing lands on a pad, a hole, a part body or under a grommet.
 
     Both sides are full of parts; the mark takes the roomiest free spot of
@@ -1399,27 +1399,32 @@ def artwork(b, comps):
              size=1.2)
     # the name and the firmware to flash, on top, before the small labels
     # take the room: on the centre line if anywhere there is room, else as
-    # near it as fits, else turned to read along a free strip
+    # near it as fits, else turned to read along a free strip.  The
+    # firmware goes on the bottom if the top has no room left for it (it
+    # is read when flashing, with the board in hand)
     at = None
     # (sizes down to the floors: 1.1 mm capitals in Instrument Sans, 1.0 in
     # JetBrains Mono, whose strokes stay over the fabs' 0.15 mm there)
-    for runs, caps in (([('sans', PRODUCT + ' ESC')], (1.4, 1.3, 1.2, 1.1)), ([('mono', FIRMWARE)], (1.1, 1.0))):
-        near = (0.0, at + 1.9) if at is not None else (0.0, 0.0)
-        pts = top.grid_spots(near, radius=16.0, step=0.25)
-        tries = []
-        for c in caps:
-            g0 = brand.line(runs, c)[0].bounds
-            mid = (g0[1] + g0[3]) / 2
-            tries.append((c, [(0.0, near[1] + dy - mid, 0, None) for dy in sorted((0.1 * k for k in range(-340, 341)),
-                                                                                  key=abs) if abs(near[1] + dy) < pcb.HALF]))
-        for c in caps:
-            g0 = brand.line(runs, c)[0].bounds
-            mid = (g0[1] + g0[3]) / 2
-            tries.append((c, [(x, y - mid, 0, None) for x, y in pts]))
-            tries.append((c, [(x - mid, y, 90, None) for x, y in pts]))
-        for c, sp in tries:
-            if top.text(runs, sp, size=c, vias='fewest'):
-                at = top.placed[-1].centroid.y - pcb.CY
+    for runs, caps, sides in (([('sans', PRODUCT + ' ESC')], (1.4, 1.3, 1.2, 1.1), (top,)),
+                              ([('mono', FIRMWARE)], (1.1, 1.0), (top, bot))):
+        for pl in sides:
+            near = (0.0, at + 1.9) if at is not None and pl is top else (0.0, 0.0)
+            pts = pl.grid_spots(near, radius=16.0, step=0.25)
+            tries = []
+            for c in caps:
+                g0 = brand.line(runs, c)[0].bounds
+                mid = (g0[1] + g0[3]) / 2
+                tries.append((c, [(0.0, near[1] + dy - mid, 0, None)
+                                  for dy in sorted((0.1 * k for k in range(-340, 341)), key=abs)
+                                  if abs(near[1] + dy) < pcb.HALF]))
+            for c in caps:
+                g0 = brand.line(runs, c)[0].bounds
+                mid = (g0[1] + g0[3]) / 2
+                tries.append((c, [(x, y - mid, 0, None) for x, y in pts]))
+                tries.append((c, [(x - mid, y, 90, None) for x, y in pts]))
+            if any(pl.text(runs, sp, size=c, vias='fewest') for c, sp in tries):
+                if pl is top:
+                    at = top.placed[-1].centroid.y - pcb.CY
                 break
     top.label('J_FC', '1', pad='1', dist=0.8, size=1.2, smallest=0.9, face='mono')
     # which way is forward on the bottom too: the ESC must sit in the stack

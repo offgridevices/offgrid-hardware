@@ -144,7 +144,7 @@
         "min_connection": 0.0,
         "min_copper_edge_clearance": 0.3,
         "min_groove_width": 0.0,
-        "min_hole_clearance": 0.15,
+        "min_hole_clearance": 0.2,
         "min_hole_to_hole": 0.25,
         "min_microvia_diameter": 0.2,
         "min_microvia_drill": 0.1,
@@ -152,10 +152,10 @@
         "min_silk_clearance": 0.0,
         "min_text_height": 0.8,
         "min_text_thickness": 0.08,
-        "min_through_hole_diameter": 0.2,
+        "min_through_hole_diameter": 0.15,
         "min_track_width": 0.1,
-        "min_via_annular_width": 0.074999,
-        "min_via_diameter": 0.35,
+        "min_via_annular_width": 0.05,
+        "min_via_diameter": 0.25,
         "solder_mask_to_copper_clearance": 0.0,
         "use_height_for_length_calcs": true
       },
@@ -264,7 +264,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "fix_glc.kicad_pro",
+    "filename": "esc_fin.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -285,7 +285,7 @@
         "track_width": 0.1,
         "tuning_profile": "",
         "via_diameter": 0.35,
-        "via_drill": 0.2,
+        "via_drill": 0.15,
         "wire_width": 6
       },
       {
@@ -297,33 +297,14 @@
         "line_style": 0,
         "microvia_diameter": 0.3,
         "microvia_drill": 0.1,
-        "name": "BAT",
-        "pcb_color": "rgba(0, 0, 0, 0.000)",
-        "priority": -1,
-        "schematic_color": "rgba(0, 0, 0, 0.000)",
-        "track_width": 0.3,
-        "tuning_profile": "",
-        "via_diameter": 0.35,
-        "via_drill": 0.2,
-        "wire_width": 6
-      },
-      {
-        "bus_width": 12,
-        "clearance": 0.1,
-        "diff_pair_gap": 0.25,
-        "diff_pair_via_gap": 0.25,
-        "diff_pair_width": 0.2,
-        "line_style": 0,
-        "microvia_diameter": 0.3,
-        "microvia_drill": 0.1,
-        "name": "DRIVE",
+        "name": "BOOT",
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "priority": -1,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 0.2,
         "tuning_profile": "",
         "via_diameter": 0.35,
-        "via_drill": 0.2,
+        "via_drill": 0.15,
         "wire_width": 6
       },
       {
@@ -339,10 +320,10 @@
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "priority": -1,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
-        "track_width": 0.2,
+        "track_width": 0.1,
         "tuning_profile": "",
         "via_diameter": 0.35,
-        "via_drill": 0.2,
+        "via_drill": 0.15,
         "wire_width": 6
       },
       {
@@ -354,14 +335,52 @@
         "line_style": 0,
         "microvia_diameter": 0.3,
         "microvia_drill": 0.1,
-        "name": "PWR",
+        "name": "PWR_015_010",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": -1,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.15,
+        "tuning_profile": "",
+        "via_diameter": 0.35,
+        "via_drill": 0.15,
+        "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.1,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "PWR_020_010",
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "priority": -1,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 0.2,
         "tuning_profile": "",
         "via_diameter": 0.35,
-        "via_drill": 0.2,
+        "via_drill": 0.15,
+        "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.13,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "PWR_020_013",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": -1,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.2,
+        "tuning_profile": "",
+        "via_diameter": 0.35,
+        "via_drill": 0.15,
         "wire_width": 6
       },
       {
@@ -373,14 +392,33 @@
         "line_style": 0,
         "microvia_diameter": 0.3,
         "microvia_drill": 0.1,
-        "name": "SW",
+        "name": "PWR_040_015",
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "priority": -1,
         "schematic_color": "rgba(0, 0, 0, 0.000)",
         "track_width": 0.4,
         "tuning_profile": "",
         "via_diameter": 0.35,
-        "via_drill": 0.2,
+        "via_drill": 0.15,
+        "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.13,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "SWITCH",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "priority": -1,
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.12,
+        "tuning_profile": "",
+        "via_diameter": 0.35,
+        "via_drill": 0.15,
         "wire_width": 6
       }
     ],
@@ -396,7 +434,15 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M1_GHA_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M1_GHB"
+      },
+      {
+        "netclass": "GATE",
+        "pattern": "M1_GHB_D"
       },
       {
         "netclass": "GATE",
@@ -404,7 +450,15 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M1_GHC_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M1_GLA"
+      },
+      {
+        "netclass": "GATE",
+        "pattern": "M1_GLA_D"
       },
       {
         "netclass": "GATE",
@@ -412,19 +466,15 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M1_GLB_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M1_GLC"
       },
       {
         "netclass": "GATE",
-        "pattern": "M1_VBA"
-      },
-      {
-        "netclass": "GATE",
-        "pattern": "M1_VBB"
-      },
-      {
-        "netclass": "GATE",
-        "pattern": "M1_VBC"
+        "pattern": "M1_GLC_D"
       },
       {
         "netclass": "GATE",
@@ -432,7 +482,15 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M2_GHA_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M2_GHB"
+      },
+      {
+        "netclass": "GATE",
+        "pattern": "M2_GHB_D"
       },
       {
         "netclass": "GATE",
@@ -440,7 +498,15 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M2_GHC_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M2_GLA"
+      },
+      {
+        "netclass": "GATE",
+        "pattern": "M2_GLA_D"
       },
       {
         "netclass": "GATE",
@@ -448,19 +514,15 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M2_GLB_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M2_GLC"
       },
       {
         "netclass": "GATE",
-        "pattern": "M2_VBA"
-      },
-      {
-        "netclass": "GATE",
-        "pattern": "M2_VBB"
-      },
-      {
-        "netclass": "GATE",
-        "pattern": "M2_VBC"
+        "pattern": "M2_GLC_D"
       },
       {
         "netclass": "GATE",
@@ -468,7 +530,15 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M3_GHA_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M3_GHB"
+      },
+      {
+        "netclass": "GATE",
+        "pattern": "M3_GHB_D"
       },
       {
         "netclass": "GATE",
@@ -476,7 +546,15 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M3_GHC_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M3_GLA"
+      },
+      {
+        "netclass": "GATE",
+        "pattern": "M3_GLA_D"
       },
       {
         "netclass": "GATE",
@@ -484,19 +562,15 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M3_GLB_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M3_GLC"
       },
       {
         "netclass": "GATE",
-        "pattern": "M3_VBA"
-      },
-      {
-        "netclass": "GATE",
-        "pattern": "M3_VBB"
-      },
-      {
-        "netclass": "GATE",
-        "pattern": "M3_VBC"
+        "pattern": "M3_GLC_D"
       },
       {
         "netclass": "GATE",
@@ -504,7 +578,15 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M4_GHA_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M4_GHB"
+      },
+      {
+        "netclass": "GATE",
+        "pattern": "M4_GHB_D"
       },
       {
         "netclass": "GATE",
@@ -512,7 +594,15 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M4_GHC_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M4_GLA"
+      },
+      {
+        "netclass": "GATE",
+        "pattern": "M4_GLA_D"
       },
       {
         "netclass": "GATE",
@@ -520,99 +610,135 @@
       },
       {
         "netclass": "GATE",
+        "pattern": "M4_GLB_D"
+      },
+      {
+        "netclass": "GATE",
         "pattern": "M4_GLC"
       },
       {
         "netclass": "GATE",
-        "pattern": "M4_VBA"
+        "pattern": "M4_GLC_D"
       },
       {
-        "netclass": "GATE",
-        "pattern": "M4_VBB"
+        "netclass": "BOOT",
+        "pattern": "M1_BSTA"
       },
       {
-        "netclass": "GATE",
-        "pattern": "M4_VBC"
+        "netclass": "BOOT",
+        "pattern": "M1_BSTB"
       },
       {
-        "netclass": "DRIVE",
+        "netclass": "BOOT",
+        "pattern": "M1_BSTC"
+      },
+      {
+        "netclass": "BOOT",
+        "pattern": "M2_BSTA"
+      },
+      {
+        "netclass": "BOOT",
+        "pattern": "M2_BSTB"
+      },
+      {
+        "netclass": "BOOT",
+        "pattern": "M2_BSTC"
+      },
+      {
+        "netclass": "BOOT",
+        "pattern": "M3_BSTA"
+      },
+      {
+        "netclass": "BOOT",
+        "pattern": "M3_BSTB"
+      },
+      {
+        "netclass": "BOOT",
+        "pattern": "M3_BSTC"
+      },
+      {
+        "netclass": "BOOT",
+        "pattern": "M4_BSTA"
+      },
+      {
+        "netclass": "BOOT",
+        "pattern": "M4_BSTB"
+      },
+      {
+        "netclass": "BOOT",
+        "pattern": "M4_BSTC"
+      },
+      {
+        "netclass": "SWITCH",
         "pattern": "M1_A"
       },
       {
-        "netclass": "DRIVE",
+        "netclass": "SWITCH",
         "pattern": "M1_B"
       },
       {
-        "netclass": "DRIVE",
+        "netclass": "SWITCH",
         "pattern": "M1_C"
       },
       {
-        "netclass": "DRIVE",
-        "pattern": "M1_VCC"
-      },
-      {
-        "netclass": "DRIVE",
+        "netclass": "SWITCH",
         "pattern": "M2_A"
       },
       {
-        "netclass": "DRIVE",
+        "netclass": "SWITCH",
         "pattern": "M2_B"
       },
       {
-        "netclass": "DRIVE",
+        "netclass": "SWITCH",
         "pattern": "M2_C"
       },
       {
-        "netclass": "DRIVE",
-        "pattern": "M2_VCC"
-      },
-      {
-        "netclass": "DRIVE",
+        "netclass": "SWITCH",
         "pattern": "M3_A"
       },
       {
-        "netclass": "DRIVE",
+        "netclass": "SWITCH",
         "pattern": "M3_B"
       },
       {
-        "netclass": "DRIVE",
+        "netclass": "SWITCH",
         "pattern": "M3_C"
       },
       {
-        "netclass": "DRIVE",
-        "pattern": "M3_VCC"
-      },
-      {
-        "netclass": "DRIVE",
+        "netclass": "SWITCH",
         "pattern": "M4_A"
       },
       {
-        "netclass": "DRIVE",
+        "netclass": "SWITCH",
         "pattern": "M4_B"
       },
       {
-        "netclass": "DRIVE",
+        "netclass": "SWITCH",
         "pattern": "M4_C"
       },
       {
-        "netclass": "DRIVE",
-        "pattern": "M4_VCC"
+        "netclass": "PWR_040_015",
+        "pattern": "BUCK_LX"
       },
       {
-        "netclass": "PWR",
+        "netclass": "PWR_020_013",
+        "pattern": "VBAT"
+      },
+      {
+        "netclass": "PWR_020_010",
+        "pattern": "GVDD"
+      },
+      {
+        "netclass": "PWR_020_010",
+        "pattern": "GVDD_IN"
+      },
+      {
+        "netclass": "PWR_015_010",
         "pattern": "+3V3"
       },
       {
-        "netclass": "PWR",
-        "pattern": "BUCK_CB"
-      },
-      {
-        "netclass": "SW",
-        "pattern": "BUCK_SW"
-      },
-      {
-        "netclass": "BAT",
-        "pattern": "VBAT"
+        "netclass": "PWR_015_010",
+        "pattern": "BUCK_VCC"
       }
     ]
   },
@@ -633,8 +759,8 @@
     "legacy_lib_list": [],
     "top_level_sheets": [
       {
-        "filename": "fix_glc.kicad_sch",
-        "name": "fix_glc",
+        "filename": "esc_fin.kicad_sch",
+        "name": "esc_fin",
         "uuid": "00000000-0000-0000-0000-000000000000"
       }
     ]

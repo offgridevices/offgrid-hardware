@@ -8,8 +8,8 @@
 (rule "one spoke is enough"
   (constraint min_resolved_spokes 1))
 # JLCPCB via-in-pad (POFV): ordered "Epoxy Filled & Capped", every via is
-# filled; holes drilled afterwards (here: the unplated mounting holes) keep
-# 0.45 mm from them.  Via to via: the board's normal hole-to-hole rule.
+# filled; holes drilled afterwards (the unplated mounting holes and plated
+# pads) keep 0.45 mm from them.
 (rule "POFV to drilled holes"
   (condition "A.Type == 'Via' && B.Type == 'Pad'")
   (constraint hole_to_hole (min 0.45mm)))

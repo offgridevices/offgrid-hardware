@@ -710,23 +710,35 @@ def fiducial_keepout(panel_gdir, panel_name, fids, discs):
     from shapely.ops import unary_union
 
     def shapes(path):
+        # each object's own extent, its aperture included: a region's
+        # outline, else its bounding box (gerbonara evaluates aperture
+        # macros; a macro's parameters are not sizes, a free polygon pad's
+        # first one is its rotation)
+        from gerbonara import GerberFile
+        from gerbonara.graphic_objects import Region
+        from gerbonara.utils import MM as GMM
+        from shapely.geometry import box
+        nm = lambda v: int(round(v * MM))
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            f = GerberFile.open(path)
         geo = []
-        for c, pts, sig in _gerber_objects(path):
-            if _is_feature(pts, discs) or not sig[2 if sig[0] != 'R' else 1]:
-                continue            # panel feature, or clear (subtracted) polarity
-            ap = sig[1] if sig[0] != 'R' else None
-            r = 0
-            if ap and ap[0] == 'ApertureMacroInstance':
-                r = max(abs(v) for v in ap[2]) * MM          # conservative: largest parameter
-            elif ap:
-                d = dict(ap[1:])
-                r = max(d.get('diameter') or 0, d.get('w') or 0, d.get('h') or 0) / 2 * MM
-            if sig[0] == 'R':
-                geo.append(Polygon(pts).buffer(0))
-            elif sig[0] == 'F':
-                geo.append(Point(pts[0]).buffer(max(r, 1)))
+        for o in f.objects:
+            if not getattr(o, 'polarity_dark', True):
+                continue            # clear (subtracted) polarity
+            if isinstance(o, Region):
+                pts = [(nm(x), nm(y)) for x, y in o.outline]
+            elif hasattr(o, 'x1'):
+                pts = [(nm(o.x1), nm(o.y1)), (nm(o.x2), nm(o.y2))]
             else:
-                geo.append(LineString(pts).buffer(max(r, 1)))
+                pts = [(nm(o.x), nm(o.y))]
+            if _is_feature(pts, discs):
+                continue            # panel feature
+            if isinstance(o, Region):
+                geo.append(Polygon(pts).buffer(0))
+            else:
+                (x0, y0), (x1, y1) = o.bounding_box(GMM)
+                geo.append(box(nm(x0), nm(y0), nm(x1), nm(y1)))
         return unary_union(geo)
 
     side = {}
