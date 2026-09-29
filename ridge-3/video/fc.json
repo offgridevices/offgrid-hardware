@@ -1,0 +1,6 @@
+{
+  "title": ["Ridge 3", "Flight controller"],
+  "highlights": {"top": "processor, gyro, flash, OSD, USB-C",
+                 "bottom": "5 V and 9 V power supplies"},
+  "silkscreen": {"bottom": "logo, flag, revision"}
+}

@@ -445,6 +445,7 @@ ridge-3/
                           JST-SH and USB-C connectors use KiCad's own models)
   fonts/                  Instrument Sans and JetBrains Mono (SIL OFL)
   src/                    the design, as Python (see below)
+  video/                  exploded-view videos, made from the board files
   requirements.txt
 ```
 
@@ -479,3 +480,25 @@ board, so the same inputs give the same boards.
 The tools: KiCad 10 (`pcbnew` Python module and `kicad-cli`), Freerouting
 1.9 (Java, headless via `xvfb-run`), KiKit 1.8 for the panel, and Python
 3.12 with the packages in `requirements.txt`.
+
+### Exploded-view videos
+
+`python3 video/make_video.py fc` (or `esc`) makes a 16:9 video of a board
+taking itself apart, straight from its `.kicad_pcb`. The board stands on
+its edge and opens sideways into its layers: the parts on each side, the
+silkscreen and solder mask, and every copper layer on its FR-4. It holds
+with each layer labelled, then closes and lies down under the title.
+
+- **Labels:** they come from the board file itself: the stackup, what each
+  copper layer carries (a layer mostly covered by one net and nearly free of
+  tracks is that net's plane), and the part count on each side.
+- **Settings:** each board's own settings are a few lines in `video/fc.json`
+  and `video/esc.json`: the title and a few words on the main parts. A
+  changed board needs only the command again, and a new board needs its own
+  small JSON.
+- **Draft or final:** without options it makes a 720p draft in
+  `video/out/`. `--final` renders 1080p into the board's `images/`, and
+  `--stills 0,270` renders a few labelled frames to check the look.
+- **Setup:** the first run sets up `video/.venv` (Python 3.11 with Blender as
+  a module). Rendering is on the CPU with Cycles, and a stopped render
+  resumes.

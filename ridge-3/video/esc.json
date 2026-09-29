@@ -1,0 +1,5 @@
+{
+  "title": ["Ridge 3", "4-in-1 ESC"],
+  "highlights": {"top": "12 power FETs, current sensors, 3.3 V supply, stack plug",
+                 "bottom": "4 motor processors, 4 gate drivers, 12 power FETs"}
+}

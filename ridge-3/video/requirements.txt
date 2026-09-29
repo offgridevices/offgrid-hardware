@@ -1,0 +1,6 @@
+# video/.venv (Python 3.11): Blender as a Python module, for make_video.py.
+# make_video.py creates the venv and installs these on its first run.
+bpy==4.5.14
+numpy
+Pillow
+imageio-ffmpeg
