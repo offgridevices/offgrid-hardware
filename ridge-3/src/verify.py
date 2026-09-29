@@ -18,7 +18,7 @@ against sources other than the design itself:
     the circuit, and the AM32 target patch applied to the AM32 source
   * the firmware images against the hashes in firmware/README.md
 """
-import math, os, re, sys, hashlib, glob, zipfile
+import math, os, re, sys, hashlib, glob, zipfile, collections
 HERE = os.path.dirname(os.path.abspath(__file__))
 V1 = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
@@ -737,13 +737,44 @@ def check_board(board, name):
     # position, open to its corner
     arcs = [d for d in b.GetDrawings() if d.GetLayer() == pcbnew.Edge_Cuts and d.GetShape() == pcbnew.SHAPE_T_ARC]
     got = sorted((round(a.GetCenter().x / 1e6 - pcb.CX, 2), round(a.GetCenter().y / 1e6 - pcb.CY, 2),
-                  round(a.GetRadius() / 1e6, 2)) for a in arcs)
+                  round(a.GetRadius() / 1e6, 2)) for a in arcs if abs(a.GetRadius() / 1e6 - pcb.HOLE_D / 2) < 0.01)
     want = sorted((sx * pcb.HOLE, sy * pcb.HOLE, pcb.HOLE_D / 2) for sx in (-1, 1) for sy in (-1, 1))
     poly = pcbnew.SHAPE_POLY_SET()
     closed = b.GetBoardPolygonOutlines(poly, False) and poly.OutlineCount() == 1
     check(S, 'mounting: four %.1f mm holes on the 25.5 mm pattern, each open to its corner through a %.1f mm slot '
              '(M2 soft-mount grommets slide in); outline closed' % (pcb.HOLE_D, pcb.SLOT_W),
           got == [tuple(round(v, 2) for v in t) for t in want] and closed, str(got))
+    # no sharp point anywhere on the outline: where the slots meet the edge
+    # and the hole it is rounded, and at every joint the two pieces meeting
+    # there share a tangent (read back from the board's own Edge.Cuts)
+    joints = {}
+    for d in b.GetDrawings():
+        if d.GetLayer() != pcbnew.Edge_Cuts:
+            continue
+        ends = [d.GetStart(), d.GetEnd()]
+        for q in ends:
+            if d.GetShape() == pcbnew.SHAPE_T_ARC:
+                c = d.GetCenter()
+                t = (-(q.y - c.y), q.x - c.x)        # square to the radius
+            else:
+                t = (ends[1].x - ends[0].x, ends[1].y - ends[0].y)
+            joints.setdefault((q.x, q.y), []).append(t)
+    turns = []
+    for ts in joints.values():
+        if len(ts) != 2:
+            turns.append(180.0)
+            continue
+        (ax, ay), (bx, by) = ts
+        c = abs(ax * bx + ay * by) / (math.hypot(ax, ay) * math.hypot(bx, by))
+        turns.append(math.degrees(math.acos(min(1.0, c))))
+    rounds = collections.Counter(round(a.GetRadius() / 1e6, 2) for a in arcs)
+    want = collections.Counter()
+    for r, n in ((pcb.HOLE_D / 2, 4), (pcb.SLOT_TIP[0], 8), (pcb.SLOT_TIP[1], 8), (pcb.SLOT_HOLE_R, 8)):
+        want[round(r, 2)] += n
+    check(S, 'outline: no sharp point; where each slot opens through the edge a round of r %.1f mm sweeping into '
+             'r %.1f mm (8), where it meets the hole r %.1f mm (8); every one of its %d joints tangent (largest turn '
+             '%.2f degrees)' % (pcb.SLOT_TIP[0], pcb.SLOT_TIP[1], pcb.SLOT_HOLE_R, len(joints), max(turns)),
+          rounds == want and max(turns) < 1.0, str(dict(rounds)))
     # the grommets' places (H1-H4: no pads, the holes are the outline's)
     # on those centres
     hs = sorted((round(fp.GetPosition().x / 1e6 - pcb.CX, 2), round(fp.GetPosition().y / 1e6 - pcb.CY, 2))
@@ -924,6 +955,27 @@ def stroke_widths(p, px=400):
     return 2 * ndimage.distance_transform_edt(a)[skeletonize(a)] / px
 
 
+def find_shape(polys, tpl):
+    """Where the geometry `tpl` (board-centre mm) is printed among the silk
+    outlines `polys` (board mm): aligned on its largest piece, a copy
+    counts when the outlines there cover it with an overlap (intersection
+    over union, within its box) of 0.95 or more.  Returns the offsets."""
+    from shapely import affinity
+    from shapely.ops import unary_union
+    pieces = list(tpl.geoms) if hasattr(tpl, 'geoms') else [tpl]
+    key = max(pieces, key=lambda g: g.area)
+    found = []
+    for p in polys:
+        if abs(p.area - key.area) > 0.02 * key.area:
+            continue
+        t = affinity.translate(tpl, p.bounds[0] - key.bounds[0], p.bounds[1] - key.bounds[1])
+        env = t.envelope.buffer(0.02)
+        near = unary_union([q.intersection(env) for q in polys if q.intersects(env)])
+        if t.union(near).area and t.intersection(near).area / t.union(near).area >= 0.95:
+            found.append((round(t.bounds[0], 2), round(t.bounds[1], 2)))
+    return sorted(set(found))
+
+
 def check_silk(board, name):
     S = 'Silkscreen %s' % board.upper()
     import numpy as np
@@ -932,8 +984,9 @@ def check_silk(board, name):
     from shapely.ops import unary_union
     path = os.path.join(V1, board, name + '.kicad_pcb')
     b = pcbnew.LoadBoard(path)
+    sides = {}
     for layer, lname in ((pcbnew.F_SilkS, 'top'), (pcbnew.B_SilkS, 'bottom')):
-        polys = []
+        polys = sides[lname] = []
         other = 0
         for d in b.GetDrawings():
             if d.GetLayer() != layer:
@@ -989,6 +1042,18 @@ def check_silk(board, name):
             check(S, '%s: OffGrid mark at %s px (brand minimum %d px, 1 px = 1/96 in)'
                   % (lname, ', '.join('%.1f' % v for v in found) or 'none', need),
                   bool(found) and min(found) >= need)
+        # the front arrow: one on each side, the same everywhere, with the
+        # side's name by it
+        mirror = lname == 'bottom'
+        arrow = brand.front_arrow_mm(mirror)
+        aw, ah = arrow.bounds[2] - arrow.bounds[0], arrow.bounds[3] - arrow.bounds[1]
+        n = len(find_shape(polys, arrow))
+        check(S, '%s: the front arrow, %.2f x %.2f mm (brand.FRONT_ARROW, the same on both sides of both boards): '
+                 '%d found' % (lname, aw, ah, n), n == 1)
+        word = 'Top' if lname == 'top' else 'Bottom'
+        t = brand.styled('sans', word, brand.SIDE_CAP)[0]
+        n = sum(len(find_shape(polys, brand.place(t, 0, 0, rot=r, mirror=mirror))) for r in (0, 90))
+        check(S, '%s: the side\'s name, "%s", printed by the arrow: %d found' % (lname, word, n), n == 1)
         from shapely.geometry import Point
         flanges = unary_union([Point(pcb.CX + sx * pcb.HOLE, pcb.CY + sy * pcb.HOLE).buffer(pcb.HOLE_KEEPOUT_R)
                                for sx in (-1, 1) for sy in (-1, 1)])
@@ -997,6 +1062,20 @@ def check_silk(board, name):
               not under, '%d outlines, the first at %s' % (len(under), tuple(round(v - 100, 1) for v in
                                                                                under[0].centroid.coords[0]))
               if under else '')
+    # the revision: printed on the board and in its title block (the
+    # Gerbers' file attributes carry it), the same as the layout's
+    L = __import__(board + '_layout')
+    rev = b.GetTitleBlock().GetRevision()
+    runs = [('mono', 'REV ' + L.REVISION)]
+    where = [(sd, size) for sd, ps in sides.items() for size in (1.2, 1.1, 1.0) for r in (0, 90)
+             if find_shape(ps, brand.place(brand.line(runs, size)[0], 0, 0, rot=r, mirror=sd == 'bottom'))]
+    check(S, 'revision %s (%s_layout.REVISION): printed "REV %s" %s; title block revision %r'
+          % (L.REVISION, board, L.REVISION, ', '.join('on the %s at %.1f mm' % w for w in where) or 'nowhere', rev),
+          len(where) == 1 and rev == L.REVISION)
+    if board == 'fc':
+        got = [h for h in L.FLAG_H if find_shape(sides['bottom'], brand.us_flag_mm(h, mirror=True))]
+        check(S, 'bottom: the flag of the United States over the product name, %s mm high (union at the upper '
+                 'left as seen from below)' % (', '.join('%.1f' % h for h in got) or 'none'), len(got) == 1)
 
 
 def check_brand():
@@ -1006,6 +1085,11 @@ def check_brand():
     m, w = brand.lockup()
     check(S, 'mark geometry from offgrid-mark-bone.svg: ring r 58, stroke 22, gap at the top, node r 17',
           abs(m.bounds[2] - m.bounds[0] - 138) < 0.1)
+    # the "O" (its overshoot even above and below) against the ring's centre
+    o = min((w.geoms if hasattr(w, 'geoms') else [w]), key=lambda p: p.bounds[0])
+    off = (o.bounds[1] + o.bounds[3]) / 2 - (brand.MARK_AT[1] + brand.ring_centre()[1])
+    check(S, 'lockup: "OffGrid" on one line with the mark, its capitals centred on the ring (%.1f units off, of '
+             'the lockup\'s 200)' % abs(off), abs(off) < 1.5)
     try:
         import numpy as np
         from PIL import Image, ImageDraw

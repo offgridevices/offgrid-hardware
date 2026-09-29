@@ -29,6 +29,9 @@ from pcb import MM
 
 PRODUCT = 'Ridge 3'
 FIRMWARE = 'RIDGE3'              # the Betaflight build to flash (firmware/)
+# the board's revision, printed by a corner and kept in the title block;
+# each board keeps its own (a change to one board moves only its number)
+REVISION = '1.0'
 
 T, Bo = 'T', 'B'
 PE = 16.8                        # edge solder pads: centre distance from the board centre
@@ -553,10 +556,18 @@ LABELS = [
 ]
 
 
+# the flag over the product name: its height (the hoist; the fly is 1.9
+# times it), largest first, and its gap to the name's capitals
+FLAG_H = (4.0, 3.5)
+FLAG_GAP = 0.9
+
+
 def artwork(b):
     """OffGrid silkscreen: codes in JetBrains Mono, words in Instrument Sans,
-    the bare mark and the front arrow on the top; the lockup and what the
-    board is on the bottom, on the centre line."""
+    the bare mark on the top; the lockup, the flag of the United States and
+    what the board is on the bottom, on the centre line.  On each side the
+    front arrow (the same everywhere) with the side's name, "Top" or
+    "Bottom"; the revision by a corner."""
     import artwork as A, brand
     A.hide_fields(b)
     A.strip(b)
@@ -572,11 +583,10 @@ def artwork(b):
     top.label('J_HD', '1', pad='1', dist=0.8, size=1.2, face='mono')
     top.label('SW_BOOT', 'Boot', pad='1', size=1.2)
     everywhere = top.grid_spots((0.0, 0.0), radius=17.0, step=0.25)
-    if not top.geom(brand.arrow_mm(2.6, 'Front', cap=1.2, side=True), [s for s in everywhere if s[1] < -8],
-                    vias='fewest', margin=0.2, quiet=True):
-        top.geom(brand.arrow_mm(2.6), [s for s in everywhere if s[1] < -8], vias='fewest', margin=0.2)
     mark, clear = brand.mark_mm(3.0)
     top.geom(mark, everywhere, clear=clear, vias='fewest')
+    # the front arrow, and which side this is
+    A.side_mark(top, [s for s in everywhere if s[1] < -8], 'Top')
 
     bot = A.SilkPlacer(b, 'B', brand=True, via_clear=0.1)
     # The bottom carries the supplies at the rear and right.  Two bands
@@ -590,14 +600,13 @@ def artwork(b):
         y0 = -pcb.HALF + 0.35 + 0.4 + h / 2 + 0.01       # edge, then the placer's 0.4 mm margin
         if bot.geom(g, [(0.0, y0 + 0.05 * k) for k in range(30)], clear=clear, vias='fewest', quiet=True):
             break
-    # the front arrow: along the left edge, under the USB-C (with its
-    # word if there is room)
+    # the front arrow and which side this is: along the left edge, under
+    # the USB-C, else as near there as fits
     spots = [(x, y) for x in (-16.2, -16.0, -15.8, -15.6) for y in (0.0, -0.5, 0.5, -1.0, 1.0)]
-    if not bot.geom(brand.arrow_mm(5.0, 'Front', cap=1.2, mirror=True, side=True), spots, vias='fewest',
-                    margin=0.2, quiet=True):
-        bot.geom(brand.arrow_mm(5.0, mirror=True), spots, vias='fewest', margin=0.2)
+    A.side_mark(bot, spots + bot.grid_spots((-15.0, 0.0), radius=16.0, step=0.25), 'Bottom')
     # what the board is: the product name, then the firmware to flash
     base = -0.8
+    name = None
     for runs, cap, step in (([('sans', PRODUCT)], 2.4, 2.2),
                             ([('sans', 'Flight controller')], 1.2, 1.9),
                             ([('mono', FIRMWARE)], 1.1, 0)):
@@ -606,7 +615,21 @@ def artwork(b):
         spots = [(0.0, base + mid + dy, 0, None) for dy in (0.0, 0.1, -0.1, 0.2, 0.3, 0.4, 0.6, 0.8)]
         if bot.text(runs, spots, size=cap, vias='fewest'):
             base = bot.placed[-1].centroid.y - pcb.CY - mid + step
+            name = name or bot.placed[-1]
+    # the flag of the United States over the product name, on the centre
+    # line (the owner's request: where the company's name is)
+    if name is None:
+        raise SystemExit('fc: the product name found no room, nor then the flag')
+    above = name.bounds[1] - pcb.CY - FLAG_GAP
+    for h in FLAG_H:
+        if bot.geom(brand.us_flag_mm(h, mirror=True), [(0.0, above - h / 2 - 0.05 * k) for k in range(40)],
+                    vias='fewest', margin=0.1, quiet=True):
+            break
+    else:
+        raise SystemExit('fc: no room for the flag over the product name')
     # the bottom's pad names (SWD), after the name has its place
     for ref, s in LABELS:
         if side[ref] == 'B':
             bot.label(ref, s, size=1.2, smallest=1.1, face='mono')
+    # the revision, by a corner: the bottom first, with the name
+    A.revision((bot, top), REVISION)

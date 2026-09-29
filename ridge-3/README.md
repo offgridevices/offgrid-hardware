@@ -13,9 +13,14 @@ Ridge 3 is the first of a line named by prop size: **Ridge 3**, **Ridge 7**,
 errors, zero warnings and zero unconnected items against JLCPCB's rules.
 The copper matches `src/circuit.py` pad for pad, and
 [`VERIFICATION.md`](VERIFICATION.md) checks the design against sources other
-than itself (191 checks, all passing). No board has been made or
+than itself (205 checks, all passing). No board has been made or
 measured. Order the minimum quantity, build one stack, and go through the
 [bring-up](#bring-up) steps before building more.
+
+**Revision 1.0** for both boards: printed `REV 1.0` by a corner of each, and
+in each board file's title block, which the Gerbers carry. Each board keeps
+its own number (`REVISION` in `src/fc_layout.py` and `src/esc_layout.py`), so
+a change to the ESC alone moves only the ESC's.
 
 ![Ridge 3: both sides of both boards](images/ridge3-stack.png)
 
@@ -40,7 +45,12 @@ measured. Order the minimum quantity, build one stack, and go through the
 **Mounting holes.** Each corner hole (3.2 mm) has a 2.5 mm slot cut out to
 the corner. A standard M3-to-M2 rubber grommet slides in from the corner and
 snaps into the hole, rather than being forced through a closed hole. An M3
-screw also fits for a hard mount.
+screw also fits for a hard mount. The outline has no sharp point anywhere:
+where each slot opens through the edge, the point is rounded by a tight
+0.3 mm arc sweeping into a 2 mm one along the slot (so it takes under 1 mm
+of the straight edge, which the production panel's break-off tabs need),
+and where the slot meets the hole by a 0.3 mm round, which keeps the lip
+that holds the grommet.
 
 **Stack lead:** JST-SH 1.0 mm, 8 pins, pin 1 to pin 1, the FPV standard:
 `1 VBAT, 2 GND, 3 CUR, 4 TLM, 5 M1, 6 M2, 7 M3, 8 M4`. The ESC's CUR output
@@ -280,8 +290,8 @@ and copper, so the tabs never sit on the grommet slots or next to a part.
 The rail reads `JLCJLCJLCJLC`, so JLC prints its order number there rather
 than on a board. After depanelling, sand the tab stubs flush (up to
 0.25 mm). `make.py` checks every copy on the panel against the single board:
-Gerbers, BOM and CPL. It also checks that the panel's DRC result equals six
-copies of the board's own.
+Gerbers (to 10 nm, and filled regions by shape), BOM and CPL. It also checks
+that the panel's DRC result equals six copies of the board's own.
 
 **Programming** is the one per-unit labour step. Each FC flashes over USB
 (hold BOOT, plug in). Each ESC needs four short SWD sessions on its test
@@ -313,8 +323,9 @@ pre-programming service.
 5. **Motor wires:** each motor's three wires to the three pads beside its
    number.
 6. **Stack:** ESC at the bottom, FC on top, both with the **front arrow
-   forward**. Slide the grommets into the corner slots, then fit the stack
-   cable.
+   forward** and the side marked **Top** facing up. Slide the grommets into
+   the corner slots, then fit the stack cable. (The FC's gyro alignment
+   assumes its top faces up; Betaflight's board alignment can change that.)
 
 ## Bring-up
 
@@ -368,11 +379,23 @@ default expression, so the boards are **Pitch** (black solder mask) with
 
 - The FC's bottom carries the horizontal lockup (the mark and "OffGrid")
   centred on the front edge, with no tagline, and under it, on the centre
-  line, the product name and the firmware to flash. Its top carries the
-  mark on its own.
+  line, the flag of the United States, the product name and the firmware
+  to flash. Its top carries the mark on its own.
+- In the lockup the word sits on one line with the mark, its capitals
+  centred on the ring. This is the one change from the hand-off file,
+  whose baseline leaves the word 25 units (of its 200) above the ring's
+  centre; it was made at the owner's direction.
+- The flag is not from the brand files. It is drawn in the proportions of
+  Executive Order 10834 (hoist 1, fly 1.9, 13 stripes), 4 mm high, in one
+  colour: the red stripes and the union are ink, the white stripes are
+  the board. The 50 stars are left out: at this size each would be about
+  0.25 mm across, below what silkscreen prints, so the union is solid.
+- Every side carries the same front arrow (2.6 mm long, 1.8 mm across the
+  head: one definition in `src/brand.py`) with the side's name, **Top** or
+  **Bottom**, beside it. Where it sits and which side of the arrow the word
+  takes depends on each side's free room.
 - The ESC is full of parts on both sides. Its mark sits on top in the
-  roomiest free spot, at the front edge, and the front arrow takes the
-  mirror spot across the centre line. The top also carries the name, each
+  roomiest free spot, at the front edge. The top also carries the name, each
   motor's number, the pack range, the SWD pad names and the stack
   connector's pin 1. Neither side has room for the firmware code at the
   smallest size the fab prints cleanly (1 mm), so it is not printed: the

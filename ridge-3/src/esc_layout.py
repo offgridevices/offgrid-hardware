@@ -1315,16 +1315,20 @@ def escape_pins(b, comps):
 # ============================================================ artwork
 PRODUCT = 'Ridge 3'               # the lineup: Ridge 3 / 7 / 12, by prop size
 FIRMWARE = 'RIDGE3_G071'          # the AM32 build to flash (firmware/am32)
+# the board's revision, printed by a corner and kept in the title block;
+# each board keeps its own (a change to one board moves only its number)
+REVISION = '1.0'
 
 
 def artwork(b, comps):
     """OffGrid silkscreen.  Top (it faces the flight controller): the
     OffGrid mark, the motor number by every motor's pads, battery polarity,
     the pack range, pin 1 of the stack connector, the SWD pad names, the
-    board's name and firmware, the front arrow.  Bottom: battery polarity
-    and the front arrow (and the firmware, when the top has no room; with
-    no room on either side it is left off, and firmware/README.md names
-    the build).  Codes in JetBrains Mono, words in Instrument
+    board's name and firmware.  Bottom: battery polarity (and the firmware,
+    when the top has no room; with no room on either side it is left off,
+    and firmware/README.md names the build).  On each side the front arrow
+    (the same everywhere) with the side's name, "Top" or "Bottom"; the
+    revision by a corner.  Codes in JetBrains Mono, words in Instrument
     Sans.  Nothing lands on a pad, a hole, a part body or under a grommet.
 
     Both sides are full of parts; the mark takes the roomiest free spot of
@@ -1364,10 +1368,9 @@ def artwork(b, comps):
             break
     else:
         raise SystemExit('esc: no room on the top for the OffGrid mark')
+    # the front arrow and which side this is, in the mirror spot
     mirror = [(x, y) for x, y in top.grid_spots((-mark_at[0], mark_at[1]), radius=11.0, step=0.1)]
-    if not any(top.geom(brand.arrow_mm(2.6, 'Front', cap=1.2), mirror, vias='fewest', margin=m, quiet=True)
-               for m in (0.35, 0.2)):
-        top.geom(brand.arrow_mm(2.6), mirror, vias='fewest', margin=0.2)
+    A.side_mark(top, mirror, 'Top')
     # SWD and supply test points, on whichever side they are, before the
     # motor numbers: each has one pad to sit by
     for n in CHANNELS:
@@ -1434,10 +1437,9 @@ def artwork(b, comps):
     top.label('J_FC', '1', pad='1', dist=0.8, size=1.2, smallest=0.9, face='mono')
     # which way is forward on the bottom too: the ESC must sit in the stack
     # the same way round as the FC, or every motor number is wrong
-    spots = bot.grid_spots((0.0, -6.0), radius=11.0, step=0.25)
-    if not any(bot.geom(brand.arrow_mm(2.6, 'Front', cap=1.2, mirror=True), spots, vias='fewest',
-                        margin=m, quiet=True) for m in (0.6, 0.35)):
-        bot.geom(brand.arrow_mm(2.6, mirror=True), spots, vias='fewest', margin=0.4)
+    A.side_mark(bot, bot.grid_spots((0.0, -6.0), radius=16.0, step=0.25), 'Bottom')
+    # the revision, by a corner: the top first, with the name
+    A.revision((top, bot), REVISION)
 
 
 if __name__ == '__main__':

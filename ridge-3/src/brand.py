@@ -8,7 +8,10 @@ Everything here comes from the brand hand-off (offgrid-brand, v3.2):
            node circle r 17 at (100, 40), in a 200 x 200 box
   lockup   offgrid-wordmark-horizontal.svg, 800 x 200: mark at translate(20 12),
            "OffGrid" in Instrument Sans 600, size 92, letter-spacing -3,
-           baseline at x 240 y 128
+           baseline at x 240 y 128.  One change, by the brand's owner
+           (2026-09-29): the word sits on one line with the mark, its
+           capitals centred on the ring (the file's baseline leaves them 25
+           units above the ring's centre)
   type     tokens.json: labels in Instrument Sans 500, tracking 0.01 em
            (.og-label), sentence case, never bold; JetBrains Mono 500 for
            numerals, codes and serials only, uppercase, tracking 0.06 em;
@@ -42,13 +45,19 @@ MIN_STROKE = 0.15
 
 
 # ---------------------------------------------------------------- the mark
+def ring_centre():
+    """Centre of the ring's arc in the mark's 200-unit box: the large,
+    clockwise (sweep 1) arc of radius 58 through (124.5, 55.4) and
+    (75.5, 55.4)."""
+    x0, y0, x1, y1, r = 124.5, 55.4, 75.5, 55.4, 58.0
+    h = math.sqrt(r * r - ((x1 - x0) / 2) ** 2)
+    return (x0 + x1) / 2, (y0 + y1) / 2 + h
+
+
 def mark(steps=96):
     """The Beacon Ring in its 200-unit box, y down (SVG coordinates)."""
     x0, y0, x1, y1, r = 124.5, 55.4, 75.5, 55.4, 58.0
-    # centre of the large, clockwise (sweep 1) arc through both end points
-    mx, my = (x0 + x1) / 2, (y0 + y1) / 2
-    h = math.sqrt(r * r - ((x1 - x0) / 2) ** 2)
-    cx, cy = mx, my + h
+    cx, cy = ring_centre()
     a0 = math.atan2(y0 - cy, x0 - cx)
     a1 = math.atan2(y1 - cy, x1 - cx)
     if a1 <= a0:
@@ -187,11 +196,14 @@ def mono(weight=500):
 
 
 def lockup():
-    """The horizontal lockup in its 800 x 200 units: (mark, wordmark)."""
+    """The horizontal lockup in its 800 x 200 units: (mark, wordmark), the
+    word's capitals centred on the ring (see the module's notes)."""
     m = affinity.translate(mark(), *MARK_AT)
     size = WORD['size']
-    w, _ = sans(WORD['weight']).outline('OffGrid', size, tracking=WORD['tracking'], liga=False)
-    w = affinity.translate(w, WORD['x'], WORD['y'])
+    face = sans(WORD['weight'])
+    w, _ = face.outline('OffGrid', size, tracking=WORD['tracking'], liga=False)
+    cap = -face.outline('H', size, liga=False)[0].bounds[1]
+    w = affinity.translate(w, WORD['x'], MARK_AT[1] + ring_centre()[1] + cap / 2)
     return m, w
 
 
@@ -303,4 +315,75 @@ def arrow_mm(length, text=None, cap=1.1, shaft=0.25, head=0.9, gap=0.5, mirror=F
     g = unary_union(parts)
     x0, y0, x1, y1 = g.bounds
     g = affinity.translate(g, -(x0 + x1) / 2, -(y0 + y1) / 2)
+    return affinity.scale(g, -1, 1, origin=(0, 0)) if mirror else g
+
+
+# ---------------------------------------------------------------- orientation
+# One front arrow for every side of both boards: the same length, shaft and
+# head wherever it is printed, so it always reads the same.  Beside it, the
+# side's name ("Top" or "Bottom"): which face goes up when the board lies
+# flat (the flight controller's gyro alignment assumes its top faces up).
+FRONT_ARROW = dict(length=2.6, shaft=0.25, head=0.9)
+SIDE_CAP = 1.1                   # Instrument Sans capitals, the words' floor
+SIDE_GAP = 0.5                   # arrow to word
+
+
+def front_arrow_mm(mirror=False):
+    """The front arrow, pointing to -y, centred on the origin."""
+    return arrow_mm(FRONT_ARROW['length'], shaft=FRONT_ARROW['shaft'], head=FRONT_ARROW['head'], mirror=mirror)
+
+
+# where the side's name sits by the arrow, first choice first: centred
+# under its tail, to its right or left (level with its middle), along the
+# shaft reading forward (to its right, then left), then over the head
+# (centred, or flush with the arrow's right or left side) where only a
+# strip along an edge is left
+BADGE_LAYOUTS = ('below', 'right', 'left', 'along-right', 'along-left', 'above', 'above-r', 'above-l')
+
+
+def side_badge_mm(word, mirror=False, layout='below'):
+    """The front arrow with the side's name beside it (BADGE_LAYOUTS), one
+    block with SIDE_GAP between them; the arrow centred on the origin and
+    the same in every layout."""
+    a = front_arrow_mm()
+    x0, y0, x1, y1 = a.bounds
+    t, _ = styled('sans', word, SIDE_CAP)
+    tw, th = t.bounds[2] - t.bounds[0], t.bounds[3] - t.bounds[1]
+    if layout == 'below':
+        t = place(t, 0.0, y1 + SIDE_GAP + th / 2)
+    elif layout == 'right':
+        t = place(t, x1 + SIDE_GAP, 0.0, anchor='l')
+    elif layout == 'left':
+        t = place(t, x0 - SIDE_GAP, 0.0, anchor='r')
+    elif layout in ('above', 'above-r', 'above-l'):
+        y = y0 - SIDE_GAP - th / 2
+        t = {'above': lambda: place(t, 0.0, y), 'above-r': lambda: place(t, x1, y, anchor='r'),
+             'above-l': lambda: place(t, x0, y, anchor='l')}[layout]()
+    elif layout in ('along-right', 'along-left'):
+        # turned to read from the tail towards the head
+        sign = 1 if layout == 'along-right' else -1
+        t = place(t, sign * (x1 + SIDE_GAP + th / 2), 0.0, rot=90)
+    else:
+        raise ValueError(layout)
+    g = unary_union([a, t])
+    return affinity.scale(g, -1, 1, origin=(0, 0)) if mirror else g
+
+
+# ---------------------------------------------------------------- the flag
+# Not from the brand hand-off: the flag of the United States, added at the
+# owner's request (2026-09-29).  Proportions from Executive Order 10834
+# (hoist 1, fly 1.9, union 7/13 of the hoist by 0.76, thirteen stripes).
+def us_flag_mm(height, mirror=False):
+    """The flag in one colour, `height` mm high (the hoist), centred on the
+    origin, the union at the upper left as seen from the side it is printed
+    on: the seven red stripes and the union as ink, the six white stripes as
+    the board between them.  The fifty stars are left out: at a board
+    label's size (4 mm high) each would be about 0.25 mm across, under
+    what silkscreen prints, so the union is solid (the usual one-colour
+    rendering)."""
+    a = height
+    b, stripe, d = 1.9 * a, a / 13.0, 0.76 * a
+    parts = [box(-b / 2, -a / 2 + 2 * k * stripe, b / 2, -a / 2 + (2 * k + 1) * stripe) for k in range(7)]
+    parts.append(box(-b / 2, -a / 2, -b / 2 + d, -a / 2 + 7 * stripe))
+    g = unary_union(parts)
     return affinity.scale(g, -1, 1, origin=(0, 0)) if mirror else g

@@ -2,7 +2,7 @@
 """Build the Ridge 3 stack (flight controller + 4-in-1 ESC): every committed output, with gates.
 
     python3 make.py              outputs from the committed .kicad_pcb files
-    python3 make.py --artwork    lay the silkscreen and stackup out again first
+    python3 make.py --artwork    lay the outline, silkscreen and stackup out again first
                                  (copper untouched)
     python3 make.py --reroute    place and route both boards from scratch first
     python3 make.py fc           one board only (fc or esc)
@@ -69,14 +69,21 @@ def check_outputs(board, name, prod):
 
 
 def artwork(dst, board):
-    """Silkscreen and stackup again on the committed board."""
+    """Outline, silkscreen and stackup again on the committed board (the
+    copper stays; DRC refills the pours against the outline)."""
     L = __import__(board + '_layout')
     b = pcbnew.LoadBoard(dst)
+    pcb.redraw_outline(b)
     if board == 'fc':
         L.artwork(b)
     else:
         L.artwork(b, circuit.build(board))
+    # (pcbnew's save rewrites the project file too; keep it as it was)
+    pro = os.path.splitext(dst)[0] + '.kicad_pro'
+    keep = open(pro).read() if os.path.exists(pro) else None
     b.Save(dst)
+    if keep is not None:
+        open(pro, 'w').write(keep)
     pcb.set_stackup(dst, getattr(L, 'INNER_OZ', 0.5))
 
 

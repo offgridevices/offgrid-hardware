@@ -5,13 +5,13 @@
       "Application": "Pcbnew",
       "Version": "10.0.6-10.0.6~ubuntu24.04.1"
     },
-    "CreationDate": "2026-09-29T00:38:51+00:00"
+    "CreationDate": "2026-09-29T02:57:08+00:00"
   },
   "GeneralSpecs": {
     "ProjectId": {
       "Name": "ridge3-esc",
       "GUID": "72696467-6533-42d6-9573-632e6b696361",
-      "Revision": "rev?"
+      "Revision": "1.0"
     },
     "Size": {
       "X": 36.1,

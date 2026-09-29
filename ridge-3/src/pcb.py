@@ -76,68 +76,160 @@ def add_net(b, name):
         b.Add(n)
     return n
 
+# Every point of the outline where the slot meets the board's edge or the
+# hole is rounded off with arcs tangent to both sides, so the outline is
+# one smooth curve with no sharp point anywhere.  Where the slot opens
+# through the edge (a 45 degree point before): a tight arc off the edge
+# (SLOT_TIP's first radius) sweeping on into a wide one along the slot's
+# wall (its second), taking only SLOT_TIP's third figure of the straight
+# edge, so the production panel's tabs keep their room between the slot and
+# the edge pads.  Where the walls meet the hole: SLOT_HOLE_R, small, so the
+# lip that holds the grommet in the hole stays.
+SLOT_TIP = (0.3, 2.0, 0.95)       # mm: radius at the edge, radius along the wall, length of edge taken
+SLOT_HOLE_R = 0.3
+
+
+def _unit(x, y):
+    import math
+    l = math.hypot(x, y)
+    return x / l, y / l
+
+
+def _arc_mid(c, r, p, q):
+    """The mid-point of the shorter arc of radius r round c from p to q."""
+    mx, my = _unit((p[0] - c[0]) + (q[0] - c[0]), (p[1] - c[1]) + (q[1] - c[1]))
+    return c[0] + r * mx, c[1] + r * my
+
+
+def _fillet_compound(v, ue, uw, r1, r2, te):
+    """Round the corner at v between an edge leaving along the unit
+    direction ue and a wall leaving along uw: an arc of radius r1 tangent to
+    the edge te from v, then an arc of radius r2, tangent to it and to the
+    wall.  Returns [('arc', on edge, mid, joint), ('arc', joint, mid, on
+    wall)]."""
+    import math
+    dot = ue[0] * uw[0] + ue[1] * uw[1]
+    ne = _unit(uw[0] - dot * ue[0], uw[1] - dot * ue[1])     # into the corner, off the edge
+    nw = _unit(ue[0] - dot * uw[0], ue[1] - dot * uw[1])     # into the corner, off the wall
+    e = (v[0] + te * ue[0], v[1] + te * ue[1])
+    c1 = (e[0] + r1 * ne[0], e[1] + r1 * ne[1])
+    c2 = lambda t: (v[0] + t * uw[0] + r2 * nw[0], v[1] + t * uw[1] + r2 * nw[1])
+    f = lambda t: math.hypot(c2(t)[0] - c1[0], c2(t)[1] - c1[1]) - (r2 - r1)
+    # the wide arc holds the tight one inside it where they touch; of the
+    # two places along the wall where that works, the far one (the wide arc
+    # runs out along the wall)
+    ts = [k * 0.001 for k in range(1, 20000)]
+    roots = [(a, b) for a, b in zip(ts, ts[1:]) if f(a) * f(b) <= 0]
+    if not roots:
+        raise ValueError('no compound round for r %g / %g over %g mm' % (r1, r2, te))
+    a, b = roots[-1]
+    for _ in range(60):
+        m = (a + b) / 2
+        a, b = (a, m) if f(a) * f(m) <= 0 else (m, b)
+    tw = (a + b) / 2
+    w = (v[0] + tw * uw[0], v[1] + tw * uw[1])
+    k = c2(tw)
+    d = _unit(c1[0] - k[0], c1[1] - k[1])
+    j = (k[0] + r2 * d[0], k[1] + r2 * d[1])
+    return [('arc', e, _arc_mid(c1, r1, e, j), j), ('arc', j, _arc_mid(k, r2, j, w), w)]
+
+
 def _slot(sx, sy):
-    """One corner's mounting slot: (edge point on the vertical edge, its
-    point on the hole circle, arc mid-point, the other circle point, edge
-    point on the horizontal edge), in board-centre mm."""
+    """One corner's mounting slot as a chain of points and arcs, from the
+    vertical edge (x = +-HALF) round the hole to the horizontal edge
+    (y = +-HALF), in board-centre mm: [('line', p0, p1) | ('arc', p0, mid,
+    p1), ...], each item starting where the one before it ends."""
     import math
     r, a = HOLE_D / 2, SLOT_W / 2
-    cx, cy = sx * HOLE, sy * HOLE
+    o = (sx * HOLE, sy * HOLE)
     d = (sx / math.sqrt(2), sy / math.sqrt(2))          # towards the corner
-    n = (sx / math.sqrt(2), -sy / math.sqrt(2))         # across the slot
-    t0 = math.sqrt(r * r - a * a)
-    s_plus = (cx + t0 * d[0] + a * n[0], cy + t0 * d[1] + a * n[1])
-    s_minus = (cx + t0 * d[0] - a * n[0], cy + t0 * d[1] - a * n[1])
-    e_plus = (sx * HALF, sy * HALF - sy * math.sqrt(2) * a)      # on x = +-HALF
-    e_minus = (sx * HALF - sx * math.sqrt(2) * a, sy * HALF)     # on y = +-HALF
-    mid = (cx - r * d[0], cy - r * d[1])
-    return e_plus, s_plus, mid, s_minus, e_minus
+    n = (sx / math.sqrt(2), -sy / math.sqrt(2))         # across the slot, towards the vertical edge
+    at = lambda t, k: (o[0] + t * d[0] + k * n[0], o[1] + t * d[1] + k * n[1])
+    back = (-d[0], -d[1])
+    chain = []
+    # (side +1: the wall towards the vertical edge; -1: towards the horizontal one)
+    walls = {}
+    for side in (1, -1):
+        # where the wall comes through the edge, and the arc there
+        if side == 1:
+            v, along = (sx * HALF, sy * HALF - sy * math.sqrt(2) * a), (0.0, -sy)
+        else:
+            v, along = (sx * HALF - sx * math.sqrt(2) * a, sy * HALF), (-sx, 0.0)
+        tip = _fillet_compound(v, along, back, *SLOT_TIP)
+        w = tip[-1][-1]
+        # the arc between the wall and the hole: its centre SLOT_HOLE_R off
+        # the wall on the board's side, SLOT_HOLE_R off the hole's edge
+        q = SLOT_HOLE_R
+        tc = math.sqrt((r + q) ** 2 - (a + q) ** 2)
+        c = at(tc, side * (a + q))
+        on_wall = at(tc, side * a)
+        on_hole = (o[0] + (c[0] - o[0]) * r / (r + q), o[1] + (c[1] - o[1]) * r / (r + q))
+        mx, my = (on_wall[0] - c[0]) + (on_hole[0] - c[0]), (on_wall[1] - c[1]) + (on_hole[1] - c[1])
+        ml = math.hypot(mx, my)
+        hmid = (c[0] + mx / ml * q, c[1] + my / ml * q)
+        walls[side] = (tip, w, on_wall, hmid, on_hole)
+    tip, w, on_wall, hmid, on_hole = walls[1]
+    chain += tip + [('line', w, on_wall), ('arc', on_wall, hmid, on_hole)]
+    far = (o[0] - r * d[0], o[1] - r * d[1])            # the hole's side away from the corner
+    tip2, w2, on_wall2, hmid2, on_hole2 = walls[-1]
+    chain += [('arc', on_hole, far, on_hole2), ('arc', on_hole2, hmid2, on_wall2), ('line', on_wall2, w2)]
+    chain += _reverse(tip2)
+    return chain
+
+
+def _reverse(chain):
+    return [(it[0],) + tuple(reversed(it[1:])) for it in reversed(chain)]
 
 
 def outline_path():
     """The board outline, clockwise on screen from the top-left corner:
     a list of ('line', p0, p1) and ('arc', p0, mid, p1)."""
-    path, pts = [], []
+    chains = []
     for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
-        e_plus, s_plus, mid, s_minus, e_minus = _slot(sx, sy)
-        if (sx, sy) in ((1, -1), (-1, 1)):
-            seq = (e_minus, s_minus, mid, s_plus, e_plus)
-        else:
-            seq = (e_plus, s_plus, mid, s_minus, e_minus)
-        pts.append(seq)
-    for i, (a0, a1, am, a2, a3) in enumerate(pts):
-        path.append(('line', a0, a1))
-        path.append(('arc', a1, am, a2))
-        path.append(('line', a2, a3))
-        nxt = pts[(i + 1) % 4][0]
-        path.append(('line', a3, nxt))
+        c = _slot(sx, sy)
+        chains.append(_reverse(c) if (sx, sy) in ((1, -1), (-1, 1)) else c)
+    path = []
+    for i, c in enumerate(chains):
+        path += c
+        path.append(('line', c[-1][-1], chains[(i + 1) % 4][0][1]))
     return path
+
+
+def arc_points(p0, pm, p1, n=24):
+    """n + 1 points along the arc from p0 through pm to p1."""
+    import math
+    ax, ay = p0; bx, by = pm; cx_, cy_ = p1
+    dd = 2 * (ax * (by - cy_) + bx * (cy_ - ay) + cx_ * (ay - by))
+    ux = ((ax * ax + ay * ay) * (by - cy_) + (bx * bx + by * by) * (cy_ - ay) + (cx_ * cx_ + cy_ * cy_) * (ay - by)) / dd
+    uy = ((ax * ax + ay * ay) * (cx_ - bx) + (bx * bx + by * by) * (ax - cx_) + (cx_ * cx_ + cy_ * cy_) * (bx - ax)) / dd
+    rad = math.hypot(ax - ux, ay - uy)
+    a0 = math.atan2(ay - uy, ax - ux); am = math.atan2(by - uy, bx - ux); a1 = math.atan2(cy_ - uy, cx_ - ux)
+    norm = lambda v: v % (2 * math.pi)
+    span = norm(a1 - a0); via = norm(am - a0)
+    if via > span:
+        span -= 2 * math.pi
+    return [(ux + rad * math.cos(a0 + span * k / n), uy + rad * math.sin(a0 + span * k / n)) for k in range(n + 1)]
 
 
 def board_polygon(n_arc=24):
     """The board as a shapely polygon in board-centre mm (arcs as
     polylines)."""
-    import math
     from shapely.geometry import Polygon
     ring = []
     for item in outline_path():
         if item[0] == 'line':
             ring.append(item[1])
         else:
-            (x0, y0), (xm, ym), (x1, y1) = item[1:]
-            cx, cy = math.copysign(HOLE, x0), math.copysign(HOLE, y0)
-            a0 = math.atan2(y0 - cy, x0 - cx); am = math.atan2(ym - cy, xm - cx); a1 = math.atan2(y1 - cy, x1 - cx)
-            # go from a0 to a1 the way that passes am
-            def norm(v):
-                while v < 0: v += 2 * math.pi
-                return v
-            span = norm(a1 - a0); via = norm(am - a0)
-            if via > span:
-                span -= 2 * math.pi
-            for k in range(n_arc):
-                t = a0 + span * k / n_arc
-                ring.append((cx + HOLE_D / 2 * math.cos(t), cy + HOLE_D / 2 * math.sin(t)))
+            ring += arc_points(*item[1:], n=n_arc)[:-1]
     return Polygon(ring)
+
+
+def redraw_outline(b):
+    """The board's outline drawn again from outline_path() (a board built
+    before the outline changed); nothing else on Edge.Cuts is kept."""
+    for d in [d for d in b.GetDrawings() if d.GetLayer() == pcbnew.Edge_Cuts]:
+        remove(b, d)
+    outline(b)
 
 
 def outline(b):

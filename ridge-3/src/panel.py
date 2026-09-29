@@ -127,9 +127,24 @@ def _shape(b):
     return g
 
 
+def _position_panel(page, panel):
+    """KiKit's positionPanel (the panel's top-left corner to the page
+    position; this preset's anchor is 'tl'), moved by a whole number of
+    micrometres: KiKit's box of the outline's arcs, as polylines, is a few
+    tens of nm off, and each copy's offset must stay a whole 0.1 um."""
+    if page.get('anchor') != 'tl':
+        raise SystemExit('panel.py places the panel by its top-left corner only')
+    bb = panel.boardSubstrate.boundingBox()
+    x0, y0 = bb.GetX(), bb.GetY()
+    um = lambda v: int(round(v / 1000.0)) * 1000
+    panel.translate((um(page['posx'] - x0), um(page['posy'] - y0)))
+
+
 def _outline(b):
-    """Bounding box of the board outline as (x0, y0, x1, y1) in nm."""
-    return tuple(int(round(v)) for v in _shape(b).bounds)
+    """Bounding box of the board outline as (x0, y0, x1, y1) in nm, on
+    whole micrometres (arcs come as polylines a few tens of nm off the
+    edges they are tangent to; the copies' offsets must be whole 0.1 um)."""
+    return tuple(int(round(v / 1000.0)) * 1000 for v in _shape(b).bounds)
 
 
 def outline_cutouts(b, box, step=0.05):
@@ -339,6 +354,13 @@ def build_panel(board_pcb, panel_pcb, name, cols, rows, rails='tb'):
     panel.inheritTitleBlock(board)
     panel.inheritLayerNames(board)
     src_area = ki.readSourceArea(preset['source'], board)
+    # the box on whole micrometres: KiCad's box of a small outline arc (its
+    # centre worked out from three points rounded to the nm) can stand a
+    # few tens of nm off the edge the arc is tangent to, and each copy's
+    # offset must be a whole 0.1 um (the Gerbers' resolution)
+    um = lambda v: int(round(v / 1000.0)) * 1000
+    x0, y0, x1, y1 = um(src_area.GetX()), um(src_area.GetY()), um(src_area.GetRight()), um(src_area.GetBottom())
+    src_area = pcbnew.BOX2I(pcbnew.VECTOR2I(x0, y0), pcbnew.VECTOR2I(x1 - x0, y1 - y0))
 
     refmap = {}          # panel ref -> (original ref, copy number 1..n)
 
@@ -395,7 +417,7 @@ def build_panel(board_pcb, panel_pcb, name, cols, rows, rails='tb'):
     ki.makeOtherCuts(preset, panel, frame_cuts)
     ki.setStackup(preset['source'], panel)
     ki.setPageSize(preset['page'], panel, board)
-    ki.positionPanel(preset['page'], panel)
+    _position_panel(preset['page'], panel)
     panel.save(reconstructArcs=False, refillAllZones=False, edgeWidth=int(0.1 * MM))
     if panel.hasErrors():
         raise NonFatalErrors(panel.errors)
@@ -632,6 +654,23 @@ def _is_feature(pts, discs):
     return False
 
 
+# two copies of a filled region are the same shape when the area they do
+# not share is under this (nm^2: 1 um^2)
+REGION_TOL = 1e6
+
+
+def _same_object(pts, q, sig, tol):
+    """One object of a copy against one of the board (both moved to the
+    board): every point within `tol` (nm), or for a filled region the same
+    shape (REGION_TOL)."""
+    if len(q) == len(pts) and all(abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol for a, b in zip(pts, q)):
+        return True
+    if sig[0] == 'R' and len(pts) > 2 and len(q) > 2:
+        from shapely.geometry import Polygon
+        return Polygon(pts).buffer(0).symmetric_difference(Polygon(q).buffer(0)).area <= REGION_TOL
+    return False
+
+
 def check_gerbers(single_gdir, single_name, panel_gdir, panel_name, box, offsets, discs, margin=1.0):
     """For every layer and drill file: the objects of each copy, moved back
     by that copy's offset, are exactly the single board's objects.  Objects
@@ -669,9 +708,13 @@ def check_gerbers(single_gdir, single_name, panel_gdir, panel_name, box, offsets
             else:
                 extra[sig[0]] += 1
         # Excellon coordinates have 1 um resolution (KiCad: metric, 3 decimals),
-        # and holes on half-um positions round either way once moved; Gerbers
-        # (4.6, 1 nm) must match exactly.
-        tol = 1000 if suffix.endswith('.drl') else 0
+        # and holes on half-um positions round either way once moved.  Gerbers
+        # (4.6, 1 nm) match to 10 nm, and a filled region by its shape
+        # (_same_object): KiCad works out some outlines (a solder mask opening
+        # round a rounded pad) in board coordinates, and a vertex can land a
+        # few nm apart, or elsewhere on the same straight side, once the copy
+        # is moved.
+        tol = 1000 if suffix.endswith('.drl') else 10
         rounded = 0
         for k in offsets:
             miss, more = want - got[k], got[k] - want
@@ -681,8 +724,7 @@ def check_gerbers(single_gdir, single_name, panel_gdir, panel_name, box, offsets
                 left = []
                 for pts, sig in more.elements():
                     for i, (q, s2) in enumerate(pool):
-                        if s2 == sig and len(q) == len(pts) and all(
-                                abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol for a, b in zip(pts, q)):
+                        if s2 == sig and _same_object(pts, q, sig, tol):
                             del pool[i]
                             break
                     else:
@@ -697,8 +739,8 @@ def check_gerbers(single_gdir, single_name, panel_gdir, panel_name, box, offsets
                                     min(p[0] for p in pts) / MM, max(p[0] for p in pts) / MM,
                                     min(p[1] for p in pts) / MM, max(p[1] for p in pts) / MM))
         report[suffix.lstrip('-')] = dict(objects_per_copy=sum(want.values()), panel_only=dict(extra))
-        if tol:
-            report[suffix.lstrip('-')]['matched_within_1um'] = rounded
+        if rounded:
+            report[suffix.lstrip('-')]['matched_within'] = (rounded, tol)
     return report
 
 
@@ -947,8 +989,8 @@ def _print(out):
         for k, v in out['gerber_check'].items():
             print('     %-22s %5d objects per copy; panel-only %s%s' % (
                 k, v['objects_per_copy'], v['panel_only'],
-                '; %d holes (all copies) equal only to the file\'s 1 um resolution' % v['matched_within_1um']
-                if v.get('matched_within_1um') else ''))
+                ('; %d objects (all copies) equal to within %d nm' % v['matched_within'])
+                if v.get('matched_within') else ''))
         print('  geometry: %s' % out['geometry'])
         print('  fiducial keep-out (copper, silk) from the Gerbers: %s' % out['fiducial_keepout'])
     print('  wrote %s' % ', '.join(os.path.basename(out[k]) for k in ('gerbers_zip', 'bom', 'bom_pcbway', 'cpl')))

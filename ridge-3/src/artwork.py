@@ -168,17 +168,23 @@ class SilkPlacer:
         from shapely import affinity
         return brand.add(self.b, affinity.translate(g, -pcb.CX, -pcb.CY), self.layer)
 
-    def geom(self, g, spots, clear=0.0, vias=True, margin=0.4, quiet=False, hull=False):
+    def geom(self, g, spots, clear=0.0, vias=True, margin=0.4, quiet=False, hull=False, boxes=False):
         """Place a ready-made shapely geometry (board-centre mm, drawn round
         the origin) at the first (x, y) where it fits; `clear` is extra room
         kept round it for the next items (the mark's clear space).  It fits
         by its bounding box, or with hull=True by its outline (for a round
-        mark, whose box would claim room it does not use)."""
+        mark, whose box would claim room it does not use), or with
+        boxes=True by the boxes of its pieces (an arrow and a word beside
+        it: the corners of their common box are empty)."""
         from shapely import affinity
+        from shapely.ops import unary_union
         best = None
         for x, y in spots:
             h = affinity.translate(g, pcb.CX + x, pcb.CY + y)
-            env = h.convex_hull if hull else h.envelope
+            if boxes:
+                env = unary_union([p.envelope for p in (h.geoms if hasattr(h, 'geoms') else [h])])
+            else:
+                env = h.convex_hull if hull else h.envelope
             if vias == 'fewest':
                 # tented vias under silk are harmless; take the spot where
                 # the fewest drills land on the ink, earliest spot on a tie
@@ -360,3 +366,49 @@ class SilkPlacer:
         # a rotated digit reads as a dash: stay upright, shrink before giving up
         spots = [sp + (sz,) for sz in (sizes or (size, size - 0.2, size - 0.3)) for sp in spots]
         return self.text(s, spots, size=size, face=face)
+
+
+def side_mark(pl, spots, word):
+    """The front arrow and the side's name ("Top" or "Bottom") on the side
+    `pl` prints, as one badge (brand.side_badge_mm).  The word upright
+    (under the arrow, or beside it) at the first of `spots` (x, y: the
+    arrow's centre) where it fits, else wherever on the side it fits
+    nearest the first of them; only then turned along the shaft, then over
+    the head, the same way.  The arrow is the same on every side of every
+    board (brand.front_arrow_mm).  Returns the layout used; stops the build
+    if none fits."""
+    import brand
+    mirror = pl.side == 'B'
+    anywhere = pl.grid_spots(spots[0], radius=26.0, step=0.4)
+    groups = [[l for l in brand.BADGE_LAYOUTS if l in ('below', 'right', 'left')],
+              [l for l in brand.BADGE_LAYOUTS if l.startswith('along')],
+              [l for l in brand.BADGE_LAYOUTS if l.startswith('above')]]
+    for group in groups:
+        for where in (spots, anywhere):
+            for layout in group:
+                if pl.geom(brand.side_badge_mm(word, mirror, layout), where, vias='fewest', margin=0.2, quiet=True,
+                           boxes=True):
+                    print('   silk: front arrow and "%s" (word %s)' % (word, layout))
+                    return layout
+    raise SystemExit('silk: no room for the front arrow and "%s"' % word)
+
+
+def revision(pls, rev):
+    """The board's revision, "REV <rev>" in JetBrains Mono, as near a corner
+    as fits (just outside a grommet flange), on the first of the sides
+    `pls` with room for it; the board's title block carries it too (the
+    Gerbers' file attributes).  Stops the build if no side has room."""
+    b = pls[0].b
+    b.GetTitleBlock().SetRevision(rev)
+    runs = [('mono', 'REV ' + rev)]
+    corner = lambda x, y: min((x - sx * pcb.HALF) ** 2 + (y - sy * pcb.HALF) ** 2 for sx in (-1, 1) for sy in (-1, 1))
+    for pl in pls:
+        # within 9 mm of a corner, nearest first (on a tie in drills under
+        # the ink the nearest spot wins)
+        pts = sorted((p for p in pl.grid_spots((0.0, 0.0), radius=26.0, step=0.2) if corner(*p) <= 81.0),
+                     key=lambda p: (round(corner(*p), 2), p))
+        for size in (1.2, 1.1, 1.0):
+            for rot in (0, 90):
+                if pl.text(runs, [(x, y, rot, None) for x, y in pts], size=size, vias='fewest'):
+                    return pl.side
+    raise SystemExit('silk: no room for the revision (REV %s) on either side' % rev)
