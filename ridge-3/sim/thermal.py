@@ -205,10 +205,10 @@ class Solver:
         self._ml = {}
 
     def _solve(self, A, b, key, x0=None):
-        import pyamg
+        import dcflow
         if key not in self._ml:
-            self._ml[key] = pyamg.smoothed_aggregation_solver(A.tocsr(), symmetry='symmetric', max_coarse=500)
-        return self._ml[key].solve(b, x0=x0, tol=1e-9, accel='cg', maxiter=300)
+            self._ml[key] = dcflow.amg(A.tocsr(), tol=1e-9)
+        return self._ml[key](b, x0=x0)
 
     def steady(self, P):
         return self._solve(self.G, P + self.gamb * self.s.T_amb, 'steady')

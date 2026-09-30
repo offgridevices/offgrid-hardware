@@ -29,7 +29,7 @@ CH = (1, 2, 3, 4)
 
 
 def _key(c):
-    return hashlib.sha1(open(c.path, 'rb').read() + b'copperloss-v3').hexdigest()[:12]
+    return hashlib.sha1(open(c.path, 'rb').read() + b'copperloss-v4').hexdigest()[:12]
 
 
 _loaded = {}

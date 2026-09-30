@@ -116,6 +116,23 @@ def network(c, net, T=20.0, plating=PLATING):
 _cache = {}
 
 
+def amg(A, tol=1e-10):
+    """A solver for the SPD network matrix A: smoothed-aggregation AMG with the
+    'evolution' strength measure under conjugate gradients.  (The default
+    strength measure stalls on these boards: strong in-plane copper, weak
+    via barrels between layers.)  Every solve is checked to have converged."""
+    import pyamg
+    ml = pyamg.smoothed_aggregation_solver(A, symmetry='symmetric', strength='evolution', max_coarse=500)
+
+    def solve(b, x0=None):
+        res = []
+        x = ml.solve(b, x0=x0, tol=tol, accel='cg', maxiter=400, residuals=res)
+        if res[0] > 0 and res[-1] > 1e-6 * res[0]:     # aimed at tol; anything past 1e-6 is a failure
+            raise RuntimeError('network solve did not converge: residual %.1e of %.1e' % (res[-1], res[0]))
+        return x
+    return solve
+
+
 def forget():
     """Drop the cached networks and solver hierarchies (they are large)."""
     _cache.clear()
@@ -136,10 +153,7 @@ def solve(c, net, currents, T=20.0, net_cache=_cache):
     r = info['terms'][ref]
     keep = np.ones(info['n'], bool); keep[r] = False
     if ref not in lu:
-        import pyamg
-        A = G[keep][:, keep].tocsr()
-        ml = pyamg.smoothed_aggregation_solver(A, symmetry='symmetric', max_coarse=500)
-        lu[ref] = lambda b: ml.solve(b, tol=1e-10, accel='cg', maxiter=500)
+        lu[ref] = amg(G[keep][:, keep].tocsr())
     I = np.zeros(info['n'])
     for part, amps in currents.items():
         I[info['terms'][part]] += amps

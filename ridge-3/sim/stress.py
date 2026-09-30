@@ -731,7 +731,8 @@ def run_transient(m, schedule, sw, T0, dt, fc, V, am32=True, watch=()):
     return T, trace, first
 
 
-HOVER = round(losses.hover(data.BATTERY['vfull']), 1)     # % throttle for the quad's weight on a full pack
+HOVER = round(losses.hover(data.BATTERY['vfull']), 1)
+last_burst = {}     # % throttle for the quad's weight on a full pack
 
 
 def bursts_section(sw, fcmax):
@@ -751,20 +752,40 @@ def bursts_section(sw, fcmax):
         caps = [k for k in m.parts if m.parts[k].get('kind') == 'C1U_16_0201']
         mcu = ['ESC U_ESC%d' % n for n in CH]
         hot = lambda T, ks: max(m.temp(T, k) for k in ks)
-        T, tr, first = run_transient(m, [(3.0 if QUICK else 30.0, 100.0)], sw, T0, 0.25, fcmax, V, am32=False,
+        T, tr, first = run_transient(m, [(3.0 if QUICK else 10.0, 100.0)], sw, T0, 0.25, fcmax, V, am32=False,
                                      watch=fets + mcu + caps)
+        if (Ta, v) == (45.0, 5.0):
+            last_burst.update({k: tr[k] for k in fets})
         t = np.array(tr['t'])
         fmax = np.max([tr[k] for k in fets], axis=0)
         mmax = np.max([tr[k] for k in mcu], axis=0)
-        when = lambda arr, lim: ('%.1f s' % t[np.argmax(arr >= lim)]) if (arr >= lim).any() else '> 30 s'
-        at = lambda arr, s_: '%.0f' % np.interp(s_, t, arr)
+        when = lambda arr, lim: ('%.1f s' % t[np.argmax(arr >= lim)]) if (arr >= lim).any() else '> %.0f s' % t[-1]
+        at = lambda arr, s_: ('%.0f C' % np.interp(s_, t, arr)) if np.interp(s_, t, arr) < data.FET['tch_max'] else 'past 175 C'
         rows.append(['%.0f C, %.0f m/s' % (Ta, v),
                      '%.0f / %.0f / %.0f C' % (hot(T0, fets), hot(T0, mcu), hot(T0, caps)),
-                     '%s / %s / %s C' % (at(fmax, 5), at(fmax, 10), at(fmax, 30)),
-                     when(mmax, data.AM32['temp_limit']), when(fmax, 150.0), when(fmax, data.FET['tch_max'])])
+                     '%s / %s' % (at(fmax, 1.0), at(fmax, 2.0)),
+                     when(fmax, 150.0), when(fmax, data.FET['tch_max']), when(mmax, data.AM32['temp_limit'])])
+        found.setdefault('bursts', {})[(Ta, v)] = (t[np.argmax(fmax >= data.FET['tch_max'])] if (fmax >= data.FET['tch_max']).any() else None,
+                                                   t[np.argmax(mmax >= data.AM32['temp_limit'])] if (mmax >= data.AM32['temp_limit']).any() else None)
     table(['Air', 'Hovering: hottest FET / processor / bootstrap capacitor',
-           'Hottest FET after 5 / 10 / 30 s full throttle', 'Processor reaches AM32\'s %.0f C cut' % data.AM32['temp_limit'],
-           'A FET reaches 150 C', 'A FET reaches its 175 C maximum'], rows)
+           'Hottest FET after 1 / 2 s of full throttle', 'A FET reaches 150 C', 'A FET reaches its 175 C maximum',
+           'A processor reaches AM32\'s %.0f C cut' % data.AM32['temp_limit']], rows)
+    # which FET got hottest, and how far it is from a battery pad
+    m = model(5.0, 45.0)
+    ce = m.ce
+    name = max((k for k in m.parts if k.startswith('ESC Q')), key=lambda k: max(last_burst.get(k, [0])))
+    q = ce.parts[name.split()[1]]
+    pad = min(np.hypot(q['x'] - ce.parts[p]['x'], q['y'] - ce.parts[p]['y']) for p in ('P_BAT+', 'P_BAT-'))
+    t175, tcut = found['bursts'].get((45.0, 5.0), (None, None))
+    say('The hottest FET is %s, %.1f mm from a battery pad: all of the battery '
+        'current crowds into the two 1 oz planes at those pads (section 2).  '
+        'AM32\'s temperature limit reads each processor\'s own die, a few '
+        'millimetres from its FETs%s.  The numbers past 175 C are not survivable, '
+        'so they are not shown.' % (
+            name.split()[1], pad,
+            (', so in a burst it trips after the FETs are already past their maximum'
+             if t175 is not None and (tcut is None or tcut > t175) else '')))
+    say()
 
 
 def groups_of(m):
@@ -838,9 +859,9 @@ def ground_section(sw):
     tau = m0.solver.cap.sum() / m0.solver.gamb.sum()
     say('**Waiting on the ground with the video on.**  Still air, the motors '
         'stopped (the ESC\'s processors and gate supply on).  The stack\'s '
-        'thermal time constant in still air is about %.0f minutes, so steady '
-        'state (below) comes after a quarter of an hour; the second table is '
-        'the first minutes.' % (tau / 60))
+        'thermal time constant in still air is about %.0f minutes, so it '
+        'reaches the steady state below after about %.0f; the second table is '
+        'the first minutes.' % (tau / 60, 4 * tau / 60))
     say()
     rows = []
     res = {}
@@ -1010,10 +1031,17 @@ def fixes_section():
              found.get('r_src', 0) * 1e3, share('sense nodes'))),
         ('The battery planes.',
          'All of the battery current crosses one 1 oz plane each way (%.2f mOhm '
-         'together), and at %.0f %% of the hover heat.  More copper for VBAT and '
-         'GND: a second plane pair where In2/In3 are free, or 2 oz inner layers, '
-         'which the README explains the gate routing does not allow today.' % (
-             found.get('r_planes', 0) * 1e3, share('plane'))),
+         'together): %.0f %% of the hover heat, and most of the heat at full '
+         'throttle, crowded at the battery pads, where it takes the nearest FETs '
+         'past 175 C %s into a full-throttle burst on a %.0f C day.  More copper '
+         'for VBAT and GND: a second plane pair where In2/In3 are free, battery '
+         'pads that feed the outer layers too, or 2 oz inner layers, which the '
+         'README explains the gate routing does not allow today.  Until then, '
+         'AM32\'s current limit set well under 20 A is the only protection that '
+         'acts in time.' % (
+             found.get('r_planes', 0) * 1e3, share('plane'),
+             ('%.1f s' % found['bursts'][(25.0, 5.0)][0]) if found.get('bursts', {}).get((25.0, 5.0), (None,))[0] else 'seconds',
+             25.0)),
         ('The dead time.',
          'AM32\'s DEAD_TIME 40 (625 ns) plus the DRV8300\'s own ~215 ns puts the '
          'current through the low-side body diodes for about 0.84 us of every '
@@ -1089,6 +1117,12 @@ def heat_verdicts(results, first):
                     th >= HOVER, 'up to %.0f %% throttle' % th, '%.0f %%' % HOVER)
             verdict('Heat', 'Hover held indefinitely with the FETs under 150 C, %.0f C air, 5 m/s' % Ta,
                     th2 >= HOVER, 'up to %.0f %% throttle' % th2, '%.0f %%' % HOVER)
+    for (Ta, v), (t175, tcut) in sorted(found.get('bursts', {}).items()):
+        if v == 5.0 and Ta in (25.0, 45.0):
+            verdict('Heat', 'Full-throttle burst from hover (AM32 at 20 A per motor), %.0f C air, 5 m/s' % Ta,
+                    t175 is None, 'a FET reaches 175 C after %.1f s; AM32\'s cut after %s' % (
+                        t175, '%.1f s' % tcut if tcut is not None else '> 10 s') if t175 is not None else 'no FET reaches 175 C in 10 s',
+                    '175 C')
     f = found.get('flight', {})
     verdict('Heat', 'Hard 3-minute flight at 45 C: AM32 cuts a motor\'s power for heat',
             f.get('cut') is None, 'first at %.0f s, %.0f %% of the flight' % (f['cut'], 100 * f['frac'])
