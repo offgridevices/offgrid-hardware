@@ -4,17 +4,19 @@
 
 BOARD.glb is KiCad's GLB export (tracks, pads, zones, inner copper,
 silkscreen, soldermask).  SPEC.json is make_video.py's merged spec: the
-board's facts (copper layer names), the timeline, the camera shots, the
-lights and the render quality.
+board's facts (copper layer names), the units the labels and the tour name
+(each a list of layer groups), the tour, the timeline, the camera shots,
+the lights and the render quality.
 
 The board is taken apart into its physical layers: the parts on each side,
-the silkscreen and solder mask of each side, and every copper layer as a
-card on the FR-4 below it.  The board stands up on its edge, opens sideways
-into those layers, holds, closes and lies down again, while the camera
-moves between shots fitted to what is in view: once the board is open it
-glides in on the first layer, travels layer by layer to the last and pulls
-back to the whole.  ANCHORS.json gets, per frame, each layer's edge points on
-screen and how much the camera is on it, for the labels (overlay.py).
+the solder mask of each side with its silkscreen printed on it, and every
+copper layer as a card on the FR-4 below it.  The board stands up on its
+edge, opens sideways into those layers, holds, closes and lies down again,
+while the camera moves between shots fitted to what is in view: once the
+board is open it stops on each unit of the tour in turn (a unit of several
+layers, like the copper, is framed whole) and pulls back to the whole.
+ANCHORS.json gets, per frame, each layer's edge points on screen and how
+much the tour is on it, for the labels (overlay.py).
 """
 import bpy, bmesh, sys, json, math
 import numpy as np
@@ -229,14 +231,19 @@ fz = lambda o: float(zs_of(o).mean())
 G = []
 if comp_top:
     G.append(('components top', comp_top, T))
-for side, objs in (('silkscreen top', silk), ('mask top', mask)):
-    if 'top' in objs:
-        G.append((side, [objs['top']], fz(objs['top'])))
+
+
+def printed(side):
+    """A side's solder mask with its silkscreen printed on it: one layer."""
+    objs = [o for o in (mask.get(side), silk.get(side)) if o]
+    if objs:
+        G.append(('mask ' + side, objs, fz(objs[0])))
+
+
+printed('top')
 for k, name in enumerate(SPEC['copper']):
     G.append((name, [copper.get(name), pads.get(name), slab_under.get(name)], mids[len(CU) - 1 - k]))
-for side, objs in (('mask bottom', mask), ('silkscreen bottom', silk)):
-    if 'bottom' in objs:
-        G.append((side, [objs['bottom']], fz(objs['bottom'])))
+printed('bottom')
 if comp_bot:
     G.append(('components bottom', comp_bot, 0.0))
 
@@ -381,15 +388,30 @@ def place(eye, look):
     bpy.context.view_layer.update()
 
 
+def tour_groups(i):
+    """The groups of the tour's stop i."""
+    names = SPEC['units'][SPEC['tour'][i]]
+    return [g for g in groups if g['name'] in names]
+
+
+def framing(mode):
+    """The groups a camera mode frames and the box they must fill (a key of
+    SPEC['camera']['frame']): 'flat' (closed, lying), 'standing' (closed, on
+    its edge), 'open' (open, on its edge) or 'tour N' (stop N of the tour,
+    open: 'layer' when it is one layer, 'layers' when several)."""
+    if mode.startswith('tour'):
+        sel = tour_groups(int(mode.split()[1]))
+        return sel, 'layer' if len(sel) == 1 else 'layers'
+    return groups, mode
+
+
 def stack_points(mode):
-    """World-space box corners of the groups: 'flat' (closed, lying),
-    'standing' (closed, on its edge), 'open' (open, on its edge) or
-    'layer N' (group N alone, open)."""
+    """World-space box corners of what `mode` frames (see framing)."""
     rot = Matrix.Rotation(-math.pi / 2, 4, 'Y') if mode != 'flat' else Matrix.Identity(4)
-    sel = [groups[int(mode.split()[1])]] if mode.startswith('layer') else groups
+    sel = framing(mode)[0]
     pts = []
     for g in sel:
-        dz = g['off'] if mode == 'open' or mode.startswith('layer') else 0.0
+        dz = g['off'] if mode == 'open' or mode.startswith('tour') else 0.0
         for z in (g['lo'] + dz, g['hi'] + dz):
             for sx in (-1, 1):
                 for sy in (-1, 1):
@@ -405,7 +427,7 @@ def fit(mode, az, el):
     lo = Vector([min(p[i] for p in pts) for i in range(3)])
     hi = Vector([max(p[i] for p in pts) for i in range(3)])
     look = (lo + hi) / 2
-    bx0, bx1, by0, by1 = SPEC['camera']['frame'][mode.split()[0]]
+    bx0, bx1, by0, by1 = SPEC['camera']['frame'][framing(mode)[1]]
     hw, hh = (bx1 - bx0) / 2, (by1 - by0) / 2
     fx0, fx1, fy0, fy1 = 0.5 - hw, 0.5 + hw, 0.5 - hh, 0.5 + hh
     d0, d1 = 1.0, 5000.0
@@ -581,13 +603,19 @@ r.image_settings.file_format = 'PNG'
 
 # ------------------------------------------------------------ anchors
 # per frame and group: the midpoints of the board's x edges (+HX, -HX) and
-# y edges (+HY, -HY) on screen, how open it is, and how much the camera's
-# layer-by-layer tour is on it
+# y edges (+HY, -HY) on screen, how open it is, and how much the tour is on
+# it (its stop's)
 def ramp(f, a, b):
     return 0.0 if f <= a else 1.0 if f >= b else (f - a) / (b - a)
 
 
-def on_tour(i, f):
+stop_of = {g['name']: i for i in range(len(SPEC['tour'])) for g in tour_groups(i)}
+
+
+def on_tour(name, f):
+    if name not in stop_of:
+        return 0.0
+    i = stop_of[name]
     a, b, fd = TL['tour'][i], TL['tour'][i] + TL['dwell'], TL['tour_fade']
     return ramp(f, a - fd, a) * (1 - ramp(f, b, b + fd))
 
@@ -598,13 +626,13 @@ for f in frames:
     place(eye, look)
     rot = Matrix.Rotation(ANGLE[f], 4, 'Y')
     row = []
-    for i, g in enumerate(groups):
+    for g in groups:
         z = (g['lo'] + g['hi']) / 2 + E[g['name']][f] * g['off']
         pts = []
         for p in ((HX, 0), (-HX, 0), (0, HY), (0, -HY)):
             v = world_to_camera_view(scene, cam, rot @ Vector((p[0], p[1], z)))
             pts += [round(v.x * r.resolution_x, 1), round((1 - v.y) * r.resolution_y, 1)]
-        row.append(pts + [round(E[g['name']][f], 4), round(on_tour(i, f), 4)])
+        row.append(pts + [round(E[g['name']][f], 4), round(on_tour(g['name'], f), 4)])
     anchors['frames'].append(row)
 json.dump(anchors, open(ANCHORS, 'w'))
 scene.frame_set(0)

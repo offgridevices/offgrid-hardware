@@ -485,15 +485,19 @@ The tools: KiCad 10 (`pcbnew` Python module and `kicad-cli`), Freerouting
 
 `python3 video/make_video.py fc` (or `esc`) makes a 16:9 video of a board
 taking itself apart, straight from its `.kicad_pcb`. The board stands on
-its edge and opens sideways into its layers: the parts on each side, the
-silkscreen and solder mask, and every copper layer on its FR-4. The camera
-then glides in on each layer in turn, naming it, and pulls back to the
-whole with every layer labelled. Last, the board closes and lies down under
-the title.
+its edge and opens sideways into its layers: the parts on each side, each
+solder mask with its silkscreen printed on it, and every copper layer on its
+FR-4. The camera then stops on the top side's parts, on all the copper at
+once, and on the bottom side's parts (seen from the side they face), naming
+each, and pulls back to the whole with a label on each. Last, the board
+closes and lies down under the title.
 
-- **Labels:** they come from the board file itself: the stackup, what each
-  copper layer carries (a layer mostly covered by one net and nearly free of
-  tracks is that net's plane), and the part count on each side.
+- **Labels:** they come from the board file itself: what the copper layers
+  carry (a layer mostly covered by one net and nearly free of tracks is that
+  net's plane), which sides have silkscreen, and the part count on each side.
+- **Tour:** `"tour"` in a board's settings picks the stops (by default
+  `components top`, `copper`, `components bottom`; `mask top` and
+  `mask bottom` are the other units).
 - **Settings:** each board's own settings are a few lines in `video/fc.json`
   and `video/esc.json`: the title and a few words on the main parts. A
   changed board needs only the command again, and a new board needs its own

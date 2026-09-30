@@ -13,22 +13,26 @@ video/requirements.txt; set VIDEO_PYTHON to use another Python 3.11.
 What it does, every step from the board file (so a changed board or a new
 one needs no other work):
   1. kicad-cli exports the board as GLB: parts, copper, mask, silkscreen.
-  2. The board's facts come from its file: the copper layers and the FR-4
-     between them (stackup), what each copper layer carries (a layer mostly
-     covered by one net's zone and nearly free of tracks is that net's
-     plane), and the parts on each side.  These make the layer labels.
-  3. scene.py (Blender) takes the board apart into its layers, stands it on
-     its edge, opens it sideways across the 16:9 frame, glides in on each
-     layer in turn, pulls back to the whole with every layer labelled,
-     closes and lays it down; the camera shots are fitted to what is in view.
+  2. The board's facts come from its file: the copper layers and what each
+     carries (a layer mostly covered by one net's zone and nearly free of
+     tracks is that net's plane), the sides with silkscreen, and the parts
+     on each side.  These make the labels.
+  3. scene.py (Blender) takes the board apart into its layers (the parts of
+     each side, each solder mask with its silkscreen printed on it, and
+     every copper layer on its FR-4), stands it on its edge and opens it
+     sideways across the 16:9 frame.  The camera then stops on the tour's
+     layers (by default the top parts, all the copper at once, the bottom
+     parts), pulls back to the whole with a label on each, and the board
+     closes and lies down; the camera shots are fitted to what is in view.
   4. render.py renders the frames in parallel, resuming where it stopped
      (on a GPU when Blender finds one: CUDA, OptiX, HIP, Metal, oneAPI).
   5. overlay.py adds the labels and the title and writes the MP4.
 
 The board's own settings are a small JSON beside this file (fc.json,
 esc.json): the title, a few words on the main parts of each side, and
-optionally any label, role, timing, camera or light to override, and
-"music": an audio file under the video (see video/music/README.md).
+optionally any label, role, timing, camera or light to override, the
+"tour" (which layers the camera stops on), and "music": an audio file under
+the video (see video/music/README.md).
 """
 import argparse, collections, hashlib, json, os, re, shutil, subprocess, sys
 
@@ -49,7 +53,9 @@ DEFAULTS = {
     'camera': {'lens': 85, 'fstop': 8,
                # where the board must sit in the frame (x0, x1, y0, y1)
                'frame': {'flat': [0.22, 0.78, 0.18, 0.82], 'standing': [0.3, 0.7, 0.2, 0.8],
-                         'open': [0.04, 0.96, 0.28, 0.72], 'layer': [0.24, 0.76, 0.08, 0.74]}},
+                         'open': [0.04, 0.96, 0.28, 0.72],
+                         # a stop on the tour: one layer, or several (the copper)
+                         'layer': [0.24, 0.76, 0.08, 0.74], 'layers': [0.14, 0.86, 0.1, 0.72]}},
     'world': {'hdri': 'studio.exr', 'hdri_rotation': 120, 'hdri_strength': 0.8,
               'centre': [0.030, 0.032, 0.036], 'edge': [0.002, 0.002, 0.003]},
     # for a 36 mm board; scene.py scales them with the board
@@ -62,8 +68,10 @@ DEFAULTS = {
     # seconds, as all times here: label stagger, fades
     'overlay': {'above': 0.2, 'below': 0.8, 'step': 0.17, 'fade': 0.5, 'fade_out': 0.6, 'title_fade': 0.8,
                 'title_at': [0.075, 0.82], 'tour_at': [0.065, 0.80]},
+    # the layers the camera stops on, in order (see units())
+    'tour': ['components top', 'copper', 'components bottom'],
     'mask': {'top': 'gold pads show through'},
-    'silkscreen': {'top': 'labels and markings'},
+    'silkscreen': {},             # a few words on what each side's silkscreen shows
 }
 
 
@@ -93,23 +101,12 @@ def human(net):
 
 
 def board_facts(path):
-    """Copper layers (top first), the dielectric under each, what each layer
-    carries, and the assembled parts on each side."""
+    """Copper layers (top first), what each carries, the sides with
+    silkscreen and the assembled parts on each side."""
     import pcbnew
     b = pcbnew.LoadBoard(path)
     layers = list(b.GetEnabledLayers().CuStack())
     copper = [b.GetLayerName(l) for l in layers]
-    # the stackup as the file has it, top to bottom
-    text = open(path).read()
-    stack = text[text.index('(stackup'):]
-    under, last = {}, None
-    for m in re.finditer(r'\(layer "([^"]+)"\s*\(type "([^"]+)"\)(.*?)\n\t*\)', stack, re.S):
-        name, typ, body = m.groups()
-        if typ == 'copper':
-            last = name
-        elif last and typ in ('core', 'prepreg') and last not in under:
-            t = re.search(r'\(thickness ([\d.]+)', body)
-            under[last] = dict(type=typ, t=float(t.group(1)) if t else None)
     # what each copper layer carries
     poly = pcbnew.SHAPE_POLY_SET()
     b.GetBoardPolygonOutlines(poly, True)
@@ -126,27 +123,50 @@ def board_facts(path):
     for t in b.GetTracks():
         if t.Type() == pcbnew.PCB_TRACE_T:
             tracks[t.GetLayer()] += t.GetLength() / 1e6
-    roles = {}
+    roles, planes = {}, {}
     for l, name in zip(layers, copper):
         net, frac = cover[l].most_common(1)[0] if cover[l] else ('', 0)
         if frac >= 0.5 and tracks[l] < 20:
             roles[name] = '%s plane' % human(net)
+            planes[name] = human(net)
         elif frac >= 0.3:
             roles[name] = 'signals and %s' % human(net)
         elif sum(cover[l].values()) >= 0.25:
             roles[name] = 'signals and power'
         else:
             roles[name] = 'signals'
+    # silkscreen: board drawings, footprint graphics and visible fields
+    silk_side = {pcbnew.F_SilkS: 'top', pcbnew.B_SilkS: 'bottom'}
+    items = list(b.GetDrawings())
+    for fp in b.GetFootprints():
+        items += list(fp.GraphicalItems()) + [f for f in fp.GetFields() if f.IsVisible()]
+    silk = sorted({silk_side[i.GetLayer()] for i in items if i.GetLayer() in silk_side})
     skip = pcbnew.FP_EXCLUDE_FROM_POS_FILES | pcbnew.FP_BOARD_ONLY
     parts = {'top': 0, 'bottom': 0}
     for fp in b.GetFootprints():
         if not (fp.GetAttributes() & skip) and not fp.IsDNP():
             parts['bottom' if fp.IsFlipped() else 'top'] += 1
-    return dict(copper=copper, dielectric_under=under, roles=roles, parts=parts)
+    return dict(copper=copper, roles=roles, planes=planes, silk=silk, parts=parts)
+
+
+def units(facts):
+    """What the labels and the tour name, top to bottom, each with the layer
+    groups of scene.py it covers: the parts of each side, each side's solder
+    mask (its silkscreen is printed on it and stays there), and all the copper
+    layers as one."""
+    out = {}
+    if facts['parts']['top']:
+        out['components top'] = ['components top']
+    out['mask top'] = ['mask top']
+    out['copper'] = list(facts['copper'])
+    out['mask bottom'] = ['mask bottom']
+    if facts['parts']['bottom']:
+        out['components bottom'] = ['components bottom']
+    return out
 
 
 def labels(facts, cfg):
-    """{layer group: [title, detail]} from the board's facts and settings."""
+    """{unit: [title, detail]} from the board's facts and settings."""
     hl = cfg.get('highlights', {})
     out = {}
     for side in ('top', 'bottom'):
@@ -154,25 +174,35 @@ def labels(facts, cfg):
         if n:
             out['components ' + side] = ['%s side' % side.capitalize(),
                                          '%d parts%s' % (n, ': ' + hl[side] if hl.get(side) else '')]
-        out['silkscreen ' + side] = ['Silkscreen', cfg['silkscreen'].get(side, '')]
-        out['mask ' + side] = ['Solder mask', cfg['mask'].get(side, '')]
-    for i, name in enumerate(facts['copper']):
-        role = cfg.get('roles', {}).get(name) or facts['roles'][name]
-        di = facts['dielectric_under'].get(name)
-        if di and name != facts['copper'][-1]:
-            role += ', on %g mm %s' % (di['t'], di['type'])
-        out[name] = ['Copper %d' % (i + 1), role]
+        detail = []
+        if side in facts['silk']:
+            text = cfg['silkscreen'].get(side)
+            detail.append('with its silkscreen' + (': ' + text if text else ''))
+        if cfg['mask'].get(side):
+            detail.append(cfg['mask'][side])
+        out['mask ' + side] = ['Solder mask', '; '.join(detail)]
+    roles = dict(facts['roles'], **cfg.get('roles', {}))
+    planes = [facts['planes'][n] for n in facts['copper'] if 'plane' in roles[n] and n in facts['planes']]
+    signal = sum(1 for n in facts['copper'] if 'plane' not in roles[n])
+    what = []
+    if planes:
+        what.append(' and '.join([', '.join(planes[:-1]), planes[-1]] if len(planes) > 1 else planes)
+                    + (' planes' if len(planes) > 1 else ' plane'))
+    if signal:
+        what.append('%d signal layer%s' % (signal, 's' if signal > 1 else ''))
+    out['copper'] = ['Copper layers', '%d layers: %s' % (len(facts['copper']), ', '.join(what))]
     out.update(cfg.get('labels', {}))
     return out
 
 
-def timeline(n, o, fps):
-    """Frame numbers for n layer groups: stand up, open, the tour (in on the
-    first layer, one by one to the last, out again), the whole with every
-    label, close, lie down, the closing shot.  Set in seconds (o overrides
-    any of them), so the frame rate is only the quality's."""
-    sec = dict(stagger=0.125, move=3.5, stand=[2.25, 4.75], tour_in=1.3, tour_step=0.95, tour_out=1.5,
-               hold=3.5, lay_in=0.75, lay=2.75, tail=3.5)
+def timeline(n, stops, o, fps):
+    """Frame numbers for n layer groups and a tour of `stops` stops: stand
+    up, open, the tour (in on the first stop, a rest on each, a glide to the
+    next, out again), the whole with every label, close, lie down, the
+    closing shot.  Set in seconds (o overrides any of them), so the frame
+    rate is only the quality's."""
+    sec = dict(stagger=0.125, move=3.5, stand=[2.25, 4.75], tour_in=1.3, tour_rest=1.6, tour_move=1.6,
+               tour_out=1.8, hold=3.5, lay_in=0.75, lay=2.75, tail=3.5)
     sec.update(o)
     F = lambda x: int(round(x * fps))
     maxr = (n - 1) / 2
@@ -180,9 +210,9 @@ def timeline(n, o, fps):
     t['stand'] = [F(x) for x in sec['stand']]
     t['open'] = t['stand'][1] - F(0.25)
     t['open_end'] = t['open'] + round(maxr * t['stagger']) + t['move']
-    step = F(sec['tour_step'])
-    t['tour'] = [t['open_end'] + F(sec['tour_in']) + i * step for i in range(n)]   # arrival at each layer
-    t['dwell'] = step // 2
+    t['dwell'] = F(sec['tour_rest'])
+    step = t['dwell'] + F(sec['tour_move'])
+    t['tour'] = [t['open_end'] + F(sec['tour_in']) + i * step for i in range(stops)]   # arrival at each stop
     t['tour_fade'] = F(0.25)
     t['tour_end'] = t['tour'][-1] + t['dwell'] + F(sec['tour_out'])
     t['close'] = t['tour_end'] + F(sec['hold'])
@@ -192,15 +222,18 @@ def timeline(n, o, fps):
     return t
 
 
-def shots(t):
+def shots(t, tour):
     """[frame, azimuth, elevation, what is framed, distance factor]: the
     camera's key positions (azimuth 0 = from the front, negative = from the
-    left, where the standing board's top side faces).  Two keys per layer
-    on the tour: the camera rests on it, then glides to the next."""
+    left, where the standing board's top side faces).  Two keys per stop on
+    the tour: the camera arrives and drifts a little while it rests there,
+    then glides to the next.  A bottom side is seen from the right, where it
+    faces."""
     s = [[0, -34, 30, 'flat', 1.1], [t['stand'][0], -26, 27, 'flat', 1.0],
          [t['open'], -44, 14, 'standing', 1.0], [t['open_end'], -40, 12, 'open', 1.0]]
-    for i, a in enumerate(t['tour']):
-        s += [[a, -36, 12, 'layer %d' % i, 1.0], [a + t['dwell'], -35, 12, 'layer %d' % i, 1.0]]
+    for i, (a, unit) in enumerate(zip(t['tour'], tour)):
+        side = 1 if unit.endswith('bottom') else -1
+        s += [[a, 37 * side, 12, 'tour %d' % i, 1.0], [a + t['dwell'], 34.5 * side, 12, 'tour %d' % i, 1.0]]
     return s + [[t['tour_end'], -38, 12, 'open', 1.0], [t['close'], -33, 14, 'open', 0.96],
                 [t['lay'][0], -34, 18, 'standing', 1.0], [t['lay'][1], -28, 28, 'flat', 1.0],
                 [t['end'], -20, 30, 'flat', 0.94]]
@@ -277,13 +310,15 @@ def main():
     glb = os.path.join(work, name + '.glb')
     export_glb(pcb, glb)
     facts = board_facts(pcb)
-    n = sum(1 for side in ('top', 'bottom') if facts['parts'][side]) + 4 + len(facts['copper'])
+    unit = units(facts)
+    tour = [k for k in cfg['tour'] if k in unit]
+    n = sum(len(v) for v in unit.values())
     q = merge(QUALITY[quality], cfg.get('quality', {}))
     fps = q['fps']
-    tl = timeline(n, cfg.get('timeline', {}), fps)
-    spec = merge(cfg, dict(copper=facts['copper'], labels=labels(facts, cfg), timeline=tl, quality=q, fps=fps,
-                           title=cfg.get('title', [name, ''])))
-    spec['camera']['shots'] = cfg['camera'].get('shots') or shots(tl)
+    tl = timeline(n, len(tour), cfg.get('timeline', {}), fps)
+    spec = merge(cfg, dict(copper=facts['copper'], units=unit, tour=tour, labels=labels(facts, cfg), timeline=tl,
+                           quality=q, fps=fps, title=cfg.get('title', [name, ''])))
+    spec['camera']['shots'] = cfg['camera'].get('shots') or shots(tl, tour)
     F = lambda x: int(round(x * fps))
     ov = cfg['overlay']
     spec['overlay'] = merge(ov, {'in': tl['tour_end'] - F(0.4), 'out': tl['close'] - F(0.6),
@@ -293,9 +328,9 @@ def main():
     spec['sweep'] = merge(cfg['sweep'], {'f0': F(cfg['sweep']['t0']), 'f1': F(cfg['sweep']['t1'])})
     spec_path = os.path.join(work, 'spec-%s.json' % quality)
     json.dump(spec, open(spec_path, 'w'), indent=1)
-    print('  %d copper layers; %s; parts %s' % (len(facts['copper']),
-                                                 ', '.join('%s %s' % kv for kv in facts['roles'].items()),
-                                                 facts['parts']))
+    print('  %d copper layers; %s; silkscreen %s; parts %s; %.1f s'
+          % (len(facts['copper']), ', '.join('%s %s' % kv for kv in facts['roles'].items()),
+             '+'.join(facts['silk']), facts['parts'], (tl['end'] + 1) / fps))
     blend = os.path.join(work, 'scene-%s.blend' % quality)
     anchors = os.path.join(work, 'anchors-%s.json' % quality)
     blender('scene.py', glb, spec_path, blend, anchors)
