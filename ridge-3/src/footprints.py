@@ -388,6 +388,50 @@ def shunt_hcs1206_fp():
         fp.Models().append(m)
     return fp
 
+def tsdson8fl_fp():
+    """Infineon PG-TSDSON-8 FL (3.3 x 3.3 mm, 0.65 mm pitch): the land
+    Infineon recommends for the ISZ023N06LM6 (package page PG-TSDSON-8-34,
+    footprint drawing), which Vishay's PowerPAK 1212-8S second source shares.
+    Pins 1-3 source and 4 gate on +y, 5-8 drain on -y (5 opposite 4), pin 1
+    at -x: the TSON Advance footprint's orientation, so the FET roles in the
+    ESC template keep their turns.  Copper: drain 2.29 wide from -1.9 to
+    +0.46 (the four leads 0.34 x 0.65 and the body pad 9), source and gate
+    leads 0.34 x 0.9 from +1.0 to +1.9.  Paste as Infineon's stencil: the
+    body 1.09 x 1.4 with a 0.24 x 1.4 strip each side, the leads 0.24
+    wide.  Courtyard 3.8 x 4.3 mm."""
+    name = 'TSDSON-8FL_L3.3-W3.3-P0.65_IFX'
+    fp = pcbnew.FOOTPRINT(None)
+    fp.SetFPID(pcbnew.LIB_ID('aio', name))
+    fp.SetAttributes(pcbnew.FP_SMD)
+    fp.SetLibDescription('Infineon PG-TSDSON-8 FL (ISZ023N06LM6; Vishay PowerPAK 1212-8S), Infineon land')
+    xs = (-0.975, -0.325, 0.325, 0.975)
+    for num, x in zip(('1', '2', '3', '4'), xs):
+        _smd_pad(fp, num, x, 1.45, 0.34, 0.9, paste=False)
+    for num, x in zip(('5', '6', '7', '8'), reversed(xs)):
+        _smd_pad(fp, num, x, -1.575, 0.34, 0.65, paste=False)
+    _smd_pad(fp, '9', 0.0, -0.395, 2.29, 1.71, paste=False)
+    # stencil apertures (paste only, no number)
+    for x, y, w, h in ([(x, -1.55, 0.24, 0.6) for x in xs] + [(x, 1.5, 0.24, 0.7) for x in xs] +
+                       [(0.0, -0.35, 1.09, 1.4), (-0.975, -0.35, 0.24, 1.4), (0.975, -0.35, 0.24, 1.4)]):
+        p = pcbnew.PAD(fp)
+        p.SetNumber(''); p.SetAttribute(pcbnew.PAD_ATTRIB_SMD); p.SetShape(pcbnew.PAD_SHAPE_RECT)
+        p.SetSize(pcbnew.VECTOR2I(_nm(w), _nm(h))); p.SetPosition(pcbnew.VECTOR2I(_nm(x), _nm(y)))
+        ls = pcbnew.LSET(); ls.AddLayer(pcbnew.F_Paste); p.SetLayerSet(ls)
+        fp.Add(p)
+    _rect(fp, pcbnew.F_Fab, -MM(1.65), -MM(1.65), MM(1.65), MM(1.65), 0.1)
+    _rect(fp, pcbnew.F_CrtYd, -MM(1.9), -MM(2.15), MM(1.9), MM(2.15), 0.05)
+    fp.Reference().SetLayer(pcbnew.F_Fab); fp.Reference().SetTextSize(pcbnew.VECTOR2I(MM(0.5), MM(0.5)))
+    fp.Reference().SetTextThickness(MM(0.08))
+    fp.Value().SetText(name); fp.Value().SetVisible(False)
+    # the TSON Advance body's model: the same 0.9 mm tall 3.3 mm class body
+    if os.path.exists(os.path.join(MODELS, 'TSON-8_L3.1-W3.1-H0.9-P0.65-LS3.3-BL-EP.stpZ')):
+        m = pcbnew.FP_3DMODEL()
+        m.m_Filename = '${KIPRJMOD}/../aio.3dshapes/TSON-8_L3.1-W3.1-H0.9-P0.65-LS3.3-BL-EP.stpZ'
+        m.m_Rotation = pcbnew.VECTOR3D(0, 0, 270)      # as on the TSON footprint: leads along x
+        fp.Models().append(m)
+    return fp
+
+
 # EasyEDA's 3D models of these connectors sit off their pads (the JST SH
 # models' origin is at pin 1, 2.5 / 3.5 mm along the row; the USB-C's is
 # 2.75 mm back), so renders drew the connector bodies over their
@@ -542,7 +586,7 @@ def main():
         pad_fp('PAD_TP', 0.9, 0.9, shape='circle', desc='Test point'),
         hole_fp(),
     ]
-    gen += [solder_jumper_fp(), shunt_hcs1206_fp()]
+    gen += [solder_jumper_fp(), shunt_hcs1206_fp(), tsdson8fl_fp()]
     for fp in gen:
         _save(LIB, fp); n += 1
     print('wrote %d footprints to %s' % (n, LIB))

@@ -332,11 +332,11 @@ def bus_section():
         '(%d x %s at %.1f uF each under 25 V bias) and, through the stack lead '
         '(%.0f nH, %.0f mOhm), the FC\'s input: its TVS (SMF33A, breaking down '
         'at %.1f V, the middle of its 36.7-40.6 V range) and ceramics.' % (
-            Bs['Vpack'], Bs['Rbat'] * 1e3, Bs['Llead'] * 1e9, data.EXT_CAP['desc'],
+            Bs['Vpack'], Bs['Rbat'] * 1e3, Bs['Llead'] * 1e9, data.BULK['desc'],
             12, data.C_BRIDGE['part'], data.C_BRIDGE['c_bias'] * 1e6,
             Bs['Lstack'] * 1e9, Bs['Rstack'] * 1e3, Bs['tvs_bv']))
     say()
-    base = dict(Bs, Cext=data.EXT_CAP['c'], ESRext=data.EXT_CAP['esr'], ESLext=data.EXT_CAP['esl'])
+    base = dict(Bs, Cext=data.BULK['c'], ESRext=data.BULK['esr'], ESLext=data.BULK['esl'])
     ifc = losses.fc_power(**data.FC_LOAD_MAX)[0] / Bs['Vpack']
     noext = dict(base, Cext=0)
     rows = []
@@ -383,8 +383,8 @@ def bus_section():
     ripple = max(float(r[4].split('cap ')[1].split(' A')[0]) for r in rows if r[4].startswith('cap '))
     found['ripple'] = ripple
     verdict('Voltage', 'Ripple current in the external capacitors, 4 x 30 A',
-            ripple <= data.EXT_CAP['ripple'], '%.1f A rms' % ripple,
-            '%.2f A rms (2 x FR-A 100 uF, 100 kHz, 105 C)' % data.EXT_CAP['ripple'])
+            ripple <= data.BULK['ripple'], '%.1f A rms' % ripple,
+            '%.2f A rms (2 x FR-A 100 uF, 100 kHz, 105 C)' % data.BULK['ripple'])
     say('The ripple current is the pulsed battery current each channel draws '
         'while its high side is on, less what the bridge capacitors supply; four '
         'channels switching in step is the worst case, evenly staggered the best '
@@ -410,7 +410,7 @@ REGEN_E = data.MOTOR['vtest'] - data.MOTOR['load'][-1][1] * data.MOTOR['r']
 def lead_section(i_motor=20.0):
     log('stack lead')
     c = copper.extract('esc')
-    J = data.JST_SH
+    J = data.STACK_CONN
     say('## 5. The stack lead, and the FC\'s supply')
     say()
     say('The FC takes its power from the ESC through the 8-pin JST-SH lead (pin 1 '
@@ -511,18 +511,18 @@ def limit_of(name, m, shunt_w=0.0):
         return t, '%s capacitor (%s)' % (diel, what.split(',')[0])
     table_ = [('Q', data.FET['tch_max'], 'FET channel, abs max'),
               ('U_GD', data.DRV8300['tj_max'], 'DRV8300 junction'),
-              ('U_ESC', data.G071['tj_max'], 'STM32G071 junction (suffix 6)'),
-              ('U_CS', data.INA186['ta_max'], 'INA186 operating'),
-              ('U_GVDD', data.TPS7A16['tj_max'], 'TPS7A16 junction'),
-              ('U_BUCK5', data.LMR38020F['tj_max'], 'LMR38020F junction'),
-              ('U_BUCK9', data.LM76003['tj_max'], 'LM76003 junction'),
-              ('U_BUCK', data.MAX15062['tj_max'], 'MAX15062 junction'),
-              ('U_LDO', data.TLV76733['tj_max'], 'TLV76733 junction'),
-              ('U_FC', data.G473['tj_max'], 'STM32G473 junction (suffix 6)'),
-              ('U_IMU', data.ICM45686['t_max'], 'gyro operating'),
-              ('U_FLASH', data.W25Q128['t_max'], 'flash operating'),
-              ('U_OSD', data.AT7456E['t_max'], 'OSD operating'),
-              ('J_', data.JST_SH['t_max'], 'JST-SH connector'),
+              ('U_ESC', data.MCU_ESC['tj_max'], '%s junction' % data.MCU_ESC['part']),
+              ('U_CS', data.CSA['ta_max'], 'INA186 operating'),
+              ('U_GVDD', data.GATE_LDO['tj_max'], '%s junction' % data.GATE_LDO['part']),
+              ('U_BUCK5', data.BUCK5['tj_max'], '%s junction' % data.BUCK5['part']),
+              ('U_BUCK9', data.BUCK9['tj_max'], '%s junction' % data.BUCK9['part']),
+              ('U_BUCK', data.ESC_BUCK['tj_max'], '%s junction' % data.ESC_BUCK['part']),
+              ('U_LDO', data.V33['tj_max'], '%s junction' % data.V33['part']),
+              ('U_FC', data.MCU_FC['tj_max'], '%s junction' % data.MCU_FC['part']),
+              ('U_IMU', data.GYRO['t_max'], '%s operating' % data.GYRO['part']),
+              ('U_FLASH', data.FLASH['t_max'], '%s operating' % data.FLASH['part']),
+              ('U_OSD', data.OSD['t_max'], '%s operating' % data.OSD['part']),
+              ('J_', data.STACK_CONN['t_max'], '%s' % data.STACK_CONN['part']),
               ('L', 125.0, 'inductor'),
               ('R_SH', data.SHUNT['t_zero'] - (data.SHUNT['t_zero'] - data.SHUNT['t_full']) * shunt_w / data.SHUNT['p_rated'],
                'shunt terminal, derated for its power'),
@@ -893,8 +893,8 @@ def ground_section(sw):
             t = np.array(tr['t'])
             when = lambda key, lim: ('%.1f min' % (t[np.argmax(np.array(tr[key]) >= lim)] / 60)
                                      if (np.array(tr[key]) >= lim).any() else '> %.0f min' % (t[-1] / 60))
-            rows.append(['%.0f C' % Ta, tag, when('X5R', 85.0), when('connector', data.JST_SH['t_max']),
-                         when('gyro', data.ICM45686['t_max']), when('processor', data.G473['tj_max'])])
+            rows.append(['%.0f C' % Ta, tag, when('X5R', 85.0), when('connector', data.STACK_CONN['t_max']),
+                         when('gyro', data.GYRO['t_max']), when('processor', data.MCU_FC['tj_max'])])
     table(['Air', 'FC load', 'An X5R capacitor reaches 85 C', 'A stack connector reaches 85 C',
            'The gyro reaches 85 C', 'The processor reaches 105 C'], rows)
 
@@ -1067,13 +1067,13 @@ def fixes_section():
          'carries (%.0f W on an empty pack), or feed the HD VTX from the '
          'battery directly.  Wiring the FC\'s own battery pads as well creates a '
          'ground loop that puts %.1f A through the lead\'s GND contact at 20 A '
-         'per motor.' % (found.get('lead', 0), data.JST_SH['i_rated'] * 19.8, found.get('loop', 0))),
+         'per motor.' % (found.get('lead', 0), data.STACK_CONN['i_rated'] * 19.8, found.get('loop', 0))),
         ('The external capacitor.',
          'The ripple at full throttle, %.0f A rms, is %.0f times what two FR-A '
          '100 uF cans are rated for (%.1f A).  Specify capacitors rated for the '
          'ripple (polymer-hybrid, several in parallel) and always fit them: '
          'without them, plugging in a full pack alone comes close to the FETs\' '
-         'rating.' % (found.get('ripple', 0), found.get('ripple', 0) / data.EXT_CAP['ripple'], data.EXT_CAP['ripple'])),
+         'rating.' % (found.get('ripple', 0), found.get('ripple', 0) / data.BULK['ripple'], data.BULK['ripple'])),
     ]
     for title, text in items:
         say('- **%s** %s' % (title, text))
@@ -1130,8 +1130,8 @@ def heat_verdicts(results, first):
     verdict('Heat', 'Hard 3-minute flight at 45 C: hottest FET', f.get('fet', 0) < 150 or
             ('MARGINAL' if f.get('fet', 0) < data.FET['tch_max'] else False),
             '%.0f C' % f.get('fet', 0), '175 C (150 C design)')
-    verdict('Heat', 'Hard 3-minute flight at 45 C: ESC processors', f.get('mcu', 0) <= data.G071['tj_max'],
-            '%.0f C' % f.get('mcu', 0), '%.0f C junction (suffix 6)' % data.G071['tj_max'])
+    verdict('Heat', 'Hard 3-minute flight at 45 C: ESC processors', f.get('mcu', 0) <= data.MCU_ESC['tj_max'],
+            '%.0f C' % f.get('mcu', 0), '%.0f C junction (%s)' % (data.MCU_ESC['tj_max'], data.MCU_ESC['part']))
     if f.get('first'):
         k, (t, temp, lim, what) = f['first']
         verdict('Heat', 'Hard 3-minute flight at 45 C: first part past its rating', False,

@@ -50,8 +50,9 @@ def check_circuit(board):
     nets = circuit.nets(comps)
     single = [n for n, m in nets.items() if len(m) < 2]
     gate(not single, '%s: no single-pin nets %s' % (board, single or ''))
-    gate(all(parts.PARTS[c.part].get('lcsc') for c in comps if c.part in parts.PARTS),
-         '%s: every assembled part has an LCSC number' % board)
+    orderable = lambda p: p.get('lcsc') or (p.get('source') == 'global' and p.get('mpn') and p.get('dk'))
+    gate(all(orderable(parts.PARTS[c.part]) for c in comps if c.part in parts.PARTS),
+         '%s: every assembled part has an LCSC number, or an MPN and DigiKey number for global sourcing' % board)
 
 
 def check_outputs(board, name, prod):

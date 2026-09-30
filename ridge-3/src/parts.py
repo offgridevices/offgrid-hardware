@@ -314,6 +314,22 @@ PARTS = {
                        mpn='TPN2R304PL,L1Q', value='TPN2R304PL',
                        desc='N-MOSFET 40 V 2.3 mOhm, TSON Advance 3.3x3.3', kind='Q',
                        dk='TPN2R304PLL1QCT-ND', maker='Toshiba (Japan)'),
+    # Rev 2 FET.  Infineon ISZ023N06LM6 (OptiMOS 6, logic level): 60 V,
+    # 2.3 mOhm max at 10 V (2.03 typ; 2.9 max at 4.5 V, so a 2S pack's
+    # ~6.5 V gate drive still switches it fully), Tj 175 C, RthJC 1.5 K/W
+    # max, Qg 46 nC to 10 V, Qgd 6 nC, Qrr 23 nC (20 A, 100 A/us), EAS
+    # 148 mJ (datasheet rev 2.0, 2024-05-06).  At 6S (25.2 V) it runs at 42 %
+    # of its rating, inside the <= 60 % rule the 40 V part broke (63 %).
+    # PG-TSDSON-8 FL on Infineon's own land (footprints.tsdson8fl_fp).  Not
+    # stocked by LCSC: JLCPCB fits it through its global sourcing, PCBWay
+    # through turnkey.  DK 448-ISZ023N06LM6ATMA1CT-ND 2,625 at $1.49/100
+    # (2026-09-30).  Second source on the same land: Vishay SiSS22LDN
+    # (60 V, 3.65 mOhm, 150 C; LCSC C3279453, DK 69,952), and Infineon
+    # BSZ040N06LS5 (60 V, 4.0 mOhm, 150 C; LCSC C3279309, JLC 4,990).
+    'ISZ023N06LM6': dict(fp='aio:TSDSON-8FL_L3.3-W3.3-P0.65_IFX', lcsc=None, source='global',
+                         mpn='ISZ023N06LM6ATMA1', value='ISZ023N06LM6',
+                         desc='N-MOSFET 60 V 2.3 mOhm logic level, PG-TSDSON-8 FL 3.3x3.3', kind='Q',
+                         dk='448-ISZ023N06LM6ATMA1CT-ND', maker='Infineon Technologies (Germany)'),
     # Second source on the SAME land: Diodes Inc. DMTH43M8LFGQ-7, 40 V,
     # 3.0 mOhm max at 10 V (2.3 typ), Qg 40 nC, 175 C, AEC-Q101,
     # PowerDI3333-8.  Overlay of Diodes' suggested land on the TSON land:

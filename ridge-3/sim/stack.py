@@ -48,11 +48,11 @@ class StackModel:
                     self._junction(0, ref, cells, li, data.FET['rth_ch_c'], data.FET['c_th'])
             self._junction(0, 'U_GD%d' % n, *pad_cells(ce, 'U_GD%d' % n, ['GND']),
                            data.DRV8300['rth_jb'], 0.02)
-            self._junction(0, 'U_ESC%d' % n, *pad_cells(ce, 'U_ESC%d' % n), data.G071['rth_jb'], 0.02)
+            self._junction(0, 'U_ESC%d' % n, *pad_cells(ce, 'U_ESC%d' % n), data.MCU_ESC['rth_jb'], 0.02)
             self._pads(0, 'R_SH%d' % n)
             self._pads(0, 'U_CS%d' % n)
-        self._junction(0, 'U_GVDD', *pad_cells(ce, 'U_GVDD'), data.TPS7A16['rth_jb'], 0.02)
-        self._junction(0, 'U_BUCK', *pad_cells(ce, 'U_BUCK'), data.MAX15062['rth_jb'], 0.02)
+        self._junction(0, 'U_GVDD', *pad_cells(ce, 'U_GVDD'), data.GATE_LDO['rth_jb'], 0.02)
+        self._junction(0, 'U_BUCK', *pad_cells(ce, 'U_BUCK'), data.ESC_BUCK['rth_jb'], 0.02)
         self._pads(0, 'L1')
         self._pads(0, 'J_FC')
         for ref, key in (('U_BUCK5', 'LMR38020F'), ('U_BUCK9', 'LM76003'), ('U_LDO', 'TLV76733'),
@@ -61,9 +61,9 @@ class StackModel:
         for ref in ('U_IMU', 'U_FLASH', 'L_5V', 'L_9V', 'J_ESC', 'J_HD', 'D_TVS'):
             self._pads(1, ref)
         # capacitors whose dielectric has a lower temperature limit than the board
-        import circuit
+        import design
         for bi, c in ((0, ce), (1, cf)):
-            for cp in circuit.build(c.board):
+            for cp in design.circuit().build(c.board):
                 if cp.part in data.CAPS:
                     self._pads(bi, cp.ref, kind=cp.part)
         self.solver = thermal.Solver(self.st)
@@ -118,11 +118,11 @@ class StackModel:
                 for k, w in losses.esc_channel(I, D, V, f, e['dead'], Tj, e['sw']).items():
                     name = {'shunt': 'ESC R_SH%d' % n, 'driver': 'ESC U_GD%d' % n}.get(k, 'ESC Q%d%s' % (n, k))
                     self.put(P, name, w)
-                self.put(P, 'ESC U_ESC%d' % n, data.G071['p_run'])
-                self.put(P, 'ESC U_CS%d' % n, data.INA186['p'])
+                self.put(P, 'ESC U_ESC%d' % n, data.MCU_ESC['p_run'])
+                self.put(P, 'ESC U_CS%d' % n, data.CSA['p'])
             self.put(P, 'ESC U_GVDD', (V - data.GVDD) * losses.gvdd_current(f))
             p3 = data.ESC_3V3_LOAD * 3.3
-            self.put(P, 'ESC U_BUCK', p3 * (1 / data.MAX15062['eff'] - 1))
+            self.put(P, 'ESC U_BUCK', p3 * (1 / data.ESC_BUCK['eff'] - 1))
             self.put(P, 'ESC L1', data.ESC_3V3_LOAD ** 2 * data.INDUCTORS['L1']['dcr'])
             self._copper(P, copperloss.loss_map(self.units, e['I'], e['D']), T)
         fc = op.get('fc')
@@ -133,14 +133,14 @@ class StackModel:
                 self.put(P, 'FC ' + ref, max(parts[ref] - pl, 0.0))
                 self.put(P, 'FC ' + key, pl)
             self.put(P, 'FC U_LDO', parts['U_LDO'])
-            self.put(P, 'FC U_FC', data.G473['p_run'])
-            self.put(P, 'FC U_OSD', data.AT7456E['p'])
-            self.put(P, 'FC U_IMU', data.ICM45686['p'])
+            self.put(P, 'FC U_FC', data.MCU_FC['p_run'])
+            self.put(P, 'FC U_OSD', data.OSD['p'])
+            self.put(P, 'FC U_IMU', data.GYRO['p'])
             # the stack lead's two power contacts at each end, and the HD lead's
             ist = fc.get('i_lead', 0.0)
-            self.put(P, 'FC J_ESC', 2 * ist ** 2 * data.JST_SH['r_contact'])
-            self.put(P, 'ESC J_FC', 2 * ist ** 2 * data.JST_SH['r_contact'])
-            self.put(P, 'FC J_HD', 2 * fc['i9'] ** 2 * data.JST_SH['r_contact'])
+            self.put(P, 'FC J_ESC', 2 * ist ** 2 * data.STACK_CONN['r_contact'])
+            self.put(P, 'ESC J_FC', 2 * ist ** 2 * data.STACK_CONN['r_contact'])
+            self.put(P, 'FC J_HD', 2 * fc['i9'] ** 2 * data.HD_CONN['r_contact'])
             scale = dict(VBAT=ist, **{'+9V': fc['i9'], 'BUCK9_SW': fc['i9'], '+5V': fc['i5'], 'BUCK5_SW': fc['i5']})
             W = sum(self.fc_units[k][0] * (scale[k] / self.fc_units[k][1]) ** 2 for k in self.fc_units)
             self._copper(P, W, T, board=1)

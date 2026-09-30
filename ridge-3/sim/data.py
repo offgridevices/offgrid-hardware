@@ -8,8 +8,8 @@ flying stack), it is marked ASSUMPTION, and the report says what it changes.
 """
 
 # ------------------------------------------------------------------ ESC FETs
-FET = dict(
-    part='Toshiba TPN2R304PL', src='TPN2R304PL datasheet Rev.4.0.A (2026-04-14)',
+TPN2R304PL = FET = dict(
+    part='Toshiba TPN2R304PL', spice='TPN2R304PL', src='TPN2R304PL datasheet Rev.4.0.A (2026-04-14)',
     vdss=40.0,                          # V (sec. 4); V(BR)DSS min 40 V (6.1)
     tch_max=175.0,                      # C (sec. 4)
     rth_ch_c=1.43,                      # K/W max (sec. 5)
@@ -26,12 +26,36 @@ FET = dict(
     eas=39e-3, ias=80.0,                # single pulse from 25 C (4, note 5)
     c_th=0.0125,                        # J/K, ASSUMPTION: 3.3 x 3.3 x 0.9 mm package, ~25 mg
 )
-FET['qg_11v'] = FET['qg'] * 11.33 / 10  # gate charge to the 11.3 V drive (above the plateau Qg ~ linear in V)
-FET['vth_min_hot'] = FET['vth_min'] - (1.90 - 1.22)   # the typical curve's drop from 25 to 150 C
-
 # Toshiba's G0 model's body diode replaced by a charge-control diode fitted to
 # the datasheet recovery test (spice.fit): lifetime, transit time (s)
-BODY_DIODE = (10e-9, 5e-9)
+TPN2R304PL['body_diode'] = (10e-9, 5e-9)
+TPN2R304PL['vth_hot_drop'] = 1.90 - 1.22        # the typical curve's drop from 25 to 150 C
+
+# Rev 2: Infineon ISZ023N06LM6 (OptiMOS 6), datasheet rev 2.0 (2024-05-06)
+ISZ023N06LM6 = dict(
+    part='Infineon ISZ023N06LM6', src='ISZ023N06LM6 datasheet rev. 2.0 (2024-05-06)', spice='ISZ023N06LM6',
+    vdss=60.0,                          # V(BR)DSS min 60 V (table 4)
+    tch_max=175.0,                      # Tj max (table 2)
+    rth_ch_c=1.5,                       # RthJC max (table 3; typ 0.75)
+    # ZthJC single pulse, K/W vs pulse width s (diagram 4, max)
+    zth=((1e-5, 0.05), (1e-4, 0.20), (1e-3, 0.85), (1e-2, 1.40), (1e-1, 1.50)),
+    rds25_typ=2.03e-3, rds25_max=2.3e-3,       # VGS 10 V, 20 A (table 4)
+    rds_ratio=((25, 1.0), (50, 1.10), (75, 1.23), (100, 1.39), (125, 1.57), (150, 1.76), (175, 1.96)),  # diagram 9
+    vth_min=1.1, vth_max=2.3,           # VDS = VGS, 38 uA (table 4)
+    vth_typ_T=((25, 1.72), (75, 1.50), (100, 1.36), (125, 1.20), (150, 1.00), (175, 0.78)),   # diagram 10, 38 uA
+    ciss=3200e-12, crss=21e-12, coss=870e-12,      # typ, 30 V, 1 MHz (table 5)
+    qg=46e-9, qgd=6.0e-9, qoss=50e-9,              # typ, 0-10 V, 30 V (table 6)
+    qrr=23e-9, trr=29e-9,               # IF 20 A, 100 A/us, VR 30 V (table 7)
+    vsd_hot=0.70,                       # V: diagram 12, 20 A: 0.85 V at 25 C, 0.62 V at 175 C
+    eas=148e-3, ias=20.0,               # single pulse, ID 20 A (table 2)
+    c_th=0.0125,                        # J/K, ASSUMPTION: 3.3 x 3.3 x 1.0 mm package, ~25 mg
+    body_diode=None,                    # Infineon's model's own diode (fitted to the part by Infineon)
+)
+ISZ023N06LM6['vth_hot_drop'] = 1.72 - 1.00
+for _f in (TPN2R304PL, ISZ023N06LM6):
+    _f['qg_11v'] = _f['qg'] * 11.33 / 10        # gate charge to the 11.3 V drive (above the plateau Qg ~ linear in V)
+    _f['vth_min_hot'] = _f['vth_min'] - _f['vth_hot_drop']
+BODY_DIODE = FET['body_diode']
 
 # ------------------------------------------------------------------ ESC gate drive
 DRV8300 = dict(
@@ -152,3 +176,60 @@ BUS = dict(
     tvs_bv=38.6, tvs_rs=(SMF33A['vc'] - SMF33A['vbr'][1]) / SMF33A['ipp'], tvs_c=SMF33A['c'],
     Ifc=0.0, step=1e-9, maxstep=2e-9, tend=20e-6)
 FC_LOAD_MAX = dict(i5=2.0, i9=2.0)      # both rails at their rating (circuit.py)
+
+
+# ------------------------------------------------------------------ rev 2 parts
+IIM42652 = dict(part='TDK IIM-42652', t_max=105.0, p=3.3 * 0.9e-3)      # DS -40..105 C; ~0.9 mA 6-axis LN: ASSUMPTION
+S25FL128L = dict(part='Infineon S25FL128LAGNFM010', t_max=125.0)       # -40..125 C, AEC-Q100 grade 1
+G071_6 = G071
+C_BRIDGE_REV2 = C_BRIDGE                # TBD: X7R or X8R 4.7 uF 50 V (research C)
+
+# The designs (design.py switches the files, use() these figures).  Each
+# maps the generic names the simulations read to a part above.
+DESIGNS = {
+    'rev1': dict(
+        FET=TPN2R304PL, AM32=dict(AM32), MCU_ESC=G071, GATE_LDO=TPS7A16, ESC_BUCK=MAX15062, CSA=INA186,
+        C_BRIDGE=C_BRIDGE, BULK=dict(EXT_CAP, on_board=False), CAPS=dict(CAPS), ESC_TVS=None,
+        BUCK5=LMR38020F, BUCK9=LM76003, V33=dict(TLV76733, kind='ldo'), MCU_FC=G473, OSD=AT7456E,
+        GYRO=ICM45686, FLASH=W25Q128, STACK_CONN=JST_SH, HD_CONN=JST_SH, FC_TVS=SMF33A,
+        # the FC's video supply runs from the lead (split=False); the lead's GND
+        # pin is the ESC's plane at the connector (kelvin=False)
+        LEAD=dict(split=False, kelvin=False, soldered=False),
+    ),
+    'rev2': dict(
+        FET=ISZ023N06LM6,
+        AM32=dict(AM32, dead=125e-9,            # DEAD_TIME 8 at 64 MHz (firmware/am32 patch)
+                  f_min=24e3, f_max=24e3),      # fixed 24 kHz PWM (configurator)
+        MCU_ESC=G071, GATE_LDO=TPS7A16, ESC_BUCK=MAX15062, CSA=INA186,          # TBD (research E, D)
+        C_BRIDGE=C_BRIDGE_REV2, BULK=dict(EXT_CAP, on_board=True),               # TBD (research 6)
+        CAPS={k: ('X7R', 125.0, v[2]) for k, v in CAPS.items()}, ESC_TVS=None,     # TBD (research C, 7)
+        BUCK5=LMR38020F, BUCK9=LM76003, V33=dict(TLV76733, kind='ldo'),           # TBD (research Bucks, 3V3)
+        MCU_FC=G473, OSD=AT7456E, GYRO=IIM42652, FLASH=S25FL128L,
+        STACK_CONN=JST_SH, HD_CONN=JST_SH, FC_TVS=SMF33A,                          # TBD (research A)
+        LEAD=dict(split=True, kelvin=True, soldered=True),
+    ),
+}
+_derived = ('BRIDGE', 'BUS', 'BODY_DIODE')
+
+
+def use(name):
+    """Point the generic names at one design's parts, and the files too
+    (design.use).  The simulations read data.FET, data.MCU_ESC, ... ."""
+    import design
+    design.use(name)
+    g = globals()
+    for k, v in DESIGNS[name].items():
+        g[k] = v
+    g['BODY_DIODE'] = FET['body_diode']
+    b = g['BRIDGE']
+    b.update(dead=AM32['dead'] + DRV8300['dead'][1], Cb=C_BRIDGE['c_bias'], ESRb=C_BRIDGE['esr'],
+             ESLb=C_BRIDGE['esl'], Cb2=2 * C_BRIDGE['c_bias'], ESRb2=C_BRIDGE['esr'] / 2,
+             Cext=BULK['c'], ESRext=BULK['esr'], ESLext=BULK['esl'])
+    g['BUS'].update(Cbridge=12 * C_BRIDGE['c_bias'], ESRbridge=C_BRIDGE['esr'] / 12,
+                    ESLbridge=C_BRIDGE['esl'] / 12,
+                    tvs_bv=sum(FC_TVS['vbr']) / 2, tvs_rs=(FC_TVS['vc'] - FC_TVS['vbr'][1]) / FC_TVS['ipp'],
+                    tvs_c=FC_TVS['c'])
+    return name
+
+
+use('rev2')

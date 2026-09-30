@@ -18,7 +18,7 @@ M3/M2-grommet pattern of the GEPRC TAKER G4 AIO that Phase 1 flew:
        HDZero, MSP DisplayPort), 5 V 2 A BEC and a switchable 9 V VTX BEC,
        all rated for 6S.  firmware/ has the board's Betaflight target,
        one build per gyro.
-  ESC  4 x (STM32G071GBU6 + DRV8300D + 6 x TPN2R304PL 40 V FETs + 0.5 mOhm
+  ESC  4 x (STM32G071GBU6 + DRV8300D + 6 x ISZ023N06LM6 60 V FETs + 0.5 mOhm
        shunt and INA186 current sense), 2-6S, wired to the AM32 target
        RIDGE3_G071 (firmware/am32).
 
@@ -541,13 +541,13 @@ def esc(n):
         cap('C1U_16_0201', p('BST' + ph), p(ph), B, 'bootstrap ' + ph)
         res('R10R_0201', p('GH%s_D' % ph), p('GH' + ph), B, 'gate high ' + ph)
         res('R10R_0201', p('GL%s_D' % ph), p('GL' + ph), B, 'gate low ' + ph)
-        # Half-bridge of two 40 V FETs.  Pads 1-3 source, 4 gate, 5-8 and
+        # Half-bridge of two 60 V FETs.  Pads 1-3 source, 4 gate, 5-8 and
         # the tab (9) drain.  The low side's source goes to the channel's
         # sense node, which returns to ground through the shunt.
-        add('Q', 'TPN2R304PL', {'1': p(ph), '2': p(ph), '3': p(ph), '4': p('GH' + ph),
+        add('Q', 'ISZ023N06LM6', {'1': p(ph), '2': p(ph), '3': p(ph), '4': p('GH' + ph),
                                 '5': 'VBAT', '6': 'VBAT', '7': 'VBAT', '8': 'VBAT', '9': 'VBAT'},
             B, 'high side ' + ph, ref='Q%d%sH' % (n, ph))
-        add('Q', 'TPN2R304PL', {'1': p('SRC'), '2': p('SRC'), '3': p('SRC'), '4': p('GL' + ph),
+        add('Q', 'ISZ023N06LM6', {'1': p('SRC'), '2': p('SRC'), '3': p('SRC'), '4': p('GL' + ph),
                                 '5': p(ph), '6': p(ph), '7': p(ph), '8': p(ph), '9': p(ph)},
             B, 'low side ' + ph, ref='Q%d%sL' % (n, ph))
         # Bridge decoupling right under the half-bridge, VBAT to the sense

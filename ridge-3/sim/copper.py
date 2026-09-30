@@ -18,8 +18,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 RIDGE = os.path.dirname(HERE)
 OUT = os.path.join(HERE, 'out')
-BOARDS = {'fc': os.path.join(RIDGE, 'fc', 'ridge3-fc.kicad_pcb'),
-          'esc': os.path.join(RIDGE, 'esc', 'ridge3-esc.kicad_pcb')}
+BOARDS = ('fc', 'esc')        # by name: the design's board (design.board_path)
 NM = 1e-6          # pcbnew units (nm) to mm
 
 
@@ -77,8 +76,12 @@ def _mask(polys, x0, y0, res, shape):
 def extract(board, res=0.05):
     """Read a board (fc or esc, or the path of any .kicad_pcb) into a Copper
     raster, cached in sim/out/."""
-    path = BOARDS.get(board, board)
-    label = board if board in BOARDS else os.path.splitext(os.path.basename(board))[0]
+    if board in BOARDS:
+        import design                   # the board of the design being simulated
+        path = design.board_path(board)
+        label = '%s-%s' % (board, design.current)
+    else:
+        path, label = board, os.path.splitext(os.path.basename(board))[0]
     key = hashlib.sha1(open(path, 'rb').read() + repr(res).encode()).hexdigest()[:12]
     cache = os.path.join(OUT, 'copper-%s-%s.pkl' % (label, key))
     if os.path.exists(cache):

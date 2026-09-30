@@ -261,6 +261,10 @@ GLOBAL_BY_NOTE = {
     'ESC vsense bottom': (-2.1, 4.6, 0, 'T'),
     'ESC vsense filter': (-0.8, 4.6, 90, 'T'),
     'power LED': (16.8, 15.4, 90, 'T'),
+    # PROVISIONAL (rev 2 in progress): the stack ground's AC tie beside the
+    # connector's GND pin, and the soldered lead's pads
+    'stack ground AC tie': (-4.3, 1.8, 90, 'T'),
+    'stack lead pad': (0.0, -6.0, 0, 'T'),
 }
 
 
@@ -489,25 +493,39 @@ VBAT_VIAS = ((-1.2, 10.35), (-0.35, 10.2), (0.35, 10.2), (1.2, 10.35))
 SRC_PH_VIAS = ((0.0, 12.15), (-1.2, 11.6), (1.2, 11.6), (-1.2, 12.45))
 # the return's copper on In5 reaches further out, under the low-side source
 # pins, to the switch node's vias
-SRC_IN_EDGE = 13.8
+SRC_IN_EDGE = Y_LS - 0.4        # under the low side's drain body, short of its switch-node vias
 SRC_IN_INNER = 9.2
-SW_VIAS = [(du, yr) for yr in (14.3, 15.1, 15.9) for du in (-0.8, 0.0, 0.8) if (du, yr) != (0.8, 14.3)]
+# The FETs' copper edges, template yr (the Infineon TSDSON-8 FL land,
+# footprints.tsdson8fl_fp): the high side's drain ends at Y_HS + 0.46 and
+# its source leads start at Y_HS + 1.0; the low side (bottom, turned over)
+# has its source leads from Y_LS - 1.9 to Y_LS - 1.0 and its drain from
+# Y_LS - 0.46 out.  Each pour stops 0.2 mm short of the other net's pad.
+HS_DRAIN_END = Y_HS + 0.46 + 0.14       # top battery pour's outer edge
+TOP_SW_START = Y_HS + 0.46 + 0.34       # top switch-node pour's inner edge
+BOT_SW_START = Y_LS - 0.46 - 0.1        # bottom switch-node pour's inner edge
+SRC_OUT = Y_LS - 1.0 + 0.25             # the return's outer edge (over the source leads)
+# switch-node vias in the low-side drain (its body pad and leads)
+SW_VIAS = [(du, yr) for yr in (Y_LS + 0.05, Y_LS + 0.8, Y_LS + 1.55) for du in (-0.8, 0.0, 0.8)
+           if (du, yr) != (0.8, Y_LS + 0.05)]
 # the return copper's leg from the FET band to the shunt, through the
 # channel's +u corner, and a grid of vias in it
-SRC_LEG = (6.6, 6.8, 10.6, 13.45)
+SRC_LEG = (6.6, 6.8, 10.6, Y_LS - 1.0 + 0.25)
 # (clear of the shunt's Kelvin sense vias below its sense pads, and of the
 # corner's grommet keep-out, which takes the sixth spot)
 SRC_LEG_VIAS = [(u, yr) for u in (8.3, 9.1, 9.9) for yr in (10.25, 11.05) if (u, yr) != (9.9, 11.05)]
-TOP_SW = lambda u: [(u - 1.6, 13.45), (u + 0.55, 13.45), (u + 0.55, 14.55), (u + 1.6, 14.55),
-                    (u + 1.6, 17.65), (u - 1.6, 17.65)]
-BOT_SRC = [(-7.9, 13.45), (-7.9, 10.75), (-6.7, 10.75), (-6.7, 9.75), (6.6, 9.75), (6.6, 6.8),
-           (10.6, 6.8), (10.6, 13.45)]
+# the top switch node, notched round the high side's gate lead (u + 0.975)
+TOP_SW = lambda u: [(u - 1.6, TOP_SW_START), (u + 0.6, TOP_SW_START), (u + 0.6, Y_HS + 2.1),
+                    (u + 1.6, Y_HS + 2.1), (u + 1.6, 17.65), (u - 1.6, 17.65)]
+HS_DRAIN = lambda u: [(u - 1.6, 10.15), (u + 1.6, 10.15), (u + 1.6, HS_DRAIN_END), (u - 1.6, HS_DRAIN_END)]
+BOT_SW = lambda u: [(u - 1.6, BOT_SW_START), (u + 1.6, BOT_SW_START), (u + 1.6, 16.85), (u - 1.6, 16.85)]
+BOT_SRC = [(-7.9, SRC_OUT), (-7.9, 10.75), (-6.7, 10.75), (-6.7, 9.75), (6.6, 9.75), (6.6, 6.8),
+           (10.6, 6.8), (10.6, SRC_OUT)]
 
 
 def in_src():
     """The return's outline on In5: the bottom's, its outer edge at
     SRC_IN_EDGE and its inner edge SRC_IN_INNER further in (no parts there)."""
-    return [(u, SRC_IN_EDGE if yr == 13.45 else SRC_IN_INNER if yr == 9.75 else yr) for u, yr in BOT_SRC]
+    return [(u, SRC_IN_EDGE if yr == SRC_OUT else SRC_IN_INNER if yr == 9.75 else yr) for u, yr in BOT_SRC]
 
 
 def reserved():
@@ -587,12 +605,10 @@ def power_copper(b, comps):
             # top: switch node from the high-side sources to the motor pad,
             # notched round the gate pin; the drain side is battery
             _zone(b, n, sw, pcbnew.F_Cu, TOP_SW(u), name='switch node')
-            _zone(b, n, 'VBAT', pcbnew.F_Cu, [(u - 1.6, 10.15), (u + 1.6, 10.15), (u + 1.6, 13.25),
-                                              (u - 1.6, 13.25)], name='high-side drain')
+            _zone(b, n, 'VBAT', pcbnew.F_Cu, HS_DRAIN(u), name='high-side drain')
             # bottom: switch node over the low-side drain, reaching out to
             # the phase end of the back-EMF resistor that taps it
-            pts = [(u - 1.6, 13.65), (u + 1.6, 13.65), (u + 1.6, 16.85), (u - 1.6, 16.85)]
-            _zone(b, n, sw, pcbnew.B_Cu, pts, name='switch node')
+            _zone(b, n, sw, pcbnew.B_Cu, BOT_SW(u), name='switch node')
             for c in comps:
                 if c.block != 'esc%d' % n or not c.note.startswith('BEMF ') or c.pins.get('1') != sw:
                     continue
@@ -605,7 +621,7 @@ def power_copper(b, comps):
                 # it overlaps the pour whichever way the pad lies from it
                 cu_ = min(max((pu0 + pu1) / 2, u - 1.35), u + 1.35)
                 cy_ = min(max((py0 + py1) / 2, 13.9), 16.6)
-                if u - 1.6 <= (pu0 + pu1) / 2 <= u + 1.6 and 13.65 <= (py0 + py1) / 2 <= 16.85:
+                if u - 1.6 <= (pu0 + pu1) / 2 <= u + 1.6 and BOT_SW_START <= (py0 + py1) / 2 <= 16.85:
                     continue
                 w2 = 0.25
                 ua, ub = min(pu0, cu_ - w2), max(pu1, cu_ + w2)
@@ -694,8 +710,8 @@ def routing_keepouts(b):
         areas = []
         for ph, u in PH_U.items():
             areas.append((pcbnew.F_Cu, TOP_SW(u)))
-            areas.append((pcbnew.F_Cu, [(u - 1.6, 10.15), (u + 1.6, 10.15), (u + 1.6, 13.25), (u - 1.6, 13.25)]))
-            areas.append((pcbnew.B_Cu, [(u - 1.6, 13.65), (u + 1.6, 13.65), (u + 1.6, 16.85), (u - 1.6, 16.85)]))
+            areas.append((pcbnew.F_Cu, HS_DRAIN(u)))
+            areas.append((pcbnew.B_Cu, BOT_SW(u)))
         areas.append((pcbnew.B_Cu, BOT_SRC))
         areas.append((SRC_IN, in_src()))
         for layer, pts in areas:

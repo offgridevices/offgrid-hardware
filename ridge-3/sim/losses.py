@@ -66,8 +66,8 @@ def buck_loss(part, iout, vout):
 
 def fc_power(i5, i9):
     """FC input power (W) and the heat of each supply part (W)."""
-    p5 = buck_loss(data.LMR38020F, i5, 5.0)
-    p9 = buck_loss(data.LM76003, i9, 9.1)
+    p5 = buck_loss(data.BUCK5, i5, 5.0)
+    p9 = buck_loss(data.BUCK9, i9, 9.1)
     ldo = (5.0 - 3.3) * data.FC_3V3_LOAD
     pin = 5.0 * i5 + p5 + 9.1 * i9 + p9     # the 3.3 V load is part of the 5 V rail's i5
     return pin, dict(U_BUCK5=p5, U_BUCK9=p9, U_LDO=ldo)

@@ -1,14 +1,20 @@
 # -*- coding: utf-8 -*-
 """Circuit transients with ngspice: one half-bridge switching, and the battery bus.
 
-The FET is Toshiba's own SPICE model of the TPN2R304PL: the "G0" PSpice
-file (TPN2R304PL_G0_00_PSpice_rev1.lib), a BSIM3 model.  Toshiba gives it
-out behind a free model-use agreement on the part's page
-(toshiba.semicon-storage.com, TPN2R304PL, "Design & Development" ->
-"SPICE model"), for simulation, not for passing on, so it is not in this
-repository.  Download the PSpice zip, and either point TPN2R304PL_LIB at the
-.lib inside or put the .lib in sim/out/spice/.  PSpice's BSIM3 is LEVEL=7;
-ngspice calls it level 8, which fet_lib() changes.
+The FETs are their makers' own SPICE models (FETS below), given out for
+simulation, not for passing on, so they are not in this repository:
+  * rev 1, Toshiba TPN2R304PL: the "G0" PSpice file
+    (TPN2R304PL_G0_00_PSpice_rev1.lib), a BSIM3 model, behind a free
+    model-use agreement on the part's page (toshiba.semicon-storage.com,
+    TPN2R304PL, "Design & Development" -> "SPICE model").  Point
+    TPN2R304PL_LIB at the .lib or put it in sim/out/spice/.  PSpice's BSIM3
+    is LEVEL=7; ngspice calls it level 8, which _toshiba_lib() changes.
+  * rev 2, Infineon ISZ023N06LM6: its level-1 model (ISZ023N06LM6_L1) in
+    Infineon's "OptiMOS 6 60 V" library, OptiMOS6_60V_Spice.lib, from the
+    zip infineon-optimos-powermosfet-pspice-60v-n-channel-simulationmodels
+    on infineon.com (the part's page, "Simulation models").  Point
+    OPTIMOS6_60V_LIB at it or put it in sim/out/spice/.  Written in PSpice's
+    dialect: ngspice runs it with ngbehavior=ps.
 
 Everything else is built here from datasheet figures (data.py): the DRV8300
 gate driver as its output resistance up to its peak current behind the gate
@@ -21,10 +27,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'out', 'spice')
-FET_NAME = 'TPN2R304PL_G0_00'
-
-
-def fet_lib():
+def _toshiba_lib():
     """The TPN2R304PL model as an ngspice include file."""
     os.makedirs(OUT, exist_ok=True)
     path = os.path.join(OUT, 'TPN2R304PL_G0.lib')
@@ -34,10 +37,35 @@ def fet_lib():
     if not src or not os.path.exists(src):
         raise SystemExit('Toshiba\'s TPN2R304PL G0 PSpice model is needed: see the note at the top of sim/spice.py')
     text = open(src, errors='replace').read()
-    assert '.SUBCKT %s' % FET_NAME in text, 'not the G0 PSpice model'
+    assert '.SUBCKT TPN2R304PL_G0_00' in text, 'not the G0 PSpice model'
     text = re.sub(r'LEVEL=7', 'LEVEL=8\n+ VERSION=3.3.0', text)
     open(path, 'w').write(text)
     return path
+
+
+def _infineon_lib():
+    path = os.environ.get('OPTIMOS6_60V_LIB') or os.path.join(OUT, 'OptiMOS6_60V_Spice.lib')
+    if not os.path.exists(path):
+        raise SystemExit('Infineon\'s OptiMOS 6 60 V model library is needed: see the note at the top of sim/spice.py')
+    return path
+
+
+# per FET (data.FET['spice']): the model's file, its subcircuit, the node
+# inside it that is the gate after the package's own gate resistance, and
+# whether ngspice must read it as PSpice
+FETS = {
+    'TPN2R304PL': dict(lib=_toshiba_lib, subckt='TPN2R304PL_G0_00', gate='22', ps=False),
+    'ISZ023N06LM6': dict(lib=_infineon_lib, subckt='ISZ023N06LM6_L1', gate='g', ps=True),
+}
+
+
+def _fet():
+    import data
+    return FETS[data.FET['spice']]
+
+
+def fet_lib():
+    return _fet()['lib']()
 
 
 def run(name, netlist, vectors):
@@ -48,7 +76,8 @@ def run(name, netlist, vectors):
     ctl = '.control\nset wr_singlescale\nset wr_vecnames\nrun\nwrdata %s %s\n.endc\n.end\n' % (
         dat, ' '.join(vectors))
     open(cir, 'w').write(netlist + '\n' + ctl)
-    p = subprocess.run(['ngspice', '-b', cir], capture_output=True, text=True, timeout=1800)
+    p = subprocess.run(['ngspice'] + (['-D', 'ngbehavior=ps'] if _fet()['ps'] else []) + ['-b', cir],
+                       capture_output=True, text=True, timeout=1800)
     if p.returncode != 0 or not os.path.exists(dat):
         raise RuntimeError('ngspice failed on %s:\n%s' % (cir, p.stdout[-3000:] + p.stderr[-3000:]))
     head = open(dat).readline().split()
@@ -132,7 +161,7 @@ LgH gH1 gH %(Lg)g
 CgLo goL gb 10p
 CgHo goH sH 10p
 .tran 0.02n %(tend)g 0 0.05n
-""" % dict(p, lib=lib, fet=FET_NAME, Ld=0.4 * L, Lm=0.2 * L, Ls=0.4 * L,
+""" % dict(p, lib=lib, fet=_fet()['subckt'], Ld=0.4 * L, Lm=0.2 * L, Ls=0.4 * L,
            t_off_ls=t_off_ls, t_on_hs=t_on_hs, t_off_hs=t_off_hs, t_on_ls=t_on_ls,
            t1=t_off_ls + tr, t2=t_on_ls + tr, t3=t_on_hs + tr, t4=t_off_hs + tr,
            drvL=driver('L', 'vsL', 'goL', 'gb', p['rpu'], p['rpd'], p['ipu'], p['ipd']),
@@ -141,13 +170,14 @@ CgHo goH sH 10p
            snub=('* RC snubber across each FET\nRsnL dL0 sn1 %g\nCsnL sn1 sL %g\nRsnH dH sn2 %g\nCsnH sn2 sH %g'
                  % (p['snub'][0], p['snub'][1], p['snub'][0], p['snub'][1])) if p.get('snub') else '')
     w = run('hb_%(tag)s' % p, n, ['v(dH)', 'v(sH)', 'v(dL0)', 'v(sL)', 'v(gH)', 'v(gL)',
-                                  'v(xh.22)', 'v(xl.22)', 'v(vb)', 'v(src)', 'v(gb)', 'v(pad)',
+                                  'v(xh.%s)' % _fet()['gate'], 'v(xl.%s)' % _fet()['gate'],
+                                  'v(vb)', 'v(src)', 'v(gb)', 'v(pad)',
                                   'i(vidh)', 'i(vidl)'])
     t = w['time']
     vdsH = w['v(dH)'] - w['v(sH)']
     vdsL = w['v(dL0)'] - w['v(sL)']
-    vgsL = w['v(xl.22)'] - w['v(sL)']
-    vgsH = w['v(xh.22)'] - w['v(sH)']
+    vgsL = w['v(xl.%s)' % _fet()['gate']] - w['v(sL)']
+    vgsH = w['v(xh.%s)' % _fet()['gate']] - w['v(sH)']
     sh = w['v(sH)'] - w['v(gb)']
     iH, iL = w['i(vidh)'], w['i(vidl)']
     win = lambda a, b: (t >= a) & (t <= b)
@@ -198,6 +228,7 @@ def _fet_variant(lm=None):
     """
     if lm is None:
         return fet_lib()
+    assert _fet()['subckt'] == 'TPN2R304PL_G0_00', 'the recovery fit is for Toshiba\'s model'
     tau, tm = lm
     path = os.path.join(OUT, 'TPN2R304PL_G0_lm%.3g_%.3g.lib' % (tau * 1e9, tm * 1e9))
     text = open(fet_lib()).read()
@@ -223,7 +254,7 @@ Vr n1 0 PWL(0 0 1u 0 1.001u %g)
 L1 n1 dd %g ic=%g
 Vm dd d 0
 .tran 0.02n 1.6u uic
-""" % (lib, T, FET_NAME, VR, L, -IF)
+""" % (lib, T, _fet()['subckt'], VR, L, -IF)
     w = run('qrr', n, ['i(vm)'])
     t, i = w['time'], w['i(vm)']
     m = t > 1e-6
@@ -249,11 +280,12 @@ X3 d3 g3 0 %s
 Vd3 d3 0 dc %g ac 1
 Vg3 g3 0 0
 .ac lin 1 1e6 1e6
-""" % (fet_lib(), T, FET_NAME, VDS, FET_NAME, VDS, FET_NAME, VDS)
+""" % ((fet_lib(), T) + (_fet()['subckt'], VDS) * 3)
     os.makedirs(OUT, exist_ok=True)
     cir = os.path.join(OUT, 'caps.cir')
     open(cir, 'w').write(n + '.control\nrun\nprint mag(i(vg1)) mag(i(vg2)) mag(i(vd3))\n.endc\n.end\n')
-    out = subprocess.run(['ngspice', '-b', cir], capture_output=True, text=True).stdout
+    out = subprocess.run(['ngspice'] + (['-D', 'ngbehavior=ps'] if _fet()['ps'] else []) + ['-b', cir],
+                         capture_output=True, text=True).stdout
     vals = [float(re.search(r'mag\(i\(%s\)\)\s*=\s*([0-9.eE+-]+)' % v, out).group(1)) for v in ('vg1', 'vg2', 'vd3')]
     w = 2 * np.pi * 1e6
     return tuple(v / w for v in vals)
@@ -267,10 +299,11 @@ X1 d g 0 %s
 Vg g 0 %g
 Id 0 d %g
 .op
-""" % (fet_lib(), T, FET_NAME, VGS, ID)
+""" % (fet_lib(), T, _fet()['subckt'], VGS, ID)
     cir = os.path.join(OUT, 'rds.cir')
     open(cir, 'w').write(n + '.control\nrun\nprint v(d)\n.endc\n.end\n')
-    out = subprocess.run(['ngspice', '-b', cir], capture_output=True, text=True).stdout
+    out = subprocess.run(['ngspice'] + (['-D', 'ngbehavior=ps'] if _fet()['ps'] else []) + ['-b', cir],
+                         capture_output=True, text=True).stdout
     return float(re.search(r'v\(d\)\s*=\s*([0-9.eE+-]+)', out).group(1)) / ID
 
 
@@ -279,14 +312,15 @@ def gate_charge(VDD=20.0, ID=40.0, IG=1e-3):
     current load of ID on a VDD rail, the gate charged by a constant IG."""
     n = """* gate charge
 .include %s
+.options reltol=1e-3 abstol=1e-6 vntol=1e-4 chgtol=1e-12 method=gear
 X1 d g 0 %s
 Vdd vdd 0 %g
 Iload vdd d %g
 Dcl d vdd dclamp
-.model dclamp d(is=1e-12 n=0.05)
+.model dclamp d(is=1e-12 n=0.2)
 Ig 0 g PWL(0 0 10n %g)
-.tran 1n 60u
-""" % (fet_lib(), FET_NAME, VDD, ID, IG)
+.tran 1n 60u 0 20n
+""" % (fet_lib(), _fet()['subckt'], VDD, ID, IG)
     w = run('qg', n, ['v(g)', 'v(d)'])
     t, vg, vd = w['time'], w['v(g)'], w['v(d)']
     q = IG * t

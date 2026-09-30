@@ -77,23 +77,27 @@ def _natural(ref):
 def bom_cpl(board, out_dir, name, board_name):
     b = pcbnew.LoadBoard(board)
     asm = _assembled(b, board_name)
+    # one BOM line per orderable part: its LCSC number, or for a part LCSC
+    # does not stock (JLCPCB's global sourcing, PCBWay's turnkey) its MPN
+    key = lambda p: p['lcsc'] or 'MPN ' + p['mpn']
     groups = collections.OrderedDict()
-    for fp, p in sorted(asm, key=lambda a: (a[1]['lcsc'], _natural(a[0].GetReference()))):
-        groups.setdefault(p['lcsc'], (p, []))[1].append(fp.GetReference())
+    for fp, p in sorted(asm, key=lambda a: (key(a[1]), _natural(a[0].GetReference()))):
+        groups.setdefault(key(p), (p, []))[1].append(fp.GetReference())
     fpname = lambda p: p['fp'].split(':')[1]
     with open(os.path.join(out_dir, '%s-bom-jlcpcb.csv' % name), 'w', newline='') as f:
         w = csv.writer(f)
-        w.writerow(['Comment', 'Designator', 'Footprint', 'LCSC Part #'])
-        for lcsc, (p, refs) in groups.items():
-            w.writerow([p['value'], ','.join(sorted(refs, key=_natural)), fpname(p), lcsc])
+        w.writerow(['Comment', 'Designator', 'Footprint', 'LCSC Part #', 'Manufacturer Part #', 'Manufacturer'])
+        for k, (p, refs) in groups.items():
+            w.writerow([p['value'], ','.join(sorted(refs, key=_natural)), fpname(p), p['lcsc'] or '', p['mpn'],
+                        p.get('maker', '').split(' (')[0]])
     with open(os.path.join(out_dir, '%s-bom-pcbway.csv' % name), 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['Item #', 'Designator', 'Qty', 'Manufacturer Part Number', 'Description', 'Value',
                     'Package/Footprint', 'Type', 'LCSC Part #', 'Side'])
-        for i, (lcsc, (p, refs)) in enumerate(groups.items(), 1):
-            sides = sorted(set('Bottom' if fp.IsFlipped() else 'Top' for fp, q in asm if q['lcsc'] == lcsc))
+        for i, (k, (p, refs)) in enumerate(groups.items(), 1):
+            sides = sorted(set('Bottom' if fp.IsFlipped() else 'Top' for fp, q in asm if key(q) == k))
             w.writerow([i, ','.join(sorted(refs, key=_natural)), len(refs), p['mpn'], p['desc'], p['value'],
-                        fpname(p), 'SMD', lcsc, '+'.join(sides)])
+                        fpname(p), 'SMD', p['lcsc'] or '', '+'.join(sides)])
     with open(os.path.join(out_dir, '%s-cpl-jlcpcb.csv' % name), 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['Designator', 'Mid X', 'Mid Y', 'Layer', 'Rotation'])
