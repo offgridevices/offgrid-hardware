@@ -107,7 +107,8 @@ def half_bridge(p):
     commutation loop, split drain 40 % / mid 20 % / source 40 %), Rg (ohm),
     rpu/rpd, ipu/ipd (driver), gvdd, vboot, dead (s), Cb/ESRb/ESLb (bridge
     capacitor), Cext/ESRext/ESLext, Llead/Rbat, Lplane/Rplane, Lg (gate
-    loop), lm (body diode, see _fet_variant), snub (R, C across each FET).
+    loop), lm (body diode, see _fet_variant), snub (R, C across each FET),
+    Rg_off (a Schottky and this resistor beside Rg: faster turn-off).
     """
     lib = _fet_variant(p.get('lm'))
     t_off_ls = 0.5e-6
@@ -158,6 +159,7 @@ LgL gL1 gL %(Lg)g
 VsH vsH sH PWL(0 0 %(t_on_hs)g 0 %(t3)g %(vboot)g %(t_off_hs)g %(vboot)g %(t4)g 0)
 %(drvH)sRgH goH gH1 %(Rg)g
 LgH gH1 gH %(Lg)g
+%(gate_off)s
 CgLo goL gb 10p
 CgHo goH sH 10p
 .tran 0.02n %(tend)g 0 0.05n
@@ -168,7 +170,12 @@ CgHo goH sH 10p
            drvH=driver('H', 'vsH', 'goH', 'sH', p['rpu'], p['rpd'], p['ipu'], p['ipd']),
            tend=t_on_ls + 1.0e-6,
            snub=('* RC snubber across each FET\nRsnL dL0 sn1 %g\nCsnL sn1 sL %g\nRsnH dH sn2 %g\nCsnH sn2 sH %g'
-                 % (p['snub'][0], p['snub'][1], p['snub'][0], p['snub'][1])) if p.get('snub') else '')
+                 % (p['snub'][0], p['snub'][1], p['snub'][0], p['snub'][1])) if p.get('snub') else '',
+           # a faster turn-off path: a Schottky and Rg_off beside Rg (the gate
+           # discharges through both, charges through Rg alone)
+           gate_off=('* turn-off path: Schottky + Rg_off beside Rg\n'
+                     'RoL goL goL2 %(r)g\nDoL gL1 goL2 dgoff\nRoH goH goH2 %(r)g\nDoH gH1 goH2 dgoff\n'
+                     '.model dgoff d(is=1e-6 n=1.05 rs=0.1 cjo=30p)' % dict(r=p['Rg_off'])) if p.get('Rg_off') else '')
     w = run('hb_%(tag)s' % p, n, ['v(dH)', 'v(sH)', 'v(dL0)', 'v(sL)', 'v(gH)', 'v(gL)',
                                   'v(xh.%s)' % _fet()['gate'], 'v(xl.%s)' % _fet()['gate'],
                                   'v(vb)', 'v(src)', 'v(gb)', 'v(pad)',

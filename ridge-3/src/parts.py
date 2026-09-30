@@ -96,6 +96,13 @@ PARTS = {
     # functions and the same axes against pin 1 (fig. 13 = the 42688's fig.
     # 15).  JLC 1,022 ext, $11.84 / 8.12 (1 / 100+) on 2026-09-29; DK
     # 1428-ICM-45686CT-ND 0 (fc), $5.26 / 3.56 (1 / 1000).
+    # Rev 2 IMU: TDK IIM-42652, -40..+105 C, the ICM-42688-P's pins and
+    # axes (DS-000440).  JLC 4,292 ext, $11.05 (2026-09-30).  Same-pad second
+    # source: ICM-42688-P (85 C).
+    'IIM42652': dict(fp='aio:LGA-14_L3.0-W2.5-P0.50-TL', lcsc='C2988404',
+                     mpn='IIM-42652', value='IIM-42652',
+                     desc='6-axis IMU (TDK InvenSense, industrial, -40..105 C), SPI, LGA-14 2.5x3', kind='U',
+                     maker='TDK InvenSense (Japan/US)'),
     'ICM45686': dict(fp='aio:LGA-14_L3.0-W2.5-P0.50-TL', lcsc='C22459454',
                      mpn='ICM-45686', value='ICM-45686',
                      desc='6-axis IMU (TDK InvenSense), SPI, LGA-14 2.5x3', kind='U',
@@ -116,6 +123,16 @@ PARTS = {
                      desc='16 MB SPI NOR flash (blackbox), WSON-8 6x5', kind='U'),
     # v1 only: W25Q128JVPIQ, 0 at LCSC.  Equal second source for
     # W25Q128JVPIM on the same pads (DK 256-W25Q128JVPIQ-TUBE-ND).
+    # Rev 2 flash: Infineon S25FL128LAGNFM010, 128 Mbit, -40..+125 C,
+    # AEC-Q100 grade 1 (datasheet 002-00124 rev *L).  WSON 5 x 6 (WND008):
+    # the Winbond WSON 6 x 5's pin order (1 CS#, 2 SO, 3 WP#, 4 VSS, 5 SI,
+    # 6 SCK, 7 IO3/RESET#, 8 VCC) and 1.27 mm pitch; its 4.0 x 3.4 mm pad
+    # fits this land.  JEDEC ID 01 60 18, in Betaflight's m25p16 list.
+    # LCSC C5880817 lists it with 0 in stock: JLCPCB global sourcing.
+    'S25FL128L': dict(fp='aio:WSON-8_L6.0-W5.0-P1.27-BL-EP', lcsc='C5880817', source='global',
+                      mpn='S25FL128LAGNFM010', value='S25FL128LAGNFM010',
+                      desc='128 Mbit SPI NOR flash, -40..125 C (AEC-Q100 grade 1), WSON-8 5x6', kind='U',
+                      maker='Infineon Technologies (Germany)'),
     'W25Q128': dict(fp='aio:WSON-8_L6.0-W5.0-P1.27-BL-EP', lcsc='C190862',
                     mpn='W25Q128JVPIQ', value='W25Q128JVPIQ',
                     desc='16 MB SPI NOR flash (blackbox), WSON-8 6x5', kind='U'),
