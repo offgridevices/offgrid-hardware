@@ -127,7 +127,9 @@ def amg(A, tol=1e-10):
     def solve(b, x0=None):
         res = []
         x = ml.solve(b, x0=x0, tol=tol, accel='cg', maxiter=400, residuals=res)
-        if res[0] > 0 and res[-1] > 1e-6 * res[0]:     # aimed at tol; anything past 1e-6 is a failure
+        # aimed at tol; a residual past 1e-6 of both the start (cold starts) and
+        # of the right-hand side (warm starts begin close) is a failure
+        if res[-1] > 1e-6 * max(res[0], np.linalg.norm(b)):
             raise RuntimeError('network solve did not converge: residual %.1e of %.1e' % (res[-1], res[0]))
         return x
     return solve

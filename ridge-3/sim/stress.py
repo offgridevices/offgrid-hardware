@@ -860,7 +860,7 @@ def ground_section(sw):
     say('**Waiting on the ground with the video on.**  Still air, the motors '
         'stopped (the ESC\'s processors and gate supply on).  The stack\'s '
         'thermal time constant in still air is about %.0f minutes, so it '
-        'reaches the steady state below after about %.0f; the second table is '
+        'reaches the steady state below after about %.0f minutes; the second table is '
         'the first minutes.' % (tau / 60, 4 * tau / 60))
     say()
     rows = []

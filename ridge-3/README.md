@@ -90,6 +90,21 @@ on the same battery line through the stack lead and clamps slow surges, but
 at its full rated surge it clamps at 53 V, above 40 V, so it does not replace
 the capacitors.
 
+**Simulated since: see [`STRESS.md`](STRESS.md).** The stress simulations
+(`sim/`) find less headroom than the estimates in this section.
+
+- **Heat:** the ESC's copper loses about as much as its FETs. The
+  sense-node copper and the 1 oz battery planes are the largest part of it,
+  and the dead time adds more.
+- **Bursts:** a full-throttle burst at AM32's 20 A takes the FETs beside
+  the battery pads to 175 °C in 2-3 s.
+- **Voltage:** switching spikes reach the 40 V FETs' rating on a full 6S
+  pack.
+- **The stack lead:** the FC's full load is more than its 1 A contact
+  carries.
+
+What would fix each is listed at the end of that file.
+
 **Current.** Each FET is rated 80 A with its case at 25 °C (200 A pulsed,
 2.3 mΩ maximum at 10 V gate drive; the gates get 11.3 V). A 3" motor's
 20-30 A bursts stay under 40 % of that rating. What limits current is heat
