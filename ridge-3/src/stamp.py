@@ -41,7 +41,7 @@ from shapely.geometry import Polygon, Point, LineString, box
 from shapely.ops import unary_union, split
 import pcb, route
 
-ALL_CU = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
+ALL_CU = pcb.CU_ALL
 VIA_RING = 0.0          # vias count with at least this ring (route.VIA_RING)
 
 
@@ -360,7 +360,8 @@ def _open_nets(path, nets, work):
 # many each left open, so it takes a dozen of them to find one that ends
 # with nothing open.  _VERT: every layer prefers the direction across the
 # FET row, which is where nearly every channel net goes.
-_VERT = {'F.Cu': 'vertical', 'In2.Cu': 'vertical', 'In3.Cu': 'horizontal', 'B.Cu': 'vertical'}
+_VERT = {'F.Cu': 'vertical', 'In2.Cu': 'vertical', 'In3.Cu': 'horizontal', 'In5.Cu': 'horizontal',
+         'B.Cu': 'vertical'}
 VARIANTS = [dict(via_costs=20, start_ripup_costs=100),
             dict(via_costs=25, start_ripup_costs=100),
             dict(via_costs=30, start_ripup_costs=100),

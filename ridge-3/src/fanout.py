@@ -9,6 +9,7 @@ to the pad with a short stub.  Exposed pads get a grid of vias inside them.
 """
 import math
 import pcbnew
+import pcb
 from shapely.geometry import Point, Polygon, box
 from shapely.strtree import STRtree
 from shapely.ops import unary_union
@@ -143,8 +144,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
     off_drill: drill of a via placed beside its pad (default via_drill)."""
     """nets: set of net names to take into the planes.  bounds: (x0,y0,x1,y1)
     in board mm inside which vias may go (board edge minus clearance)."""
-    layers = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu,
-                          pcbnew.In4_Cu, pcbnew.B_Cu) if board.IsLayerEnabled(l)]
+    layers = pcb.cu_layers(board)
     obs = Obstacles(board, layers)
     rv = via_d / 2
     placed, failed, ep_failed = 0, [], []
@@ -358,8 +358,7 @@ def escape_vias(board, planes, inpad, far=5.0, max_pads=2, skip=(), bounds=None,
     only: if given, the parts (refs) to consider, nothing else.
     only_pads: if given, the (ref, pad number) pairs to consider, nothing else.
     Returns the number of vias placed."""
-    layers = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu,
-                          pcbnew.In4_Cu, pcbnew.B_Cu) if board.IsLayerEnabled(l)]
+    layers = pcb.cu_layers(board)
     obs = Obstacles(board, layers)
     pads = {}
     for fp in board.GetFootprints():
@@ -452,8 +451,7 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
     at most `inpad_overhang` past the pad's edge; the dog-bone is the
     fallback.  hole_cl: every via's hole also clears other nets' copper by
     this much.  Returns (placed, failed pins)."""
-    layers = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu,
-                          pcbnew.In4_Cu, pcbnew.B_Cu) if board.IsLayerEnabled(l)]
+    layers = pcb.cu_layers(board)
     obs = Obstacles(board, layers)
     from shapely.geometry import LineString
     placed, failed = 0, []

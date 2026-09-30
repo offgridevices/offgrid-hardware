@@ -37,6 +37,17 @@ def load_fp(fpid):
     lib, name = fpid.split(':')
     return pcbnew.FootprintLoad(lib_path(lib), name)
 
+# Every copper layer a board here can have, top to bottom; cu_layers() keeps
+# the ones a board has (4, 6 or 8).
+CU_ALL = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.In5_Cu,
+          pcbnew.In6_Cu, pcbnew.B_Cu]
+
+
+def cu_layers(b):
+    """The board's copper layers, top to bottom."""
+    return [l for l in CU_ALL if b.IsLayerEnabled(l)]
+
+
 def new_board(layers=4):
     b = pcbnew.BOARD()
     b.SetCopperLayerCount(layers)
@@ -609,14 +620,18 @@ def write_rules(board_path, extra=''):
 
 
 # Stackups, 1.6 mm, 1 oz outer copper; inner copper per board (the ESC's
-# inner planes carry the motor current: 1 oz; the FC: 0.5 oz).  4 layers:
-# JLCPCB's standard JLC04161H-7628.  6 layers: nominal figures for the fab's
-# standard 6-layer 1.6 mm build (nothing here needs controlled impedance).
+# inner planes carry the motor current: 1 oz; the FC: 1 oz, for spreading
+# its supplies' heat).  4 layers: JLCPCB's standard JLC04161H-7628.  6 and
+# 8 layers: nominal figures for the fab's standard 1.6 mm builds (nothing
+# here needs controlled impedance; 8 layers of 1 oz leave 1.3 mm of glass).
 # Mask and silk colours follow the OffGrid brand: Pitch ground (black
 # mask), Bone type (white silk); ENIG keeps the QFN pads flat.
 DIELECTRIC = {4: [('prepreg', 0.2104, '7628', 4.4), ('core', 1.065, 'FR4', 4.6), ('prepreg', 0.2104, '7628', 4.4)],
               6: [('prepreg', 0.1, 'FR4', 4.4), ('core', 0.4, 'FR4', 4.6), ('prepreg', 0.45, 'FR4', 4.4),
-                  ('core', 0.4, 'FR4', 4.6), ('prepreg', 0.1, 'FR4', 4.4)]}
+                  ('core', 0.4, 'FR4', 4.6), ('prepreg', 0.1, 'FR4', 4.4)],
+              8: [('prepreg', 0.12, 'FR4', 4.4), ('core', 0.2, 'FR4', 4.6), ('prepreg', 0.23, 'FR4', 4.4),
+                  ('core', 0.2, 'FR4', 4.6), ('prepreg', 0.23, 'FR4', 4.4), ('core', 0.2, 'FR4', 4.6),
+                  ('prepreg', 0.12, 'FR4', 4.4)]}
 
 
 CU_MM = {0.5: '0.0175', 1.0: '0.035', 2.0: '0.07'}

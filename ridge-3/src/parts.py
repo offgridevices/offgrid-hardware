@@ -699,6 +699,7 @@ PARTS = {
 # and pick-and-place.
 PADS = {
     'PAD_BAT':   dict(fp='aio:PAD_BAT',   kind='PAD'),
+    'PAD_BAT_K': dict(fp='aio:PAD_BAT_K', kind='PAD'),
     'PAD_MOTOR': dict(fp='aio:PAD_MOTOR', kind='PAD'),
     'PAD_SIG':   dict(fp='aio:PAD_SIG',   kind='PAD'),
     'PAD_TP':    dict(fp='aio:PAD_TP',    kind='PAD'),

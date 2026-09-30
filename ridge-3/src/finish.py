@@ -861,8 +861,7 @@ def _geom_all(item):
         p = item.GetPosition()
         r = max(mm(item.GetWidth(pcbnew.F_Cu)) / 2, mm(item.GetDrillValue()) / 2 + VIA_RING)
         g = Point(mm(p.x), mm(p.y)).buffer(r)
-        return {l: [g] for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu,
-                                 pcbnew.B_Cu)}
+        return {l: [g] for l in pcb.CU_ALL}
     return _geom_of(item)
 
 

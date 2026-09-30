@@ -14,7 +14,7 @@ along with it are legal.  Locked (fan-out / in-pad) vias are never moved.
 import json, math
 import pcbnew
 from shapely.geometry import Point, LineString
-import fanout
+import fanout, pcb
 
 GAP_FILLED = 0.46      # hole to hole, mm, when either hole is a filled 0.3 mm via
 GAP_PLAIN = 0.26       # otherwise (board rule 0.25)
@@ -30,8 +30,7 @@ def nudge_vias(path, drc_json, out=None, clearances=None, steps=26, log=print):
     fanout.Obstacles.NET_CL = {n: c for n, c in (clearances or {}).items() if c > 0.1}
     fanout.Obstacles.MARGIN = 0.01
     b = pcbnew.LoadBoard(path)
-    cu = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu)
-          if b.IsLayerEnabled(l)]
+    cu = pcb.cu_layers(b)
     byid = {t.m_Uuid.AsString(): t for t in b.GetTracks()}
     targets = {}
     for v in json.load(open(drc_json))['violations']:

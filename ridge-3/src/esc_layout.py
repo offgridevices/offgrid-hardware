@@ -12,7 +12,7 @@ the edge (board y; the rear edge is at yr = +18).
 The power stage of each phase is a vertical half-bridge:
   * the HIGH-side FET on the top, source pins towards the edge.  Its source
     pins and a top pour run straight out to the phase's motor pad; its
-    drain tab carries the battery (VBAT plane on In4) through filled vias;
+    drain tab carries the battery (VBAT planes on In3 and In6) through filled vias;
   * the LOW-side FET on the bottom, 2.4 mm further out, source pins
     inwards.  Its drain tab lies under the top switch-node pour and joins
     it through filled vias in the tab;
@@ -22,7 +22,7 @@ The power stage of each phase is a vertical half-bridge:
     the board's thickness.
 The low-side sources of a channel return to ground through its current
 shunt: they, the bridge capacitors' return pads and the shunt meet on the
-bottom and on a pour on In3 under the channel ("M<n>_SRC").  The shunt
+bottom and on a pour on In5 under the channel ("M<n>_SRC").  The shunt
 stands in the channel's corner slot (+u end, bottom), between the FET row
 and the mounting hole; its amplifier sits inside it.
 
@@ -32,8 +32,8 @@ each other at the centre), with their small parts round them.  The top
 carries the high-side FETs, the motor and battery pads, the stack
 connector in the middle and the small parts that fit round it.
 
-Stackup (6 layers): F signals + power | In1 GND | In2 signals |
-In3 signals + channel return pours | In4 VBAT | B signals + power.
+Stackup (8 layers): F signals + power | In1 GND | In2 signals | In3 VBAT |
+In4 GND | In5 signals + channel return pours | In6 VBAT | B signals + power.
 """
 import math, os
 import pcbnew
@@ -45,7 +45,7 @@ PITCH = 5.0          # phase spacing: a 1.7 mm gap between FETs for the channel'
 PH_U = {'A': -PITCH, 'B': 0.0, 'C': PITCH}
 Y_HS = 12.3          # high-side FET centre (top)
 Y_LS = 14.7          # low-side FET centre (bottom), its drain under the motor pad
-Y_CAP = 10.65        # bridge capacitor row (bottom), under the high-side drain pins
+Y_CAP = 11.15        # bridge capacitor (bottom, upright): battery pad under the high-side drain pins
 Y_PAD = 16.4         # motor pads (top)
 Y_CHIP = 7.2         # driver and MCU row (bottom)
 
@@ -70,9 +70,11 @@ def template():
         t['Q%sH' % ph] = (u, Y_HS, 0, 'T')
         t['Q%sL' % ph] = (u, Y_LS, 0, 'B')
         t['P' + ph] = (u, Y_PAD, 0, 'T')
-        # bridge capacitor along the row: VBAT pad (1) at +u, its return
-        # pad at -u, straight above the low-side source pins 1 and 2
-        t['CBR_' + ph] = (u, Y_CAP, 180, 'B')
+        # bridge capacitor upright across the return strip: its VBAT pad
+        # (1) inwards, under the high-side drain pins, its return pad (2)
+        # in the strip above the low-side source pins.  Lying along the
+        # row (rev 1) its battery pad and vias cut the strip into islands.
+        t['CBR_' + ph] = (u, Y_CAP, 270, 'B')
     # back-EMF: the phase-side 20k resistors on the bottom beside the
     # low-side drains they tap, standing in the gaps between two phases
     # and in the +u end slot.  Each one's phase end reaches its own drain
@@ -214,7 +216,7 @@ STAMP_PASSES = 30
 # By note (first match, in circuit order).  Battery pads: plated through
 # holes in the rear edge's two corner slots, outside motor 1's pads and
 # FETs (+ left, - right).
-BAT_U, BAT_YR = 9.5, 16.1
+BAT_U, BAT_YR = 9.4, 16.05
 GLOBAL = {
     'P_BAT+': (-BAT_U, BAT_YR, 0, 'T'),
     'P_BAT-': (BAT_U, BAT_YR, 0, 'T'),
@@ -461,12 +463,12 @@ GAPS = (-7.5, -2.5, 2.5, 7.5)  # via corridors: the gaps between phases and both
 # signal between the driver and MCU and the FETs, the motor pads and the
 # back-EMF resistors (gate drives, switch-node taps, back-EMF: 12 a
 # channel) passes the band of vias across the FET row in these
-# corridors, on top and on In2 (In3 carries the return there).  A pair of
+# corridors, on top and on In2 (In5 carries the return there).  A pair of
 # vias passed one track between them a layer; one via passes one either side
 # (0.45 mm from its centre keeps a 0.2 mm track 0.2 mm from its hole).  The
 # return's layers stay tied by these and the leg's vias at the shunt: the
 # bottom's pour alone would not do, the low-side gate stubs cut it at every
-# corridor, so each phase's piece reaches the shunt through In3.
+# corridor, so each phase's piece reaches the shunt through In5.
 SRC_VIA = ((0.0, 11.85),)
 # gate resistors (0201, upright): u from the phase centre (the corridor's
 # centre line), the high side's yr (top), the low side's yr (bottom).  The
@@ -476,7 +478,19 @@ SRC_VIA = ((0.0, 11.85),)
 GATE_CELL = (2.5, 13.1, 13.75)
 # the top over the driver inside the ring of its pins' escape vias
 DRIVER_RING = (-4.45, 5.45, -0.95, 9.0)
-VBAT_VIAS = ((0.95, 10.3), (0.95, 11.1), (0.95, 12.0), (0.1, 12.0))    # from the phase centre
+# The high-side drain's battery vias, from the phase centre: one row along
+# the strip's inner edge, two of them in the bridge capacitor's battery pad.
+# A row along the channel's return current leaves it a clear run; a column
+# across it (rev 1) walled it off.
+VBAT_VIAS = ((-1.2, 10.35), (-0.35, 10.2), (0.35, 10.2), (1.2, 10.35))
+# the return's vias between the bottom and In5 at every phase, from the
+# phase centre: one in the bridge capacitor's return pad, two beside it, one
+# at the low-side source pins (the gate pin, at +u, leaves no room there)
+SRC_PH_VIAS = ((0.0, 12.15), (-1.2, 11.6), (1.2, 11.6), (-1.2, 12.45))
+# the return's copper on In5 reaches further out, under the low-side source
+# pins, to the switch node's vias
+SRC_IN_EDGE = 13.8
+SRC_IN_INNER = 9.2
 SW_VIAS = [(du, yr) for yr in (14.3, 15.1, 15.9) for du in (-0.8, 0.0, 0.8) if (du, yr) != (0.8, 14.3)]
 # the return copper's leg from the FET band to the shunt, through the
 # channel's +u corner, and a grid of vias in it
@@ -488,6 +502,12 @@ TOP_SW = lambda u: [(u - 1.6, 13.45), (u + 0.55, 13.45), (u + 0.55, 14.55), (u +
                     (u + 1.6, 17.65), (u - 1.6, 17.65)]
 BOT_SRC = [(-7.9, 13.45), (-7.9, 10.75), (-6.7, 10.75), (-6.7, 9.75), (6.6, 9.75), (6.6, 6.8),
            (10.6, 6.8), (10.6, 13.45)]
+
+
+def in_src():
+    """The return's outline on In5: the bottom's, its outer edge at
+    SRC_IN_EDGE and its inner edge SRC_IN_INNER further in (no parts there)."""
+    return [(u, SRC_IN_EDGE if yr == 13.45 else SRC_IN_INNER if yr == 9.75 else yr) for u, yr in BOT_SRC]
 
 
 def reserved():
@@ -592,20 +612,20 @@ def power_copper(b, comps):
                 ya, yb = min(py0, cy_ - w2), max(py1, cy_ + w2)
                 tab = [(ua, ya), (ub, ya), (ub, yb), (ua, yb)]
                 _zone(b, n, sw, pcbnew.B_Cu, tab, prio=4, name='bemf tab')
-            # bottom: battery island round the bridge capacitor's VBAT pad
-            # and the high-side drain's vias beside the low-side sources
-            _zone(b, n, 'VBAT', pcbnew.B_Cu, [(u + 0.3, 9.75), (u + 1.62, 9.75), (u + 1.62, 12.35),
-                                              (u - 0.3, 12.35), (u - 0.3, 11.62), (u + 0.3, 11.62)],
-                  prio=5, name='bridge VBAT')
+            # bottom: a battery strip along the return's inner edge, round
+            # the bridge capacitor's VBAT pad and the drain's vias
+            _zone(b, n, 'VBAT', pcbnew.B_Cu, [(u - 1.62, 9.75), (u + 1.62, 9.75), (u + 1.62, 10.75),
+                                              (u - 1.62, 10.75)], prio=5, name='bridge VBAT')
             for du, yr in VBAT_VIAS:
                 _via(b, n, u + du, yr, 'VBAT', VIA_PWR, count)
+            for du, yr in SRC_PH_VIAS:
+                _via(b, n, u + du, yr, m('SRC'), VIA_PWR, count)
             for du, yr in SW_VIAS:
                 _via(b, n, u + du, yr, sw, VIA_PWR, count)
-        # the channel's return: bottom and In3, the FET band plus the leg
+        # the channel's return: bottom and In5, the FET band plus the leg
         # to the shunt
-        leg = [(SRC_LEG[0], SRC_LEG[1]), (SRC_LEG[2], SRC_LEG[1]), (SRC_LEG[2], SRC_LEG[3])]
         _zone(b, n, m('SRC'), pcbnew.B_Cu, BOT_SRC, prio=3, name='return')
-        _zone(b, n, m('SRC'), pcbnew.In3_Cu, BOT_SRC, prio=3, name='return')
+        _zone(b, n, m('SRC'), SRC_IN, in_src(), prio=3, name='return')
         for g in GAPS:
             for du, yr in SRC_VIA:
                 _via(b, n, g + du, yr, m('SRC'), VIA_PWR, count)
@@ -619,7 +639,7 @@ def shunt_vias(b, comps):
     Kelvin sense pad."""
     import fanout
     from shapely.geometry import Point
-    layers = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
+    layers = pcb.cu_layers(b)
     k = 0
     for n in CHANNELS:
         obs = fanout.Obstacles(b, layers)
@@ -677,7 +697,7 @@ def routing_keepouts(b):
             areas.append((pcbnew.F_Cu, [(u - 1.6, 10.15), (u + 1.6, 10.15), (u + 1.6, 13.25), (u - 1.6, 13.25)]))
             areas.append((pcbnew.B_Cu, [(u - 1.6, 13.65), (u + 1.6, 13.65), (u + 1.6, 16.85), (u - 1.6, 16.85)]))
         areas.append((pcbnew.B_Cu, BOT_SRC))
-        areas.append((pcbnew.In3_Cu, BOT_SRC))
+        areas.append((SRC_IN, in_src()))
         for layer, pts in areas:
             pcb.rule_area(b, [xf_point(n, u, yr) for u, yr in pts], [layer], tracks=True, vias=True,
                           pads=False, pours=False, name='pour keepout')
@@ -692,8 +712,7 @@ def routing_keepouts(b):
                           name='pour keepout')
             k += 1
     h, w = pcb.HALF, 0.3
-    cu = [l for l in (pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu)
-          if b.IsLayerEnabled(l)]
+    cu = pcb.cu_layers(b)
     for x0, y0, x1, y1 in ((-h, -h, h, -h + w), (-h, h - w, h, h), (-h, -h, -h + w, h), (h - w, -h, h, h)):
         pcb.rule_area(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], cu, tracks=True, vias=True, pads=False,
                       pours=False, name='edge keepout')
@@ -712,17 +731,22 @@ def routing_keepouts(b):
     return k
 
 
-# Six layers: F signals + power | In1 GND | In2 signals | In3 signals +
-# channel returns | In4 VBAT | B signals + power.
-LAYERS = 6
-# 1 oz inner copper.  2 oz would halve the loss in In1 (ground) and In4
-# (battery), which carry all four motors' current, but the fab sets one
-# weight for every inner layer, and on 2 oz it etches no finer than
-# 0.15 mm track / 0.15 mm gap (JLCPCB, multilayer): In2 and In3 carry the
-# gate drive through the FET row at 0.1 / 0.1 mm, and at 0.15 / 0.15 the
-# channel does not route.
+# Eight layers: F signals + power | In1 GND | In2 signals | In3 VBAT |
+# In4 GND | In5 signals + channel returns | In6 VBAT | B signals + power.
+# Every amp of the four motors crosses a ground plane and a battery plane
+# on its way from the battery pads to the FETs and back; on six layers
+# (rev 1: one plane each) that was 2.3 mOhm, the biggest single heat source
+# in a full-throttle burst (STRESS.md).  Two planes of each halve it, and
+# the signal layers keep the 0.1 mm the gate drive needs through the FET
+# row.  (The other way to the same copper, 2 oz inner layers on six, etches
+# no finer than 0.15 mm track / 0.15 mm gap (JLCPCB, multilayer), and at
+# 0.15 / 0.15 the channel does not route.)
+LAYERS = 8
 INNER_OZ = 1.0
-ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
+GND_PLANES = (pcbnew.In1_Cu, pcbnew.In4_Cu)
+VBAT_PLANES = (pcbnew.In3_Cu, pcbnew.In6_Cu)
+SRC_IN = pcbnew.In5_Cu         # the inner layer that carries the channel returns
+ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, SRC_IN, pcbnew.B_Cu]
 # the maze router's cell (mm): round the 0.5 mm-pitch escape vias its
 # rounding margin (1.2 cells) closes gaps a 0.05 mm grid cannot see
 FINISH_RES = 0.025
@@ -822,17 +846,18 @@ def power_refs(comps):
 
 def build(out_path):
     b, comps, fps = build_placed(out_path)
-    cu = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
+    cu = pcb.cu_layers(b)
     pcb.hole_keepouts(b, cu)
     pcb.tab_keepouts(b, cu)
     via_rules(b)
     e = H - 0.35
     full = [(-e, -e), (e, -e), (e, e), (-e, e)]
-    pcb.zone(b, 'GND', pcbnew.In1_Cu, full, name='GND plane', thermal=False)
-    pcb.zone(b, 'VBAT', pcbnew.In4_Cu, full, name='VBAT plane', thermal=False)
-    for l, t in ((pcbnew.In1_Cu, pcbnew.LT_POWER), (pcbnew.In2_Cu, pcbnew.LT_SIGNAL),
-                 (pcbnew.In3_Cu, pcbnew.LT_SIGNAL), (pcbnew.In4_Cu, pcbnew.LT_POWER)):
-        b.SetLayerType(l, t)
+    for l in GND_PLANES:
+        pcb.zone(b, 'GND', l, full, name='GND plane', thermal=False)
+    for l in VBAT_PLANES:
+        pcb.zone(b, 'VBAT', l, full, name='VBAT plane', thermal=False)
+    for l in cu[1:-1]:
+        b.SetLayerType(l, pcbnew.LT_POWER if l in GND_PLANES + VBAT_PLANES else pcbnew.LT_SIGNAL)
     print('power vias:', power_copper(b, comps))
     print('shunt ground vias:', shunt_vias(b, comps))
     print('gate cells:', gate_cells(b, comps))
@@ -888,7 +913,7 @@ def _clashing(b, items, clmap, default=0.1):
     tracks, vias, pours) than the clearance."""
     from shapely.geometry import LineString, Point, Polygon
     mm = lambda v: v / 1e6
-    cu = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
+    cu = pcb.cu_layers(b)
 
     def geoms(t):
         if t.GetClass() == 'PCB_VIA':

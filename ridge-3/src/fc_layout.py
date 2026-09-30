@@ -396,6 +396,12 @@ DRU_EXTRA = pcb.POFV_RULES
 
 # ============================================================ board
 LAYERS = 6
+# 1 oz inner copper (rev 1: 0.5 oz).  The ground and 3.3 V planes are what
+# spreads the supplies' heat across the board: at 50 C on the ground, the
+# regulators' heat, not their rating, is what brings the gyro and the
+# connectors to 85 C (STRESS.md), and twice the copper spreads it further.
+# JLCPCB builds 1 oz inner layers at 0.1 / 0.1 mm like 0.5 oz.
+INNER_OZ = 1.0
 if LAYERS == 4:
     CU = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
     ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.B_Cu]

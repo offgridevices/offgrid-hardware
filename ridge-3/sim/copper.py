@@ -75,10 +75,12 @@ def _mask(polys, x0, y0, res, shape):
 
 
 def extract(board, res=0.05):
-    """Read a board (fc or esc) into a Copper raster, cached in sim/out/."""
-    path = BOARDS[board]
+    """Read a board (fc or esc, or the path of any .kicad_pcb) into a Copper
+    raster, cached in sim/out/."""
+    path = BOARDS.get(board, board)
+    label = board if board in BOARDS else os.path.splitext(os.path.basename(board))[0]
     key = hashlib.sha1(open(path, 'rb').read() + repr(res).encode()).hexdigest()[:12]
-    cache = os.path.join(OUT, 'copper-%s-%s.pkl' % (board, key))
+    cache = os.path.join(OUT, 'copper-%s-%s.pkl' % (label, key))
     if os.path.exists(cache):
         c = Copper()
         c.__dict__.update(pickle.load(open(cache, 'rb')))

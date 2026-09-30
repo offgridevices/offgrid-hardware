@@ -32,17 +32,50 @@ STACK_PINS = {
 }
 
 class Comp:
-    def __init__(self, ref, part, pins, block, note=''):
+    def __init__(self, ref, part, pins, block, note='', option=None):
         self.ref, self.part, self.pins, self.block, self.note = ref, part, pins, block, note
+        self.option = option
 
 COMPS = []
 _counts = {}
+
+# Option groups: parts a cheaper build may leave off, from the same board.
+# Each group owns nets that only its own parts use (OPTION_NETS); nothing
+# outside the group may touch them, so leaving the group off cannot take
+# power or a signal from anything else (verify.py checks this).
+#   fpv       the analog OSD, the 9 V video supply and its switch, the HD
+#             video connector and the video pads' parts
+#   blackbox  the 16 MB flash (Betaflight runs without it: no blackbox)
+OPTIONS = ('fpv', 'blackbox')
+OPTION_NETS = {
+    'fpv': {'VBAT_VTX', '+9V', 'BUCK9_SW', 'BUCK9_CB', 'BUCK9_VCC', 'BUCK9_RT', 'BUCK9_FB', 'BUCK9_EN',
+            'VTX_OFF_G', '+3V3_OSD', 'OSD_XI', 'OSD_XO', 'OSD_RST', 'OSD_VIN', 'OSD_VOUT', 'CAM_VIDEO',
+            'VTX_VIDEO', 'HD_SBUS'},
+    'blackbox': set(),
+}
+_option = None
+
+
+class option:
+    """with option('fpv'): every part added inside belongs to that group."""
+    def __init__(self, name):
+        assert name in OPTIONS, name
+        self.name = name
+
+    def __enter__(self):
+        global _option
+        self.prev, _option = _option, self.name
+
+    def __exit__(self, *a):
+        global _option
+        _option = self.prev
+
 
 def add(prefix, part, pins, block, note='', ref=None):
     if ref is None:
         _counts[prefix] = _counts.get(prefix, 0) + 1
         ref = '%s%d' % (prefix, _counts[prefix])
-    c = Comp(ref, part, dict(pins), block, note)
+    c = Comp(ref, part, dict(pins), block, note, _option)
     COMPS.append(c)
     return c
 
@@ -63,16 +96,24 @@ def mounting():
 # =====================================================================
 def fc_power():
     B = 'power'
-    # Battery.  Two ways in: the ESC lead (pin 1, a 1 A JST-SH contact,
-    # enough for the FC alone) and a pair of solder pads for 20-22 AWG from
-    # the battery pads, which a digital VTX needs (18 W at 9 V is 2 A from
-    # a sagging 2S pack).
+    # Battery.  Two ways in, for two jobs:
+    #   * the ESC lead (pin 1 VBAT, pin 2 GND): the flight controller itself,
+    #     its 5 V and 3.3 V rails.  One JST-SH contact is rated 1 A (JST, AWG
+    #     28), which the FC's own loads stay under from 2S up (README).
+    #   * two solder pads, wired to the ESC's battery pads: VBAT_VTX, the
+    #     9 V video supply's own input (fpv group).  A digital VTX takes up
+    #     to 18 W; through the lead that is 1.5 A on an empty 6S pack, past
+    #     the contact's rating.  Fed only from these pads, the video supply
+    #     can never load the lead: with the pads unwired it has no input
+    #     and stays off.
+    # The two inputs share the ground.  Wired as the README says (these
+    # pads to the ESC's battery pads), the motor current does not flow in
+    # the loop the lead and these wires make: the ESC feeds its end of the
+    # lead from its battery pads by their own copper (esc_power).
     add('J', 'SH8_RA', dict(STACK_PINS, **{'9': None, '10': None}), B,
         'to 4-in-1 ESC (pads 9/10 are mechanical tabs)', ref='J_ESC')
-    add('P', 'PAD_MOTOR', {'1': 'VBAT'}, B, 'battery in +', ref='P_BAT')
-    add('P', 'PAD_MOTOR', {'1': GND}, B, 'battery in -', ref='P_BATG')
     # 33 V stand-off, 53 V clamp at 7.5 A: above a full 6S pack (25.2 V),
-    # below the 5 V buck's 85 V and the 9 V buck's 65 V absolute maximum.
+    # below the 5 V buck's 85 V absolute maximum.
     add('D', 'SMF33A', {'1': 'VBAT', '2': GND}, B, 'VBAT TVS', ref='D_TVS')
     cap('C10U50_1210', 'VBAT', GND, B, 'VBAT bulk')
 
@@ -107,39 +148,46 @@ def fc_power():
     res('R100K', '+5V', 'BUCK5_FB', B, '5V BEC feedback top')
     res('R24K9', 'BUCK5_FB', GND, B, '5V BEC feedback bottom')
 
-    # 9 V, 2 A for the video transmitter and camera: TI LM76003 (60 V,
-    # 3.5 A, forced PWM for a steady 1 MHz under analog video; datasheet
-    # SNVSAK0A 8.2.2).  Vout = 1.006 V x (1 + 100k/12.4k) = 9.1 V; for a
-    # 10 V rail change the 12.4k to 11.0k.  9 V fits every HD VTX's input
-    # range (O4 Lite 3.7-13.2 V, HDZero Race V3 4-12 V, O3 7.4-26.4 V) and
-    # keeps regulating down to about 9.5 V of battery (3S).
-    # EN: UVLO at 6.0 V (100k / 24.9k), so the rail stays off while USB
-    # back-feeds about 4 V to VBAT through the 5 V buck; and an N-FET from
-    # EN to ground, driven by PB5 (Betaflight PINIO1), turns the VTX off.
-    # PB5 is pulled low at boot: the VTX is on unless the pilot switches it.
-    add('U', 'LM76003', dict(
-        [(str(k), 'BUCK9_SW') for k in (1, 2, 3, 4, 5)] +
-        [(str(k), GND) for k in (7, 19, 23, 27, 28, 29, 30, 13, 14, 15, 24, 25, 26, 31)] +
-        [(str(k), 'VBAT') for k in (20, 21, 22)] +
-        [('6', 'BUCK9_CB'), ('8', 'BUCK9_VCC'), ('9', '+9V'), ('10', 'BUCK9_RT'),
-         ('11', None), ('12', 'BUCK9_FB'), ('16', None), ('17', 'BUCK9_VCC'), ('18', 'BUCK9_EN')]),
-        B, '9V VTX BEC', ref='U_BUCK9')
-    cap('C10U50_1210', 'VBAT', GND, B, '9V BEC input')
-    cap('C100N_100', 'VBAT', GND, B, '9V BEC input HF')
-    cap('C470N', 'BUCK9_CB', 'BUCK9_SW', B, '9V BEC bootstrap')
-    cap('C2U2', 'BUCK9_VCC', GND, B, '9V BEC VCC')
-    cap('C1U_25', '+9V', GND, B, '9V BEC BIAS')
-    res('R24K3', 'BUCK9_RT', GND, B, '9V BEC 994 kHz')
-    res('R100K', 'VBAT', 'BUCK9_EN', B, '9V BEC UVLO top')
-    res('R24K9', 'BUCK9_EN', GND, B, '9V BEC UVLO bottom')
-    add('Q', 'AO3400A', {'1': 'VTX_OFF_G', '2': GND, '3': 'BUCK9_EN'}, B, 'VTX power switch', ref='Q_VTX')
-    res('R100', 'VTX_OFF', 'VTX_OFF_G', B, 'VTX switch gate')
-    res('R100K', 'VTX_OFF_G', GND, B, 'VTX switch gate pulldown')
-    add('L', 'L6U8_BIG', {'1': 'BUCK9_SW', '2': '+9V'}, B, '9V BEC inductor', ref='L_9V')
-    for _ in range(4):
-        cap('C22U25', '+9V', GND, B, '9V BEC output')
-    res('R100K', '+9V', 'BUCK9_FB', B, '9V BEC feedback top')
-    res('R12K4', 'BUCK9_FB', GND, B, '9V BEC feedback bottom')
+    with option('fpv'):
+        # the video supply's input: two pads for 20-22 AWG from the ESC's
+        # battery pads, and its own surge clamp and bulk capacitor
+        add('P', 'PAD_MOTOR', {'1': 'VBAT_VTX'}, B, 'video battery in +', ref='P_BAT')
+        add('P', 'PAD_MOTOR', {'1': GND}, B, 'video battery in -', ref='P_BATG')
+        add('D', 'SMF33A', {'1': 'VBAT_VTX', '2': GND}, B, 'VBAT_VTX TVS', ref='D_TVS9')
+        cap('C10U50_1210', 'VBAT_VTX', GND, B, 'VBAT_VTX bulk')
+        # 9 V, 2 A for the video transmitter and camera: TI LM76003 (60 V,
+        # 3.5 A, forced PWM for a steady 1 MHz under analog video; datasheet
+        # SNVSAK0A 8.2.2).  Vout = 1.006 V x (1 + 100k/12.4k) = 9.1 V; for a
+        # 10 V rail change the 12.4k to 11.0k.  9 V fits every HD VTX's input
+        # range (O4 Lite 3.7-13.2 V, HDZero Race V3 4-12 V, O3 7.4-26.4 V) and
+        # keeps regulating down to about 9.5 V of battery (3S).
+        # EN: UVLO at 6.0 V (100k / 24.9k), so the rail stays off while USB
+        # back-feeds about 4 V to VBAT through the 5 V buck; and an N-FET from
+        # EN to ground, driven by PB5 (Betaflight PINIO1), turns the VTX off.
+        # PB5 is pulled low at boot: the VTX is on unless the pilot switches it.
+        add('U', 'LM76003', dict(
+            [(str(k), 'BUCK9_SW') for k in (1, 2, 3, 4, 5)] +
+            [(str(k), GND) for k in (7, 19, 23, 27, 28, 29, 30, 13, 14, 15, 24, 25, 26, 31)] +
+            [(str(k), 'VBAT_VTX') for k in (20, 21, 22)] +
+            [('6', 'BUCK9_CB'), ('8', 'BUCK9_VCC'), ('9', '+9V'), ('10', 'BUCK9_RT'),
+             ('11', None), ('12', 'BUCK9_FB'), ('16', None), ('17', 'BUCK9_VCC'), ('18', 'BUCK9_EN')]),
+            B, '9V VTX BEC', ref='U_BUCK9')
+        cap('C10U50_1210', 'VBAT_VTX', GND, B, '9V BEC input')
+        cap('C100N_100', 'VBAT_VTX', GND, B, '9V BEC input HF')
+        cap('C470N', 'BUCK9_CB', 'BUCK9_SW', B, '9V BEC bootstrap')
+        cap('C2U2', 'BUCK9_VCC', GND, B, '9V BEC VCC')
+        cap('C1U_25', '+9V', GND, B, '9V BEC BIAS')
+        res('R24K3', 'BUCK9_RT', GND, B, '9V BEC 994 kHz')
+        res('R100K', 'VBAT_VTX', 'BUCK9_EN', B, '9V BEC UVLO top')
+        res('R24K9', 'BUCK9_EN', GND, B, '9V BEC UVLO bottom')
+        add('Q', 'AO3400A', {'1': 'VTX_OFF_G', '2': GND, '3': 'BUCK9_EN'}, B, 'VTX power switch', ref='Q_VTX')
+        res('R100', 'VTX_OFF', 'VTX_OFF_G', B, 'VTX switch gate')
+        res('R100K', 'VTX_OFF_G', GND, B, 'VTX switch gate pulldown')
+        add('L', 'L6U8_BIG', {'1': 'BUCK9_SW', '2': '+9V'}, B, '9V BEC inductor', ref='L_9V')
+        for _ in range(4):
+            cap('C22U25', '+9V', GND, B, '9V BEC output')
+        res('R100K', '+9V', 'BUCK9_FB', B, '9V BEC feedback top')
+        res('R12K4', 'BUCK9_FB', GND, B, '9V BEC feedback bottom')
 
     # 3.3 V for the MCU, gyro, flash and OSD: TI TLV76733 (16 V, 1 A) from
     # the 5 V rail.
@@ -192,7 +240,7 @@ def fc_core():
         '35': '+3V3',       # VDD
         '36': 'SWDIO',      # PA13
         '37': 'SWCLK',      # PA14
-        '38': 'BEEPER',     # PA15 (BEEPER_INVERTED: high = on)
+        '38': None,         # PA15 (no beeper: DShot beacon)
         '39': 'UART4_TX',   # PC10 GPS
         '40': 'UART4_RX',   # PC11
         '41': 'UART2_TX',   # PB3  receiver (CRSF)
@@ -255,44 +303,54 @@ def fc_core():
     cap('C100N', '+3V3_GYRO', GND, B, 'gyro VDDIO')
 
     # 16 MB blackbox flash on SPI2 (Winbond).  /WP and /HOLD held high.
-    add('U', 'W25Q128JVPIM', {'1': 'FLASH_CS', '2': 'SPI2_MISO', '3': '+3V3', '4': GND,
-                              '5': 'SPI2_MOSI', '6': 'SPI2_SCK', '7': '+3V3', '8': '+3V3',
-                              '9': GND}, B, 'blackbox flash', ref='U_FLASH')
-    cap('C100N', '+3V3', GND, B, 'flash')
+    # Optional (blackbox group): Betaflight probes SPI2 for it at boot and,
+    # finding nothing, runs without a blackbox.  Its chip-select pull-up
+    # stays with the core, so the line idles high whether it is fitted or
+    # not, as it must while the MCU resets (SPI2 is shared with the OSD).
+    with option('blackbox'):
+        add('U', 'W25Q128JVPIM', {'1': 'FLASH_CS', '2': 'SPI2_MISO', '3': '+3V3', '4': GND,
+                                  '5': 'SPI2_MOSI', '6': 'SPI2_SCK', '7': '+3V3', '8': '+3V3',
+                                  '9': GND}, B, 'blackbox flash', ref='U_FLASH')
+        cap('C100N', '+3V3', GND, B, 'flash')
     res('R10K', '+3V3', 'FLASH_CS', B, 'flash CS pullup')
 
-    # Analog OSD: AT7456E (MAX7456-compatible; the only one still made) on
-    # SPI2 with the flash, at 3.3 V: PB14 (SPI2 MISO) is a 4.0 V-maximum
-    # pin, and the chip is specified from 3.15 V.  27 MHz crystal on
-    # CLKIN/XFB (the oscillator's capacitors are on chip).  Camera video:
-    # 75 ohm termination, AC-coupled into VIN.  Out: VOUT and SAG tied (no
-    # sag correction), 75 ohm back-termination to the VTX.
-    add('U', 'AT7456E', {'1': None, '2': None, '3': '+3V3_OSD', '4': GND, '5': 'OSD_XI',
-                         '6': 'OSD_XO', '7': None, '8': 'OSD_CS', '9': 'SPI2_MOSI',
-                         '10': 'SPI2_SCK', '11': 'SPI2_MISO', '12': None, '13': None,
-                         '14': None, '15': None, '16': None, '17': None, '18': None,
-                         '19': 'OSD_RST', '20': GND, '21': '+3V3_OSD', '22': 'OSD_VIN',
-                         '23': GND, '24': '+3V3_OSD', '25': 'OSD_VOUT', '26': 'OSD_VOUT',
-                         '27': None, '28': None, '29': GND}, B, 'analog OSD', ref='U_OSD')
-    add('FB', 'FB600', {'1': '+3V3', '2': '+3V3_OSD'}, B, 'OSD supply filter', ref='FB_OSD')
-    cap('C4U7', '+3V3_OSD', GND, B, 'OSD bulk')
-    for n in ('DVDD', 'AVDD', 'PVDD'):
-        cap('C100N', '+3V3_OSD', GND, B, 'OSD ' + n)
-    res('R10K', '+3V3_OSD', 'OSD_RST', B, 'OSD reset pullup')
+    # The video group (fpv): the analog OSD and the HD VTX port.  Optional:
+    # nothing outside the group uses its nets (OPTION_NETS).  The OSD's
+    # chip-select pull-up stays with the core, for the same reason as the
+    # flash's.
     res('R10K', '+3V3', 'OSD_CS', B, 'OSD CS pullup')
-    add('Y', 'XTAL27M', {'1': 'OSD_XI', '2': GND, '3': 'OSD_XO', '4': GND}, B, 'OSD crystal', ref='Y2')
-    res('R75', 'CAM_VIDEO', GND, B, 'camera termination')
-    cap('C100N', 'CAM_VIDEO', 'OSD_VIN', B, 'camera coupling')
-    res('R75', 'OSD_VOUT', 'VTX_VIDEO', B, 'VTX back-termination')
+    with option('fpv'):
+        # Analog OSD: AT7456E (MAX7456-compatible; the only one still made) on
+        # SPI2 with the flash, at 3.3 V: PB14 (SPI2 MISO) is a 4.0 V-maximum
+        # pin, and the chip is specified from 3.15 V.  27 MHz crystal on
+        # CLKIN/XFB (the oscillator's capacitors are on chip).  Camera video:
+        # 75 ohm termination, AC-coupled into VIN.  Out: VOUT and SAG tied (no
+        # sag correction), 75 ohm back-termination to the VTX.
+        add('U', 'AT7456E', {'1': None, '2': None, '3': '+3V3_OSD', '4': GND, '5': 'OSD_XI',
+                             '6': 'OSD_XO', '7': None, '8': 'OSD_CS', '9': 'SPI2_MOSI',
+                             '10': 'SPI2_SCK', '11': 'SPI2_MISO', '12': None, '13': None,
+                             '14': None, '15': None, '16': None, '17': None, '18': None,
+                             '19': 'OSD_RST', '20': GND, '21': '+3V3_OSD', '22': 'OSD_VIN',
+                             '23': GND, '24': '+3V3_OSD', '25': 'OSD_VOUT', '26': 'OSD_VOUT',
+                             '27': None, '28': None, '29': GND}, B, 'analog OSD', ref='U_OSD')
+        add('FB', 'FB600', {'1': '+3V3', '2': '+3V3_OSD'}, B, 'OSD supply filter', ref='FB_OSD')
+        cap('C4U7', '+3V3_OSD', GND, B, 'OSD bulk')
+        for n in ('DVDD', 'AVDD', 'PVDD'):
+            cap('C100N', '+3V3_OSD', GND, B, 'OSD ' + n)
+        res('R10K', '+3V3_OSD', 'OSD_RST', B, 'OSD reset pullup')
+        add('Y', 'XTAL27M', {'1': 'OSD_XI', '2': GND, '3': 'OSD_XO', '4': GND}, B, 'OSD crystal', ref='Y2')
+        res('R75', 'CAM_VIDEO', GND, B, 'camera termination')
+        cap('C100N', 'CAM_VIDEO', 'OSD_VIN', B, 'camera coupling')
+        res('R75', 'OSD_VOUT', 'VTX_VIDEO', B, 'VTX back-termination')
 
-    # Digital HD VTX: JST-SH 6-pin, Betaflight connector standard, which is
-    # DJI's O3/O4 cable pin for pin: 1 V+ (9 V rail), 2 GND, 3 FC TX,
-    # 4 FC RX, 5 GND, 6 SBUS/HDL.  Pin 6 reaches UART2 RX (the receiver
-    # port) only through a solder jumper, closed only when a DJI radio
-    # replaces the receiver.
-    add('J', 'SH6_V', {'1': '+9V', '2': GND, '3': 'UART1_TX', '4': 'UART1_RX', '5': GND,
-                       '6': 'HD_SBUS', '7': None, '8': None}, B, 'HD VTX (DJI / Walksnail / HDZero)', ref='J_HD')
-    add('SJ', 'SJ_OPEN', {'1': 'HD_SBUS', '2': 'UART2_RX'}, B, 'SBUS jumper (open)', ref='SJ_SBUS')
+        # Digital HD VTX: JST-SH 6-pin, Betaflight connector standard, which is
+        # DJI's O3/O4 cable pin for pin: 1 V+ (9 V rail), 2 GND, 3 FC TX,
+        # 4 FC RX, 5 GND, 6 SBUS/HDL.  Pin 6 reaches UART2 RX (the receiver
+        # port) only through a solder jumper, closed only when a DJI radio
+        # replaces the receiver.
+        add('J', 'SH6_V', {'1': '+9V', '2': GND, '3': 'UART1_TX', '4': 'UART1_RX', '5': GND,
+                           '6': 'HD_SBUS', '7': None, '8': None}, B, 'HD VTX (DJI / Walksnail / HDZero)', ref='J_HD')
+        add('SJ', 'SJ_OPEN', {'1': 'HD_SBUS', '2': 'UART2_RX'}, B, 'SBUS jumper (open)', ref='SJ_SBUS')
 
     # USB-C.  5.1k Rd on each CC so a C-to-C cable supplies 5 V.  VBUS feeds
     # the 5 V rail through a Schottky so the board runs (and configures) on
@@ -313,23 +371,21 @@ def fc_core():
     add('LED', 'LED_BLUE', {'2': 'LED0_A', '1': 'LED0'}, B, 'status LED', ref='LED_STAT')
     res('R330', '+3V3', 'LED0_A', B, 'status LED')
 
-    # Beeper: low-side AO3400A, buzzer between 5 V and BZ-.  FPV buzzers are
-    # active (self-driven) 5 V parts, which Betaflight switches with a
-    # steady level, so no flyback diode is needed.
-    add('Q', 'AO3400A', {'1': 'BEEPER_G', '2': GND, '3': 'BZ-'}, B, 'beeper switch', ref='Q_BZ')
-    res('R100', 'BEEPER', 'BEEPER_G', B, 'beeper gate')
-    res('R10K', 'BEEPER_G', GND, B, 'beeper gate pulldown')
+    # No beeper: Betaflight beeps through the motors (DShot beacon), which
+    # finds a lost quad as well as a buzzer and needs no parts.  PA15 is
+    # left free.
 
     # Solder pads, labelled from the flight controller's side (T = FC TX).
     pads = [('P_RX5V', '+5V'), ('P_RXG', GND), ('P_R2', 'UART2_RX'), ('P_T2', 'UART2_TX'),
             ('P_T1', 'UART1_TX'), ('P_R1', 'UART1_RX'), ('P_T4', 'UART4_TX'), ('P_R4', 'UART4_RX'),
-            ('P_5V', '+5V'), ('P_G1', GND), ('P_LED', 'LED_STRIP'),
-            ('P_BZ+', '+5V'), ('P_BZ-', 'BZ-'),
-            # analog video: camera (5 V, G, video) and VTX (9 V, G, video)
-            ('P_CAM5V', '+5V'), ('P_CAMG', GND), ('P_CAM', 'CAM_VIDEO'),
-            ('P_VTX9V', '+9V'), ('P_VTXG', GND), ('P_VTX', 'VTX_VIDEO')]
+            ('P_5V', '+5V'), ('P_G1', GND), ('P_LED', 'LED_STRIP')]
     for ref, net in pads:
         add('P', 'PAD_SIG', {'1': net}, B, 'pad', ref=ref)
+    # analog video: camera (5 V, G, video) and VTX (9 V, G, video)
+    with option('fpv'):
+        for ref, net in [('P_CAM5V', '+5V'), ('P_CAMG', GND), ('P_CAM', 'CAM_VIDEO'),
+                         ('P_VTX9V', '+9V'), ('P_VTXG', GND), ('P_VTX', 'VTX_VIDEO')]:
+            add('P', 'PAD_SIG', {'1': net}, B, 'pad', ref=ref)
     for ref, net in [('TP_SWDIO', 'SWDIO'), ('TP_SWCLK', 'SWCLK'), ('TP_NRST', 'NRST')]:
         add('TP', 'PAD_TP', {'1': net}, B, 'test point', ref=ref)
 
@@ -341,7 +397,7 @@ def esc_power():
     # Battery pads, sized for 14-16 AWG.  The pigtail and the low-ESR bulk
     # capacitors (2 x 100 uF 50 V, soldered across these pads) land here.
     add('P', 'PAD_BAT', {'1': 'VBAT'}, B, 'BAT+', ref='P_BAT+')
-    add('P', 'PAD_BAT', {'1': GND}, B, 'BAT-', ref='P_BAT-')
+    add('P', 'PAD_BAT_K', {'1': GND, '2': 'FC_GND'}, B, 'BAT-', ref='P_BAT-')
     # No TVS of its own: the capacitors across these pads and the twelve
     # bridge capacitors are what holds the FETs under 40 V, and the flight
     # controller's TVS sits on the same battery line through the stack
@@ -349,8 +405,28 @@ def esc_power():
     # To the flight controller.  CUR is the average of the four channels'
     # current-sense outputs.  TLM is not driven: bidirectional DShot
     # carries RPM, and AM32's serial telemetry is left unwired.
-    add('J', 'SH8_V', dict(STACK_PINS, **{'4': None, '9': None, '10': None}), B,
+    # Ground: the lead's GND pin is FC_GND, which reaches the ground plane
+    # only at the battery pad, through a copper tap of its own (the
+    # battery pad's Kelvin pad, PAD_BAT_K).  The flight controller's video
+    # supply has its own wires from these battery pads, so its ground
+    # meets the ESC's twice: through the lead and through those wires.  Were
+    # the lead's GND pin on the plane where the connector sits, the motor
+    # current's drop across the plane between the battery pad and the
+    # connector (100 mV at 20 A a motor, rev 1) would drive current round
+    # that loop, 1.6 A through the lead's 1 A contact (STRESS.md).  From the
+    # battery pad itself the loop carries only the FC's own current.  A
+    # 100 nF capacitor joins FC_GND to the plane at the connector, so the
+    # fast edges of the motor signals still return by the shortest way.
+    add('J', 'SH8_V', dict(STACK_PINS, **{'2': 'FC_GND', '4': None, '9': None, '10': None}), B,
         'to flight controller (pads 9/10 are mechanical tabs)', ref='J_FC')
+    cap('C100N', 'FC_GND', GND, B, 'stack ground AC tie')
+    # The same lead soldered instead: one pad per wire.  The JST-SH plug is
+    # rated to 85 C including its own heating (JST); the ESC's middle
+    # passes that in hard flying on a hot day (STRESS.md), where a soldered
+    # silicone-insulated lead has no such limit.
+    for ref, net in (('P_LV', 'VBAT'), ('P_LG', 'FC_GND'), ('P_LC', 'CUR'), ('P_L1', 'M1_SIG'),
+                     ('P_L2', 'M2_SIG'), ('P_L3', 'M3_SIG'), ('P_L4', 'M4_SIG')):
+        add('P', 'PAD_SIG', {'1': net}, B, 'stack lead pad', ref=ref)
     for n in (1, 2, 3, 4):
         res('R10K_0201', 'M%d_IOUT' % n, 'CUR', B, 'CUR average %d' % n)
     cap('C100N', 'CUR', GND, B, 'CUR filter')

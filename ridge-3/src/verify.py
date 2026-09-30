@@ -1176,6 +1176,41 @@ def check_firmware():
         check(S, 'one AM32 G071 bootloader in firmware/am32', False, str(bl))
 
 
+def check_options():
+    """Option groups (circuit.OPTIONS): a build that leaves a group off must
+    leave everything else working.  Every net a group owns is touched only
+    by that group's parts; every other net a remaining part uses still has
+    a part at each end (a signal or supply that only the group drove would
+    be left with one pin); and the supplies that feed the rest keep their
+    sources."""
+    S = 'Option groups'
+    for board in ('fc', 'esc'):
+        comps = circuit.build(board)
+        full = circuit.nets(comps)
+        for opt in circuit.OPTIONS:
+            grp = [c for c in comps if c.option == opt]
+            if not grp:
+                continue
+            owned = circuit.OPTION_NETS[opt]
+            bad = sorted('%s on %s' % (c.ref, n) for c in comps if c.option != opt
+                         for n in c.pins.values() if n in owned)
+            check(S, '%s, %s group: its nets (%d) reach no part outside it' % (board, opt, len(owned)),
+                  not bad, ', '.join(bad) or '%d parts in the group' % len(grp))
+            rest = [c for c in comps if c.option != opt]
+            left = circuit.nets(rest)
+            lost = sorted(n for n, m in left.items() if len(m) < 2 and len(full[n]) >= 2
+                          and not all(c.part in parts.PADS or c.ref.startswith('U_') for c in comps
+                                      if c.ref in {r for r, _ in m}))
+            single = sorted(n for n, m in left.items() if len(m) < 2 and len(full[n]) >= 2)
+            check(S, '%s without the %s group: no net left with a single pin, beyond MCU pins the group used'
+                  % (board, opt), not lost, 'left on an MCU pin only: %s' % (', '.join(single) or 'none'))
+            supplies = {'fc': ['VBAT', 'GND', '+5V', '+3V3', '+3V3_GYRO'], 'esc': ['VBAT', 'GND', '+3V3', 'GVDD']}[board]
+            src = {n: sorted(r for r, _ in left.get(n, [])) for n in supplies}
+            check(S, '%s without the %s group: every supply keeps its source' % (board, opt),
+                  all(len(v) >= 2 for v in src.values()) and not any(n in owned for n in supplies),
+                  '; '.join('%s %d parts' % (n, len(v)) for n, v in src.items()))
+
+
 def main():
     global AM32
     if not AM32:
@@ -1187,6 +1222,7 @@ def main():
     check_esc_pins()
     check_fw_scales()
     check_power()
+    check_options()
     for board, name in (('fc', 'ridge3-fc'), ('esc', 'ridge3-esc')):
         check_board(board, name)
         if os.path.exists(os.path.join(V1, board, name + '.kicad_pcb')):

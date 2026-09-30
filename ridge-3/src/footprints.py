@@ -254,25 +254,40 @@ def pad_fp(name, w, h, shape='roundrect', paste=False, desc=''):
     fp.Value().SetVisible(False)
     return fp
 
-def pth_pad_fp(name, d, drill, desc=''):
-    """Plated through-hole solder pad.  The wire goes through the board and
-    the joint wets both sides and the barrel, so a crash cannot peel it off
-    the way it lifts a surface pad, and the current reaches every copper
-    layer (the inner planes included) through the barrel."""
+def pth_pad_fp(name, d, drill, desc='', h=None, kelvin=False):
+    """Plated through-hole solder pad, round (d) or oval (d wide, h tall).
+    The wire goes through the board and the joint wets both sides and the
+    barrel, so a crash cannot peel it off the way it lifts a surface pad,
+    and the current reaches every copper layer (the inner planes included)
+    through the barrel.  kelvin: a small top pad 2 at the -x end, net-tied
+    to pad 1 (footprint net-tie group), where a separate net leaves the
+    pad's own copper: a tap that carries none of the pad's current."""
     fp = pcbnew.FOOTPRINT(None)
     fp.SetFPID(pcbnew.LIB_ID('aio', name))
     fp.SetAttributes(pcbnew.FP_THROUGH_HOLE | pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
     fp.SetLibDescription(desc)
+    h = h or d
     p = pcbnew.PAD(fp)
-    p.SetNumber('1'); p.SetAttribute(pcbnew.PAD_ATTRIB_PTH); p.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
-    p.SetSize(pcbnew.VECTOR2I(MM(d), MM(d))); p.SetDrillSize(pcbnew.VECTOR2I(MM(drill), MM(drill)))
+    p.SetNumber('1'); p.SetAttribute(pcbnew.PAD_ATTRIB_PTH)
+    p.SetShape(pcbnew.PAD_SHAPE_CIRCLE if h == d else pcbnew.PAD_SHAPE_OVAL)
+    p.SetSize(pcbnew.VECTOR2I(MM(d), MM(h))); p.SetDrillSize(pcbnew.VECTOR2I(MM(drill), MM(drill)))
     ls = pcbnew.LSET.AllCuMask(); ls.AddLayer(pcbnew.F_Mask); ls.AddLayer(pcbnew.B_Mask)
     p.SetLayerSet(ls)
     fp.Add(p)
+    kx = 0.0
+    if kelvin:
+        kw, kh, ov = 0.5, 0.6, 0.1
+        kx = d / 2 + kw / 2 - ov
+        _smd_pad(fp, '2', -kx, 0, kw, kh, paste=False)
+        fp.AddNetTiePadGroup('1, 2')
     for lay in (pcbnew.F_CrtYd, pcbnew.B_CrtYd):
-        c = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_CIRCLE)
-        c.SetCenter(pcbnew.VECTOR2I(0, 0)); c.SetEnd(pcbnew.VECTOR2I(MM(d / 2 + 0.1), 0))
-        c.SetLayer(lay); c.SetWidth(MM(0.05)); fp.Add(c)
+        if h == d and not kelvin:
+            c = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_CIRCLE)
+            c.SetCenter(pcbnew.VECTOR2I(0, 0)); c.SetEnd(pcbnew.VECTOR2I(MM(d / 2 + 0.1), 0))
+            c.SetLayer(lay); c.SetWidth(MM(0.05)); fp.Add(c)
+        else:
+            x0 = -(kx + 0.25 + 0.1) if (kelvin and lay == pcbnew.F_CrtYd) else -(d / 2 + 0.1)
+            _rect(fp, lay, MM(x0), -MM(h / 2 + 0.1), MM(d / 2 + 0.1), MM(h / 2 + 0.1), 0.05)
     fp.Reference().SetLayer(pcbnew.F_Fab); fp.Reference().SetTextSize(pcbnew.VECTOR2I(MM(0.4), MM(0.4)))
     fp.Reference().SetTextThickness(MM(0.06))
     fp.Value().SetVisible(False)
@@ -514,7 +529,14 @@ def main():
             print('%s: KiCad model of %s (turned %d, shifted %.3f, %.3f)' % (name, OFFICIAL_MODELS[name], th, *t))
         _save(LIB, fp); n += 1
     gen = [
-        pth_pad_fp('PAD_BAT', 3.0, 1.6, desc='Battery lead pad, plated through-hole: 16-18 AWG lead + bulk capacitor leg'),
+        # battery pads: 3.2 mm round a 1.8 mm hole, for up to 14 AWG
+        # (1.63 mm) through the board, as large as the corner between the
+        # grommet's keep-out, the panel's tab zone and the edge allows; the
+        # ground pad's Kelvin tap feeds the stack lead's ground
+        # (circuit.esc_power)
+        pth_pad_fp('PAD_BAT', 3.2, 1.8, desc='Battery lead pad, plated through-hole, 14-16 AWG'),
+        pth_pad_fp('PAD_BAT_K', 3.2, 1.8, kelvin=True,
+                   desc='Battery lead pad, plated through-hole, 14-16 AWG, with a Kelvin tap (pad 2)'),
         pad_fp('PAD_MOTOR', 2.0, 2.3, desc='Motor phase wire pad'),
         pad_fp('PAD_SIG', 1.1, 1.6, desc='Signal / power solder pad'),
         pad_fp('PAD_TP', 0.9, 0.9, shape='circle', desc='Test point'),
