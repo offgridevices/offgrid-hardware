@@ -15,8 +15,8 @@ edge, opens sideways into those layers, holds, closes and lies down again,
 while the camera moves between shots fitted to what is in view: once the
 board is open it stops on each unit of the tour in turn (a unit of several
 layers, like the copper, is framed whole) and pulls back to the whole.
-ANCHORS.json gets, per frame, each layer's edge points on screen and how
-much the tour is on it, for the labels (overlay.py).
+ANCHORS.json gets, per frame, each layer's edge points and outline corners
+on screen and how much the tour is on it, for the labels (overlay.py).
 """
 import bpy, bmesh, sys, json, math
 import numpy as np
@@ -603,8 +603,9 @@ r.image_settings.file_format = 'PNG'
 
 # ------------------------------------------------------------ anchors
 # per frame and group: the midpoints of the board's x edges (+HX, -HX) and
-# y edges (+HY, -HY) on screen, how open it is, and how much the tour is on
-# it (its stop's)
+# y edges (+HY, -HY) on screen, how open it is, how much the tour is on it
+# (its stop's), and the eight corners of its box (the board's outline over
+# the group's depth), so the labels can keep clear of every layer
 def ramp(f, a, b):
     return 0.0 if f <= a else 1.0 if f >= b else (f - a) / (b - a)
 
@@ -625,14 +626,22 @@ for f in frames:
     eye, look = cam_at(f)
     place(eye, look)
     rot = Matrix.Rotation(ANGLE[f], 4, 'Y')
+    screen = lambda x, y, z: world_to_camera_view(scene, cam, rot @ Vector((x, y, z)))
     row = []
     for g in groups:
-        z = (g['lo'] + g['hi']) / 2 + E[g['name']][f] * g['off']
+        dz = E[g['name']][f] * g['off']
+        z = (g['lo'] + g['hi']) / 2 + dz
         pts = []
         for p in ((HX, 0), (-HX, 0), (0, HY), (0, -HY)):
-            v = world_to_camera_view(scene, cam, rot @ Vector((p[0], p[1], z)))
+            v = screen(p[0], p[1], z)
             pts += [round(v.x * r.resolution_x, 1), round((1 - v.y) * r.resolution_y, 1)]
-        row.append(pts + [round(E[g['name']][f], 4), round(on_tour(g['name'], f), 4)])
+        box = []
+        for zz in (g['lo'] + dz, g['hi'] + dz):
+            for sx in (-1, 1):
+                for sy in (-1, 1):
+                    v = screen(sx * HX, sy * HY, zz)
+                    box += [round(v.x * r.resolution_x, 1), round((1 - v.y) * r.resolution_y, 1)]
+        row.append(pts + [round(E[g['name']][f], 4), round(on_tour(g['name'], f), 4)] + box)
     anchors['frames'].append(row)
 json.dump(anchors, open(ANCHORS, 'w'))
 scene.frame_set(0)
