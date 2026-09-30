@@ -29,14 +29,21 @@ CH = (1, 2, 3, 4)
 
 
 def _key(c):
-    return hashlib.sha1(open(c.path, 'rb').read() + b'copperloss-v2').hexdigest()[:12]
+    return hashlib.sha1(open(c.path, 'rb').read() + b'copperloss-v3').hexdigest()[:12]
+
+
+_loaded = {}
 
 
 def unit_maps(c, out_dir):
-    """dict of 1 A loss maps and path figures for the ESC, cached."""
+    """dict of 1 A loss maps and path figures for the ESC, cached on disk and
+    held once in memory (each map is a full-board float32 array)."""
     cache = os.path.join(out_dir, 'copperloss-%s.pkl' % _key(c))
+    if cache in _loaded:
+        return _loaded[cache]
     if os.path.exists(cache):
-        return pickle.load(open(cache, 'rb'))
+        _loaded[cache] = pickle.load(open(cache, 'rb'))
+        return _loaded[cache]
     shape = c.owner.shape
     res = dict(paths={})
 
@@ -87,9 +94,22 @@ def unit_maps(c, out_dir):
         for x, y in STEPS:
             s, m = run(net, {'Q%d%sL' % (n, y): 1.0, 'Q%d%sL' % (n, x): -1.0})
             res['M%d_fw_%s%s' % (n, x, y)] = m['W']
+    for k, v in res.items():
+        if isinstance(v, np.ndarray):
+            res[k] = v.astype(np.float32)
     os.makedirs(out_dir, exist_ok=True)
     pickle.dump(res, open(cache, 'wb'))
+    _loaded[cache] = res
     return res
+
+
+def coarse(u, f, ny, nx):
+    """The maps summed onto a coarser grid (f fine cells a side), for the heat model."""
+    out = {}
+    for k, v in u.items():
+        if isinstance(v, np.ndarray) and v.ndim == 3:
+            out[k] = v[:, :ny * f, :nx * f].reshape(v.shape[0], ny, f, nx, f).sum(axis=(2, 4), dtype=np.float64)
+    return out
 
 
 def loss_map(u, I, D):

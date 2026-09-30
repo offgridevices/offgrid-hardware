@@ -975,6 +975,7 @@ def main():
     sw = switching_section()
     bus_section()
     lead_section()
+    dcflow.forget()
     fcmax = data.FC_LOAD_MAX
     results = heat_section(sw)
     bursts_section(sw, fcmax)

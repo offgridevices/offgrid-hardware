@@ -34,8 +34,9 @@ class StackModel:
         self.T_amb, self.air = T_amb, air
         gap = gap or data.STACK['gap']
         self.st = thermal.Stack([self.ge, self.gf], [gap], air, T_amb)
-        self.units = copperloss.unit_maps(self.ce, out)
-        self.fc_units = fc_copper(self.cf)
+        g = self.ge
+        self.units = coarse_units(self.ce, out, g.f, g.ny, g.nx)
+        self.fc_units = fc_copper(self.cf, self.gf)
         self.parts = {}                      # name -> dict(board, ref, node | cells, limit...)
         ce, cf = self.ce, self.cf
         for n in CH:
@@ -146,10 +147,11 @@ class StackModel:
         return P
 
     def _copper(self, P, W, T, board=0):
+        """W: loss per cell of this board's thermal grid, per layer (W at 20 C)."""
         g = (self.ge, self.gf)[board]
-        f, o = g.f, self.st.off[board]
+        o = self.st.off[board]
         for li in range(g.L):
-            Wc = W[li][:g.ny * f, :g.nx * f].reshape(g.ny, f, g.nx, f).sum(axis=(1, 3))
+            Wc = W[li]
             ids = g.ids[li]
             ok = ids >= 0
             scale = 1.0
@@ -173,13 +175,26 @@ FC_PATHS = {
     'BUCK5_SW': ({'U_BUCK5': 2.0, 'L_5V': -2.0}, 2.0),
 }
 _fc = {}
+_esc = {}
 
 
-def fc_copper(c):
-    if c.path not in _fc:
+def fc_copper(c, g):
+    """The FC's supply-copper loss maps on its thermal grid g, computed once."""
+    key = (c.path, g.f)
+    if key not in _fc:
         out = {}
         for net, (cur, ref) in FC_PATHS.items():
             s = dcflow.solve(c, net, cur, T=20.0)
-            out[net] = (dcflow.maps(c, s)['W'], ref)
-        _fc[c.path] = out
-    return _fc[c.path]
+            W = dcflow.maps(c, s)['W']
+            out[net] = (copperloss.coarse({'W': W}, g.f, g.ny, g.nx)['W'], ref)
+        _fc[key] = out
+        dcflow.forget()
+    return _fc[key]
+
+
+def coarse_units(c, out, f, ny, nx):
+    """The ESC's 1 A copper maps on the thermal grid, computed once."""
+    key = (c.path, f)
+    if key not in _esc:
+        _esc[key] = copperloss.coarse(copperloss.unit_maps(c, out), f, ny, nx)
+    return _esc[key]

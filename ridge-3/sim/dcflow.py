@@ -113,7 +113,15 @@ def network(c, net, T=20.0, plating=PLATING):
     return G, info
 
 
-def solve(c, net, currents, T=20.0, net_cache={}):
+_cache = {}
+
+
+def forget():
+    """Drop the cached networks and solver hierarchies (they are large)."""
+    _cache.clear()
+
+
+def solve(c, net, currents, T=20.0, net_cache=_cache):
     """currents: {part ref: amps into the copper at its terminal on this net}.
 
     They must sum to zero.  The most negative terminal is the reference (0 V).
