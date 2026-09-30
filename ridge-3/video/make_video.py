@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Exploded-view video of a board, made straight from its KiCad file.
 
-    python3 video/make_video.py fc                  # draft, 720p
-    python3 video/make_video.py fc --final          # 1080p, into fc/images/
+    python3 video/make_video.py fc                  # draft, 720p 30 fps
+    python3 video/make_video.py fc --final          # 4K 60 fps, into fc/images/
     python3 video/make_video.py fc --stills 0,200   # a few labelled stills
     python3 video/make_video.py path/to/x.kicad_pcb --config x.json
 
@@ -18,9 +18,11 @@ one needs no other work):
      covered by one net's zone and nearly free of tracks is that net's
      plane), and the parts on each side.  These make the layer labels.
   3. scene.py (Blender) takes the board apart into its layers, stands it on
-     its edge, opens it sideways across the 16:9 frame, holds, closes and
-     lays it down; the camera shots are fitted to what is in view.
-  4. render.py renders the frames in parallel, resuming where it stopped.
+     its edge, opens it sideways across the 16:9 frame, glides in on each
+     layer in turn, pulls back to the whole with every layer labelled,
+     closes and lays it down; the camera shots are fitted to what is in view.
+  4. render.py renders the frames in parallel, resuming where it stopped
+     (on a GPU when Blender finds one: CUDA, OptiX, HIP, Metal, oneAPI).
   5. overlay.py adds the labels and the title and writes the MP4.
 
 The board's own settings are a small JSON beside this file (fc.json,
@@ -35,19 +37,19 @@ V1 = os.path.dirname(HERE)
 VENV = os.path.join(HERE, '.venv')
 VPY = os.path.join(VENV, 'bin', 'python')
 BOARDS = {'fc': 'fc/ridge3-fc.kicad_pcb', 'esc': 'esc/ridge3-esc.kicad_pcb'}
-QUALITY = {'draft': dict(resolution=[1280, 720], samples=12, noise_threshold=0.05),
-           'final': dict(resolution=[1920, 1080], samples=24, noise_threshold=0.03)}
+QUALITY = {'draft': dict(resolution=[1280, 720], fps=30, samples=12, noise_threshold=0.05),
+           'final': dict(resolution=[3840, 2160], fps=60, samples=32, noise_threshold=0.02)}
 DEFAULTS = {
-    'fps': 24,
     'look': 'AgX - Medium High Contrast',
     'font': os.path.join(V1, 'fonts', 'InstrumentSans-VariableFont.ttf'),
     # space between neighbouring layers when open, in board widths
     'gaps': {'components': 0.8, 'copper': 0.7, 'other': 0.5},
+    'vias': 'hide',               # the barrels leave as the board opens ('stretch': span the gaps)
     'via_thin': 0.6,
     'camera': {'lens': 85, 'fstop': 8,
                # where the board must sit in the frame (x0, x1, y0, y1)
                'frame': {'flat': [0.22, 0.78, 0.18, 0.82], 'standing': [0.3, 0.7, 0.2, 0.8],
-                         'open': [0.04, 0.96, 0.28, 0.72]}},
+                         'open': [0.04, 0.96, 0.28, 0.72], 'layer': [0.24, 0.76, 0.08, 0.74]}},
     'world': {'hdri': 'studio.exr', 'hdri_rotation': 120, 'hdri_strength': 0.8,
               'centre': [0.030, 0.032, 0.036], 'edge': [0.002, 0.002, 0.003]},
     # for a 36 mm board; scene.py scales them with the board
@@ -56,9 +58,10 @@ DEFAULTS = {
                {'name': 'back', 'loc': [-10, 40, 50], 'size': 20, 'energy': 15000, 'color': [0.80, 0.88, 1.0]}],
     'sheen': {'distance': 45, 'size': 45, 'energy': 30000},
     'sweep': {'from': [-30, 35, 18], 'to': [35, 25, 18], 'size': 1.5, 'size_y': 60, 'energy': 7000,
-              'f0': 0, 'f1': 110},
-    'overlay': {'above': 0.2, 'below': 0.8, 'step': 4, 'fade': 12, 'fade_out': 14, 'title_fade': 20,
-                'title_at': [0.075, 0.82]},
+              't0': 0, 't1': 4.6},
+    # seconds, as all times here: label stagger, fades
+    'overlay': {'above': 0.2, 'below': 0.8, 'step': 0.17, 'fade': 0.5, 'fade_out': 0.6, 'title_fade': 0.8,
+                'title_at': [0.075, 0.82], 'tour_at': [0.065, 0.80]},
     'mask': {'top': 'gold pads show through'},
     'silkscreen': {'top': 'labels and markings'},
 }
@@ -163,29 +166,44 @@ def labels(facts, cfg):
     return out
 
 
-def timeline(n, o):
-    """Frame numbers for n layer groups: stand up, open, hold, close, lie
-    down, the closing shot."""
+def timeline(n, o, fps):
+    """Frame numbers for n layer groups: stand up, open, the tour (in on the
+    first layer, one by one to the last, out again), the whole with every
+    label, close, lie down, the closing shot.  Set in seconds (o overrides
+    any of them), so the frame rate is only the quality's."""
+    sec = dict(stagger=0.125, move=3.5, stand=[2.25, 4.75], tour_in=1.3, tour_step=0.95, tour_out=1.5,
+               hold=3.5, lay_in=0.75, lay=2.75, tail=3.5)
+    sec.update(o)
+    F = lambda x: int(round(x * fps))
     maxr = (n - 1) / 2
-    t = dict(stagger=o.get('stagger', 3), move=o.get('move', 84))
-    t['stand'] = o.get('stand', [54, 114])
-    t['open'] = o.get('open', t['stand'][1] - 6)
+    t = dict(fps=fps, stagger=sec['stagger'] * fps, move=F(sec['move']))
+    t['stand'] = [F(x) for x in sec['stand']]
+    t['open'] = t['stand'][1] - F(0.25)
     t['open_end'] = t['open'] + round(maxr * t['stagger']) + t['move']
-    t['close'] = t['open_end'] + o.get('hold', 132)
+    step = F(sec['tour_step'])
+    t['tour'] = [t['open_end'] + F(sec['tour_in']) + i * step for i in range(n)]   # arrival at each layer
+    t['dwell'] = step // 2
+    t['tour_fade'] = F(0.25)
+    t['tour_end'] = t['tour'][-1] + t['dwell'] + F(sec['tour_out'])
+    t['close'] = t['tour_end'] + F(sec['hold'])
     close_end = t['close'] + round(maxr * t['stagger']) + t['move']
-    t['lay'] = [close_end - 18, close_end + 48]
-    t['end'] = t['lay'][1] + o.get('tail', 84)
+    t['lay'] = [close_end - F(sec['lay_in']), close_end + F(sec['lay'] - sec['lay_in'])]
+    t['end'] = t['lay'][1] + F(sec['tail'])
     return t
 
 
 def shots(t):
     """[frame, azimuth, elevation, what is framed, distance factor]: the
     camera's key positions (azimuth 0 = from the front, negative = from the
-    left, where the standing board's top side faces)."""
-    return [[0, -34, 30, 'flat', 1.1], [t['stand'][0], -26, 27, 'flat', 1.0],
-            [t['open'], -44, 14, 'standing', 1.0], [t['open_end'], -40, 12, 'open', 1.0],
-            [t['close'], -33, 14, 'open', 0.96], [t['lay'][0], -34, 18, 'standing', 1.0],
-            [t['lay'][1], -28, 28, 'flat', 1.0], [t['end'], -20, 30, 'flat', 0.94]]
+    left, where the standing board's top side faces).  Two keys per layer
+    on the tour: the camera rests on it, then glides to the next."""
+    s = [[0, -34, 30, 'flat', 1.1], [t['stand'][0], -26, 27, 'flat', 1.0],
+         [t['open'], -44, 14, 'standing', 1.0], [t['open_end'], -40, 12, 'open', 1.0]]
+    for i, a in enumerate(t['tour']):
+        s += [[a, -36, 12, 'layer %d' % i, 1.0], [a + t['dwell'], -35, 12, 'layer %d' % i, 1.0]]
+    return s + [[t['tour_end'], -38, 12, 'open', 1.0], [t['close'], -33, 14, 'open', 0.96],
+                [t['lay'][0], -34, 18, 'standing', 1.0], [t['lay'][1], -28, 28, 'flat', 1.0],
+                [t['end'], -20, 30, 'flat', 0.94]]
 
 
 # -------------------------------------------------------------- steps
@@ -239,7 +257,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('board', help='fc, esc, or a .kicad_pcb file')
     ap.add_argument('--config', help='the board\'s settings (default: video/<board>.json)')
-    ap.add_argument('--final', action='store_true', help='1080p, more samples, saved beside the board')
+    ap.add_argument('--final', action='store_true', help='4K 60 fps, more samples, saved beside the board')
     ap.add_argument('--stills', help='only these frames, labelled (e.g. 0,200,300)')
     ap.add_argument('--jobs', type=int, default=2, help='renders at once')
     ap.add_argument('--out', help='the MP4 (default: see --final)')
@@ -260,13 +278,19 @@ def main():
     export_glb(pcb, glb)
     facts = board_facts(pcb)
     n = sum(1 for side in ('top', 'bottom') if facts['parts'][side]) + 4 + len(facts['copper'])
-    tl = timeline(n, cfg.get('timeline', {}))
-    spec = merge(cfg, dict(copper=facts['copper'], labels=labels(facts, cfg), timeline=tl,
-                           quality=merge(QUALITY[quality], cfg.get('quality', {})),
+    q = merge(QUALITY[quality], cfg.get('quality', {}))
+    fps = q['fps']
+    tl = timeline(n, cfg.get('timeline', {}), fps)
+    spec = merge(cfg, dict(copper=facts['copper'], labels=labels(facts, cfg), timeline=tl, quality=q, fps=fps,
                            title=cfg.get('title', [name, ''])))
     spec['camera']['shots'] = cfg['camera'].get('shots') or shots(tl)
-    spec['overlay'] = merge(cfg['overlay'], {'in': tl['open_end'] - 12, 'out': tl['close'] - 16,
-                                             'title_in': tl['lay'][1] + 6})
+    F = lambda x: int(round(x * fps))
+    ov = cfg['overlay']
+    spec['overlay'] = merge(ov, {'in': tl['tour_end'] - F(0.4), 'out': tl['close'] - F(0.6),
+                                 'title_in': tl['lay'][1] + F(0.25), 'step': ov['step'] * fps,
+                                 'fade': F(ov['fade']), 'fade_out': F(ov['fade_out']),
+                                 'title_fade': F(ov['title_fade'])})
+    spec['sweep'] = merge(cfg['sweep'], {'f0': F(cfg['sweep']['t0']), 'f1': F(cfg['sweep']['t1'])})
     spec_path = os.path.join(work, 'spec-%s.json' % quality)
     json.dump(spec, open(spec_path, 'w'), indent=1)
     print('  %d copper layers; %s; parts %s' % (len(facts['copper']),
@@ -307,7 +331,7 @@ def main():
     if music:
         music = music if os.path.isabs(music) else os.path.join(HERE, music)
         if os.path.exists(music):
-            add_music(mp4, music, (tl['end'] + 1) / spec['fps'], cfg.get('music_gain_db', 0.0))
+            add_music(mp4, music, (tl['end'] + 1) / fps, cfg.get('music_gain_db', 0.0))
             print('  music:', os.path.relpath(music, HERE))
         else:
             print('  no music: %s is not here (licensed tracks are not in the repo, see video/music/README.md)'

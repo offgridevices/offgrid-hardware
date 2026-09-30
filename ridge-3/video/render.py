@@ -17,6 +17,26 @@ sc = bpy.context.scene
 r = sc.render
 r.threads_mode = 'FIXED'
 r.threads = int(threads)
+
+
+def gpu():
+    """Cycles on the first GPU backend with a device here, else None."""
+    prefs = bpy.context.preferences.addons['cycles'].preferences
+    for kind in ('OPTIX', 'CUDA', 'HIP', 'METAL', 'ONEAPI'):
+        try:
+            prefs.compute_device_type = kind
+        except TypeError:
+            continue
+        prefs.get_devices()
+        if any(d.type == kind for d in prefs.devices):
+            for d in prefs.devices:
+                d.use = d.type == kind
+            return kind
+    return None
+
+
+if gpu():
+    sc.cycles.device = 'GPU'
 if only:
     for f in only:
         sc.frame_set(f)

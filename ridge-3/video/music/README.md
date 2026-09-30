@@ -9,11 +9,14 @@ says so.
 The tracks are licensed, so they stay out of the repository (see
 `../.gitignore`). The one in use:
 
-- `observatory-23875ms.wav`: "Observatory" by Out To The World, from
-  Epidemic Sound (recording `0c47304b-4e50-43b2-8230-2397e7991316`). It is
-  Epidemic Sound's own edit of the track to 23.875 s, the length of both
-  videos (573 frames at 24 fps). It was downloaded under OffGrid's Epidemic
-  Sound subscription, so publishing with it follows that plan's licence.
+- `observatory-35600ms.wav`: "Observatory" by Out To The World, from
+  Epidemic Sound (recording `0c47304b-4e50-43b2-8230-2397e7991316`), in
+  Epidemic Sound's own edit to 35.6 s, the length of both videos (2,136
+  frames at 60 fps). It was downloaded under OffGrid's Epidemic Sound
+  subscription, so publishing with it follows that plan's licence. When
+  the timeline changes length, ask Epidemic Sound for an edit of the new
+  length. The tool pads or cuts the audio, with fades, but a native edit
+  ends on the music.
 
 To use it again after a fresh checkout, download the edit from Epidemic Sound
 and save it here under the same name.

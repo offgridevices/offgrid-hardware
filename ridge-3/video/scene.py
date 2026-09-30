@@ -11,9 +11,10 @@ The board is taken apart into its physical layers: the parts on each side,
 the silkscreen and solder mask of each side, and every copper layer as a
 card on the FR-4 below it.  The board stands up on its edge, opens sideways
 into those layers, holds, closes and lies down again, while the camera
-moves between shots fitted to what is in view.  The via barrels stretch
-between the outer coppers as the board opens.  ANCHORS.json gets, per frame,
-each layer's two edge points on screen, for the labels (overlay.py).
+moves between shots fitted to what is in view: once the board is open it
+glides in on the first layer, travels layer by layer to the last and pulls
+back to the whole.  ANCHORS.json gets, per frame, each layer's edge points on
+screen and how much the camera is on it, for the labels (overlay.py).
 """
 import bpy, bmesh, sys, json, math
 import numpy as np
@@ -333,7 +334,17 @@ for g in groups:
     keyed(g['empty'], 'location', 2, [e * g['off'] for e in E[g['name']]])
 ANGLE = [-math.pi / 2 * stand(f) for f in frames]
 keyed(rig, 'rotation_euler', 1, ANGLE)
-if via:
+if via and SPEC.get('vias', 'hide') == 'hide':
+    # the barrels are inside the closed board; they leave the picture from
+    # the first gap until the board has closed again
+    prev = None
+    for f in frames:
+        h = max(E[CU[-1]][f], E[CU[0]][f]) > 0.02
+        if h != prev:
+            via.hide_render = h
+            via.keyframe_insert('hide_render', frame=f)
+            prev = h
+elif via:
     gF = next(g for g in groups if g['name'] == CU[-1])
     gB = next(g for g in groups if g['name'] == CU[0])
     h0 = vhi - vlo
@@ -371,12 +382,14 @@ def place(eye, look):
 
 
 def stack_points(mode):
-    """World-space box corners of every group: 'flat' (closed, lying),
-    'standing' (closed, on its edge) or 'open' (open, on its edge)."""
+    """World-space box corners of the groups: 'flat' (closed, lying),
+    'standing' (closed, on its edge), 'open' (open, on its edge) or
+    'layer N' (group N alone, open)."""
     rot = Matrix.Rotation(-math.pi / 2, 4, 'Y') if mode != 'flat' else Matrix.Identity(4)
+    sel = [groups[int(mode.split()[1])]] if mode.startswith('layer') else groups
     pts = []
-    for g in groups:
-        dz = g['off'] if mode == 'open' else 0.0
+    for g in sel:
+        dz = g['off'] if mode == 'open' or mode.startswith('layer') else 0.0
         for z in (g['lo'] + dz, g['hi'] + dz):
             for sx in (-1, 1):
                 for sy in (-1, 1):
@@ -385,13 +398,16 @@ def stack_points(mode):
 
 
 def fit(mode, az, el):
-    """Camera distance and look-at point that frame the stack in `mode`
-    inside SPEC['camera']['frame'][mode] (fractions of the frame)."""
+    """Camera distance and look-at point that frame `mode` (stack_points)
+    inside SPEC['camera']['frame'][kind of mode] (fractions of the frame; an
+    off-centre box moves the look-at point sideways)."""
     pts = stack_points(mode)
     lo = Vector([min(p[i] for p in pts) for i in range(3)])
     hi = Vector([max(p[i] for p in pts) for i in range(3)])
     look = (lo + hi) / 2
-    fx0, fx1, fy0, fy1 = SPEC['camera']['frame'][mode]
+    bx0, bx1, by0, by1 = SPEC['camera']['frame'][mode.split()[0]]
+    hw, hh = (bx1 - bx0) / 2, (by1 - by0) / 2
+    fx0, fx1, fy0, fy1 = 0.5 - hw, 0.5 + hw, 0.5 - hh, 0.5 + hh
     d0, d1 = 1.0, 5000.0
     for _ in range(40):
         d = (d0 + d1) / 2
@@ -403,7 +419,12 @@ def fit(mode, az, el):
                 ok = False
                 break
         d0, d1 = (d0, d) if ok else (d, d1)
-    return d1, look
+    fwd = -direction(az, el)
+    right = fwd.cross(Vector((0, 0, 1))).normalized()
+    up = right.cross(fwd).normalized()
+    wx = 2 * d1 * math.tan(cam_data.angle_x / 2)
+    wy = wx * r.resolution_y / r.resolution_x
+    return d1, look + right * ((0.5 - (bx0 + bx1) / 2) * wx) + up * (((by0 + by1) / 2 - 0.5) * wy)
 
 
 shots = []
@@ -438,7 +459,7 @@ for f in frames:
 for i in range(3):
     keyed(cam, 'location', i, [v[i] for v in locs])
     keyed(cam, 'rotation_euler', i, [v[i] for v in rots])
-cam_data.dof.use_dof = True
+cam_data.dof.use_dof = SPEC['camera'].get('dof', False)
 cam_data.dof.aperture_fstop = SPEC['camera']['fstop']
 scene.unit_settings.scale_length = 0.01
 focus = bpy.data.objects.new('focus', None)
@@ -514,7 +535,7 @@ for L in SPEC['lights']:
 # copper faces mirror the camera, linked to the copper only (it would grey
 # the black solder mask), lit only while the board is open
 sh = SPEC['sheen']
-hold = (TL['open_end'] + TL['close']) // 2
+hold = (TL['tour_end'] + TL['close']) // 2
 eye, look = cam_at(hold)
 cdir = (eye - look).normalized()
 n = Vector((-1, 0, 0))                         # the top side, standing
@@ -559,20 +580,31 @@ scene.view_settings.look = SPEC['look']
 r.image_settings.file_format = 'PNG'
 
 # ------------------------------------------------------------ anchors
-# per frame, each group's two edge midpoints (board x = +/-HX) on screen
+# per frame and group: the midpoints of the board's x edges (+HX, -HX) and
+# y edges (+HY, -HY) on screen, how open it is, and how much the camera's
+# layer-by-layer tour is on it
+def ramp(f, a, b):
+    return 0.0 if f <= a else 1.0 if f >= b else (f - a) / (b - a)
+
+
+def on_tour(i, f):
+    a, b, fd = TL['tour'][i], TL['tour'][i] + TL['dwell'], TL['tour_fade']
+    return ramp(f, a - fd, a) * (1 - ramp(f, b, b + fd))
+
+
 anchors = {'size': [r.resolution_x, r.resolution_y], 'groups': [g['name'] for g in groups], 'frames': []}
 for f in frames:
     eye, look = cam_at(f)
     place(eye, look)
     rot = Matrix.Rotation(ANGLE[f], 4, 'Y')
     row = []
-    for g in groups:
+    for i, g in enumerate(groups):
         z = (g['lo'] + g['hi']) / 2 + E[g['name']][f] * g['off']
         pts = []
-        for sx in (1, -1):
-            v = world_to_camera_view(scene, cam, rot @ Vector((sx * HX, 0, z)))
+        for p in ((HX, 0), (-HX, 0), (0, HY), (0, -HY)):
+            v = world_to_camera_view(scene, cam, rot @ Vector((p[0], p[1], z)))
             pts += [round(v.x * r.resolution_x, 1), round((1 - v.y) * r.resolution_y, 1)]
-        row.append(pts + [round(E[g['name']][f], 4)])
+        row.append(pts + [round(E[g['name']][f], 4), round(on_tour(i, f), 4)])
     anchors['frames'].append(row)
 json.dump(anchors, open(ANCHORS, 'w'))
 scene.frame_set(0)

@@ -486,8 +486,10 @@ The tools: KiCad 10 (`pcbnew` Python module and `kicad-cli`), Freerouting
 `python3 video/make_video.py fc` (or `esc`) makes a 16:9 video of a board
 taking itself apart, straight from its `.kicad_pcb`. The board stands on
 its edge and opens sideways into its layers: the parts on each side, the
-silkscreen and solder mask, and every copper layer on its FR-4. It holds
-with each layer labelled, then closes and lies down under the title.
+silkscreen and solder mask, and every copper layer on its FR-4. The camera
+then glides in on each layer in turn, naming it, and pulls back to the
+whole with every layer labelled. Last, the board closes and lies down under
+the title.
 
 - **Labels:** they come from the board file itself: the stackup, what each
   copper layer carries (a layer mostly covered by one net and nearly free of
@@ -496,9 +498,11 @@ with each layer labelled, then closes and lies down under the title.
   and `video/esc.json`: the title and a few words on the main parts. A
   changed board needs only the command again, and a new board needs its own
   small JSON.
-- **Draft or final:** without options it makes a 720p draft in
-  `video/out/`. `--final` renders 1080p into the board's `images/`, and
-  `--stills 0,270` renders a few labelled frames to check the look.
+- **Draft or final:** without options it makes a 720p, 30 fps draft in
+  `video/out/`. `--final` renders 4K at 60 fps into the board's `images/`,
+  and `--stills 0,270` renders a few labelled frames to check the look.
 - **Setup:** the first run sets up `video/.venv` (Python 3.11 with Blender as
-  a module). Rendering is on the CPU with Cycles, and a stopped render
-  resumes.
+  a module).
+- **Rendering:** it uses Cycles, on a GPU when Blender finds one (CUDA,
+  OptiX, HIP, Metal, oneAPI), otherwise on the CPU. A 4K frame takes 2-4.5
+  minutes on a 4-core CPU; a stopped render resumes.
