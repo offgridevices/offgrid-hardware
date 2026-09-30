@@ -121,9 +121,11 @@ STACK_LEAD = dict(length=0.07, r_wire=0.213,     # m; AWG 28 ohm/m (copper)
 MOTOR = dict(
     part='BrotherHobby VY1507 3100KV on 6S, HQ 3x4x3 (maker test report 1507VY2019122301; typical)',
     r=0.1368,                            # ohm, "internal resistance"
-    # battery current per motor vs throttle (%), 24 V supply
-    load=((0, 0.0), (30, 2.6), (50, 6.2), (70, 13.5), (80, 17.5), (90, 23.0), (100, 27.4)),
-    vtest=24.0)
+    # load test at 24 V: throttle %, battery current A, thrust g (rpm 19539 at 30 %, 48120 at 100 %)
+    load=((30, 2.6, 126), (40, 4.0, 188), (50, 6.2, 279), (60, 10.2, 413), (70, 13.5, 489),
+          (80, 17.5, 628), (90, 23.0, 747), (100, 27.4, 879)),
+    vtest=24.0,
+    auw=450.0)                           # g, a 3-inch 6S quad with an HD VTX and a 1300 mAh pack: ASSUMPTION
 REGEN = dict(i_bus=-100.0)              # A, all four motors chopped to the worst duty at full rpm (report derives it)
 
 # air: convection coefficients over the boards, W/m2 K (thermal.air())

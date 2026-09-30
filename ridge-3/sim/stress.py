@@ -675,10 +675,10 @@ def heat_section(sw):
         'Both FETs in the path conduct all the time (synchronous rectification), '
         'and so does the copper they feed.' % (1 / e['D'][1]))
     say()
-    say('For scale: this motor and prop hover a 400 g quad at about %.0f %% throttle '
+    say('For scale: this motor and prop hover a %.0f g quad at about %.0f %% throttle '
         '(%.1f A per motor battery-side) and draw %.1f A per motor at full throttle '
         'on a full pack, which AM32 cuts to %.0f A.' % (
-            HOVER, losses.motor(HOVER, V)[0], losses.motor(100, V)[0], data.AM32['current_limit']))
+            data.MOTOR['auw'], HOVER, losses.motor(HOVER, V)[0], losses.motor(100, V)[0], data.AM32['current_limit']))
     say()
     return results
 
@@ -731,7 +731,7 @@ def run_transient(m, schedule, sw, T0, dt, fc, V, am32=True, watch=()):
     return T, trace, first
 
 
-HOVER = 34.0     # % throttle: this motor and prop lift a 400 g quad (thrust ~ throttle squared, 879 g at full)
+HOVER = round(losses.hover(data.BATTERY['vfull']), 1)     # % throttle for the quad's weight on a full pack
 
 
 def bursts_section(sw, fcmax):
@@ -1084,7 +1084,7 @@ def limits_section():
 def heat_verdicts(results, first):
     for (v, Ta), (th, op, T, th2, op2) in sorted(results.items()):
         if v == 5.0:
-            verdict('Heat', 'Hover (%.0f %%) held indefinitely with every part in its rating, %.0f C air, 5 m/s' % (HOVER, Ta),
+            verdict('Heat', 'Hover (%.0f %% throttle) held indefinitely with every part in its rating, %.0f C air, 5 m/s' % (HOVER, Ta),
                     th >= HOVER, 'up to %.0f %% throttle' % th, '%.0f %%' % HOVER)
             verdict('Heat', 'Hover held indefinitely with the FETs under 150 C, %.0f C air, 5 m/s' % Ta,
                     th2 >= HOVER, 'up to %.0f %% throttle' % th2, '%.0f %%' % HOVER)

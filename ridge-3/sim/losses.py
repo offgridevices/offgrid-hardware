@@ -76,18 +76,35 @@ def fc_power(i5, i9):
 def motor(throttle, V=None):
     """Battery current per motor (A), duty and phase current at a throttle (%).
 
-    From the motor maker's thrust-stand table (data.MOTOR), battery current
-    against throttle at 24 V; AM32 maps throttle to duty, so D = throttle.
-    The phase current is the battery current over the duty (the bridge
-    passes the motor current to the battery only while it is on)."""
-    th, ib = zip(*data.MOTOR['load'])
+    From the motor maker's load test (data.MOTOR): battery current against
+    throttle at 24 V, the rpm there showing that throttle is the duty.  Below
+    the first row, current goes as throttle squared (the rows above it do,
+    to within a few per cent).  The phase current is the battery current
+    over the duty: the bridge passes the motor's current to the battery only
+    while it is on."""
+    th, ib = [r[0] for r in data.MOTOR['load']], [r[1] for r in data.MOTOR['load']]
     D = max(throttle / 100.0, 0.01)
-    I_b = float(np.interp(throttle, th, ib))
+    if throttle < th[0]:
+        I_b = ib[0] * (throttle / th[0]) ** 2
+    else:
+        I_b = float(np.interp(throttle, th, ib))
     if V:
         # the prop's torque, so the motor current, goes as speed squared, and
         # speed as the applied voltage D V: at the same throttle, current ~ V^2
         I_b *= (V / data.MOTOR['vtest']) ** 2
     return I_b, D, I_b / D
+
+
+def hover(V):
+    """Throttle (%) that holds the quad (data.MOTOR['auw']) up at battery V.
+
+    Thrust against throttle from the load test; thrust goes as rpm squared,
+    rpm as the applied voltage, so at V the same thrust needs 24/V of the
+    throttle; below the first row thrust goes as throttle squared."""
+    th, g = [r[0] for r in data.MOTOR['load']], [r[2] for r in data.MOTOR['load']]
+    need = data.MOTOR['auw'] / 4
+    t24 = th[0] * (need / g[0]) ** 0.5 if need < g[0] else float(np.interp(need, g, th))
+    return t24 * data.MOTOR['vtest'] / V
 
 
 def limited(throttle, V=None, limit=None):
