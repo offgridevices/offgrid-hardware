@@ -14,3 +14,6 @@ gerbonara       # silkscreen and panel read-back from the Gerbers (pip install -
 kikit           # panel.py: the production panel (1.8.1 on KiCad 10)
 # make.py --reroute also needs Freerouting 1.9.0 (java) and xvfb-run:
 #   FREEROUTING_JAR=/path/to/freerouting-1.9.0.jar
+# sim/ (stress simulations): the DC and thermal solvers.  pyamg 5.0 matches
+# Ubuntu's SciPy 1.11; newer pyamg needs SciPy 1.12.  Also needs ngspice.
+pyamg<5.1

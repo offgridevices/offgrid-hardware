@@ -427,6 +427,8 @@ ridge-3/
   images/                 both sides of both boards on one sheet
   VERIFICATION.md         every design check that can be made without
                           hardware, with its result (src/verify.py)
+  STRESS.md               the stack simulated flat out, hot, on 6S: copper,
+                          switching, battery line, stack lead, heat (sim/)
   fc/                     flight controller
     ridge3-fc.kicad_pcb / .kicad_pro / .kicad_dru   open in KiCad 10
     production/           Gerbers zip, BOM + CPL (JLCPCB), BOM (PCBWay),
@@ -445,6 +447,7 @@ ridge-3/
                           JST-SH and USB-C connectors use KiCad's own models)
   fonts/                  Instrument Sans and JetBrains Mono (SIL OFL)
   src/                    the design, as Python (see below)
+  sim/                    the stress simulations behind STRESS.md
   video/                  exploded-view videos, made from the board files
   requirements.txt
 ```
@@ -510,3 +513,33 @@ closes and lies down under the title.
 - **Rendering:** it uses Cycles, on a GPU when Blender finds one (CUDA,
   OptiX, HIP, Metal, oneAPI), otherwise on the CPU. A 4K frame takes 2-4.5
   minutes on a 4-core CPU; a stopped render resumes.
+
+### Stress simulations
+
+`sim/.venv/bin/python sim/stress.py` writes `STRESS.md` and its figures in
+`images/stress/`: the FC on the ESC, a full 6S pack, hot air, full current.
+It reads both `.kicad_pcb` files, so it follows the boards as they change.
+
+| File | What it does |
+|---|---|
+| `copper.py` | Each board's copper as a 0.05 mm grid per layer: which net owns each cell, every via and plated hole, the pads of each part. |
+| `dcflow.py` | DC current flow in one net's copper: voltage, current density, loss, current in each via barrel. Checked against a strip and a ring. |
+| `copperloss.py` | Where the motor current heats the ESC's copper, per amp squared, over AM32's six commutation steps. |
+| `spice.py` | ngspice: one half-bridge switching (Toshiba's FET model, the DRV8300 as its datasheet drive), the battery line, and the FET model's checks against its datasheet. |
+| `thermal.py`, `stack.py` | Both boards as thermal grids, stacked with the air gap between them; each part that heats or has a temperature limit gets a node. |
+| `losses.py` | Heat per part for an operating point: FETs, switching, dead time, shunts, drivers, regulators, the FC's supplies. |
+| `data.py` | Every datasheet figure used, with its source, and each assumption, marked as one. |
+| `stress.py` | The scenarios and the report. |
+
+- **Setup:** ngspice (`apt install ngspice`), and a venv that sees KiCad's
+  `pcbnew`: `python3.12 -m venv --system-site-packages sim/.venv`, then
+  `sim/.venv/bin/pip install "pyamg<5.1"` (5.0 works with the SciPy 1.11
+  that Ubuntu ships; newer pyamg needs SciPy 1.12).
+- **The FET model:** Toshiba gives out its TPN2R304PL SPICE model behind a
+  free model-use agreement, for simulation, not for passing on, so it is
+  not in this repository. Download the PSpice zip from the part's page
+  ("Design & Development", "SPICE model") and put
+  `TPN2R304PL_G0_00_PSpice_rev1.lib` in `sim/out/spice/`, or point
+  `TPN2R304PL_LIB` at it.
+- **Time:** about half an hour on a 4-core machine; the copper maps are
+  cached in `sim/out/` per board file.
