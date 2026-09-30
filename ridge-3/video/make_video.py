@@ -25,7 +25,8 @@ one needs no other work):
 
 The board's own settings are a small JSON beside this file (fc.json,
 esc.json): the title, a few words on the main parts of each side, and
-optionally any label, role, timing, camera or light to override.
+optionally any label, role, timing, camera or light to override, and
+"music": an audio file under the video (see video/music/README.md).
 """
 import argparse, collections, hashlib, json, os, re, shutil, subprocess, sys
 
@@ -221,6 +222,19 @@ def render_all(blend, frames, n_frames, jobs):
         raise SystemExit('render stopped with %d of %d frames; run again to resume' % (len(done), n_frames))
 
 
+def add_music(mp4, music, seconds, gain_db=0.0):
+    """The music under the video: a short fade in, a fade out over the last
+    second, 1 dB of headroom (plus gain_db), cut or padded to the video."""
+    ff = subprocess.run([VPY, '-c', 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())'],
+                        capture_output=True, text=True, check=True).stdout.strip()
+    af = 'volume=%gdB,afade=t=in:st=0:d=0.6,afade=t=out:st=%.3f:d=1.0,apad' % (gain_db - 1.0, max(0.0, seconds - 1.0))
+    tmp = mp4[:-4] + '.music.mp4'
+    run([ff, '-y', '-loglevel', 'error', '-i', mp4, '-i', music, '-filter_complex', '[1:a]%s[a]' % af,
+         '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-t', '%.3f' % seconds,
+         '-movflags', '+faststart', tmp])
+    os.replace(tmp, mp4)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('board', help='fc, esc, or a .kicad_pcb file')
@@ -229,6 +243,7 @@ def main():
     ap.add_argument('--stills', help='only these frames, labelled (e.g. 0,200,300)')
     ap.add_argument('--jobs', type=int, default=2, help='renders at once')
     ap.add_argument('--out', help='the MP4 (default: see --final)')
+    ap.add_argument('--music', help='an audio file under the video (default: the board settings\' "music")')
     a = ap.parse_args()
     pcb = os.path.join(V1, BOARDS[a.board]) if a.board in BOARDS else os.path.abspath(a.board)
     name = os.path.splitext(os.path.basename(pcb))[0]
@@ -270,9 +285,10 @@ def main():
         print('stills in', os.path.relpath(stills + '-labelled', os.getcwd()))
         return
 
-    # frames are kept while the board and the spec stay the same
+    # frames are kept while the board and the spec (but for the music) stay the same
     frames = os.path.join(work, 'frames-' + quality)
-    stamp = hashlib.sha1(open(spec_path, 'rb').read() + open(glb, 'rb').read()).hexdigest()
+    looks = {k: v for k, v in spec.items() if not k.startswith('music')}
+    stamp = hashlib.sha1(json.dumps(looks, indent=1).encode() + open(glb, 'rb').read()).hexdigest()
     stamp_file = os.path.join(frames, 'STAMP')
     if os.path.exists(frames) and (not os.path.exists(stamp_file) or open(stamp_file).read() != stamp):
         shutil.rmtree(frames)
@@ -287,6 +303,15 @@ def main():
         mp4 = os.path.join(work, name + '-explode-draft.mp4')
     os.makedirs(os.path.dirname(mp4), exist_ok=True)
     run([VPY, os.path.join(HERE, 'overlay.py'), spec_path, anchors, frames, frames + '-labelled', mp4])
+    music = a.music or cfg.get('music')
+    if music:
+        music = music if os.path.isabs(music) else os.path.join(HERE, music)
+        if os.path.exists(music):
+            add_music(mp4, music, (tl['end'] + 1) / spec['fps'], cfg.get('music_gain_db', 0.0))
+            print('  music:', os.path.relpath(music, HERE))
+        else:
+            print('  no music: %s is not here (licensed tracks are not in the repo, see video/music/README.md)'
+                  % os.path.relpath(music, HERE))
     print('video:', os.path.relpath(mp4, os.getcwd()))
 
 
