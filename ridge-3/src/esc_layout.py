@@ -1000,8 +1000,10 @@ def build(out_path):
                               inpad_overhang=ESCAPE_OVERHANG, inpad_only=True)
     print('escape vias in the pads of the lines and buses to the middle: %d' % k)
     pins = need + kelvin_pins(comps)
+    mcus = set(roles(comps, n)['MCU'] for n in CHANNELS)
     k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL,
-                             inpad_overhang=ESCAPE_OVERHANG, inner_first=across(b, need))
+                             inpad_overhang=ESCAPE_OVERHANG,
+                             inner_first=across(b, [q for q in need if q[0] in mcus]))
     print('escape vias (QFN pins, Kelvin sense): %d of %d, none for %s' % (k, len(pins), bad))
     # pins whose run out on their own layer has no spot for a via: one in
     # or beside the pad, in every channel or in none (the channels are
@@ -1667,7 +1669,10 @@ def across(b, pins):
     and the line crosses under it on the inner layers; at the outer end it
     would set out the way it then has to come back, round the chip.  (The
     MCU's analog pins face the middle, their dividers and filters lie
-    past the chip towards the FETs.)"""
+    past the chip towards the FETs.  build asks it of the MCUs only: the
+    driver's nets all leave outwards, to the FETs, and its PWM inputs,
+    laid first (FIRST_LINES), meet the bundle from the MCU over its edge
+    that faces the middle.)"""
     nets = {}
     for fp in b.GetFootprints():
         for p in fp.Pads():
