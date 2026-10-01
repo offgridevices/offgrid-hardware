@@ -120,7 +120,7 @@ def template():
     t['U_CS'] = (-8.1, 11.5, 0, 'T')
     t['C_CS'] = (-9.7, 10.2, 90, 'T')
     t['R_IF'] = (-6.8, 9.4, 0, 'T')
-    t['C_IF'] = (-8.7, 8.6, 270, 'T')
+    t['C_IF'] = (-8.05, 8.45, 270, 'T')
     t['R_CUR'] = (-7.4, 15.0, 90, 'T')
     # the FETs' thermistor on the bottom at the edge between phase C's and
     # phase B's low sides (the end corridors stay clear: on motor 1's edge
@@ -138,22 +138,29 @@ def template():
     t['C_DVDD'] = (-1.7, 4.7, 0, 'T')
     t['R_ID'] = (-1.7, 7.35, 0, 'T')
     # MCU: supply and reset capacitors, the thermistor's bias, the
-    # back-EMF dividers' low legs and the neutral star
-    t['C_VDD'] = (-4.0, 6.0, 180, 'T')
-    t['C_VDDA'] = (-7.2, 6.2, 90, 'T')
-    t['C_RST'] = (-6.9, 7.7, 0, 'T')
-    t['R_NTB'] = (-6.3, 5.1, 90, 'T')         # its NTC pad over the thermistor pin's (PA3) via
-    t['RS_A'] = (-5.9, 6.3, 0, 'T')
-    t['RS_B'] = (-5.5, 5.1, 270, 'T')
-    t['RS_C'] = (-5.2, 7.4, 180, 'T')
-    t['RBL_A'] = (-7.4, 8.6, 0, 'T')
-    t['RBL_B'] = (-3.1, 9.55, 0, 'T')
-    t['RBL_C'] = (-5.2, 8.2, 0, 'T')
+    # back-EMF dividers' low legs and the neutral star, and the SWD test
+    # points.  The analog pins (thermistor, comparators, current) face the
+    # middle and take their escape vias alternately at the inner and
+    # outer ends of their pads (across, escape_pins); these parts keep
+    # off every via spot (0.2 mm hole to copper), each capacitor's supply
+    # pad by its own pin, and the rest as short as that leaves: a
+    # simulated-annealing search over their spots and turns
+    # (tools/mcu_cluster_search.py).
+    t['C_VDD'] = (-3.8, 6.0, 180, 'T')
+    t['C_VDDA'] = (-7.95, 5.35, 90, 'T')
+    t['C_RST'] = (-7.7, 6.9, 0, 'T')
+    t['R_NTB'] = (-6.7, 5.55, 90, 'T')
+    t['RS_A'] = (-5.4, 7.9, 180, 'T')
+    t['RS_B'] = (-5.8, 7.05, 0, 'T')
+    t['RS_C'] = (-5.55, 6.25, 180, 'T')
+    t['RBL_A'] = (-3.55, 9.0, 0, 'T')
+    t['RBL_B'] = (-6.6, 8.2, 270, 'T')
+    t['RBL_C'] = (-5.55, 5.45, 180, 'T')
     # SWD test points on top, the side that faces the flight controller
     # (the bootloader is flashed once, before the stack goes together),
     # beside the MCU's SWD pins
-    t['TP_DIO'] = (-3.0, 8.6, 0, 'T')
-    t['TP_CLK'] = (-4.4, 9.2, 0, 'T')
+    t['TP_DIO'] = (-3.1, 7.95, 90, 'T')
+    t['TP_CLK'] = (-4.9, 8.95, 0, 'T')
     return t
 
 
@@ -996,11 +1003,12 @@ def build(out_path):
     # the lines and buses to the middle first, in their own pads only (a
     # dog-bone beside one would take a neighbouring chip's plane via spot:
     # those that find no room in the pad wait for the plane vias, below)
+    mcus = set(roles(comps, n)['MCU'] for n in CHANNELS)
     k, late = fanout.dogbones(b, late, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL,
-                              inpad_overhang=ESCAPE_OVERHANG, inpad_only=True)
+                              inpad_overhang=ESCAPE_OVERHANG, inpad_only=True,
+                              inner_first=across(b, [q for q in late if q[0] in mcus]))
     print('escape vias in the pads of the lines and buses to the middle: %d' % k)
     pins = need + kelvin_pins(comps)
-    mcus = set(roles(comps, n)['MCU'] for n in CHANNELS)
     k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL,
                              inpad_overhang=ESCAPE_OVERHANG,
                              inner_first=across(b, [q for q in need if q[0] in mcus]))
@@ -1206,6 +1214,10 @@ def _first_keepouts(b, comps, half, ends):
 
 def route_local(b, comps):
     """Joined by the maze router before anything else, and fixed:
+      * each channel's lines that the board's router does not find
+        (FIRST_LINES), first: the sense, gate and PWM lines have the
+        fewest ways through, the lines to the middle below have room to go
+        round them;
       * the nets whose every pad is on a shared part (the stack lead's
         current filter, the enable clamp): short loops in the crowded
         middle; and the lead's ground pad to the battery pad's tap;
@@ -1279,56 +1291,7 @@ def route_local(b, comps):
                 t.SetLocked(True)
         return _band_part(b, before, half, pins)
 
-    # 1. channel 1's legs, every line's and bus's, before anything is copied
-    # or joined in the middle (a join, not turned with the channels, would
-    # stand in a later leg's way in every channel)
-    for t1, m in sorted(stamp.lines(b, channel_parts(comps), CHANNELS).items()):
-        pins = [p for fp in b.GetFootprints() if fp.GetReference() in chan_refs for p in fp.Pads()
-                if p.GetNetname() == t1]
-        exit_ = leg(t1, pins, pins[0], None)
-        if exit_ is None:
-            left.append(t1)
-        else:
-            legs.append((exit_, {n: net for n, net in m.items()}))
-    # the buses (one pin in every channel, and shared parts: each MCU's
-    # battery voltage input from the one divider, the current amplifiers'
-    # outputs to the average): from channel 1's pin to the nearest of the
-    # shared parts' pads
-    for net, m in stamp.buses(b, channel_parts(comps), CHANNELS).items():
-        local.append(net)
-        ref, num = m[1]
-        pin = next(q for q in b.FindFootprintByReference(ref).Pads() if q.GetNumber() == num)
-        far = [q for fp in b.GetFootprints() if fp.GetReference() not in chan_refs
-               for q in fp.Pads() if q.GetNetname() == net]
-        exit_ = leg(net, [pin], pin, _nearest(far, pin.GetPosition()))
-        if exit_ is None:
-            left.append(net)
-        else:
-            legs.append((exit_, {n: net for n in CHANNELS}))
-    # 2. every leg's band part copied, turned, onto every channel, and
-    # 3. joined in the middle only: each copy from its end to the nearest
-    # shared pad, then each net whole.  (The keepout lies half a track and
-    # the grid's margin outside the square: a copy cut back to its edge is
-    # joined on from there.)
-    e = half + w.get('', 0.1) / 2 + 0.1
-    ko = _keepouts(b, full.difference(box(pcb.CX - e, pcb.CY - e, pcb.CX + e, pcb.CY + e)), 'middle')
-    copies = [(n, net, _copy(b, n, net, exit_, cl)) for exit_, m in legs for n, net in sorted(m.items()) if n != 1]
-    for n, net, ids in copies:
-        _join(b, comps, n, net, ids, w, cl)
-    for exit_, m in legs:
-        for net in sorted(set(m.values())):
-            if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
-                left.append(net)
-    _drop(b, ko)
-    # 4. the shared parts' own nets: short loops in the middle (kept to it
-    # when all their pads are in it), and the stack lead's ground pad to
-    # the battery pad's tap
-    for n in [n for n in local if n not in lines and n not in stamp.buses(b, channel_parts(comps), CHANNELS)]:
-        ko = _keepouts(b, full.difference(core), 'middle') if inner(n) else []
-        if finish.route_net(b, n, track_w=w.get(n, 0.1), clmap=cl, lock=True):
-            left.append(n)
-        _drop(b, ko)
-    # 5. each channel's own lines that the board's router does not find
+    # 1. each channel's own lines that the board's router does not find
     # (FIRST_LINES).  Channel 1's, in its region and off the copper other
     # channels have and it lacks, copied onto every channel (each finished
     # in its own region if a copy was cut short).
@@ -1356,17 +1319,74 @@ def route_local(b, comps):
             if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
                 left.append(net)
             _drop(b, ko)
+    # 2. channel 1's legs, every line's and bus's, before anything is copied
+    # or joined in the middle (a join, not turned with the channels, would
+    # stand in a later leg's way in every channel)
+    for t1, m in sorted(stamp.lines(b, channel_parts(comps), CHANNELS).items()):
+        pins = [p for fp in b.GetFootprints() if fp.GetReference() in chan_refs for p in fp.Pads()
+                if p.GetNetname() == t1]
+        exit_ = leg(t1, pins, pins[0], None)
+        if exit_ is None:
+            left.append(t1)
+        else:
+            legs.append((exit_, {n: net for n, net in m.items()}))
+    # the buses (one pin in every channel, and shared parts: each MCU's
+    # battery voltage input from the one divider, the current amplifiers'
+    # outputs to the average): from channel 1's pin to the nearest of the
+    # shared parts' pads
+    for net, m in stamp.buses(b, channel_parts(comps), CHANNELS).items():
+        local.append(net)
+        ref, num = m[1]
+        pin = next(q for q in b.FindFootprintByReference(ref).Pads() if q.GetNumber() == num)
+        far = [q for fp in b.GetFootprints() if fp.GetReference() not in chan_refs
+               for q in fp.Pads() if q.GetNetname() == net]
+        exit_ = leg(net, [pin], pin, _nearest(far, pin.GetPosition()))
+        if exit_ is None:
+            left.append(net)
+        else:
+            legs.append((exit_, {n: net for n in CHANNELS}))
+    # 3. every leg's band part copied, turned, onto every channel, and
+    # 4. joined in the middle only: each copy from its end to the nearest
+    # shared pad, then each net whole.  (The keepout lies half a track and
+    # the grid's margin outside the square: a copy cut back to its edge is
+    # joined on from there.)
+    e = half + w.get('', 0.1) / 2 + 0.1
+    ko = _keepouts(b, full.difference(box(pcb.CX - e, pcb.CY - e, pcb.CX + e, pcb.CY + e)), 'middle')
+    copies = [(n, net, _copy(b, n, net, exit_, cl)) for exit_, m in legs for n, net in sorted(m.items()) if n != 1]
+    for n, net, ids in copies:
+        _join(b, comps, n, net, ids, w, cl)
+    for exit_, m in legs:
+        for net in sorted(set(m.values())):
+            if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
+                left.append(net)
+    _drop(b, ko)
+    # 5. the shared parts' own nets: short loops in the middle (kept to it
+    # when all their pads are in it), and the stack lead's ground pad to
+    # the battery pad's tap
+    for n in [n for n in local if n not in lines and n not in stamp.buses(b, channel_parts(comps), CHANNELS)]:
+        ko = _keepouts(b, full.difference(core), 'middle') if inner(n) else []
+        if finish.route_net(b, n, track_w=w.get(n, 0.1), clmap=cl, lock=True):
+            left.append(n)
+        _drop(b, ko)
     _drop(b, pours)
     return local, left
 
 
-# Channel lines laid by the maze router, in this order, before the board's
-# router (route_local, step 5):
-#   * the switch-node sense lines (the driver's SHx pins).  The phases'
-#     copper lies under the pours' keepouts, all but the switch-node vias
-#     under the FETs (on the inner layers), and the board's router aims at
-#     the nearest pad, a FET's lead inside a pour; the maze router takes any
-#     copper of the net it can reach.
+# Channel lines laid by the maze router, in this order, before anything
+# else is routed (route_local, step 1):
+#   * each phase's switch-node sense line (the driver's SHx pin), then its
+#     two gate lines.  The phases' copper lies under the pours' keepouts,
+#     all but the switch-node vias under the FETs (on the inner layers), and
+#     the board's router aims at the nearest pad, a FET's lead inside a
+#     pour; the maze router takes any copper of the net it can reach.  The
+#     driver's pins come out as GLB SHB GHB GHC SHC GLC along its FET-side
+#     edge (phase A's GHA SHA GLA on its +u side), each gate beside its
+#     phase's sense pin with its gate vias past the FETs' +u side, so in
+#     every phase one gate line crosses the sense line: laid with the rest,
+#     the board's router took a gate line the long way round the next phase
+#     and walled in that phase's gates.  Laid phase by phase, sense first,
+#     each gate line finds its crossing while the strip below the driver is
+#     still open.
 #   * the MCU's six PWM lines, in the order of the driver's inputs (HA LA HB
 #     LB HC LC along its edge facing the middle).  The MCU's timer pins come
 #     round its corner as LC LB | LA HC HB HA, so three of them must cross
@@ -1374,7 +1394,7 @@ def route_local(b, comps):
 #     middle; the board's router, with the comparators' lines through the
 #     same strip, left two of them open in every routing.  Laid first, from
 #     the inner pin out, each takes the line beside the one before.
-FIRST_LINES = ('A', 'B', 'C', 'HA', 'LA', 'HB', 'LB', 'HC', 'LC')
+FIRST_LINES = ('A', 'GHA', 'GLA', 'B', 'GLB', 'GHB', 'C', 'GLC', 'GHC', 'HA', 'LA', 'HB', 'LB', 'HC', 'LC')
 
 
 def _channel_keepouts(b, comps, n, reg):
