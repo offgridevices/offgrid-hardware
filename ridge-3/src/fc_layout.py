@@ -122,11 +122,14 @@ PLACE = {
 # circuit order).
 PLACE_BY_NOTE = {
     # the lead's battery: its clamp on the bottom behind the 5 V BEC, its
-    # anode end in the BEC's input pour, its ground end outboard of it
-    'VBAT TVS':             (-7.4, 16.6, 180, Bo),
+    # anode end in the BEC's input pour, its ground end outboard of it,
+    # far enough out that its courtyard clears the IC's at the RT pin's
+    # corner
+    'VBAT TVS':             (-8.1, 16.6, 180, Bo),
     # the video supply's own input (fpv group): its clamp and bulk
-    # capacitor in front of its pads
-    'VBAT_VTX TVS':         (7.0, 12.6, 270, T),
+    # capacitor in front of its pads, the clamp's ground end clear of the
+    # pads' courtyards
+    'VBAT_VTX TVS':         (7.0, 12.45, 270, T),
     # current and battery-voltage dividers and filters: right front, clear
     # of the gyro
     'CUR default low':      (10.6, -3.4, 0, T),
@@ -147,13 +150,14 @@ PLACE_BY_NOTE = {
     # +0.63 CB, -0.63 PG, -1.9 FB at -2.68): input HF capacitor behind
     # the rear row, across EN from VIN's pour to GND's, bulk input
     # capacitor above it on the top, bootstrap in front of CB/SW, between
-    # the IC and the inductor; RT's resistor at its pin, the UVLO divider
-    # beside it (EN, boxed in between VIN and GND, leaves its pin by a via
-    # in the pad, vias())
+    # the IC and the inductor; RT's resistor in line with its pin, past the
+    # end of the IC's courtyard (2.59 mm from its centre along the rows),
+    # the UVLO divider beside it (EN, boxed in between VIN and GND, leaves
+    # its pin by a via in the pad, vias())
     '9V BEC input HF':      at(A9, 0.63, 4.45, 0),
     '9V BEC input':         (12.0, 7.9, 0, T),
     '9V BEC bootstrap':     at(A9, 1.3, -4.3, 0),
-    '9V BEC 455 kHz':       at(A9, -3.15, 2.68, 180),
+    '9V BEC 455 kHz':       at(A9, -3.65, 2.68, 180),
     '9V BEC UVLO top':      at(A9, -2.65, 4.9, 90),
     '9V BEC UVLO bottom':   (9.61, 5.08, 90, Bo),
     'VTX power switch':     (11.8, 4.3, 0, T),      # clear of the EN via above U_BUCK9's pin 2
@@ -176,9 +180,13 @@ PLACE_BY_NOTE = {
     # 3.3 V buck: input capacitor at VIN/GND, the inductor beside the SW
     # pin, output capacitors at the inductor's far end, feedback at FB
     # (IC turned 90: VIN/EN/MODE and COMP (ground) down its left side,
-    # GND, SW, PG, FB down its right; VIN and GND at its rear end)
-    '3.3V buck input':      at(A3, 0.0, 2.25, 0),
-    '3.3V buck output':     [at(A3, 3.9, -2.6, 90), at(A3, 5.45, -2.6, 90)],
+    # GND, SW, PG, FB down its right; VIN and GND at its rear end).  The
+    # input capacitor sits right of the IC's centre line: the USB-C's
+    # front shell tab is a plated hole, its copper on the bottom too, just
+    # left of the capacitor's 5 V end.  The output capacitors sit in front
+    # of the inductor's courtyard.
+    '3.3V buck input':      at(A3, 0.55, 2.25, 0),
+    '3.3V buck output':     [at(A3, 3.9, -2.8, 90), at(A3, 5.45, -2.8, 90)],
     '3.3V buck feedback top': at(A3, -1.9, -1.6, 90),
     '3.3V buck feed-forward': at(A3, -2.9, -1.6, 90),
     '3.3V buck feedback bottom': at(A3, -1.3, -3.4, 0),
@@ -299,6 +307,50 @@ def reserved():
     return out
 
 
+def clashes(fps):
+    """The placement's errors as KiCad's DRC finds them, before any copper:
+    two courtyards on one side that overlap or touch, and a pad with a hole
+    (plated or not) inside another part's courtyard on either side (a
+    plated hole's copper is on both).  The packer keeps the parts it places
+    clear of everything; the fixed parts it never moves, so their places in
+    the tables are checked here, and a wrong one stops the build before the
+    routers run."""
+    from shapely.geometry import Polygon, box
+    from shapely.ops import unary_union
+
+    def poly(sps):
+        return unary_union([Polygon([(sps.Outline(k).CPoint(i).x / 1e6 - pcb.CX,
+                                      sps.Outline(k).CPoint(i).y / 1e6 - pcb.CY)
+                                     for i in range(sps.Outline(k).PointCount())])
+                            for k in range(sps.OutlineCount())])
+    court = {}
+    for ref, fp in sorted(fps.items()):
+        if hasattr(fp, 'BuildCourtyardCaches'):
+            fp.BuildCourtyardCaches()
+        for side, layer in ((T, pcbnew.F_CrtYd), (Bo, pcbnew.B_CrtYd)):
+            g = poly(fp.GetCourtyard(layer))
+            if not g.is_empty:
+                court[(ref, side)] = g
+    out = []
+    keys = sorted(court)
+    for i, (a, sa) in enumerate(keys):
+        for c, sc in keys[i + 1:]:
+            if sa == sc and a != c and court[(a, sa)].intersects(court[(c, sc)]):
+                out.append('%s / %s (%s)' % (a, c, 'top' if sa == T else 'bottom'))
+    for ref, fp in sorted(fps.items()):
+        for p in fp.Pads():
+            if p.GetAttribute() not in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH):
+                continue
+            bb = p.GetBoundingBox()
+            pg = box(bb.GetLeft() / 1e6 - pcb.CX, bb.GetTop() / 1e6 - pcb.CY,
+                     bb.GetRight() / 1e6 - pcb.CX, bb.GetBottom() / 1e6 - pcb.CY)
+            for (other, side), g in sorted(court.items()):
+                if other != ref and g.intersects(pg):
+                    out.append('%s pad %s (hole) / %s (%s)' % (ref, p.GetNumber() or '-', other,
+                                                              'top' if side == T else 'bottom'))
+    return out
+
+
 def build_placed(out_path, legal=True, strict=True):
     b = pcb.new_board(LAYERS)
     pcb.outline(b)
@@ -311,6 +363,11 @@ def build_placed(out_path, legal=True, strict=True):
         if left and strict:
             raise SystemExit('no room for %s' % left)
     fps = pcb.place_components(b, comps, place)
+    bad = clashes(fps)
+    print('placement: %s' % ('%d clashes: %s' % (len(bad), '; '.join(bad)) if bad else 'no courtyard overlaps, '
+                             'no hole in a courtyard'))
+    if bad and strict:
+        raise SystemExit('placement clashes: %s' % '; '.join(bad))
     b.Save(out_path)
     return b, comps, fps
 
@@ -375,11 +432,12 @@ def pours():
         # 3.3 V buck (bottom, relative to its IC, turned 90: VIN, EN, MODE
         # and COMP down its left side, GND, SW, PG, FB down its right):
         # 5 V to the VIN/EN/MODE pins from the input capacitor, ground from
-        # its other end to the GND pin, the switch node from the SW pin
-        # (between PG and GND) to the inductor, 3.3 V from the inductor's
-        # far end to both output capacitors
+        # its other end to the GND pin (widening behind the switch node to
+        # take the whole of the capacitor's pad), the switch node from the
+        # SW pin (between PG and GND) to the inductor, 3.3 V from the
+        # inductor's far end to both output capacitors
         ('+5V', Bo, _rel(A3, [(-1.55, -0.35), (-0.35, -0.35), (-0.35, 3.05), (-1.55, 3.05)])),
-        ('GND', Bo, _rel(A3, [(0.4, 0.65), (1.3, 0.65), (1.3, 3.05), (0.4, 3.05)])),
+        ('GND', Bo, _rel(A3, [(0.4, 0.65), (1.3, 0.65), (1.3, 1.5), (2.05, 1.5), (2.05, 3.05), (0.4, 3.05)])),
         ('BUCK3_SW', Bo, _rel(A3, [(0.7, 0.1), (1.5, 0.1), (1.5, -1.2), (2.65, -1.2), (2.65, 1.2), (1.5, 1.2),
                                    (1.5, 0.4), (0.7, 0.4)])),
         ('+3V3', Bo, _rel(A3, [(3.3, -2.4), (6.0, -2.4), (6.0, -1.2), (4.7, -1.2), (4.7, 1.2), (3.4, 1.2),

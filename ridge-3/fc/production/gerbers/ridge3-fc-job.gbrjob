@@ -5,13 +5,13 @@
       "Application": "Pcbnew",
       "Version": "10.0.6-10.0.6~ubuntu24.04.1"
     },
-    "CreationDate": "2026-09-29T06:48:57+00:00"
+    "CreationDate": "2026-10-01T21:02:28+00:00"
   },
   "GeneralSpecs": {
     "ProjectId": {
       "Name": "ridge3-fc",
       "GUID": "72696467-6533-42d6-9663-2e6b69636164",
-      "Revision": "1.0"
+      "Revision": "2.0"
     },
     "Size": {
       "X": 36.1,
@@ -139,7 +139,7 @@
     },
     {
       "Type": "Copper",
-      "Thickness": 0.0175,
+      "Thickness": 0.035,
       "Name": "In1.Cu"
     },
     {
@@ -152,7 +152,7 @@
     },
     {
       "Type": "Copper",
-      "Thickness": 0.0175,
+      "Thickness": 0.035,
       "Name": "In2.Cu"
     },
     {
@@ -165,7 +165,7 @@
     },
     {
       "Type": "Copper",
-      "Thickness": 0.0175,
+      "Thickness": 0.035,
       "Name": "In3.Cu"
     },
     {
@@ -178,7 +178,7 @@
     },
     {
       "Type": "Copper",
-      "Thickness": 0.0175,
+      "Thickness": 0.035,
       "Name": "In4.Cu"
     },
     {
