@@ -141,18 +141,29 @@ def _mask_polys(mask, res, K):
 
 def region(b, parts, channels, res=0.1, shrink=0.07):
     """The template channel's region (absolute board mm): the points whose
-    nearest channel pads are its own, shrunk by `shrink`."""
+    nearest channel copper (pads, and its own nets' vias) is its own,
+    shrunk by `shrink`."""
     from scipy import ndimage
     t = template_channel(channels)
     K = int(math.ceil(pcb.HALF / res)) + 2
     xs = (np.arange(2 * K + 1) - K) * res
     X, Y = np.meshgrid(xs, xs)
     geoms = []
-    for ref in parts[t].values():
-        for p in b.FindFootprintByReference(ref).Pads():
-            for l in (pcbnew.F_Cu, pcbnew.B_Cu):
-                if p.IsOnLayer(l):
-                    geoms.append(_pad_poly(p, l))
+    mine = set(parts[t].values())
+    nets, elsewhere = set(), set()
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            (nets if fp.GetReference() in mine else elsewhere).add(p.GetNetname())
+            if fp.GetReference() in mine:
+                for l in (pcbnew.F_Cu, pcbnew.B_Cu):
+                    if p.IsOnLayer(l):
+                        geoms.append(_pad_poly(p, l))
+    # and the vias of the channel's own nets (escape vias out beyond a
+    # chip's pins): the channel's copper as much as its pads are
+    for tr in b.GetTracks():
+        if tr.GetClass() == 'PCB_VIA' and tr.GetNetname() in nets - elsewhere - {''}:
+            q = tr.GetPosition()
+            geoms.append(Point(q.x / 1e6, q.y / 1e6).buffer(tr.GetWidth(pcbnew.F_Cu) / 2e6, 8))
     inside = shapely.contains_xy(unary_union(geoms), X + pcb.CX, Y + pcb.CY)
     d = ndimage.distance_transform_edt(~inside) * res
     dist = {}
@@ -270,6 +281,11 @@ def foreign(b, parts, channels, nets, reg, clear=0.13, match=0.08):
                 return False
         return True
 
+    # each channel's region: a channel's own copper inside it is that
+    # channel's, and not in another's way; outside it (a line's run into the
+    # middle, to the shared part it serves) it is in the way of whichever
+    # channel's space it crosses
+    home = {k: _turn_geom(reg, a).buffer(0.3) for k, a in channels.items()}
     for k, a in channels.items():
         if k == t:
             continue
@@ -280,7 +296,8 @@ def foreign(b, parts, channels, nets, reg, clear=0.13, match=0.08):
                 add({l: _pad_poly(p, l) for l in ALL_CU if p.IsOnLayer(l)}, a)
         for tr in b.GetTracks():
             net = tr.GetNetname()
-            if net in local and local[net][0] != k:
+            if net in local and local[net][0] != k and \
+                    all(home[local[net][0]].contains(g) for g in _item_geoms(tr).values()):
                 continue
             # copper the template channel has a turned copy of (its own net's,
             # or the same shared net's) is there already

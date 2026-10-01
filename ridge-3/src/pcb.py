@@ -16,7 +16,20 @@ MM = pcbnew.FromMM
 CX, CY = 100.0, 100.0            # board centre on KiCad's page
 HALF = 18.0                      # 36 mm square (SpeedyBee F405 AIO V2 size), 25.5 mm holes
 HOLE = 12.75                     # 25.5 mm pattern
-HOLE_KEEPOUT_R = 3.1             # grommet flange + clearance, no copper
+# Round each hole (ridge-3/docs/MOUNTING.md has the study):
+#  * outer layers: no copper within HOLE_COPPER_R, what the M2 hardware
+#    bears on: the grommet's flange (4.4-4.5 mm) or an M2 washer (radius
+#    2.5), + 0.1;
+#  * inner layers: copper HOLE_INNER_CLEAR from the hole's and slot's walls
+#    (nothing bears there; the fab asks 0.2 mm);
+#  * parts' courtyards: HOLE_PART_R, for the nut driver's socket and the
+#    crash strain round the hole (tall parts, the ESC's larger capacitors
+#    and its ICs ask 3.1 mm; every part keeps it);
+#  * silkscreen: none under the flange, compressed, GROMMET_SILK_R.
+HOLE_COPPER_R = 2.6
+HOLE_INNER_CLEAR = 0.5
+HOLE_PART_R = 3.1
+GROMMET_SILK_R = 2.75
 # Mounting: each 3.2 mm hole (an M2 soft-mount grommet's neck; the grommet
 # turns it into M2) opens to its corner through a 2.5 mm slot along the
 # diagonal, so the grommet slides in from outside instead of being pushed
@@ -333,11 +346,31 @@ def circle_poly(x, y, r, n=32):
     import math
     return [(x + r * math.cos(2 * math.pi * i / n), y + r * math.sin(2 * math.pi * i / n)) for i in range(n)]
 
-def hole_keepouts(b, cu_layers):
+def hole_keepouts(b, cu_layers, inner_clear=None):
+    """No copper round the mounting holes: within HOLE_COPPER_R on the outer
+    layers, and HOLE_INNER_CLEAR from the hole's and slot's walls on the
+    inner ones (inner_clear: {layer: mm} for layers that keep further)."""
+    from shapely.geometry import box
+    outer = [l for l in cu_layers if l in (pcbnew.F_Cu, pcbnew.B_Cu)]
+    inner = [l for l in cu_layers if l not in outer]
+    board = board_polygon()
+    by = {}
+    for l in inner:
+        by.setdefault((inner_clear or {}).get(l, HOLE_INNER_CLEAR), []).append(l)
     for sx in (-1, 1):
         for sy in (-1, 1):
-            rule_area(b, circle_poly(sx * HOLE, sy * HOLE, HOLE_KEEPOUT_R), cu_layers,
+            rule_area(b, circle_poly(sx * HOLE, sy * HOLE, HOLE_COPPER_R), outer,
                       tracks=True, vias=True, pads=False, pours=True, name='hole keepout')
+            # the hole and its slot: what the outline cuts from this corner
+            a, c = HOLE - HOLE_D, HALF + 1
+            (x0, x1), (y0, y1) = sorted((sx * a, sx * c)), sorted((sy * a, sy * c))
+            corner = box(x0, y0, x1, y1)
+            cut = corner.difference(board)
+            for clear, ls in sorted(by.items()):
+                g = cut.buffer(clear, 16).intersection(corner)
+                for q in getattr(g, 'geoms', [g]):
+                    rule_area(b, list(q.exterior.coords)[:-1], ls, tracks=True, vias=True, pads=False, pours=True,
+                              name='hole wall keepout')
 
 # Mouse-bite tab zones (panel.py): along each edge, from the corner's slot
 # to TAB_TO from the corner, TAB_DEPTH deep.  No part, track or via goes

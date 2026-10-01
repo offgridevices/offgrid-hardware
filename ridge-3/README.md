@@ -46,12 +46,15 @@ a change to one board moves only its number.
 | Connectors | USB-C, BOOT button, Molex Micro-Lock Plus stack lead (locking), 6-pin HD lead, solder pads | Through-hole battery pads, motor pads, soldered stack lead |
 | Blackbox | 16 MB Infineon flash (-40..125 °C); the board runs without it | – |
 | Layers | 6 | 8 (two battery plane pairs) |
-| Mounting | 25.5 mm, M2 soft-mount grommets or M3 | same |
+| Mounting | 25.5 mm, M2 soft-mount grommets; boards at least 6 mm apart | same |
 
 **Mounting holes.** Each corner hole (3.2 mm) has a 2.5 mm slot cut out to
 the corner. A standard M3-to-M2 rubber grommet slides in from the corner and
-snaps into the hole, rather than being forced through a closed hole. An M3
-screw also fits for a hard mount. The outline has no sharp point anywhere:
+snaps into the hole, rather than being forced through a closed hole.  M2
+screws and nuts; no M3 hard mount (the frames' 25.5 mm holes are M2, and an
+M3 nut needs bare board the copper now uses).  Why the holes stay where
+they are, and what rev 2 changed round them, is in `docs/MOUNTING.md`.
+The outline has no sharp point anywhere:
 where each slot opens through the edge, the point is rounded by a tight
 0.3 mm arc sweeping into a 2 mm one along the slot (so it takes under 1 mm
 of the straight edge, which the production panel's break-off tabs need),
@@ -290,9 +293,12 @@ few parts have only prototype-sized stock: see [Sourcing](#sourcing-lcscjlcpcb-g
   runs from the stack lead.
 - **ST-Link V2 or Artery AT-Link**, Artery's OpenOCD, and a current-limited
   bench supply, to flash the ESC bootloaders once.
-- **Grommets:** four M3-to-M2 soft-mount grommets per board (the usual FPV
-  stack grommets).
-- **ST-Link V2** (or a clone) to flash the ESC bootloaders once.
+- **Grommets:** four M3-to-M2 soft-mount grommets per board, for a
+  3.0-3.5 mm hole, flange 4.4-4.5 mm (e.g. FlyingTech type B, 4.4 x 6.6 mm),
+  M2 screws and M2 nylon-insert or aluminium nuts.  Stack the boards at
+  least 6 mm apart (ESC top to FC bottom): the FC's inductors and a 1210
+  capacitor sit over the ESC's motor and battery joints.  Solder the
+  battery lead into its pads from below and trim it flush on top.
 
 ### Ordering in volume
 

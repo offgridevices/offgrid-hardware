@@ -1995,10 +1995,10 @@ def check_silk(board, name):
         n = sum(len(find_shape(polys, brand.place(t, 0, 0, rot=r, mirror=mirror))) for r in (0, 90))
         check(S, '%s: the side\'s name, "%s", printed by the arrow: %d found' % (lname, word, n), n == 1)
         from shapely.geometry import Point
-        flanges = unary_union([Point(pcb.CX + sx * pcb.HOLE, pcb.CY + sy * pcb.HOLE).buffer(pcb.HOLE_KEEPOUT_R)
+        flanges = unary_union([Point(pcb.CX + sx * pcb.HOLE, pcb.CY + sy * pcb.HOLE).buffer(pcb.GROMMET_SILK_R)
                                for sx in (-1, 1) for sy in (-1, 1)])
         under = [p for p in polys if p.intersects(flanges)]
-        check(S, '%s: no ink under the grommet flanges (%.1f mm round each mounting hole)' % (lname, pcb.HOLE_KEEPOUT_R),
+        check(S, '%s: no ink under the grommet flanges (%.1f mm round each mounting hole)' % (lname, pcb.GROMMET_SILK_R),
               not under, '%d outlines, the first at %s' % (len(under), tuple(round(v - 100, 1) for v in
                                                                                under[0].centroid.coords[0]))
               if under else '')

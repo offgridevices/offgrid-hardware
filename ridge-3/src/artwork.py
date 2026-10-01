@@ -125,7 +125,7 @@ class SilkPlacer:
         # holes: the copper keep-out there is no place for ink either
         for sx in (-1, 1):
             for sy in (-1, 1):
-                self.blocks.append(Point(pcb.CX + sx * pcb.HOLE, pcb.CY + sy * pcb.HOLE).buffer(pcb.HOLE_KEEPOUT_R))
+                self.blocks.append(Point(pcb.CX + sx * pcb.HOLE, pcb.CY + sy * pcb.HOLE).buffer(pcb.GROMMET_SILK_R))
         # vias: tented, but the drill still punches through the ink.  Artwork
         # placed with vias=True keeps clear of them.
         self.vias = []

@@ -439,7 +439,7 @@ def drop_unused_escapes(path):
 
 
 def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap=0.25, lock=True, inpad=None,
-             hole_cl=0.0, inpad_overhang=0.005):
+             hole_cl=0.0, inpad_overhang=0.005, inpad_only=False):
     """A dog-bone escape for each (ref, pad number) of a QFN: a via just
     outside the pad, straight out from the package (or a little to either
     side), joined to the pad by a stub on the pad's layer.  Adjacent
@@ -451,8 +451,9 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
     at most `inpad_overhang` past the pad's edge, then at its inner end
     (at a 0.4 mm pitch a neighbour's outer-end via leaves no room for the
     next: the vias stagger along the pads); the dog-bone is the
-    fallback.  hole_cl: every via's hole also clears other nets' copper by
-    this much.  Returns (placed, failed pins)."""
+    fallback (none with inpad_only: such a pin fails).  hole_cl: every
+    via's hole also clears other nets' copper by this much.  Returns
+    (placed, failed pins)."""
     layers = pcb.cu_layers(board)
     obs = Obstacles(board, layers)
     from shapely.geometry import LineString
@@ -504,6 +505,9 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
                 obs.add(vg, net, layers); obs.vias.append((vx, vy)); obs.netvias.append((vx, vy, net))
                 obs.holes.append((vx, vy, dr_in / 2))
                 placed += 1
+                continue
+            if inpad_only:
+                failed.append((ref, num))
                 continue
         for k, d in enumerate(dists):
             for lat in (0.0, 0.25, -0.25, 0.5, -0.5):

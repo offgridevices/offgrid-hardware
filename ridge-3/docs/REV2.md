@@ -57,6 +57,13 @@ Board revision labels: both boards print **REV 2.0**.
 | LEDs: Lite-On LTST-C191KRKT (85 °C) / LTST-C191TBKT (80 °C) | **Rohm SML-D15UWT86** red / **SMLD12BN1WT86** blue, -40..+100 °C | Rohm's 110 °C AEC-Q102 LEDs had no stock |
 | X5R capacitors (regulator inputs and outputs, MCU, OSD) | X7R everywhere (125 °C) | 85 °C dielectric on a hot board |
 
+## Both boards
+
+| Rev 1 | Rev 2 | Why |
+|---|---|---|
+| No copper within 3.1 mm of a mounting hole, on every layer | **2.6 mm on the outer layers; 0.5 mm from the hole's and slot's walls on the inner ones** (1.0 mm for the ESC's battery planes); parts and silkscreen as before | 3.1 mm suits an M3 nut, not the M2 grommet.  The holes stay on the 25.5 mm pattern: `MOUNTING.md` |
+| Board gap and grommet unspecified; "M3 also fits" | M2 grommets (flange 4.4-4.5 mm), M2 hardware, **boards at least 6 mm apart** | The FC's inductors sit over the ESC's motor joints |
+
 ### Kept, and why
 
 | Part | Rating | Why it stays |

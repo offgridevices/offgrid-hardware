@@ -37,6 +37,7 @@ In4 GND | In5 signals + channel return pours | In6 VBAT | B signals + power.
 """
 import math, os
 import pcbnew
+import shapely
 import pcb, circuit, parts
 from pcb import MM
 
@@ -135,9 +136,9 @@ def template():
     # MCU: supply and reset capacitors, the thermistor's bias, the
     # back-EMF dividers' low legs and the neutral star
     t['C_VDD'] = (-4.0, 6.0, 180, 'T')
-    t['C_VDDA'] = (-7.2, 6.2, 90, 'T')
+    t['C_VDDA'] = (-7.2, 6.2, 270, 'T')       # DVDD beside the bias resistor's, ground out to its plane via
     t['C_RST'] = (-6.9, 7.7, 0, 'T')
-    t['R_NTB'] = (-6.3, 5.1, 90, 'T')
+    t['R_NTB'] = (-6.9, 5.1, 90, 'T')         # its NTC pad over pin 8, clear of pin 9's via
     t['RS_A'] = (-5.9, 6.3, 0, 'T')
     t['RS_B'] = (-5.5, 5.1, 270, 'T')
     t['RS_C'] = (-5.2, 7.4, 180, 'T')
@@ -527,7 +528,7 @@ def _zone(b, n, net, layer, pts, prio=3, name=None, clearance=0.2):
 
 
 def _in_keepout(x, y, r):
-    return any(math.hypot(x - sx * pcb.HOLE, y - sy * pcb.HOLE) < pcb.HOLE_KEEPOUT_R + r + 0.05
+    return any(math.hypot(x - sx * pcb.HOLE, y - sy * pcb.HOLE) < pcb.HOLE_COPPER_R + r + 0.05
                for sx in (-1, 1) for sy in (-1, 1))
 
 
@@ -835,7 +836,9 @@ def power_refs(comps):
 def build(out_path):
     b, comps, fps = build_placed(out_path)
     cu = pcb.cu_layers(b)
-    pcb.hole_keepouts(b, cu)
+    # the battery planes keep 1 mm from the hole walls: a crash that cracks
+    # a wall should not bring a metal screw to the pack's positive
+    pcb.hole_keepouts(b, cu, inner_clear={l: 1.0 for l in VBAT_PLANES})
     pcb.tab_keepouts(b, cu)
     via_rules(b)
     e = H - 0.35
@@ -865,7 +868,13 @@ def build(out_path):
     fanout.Obstacles.NET_CL = {x: c for x, c in cl.items() if c > 0.1}
     fanout.Obstacles.MARGIN = 0.01
     e2 = H - 0.4
-    need, maybe = escape_pins(b, comps)
+    need, maybe, late = escape_pins(b, comps)
+    # the lines and buses to the middle first, in their own pads only (a
+    # dog-bone beside one would take a neighbouring chip's plane via spot:
+    # those that find no room in the pad wait for the plane vias, below)
+    k, late = fanout.dogbones(b, late, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL,
+                              inpad_overhang=ESCAPE_OVERHANG, inpad_only=True)
+    print('escape vias in the pads of the lines and buses to the middle: %d' % k)
     pins = need + kelvin_pins(comps)
     k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL,
                                      inpad_overhang=ESCAPE_OVERHANG)
@@ -890,6 +899,10 @@ def build(out_path):
                               skip=power_refs(comps), **{x: y for x, y in FANOUT.items() if x != 'inpad'},
                               inpad=FANOUT['inpad'])
     print('fanout: %d plane vias, %d pads without one: %s' % (k, len(failed), failed))
+    k, bad = fanout.dogbones(b, late, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL,
+                             inpad_overhang=ESCAPE_OVERHANG)
+    print('escape vias beside the pads of the lines and buses to the middle: %d of %d, none for %s'
+          % (k, len(late), bad))
     local, left = route_local(b, comps)
     print('routed first (shared parts\' own nets, channels\' lines to them): %s, %d open %s'
           % (', '.join(local), len(left), left))
@@ -928,6 +941,7 @@ def _clashing(b, items, clmap, default=0.1):
     for t in b.GetTracks():
         if id(t) not in ids:
             other += [(l, t.GetNetname(), g) for l, g in geoms(t)]
+    n_fixed = len(other)
     for z in b.Zones():
         if z.GetIsRuleArea():
             continue
@@ -941,18 +955,114 @@ def _clashing(b, items, clmap, default=0.1):
                     o = sp.Outline(k)
                     other.append((l, z.GetNetname(), Polygon([(mm(o.CPoint(i).x), mm(o.CPoint(i).y))
                                                               for i in range(o.PointCount())])))
+    # an inner-layer pour keeps tracks out, not vias: a via through it gets
+    # a clearance hole in the fill when it is filled again (as finish.py's
+    # router has it)
+    inner = set(cu[1:-1])
+    pours = set(id(g) for l, on, g in other[n_fixed:] if l in inner)
     out = []
     for t in items:
         c = clmap.get(t.GetNetname(), default)
-        if any(ol == l and on != t.GetNetname() and g.distance(og) < max(c, clmap.get(on, default)) - 1e-6
+        via = t.GetClass() == 'PCB_VIA'
+        if any(ol == l and on != t.GetNetname() and not (via and id(og) in pours)
+               and g.distance(og) < max(c, clmap.get(on, default)) - 1e-6
                for l, g in geoms(t) for ol, on, og in other):
             out.append(t)
     return out
 
 
-# a channel's line to a shared part is copied from channel 1 as far as this
-# (template yr): the chips' inner edge, where the middle begins
-LINE_EXIT = 5.0
+# The middle of the board belongs to the shared nets, the rest to the
+# channels.  The middle is a square round the centre (it turns onto itself
+# with the channels), halfway between the furthest reach of the shared
+# parts' pads there and the nearest copper of any channel (core_half).  A
+# channel's line to a shared part is copied from channel 1 as far as the
+# square, CORE_CUT inside its edge, so the copy's end lies clear of the
+# keepout round the square that the middle is routed under.
+CORE_CUT = 0.25
+
+
+def core_half(b, comps):
+    """Half the side of the middle square (board mm from the centre along x
+    or y, i.e. the max-norm): halfway between the shared parts' pads in the
+    middle and the channels' copper (their parts' pads and their own nets'
+    vias).  Anything else routed in the middle and turned onto every
+    channel, as stamp.py does with what the template channel lacks, walls
+    in the pins the channels' routing must reach (rev 2's drivers reach to
+    3.7 mm from the centre)."""
+    cu = pcb.cu_layers(b)
+    chan = set(r for rr in channel_parts(comps).values() for r in rr.values())
+    reach = lambda x, y: max(abs(x - pcb.CX), abs(y - pcb.CY))
+    pads = {}
+    own = {}
+    for fp in b.GetFootprints():
+        mine = fp.GetReference() in chan
+        for p in fp.Pads():
+            for l in cu:
+                if not p.IsOnLayer(l):
+                    continue
+                sp = p.GetEffectivePolygon(l)
+                for k in range(sp.OutlineCount()):
+                    o = sp.Outline(k)
+                    r = [reach(o.CPoint(i).x / 1e6, o.CPoint(i).y / 1e6) for i in range(o.PointCount())]
+                    pads.setdefault(mine, []).append((min(r), max(r)))
+            if p.GetNetname():
+                own[p.GetNetname()] = own.get(p.GetNetname(), True) and mine
+    c_min = min(lo for lo, hi in pads[True])
+    for t in b.GetTracks():
+        if t.GetClass() == 'PCB_VIA' and own.get(t.GetNetname()):
+            q = t.GetPosition()
+            c_min = min(c_min, reach(q.x / 1e6, q.y / 1e6) - t.GetWidth(pcbnew.F_Cu) / 2e6)
+    s_max = max(hi for lo, hi in pads[False] if hi < c_min)
+    if c_min - s_max < 0.1:
+        raise SystemExit('the middle: shared pads reach %.2f mm, a channel\'s copper %.2f mm: no room between'
+                         % (s_max, c_min))
+    return (s_max + c_min) / 2
+
+
+def _keepouts(b, geom, name):
+    """Rule areas (no tracks, no vias, every copper layer) over `geom`
+    (absolute board mm); returned, to be removed again."""
+    import stamp
+    rel = lambda q: [(x - pcb.CX, y - pcb.CY) for x, y in list(q.exterior.coords)[:-1]]
+    return [pcb.rule_area(b, rel(q), pcb.cu_layers(b), tracks=True, vias=True, pads=False, pours=False, name=name)
+            for q in stamp._simple(geom.simplify(0.01))]
+
+
+def _drop(b, zones):
+    for z in zones:
+        b.Remove(z)
+
+
+def _first_keepouts(b, comps, half, ends):
+    """Keepouts for channel 1's leg of a line or bus, the part copied onto
+    every channel: it stays in channel 1's region (stamp.region) and the
+    middle inside the copy's cut (CORE_CUT), and off the copper another
+    channel has where channel 1 has none (stamp.foreign), so its copies
+    land on free copper.  `ends`: the pads it joins, which the region's
+    keepout leaves room round."""
+    import stamp
+    from shapely.geometry import box
+    from shapely.ops import unary_union
+    parts = channel_parts(comps)
+    reg = stamp.region(b, parts, CHANNELS)
+    h = half - CORE_CUT
+    inner = box(pcb.CX - h, pcb.CY - h, pcb.CX + h, pcb.CY + h)
+    full = box(pcb.CX - pcb.HALF - 1, pcb.CY - pcb.HALF - 1, pcb.CX + pcb.HALF + 1, pcb.CY + pcb.HALF + 1)
+    free = unary_union([stamp._pad_poly(p, next(l for l in pcb.cu_layers(b) if p.IsOnLayer(l))).buffer(0.3)
+                        for p in ends])
+    zs = _keepouts(b, full.difference(inner.union(reg)).difference(free), 'channel 1 and the middle')
+    rel = lambda q: [(x - pcb.CX, y - pcb.CY) for x, y in list(q.exterior.coords)[:-1]]
+    obs = stamp.foreign(b, parts, CHANNELS, stamp.counterparts(b, parts, CHANNELS), reg)
+    # (inside the middle square they need not: a copy that runs into
+    # something there is cut back to the square's edge, _band_part, and
+    # joined on from there)
+    core = box(pcb.CX - half, pcb.CY - half, pcb.CX + half, pcb.CY + half)
+    for l, g in sorted(obs.items()):
+        for q in stamp._simple(g.difference(core).simplify(0.01)):
+            zs.append(pcb.rule_area(b, rel(q), [l], tracks=True, vias=True, pads=False, pours=False,
+                                    name='other channels'))
+    return zs
+
 
 
 def route_local(b, comps):
@@ -967,9 +1077,14 @@ def route_local(b, comps):
       * a bus from one pin in every channel to shared parts (each MCU's
         battery voltage input from the one divider), for the same reason:
         channel 1's pin to the nearest shared pad first, that line's part
-        in the chips' band copied onto every channel, then the net joined.
-    Routed with the rest, they found their way taken.  Returns (the nets,
-    those left open)."""
+        outside the middle copied onto every channel, then the net joined.
+    Routed with the rest, they found their way taken.  Channel 1's line or
+    bus is routed in its own region (stamp.region) and the middle square
+    (core_half) only, and every join in the middle only: what lies outside
+    the middle is then the same in every channel, and what lies in it
+    turns onto the middle, so nothing stamp.py turns into the template
+    channel's frame blocks the pins its routing must reach.  Returns (the
+    nets, those left open)."""
     import finish
     chan_of = {r: n for n in CHANNELS for r in roles(comps, n).values()}
     refs = {}
@@ -987,49 +1102,87 @@ def route_local(b, comps):
     finish.VIA_RING, finish.POFV_GAP = VIA_RING, None
     w, cl = widths(comps), clearances(comps)
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
-    left = [n for n in local if n not in lines
-            and finish.route_net(b, n, track_w=w.get(n, 0.1), clmap=cl, lock=True)]
-    # the lines: channel 1's routed, the part of it inside the chips' band
-    # (template yr >= LINE_EXIT) copied, turned, onto every channel, then
-    # each channel's line finished in the middle
     import stamp
-    for t1, m in sorted(stamp.lines(b, channel_parts(comps), CHANNELS).items()):
+    from shapely.geometry import box
+    half = core_half(b, comps)
+    chan_refs = set(r for rr in channel_parts(comps).values() for r in rr.values())
+    full = box(pcb.CX - pcb.HALF - 1, pcb.CY - pcb.HALF - 1, pcb.CX + pcb.HALF + 1, pcb.CY + pcb.HALF + 1)
+    core = box(pcb.CX - half, pcb.CY - half, pcb.CX + half, pcb.CY + half)
+    # the middle's own nets: kept to the middle when all their pads are in it
+    inner = lambda n: all(max(abs(p.GetPosition().x / 1e6 - pcb.CX), abs(p.GetPosition().y / 1e6 - pcb.CY)) < half
+                          for fp in b.GetFootprints() for p in fp.Pads() if p.GetNetname() == n)
+    left, legs = [], []
+
+    def leg(net, pins, a, z):
+        """Channel 1's leg from a channel pin (`a`) to a shared pad (`z`;
+        None: the net's other pads), in its region and the middle, off the
+        other channels' copper (_first_keepouts); returns its band part."""
         before = set(t.m_Uuid.AsString() for t in b.GetTracks())
-        if finish.route_net(b, t1, track_w=w.get(t1, 0.1), clmap=cl, lock=True):
+        ends = [a, z] if z else [p for fp in b.GetFootprints() for p in fp.Pads() if p.GetNetname() == net]
+        ko = _first_keepouts(b, comps, half, ends)
+        if z:
+            ok = finish.route_connection(b, net, finish._geom_of(a), finish._geom_of(z), track_w=w.get(net, 0.1),
+                                         clmap=cl)
+        else:
+            ok = not finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True)
+        _drop(b, ko)
+        if not ok:
+            print('   %s: no way from %s pin %s to its shared pad in channel 1\'s region and the middle'
+                  % (net, a.GetParentFootprint().GetReference(), a.GetNumber()))
+            return None
+        for t in b.GetTracks():
+            if t.m_Uuid.AsString() not in before:
+                t.SetLocked(True)
+        return _band_part(b, before, half, pins)
+
+    # 1. channel 1's legs, every line's and bus's, before anything is copied
+    # or joined in the middle (a join, not turned with the channels, would
+    # stand in a later leg's way in every channel)
+    for t1, m in sorted(stamp.lines(b, channel_parts(comps), CHANNELS).items()):
+        pins = [p for fp in b.GetFootprints() if fp.GetReference() in chan_refs for p in fp.Pads()
+                if p.GetNetname() == t1]
+        exit_ = leg(t1, pins, pins[0], None)
+        if exit_ is None:
             left.append(t1)
-            continue
-        exit_ = _band_part(b, before)
-        for n, net in m.items():
-            if n == 1:
-                continue
-            _copy_band(b, comps, n, net, exit_, w, cl)
-            if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
-                left.append(net)
+        else:
+            legs.append((exit_, {n: net for n, net in m.items()}))
     # the buses (one pin in every channel, and shared parts: each MCU's
     # battery voltage input from the one divider, the current amplifiers'
-    # outputs to the average): the same, from channel 1's pin to the
-    # nearest of the shared parts' pads, then the net joined in the middle
-    chan_refs = set(r for rr in channel_parts(comps).values() for r in rr.values())
+    # outputs to the average): from channel 1's pin to the nearest of the
+    # shared parts' pads
     for net, m in stamp.buses(b, channel_parts(comps), CHANNELS).items():
         local.append(net)
         ref, num = m[1]
         pin = next(q for q in b.FindFootprintByReference(ref).Pads() if q.GetNumber() == num)
         far = [q for fp in b.GetFootprints() if fp.GetReference() not in chan_refs
                for q in fp.Pads() if q.GetNetname() == net]
-        before = set(t.m_Uuid.AsString() for t in b.GetTracks())
-        if not finish.route_connection(b, net, finish._geom_of(pin), finish._geom_of(_nearest(far, pin.GetPosition())),
-                                       track_w=w.get(net, 0.1), clmap=cl):
+        exit_ = leg(net, [pin], pin, _nearest(far, pin.GetPosition()))
+        if exit_ is None:
             left.append(net)
-            continue
-        for t in b.GetTracks():
-            if t.m_Uuid.AsString() not in before:
-                t.SetLocked(True)
-        exit_ = _band_part(b, before)
-        for n in CHANNELS:
-            if n != 1:
-                _copy_band(b, comps, n, net, exit_, w, cl)
-        if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
-            left.append(net)
+        else:
+            legs.append((exit_, {n: net for n in CHANNELS}))
+    # 2. every leg's band part copied, turned, onto every channel, and
+    # 3. joined in the middle only: each copy from its end to the nearest
+    # shared pad, then each net whole.  (The keepout lies half a track and
+    # the grid's margin outside the square: a copy cut back to its edge is
+    # joined on from there.)
+    e = half + w.get('', 0.1) / 2 + 0.1
+    ko = _keepouts(b, full.difference(box(pcb.CX - e, pcb.CY - e, pcb.CX + e, pcb.CY + e)), 'middle')
+    copies = [(n, net, _copy(b, n, net, exit_, cl)) for exit_, m in legs for n, net in sorted(m.items()) if n != 1]
+    for n, net, ids in copies:
+        _join(b, comps, n, net, ids, w, cl)
+    for exit_, m in legs:
+        for net in sorted(set(m.values())):
+            if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
+                left.append(net)
+    _drop(b, ko)
+    # 4. the shared parts' own nets: short loops in the middle (kept to it
+    # when all their pads are in it), and the stack lead's ground tie
+    for n in [n for n in local if n not in lines and n not in stamp.buses(b, channel_parts(comps), CHANNELS)]:
+        ko = _keepouts(b, full.difference(core), 'middle') if inner(n) else []
+        if finish.route_net(b, n, track_w=w.get(n, 0.1), clmap=cl, lock=True):
+            left.append(n)
+        _drop(b, ko)
     return local, left
 
 
@@ -1037,37 +1190,62 @@ def _nearest(pads, p):
     return min(pads, key=lambda q: (q.GetPosition().x - p.x) ** 2 + (q.GetPosition().y - p.y) ** 2)
 
 
-def _band_part(b, before):
-    """The tracks and vias added since `before` (their ids), as far as they
-    lie in the chips' band (template yr >= LINE_EXIT): [(kind, geometry in
-    the template frame, item)], a segment across the edge cut there."""
+def _band_part(b, before, half, pins):
+    """The tracks and vias added since `before` (their ids) that run from
+    the channel's pin (`pins`: its pads on the net) out to the middle
+    square (core_half), cut CORE_CUT inside its edge: [(kind, geometry in
+    the template frame, item)], a segment across the edge cut there.  Only
+    copper joined to the pin outside the middle: what the line does after
+    it enters the middle (beside the shared pad it ends on, say) is not the
+    channel's, and its copies would lead nowhere."""
+    from shapely.geometry import LineString, Point, box
+    from shapely.ops import split
+    import stamp
     # (template frame = channel 1's: board mm relative to the centre)
     tp = lambda p: (p.x / 1e6 - pcb.CX, p.y / 1e6 - pcb.CY)
-    exit_ = []
+    h = half - CORE_CUT
+    mid = box(-h, -h, h, h)
+    edge = LineString(box(-half, -half, half, half).exterior.coords)
+    pieces = []                # (kind, geometry, item, {layer: shape})
     for t in b.GetTracks():
         if t.m_Uuid.AsString() in before:
             continue
         if t.GetClass() == 'PCB_VIA':
-            if tp(t.GetPosition())[1] >= LINE_EXIT:
-                exit_.append(('via', tp(t.GetPosition()), t))
+            c = tp(t.GetPosition())
+            if not mid.contains(Point(c)):
+                g = Point(c).buffer(t.GetWidth(pcbnew.F_Cu) / 2e6)
+                pieces.append(('via', c, t, {l: g for l in pcb.cu_layers(b)}))
             continue
-        a, c = tp(t.GetStart()), tp(t.GetEnd())
-        if a[1] < LINE_EXIT and c[1] < LINE_EXIT:
-            continue
-        # a segment across the edge ends there
-        if a[1] < LINE_EXIT:
-            a, c = c, a
-        if c[1] < LINE_EXIT:
-            f = (a[1] - LINE_EXIT) / (a[1] - c[1])
-            c = (a[0] + f * (c[0] - a[0]), LINE_EXIT)
-        exit_.append(('track', (a, c), t))
-    return exit_
+        # cut at the square's edge too: a piece inside it that runs into
+        # something in another channel goes on its own
+        out = LineString([tp(t.GetStart()), tp(t.GetEnd())]).difference(mid)
+        out = split(out, edge) if out.intersects(edge) else out
+        for piece in getattr(out, 'geoms', [out]):
+            if not piece.is_empty and piece.length > 1e-6:
+                c = list(piece.coords)
+                pieces.append(('track', (c[0], c[-1]), t, {t.GetLayer(): piece.buffer(t.GetWidth() / 2e6)}))
+    rel = lambda g: shapely.transform(g, lambda xy: xy - (pcb.CX, pcb.CY))
+    reached = [{l: rel(stamp._pad_poly(p, l)) for l in pcb.cu_layers(b) if p.IsOnLayer(l)} for p in pins]
+    # and the net's copper already there (the pin's escape via)
+    net = pins[0].GetNetname()
+    for t in b.GetTracks():
+        if t.m_Uuid.AsString() in before and t.GetNetname() == net:
+            reached.append({l: rel(g) for l, g in stamp._item_geoms(t).items()})
+    touch = lambda a, c: any(l in c and a[l].distance(c[l]) < 1e-3 for l in a)
+    keep, grew = [], True
+    while grew:
+        grew = False
+        for pc in pieces:
+            if pc not in keep and any(touch(pc[3], r) for r in reached):
+                keep.append(pc); reached.append(pc[3]); grew = True
+    return [pc[:3] for pc in keep]
 
 
-def _copy_band(b, comps, n, net, exit_, w, cl):
+def _copy(b, n, net, exit_, cl):
     """Channel 1's band part (_band_part) copied, turned, onto channel n as
-    `net`, fixed, then on from the copy's far end to the nearest of the
-    shared parts' pads of the net (a copy that cannot go on is removed)."""
+    `net`, fixed; a copy that runs into this channel's other copper goes,
+    and with it what is then cut off from the pin.  Returns the ids of the
+    copies kept."""
     import finish
     copies = []
     for kind, g, t in exit_:
@@ -1081,21 +1259,28 @@ def _copy_band(b, comps, n, net, exit_, w, cl):
             b.Add(c)
         copies.append(c)
     ids = set(c.m_Uuid.AsString() for c in copies)
-    # a copy that runs into this channel's shared parts goes, and with it
-    # what is then cut off from the pin
     for c in _clashing(b, copies, cl):
         pcb.remove(b, c)
     finish._drop_floating(b, net)
-    kept = [c for c in b.GetTracks() if c.m_Uuid.AsString() in ids and c.GetClass() != 'PCB_VIA']
     for c in b.GetTracks():
         if c.m_Uuid.AsString() in ids:
             c.SetLocked(True)
-    # on from the copy's far end (the maze router would otherwise leave
-    # from the pin whichever way is cheapest), to the shared part's pad
+    return ids
+
+
+def _join(b, comps, n, net, ids, w, cl):
+    """On from the copy's (_copy) end nearest the middle (the maze router
+    would otherwise leave from the pin whichever way is cheapest) to the
+    nearest of the shared parts' pads of the net.  A copy that cannot go on
+    to it stays: the net's other copper in the middle may be nearer
+    (route_local joins the net whole next), and failing that the board's
+    router finishes it from there."""
+    import finish
+    kept = [c for c in b.GetTracks() if c.m_Uuid.AsString() in ids and c.GetClass() != 'PCB_VIA']
     if not kept:
         return
     ends = [(t, p) for t in kept for p in (t.GetStart(), t.GetEnd())]
-    t, p = min(ends, key=lambda e: _to_template(n, e[1].x / 1e6 - pcb.CX, e[1].y / 1e6 - pcb.CY)[1])
+    t, p = min(ends, key=lambda e: max(abs(e[1].x / 1e6 - pcb.CX), abs(e[1].y / 1e6 - pcb.CY)))
     from shapely.geometry import Point
     a = {t.GetLayer(): [Point(p.x / 1e6, p.y / 1e6).buffer(t.GetWidth() / 2e6)]}
     chan_refs = set(r for rr in channel_parts(comps).values() for r in rr.values())
@@ -1107,12 +1292,6 @@ def _copy_band(b, comps, n, net, exit_, w, cl):
         for x in b.GetTracks():
             if x.m_Uuid.AsString() not in before:
                 x.SetLocked(True)
-        return
-    # no way on from it: the copy goes (a stub to nowhere), and the net is
-    # joined from the pin
-    for c in [c for c in b.GetTracks() if c.m_Uuid.AsString() in ids]:
-        pcb.remove(b, c)
-
 
 ESCAPE_ROOM = 0.6     # clear run beyond a QFN pin's pad that lets it escape on its own layer
 
@@ -1289,13 +1468,14 @@ def escape_pins(b, comps):
         r = roles(comps, n)
         qfn[r['MCU']] = 'MCU'
         qfn[r['GD']] = 'GD'
+    chan = set(r for rr in channel_parts(comps).values() for r in rr.values())
     pads = {}
     for fp in b.GetFootprints():
         for p in fp.Pads():
             if p.GetNetname():
                 q = p.GetPosition()
                 pads.setdefault(p.GetNetname(), []).append((fp.GetReference(), fp.IsFlipped(), q.x / 1e6, q.y / 1e6))
-    need = set()
+    need, late = set(), set()
     obst = _via_obstacles(b)
     spots = {}               # (role, pin) -> via spots common to every channel so far
     for ref in sorted(qfn):
@@ -1309,6 +1489,13 @@ def escape_pins(b, comps):
             if not any(r_ != ref for r_, fl, ox, oy in pads[net]):
                 continue
             key = (qfn[ref], p.GetNumber())
+            # a line or bus to the shared parts in the middle (route_local)
+            # leaves by the inner layers: outwards on its own layer it
+            # meets the next channel's chips.  Its via comes after the
+            # plane vias (build), which come first for the chips' supplies.
+            if any(r_ not in chan for r_, fl, ox, oy in pads[net]):
+                late.add(key)
+                continue
             over = any(fl != fp.IsFlipped() and x0 <= ox <= x1 and y0 <= oy <= y1
                        for r_, fl, ox, oy in pads[net])
             room = outward_room(b, fp, p)
@@ -1322,8 +1509,8 @@ def escape_pins(b, comps):
             s = via_spots(obst, fp, p, room)
             spots[key] = s if key not in spots else spots[key] & s
     pins = lambda keys: sorted((ref, num) for ref, role in qfn.items() for r_, num in keys if r_ == role)
-    maybe = sorted(k for k, s in spots.items() if not s and k not in need)
-    return pins(need), [pins([k]) for k in maybe]
+    maybe = sorted(k for k, s in spots.items() if not s and k not in need | late)
+    return pins(need), [pins([k]) for k in maybe], pins(late)
 
 
 # ============================================================ artwork

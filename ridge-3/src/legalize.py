@@ -106,7 +106,7 @@ def legalize(comps, placement, fixed, half=pcb.HALF, iters=400, gap=0.02, verbos
     pl = {k: list(v) for k, v in placement.items()}
     start = {k: (v[0], v[1]) for k, v in pl.items()}
     holes = [(sx * pcb.HOLE, sy * pcb.HOLE) for sx in (-1, 1) for sy in (-1, 1)]
-    R = pcb.HOLE_KEEPOUT_R
+    R = pcb.HOLE_PART_R
     for it in range(iters):
         bx = boxes(comps, pl)
         moved = False
@@ -230,7 +230,7 @@ def pack(comps, placement, fixed, half=pcb.HALF, gap=0.1, edge=0.25, radius=8.0,
         s |= ~inside
     for sx in (-1, 1):
         for sy in (-1, 1):
-            hole = (cx - sx * pcb.HOLE) ** 2 + (cy - sy * pcb.HOLE) ** 2 < (pcb.HOLE_KEEPOUT_R + gap) ** 2
+            hole = (cx - sx * pcb.HOLE) ** 2 + (cy - sy * pcb.HOLE) ** 2 < (pcb.HOLE_PART_R + gap) ** 2
             for s in occ.values():
                 s |= hole
     for sd, bb in reserved:
