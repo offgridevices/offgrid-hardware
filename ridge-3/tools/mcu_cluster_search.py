@@ -58,8 +58,8 @@ BOUND = (-8.9, 3.95, -2.2)                # courtyards right of / below / left o
 PIN_VIA = (0.25, 0.15)                    # the MCU's in-pad escape vias (esc_layout.VIA_ESCAPE)
 GND_VIA = 0.45                            # in-pad plane vias (esc_layout.VIA_INPAD)
 CAPS = (('C_VDD', '17'), ('C_VDDA', '5'), ('C_RST', '4'))
-CROSS_W = 1.5                             # mm of connection a crossing of two nets' top tracks costs
-BLOCK_W = 1.0                             # ... and a track through another net's pad or via
+CROSS_W = 5.0                             # mm of connection a crossing of two nets' top tracks costs
+BLOCK_W = 5.0                             # ... and a track through another net's pad or via
 
 mm = lambda v: v / 1e6
 X = lambda v: mm(v) - pcb.CX

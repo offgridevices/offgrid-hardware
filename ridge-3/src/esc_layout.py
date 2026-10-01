@@ -504,7 +504,15 @@ SRC_PH_VIAS_SHUNT = ((-1.9, 11.8),)
 # the return's copper on In5 reaches further out, under the low-side source
 # pins, to the switch node's vias
 SRC_IN_EDGE = Y_LS - 0.4        # under the low side's drain body, short of its switch-node vias
+# and further in than the bottom's under the driver, to the vias of its
+# return pin at the row's -u end (src_ties take the others); under the MCU
+# (u < SRC_IN_SPLIT) it stops where the bottom's does: its keepout there
+# barred every via from the strip between the MCU and the FET row, where
+# the current filter's and the MCU's bottom-edge parts sit, and the lines
+# from the FET row turn in under the MCU
 SRC_IN_INNER = 9.2
+SRC_IN_MCU = 9.75
+SRC_IN_SPLIT = -2.4
 # The FETs' copper edges, template yr (the Infineon TSDSON-8 FL land,
 # footprints.tsdson8fl_fp): the high side's drain ends at Y_HS + 0.46 and
 # its source leads start at Y_HS + 1.0; the low side (bottom, turned over)
@@ -534,8 +542,19 @@ BOT_SRC = [(-6.95, SRC_OUT), (-6.95, 11.25), (-9.5, 11.25), (-9.5, 9.3), (-6.7, 
 
 def in_src():
     """The return's outline on In5: the bottom's, its outer edge at
-    SRC_IN_EDGE and its inner edge SRC_IN_INNER further in (no parts there)."""
-    return [(u, SRC_IN_EDGE if yr == SRC_OUT else SRC_IN_INNER if yr == 9.75 else yr) for u, yr in BOT_SRC]
+    SRC_IN_EDGE and its inner edge SRC_IN_INNER further in under the
+    driver (no parts there), SRC_IN_MCU under the MCU."""
+    out = []
+    for u, yr in BOT_SRC:
+        if yr == SRC_OUT:
+            out.append((u, SRC_IN_EDGE))
+        elif yr == 9.75 and u < SRC_IN_SPLIT:
+            out += [(u, SRC_IN_MCU), (SRC_IN_SPLIT, SRC_IN_MCU), (SRC_IN_SPLIT, SRC_IN_INNER)]
+        elif yr == 9.75:
+            out.append((u, SRC_IN_INNER))
+        else:
+            out.append((u, yr))
+    return out
 
 
 def reserved():
@@ -808,18 +827,19 @@ SRC_IN = pcbnew.In5_Cu         # the inner layer that carries the channel return
 # back-EMF taps, the thermistor, the current amplifier) and every PWM line
 # ends round the MCU and the driver, whose pins take their escape vias in
 # their pads; with In2 and In5 alone (In5's return pour starts at
-# SRC_IN_INNER) the lines laid first walled the comparators' and the
-# current filter's pins in, and no routing reached them.  The battery's
+# SRC_IN_INNER / SRC_IN_MCU) the lines laid first walled the comparators'
+# and the current filter's pins in, and no routing reached them.  The battery's
 # current does not run there: it goes from the battery pads to the FET
 # rows round the board's edge, on In6 whole and on In3 outside the
 # windows; In3 keeps In4's ground beside it as the signals' reference.
 # Template frame (u, yr): the chips' strip, from the next channel's region
-# to the return pour's inner edge; the four turned windows clear each
+# to the return pour's inner edge (in_src); the four turned windows clear each
 # other and the middle square.  The maze router (route_local, the
 # repairs) routes in them; Freerouting sees In3 as the plane it was
 # (dsn_keepouts).
 SIG_IN = pcbnew.In3_Cu
-SIG_WINDOW = [(-9.4, 3.7), (3.6, 3.7), (3.6, SRC_IN_INNER), (-9.4, SRC_IN_INNER)]
+SIG_WINDOW = [(-9.4, 3.7), (3.6, 3.7), (3.6, SRC_IN_INNER), (SRC_IN_SPLIT, SRC_IN_INNER),
+              (SRC_IN_SPLIT, SRC_IN_MCU), (-9.4, SRC_IN_MCU)]
 ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, SIG_IN, SRC_IN, pcbnew.B_Cu]
 # the maze router's cell (mm): round the 0.5 mm-pitch escape vias its
 # rounding margin (1.2 cells) closes gaps a 0.05 mm grid cannot see
@@ -1339,29 +1359,32 @@ def route_local(b, comps):
     # channels have and it lacks, copied onto every channel (each finished
     # in its own region if a copy was cut short).
     reg = stamp.region(b, channel_parts(comps), CHANNELS)
-    for role in FIRST_LINES:
-        t1 = 'M1_%s' % role
-        before = set(t.m_Uuid.AsString() for t in b.GetTracks())
-        ko = _channel_keepouts(b, comps, 1, reg)
-        failed = finish.route_net(b, t1, track_w=w.get(t1, 0.1), clmap=cl, lock=True)
-        _drop(b, ko)
-        local.append(t1)
-        if failed:
-            print('   %s: no way in channel 1\'s region' % t1)
-            left.append(t1)
-            continue
-        pins = [p for fp in b.GetFootprints() if fp.GetReference() in chan_refs for p in fp.Pads()
-                if p.GetNetname() == t1]
-        exit_ = _band_part(b, before, half, pins)
-        for n in sorted(CHANNELS):
-            if n == 1:
-                continue
-            net = 'M%d_%s' % (n, role)
-            _copy(b, n, net, exit_, cl)
-            ko = _channel_keepouts(b, comps, n, reg)
-            if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
-                left.append(net)
+
+    def lay(roles):
+        for role in roles:
+            t1 = 'M1_%s' % role
+            before = set(t.m_Uuid.AsString() for t in b.GetTracks())
+            ko = _channel_keepouts(b, comps, 1, reg)
+            failed = finish.route_net(b, t1, track_w=w.get(t1, 0.1), clmap=cl, lock=True)
             _drop(b, ko)
+            local.append(t1)
+            if failed:
+                print('   %s: no way in channel 1\'s region' % t1)
+                left.append(t1)
+                continue
+            pins = [p for fp in b.GetFootprints() if fp.GetReference() in chan_refs for p in fp.Pads()
+                    if p.GetNetname() == t1]
+            exit_ = _band_part(b, before, half, pins)
+            for n in sorted(CHANNELS):
+                if n == 1:
+                    continue
+                net = 'M%d_%s' % (n, role)
+                _copy(b, n, net, exit_, cl)
+                ko = _channel_keepouts(b, comps, n, reg)
+                if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
+                    left.append(net)
+                _drop(b, ko)
+    lay(FIRST_LINES)
     # 2. channel 1's legs, every line's and bus's, before anything is copied
     # or joined in the middle (a join, not turned with the channels, would
     # stand in a later leg's way in every channel)
@@ -1403,6 +1426,8 @@ def route_local(b, comps):
             if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
                 left.append(net)
     _drop(b, ko)
+    # 4b. each channel's lines laid after the legs (LATE_LINES), as in 1.
+    lay(LATE_LINES)
     # 5. the shared parts' own nets: short loops in the middle (kept to it
     # when all their pads are in it), and the stack lead's ground pad to
     # the battery pad's tap
@@ -1447,6 +1472,14 @@ def route_local(b, comps):
 #     same strip, left two of them open in every routing.  Laid first, from
 #     the inner pin out, each takes the line beside the one before.
 FIRST_LINES = ('A', 'GHA', 'GLA', 'B', 'GLB', 'GHB', 'C', 'GLC', 'GHC', 'DVDD', 'HA', 'LA', 'HB', 'LB', 'HC', 'LC')
+# Channel lines laid by the maze router after the lines and buses to the
+# middle (route_local, step 4b): the MCU's analog inputs from the FET row
+# (each phase's back-EMF tap, the thermistor) and round its pins (the
+# neutral star, the current filter).  Left to the board's router with the
+# rest, the lines from the FET row found its crossings and the strip under
+# the chips taken; laid before the legs to the middle they took the legs'
+# way in.
+LATE_LINES = ()
 
 
 def _channel_keepouts(b, comps, n, reg):
