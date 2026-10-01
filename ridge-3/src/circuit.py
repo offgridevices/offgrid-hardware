@@ -386,7 +386,7 @@ def fc_core():
 #  4-IN-1 ESC BOARD
 # =====================================================================
 # the ESC's bus ceramics (esc_power)
-BULK_N = 8
+BULK_N = 3
 
 
 def esc_power():
@@ -395,13 +395,13 @@ def esc_power():
     # bus capacitance is on the board (below).
     add('P', 'PAD_BAT', {'1': 'VBAT'}, B, 'BAT+', ref='P_BAT+')
     add('P', 'PAD_BAT_K', {'1': GND, '2': 'FC_GND'}, B, 'BAT-', ref='P_BAT-')
-    # Surge clamp at the battery pads: Littelfuse 5.0SMDJ33A, 5 kW
-    # (10/1000 us), 33 V stand-off, breaking down at 36.7-40.6 V and
-    # clamping 53.3 V at 94 A: under the 60 V FETs.  33 V, not 28 V: a
-    # throttle chop into a tired pack lifts the bus to about 35 V for
-    # milliseconds (STRESS.md), which a 28 V part would try to absorb.
-    # Pad 2 is the cathode (EasyEDA's symbol for this part: 1 A, 2 K).
-    add('D', 'TVS_5SMDJ33A', {'1': GND, '2': 'VBAT'}, B, 'battery TVS', ref='D_TVS')
+    # No surge clamp of its own: the transients the simulation finds stay
+    # under 40 V on the 60 V FETs (plugging in a full pack through 300 nH
+    # of leads, a throttle chop into a tired pack: STRESS.md), and the one
+    # it cannot bound, the motors braking into a pack that has come off,
+    # is more energy than a 5 kW clamp absorbs.  The flight controller's
+    # input has its own clamp.  (A 5 kW SMC part has no place on the board
+    # that is clear of the chips' escape vias.)
     # Bus capacitance: BULK_N 10 uF 50 V 1210 ceramics (about 5 uF each at
     # 25 V) on the planes, as many as the board takes.  An electrolytic here would carry
     # 4-10 A of the channels' ripple against a 0.5-3.6 A rating (sim
@@ -431,34 +431,34 @@ def esc_power():
     # edges of the motor signals still return by the shortest way.
     for ref, net in (('P_LV', 'VBAT'), ('P_LG', 'FC_GND'), ('P_LC', 'CUR'), ('P_L1', 'M1_SIG'),
                      ('P_L2', 'M2_SIG'), ('P_L3', 'M3_SIG'), ('P_L4', 'M4_SIG')):
-        add('P', 'PAD_SIG', {'1': net}, B, 'stack lead pad', ref=ref)
+        add('P', 'PAD_LEAD', {'1': net}, B, 'stack lead pad', ref=ref)
     cap('C100N', 'FC_GND', GND, B, 'stack ground AC tie')
     for n in (1, 2, 3, 4):
         res('R10K_0201', 'M%d_IOUT' % n, 'CUR', B, 'CUR average %d' % n)
     cap('C100N', 'CUR', GND, B, 'CUR filter')
 
-    # 3.3 V for the four MCUs, current-sense amplifiers and thermistors (about 80 mA):
-    # ADI MAX15062A (60 V in, fixed 3.3 V, 300 mA), 33 uH per its table 1.
-    # MODE to ground: fixed-frequency PWM.
-    add('U', 'MAX15062A', {'1': 'VBAT', '2': 'VBAT', '3': 'BUCK_VCC', '4': '+3V3',
-                           '5': GND, '6': None, '7': GND, '8': 'BUCK_LX'},
-        B, 'ESC 3.3V buck', ref='U_BUCK')
-    cap('C1U_100', 'VBAT', GND, B, 'buck input')
-    cap('C1U_25_X7R', 'BUCK_VCC', GND, B, 'buck VCC')
-    add('L', 'L33U', {'1': 'BUCK_LX', '2': '+3V3'}, B, 'buck inductor', ref='L1')
-    cap('C10U_16_X7R', '+3V3', GND, B, 'buck output')
+    # No 3.3 V supply of the board's own: each channel's MCU, current
+    # amplifier and thermistor run from its driver's DVDD regulator (3.3 V,
+    # 30 mA external load, TI SLVSDJ3D 7.3; the AT32F421 takes 20.7 mA at
+    # most at 120 MHz and 105 C, Artery DS table 19).  Four supplies, none
+    # shared: a fault in one channel's 3.3 V stops that motor only.
+    # The drivers' ENABLE, which DVDD cannot feed (sleep turns DVDD off):
+    # 33k from the bus, clamped by a 4.7 V Zener (ENABLE takes 5.5 V).
+    # At 6 V (2S, empty) the four drivers' 100k pull-downs leave it at
+    # 2.6 V (high: 1.5 V); at 40 V the Zener takes 1.1 mA and the 0603
+    # resistor 38 mW of its 100.  100 nF against noise on the shared line.
+    res('R33K_0603', 'VBAT', 'DRV_EN', B, 'driver enable feed')
+    add('D', 'EDZV4V7', {'1': 'DRV_EN', '2': GND}, B, 'driver enable clamp', ref='D_EN')
+    cap('C100N', 'DRV_EN', GND, B, 'driver enable filter')
 
     # Shared battery-voltage divider for AM32: 100k / 10k, ratio 11
     # (TARGET_VOLTAGE_DIVIDER 110): 25.2 V -> 2.29 V at PA6.
     res('R100K', 'VBAT', 'ESC_VSENSE', B, 'ESC vsense top')
     res('R10K_0201', 'ESC_VSENSE', GND, B, 'ESC vsense bottom')
     cap('C100N', 'ESC_VSENSE', GND, B, 'ESC vsense filter')
-    # Common points for the SWD programming lead: supply and ground.  Each
-    # MCU has its own SWDIO and SWCLK pads (in its channel, below): the four
-    # channels are laid out and routed as one, and a clock shared by all
-    # four would have to reach every channel's MCU through the others.
-    add('TP', 'PAD_TP', {'1': '+3V3'}, B, 'SWD 3V3', ref='TP_3V3')
-    add('TP', 'PAD_TP', {'1': GND}, B, 'SWD GND', ref='TP_GND')
+    # SWD programming: each MCU has its own SWDIO and SWCLK pads (in its
+    # channel, below); the board runs from a pack while it is flashed, and
+    # the probe's ground goes to the battery pad.
 
 # The DRV8320H's gate current, set by its IDRIVE pin (TI SLVSDJ3D table
 # 7-2): source / sink 10/20, 30/60, 60/120, 120/240, 260/520, 570/1140 or
@@ -484,10 +484,10 @@ def esc(n):
     B = 'esc%d' % n
     p = lambda s: 'M%d_%s' % (n, s)
     add('U', 'AT32F421G', {
-        '1': p('BOOT0'),                        # BOOT0: low, boot from flash
+        '1': GND,                               # BOOT0 tied low: boot from flash
         '2': None, '3': None,                   # PF0, PF1
         '4': p('NRST'),
-        '5': '+3V3',                            # VDDA
+        '5': p('DVDD'),                         # VDDA
         '6': p('CMP_A'),                        # PA0  CMP-
         '7': p('NEUTRAL'),                      # PA1  CMP+
         '8': p('NTC'),                          # PA2  ADC_IN2
@@ -499,7 +499,7 @@ def esc(n):
         '14': p('LB'),                          # PB0  TMR1_CH2C
         '15': p('LA'),                          # PB1  TMR1_CH3C
         '16': GND,                              # VSS
-        '17': '+3V3',                           # VDD
+        '17': p('DVDD'),                        # VDD
         '18': p('HC'),                          # PA8  TMR1_CH1
         '19': p('HB'),                          # PA9  TMR1_CH2
         '20': p('HA'),                          # PA10 TMR1_CH3
@@ -510,17 +510,16 @@ def esc(n):
         '26': None, '27': None, '28': None,     # PB5, PB6, PB7
         '29': GND,                              # exposed pad
     }, B, 'ESC %d MCU' % n, ref='U_ESC%d' % n)
-    # 100 nF at VDD and at VDDA for the fast edges; the bulk is the buck's
-    # 10 uF on the same +3V3 copper
-    cap('C100N', '+3V3', GND, B, 'U_ESC%d VDD' % n)
-    cap('C100N', '+3V3', GND, B, 'U_ESC%d VDDA' % n)
+    # 100 nF at VDD and at VDDA for the fast edges; the bulk is the
+    # driver's 1 uF DVDD capacitor on the same copper
+    cap('C100N', p('DVDD'), GND, B, 'U_ESC%d VDD' % n)
+    cap('C100N', p('DVDD'), GND, B, 'U_ESC%d VDDA' % n)
     cap('C100N', p('NRST'), GND, B, 'U_ESC%d reset filter' % n)
-    res('R10K_0201', p('BOOT0'), GND, B, 'U_ESC%d BOOT0' % n)
     # The power stage's temperature: a 10k NTC (Murata NCU15XH103F60RC,
     # B 3380 K) at the channel's FETs, from PA2 to ground, under a 10k from
-    # +3V3 (AM32's NTC_table for it is in firmware/am32).
+    # DVDD (AM32's NTC_table for it is in firmware/am32).
     add('RT', 'NTC10K', {'1': p('NTC'), '2': GND}, B, 'ESC %d FET thermistor' % n, ref='RT%d' % n)
-    res('R10K_0201', '+3V3', p('NTC'), B, 'thermistor bias')
+    res('R10K_0201', p('DVDD'), p('NTC'), B, 'thermistor bias')
 
     # Gate driver: TI DRV8320H (smart gate drive, hardware interface).
     #   MODE to ground: 6x PWM, INHx / INLx straight from the MCU's timer.
@@ -533,8 +532,9 @@ def esc(n):
     #   The high side runs from its charge pump (VCP), not bootstrap
     #     capacitors, so 100 % duty holds.  Its dead time: it waits for the
     #     other gate to fall, then 100 ns, on top of AM32's own.
-    #   ENABLE on +3V3: the driver wakes with the MCU's supply.  nFAULT is
-    #     not read (AM32 has no use for it).
+    #   ENABLE from the bus through its clamp (esc_power): the driver wakes
+    #     with the battery, and its DVDD then powers the channel's MCU.
+    #     nFAULT is not read (AM32 has no use for it).
     add('U', 'DRV8320H', {
         '1': p('CPH'), '32': p('CPL'), '2': p('VCP'), '3': 'VBAT', '4': 'VBAT',   # VM, VDRAIN
         '5': p('GHA'), '6': p('A'), '7': p('GLA'), '8': p('SRC'),
@@ -545,7 +545,7 @@ def esc(n):
         '19': p('IDRIVE') if IDRIVE_LEVELS[IDRIVE] else None,
         '20': None,                             # VDS: Hi-Z, 0.6 V
         '21': None,                             # NC
-        '22': '+3V3',                           # ENABLE
+        '22': 'DRV_EN',                         # ENABLE
         '23': GND,                              # AGND
         '24': p('DVDD'),
         '25': p('HA'), '26': p('LA'), '27': p('HB'), '28': p('LB'), '29': p('HC'), '30': p('LC'),
@@ -594,9 +594,9 @@ def esc(n):
     add('R', 'SHUNT_0M5', {'1': p('SRC'), '2': GND, '3': p('SNSP'), '4': p('SNSN')}, B,
         'ESC %d shunt' % n, ref='R_SH%d' % n)
     # INA186A3 (100 V/V, SC-70-6): REF to ground, output from 0 V up.
-    add('U', 'INA186A3', {'1': GND, '2': GND, '3': '+3V3', '4': p('SNSP'), '5': p('SNSN'), '6': p('IOUT')},
+    add('U', 'INA186A3', {'1': GND, '2': GND, '3': p('DVDD'), '4': p('SNSP'), '5': p('SNSN'), '6': p('IOUT')},
         B, 'ESC %d current amplifier' % n, ref='U_CS%d' % n)
-    cap('C100N', '+3V3', GND, B, 'U_CS%d supply' % n)
+    cap('C100N', p('DVDD'), GND, B, 'U_CS%d supply' % n)
     res('R1K_0201', p('IOUT'), p('ISENSE'), B, 'current filter')
     cap('C100N', p('ISENSE'), GND, B, 'current filter')
 

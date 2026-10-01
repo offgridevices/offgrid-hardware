@@ -281,10 +281,19 @@ def pth_pad_fp(name, d, drill, desc='', h=None, kelvin=False):
         _smd_pad(fp, '2', -kx, 0, kw, kh, paste=False)
         fp.AddNetTiePadGroup('1, 2')
     for lay in (pcbnew.F_CrtYd, pcbnew.B_CrtYd):
-        if h == d and not kelvin:
+        if h == d and not (kelvin and lay == pcbnew.F_CrtYd):
             c = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_CIRCLE)
             c.SetCenter(pcbnew.VECTOR2I(0, 0)); c.SetEnd(pcbnew.VECTOR2I(MM(d / 2 + 0.1), 0))
             c.SetLayer(lay); c.SetWidth(MM(0.05)); fp.Add(c)
+        elif h == d:
+            # round pad and its tap: one outline round both (a square
+            # round the pad would claim corners the pad never reaches)
+            from shapely.geometry import Point, box
+            r = d / 2 + 0.1
+            g = Point(0, 0).buffer(r, 32).union(box(-(kx + 0.25 + 0.1), -(0.3 + 0.1), 0, 0.3 + 0.1))
+            c = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_POLY)
+            c.SetPolyPoints([pcbnew.VECTOR2I(MM(x), MM(y)) for x, y in list(g.exterior.coords)[:-1]])
+            c.SetLayer(lay); c.SetWidth(MM(0.05)); c.SetFilled(False); fp.Add(c)
         else:
             x0 = -(kx + 0.25 + 0.1) if (kelvin and lay == pcbnew.F_CrtYd) else -(d / 2 + 0.1)
             _rect(fp, lay, MM(x0), -MM(h / 2 + 0.1), MM(d / 2 + 0.1), MM(h / 2 + 0.1), 0.05)
@@ -573,17 +582,19 @@ def main():
             print('%s: KiCad model of %s (turned %d, shifted %.3f, %.3f)' % (name, OFFICIAL_MODELS[name], th, *t))
         _save(LIB, fp); n += 1
     gen = [
-        # battery pads: 3.2 mm round a 1.8 mm hole, for up to 14 AWG
+        # battery pads: 3.0 mm round a 1.8 mm hole, for up to 14 AWG
         # (1.63 mm) through the board, as large as the corner between the
-        # grommet's keep-out, the panel's tab zone and the edge allows; the
-        # ground pad's Kelvin tap feeds the stack lead's ground
-        # (circuit.esc_power)
-        pth_pad_fp('PAD_BAT', 3.2, 1.8, desc='Battery lead pad, plated through-hole, 14-16 AWG'),
-        pth_pad_fp('PAD_BAT_K', 3.2, 1.8, kelvin=True,
+        # grommet's keep-out, the channel's shunt, the panel's tab zone and
+        # the edge allows; the ground pad's Kelvin tap feeds the stack
+        # lead's ground (circuit.esc_power)
+        pth_pad_fp('PAD_BAT', 3.0, 1.8, desc='Battery lead pad, plated through-hole, 14-16 AWG'),
+        pth_pad_fp('PAD_BAT_K', 3.0, 1.8, kelvin=True,
                    desc='Battery lead pad, plated through-hole, 14-16 AWG, with a Kelvin tap (pad 2)'),
         pad_fp('PAD_MOTOR', 2.0, 2.3, desc='Motor phase wire pad'),
         pad_fp('PAD_SIG', 1.1, 1.6, desc='Signal / power solder pad'),
         pad_fp('PAD_TP', 0.9, 0.9, shape='circle', desc='Test point'),
+        # the stack lead's wires at the ESC: 28-30 AWG, 0.8 mm round
+        pad_fp('PAD_LEAD', 0.8, 0.8, shape='circle', desc='Stack lead wire pad, 28-30 AWG, 1.27 mm pitch'),
         hole_fp(),
     ]
     gen += [solder_jumper_fp(), shunt_hcs1206_fp(), tsdson8fl_fp()]
@@ -592,6 +603,26 @@ def main():
     print('wrote %d footprints to %s' % (n, LIB))
     for s in seat_models():
         print('model seated on the board: %s mm' % s)
+    fixed_uuids()
+
+
+def fixed_uuids():
+    """Every item ID in a library file derived from the footprint's name
+    and the item's place in the file: a footprint that did not change
+    regenerates byte for byte, whatever was added before it.  (One seed for
+    the whole run gave every footprint after a new one new IDs.)"""
+    import uuid
+    for f in sorted(glob.glob(os.path.join(LIB, '*.kicad_mod'))):
+        name = os.path.splitext(os.path.basename(f))[0]
+        txt = open(f).read()
+        k = [0]
+
+        def sub(m):
+            k[0] += 1
+            return '(uuid "%s")' % uuid.uuid5(uuid.NAMESPACE_URL, 'aio/%s/%d' % (name, k[0]))
+        new = re.sub(r'\(uuid "[0-9a-fA-F-]+"\)', sub, txt)
+        if new != txt:
+            open(f, 'w').write(new)
 
 if __name__ == '__main__':
     main()

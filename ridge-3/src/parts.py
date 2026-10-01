@@ -417,6 +417,10 @@ PARTS = {
     'BZX585C15': dict(fp='aio:SOD-523_L1.2-W0.8-LS1.6-RD', lcsc='C550633',
                       mpn='BZX585-C15,135', value='15V',
                       desc='Zener 15 V 300 mW, SOD-523', kind='D'),
+    # ROHM EDZV 4.7 V (4.55-4.75 V at 5 mA), SOD-523 (EMD2).  Pad 1 = cathode.
+    'EDZV4V7': dict(fp='aio:SOD-523_L1.2-W0.8-LS1.6-RD', lcsc='C209619',
+                    mpn='EDZVT2R4.7B', value='4.7V', maker='ROHM (Japan)',
+                    desc='Zener 4.7 V 150 mW, SOD-523', kind='D'),
     # v1 only (the DRV8300D has its bootstrap diodes inside).
     'RB521S30': dict(fp='aio:SOD-523_L1.2-W0.8-LS1.6-RD', lcsc='C8523',
                      mpn='RB521S-30', value='RB521S30',
@@ -677,6 +681,8 @@ PARTS = {
     # TPS7A4101 feedback top.  JLC 101,433 ext; DK fc 311-88.7KLRCT-ND 230,536.
     'R88K7': R('88.7k', 'C25922', '0402WGF8872TCE', '311-88.7KLRCT-ND', 'RC0402FR-0788K7L', UR_YAGEO),
     # JLC 9,762,794 basic; DK fc 311-100KLRCT-ND 6,854,918.
+    'R33K_0603': dict(R('33k', 'C126359', 'RC0603FR-0733KL'), fp='Resistor_SMD:R_0603_1608Metric',
+                      desc='Resistor 33k 1% 0603, 100 mW 75 V', maker='Yageo (Taiwan)'),
     'R100K': R('100k', 'C25741', '0402WGF1003TCE', '311-100KLRCT-ND', 'RC0402FR-07100KL', UR_YAGEO),
     # 0 ohm.  JLC 10,230,848 basic.  DK web: Yageo RC0402JR-070RL 0 (due 9 Nov);
     # Panasonic ERJ-2GE0R00X, DK web P0.0JCT-ND 9,890,212.
@@ -812,6 +818,7 @@ PADS = {
     'PAD_MOTOR': dict(fp='aio:PAD_MOTOR', kind='PAD'),
     'PAD_SIG':   dict(fp='aio:PAD_SIG',   kind='PAD'),
     'PAD_TP':    dict(fp='aio:PAD_TP',    kind='PAD'),
+    'PAD_LEAD':  dict(fp='aio:PAD_LEAD',  kind='PAD'),
     # Normally-open solder jumper: pads 1, 2 (0.8 x 1.2 mm, 0.3 mm gap),
     # one mask opening over both, no paste.
     'SJ_OPEN':   dict(fp='aio:SJ_OPEN',   kind='PAD'),

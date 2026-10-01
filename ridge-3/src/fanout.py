@@ -448,7 +448,9 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
     via holes (the POFV gap to pad holes); the stub clears every other net
     on its layer.  inpad=(d, drill): first try a via of that size inside
     the pad itself, at its outer end (filled and capped, POFV), reaching
-    at most `inpad_overhang` past the pad's edge; the dog-bone is the
+    at most `inpad_overhang` past the pad's edge, then at its inner end
+    (at a 0.4 mm pitch a neighbour's outer-end via leaves no room for the
+    next: the vias stagger along the pads); the dog-bone is the
     fallback.  hole_cl: every via's hole also clears other nets' copper by
     this much.  Returns (placed, failed pins)."""
     layers = pcb.cu_layers(board)
@@ -480,14 +482,20 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
         spot = None
         if inpad:
             d_in, dr_in = inpad
-            # towards the pad's outer end, clear of its rounded corners
+            # towards the pad's outer end, clear of its rounded corners;
+            # failing that its inner end
             pp = pad_poly(pad, L)
             s_ = max(0.0, h - d_in / 2 - 0.08)
-            vx, vy = qx + nx * s_, qy + ny * s_
-            vg = Point(vx, vy).buffer(d_in / 2)
-            if (pp.buffer(inpad_overhang).contains(vg) and obs.clear(vg, net, layers, cl)
-                    and obs.clear(Point(vx, vy).buffer(dr_in / 2), net, layers, hole_cl)
-                    and obs.hole_room(vx, vy, dr_in / 2, hole_gap)):
+            for sgn in (1, -1):
+                vx, vy = qx + nx * s_ * sgn, qy + ny * s_ * sgn
+                vg = Point(vx, vy).buffer(d_in / 2)
+                if (pp.buffer(inpad_overhang).contains(vg) and obs.clear(vg, net, layers, cl)
+                        and obs.clear(Point(vx, vy).buffer(dr_in / 2), net, layers, hole_cl)
+                        and obs.hole_room(vx, vy, dr_in / 2, hole_gap)):
+                    break
+            else:
+                sgn = None
+            if sgn is not None:
                 v = pcbnew.PCB_VIA(board); v.SetPosition(pcbnew.VECTOR2I(MM(vx), MM(vy)))
                 v.SetWidth(MM(d_in)); v.SetDrill(MM(dr_in)); v.SetNet(pad.GetNet())
                 if lock:
