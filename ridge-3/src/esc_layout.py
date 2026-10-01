@@ -1001,7 +1001,7 @@ def build(out_path):
     print('escape vias in the pads of the lines and buses to the middle: %d' % k)
     pins = need + kelvin_pins(comps)
     k, bad = fanout.dogbones(b, pins, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL,
-                                     inpad_overhang=ESCAPE_OVERHANG)
+                             inpad_overhang=ESCAPE_OVERHANG, inner_first=across(b, need))
     print('escape vias (QFN pins, Kelvin sense): %d of %d, none for %s' % (k, len(pins), bad))
     # pins whose run out on their own layer has no spot for a via: one in
     # or beside the pad, in every channel or in none (the channels are
@@ -1657,6 +1657,36 @@ def kelvin_pins(comps):
         r = roles(comps, n)
         out += [(r['R_SH'], '3'), (r['R_SH'], '4'), (r['U_CS'], '4'), (r['U_CS'], '5'), (r['U_CS'], '6')]
         out += [(r['RBH_' + ph], '2') for ph in 'ABC']
+    return out
+
+
+def across(b, pins):
+    """The pins (ref, number) whose net lies across their chip: the mean of
+    the net's other pads is on the far half of the chip from the pin's
+    edge.  Their escape via sits at the pad's inner end, over the chip,
+    and the line crosses under it on the inner layers; at the outer end it
+    would set out the way it then has to come back, round the chip.  (The
+    MCU's analog pins face the middle, their dividers and filters lie
+    past the chip towards the FETs.)"""
+    nets = {}
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname():
+                q = p.GetPosition()
+                nets.setdefault(p.GetNetname(), []).append((fp.GetReference(), q.x / 1e6, q.y / 1e6))
+    out = set()
+    for ref, num in pins:
+        fp = b.FindFootprintByReference(ref)
+        pad = next(p for p in fp.Pads() if p.GetNumber() == num)
+        cx, cy = fp.GetPosition().x / 1e6, fp.GetPosition().y / 1e6
+        dx, dy = pad.GetPosition().x / 1e6 - cx, pad.GetPosition().y / 1e6 - cy
+        nx, ny = ((1 if dx > 0 else -1), 0) if abs(dx) >= abs(dy) else (0, (1 if dy > 0 else -1))
+        others = [(x, y) for r, x, y in nets.get(pad.GetNetname(), []) if r != ref]
+        if others:
+            mx = sum(x for x, y in others) / len(others) - cx
+            my = sum(y for x, y in others) / len(others) - cy
+            if mx * nx + my * ny < 0:
+                out.add((ref, num))
     return out
 
 

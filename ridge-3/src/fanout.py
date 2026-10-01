@@ -439,7 +439,7 @@ def drop_unused_escapes(path):
 
 
 def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap=0.25, lock=True, inpad=None,
-             hole_cl=0.0, inpad_overhang=0.005, inpad_only=False):
+             hole_cl=0.0, inpad_overhang=0.005, inpad_only=False, inner_first=()):
     """A dog-bone escape for each (ref, pad number) of a QFN: a via just
     outside the pad, straight out from the package (or a little to either
     side), joined to the pad by a stub on the pad's layer.  Adjacent
@@ -451,7 +451,8 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
     at most `inpad_overhang` past the pad's edge, then at its inner end
     (at a 0.4 mm pitch a neighbour's outer-end via leaves no room for the
     next: the vias stagger along the pads); the dog-bone is the
-    fallback (none with inpad_only: such a pin fails).  hole_cl: every
+    fallback (none with inpad_only: such a pin fails).  inner_first: pins
+    (ref, number) that try the inner end first.  hole_cl: every
     via's hole also clears other nets' copper by this much.  Returns
     (placed, failed pins)."""
     layers = pcb.cu_layers(board)
@@ -487,7 +488,7 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
             # failing that its inner end
             pp = pad_poly(pad, L)
             s_ = max(0.0, h - d_in / 2 - 0.08)
-            for sgn in (1, -1):
+            for sgn in ((-1, 1) if (ref, num) in inner_first else (1, -1)):
                 vx, vy = qx + nx * s_ * sgn, qy + ny * s_ * sgn
                 vg = Point(vx, vy).buffer(d_in / 2)
                 if (pp.buffer(inpad_overhang).contains(vg) and obs.clear(vg, net, layers, cl)
