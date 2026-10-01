@@ -1022,7 +1022,9 @@ def power_refs(comps):
     return out
 
 
-def build(out_path):
+def build(out_path, route=True):
+    """The placed board with its power copper, escape and plane vias and
+    (route) the lines route_local lays first."""
     b, comps, fps = build_placed(out_path)
     cu = pcb.cu_layers(b)
     # the battery planes keep 1 mm from the hole walls: a crash that cracks
@@ -1114,9 +1116,10 @@ def build(out_path):
                              inpad_overhang=ESCAPE_OVERHANG)
     print('escape vias beside the pads of the lines and buses to the middle: %d of %d, none for %s'
           % (k, len(late), bad))
-    local, left = route_local(b, comps)
-    print('routed first (shared parts\' own nets, channels\' lines to them): %s, %d open %s'
-          % (', '.join(local), len(left), left))
+    if route:
+        local, left = route_local(b, comps)
+        print('routed first (shared parts\' own nets, channels\' lines to them): %s, %d open %s'
+              % (', '.join(local), len(left), left))
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     b.Save(out_path)
     return b
