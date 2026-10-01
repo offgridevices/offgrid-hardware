@@ -63,7 +63,11 @@ that holds the grommet.
 
 **Stack lead:** 8 wires in the FPV standard's order, pin 1 to pin 1:
 `1 VBAT, 2 GND, 3 CUR, 4 TLM, 5 M1, 6 M2, 7 M3, 8 M4`.  At the ESC the wires
-are soldered to a row of pads (no connector at the hot end).  At the FC
+are soldered to pads (no connector at the hot end): VBAT, CUR and the four
+signals to a row in the middle of the top, and the ground wire to a pad of
+its own beside the battery minus pad, where the FC's ground meets the
+ESC's (through the battery pad's Kelvin tap: no motor current flows between
+that pad and the battery wire, so none flows round the lead).  At the FC
 they go into a Molex Micro-Lock Plus housing (505565-0801, 505431
 terminals): 1.5 A and 105 °C per contact, against the JST-SH's 1 A and
 85 °C, and it locks.  The lead carries only the FC's own 5 V side, under
@@ -285,7 +289,8 @@ few parts have only prototype-sized stock: see [Sourcing](#sourcing-lcscjlcpcb-g
 - **Stack lead:** a Molex Micro-Lock Plus housing, 505565-0801, with eight
   505431 crimp terminals and eight 26-28 AWG wires, about 7 cm, crimped
   in the pin order of [the stack lead](#what-it-does) and soldered to the
-  ESC's lead pads (`+ G C 1 2 3 4`, TLM left open).  Check it with a
+  ESC's lead pads (`+ C 1 2 3 4` in the middle of the top, the ground
+  wire on `G` beside the battery minus pad, TLM left open).  Check it with a
   multimeter: VBAT must reach pin 1.
 - **Video battery wires (HD or analog VTX):** two 22-24 AWG wires from the
   FC's `BAT` and `G` pads (rear right) to the ESC's battery pads.  Without
@@ -344,7 +349,8 @@ pre-programming service.
    goes to the battery pad.
 5. **Motor wires:** each motor's three wires to the three pads beside its
    number.
-6. **Stack lead:** solder its wires to the ESC's lead pads.
+6. **Stack lead:** solder its wires to the ESC's lead pads, the ground wire
+   to `G` beside the battery minus pad.
 7. **Stack:** ESC at the bottom, FC on top, both with the **front arrow
    forward** and the side marked **Top** facing up. Slide the grommets into
    the corner slots, then plug the stack lead into the FC (it latches).

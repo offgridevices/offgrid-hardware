@@ -134,7 +134,7 @@ def template():
     # and VM decoupling at its +u side, DVDD and the IDRIVE setting at -u.
     t['C_CP'] = (2.5, 4.45, 180, 'T')
     t['C_VCP'] = (1.6, 5.75, 180, 'T')
-    t['C_VM'] = (2.0, 7.05, 0, 'T')
+    t['C_VM'] = (1.95, 7.05, 0, 'T')     # its ground pad clear of phase A's high gate pin's via
     t['C_DVDD'] = (-1.7, 4.7, 0, 'T')
     t['R_ID'] = (-1.7, 7.35, 0, 'T')
     # MCU: supply and reset capacitors, the thermistor's bias, the
@@ -217,23 +217,27 @@ GLOBAL = {
     'H1': (-pcb.HOLE, -pcb.HOLE, 0, 'T'), 'H2': (pcb.HOLE, -pcb.HOLE, 0, 'T'),
     'H3': (pcb.HOLE, pcb.HOLE, 0, 'T'), 'H4': (-pcb.HOLE, pcb.HOLE, 0, 'T'),
     # The middle, inside the four channels' chips.  Top: the stack lead's
-    # pads (signals in the row nearer motor 4's driver, supply, ground and
-    # current behind them; 1.27 mm apart, so a 0.47 mm gap that a soldering
-    # iron does not bridge, 0.8 mm for 28-30 AWG), a bus capacitor below
-    # them.  Bottom: two more bus capacitors, the drivers' enable clamp, and
-    # the lead's vias.
+    # pads (signals in the row nearer motor 4's driver, supply and current
+    # behind them; 1.27 mm apart, so a 0.47 mm gap that a soldering iron
+    # does not bridge, 0.8 mm for 28-30 AWG), a bus capacitor below them.
+    # Bottom: two more bus capacitors, the drivers' enable clamp, and the
+    # lead's vias.
     'P_L1': (-1.905, -3.15, 0, 'T'), 'P_L2': (-0.635, -3.15, 0, 'T'),
     'P_L3': (0.635, -3.15, 0, 'T'), 'P_L4': (1.905, -3.15, 0, 'T'),
-    'P_LV': (-1.27, -1.88, 0, 'T'), 'P_LG': (0.0, -1.88, 0, 'T'), 'P_LC': (1.27, -1.88, 0, 'T'),
+    'P_LV': (-1.27, -1.88, 0, 'T'), 'P_LC': (1.27, -1.88, 0, 'T'),
+    # the lead's ground wire on top in motor 1's end corridor past phase
+    # A's FETs, 2.5 mm from the battery minus pad's Kelvin tap (circuit.py:
+    # it carries the FC's own current; from the middle that was a trace
+    # 25 mm long through the channel's busiest corner)
+    'P_LG': (8.3, 13.5, 0, 'T'),
 }
 GLOBAL_BY_NOTE = {
     # top: in a row between the lead's pads and the bus capacitor, the
-    # enable feed, the lead's ground tie and current filter; beside the
-    # pads, the enable and battery-voltage filters; beside the capacitor,
-    # the battery-voltage divider
+    # enable feed and current filter; beside the pads, the enable and
+    # battery-voltage filters; beside the capacitor, the battery-voltage
+    # divider
     'bus bulk 1': (0.0, 2.09, 0, 'T'),
     'driver enable feed': (-2.25, -0.42, 0, 'T'),
-    'stack ground AC tie': (0.35, -0.42, 0, 'T'),
     'CUR filter': (2.4, -0.42, 0, 'T'),
     'driver enable filter': (-3.15, -2.4, 90, 'T'),
     'ESC vsense filter': (3.2, -2.4, 90, 'T'),
@@ -270,6 +274,9 @@ FIXED_ROLES = ('QAH', 'QBH', 'QCH', 'QAL', 'QBL', 'QCL', 'PA', 'PB', 'PC', 'CBR_
 # are only hints for the packer
 # the stack lead's wire pads
 LEAD_PADS = ('P_LV', 'P_LG', 'P_LC', 'P_L1', 'P_L2', 'P_L3', 'P_L4')
+# those in the middle, each with a via in the pad (lead_vias); the ground
+# wire's pad by the battery pad joins the pad's tap on the top
+LEAD_MIDDLE = tuple(r for r in LEAD_PADS if r != 'P_LG')
 GLOBAL_FIXED = ('P_BAT+', 'P_BAT-', 'H1', 'H2', 'H3', 'H4') + LEAD_PADS
 
 
@@ -369,7 +376,7 @@ def escape_keep(comps, place):
                     spot(far, x + vx, y + vy, VIA_ESCAPE[0], net)
     # the stack lead's pads take their via in the pad (lead_vias)
     for c in comps:
-        if c.ref in LEAD_PADS:
+        if c.ref in LEAD_MIDDLE:
             x, y = place[c.ref][:2]
             spot('B', x, y, VIA_INPAD[0], c.pins['1'])
     return out
@@ -810,6 +817,9 @@ BOOT_W = 0.2
 # (widths).
 SUPPLY_RULES = {
     'VBAT': (0.2, 0.13),
+    # the lead's ground, its wire pad to the battery pad's tap: the FC's
+    # own current, up to 2 A
+    'FC_GND': (0.4, 0.1),
 }
 
 
@@ -861,18 +871,78 @@ FANOUT = dict(ep_pitch=1.5, share=0.9, ep_join=0.2, via_d=VIA_INPAD[0], via_dril
 
 
 def lead_vias(b, comps):
-    """One filled and capped via in the middle of each stack-lead pad
-    (VIA_INPAD): the supply pad's to the battery planes, the others' to
-    the inner signal layers, so nothing runs on the top between pads a
-    soldering iron works on, and the bottom under them keeps its parts'
-    pads clear of the vias (escape_keep)."""
+    """One filled and capped via in the middle of each stack-lead pad in
+    the board's middle (VIA_INPAD): the supply pad's to the battery
+    planes, the others' to the inner signal layers, so nothing runs on the
+    top between pads a soldering iron works on, and the bottom under them
+    keeps its parts' pads clear of the vias (escape_keep)."""
     k = 0
-    for ref in LEAD_PADS:
+    for ref in LEAD_MIDDLE:
         pad = b.FindFootprintByReference(ref).Pads()[0]
         q = pad.GetPosition()
         pcb.via(b, q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY, pad.GetNetname(), d=VIA_INPAD[0], drill=VIA_INPAD[1])
         k += 1
     return k
+
+
+def plane_vias(b, comps, bounds):
+    """The plane vias (GND, VBAT) and the stubs to them, the same in every
+    channel: the template channel's parts' first, each via at a spot whose
+    turned copies clear the other channels' copper too, turned onto the
+    other channels; then the shared parts'.  (Fanned out channel by
+    channel, each channel's vias landed a little differently round its
+    neighbours' copper, 0.1-1 mm, and the template's routing, stamp.py,
+    had to keep off all of them, in the MCU's and the driver's crowded
+    middles too.)  Returns (vias placed, pads without one)."""
+    import fanout, stamp
+    from shapely.geometry import Point
+    parts = channel_parts(comps)
+    t = stamp.template_channel(CHANNELS)
+    mine = set(parts[t].values())
+    chan = set(r for rr in parts.values() for r in rr.values())
+    cu = pcb.cu_layers(b)
+    obs = fanout.Obstacles(b, cu)
+    rv = max(FANOUT['via_d'], FANOUT['inpad']['d']) / 2
+    cl = max(FANOUT['clearance'], FANOUT['inpad']['cl'])
+    rel = lambda q: _to_template(t, q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY)
+
+    def everywhere(x, y, net):
+        u, yr = _to_template(t, x - pcb.CX, y - pcb.CY)
+        for n in CHANNELS:
+            if n != t:
+                px, py = xf_point(n, u, yr)
+                px, py = px + pcb.CX, py + pcb.CY
+                if not (obs.clear(Point(px, py).buffer(rv), net, cu, cl) and obs.via_room(px, py, 2 * rv + 0.15)):
+                    return False
+        return True
+    opts = {x: y for x, y in FANOUT.items() if x != 'inpad'}
+    before = {it.m_Uuid.AsString() for it in b.GetTracks()}
+    k, failed = fanout.fanout(b, {'GND', 'VBAT'}, bounds, skip=power_refs(comps) | (set(c.ref for c in comps) - mine),
+                              via_ok=everywhere, inpad=FANOUT['inpad'], **opts)
+    new = [it for it in b.GetTracks() if it.m_Uuid.AsString() not in before]
+    copies = []
+    for n in CHANNELS:
+        if n == t:
+            continue
+        for it in new:
+            if it.GetClass() == 'PCB_VIA':
+                c = pcb.via(b, *xf_point(n, *rel(it.GetPosition())), it.GetNetname(),
+                            d=it.GetWidth(pcbnew.F_Cu) / 1e6, drill=it.GetDrillValue() / 1e6)
+            else:
+                c = pcbnew.PCB_TRACK(b)
+                c.SetStart(pcb.P(*xf_point(n, *rel(it.GetStart())))); c.SetEnd(pcb.P(*xf_point(n, *rel(it.GetEnd()))))
+                c.SetWidth(it.GetWidth()); c.SetLayer(it.GetLayer()); c.SetNet(it.GetNet())
+                b.Add(c)
+            c.SetLocked(it.IsLocked())
+            copies.append(c)
+    bad = _clashing(b, copies, clearances(comps))
+    if bad:
+        raise SystemExit('plane vias: %d of the template channel\'s vias and stubs, turned, clash in another '
+                         'channel' % len(bad))
+    k += sum(1 for c in copies if c.GetClass() == 'PCB_VIA')
+    k2, failed2 = fanout.fanout(b, {'GND', 'VBAT'}, bounds, skip=power_refs(comps) | chan, inpad=FANOUT['inpad'],
+                                **opts)
+    return k + k2, failed + failed2
 
 
 def power_refs(comps):
@@ -922,7 +992,7 @@ def build(out_path):
     fanout.Obstacles.NET_CL = {x: c for x, c in cl.items() if c > 0.1}
     fanout.Obstacles.MARGIN = 0.01
     e2 = H - 0.4
-    need, maybe, late = escape_pins(b, comps)
+    need, maybe, late, inpad = escape_pins(b, comps)
     # the lines and buses to the middle first, in their own pads only (a
     # dog-bone beside one would take a neighbouring chip's plane via spot:
     # those that find no room in the pad wait for the plane vias, below)
@@ -949,9 +1019,22 @@ def build(out_path):
             got.append(group[0])
     print('escape vias where the run out has no via spot: %s; no room in some channel: MCU/driver pins %s'
           % (', '.join('%s pin %s' % g for g in got) or 'none', ', '.join(skipped) or 'none'))
-    k, failed = fanout.fanout(b, {'GND', 'VBAT'}, (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2),
-                              skip=power_refs(comps), **{x: y for x, y in FANOUT.items() if x != 'inpad'},
-                              inpad=FANOUT['inpad'])
+    # pins whose run out leaves the channel's region: a via in the pad, in
+    # every channel or in none
+    got, skipped = [], []
+    for group in inpad:
+        before = {t.m_Uuid.AsString() for t in b.GetTracks()}
+        kk, bb = fanout.dogbones(b, group, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL,
+                                 inpad_overhang=ESCAPE_OVERHANG, inpad_only=True)
+        if bb:
+            for t in [t for t in b.GetTracks() if t.m_Uuid.AsString() not in before]:
+                b.Remove(t)
+            skipped.append(group[0][1])
+        else:
+            got.append(group[0])
+    print('in-pad vias where the run out leaves the channel\'s region: %s; no room in the pad: %s'
+          % (', '.join('%s pin %s' % g for g in got) or 'none', ', '.join('pin ' + x for x in skipped) or 'none'))
+    k, failed = plane_vias(b, comps, (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2))
     print('fanout: %d plane vias, %d pads without one: %s' % (k, len(failed), failed))
     k, bad = fanout.dogbones(b, late, via_d=VIA_SIG[0], via_drill=VIA_SIG[1], inpad=VIA_ESCAPE, hole_cl=HOLE_CL,
                              inpad_overhang=ESCAPE_OVERHANG)
@@ -1122,8 +1205,8 @@ def _first_keepouts(b, comps, half, ends):
 def route_local(b, comps):
     """Joined by the maze router before anything else, and fixed:
       * the nets whose every pad is on a shared part (the stack lead's
-        ground tie and current filter, the enable clamp): short loops in
-        the crowded middle;
+        current filter, the enable clamp): short loops in the crowded
+        middle; and the lead's ground pad to the battery pad's tap;
       * a channel's own line to a shared part (each MCU's signal input from
         the stack connector): its pin sits in the ring of escape vias round
         the MCU, facing the driver, and the channel's routing, stamped the
@@ -1236,7 +1319,8 @@ def route_local(b, comps):
                 left.append(net)
     _drop(b, ko)
     # 4. the shared parts' own nets: short loops in the middle (kept to it
-    # when all their pads are in it), and the stack lead's ground tie
+    # when all their pads are in it), and the stack lead's ground pad to
+    # the battery pad's tap
     for n in [n for n in local if n not in lines and n not in stamp.buses(b, channel_parts(comps), CHANNELS)]:
         ko = _keepouts(b, full.difference(core), 'middle') if inner(n) else []
         if finish.route_net(b, n, track_w=w.get(n, 0.1), clmap=cl, lock=True):
@@ -1420,10 +1504,11 @@ def _join(b, comps, n, net, ids, w, cl):
 ESCAPE_ROOM = 0.6     # clear run beyond a QFN pin's pad that lets it escape on its own layer
 
 
-def outward_room(b, fp, pad, reach=1.5):
+def outward_room(b, fp, pad, reach=1.5, inside=None):
     """How far (mm) a track can run straight out from `pad`, away from its
     chip, on the chip's own layer before it meets another part's courtyard
-    or other copper (0.1 mm of clearance each side)."""
+    or other copper (0.1 mm of clearance each side), or leaves `inside`
+    (absolute board mm: the chip's channel's region, stamp.region)."""
     from shapely.geometry import box, LineString, Point, Polygon
     from shapely.ops import unary_union
     mm = lambda v: v / 1e6
@@ -1456,6 +1541,9 @@ def outward_room(b, fp, pad, reach=1.5):
         if z.IsOnLayer(layer) and not z.GetIsRuleArea() and z.GetNetname() != pad.GetNetname():
             ol = z.Outline().Outline(0)
             obst.append(Polygon([(mm(ol.CPoint(i).x), mm(ol.CPoint(i).y)) for i in range(ol.PointCount())]))
+    if inside is not None:
+        e = pcb.HALF + 1
+        obst.append(box(pcb.CX - e, pcb.CY - e, pcb.CX + e, pcb.CY + e).difference(inside))
     o = unary_union(obst)
     cx, cy = mm(fp.GetPosition().x), mm(fp.GetPosition().y)
     px, py = mm(pad.GetPosition().x), mm(pad.GetPosition().y)
@@ -1586,7 +1674,15 @@ def escape_pins(b, comps):
     net has a pad over the chip on the other side (a bootstrap capacitor):
     that pad is reached through the pin's own via.  A pin that needs one in
     any channel gets one in every channel: the channels are routed as one
-    (stamp.py), and the copies must find the same vias."""
+    (stamp.py), and the copies must find the same vias.
+    A pin whose clear run leaves its channel's region short of ESCAPE_ROOM
+    (stamp.region: past the middle of the gap to the next channel's copper
+    the run is that channel's, and each channel routes in its own region)
+    takes a via in its pad where one fits in every channel (a dog-bone
+    beside it would stand in that last strip of its own region), and
+    otherwise escapes on its own layer as far as it can.  Returns (pins
+    that need a via, groups of pins with no via spot along their run,
+    pins of lines to the middle, groups of pins in-pad only)."""
     qfn = {}
     for n in CHANNELS:
         r = roles(comps, n)
@@ -1599,8 +1695,14 @@ def escape_pins(b, comps):
             if p.GetNetname():
                 q = p.GetPosition()
                 pads.setdefault(p.GetNetname(), []).append((fp.GetReference(), fp.IsFlipped(), q.x / 1e6, q.y / 1e6))
-    need, late = set(), set()
+    need, late, tight = set(), set(), set()
     obst = _via_obstacles(b)
+    import stamp
+    reg = stamp.region(b, channel_parts(comps), CHANNELS)
+    home = {}
+    for n in CHANNELS:
+        r = roles(comps, n)
+        home[r['MCU']] = home[r['GD']] = stamp._turn_geom(reg, CHANNELS[n])
     spots = {}               # (role, pin) -> via spots common to every channel so far
     for ref in sorted(qfn):
         fp = b.FindFootprintByReference(ref)
@@ -1626,6 +1728,10 @@ def escape_pins(b, comps):
             if over or room < ESCAPE_ROOM:
                 need.add(key)
                 continue
+            room = outward_room(b, fp, p, inside=home[ref])
+            if room < ESCAPE_ROOM:
+                tight.add(key)
+                continue
             # a clear run is not enough: the net must be able to change
             # layers somewhere along it, at the same spot in every channel
             # (the channels share one routing, which sees every channel's
@@ -1633,8 +1739,9 @@ def escape_pins(b, comps):
             s = via_spots(obst, fp, p, room)
             spots[key] = s if key not in spots else spots[key] & s
     pins = lambda keys: sorted((ref, num) for ref, role in qfn.items() for r_, num in keys if r_ == role)
-    maybe = sorted(k for k, s in spots.items() if not s and k not in need | late)
-    return pins(need), [pins([k]) for k in maybe], pins(late)
+    maybe = sorted(k for k, s in spots.items() if not s and k not in need | late | tight)
+    inpad = sorted(tight - need - late)
+    return pins(need), [pins([k]) for k in maybe], pins(late), [pins([k]) for k in inpad]
 
 
 # ============================================================ artwork

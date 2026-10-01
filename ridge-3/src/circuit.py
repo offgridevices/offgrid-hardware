@@ -464,13 +464,16 @@ def esc_power():
     # anywhere else, the motor current's drop across the plane between the
     # battery pad and that point (100 mV at 20 A a motor, rev 1) would
     # drive current round that loop, 1.6 A in rev 1 (STRESS.md).  From the
-    # battery pad itself the loop carries only the FC's own current.  A
-    # 100 nF capacitor joins FC_GND to the plane at the pads, so the fast
-    # edges of the motor signals still return by the shortest way.
+    # battery pad itself the loop carries only the FC's own current: all of
+    # it when the video wires are off (up to 2 A on 2S).  So the lead's
+    # ground wire lands on a pad of its own beside the battery pad
+    # (esc_layout), a few millimetres of wide copper from the tap, not on a
+    # trace from the middle of the board.  Its signal wires' edges return
+    # through the ground planes to that pad: 3 mA of DShot edge current
+    # round a loop the size of the lead's last 2 cm.
     for ref, net in (('P_LV', 'VBAT'), ('P_LG', 'FC_GND'), ('P_LC', 'CUR'), ('P_L1', 'M1_SIG'),
                      ('P_L2', 'M2_SIG'), ('P_L3', 'M3_SIG'), ('P_L4', 'M4_SIG')):
         add('P', 'PAD_LEAD', {'1': net}, B, 'stack lead pad', ref=ref)
-    cap('C100N', 'FC_GND', GND, B, 'stack ground AC tie')
     for n in (1, 2, 3, 4):
         res('R10K_0201', 'M%d_IOUT' % n, 'CUR', B, 'CUR average %d' % n)
     cap('C100N', 'CUR', GND, B, 'CUR filter')
