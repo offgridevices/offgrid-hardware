@@ -61,13 +61,14 @@ AREA = (-9.6, 3.0, 3.8, 10.6)             # template frame, what the search look
 # pins), the thermistor by phase C's high side, short of its drain's vias
 BOUNDS = {None: (-8.9, 3.95, -2.2, 10.6),
           'RBH_A': (-2.6, 3.95, 3.6, 9.9), 'RBH_B': (-2.6, 3.95, 3.6, 9.9), 'RBH_C': (-2.6, 3.95, 3.6, 9.9),
-          'RT': (-6.6, 8.9, -3.4, 9.95)}
+          'RT': (-6.6, 8.9, -3.4, 10.4)}
 bounds = lambda role: BOUNDS.get(role, BOUNDS[None])
 PIN_VIA = (0.25, 0.15)                    # the MCU's in-pad escape vias (esc_layout.VIA_ESCAPE)
 GND_VIA = 0.45                            # in-pad plane vias (esc_layout.VIA_INPAD)
 CAPS = (('C_VDD', '17'), ('C_VDDA', '5'), ('C_RST', '4'))
-CROSS_W = 5.0                             # mm of connection a crossing of two nets' top tracks costs
-BLOCK_W = 5.0                             # ... and a track through another net's pad or via
+CROSS_W = 20.0                            # mm of connection a crossing of two nets' top tracks costs
+BLOCK_W = 20.0                            # ... and a track through another net's pad or via
+LOCAL = 2.0                               # mm: joins shorter than this are top tracks
 
 mm = lambda v: v / 1e6
 X = lambda v: mm(v) - pcb.CX
@@ -316,7 +317,9 @@ class Problem:
                 used.append(t)
         # a top layer is planar: tracks of two nets that cross, or a track
         # through another net's pad or via, need a way round on another
-        # layer, which under the chip has hardly a spot for a via
+        # layer, which under the chip has hardly a spot for a via.  Only the
+        # short joins (LOCAL) count: a longer line takes the inner layers.
+        edges = [(n, (p, q)) for n, (p, q) in edges if math.hypot(q[0] - p[0], q[1] - p[1]) < LOCAL]
         cross = 0
         for i, (n1, (p, q)) in enumerate(edges):
             for n2, (r, s_) in edges[i + 1:]:
