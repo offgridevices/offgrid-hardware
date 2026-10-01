@@ -1242,23 +1242,20 @@ def route_local(b, comps):
         if finish.route_net(b, n, track_w=w.get(n, 0.1), clmap=cl, lock=True):
             left.append(n)
         _drop(b, ko)
-    # 5. each channel's switch-node sense lines (the driver's SHx pins).  The
-    # phases' copper lies under the pours' keepouts, all but the switch-node
-    # vias under the FETs (on the inner layers), and the board's router aims
-    # at the nearest pad, a FET's lead inside a pour; the maze router takes
-    # any copper of the net it can reach.  Channel 1's, in its region and
-    # off the copper other channels have and it lacks, copied onto every
-    # channel (each finished in its own region if a copy was cut short).
+    # 5. each channel's own lines that the board's router does not find
+    # (FIRST_LINES).  Channel 1's, in its region and off the copper other
+    # channels have and it lacks, copied onto every channel (each finished
+    # in its own region if a copy was cut short).
     reg = stamp.region(b, channel_parts(comps), CHANNELS)
-    for ph in sorted(PH_U):
-        t1 = 'M1_%s' % ph
+    for role in FIRST_LINES:
+        t1 = 'M1_%s' % role
         before = set(t.m_Uuid.AsString() for t in b.GetTracks())
         ko = _channel_keepouts(b, comps, 1, reg)
         failed = finish.route_net(b, t1, track_w=w.get(t1, 0.1), clmap=cl, lock=True)
         _drop(b, ko)
         local.append(t1)
         if failed:
-            print('   %s: the switch-node sense line found no way in channel 1\'s region' % t1)
+            print('   %s: no way in channel 1\'s region' % t1)
             left.append(t1)
             continue
         pins = [p for fp in b.GetFootprints() if fp.GetReference() in chan_refs for p in fp.Pads()
@@ -1267,7 +1264,7 @@ def route_local(b, comps):
         for n in sorted(CHANNELS):
             if n == 1:
                 continue
-            net = 'M%d_%s' % (n, ph)
+            net = 'M%d_%s' % (n, role)
             _copy(b, n, net, exit_, cl)
             ko = _channel_keepouts(b, comps, n, reg)
             if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
@@ -1275,6 +1272,23 @@ def route_local(b, comps):
             _drop(b, ko)
     _drop(b, pours)
     return local, left
+
+
+# Channel lines laid by the maze router, in this order, before the board's
+# router (route_local, step 5):
+#   * the switch-node sense lines (the driver's SHx pins).  The phases'
+#     copper lies under the pours' keepouts, all but the switch-node vias
+#     under the FETs (on the inner layers), and the board's router aims at
+#     the nearest pad, a FET's lead inside a pour; the maze router takes any
+#     copper of the net it can reach.
+#   * the MCU's six PWM lines, in the order of the driver's inputs (HA LA HB
+#     LB HC LC along its edge facing the middle).  The MCU's timer pins come
+#     round its corner as LC LB | LA HC HB HA, so three of them must cross
+#     the others, in the narrow strip between the two chips' corners and the
+#     middle; the board's router, with the comparators' lines through the
+#     same strip, left two of them open in every routing.  Laid first, from
+#     the inner pin out, each takes the line beside the one before.
+FIRST_LINES = ('A', 'B', 'C', 'HA', 'LA', 'HB', 'LB', 'HC', 'LC')
 
 
 def _channel_keepouts(b, comps, n, reg):
