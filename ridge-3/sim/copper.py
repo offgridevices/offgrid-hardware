@@ -27,8 +27,16 @@ def stackup(path):
     text = open(path).read()
     i = text.index('(stackup')
     out = []
-    for m in re.finditer(r'\(layer "([^"]+)"\s*\(type "([^"]+)"\)(.*?)\n\t\t\t\)', text[i:], re.S):
-        name, kind, body = m.groups()
+    # each (layer ...) entry to its matching parenthesis: KiCad writes them
+    # over several lines, pcb.set_stackup on one
+    for m in re.finditer(r'\(layer "([^"]+)"\s*\(type "([^"]+)"\)', text[i:]):
+        name, kind = m.groups()
+        j, depth = i + m.start(), 0
+        for k in range(j, len(text)):
+            depth += {'(': 1, ')': -1}.get(text[k], 0)
+            if depth == 0:
+                break
+        body = text[i + m.end():k]
         t = re.search(r'\(thickness ([0-9.]+)', body)
         if kind == 'copper' or kind in ('core', 'prepreg'):
             out.append((name, 'copper' if kind == 'copper' else 'dielectric', float(t.group(1))))

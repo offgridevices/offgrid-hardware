@@ -45,7 +45,7 @@ a change to one board moves only its number.
 | Protection | TVS on each battery input. The 9 V rail stays off without its battery pads, and when its thermostat trips | Three 10 µF 50 V bus ceramics on the board, the FC's TVS on the same battery line. Current limit and temperature limit (read at the FETs) per motor (AM32), the drivers' overcurrent shutdown, stuck-rotor cut-out |
 | Connectors | USB-C, BOOT button, Molex Micro-Lock Plus stack lead (locking), 6-pin HD lead, solder pads | Through-hole battery pads, motor pads, soldered stack lead |
 | Blackbox | 16 MB Infineon flash (-40..125 °C); the board runs without it | – |
-| Layers | 6 | 6 |
+| Layers | 6 | 8 (two battery plane pairs) |
 | Mounting | 25.5 mm, M2 soft-mount grommets or M3 | same |
 
 **Mounting holes.** Each corner hole (3.2 mm) has a 2.5 mm slot cut out to
@@ -204,7 +204,7 @@ The exceptions and thin spots, checked 1 October 2026:
   firm passes, which is what the DigiKey BOM is for.
 - **From 1 Jan 2027** (10 U.S.C. 4873), DoD may not buy PCBs made in those
   four countries, so a compliant build also needs a non-PRC bare-board fab.
-  The Gerbers suit any 4- and 6-layer ENIG fab; the ESC's filled
+  The Gerbers suit any 6- and 8-layer ENIG fab; the ESC's filled
   vias-in-pad are a standard option.
 - **Claims.** Say what is true and documented ("assembled in USA; key
   chips from US, EU and Japanese makers"). Do not claim "NDAA compliant" or
@@ -232,7 +232,7 @@ orders:
 
 | Setting | FC | ESC |
 |---|---|---|
-| Layers | **6** | **6** |
+| Layers | **6** | **8** |
 | Dimensions | 36 × 36 mm (read from the outline) | same |
 | Thickness | 1.6 mm | 1.6 mm |
 | Material | FR-4, TG155 or better | same |
@@ -241,10 +241,10 @@ orders:
 | Surface finish | **ENIG**: the QFN and LGA parts need a flat finish | same |
 | Outer copper | 1 oz | 1 oz |
 | Inner copper | **1 oz** | **1 oz**. Not 2 oz: JLCPCB's finest on 2 oz is 0.15 / 0.15 mm, and the inner signal layers use 0.1 mm |
-| Via covering | **Epoxy filled and capped (POFV)**: vias sit in pads | **Epoxy filled and capped (POFV)**: vias sit in pads, down to 0.25 mm vias inside the chips' 0.25 mm pins. JLCPCB makes POFV the free default on 6-layer boards; at PCBWay it is a paid option |
+| Via covering | **Epoxy filled and capped (POFV)**: vias sit in pads | **Epoxy filled and capped (POFV)**: vias sit in pads, down to 0.25 mm vias inside the chips' 0.25 mm pins. JLCPCB makes POFV the free default on 6- and 8-layer boards; at PCBWay it is a paid option |
 | Min track / spacing | 0.1 / 0.1 mm | 0.1 / 0.1 mm |
 | Min via | 0.35 mm / 0.15 mm drill (JLCPCB's multilayer minimum drill) | 0.25 mm / 0.15 mm drill (inside the chips' pins); 0.35 / 0.15 elsewhere. JLCPCB's multilayer minimum, at its small-via surcharge |
-| Stackup | The fab's standard 1.6 mm 6-layer build | Any standard 1.6 mm 6-layer build with 1 oz inner layers. No impedance control needed |
+| Stackup | The fab's standard 1.6 mm 6-layer build with 1 oz inner layers | The fab's standard 1.6 mm 8-layer build with 1 oz inner layers. No impedance control needed |
 | Order number | "Specify location" or "Remove": no spot is kept free for it | same |
 
 The outline includes the four corner slots. They are routed with the

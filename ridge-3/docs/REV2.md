@@ -34,6 +34,7 @@ Board revision labels: both boards print **REV 2.0**.
 | JST-SH 8-pin stack connector (1 A per contact, 85 °C) | **Soldered stack lead** at the ESC (0.8 mm pads, 1.27 mm pitch, filled vias) | No connector at the hot end; see the FC for the other end |
 | Stack lead ground on the ESC's plane at the connector | **Kelvin ground** (FC_GND): joined to the plane only at the battery pad | With the FC's video pads also wired, the motor current's drop across the planes no longer drives a ground loop through the lead |
 | Battery pads | 3.0 mm, round courtyards | Clear of the mounting hole's keep-out |
+| 6 layers: one VBAT plane (In4), one GND plane (In1) | **8 layers**, 1.6 mm: GND on In1 and In4, VBAT on In3 and In6, the channels' sense returns on In5, signals on F, In2 and B | Rev 1's battery current crowded into one 1 oz plane each way; two of each halve that copper's resistance and heat |
 | Copper | Return vias out from under the high-side drain tabs; bridge capacitors along the row; shunt ground pad with eight plane vias; power vias per phase | Layout fixes from the rev 1 copper simulation |
 | ESC power LED | removed | One less part on the hottest board |
 
