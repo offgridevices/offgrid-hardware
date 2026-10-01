@@ -81,12 +81,28 @@ def buck_loss(part, iout, vout):
 
 
 def fc_power(i5, i9):
-    """FC input power (W) and the heat of each supply part (W)."""
+    """FC input power (W) and the heat of each supply part (W).  The 3.3 V
+    load is part of the 5 V rail's i5: an LDO (rev 1) or a buck (rev 2)."""
     p5 = buck_loss(data.BUCK5, i5, 5.0)
     p9 = buck_loss(data.BUCK9, i9, 9.1)
-    ldo = (5.0 - 3.3) * data.FC_3V3_LOAD
-    pin = 5.0 * i5 + p5 + 9.1 * i9 + p9     # the 3.3 V load is part of the 5 V rail's i5
-    return pin, dict(U_BUCK5=p5, U_BUCK9=p9, U_LDO=ldo)
+    V = data.V33
+    if V['kind'] == 'ldo':
+        p3 = (5.0 - 3.3) * data.FC_3V3_LOAD
+    else:
+        p3 = buck_loss(V, data.FC_3V3_LOAD, 3.3)
+    pin = 5.0 * i5 + p5 + 9.1 * i9 + p9
+    return pin, {'U_BUCK5': p5, 'U_BUCK9': p9, V['ref']: p3}
+
+
+def fc_inputs(i5, i9):
+    """(W through the stack lead, W through the FC's video battery pads).
+    Rev 1 feeds both supplies from the lead; rev 2's video supply has its
+    own pads (data.LEAD['split'])."""
+    pin, _ = fc_power(i5, i9)
+    if not data.LEAD['split']:
+        return pin, 0.0
+    video = 9.1 * i9 + buck_loss(data.BUCK9, i9, 9.1)
+    return pin - video, video
 
 
 def motor(throttle, V=None):

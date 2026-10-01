@@ -51,6 +51,7 @@ class StackModel:
             self._junction(0, 'U_ESC%d' % n, *pad_cells(ce, 'U_ESC%d' % n), data.MCU_ESC['rth_jb'], 0.02)
             self._pads(0, 'R_SH%d' % n)
             self._pads(0, 'U_CS%d' % n)
+            self._pads(0, 'RT%d' % n)           # rev 2: the FET thermistor AM32 reads
         # rev 1's gate-drive LDO and 3.3 V buck (rev 2 has neither), its
         # stack connector (rev 2: the lead is soldered)
         if data.GATE_LDO:
@@ -60,10 +61,12 @@ class StackModel:
             self._pads(0, 'L1')
         if not data.LEAD['soldered']:
             self._pads(0, 'J_FC')
-        for ref, key in (('U_BUCK5', 'LMR38020F'), ('U_BUCK9', 'LM76003'), ('U_LDO', 'TLV76733'),
-                         ('U_FC', 'G473'), ('U_OSD', 'AT7456E')):
-            self._junction(1, ref, *pad_cells(cf, ref), getattr(data, key)['rth_jb'], 0.03)
-        for ref in ('U_IMU', 'U_FLASH', 'L_5V', 'L_9V', 'J_ESC', 'J_HD', 'D_TVS'):
+        for ref, part in (('U_BUCK5', data.BUCK5), ('U_BUCK9', data.BUCK9), (data.V33['ref'], data.V33),
+                          ('U_FC', data.MCU_FC), ('U_OSD', data.OSD)):
+            self._junction(1, ref, *pad_cells(cf, ref), part['rth_jb'], 0.03)
+        # (rev 2 only: the 3.3 V buck's inductor, the thermostat, the video
+        # battery's clamp; _pads skips a part the board does not have)
+        for ref in ('U_IMU', 'U_FLASH', 'L_5V', 'L_9V', 'L_3V3', 'J_ESC', 'J_HD', 'D_TVS', 'D_TVS9', 'U_TSW'):
             self._pads(1, ref)
         # capacitors whose dielectric has a lower temperature limit than the board
         import design
@@ -82,6 +85,8 @@ class StackModel:
     def _pads(self, bi, ref, kind=None):
         c = (self.ce, self.cf)[bi]
         g = (self.ge, self.gf)[bi]
+        if ref not in c.parts:          # a part this design's board does not have
+            return
         cells, li = pad_cells(c, ref)
         if not cells.size:
             return
@@ -110,7 +115,8 @@ class StackModel:
         the FETs' on-resistance and the copper's resistance.
 
         op['esc']: V, f, dead, I {n: phase A}, D {n: duty}, sw (switching energies)
-        op['fc']:  i5, i9 (rail currents, A), i_lead (A in the stack lead's VBAT wire)
+        op['fc']:  i5, i9 (rail currents, A), i_lead (A in the stack lead's VBAT wire),
+                   i_video (A in the video battery pads' wire, rev 2)
         """
         P = np.zeros(self.n)
         e = op.get('esc')
@@ -135,11 +141,12 @@ class StackModel:
         fc = op.get('fc')
         if fc:
             pin, parts = losses.fc_power(fc['i5'], fc['i9'])
-            for ref, key, rail in (('U_BUCK5', 'L_5V', 'i5'), ('U_BUCK9', 'L_9V', 'i9')):
-                pl = fc[rail] ** 2 * data.INDUCTORS[key]['dcr']
+            for ref, key, cur in (('U_BUCK5', 'L_5V', fc['i5']), ('U_BUCK9', 'L_9V', fc['i9']),
+                                  (data.V33['ref'], data.V33['l'], data.FC_3V3_LOAD)):
+                pl = cur ** 2 * data.INDUCTORS[key]['dcr'] if key else 0.0
                 self.put(P, 'FC ' + ref, max(parts[ref] - pl, 0.0))
-                self.put(P, 'FC ' + key, pl)
-            self.put(P, 'FC U_LDO', parts['U_LDO'])
+                if key:
+                    self.put(P, 'FC ' + key, pl)
             self.put(P, 'FC U_FC', data.MCU_FC['p_run'])
             self.put(P, 'FC U_OSD', data.OSD['p'])
             self.put(P, 'FC U_IMU', data.GYRO['p'])
@@ -148,7 +155,8 @@ class StackModel:
             self.put(P, 'FC J_ESC', 2 * ist ** 2 * data.STACK_CONN['r_contact'])
             self.put(P, 'ESC J_FC', 2 * ist ** 2 * data.STACK_CONN['r_contact'])
             self.put(P, 'FC J_HD', 2 * fc['i9'] ** 2 * data.HD_CONN['r_contact'])
-            scale = dict(VBAT=ist, **{'+9V': fc['i9'], 'BUCK9_SW': fc['i9'], '+5V': fc['i5'], 'BUCK5_SW': fc['i5']})
+            scale = dict(VBAT=ist, VBAT_VTX=fc.get('i_video', 0.0),
+                         **{'+9V': fc['i9'], 'BUCK9_SW': fc['i9'], '+5V': fc['i5'], 'BUCK5_SW': fc['i5']})
             W = sum(self.fc_units[k][0] * (scale[k] / self.fc_units[k][1]) ** 2 for k in self.fc_units)
             self._copper(P, W, T, board=1)
         return P
@@ -171,16 +179,30 @@ class StackModel:
         return {k: self.temp(T, k) for k in self.parts}
 
 
-# The FC's supply copper at its full load (20 C): rail -> (loss map, the
-# current it was solved at).  The 5 V load is split over the pads that
-# carry it in a build: receiver, camera, the spare 5 V pad, and the 3.3 V LDO.
-FC_PATHS = {
+# The FC's supply copper at its full load (20 C): rail -> (where the current
+# goes in and out, the current it was solved at).  The 5 V load is split
+# over the pads that carry it in a build: receiver, camera, the spare 5 V
+# pad, and the 3.3 V regulator.  Rev 1 feeds both supplies from the stack
+# lead; rev 2's video supply has its own battery pad (P_BAT).
+FC_PATHS_REV1 = {
     'VBAT': ({'J_ESC': 1.55, 'U_BUCK9': -0.98, 'U_BUCK5': -0.57}, 1.55),
     '+9V': ({'L_9V': 2.0, 'J_HD': -2.0}, 2.0),
     'BUCK9_SW': ({'U_BUCK9': 2.0, 'L_9V': -2.0}, 2.0),
     '+5V': ({'L_5V': 2.0, 'P_RX5V': -0.5, 'P_CAM5V': -0.5, 'P_5V': -0.835, 'U_LDO': -0.165}, 2.0),
     'BUCK5_SW': ({'U_BUCK5': 2.0, 'L_5V': -2.0}, 2.0),
 }
+FC_PATHS_REV2 = {
+    'VBAT': ({'J_ESC': 0.57, 'U_BUCK5': -0.57}, 0.57),
+    'VBAT_VTX': ({'P_BAT': 1.04, 'U_BUCK9': -1.04}, 1.04),
+    '+9V': ({'L_9V': 2.0, 'J_HD': -2.0}, 2.0),
+    'BUCK9_SW': ({'U_BUCK9': 2.0, 'L_9V': -2.0}, 2.0),
+    '+5V': ({'L_5V': 2.0, 'P_RX5V': -0.5, 'P_CAM5V': -0.5, 'P_5V': -0.875, 'U_BUCK3': -0.125}, 2.0),
+    'BUCK5_SW': ({'U_BUCK5': 2.0, 'L_5V': -2.0}, 2.0),
+}
+
+
+def fc_paths():
+    return FC_PATHS_REV2 if data.LEAD['split'] else FC_PATHS_REV1
 _fc = {}
 _esc = {}
 
@@ -190,7 +212,7 @@ def fc_copper(c, g):
     key = (c.path, g.f)
     if key not in _fc:
         out = {}
-        for net, (cur, ref) in FC_PATHS.items():
+        for net, (cur, ref) in fc_paths().items():
             s = dcflow.solve(c, net, cur, T=20.0)
             W = dcflow.maps(c, s)['W']
             out[net] = (copperloss.coarse({'W': W}, g.f, g.ny, g.nx)['W'], ref)

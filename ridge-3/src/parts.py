@@ -226,7 +226,7 @@ PARTS = {
     'AT32F421G': dict(fp='aio:QFN-28_L4.0-W4.0-P0.40-TL-EP2.4', lcsc='C2765098',
                       mpn='AT32F421G8U7', value='AT32F421G8U7',
                       desc='ESC MCU Cortex-M4 120 MHz 64 KB, -40..105 C (TJ 125 C), QFN-28 4x4', kind='U',
-                      maker='Artery Technology'),
+                      maker='Artery Technology (offices in Hsinchu, Taiwan; R&D in mainland China): approved exception'),
     # Rev 2 gate driver.  TI DRV8320HRTVR, WQFN-32 5x5 (RTV): 6-60 V (65 V
     # abs), TJ -40..150 C, smart gate drive with the gate current set by
     # one resistor (IDRIVE, 7 levels, sink = 2 x source), 2 A hold-off of

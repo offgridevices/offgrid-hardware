@@ -31,7 +31,9 @@ def board_path(board, name=None):
     name = name or current
     rel = 'ridge-3/%s/%s.kicad_pcb' % (board, NAMES[board])
     if name == 'rev2':
-        return os.path.join(REPO, rel)
+        # SIM_BOARD_ESC / SIM_BOARD_FC: simulate another file as rev 2's board
+        # (a board still being routed; its power copper is what matters here)
+        return os.environ.get('SIM_BOARD_' + board.upper()) or os.path.join(REPO, rel)
     path = os.path.join(OUT, name, NAMES[board] + '.kicad_pcb')
     if not os.path.exists(path):
         os.makedirs(os.path.dirname(path), exist_ok=True)

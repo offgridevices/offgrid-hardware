@@ -25,6 +25,10 @@ TPN2R304PL = FET = dict(
     vsd_hot=0.75,                       # V: Fig. 8.6 gives 0.77-0.83 V at 10-43 A, 25 C; lower hot
     eas=39e-3, ias=80.0,                # single pulse from 25 C (4, note 5)
     c_th=0.0125,                        # J/K, ASSUMPTION: 3.3 x 3.3 x 0.9 mm package, ~25 mg
+    # the datasheet's test conditions (6.1-6.4)
+    tests=dict(id_r=40.0, vds_c=20.0, vdd_g=20.0, id_g=40.0, vr=20.0),
+    model='Toshiba publishes a SPICE model of the TPN2R304PL (the "G0" grade, a BSIM3 model fitted '
+          'to the on-state curves)',
 )
 # Toshiba's G0 model's body diode replaced by a charge-control diode fitted to
 # the datasheet recovery test (spice.fit): lifetime, transit time (s)
@@ -50,6 +54,10 @@ ISZ023N06LM6 = dict(
     eas=148e-3, ias=20.0,               # single pulse, ID 20 A (table 2)
     c_th=0.0125,                        # J/K, ASSUMPTION: 3.3 x 3.3 x 1.0 mm package, ~25 mg
     body_diode=None,                    # Infineon's model's own diode (fitted to the part by Infineon)
+    # the datasheet's test conditions (tables 4-7)
+    tests=dict(id_r=20.0, vds_c=30.0, vdd_g=30.0, id_g=20.0, vr=30.0),
+    model='Infineon publishes a SPICE model of the ISZ023N06LM6 (its OptiMOS 6 library, body diode '
+          'included)',
 )
 ISZ023N06LM6['vth_hot_drop'] = 1.72 - 1.00
 for _f in (TPN2R304PL, ISZ023N06LM6):
@@ -64,7 +72,7 @@ DRV8300 = dict(
     r_pu=6.0, r_pd=1.5,                 # ohm: VGH_HI 0.6 V and VGH_LO 0.15 V typ at 100 mA (7.5)
     dead=(150e-9, 215e-9, 280e-9),      # DT open (7.5)
     slew_max=2.0,                       # V/ns on SHx, D variant (7.3)
-    sh_min=-22.0,                       # V for 2 us (7.3)
+    sh_min=-22.0, sh_note='-22 V for 2 us (DRV8300)',   # (7.3)
     tj_max=150.0, rth_jb=26.5,          # (7.3, 7.4); no thermal shutdown
     i_q=0.825e-3,                       # A, IGVDD switching at 20 kHz, typ (7.5)
 )
@@ -205,6 +213,8 @@ DRV8320 = dict(
     tj_max=150.0, ta_max=125.0, rth_jb=6.8, rth_ja=32.9,   # (7.3, 7.4)
     i_strong=2.0,                       # A hold-off of the other gate for 4 us (8.3.1.3)
     vds_ocp=0.6,                        # V: VDS pin open (7.5)
+    slew_max=None,                      # no SHx slew limit given
+    sh_min=-7.0, sh_note='-7 V for 200 ns (DRV8320H; -5 V continuous)',   # (7.1)
 )
 AT32F421 = dict(part='Artery AT32F421G8U7', tj_max=125.0, ta_max=105.0,      # datasheet v2.02 tables 11, 8
                 rth_jb=44.8,                    # thetaJA QFN28 4x4 (table 63), used as junction-to-board
@@ -226,6 +236,41 @@ CERAMIC_BULK = dict(desc='%d x Murata GCJ32EC71H106KA01L 10 uF 50 V X7S 1210 on 
                     ripple=None, on_board=True, kind='ceramic')
 C_BRIDGE_REV2 = C_BRIDGE                # same part: Murata X7R (125 C), 0805
 
+# Rev 2 FC.  Both BECs are LMR38020F at 455 kHz (RT 57.6k), next to the
+# datasheet's 400 kHz curves.  The 9 V one: the 5 V curve's loss in watts
+# (buck_loss: at a given input, current and frequency a buck's loss hardly
+# depends on its output voltage).
+LMR38020F_455 = dict(LMR38020F, f_note='400 kHz curve; the board runs 455 kHz')
+LMR38020F_9V = dict(LMR38020F_455, part='TI LMR38020F (9 V)',
+                    f_note='5 V, 400 kHz curve, loss in watts; the board runs 9 V at 455 kHz')
+# 3.3 V from 5 V: TI TPS628501 (DRL), SLUSEC8C: RthJB 20 K/W (6.4), TJ 150 C
+# (6.3); efficiency, 5 V in, 3.3 V out, forced PWM at 2.25 MHz (MODE high),
+# read from Fig. 9-3
+TPS628501 = dict(part='TI TPS628501', kind='buck', ref='U_BUCK3', l='L_3V3', rth_jb=20.0, tj_max=150.0,
+                 eff=((0.1, 0.87), (0.2, 0.92), (0.5, 0.947), (1.0, 0.945), (2.0, 0.933)), vout=3.3,
+                 f_note='5 V in, PWM, Fig. 9-3')
+TLV76733_LDO = dict(TLV76733, kind='ldo', ref='U_LDO', l=None)
+# TI TMP390A2 thermostat on the 9 V BEC (circuit.fc_power): its channel A
+# trips at 96 C (SETA 121k) with 20 C hysteresis (SETB at GND) and takes
+# the BEC's EN low; trip accuracy +/-3.0 C over -55..130 C (SBOS904A, A2)
+TMP390 = dict(part='TI TMP390A2', ref='U_TSW', trip=96.0, hyst=20.0, acc=3.0, t_max=130.0)
+# Stack lead, FC end: Molex Micro-Lock Plus 505567, 1.5 A per contact,
+# -40..+105 C (Molex 505567 / 505565 product pages).  Contact resistance:
+# ASSUMPTION, JST SH's 20 / 40 mOhm (Molex's product specification not read).
+MICROLOCK = dict(part='Molex Micro-Lock Plus 505567', i_rated=1.5, r_contact=20e-3, r_contact_aged=40e-3,
+                 t_max=105.0)
+# FC inductors (TDK catalog): SPM6530T-150M-HZ 109 mOhm max, 125 C;
+# TFM252012ALMAR47MTAA 19 mOhm, 150 C
+INDUCTORS_REV2 = {'L_5V': dict(part='TDK SPM6530T-150M-HZ', dcr=109e-3, t_max=125.0),
+                  'L_9V': dict(part='TDK SPM6530T-150M-HZ', dcr=109e-3, t_max=125.0),
+                  'L_3V3': dict(part='TDK TFM252012ALMAR47MTAA', dcr=19e-3, t_max=150.0)}
+CAPS_REV2.update({
+    'C22U25_X7R': ('X7R', 125.0, 'Murata GRM32ER71E226KE15L'),
+    'C10U25_X7R': ('X7R', 125.0, 'Murata GRM21BZ71E106KE15L'),
+    'C4U7_X7R': ('X7R', 125.0, 'Murata GRM188Z71A475KE15D'),
+    'C100N_100': ('X7R', 125.0, 'Murata GRM188R72A104KA35D'),
+})
+
 # The designs (design.py switches the files, use() these figures).  Each
 # maps the generic names the simulations read to a part above.
 DESIGNS = {
@@ -233,8 +278,9 @@ DESIGNS = {
         FET=TPN2R304PL, AM32=dict(AM32), DRIVER=dict(DRV8300, kind='gvdd', vgs=GVDD),
         MCU_ESC=G071, GATE_LDO=TPS7A16, ESC_BUCK=MAX15062, CSA=INA186,
         C_BRIDGE=C_BRIDGE, BULK=dict(EXT_CAP, on_board=False), CAPS=dict(CAPS), ESC_TVS=None,
-        BUCK5=LMR38020F, BUCK9=LM76003, V33=dict(TLV76733, kind='ldo'), MCU_FC=G473, OSD=AT7456E,
+        BUCK5=LMR38020F, BUCK9=LM76003, V33=TLV76733_LDO, MCU_FC=G473, OSD=AT7456E,
         GYRO=ICM45686, FLASH=W25Q128, STACK_CONN=JST_SH, HD_CONN=JST_SH, FC_TVS=SMF33A,
+        INDUCTORS=dict(INDUCTORS), THERMOSTAT=None,
         # the FC's video supply runs from the lead (split=False); the lead's GND
         # pin is the ESC's plane at the connector (kelvin=False)
         LEAD=dict(split=False, kelvin=False, soldered=False),
@@ -242,19 +288,27 @@ DESIGNS = {
     'rev2': dict(
         FET=ISZ023N06LM6,
         AM32=dict(AM32, dead=125e-9,            # DEAD_TIME 15 at 120 MHz (F421 target, firmware/am32)
-                  f_min=24e3, f_max=24e3),      # fixed 24 kHz PWM (configurator)
+                  f_min=24e3, f_max=24e3,       # fixed 24 kHz PWM (configurator)
+                  sensor='RT',                  # the FET thermistor beside each channel's FETs
+                  temp_limit=110.0),            # C at the thermistor (firmware/am32)
         DRIVER=dict(DRV8320, kind='vm', i_src=0.06),   # IDRIVE 60 mA (circuit.IDRIVE)
         # no 3.3 V buck: each channel runs from its driver's DVDD (DVDD_LOAD)
         MCU_ESC=AT32F421, GATE_LDO=None, ESC_BUCK=None, CSA=INA186,
         C_BRIDGE=C_BRIDGE_REV2, BULK=CERAMIC_BULK,
         CAPS=dict(CAPS_REV2), ESC_TVS=None,
-        BUCK5=LMR38020F, BUCK9=LM76003, V33=dict(TLV76733, kind='ldo'),           # TBD (research Bucks, 3V3)
+        BUCK5=LMR38020F_455, BUCK9=LMR38020F_9V, V33=TPS628501,
         MCU_FC=G473, OSD=AT7456E, GYRO=IIM42652, FLASH=S25FL128L,
-        STACK_CONN=JST_SH, HD_CONN=JST_SH, FC_TVS=SMF33A,                          # TBD (research A)
+        STACK_CONN=MICROLOCK, HD_CONN=JST_SH, FC_TVS=SMF33A,
+        INDUCTORS=dict(INDUCTORS_REV2), THERMOSTAT=TMP390,
         LEAD=dict(split=True, kelvin=True, soldered=True),
     ),
 }
 _derived = ('BRIDGE', 'BUS', 'BODY_DIODE')
+
+
+def design_name():
+    import design
+    return design.current
 
 
 def use(name):
