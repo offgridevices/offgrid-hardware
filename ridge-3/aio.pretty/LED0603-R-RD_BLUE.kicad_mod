@@ -1,0 +1,168 @@
+(footprint "LED0603-R-RD_BLUE"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "ccb09ef5-971b-5f06-9676-543845798bd1")
+		(effects
+			(font
+				(size 0.5 0.5)
+				(thickness 0.08)
+			)
+		)
+	)
+	(property "Value" "LED0603-R-RD_BLUE"
+		(at 0 4 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "947672c7-14f7-535a-ab15-8eee6c8d6ca0")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "7fd0047c-fa6e-52e3-8dd1-04f5bcc53ae3")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "b8ff40ed-196c-5f5a-b3d3-a0aa695d0a70")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "LCSC Part" "C2837822"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "2b7928d4-bdf8-53ff-82a2-6cd7cb45e6e6")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr smd)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -1.35 -0.5)
+		(end 1.35 -0.5)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "806e4533-d2f6-5731-8afa-0b1a43bdb604")
+	)
+	(fp_line
+		(start -1.35 0.5)
+		(end -1.35 -0.5)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "b109c5e7-a097-51f7-994a-4fa9a4ff2430")
+	)
+	(fp_line
+		(start 1.35 -0.5)
+		(end 1.35 0.5)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "108d5bcf-35dd-58e0-a11c-cdda77dc1f40")
+	)
+	(fp_line
+		(start 1.35 0.5)
+		(end -1.35 0.5)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "02189ce1-9c9e-5d05-baae-ccdbd2dc13b1")
+	)
+	(fp_line
+		(start -0.8 -0.4)
+		(end 0.8 -0.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "c8007563-e5a8-58dc-a127-cd0fa28a697f")
+	)
+	(fp_line
+		(start -0.8 0.4)
+		(end -0.8 -0.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "b87de67f-c7f9-5341-b375-cf3be0a22f15")
+	)
+	(fp_line
+		(start 0.8 -0.4)
+		(end 0.8 0.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "ad1ac6b4-0d20-51f4-ac29-461d6a06043b")
+	)
+	(fp_line
+		(start 0.8 0.4)
+		(end -0.8 0.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "1bd71d3a-e4c9-54f6-8805-3e2a360fa091")
+	)
+	(pad "1" smd rect
+		(at 0.85 0 90)
+		(size 0.8 0.8)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "69f2614a-288d-59ed-9820-743ef459ec68")
+	)
+	(pad "2" smd rect
+		(at -0.85 0 90)
+		(size 0.8 0.8)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "ce95aad0-553d-50a3-8f54-ef82e8818e6b")
+	)
+	(embedded_fonts no)
+	(model "${KIPRJMOD}/../aio.3dshapes/LED0603-R-RD_BLUE.stpZ"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

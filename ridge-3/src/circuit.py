@@ -295,11 +295,11 @@ def fc_core():
     cap('C4U7_X7R', '+3V3', GND, B, 'U_FC bulk')
     cap('C100N', 'NRST', GND, B, 'U_FC reset filter')
 
-    # 8 MHz crystal (Betaflight SYSTEM_HSE_MHZ 8), 10 pF load: 2 x (10 - ~3
-    # pF stray) = 14 pF -> 12 pF.
-    add('Y', 'XTAL8M', {'1': 'HSE_IN', '2': GND, '3': 'HSE_OUT', '4': GND}, B, 'HSE crystal', ref='Y1')
-    cap('C12P', 'HSE_IN', GND, B, 'crystal load')
-    cap('C12P', 'HSE_OUT', GND, B, 'crystal load')
+    # 8 MHz crystal (Betaflight SYSTEM_HSE_MHZ 8), 8 pF load: 2 x (8 - ~3
+    # pF stray) = 10 pF.  Two-pad 3225 (NDK NX3225GD, parts.py).
+    add('Y', 'XTAL8M', {'1': 'HSE_IN', '2': 'HSE_OUT'}, B, 'HSE crystal', ref='Y1')
+    cap('C10P', 'HSE_IN', GND, B, 'crystal load')
+    cap('C10P', 'HSE_OUT', GND, B, 'crystal load')
 
     # BOOT0: pulled low; the button pulls it to 3.3 V for USB DFU.  C&K
     # KMR223G (-40..125 C, gold): its gold contacts want 1 mA to make, so a
@@ -399,7 +399,7 @@ def fc_core():
     # Status LEDs.  LED0 is active-low (Betaflight drives the pin low = on).
     add('LED', 'LED_RED', {'1': GND, '2': 'LED_PWR_A'}, B, 'power LED', ref='LED_PWR')   # pad 1 cathode
     res('R1K', '+3V3', 'LED_PWR_A', B, 'power LED')
-    add('LED', 'LED_BLUE', {'2': 'LED0_A', '1': 'LED0'}, B, 'status LED', ref='LED_STAT')
+    add('LED', 'LED_BLUE', {'1': 'LED0_A', '2': 'LED0'}, B, 'status LED', ref='LED_STAT')   # pad 2 cathode
     res('R330', '+3V3', 'LED0_A', B, 'status LED')
 
     # No beeper: Betaflight beeps through the motors (DShot beacon), which

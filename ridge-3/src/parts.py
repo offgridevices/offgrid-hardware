@@ -504,38 +504,45 @@ PARTS = {
                    mpn='SMF33A-E3-08', value='SMF33A',
                    desc='TVS 33 V stand-off, 53.3 V clamp, 200 W, SMF (DO-219AB)', kind='D',
                    dk='SMF33A-E3-08CT-ND', maker='Vishay (USA)'),
-    # Lite-On LTST-C191 0603 LEDs, one footprint: pad 1 = CATHODE, pad 2 =
-    # anode (EasyEDA symbol pin 1 '-', silk arrow points at pad 1).  NB the
-    # v1 KT-0603R had pad 1 = anode, so LED_RED's pads swap against v1;
-    # the v1 blue LED already had pad 1 = cathode.  Land 0.8 x 0.8 mm at
-    # 1.5 mm centres = Lite-On's suggested pads.
-    # Red LTST-C191KRKT: JLC 207,223 ext, $0.023 / 0.015; DK fc 160-1447-1-ND 1,517,473.
-    'LED_RED': dict(fp='aio:LED0603-RD', lcsc='C125099',
-                    mpn='LTST-C191KRKT', value='RED', desc='LED red 0603', kind='LED',
-                    dk='160-1447-1-ND', maker='Lite-On (Taiwan)'),
-    # Blue LTST-C191TBKT: JLC 379,654 ext, $0.021 / 0.017; DK fc 160-1647-1-ND 358,116.
-    'LED_BLUE': dict(fp='aio:LED0603-RD', lcsc='C99290',
-                     mpn='LTST-C191TBKT', value='BLUE', desc='LED blue 0603', kind='LED',
-                     dk='160-1647-1-ND', maker='Lite-On (Taiwan)'),
-    # 8 MHz HSE crystal, ECS ECX-32 series, CL 10 pF (load caps stay 12 pF),
-    # +/-10 ppm, -40..85 C, ESR 400 Ohm max, C0 5 pF max: gm_crit =
-    # 4 ESR (2 pi f)^2 (C0 + CL)^2 = 0.91 mA/V, under the STM32G473's
-    # 1.5 mA/V Gmcritmax.  Pads 1/3 crystal, 2/4 ground (ECS: symmetric).
-    # Same 3225 land as v1 (EasyEDA's entry for it only differs by a wrong
-    # 'through_hole' attribute).  Replaces v1's TAXM8M4RDBCCT2T (Shenzhen).
-    # JLC 3,510 ext, $0.51 / 0.44; DK web 50-ECS-80-10-33-CHN-TR3CT-ND 19,121.
-    'XTAL8M': dict(fp='aio:CRYSTAL-SMD_4P-L3.2-W2.5-BL', lcsc='C5727434',
-                   mpn='ECS-80-10-33-CHN-TR3', value='8MHz',
-                   desc='Crystal 8 MHz 10 pF +/-10 ppm 3225', kind='Y',
-                   dk='50-ECS-80-10-33-CHN-TR3CT-ND', maker='ECS Inc. International (USA)'),
-    # 27 MHz OSD crystal, Hosonic E3SB27E00000DE: 10 pF, 50 Ohm, +/-10 ppm,
-    # -20..70 C (the Epson X1E0000210158 is not listed at DigiKey).  The OSD
-    # has its load capacitors on chip.  Pads 1/3 crystal, 2/4 ground.
-    # JLC 2,943 ext, $0.09 / 0.07; DK web 3186-E3SB27E00000DECT-ND 2,332.
-    'XTAL27M': dict(fp='aio:CRYSTAL-SMD_4P-L3.2-W2.5-BL', lcsc='C2687904',
-                    mpn='E3SB27E00000DE', value='27MHz',
-                    desc='Crystal 27 MHz 10 pF +/-10 ppm 3225', kind='Y',
-                    dk='3186-E3SB27E00000DECT-ND', maker='Hosonic Electronic (Taiwan)'),
+    # Status LEDs, rev 2: Rohm, rated -40..+100 C (the rev 1 Lite-On
+    # LTST-C191KRKT is -55..+85 C, the blue LTST-C191TBKT -20..+80 C).
+    # Rohm's 110 C AEC-Q102 CSL0901 parts had no stock (JLC 38 / 1 on
+    # 2026-10-01).  Lands and pin numbers are JLC/EasyEDA's for these exact
+    # parts, so the two pad orders differ: the red's pad 1 is the cathode,
+    # the blue's pad 2 (EasyEDA symbols, C2962748 / C2837822).
+    # Red SML-D15UWT86, 620 nm, VF 2.0 V typ at 20 mA: JLC 3,000 ext.
+    'LED_RED': dict(fp='aio:LED0603-RD_1', lcsc='C2962748',
+                    mpn='SML-D15UWT86', value='RED', desc='LED red 0603, -40..100 C', kind='LED',
+                    maker='Rohm (Japan)'),
+    # Blue SMLD12BN1WT86, 470 nm, VF 2.9 V typ at 5 mA: JLC 1,070 ext.
+    'LED_BLUE': dict(fp='aio:LED0603-R-RD_BLUE', lcsc='C2837822',
+                     mpn='SMLD12BN1WT86', value='BLUE', desc='LED blue 0603, -40..100 C', kind='LED',
+                     maker='Rohm (Japan)'),
+    # 8 MHz HSE crystal, rev 2: NDK NX3225GD-8MHZ-STD-CRA-3, -40..+150 C,
+    # AEC-Q200, CL 8 pF, ESR 500 Ohm max, drive 200 uW max, +/-50 ppm at
+    # 25 C, +/-150 ppm over temperature (NDK spec).  NDK gives no C0: with
+    # 2-5 pF, gm_crit = 4 ESR (2 pi f)^2 (C0 + CL)^2 = 0.51-0.85 mA/V, under
+    # the G4's 1.5 mA/V Gmcritmax (STM32G431 datasheet; same oscillator).
+    # Two pads, 1.5 x 2.7 mm at 1.9 mm centres (JLC/EasyEDA land).  Load
+    # capacitors 10 pF (circuit.py).  The rev 1 ECS-80-10-33-CHN was -40..85
+    # C.  JLC 32,455 ext (C889706, 2026-10-01).
+    'XTAL8M': dict(fp='aio:OSC-SMD_2P-L3.2-W2.5', lcsc='C889706',
+                   mpn='NX3225GD-8MHZ-STD-CRA-3', value='8MHz',
+                   desc='Crystal 8 MHz 8 pF 3225, -40..150 C, AEC-Q200', kind='Y',
+                   maker='NDK (Japan)'),
+    # 27 MHz OSD crystal, rev 2: Abracon ABM8AIG-27.000MHZ-12-2Z-T3, -40..+125
+    # C, AEC-Q200, CL 12 pF, ESR 40 Ohm (Abracon datasheet); the same 3225
+    # four-pad land as rev 1 (pins 1/3 crystal, 2/4 ground).  The OSD chip
+    # has its load capacitors on chip and gives no crystal limits; the
+    # MAX7456 EV kit's crystal (HC49US, 18 pF class) asks more of it than
+    # this one.  JLC 1 ext (C1985432): JLC global sourcing or PCBWay from
+    # DigiKey (8,544 on 2026-10-01).  The rev 1 Hosonic E3SB27E00000DE was
+    # -20..70 C.  JLC-stocked alternative on the same land: SCTF
+    # SX3B27.000F1010G30 (China), -40..105 C, CL 10 pF (C7302036, 2,951).
+    'XTAL27M': dict(fp='aio:CRYSTAL-SMD_4P-L3.2-W2.5-BL', lcsc='C1985432',
+                    mpn='ABM8AIG-27.000MHZ-12-2Z-T3', value='27MHz',
+                    desc='Crystal 27 MHz 12 pF 3225, -40..125 C, AEC-Q200', kind='Y',
+                    maker='Abracon (USA)'),
 
     # =================================================================
     #  Inductors, ferrite
