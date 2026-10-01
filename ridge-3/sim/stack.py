@@ -47,14 +47,19 @@ class StackModel:
                     cells, li = pad_cells(ce, ref, [drain])
                     self._junction(0, ref, cells, li, data.FET['rth_ch_c'], data.FET['c_th'])
             self._junction(0, 'U_GD%d' % n, *pad_cells(ce, 'U_GD%d' % n, ['GND']),
-                           data.DRV8300['rth_jb'], 0.02)
+                           data.DRIVER['rth_jb'], 0.02)
             self._junction(0, 'U_ESC%d' % n, *pad_cells(ce, 'U_ESC%d' % n), data.MCU_ESC['rth_jb'], 0.02)
             self._pads(0, 'R_SH%d' % n)
             self._pads(0, 'U_CS%d' % n)
-        self._junction(0, 'U_GVDD', *pad_cells(ce, 'U_GVDD'), data.GATE_LDO['rth_jb'], 0.02)
-        self._junction(0, 'U_BUCK', *pad_cells(ce, 'U_BUCK'), data.ESC_BUCK['rth_jb'], 0.02)
-        self._pads(0, 'L1')
-        self._pads(0, 'J_FC')
+        # rev 1's gate-drive LDO and 3.3 V buck (rev 2 has neither), its
+        # stack connector (rev 2: the lead is soldered)
+        if data.GATE_LDO:
+            self._junction(0, 'U_GVDD', *pad_cells(ce, 'U_GVDD'), data.GATE_LDO['rth_jb'], 0.02)
+        if data.ESC_BUCK:
+            self._junction(0, 'U_BUCK', *pad_cells(ce, 'U_BUCK'), data.ESC_BUCK['rth_jb'], 0.02)
+            self._pads(0, 'L1')
+        if not data.LEAD['soldered']:
+            self._pads(0, 'J_FC')
         for ref, key in (('U_BUCK5', 'LMR38020F'), ('U_BUCK9', 'LM76003'), ('U_LDO', 'TLV76733'),
                          ('U_FC', 'G473'), ('U_OSD', 'AT7456E')):
             self._junction(1, ref, *pad_cells(cf, ref), getattr(data, key)['rth_jb'], 0.03)
@@ -120,10 +125,12 @@ class StackModel:
                     self.put(P, name, w)
                 self.put(P, 'ESC U_ESC%d' % n, data.MCU_ESC['p_run'])
                 self.put(P, 'ESC U_CS%d' % n, data.CSA['p'])
-            self.put(P, 'ESC U_GVDD', (V - data.GVDD) * losses.gvdd_current(f))
-            p3 = data.ESC_3V3_LOAD * 3.3
-            self.put(P, 'ESC U_BUCK', p3 * (1 / data.ESC_BUCK['eff'] - 1))
-            self.put(P, 'ESC L1', data.ESC_3V3_LOAD ** 2 * data.INDUCTORS['L1']['dcr'])
+            if data.GATE_LDO:
+                self.put(P, 'ESC U_GVDD', (V - data.GVDD) * losses.gvdd_current(f))
+            if data.ESC_BUCK:
+                p3 = data.ESC_3V3_LOAD * 3.3
+                self.put(P, 'ESC U_BUCK', p3 * (1 / data.ESC_BUCK['eff'] - 1))
+                self.put(P, 'ESC L1', data.ESC_3V3_LOAD ** 2 * data.INDUCTORS['L1']['dcr'])
             self._copper(P, copperloss.loss_map(self.units, e['I'], e['D']), T)
         fc = op.get('fc')
         if fc:

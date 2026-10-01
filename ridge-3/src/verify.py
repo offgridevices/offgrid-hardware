@@ -1204,7 +1204,8 @@ def check_options():
             single = sorted(n for n, m in left.items() if len(m) < 2 and len(full[n]) >= 2)
             check(S, '%s without the %s group: no net left with a single pin, beyond MCU pins the group used'
                   % (board, opt), not lost, 'left on an MCU pin only: %s' % (', '.join(single) or 'none'))
-            supplies = {'fc': ['VBAT', 'GND', '+5V', '+3V3', '+3V3_GYRO'], 'esc': ['VBAT', 'GND', '+3V3', 'GVDD']}[board]
+            supplies = {'fc': ['VBAT', 'GND', '+5V', '+3V3', '+3V3_GYRO'],
+                        'esc': ['VBAT', 'GND', 'DRV_EN'] + ['M%d_DVDD' % n for n in (1, 2, 3, 4)]}[board]
             src = {n: sorted(r for r, _ in left.get(n, [])) for n in supplies}
             check(S, '%s without the %s group: every supply keeps its source' % (board, opt),
                   all(len(v) >= 2 for v in src.values()) and not any(n in owned for n in supplies),

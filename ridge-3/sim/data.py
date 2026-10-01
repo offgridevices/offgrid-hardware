@@ -201,21 +201,28 @@ DRV8320 = dict(
     vgs=11.0,                           # V: VGSH / VGSL typ at VM >= 12-13 V (7.5)
     dead_add=100e-9,                    # s after the other gate is seen low (8.3.1.3)
     i_vm=(10.5e-3, 14e-3),              # A typ / max, VM = 24 V, not switching (7.5)
+    i_dvdd_max=30e-3,                   # A external load on DVDD (7.3): the channel's MCU, amplifier, NTC
     tj_max=150.0, ta_max=125.0, rth_jb=6.8, rth_ja=32.9,   # (7.3, 7.4)
     i_strong=2.0,                       # A hold-off of the other gate for 4 us (8.3.1.3)
     vds_ocp=0.6,                        # V: VDS pin open (7.5)
 )
 AT32F421 = dict(part='Artery AT32F421G8U7', tj_max=125.0, ta_max=105.0,      # datasheet v2.02 tables 11, 8
                 rth_jb=44.8,                    # thetaJA QFN28 4x4 (table 63), used as junction-to-board
+                i_run=20.7e-3,                  # A max at 120 MHz, all peripherals, 105 C (table 19)
                 p_run=3.3 * 20e-3)              # ~20 mA at 120 MHz, hot (table 18): ASSUMPTION within it
+# Each rev 2 channel's 3.3 V: the driver's DVDD regulator (linear, from VM):
+# the MCU, the INA186 (48 uA) and the thermistor's divider (~0.3 mA hot)
+DVDD_LOAD = AT32F421['i_run'] + 0.1e-3 + 0.3e-3
 TVS_5SMDJ33A = dict(part='Littelfuse 5.0SMDJ33A', vbr=(36.7, 40.6), vc=53.3, ipp=93.9,
                     p_pk=5000.0, tj_max=150.0,  # 10/1000 us; derated to ~62 % at 120 C (Littelfuse curve)
                     c=3.0e-9)                   # ASSUMPTION: junction capacitance at 0 V, 5 kW SMC class
-# On-board bus capacitance: twelve 10 uF 50 V X7S 1210 (Murata GCJ32EC71H106KA01L)
-CERAMIC_BULK = dict(desc='8 x Murata GCJ32EC71H106KA01L 10 uF 50 V X7S 1210 on the board',
-                    c=8 * 5.0e-6,               # ASSUMPTION 5 uF each at 25 V (Murata GRM32ER71H106K: 6.1)
-                    esr=3e-3 / 8,               # ASSUMPTION 3 mOhm each at 100 kHz
-                    esl=0.6e-9 / 8 + 0.3e-9,    # ASSUMPTION 0.6 nH each + the planes to them
+# On-board bus capacitance: 10 uF 50 V X7S 1210 (Murata GCJ32EC71H106KA01L),
+# as many as the middle of the board holds (circuit.BULK_N)
+BULK_N = 3
+CERAMIC_BULK = dict(desc='%d x Murata GCJ32EC71H106KA01L 10 uF 50 V X7S 1210 on the board' % BULK_N,
+                    c=BULK_N * 5.0e-6,          # ASSUMPTION 5 uF each at 25 V (Murata GRM32ER71H106K: 6.1)
+                    esr=3e-3 / BULK_N,          # ASSUMPTION 3 mOhm each at 100 kHz
+                    esl=0.6e-9 / BULK_N + 0.3e-9,   # ASSUMPTION 0.6 nH each + the planes to them
                     ripple=None, on_board=True, kind='ceramic')
 C_BRIDGE_REV2 = C_BRIDGE                # same part: Murata X7R (125 C), 0805
 
@@ -237,9 +244,10 @@ DESIGNS = {
         AM32=dict(AM32, dead=125e-9,            # DEAD_TIME 15 at 120 MHz (F421 target, firmware/am32)
                   f_min=24e3, f_max=24e3),      # fixed 24 kHz PWM (configurator)
         DRIVER=dict(DRV8320, kind='vm', i_src=0.06),   # IDRIVE 60 mA (circuit.IDRIVE)
-        MCU_ESC=AT32F421, GATE_LDO=None, ESC_BUCK=MAX15062, CSA=INA186,
+        # no 3.3 V buck: each channel runs from its driver's DVDD (DVDD_LOAD)
+        MCU_ESC=AT32F421, GATE_LDO=None, ESC_BUCK=None, CSA=INA186,
         C_BRIDGE=C_BRIDGE_REV2, BULK=CERAMIC_BULK,
-        CAPS=dict(CAPS_REV2), ESC_TVS=TVS_5SMDJ33A,
+        CAPS=dict(CAPS_REV2), ESC_TVS=None,
         BUCK5=LMR38020F, BUCK9=LM76003, V33=dict(TLV76733, kind='ldo'),           # TBD (research Bucks, 3V3)
         MCU_FC=G473, OSD=AT7456E, GYRO=IIM42652, FLASH=S25FL128L,
         STACK_CONN=JST_SH, HD_CONN=JST_SH, FC_TVS=SMF33A,                          # TBD (research A)

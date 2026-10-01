@@ -49,8 +49,8 @@ _counts = {}
 #   blackbox  the 16 MB flash (Betaflight runs without it: no blackbox)
 OPTIONS = ('fpv', 'blackbox')
 OPTION_NETS = {
-    'fpv': {'VBAT_VTX', '+9V', 'BUCK9_SW', 'BUCK9_CB', 'BUCK9_VCC', 'BUCK9_RT', 'BUCK9_FB', 'BUCK9_EN',
-            'VTX_OFF_G', '+3V3_OSD', 'OSD_XI', 'OSD_XO', 'OSD_RST', 'OSD_VIN', 'OSD_VOUT', 'CAM_VIDEO',
+    'fpv': {'VBAT_VTX', '+9V', 'BUCK9_SW', 'BUCK9_CB', 'BUCK9_RT', 'BUCK9_FB', 'BUCK9_EN',
+            'VTX_OFF_G', 'VTX_TSET', 'VTX_COOL', 'VTX_HOT_G', '+3V3_OSD', 'OSD_XI', 'OSD_XO', 'OSD_RST', 'OSD_VIN', 'OSD_VOUT', 'CAM_VIDEO',
             'VTX_VIDEO', 'HD_SBUS'},
     'blackbox': set(),
 }
@@ -99,8 +99,9 @@ def fc_power():
     B = 'power'
     # Battery.  Two ways in, for two jobs:
     #   * the ESC lead (pin 1 VBAT, pin 2 GND): the flight controller itself,
-    #     its 5 V and 3.3 V rails.  One JST-SH contact is rated 1 A (JST, AWG
-    #     28), which the FC's own loads stay under from 2S up (README).
+    #     its 5 V and 3.3 V rails.  A Molex Micro-Lock Plus contact is rated
+    #     1.5 A (-40..+105 C, positive lock), which the FC's own loads stay
+    #     under from 2S up (README).
     #   * two solder pads, wired to the ESC's battery pads: VBAT_VTX, the
     #     9 V video supply's own input (fpv group).  A digital VTX takes up
     #     to 18 W; through the lead that is 1.5 A on an empty 6S pack, past
@@ -111,12 +112,12 @@ def fc_power():
     # pads to the ESC's battery pads), the motor current does not flow in
     # the loop the lead and these wires make: the ESC feeds its end of the
     # lead from its battery pads by their own copper (esc_power).
-    add('J', 'SH8_RA', dict(STACK_PINS, **{'9': None, '10': None}), B,
+    add('J', 'MLP8_RA', dict(STACK_PINS, **{'9': None, '10': None}), B,
         'to 4-in-1 ESC (pads 9/10 are mechanical tabs)', ref='J_ESC')
     # 33 V stand-off, 53 V clamp at 7.5 A: above a full 6S pack (25.2 V),
     # below the 5 V buck's 85 V absolute maximum.
     add('D', 'SMF33A', {'1': 'VBAT', '2': GND}, B, 'VBAT TVS', ref='D_TVS')
-    cap('C10U50_1210', 'VBAT', GND, B, 'VBAT bulk')
+    # (the lead's bulk capacitor is the 5 V BEC's input capacitor, below)
 
     # Current from the ESC: the average of its four channels' sense
     # amplifiers, 12.5 mV per amp of battery current (ibata_scale 125).
@@ -132,72 +133,105 @@ def fc_power():
     res('R2K', 'ADC_VBAT', GND, B, 'VBAT divider bottom')
     cap('C100N', 'ADC_VBAT', GND, B, 'VBAT filter')
 
-    # 5 V, 2 A: TI LMR38020F (80 V, forced PWM at 1 MHz; datasheet
-    # SNVSC40E tables 8-1, 9-1).  Vout = 1.0 V x (1 + 100k/24.9k) = 5.02 V.
-    # RT 25.5k = 1.0 MHz.  Loaded to 1.2 A (60% of 2 A): MCU, receiver,
-    # camera, LED strip, buzzer.
+    # 5 V, 2 A: TI LMR38020F (80 V, forced PWM; datasheet SNVSC40E).
+    # Vout = 1.0 V x (1 + 100k/24.9k) = 5.02 V.  RT 57.6k: 455 kHz (equation
+    # 2), where its switching loss is half of 1 MHz's: 0.5 W at 1 A from 6S
+    # (TI's efficiency data) for a board that sits in 50 C air.  15 uH
+    # (table 9-1 at 400 kHz; equation 11 asks at least 2.8 uH; TDK
+    # SPM6530T-HZ, 3.0 mm tall on the bottom) keeps the ripple 0.35-0.6 A
+    # over 2S-6S.  Output: 2 x 22 uF X7R 1210, about 36 uF
+    # at 5 V (table 9-1: 2 x 22 uF minimum).  Loaded to about 1 A: the
+    # 3.3 V buck, receiver, camera, LED strip.
     add('U', 'LMR38020F', {'1': GND, '2': 'VBAT', '3': 'VBAT', '4': 'BUCK5_RT', '5': 'BUCK5_FB',
                            '6': None, '7': 'BUCK5_CB', '8': 'BUCK5_SW', '9': GND},
         B, '5V BEC', ref='U_BUCK5')
     cap('C10U50_1210', 'VBAT', GND, B, '5V BEC input')
     cap('C100N_100', 'VBAT', GND, B, '5V BEC input HF')
-    res('R25K5', 'BUCK5_RT', GND, B, '5V BEC 1 MHz')
+    res('R57K6', 'BUCK5_RT', GND, B, '5V BEC 455 kHz')
     cap('C100N', 'BUCK5_CB', 'BUCK5_SW', B, '5V BEC bootstrap')
-    add('L', 'L4U7_5V', {'1': 'BUCK5_SW', '2': '+5V'}, B, '5V BEC inductor', ref='L_5V')
-    for _ in range(3):
-        cap('C22U25', '+5V', GND, B, '5V BEC output')
+    add('L', 'L15U_SPM6530', {'1': 'BUCK5_SW', '2': '+5V'}, B, '5V BEC inductor', ref='L_5V')
+    for _ in range(2):
+        cap('C22U25_X7R', '+5V', GND, B, '5V BEC output')
     res('R100K', '+5V', 'BUCK5_FB', B, '5V BEC feedback top')
     res('R24K9', 'BUCK5_FB', GND, B, '5V BEC feedback bottom')
 
     with option('fpv'):
         # the video supply's input: two pads for 20-22 AWG from the ESC's
-        # battery pads, and its own surge clamp and bulk capacitor
+        # battery pads, and its own surge clamp
         add('P', 'PAD_MOTOR', {'1': 'VBAT_VTX'}, B, 'video battery in +', ref='P_BAT')
         add('P', 'PAD_MOTOR', {'1': GND}, B, 'video battery in -', ref='P_BATG')
         add('D', 'SMF33A', {'1': 'VBAT_VTX', '2': GND}, B, 'VBAT_VTX TVS', ref='D_TVS9')
-        cap('C10U50_1210', 'VBAT_VTX', GND, B, 'VBAT_VTX bulk')
-        # 9 V, 2 A for the video transmitter and camera: TI LM76003 (60 V,
-        # 3.5 A, forced PWM for a steady 1 MHz under analog video; datasheet
-        # SNVSAK0A 8.2.2).  Vout = 1.006 V x (1 + 100k/12.4k) = 9.1 V; for a
-        # 10 V rail change the 12.4k to 11.0k.  9 V fits every HD VTX's input
-        # range (O4 Lite 3.7-13.2 V, HDZero Race V3 4-12 V, O3 7.4-26.4 V) and
-        # keeps regulating down to about 9.5 V of battery (3S).
-        # EN: UVLO at 6.0 V (100k / 24.9k), so the rail stays off while USB
-        # back-feeds about 4 V to VBAT through the 5 V buck; and an N-FET from
-        # EN to ground, driven by PB5 (Betaflight PINIO1), turns the VTX off.
-        # PB5 is pulled low at boot: the VTX is on unless the pilot switches it.
-        add('U', 'LM76003', dict(
-            [(str(k), 'BUCK9_SW') for k in (1, 2, 3, 4, 5)] +
-            [(str(k), GND) for k in (7, 19, 23, 27, 28, 29, 30, 13, 14, 15, 24, 25, 26, 31)] +
-            [(str(k), 'VBAT_VTX') for k in (20, 21, 22)] +
-            [('6', 'BUCK9_CB'), ('8', 'BUCK9_VCC'), ('9', '+9V'), ('10', 'BUCK9_RT'),
-             ('11', None), ('12', 'BUCK9_FB'), ('16', None), ('17', 'BUCK9_VCC'), ('18', 'BUCK9_EN')]),
+        # (its bulk capacitor is the 9 V BEC's input capacitor, below)
+        # 9 V, 2 A for the video transmitter and camera: a second TI
+        # LMR38020F, as the 5 V one (455 kHz, 15 uH).  Vout = 1.0 V x (1 +
+        # 100k/12.4k) = 9.06 V; for a 10 V rail change the 12.4k to 11.0k.
+        # 9 V fits every HD VTX's input range (O4 Lite 3.7-13.2 V, HDZero
+        # Race V3 4-12 V, O3 7.4-26.4 V) and keeps regulating down to about
+        # 9.5 V of battery (3S).  0.6 W at 1 A from 6S.
+        # EN (1.1-1.4 V rising, 0.95-1.22 V falling, at most VIN + 0.3 V):
+        #   * UVLO 100k / 24.9k: on above 5.5-7.0 V, so the rail stays off
+        #     while USB back-feeds about 4 V to VBAT through the 5 V buck;
+        #   * an N-FET to ground, driven by PB5 (Betaflight PINIO1), turns
+        #     the VTX off.  PB5 is pulled low at boot: the VTX is on unless
+        #     the pilot switches it;
+        #   * a thermostat: TI TMP390 (its own die, at the supply) trips at
+        #     96 C (SETA 121k, table 8-2) and resets at 76 C (SETB grounded:
+        #     20 C hysteresis, 7.3.3).  Its output is open-drain, active low,
+        #     and may not rise above its 3.3 V supply, so it drives a small
+        #     inverter: cool, OUTA (pulled up to 3.3 V) holds the second FET's
+        #     gate low through the first; hot, it lets go, the 100k pulls the
+        #     gate up and the second FET pulls EN down beside the PB5 one.
+        #     The video transmitter, the board's largest load, stops before
+        #     the flight controller's own parts reach their limits; the
+        #     processor and the 5 V and 3.3 V rails keep running.
+        add('U', 'LMR38020F', {'1': GND, '2': 'VBAT_VTX', '3': 'BUCK9_EN', '4': 'BUCK9_RT',
+                               '5': 'BUCK9_FB', '6': None, '7': 'BUCK9_CB', '8': 'BUCK9_SW', '9': GND},
             B, '9V VTX BEC', ref='U_BUCK9')
         cap('C10U50_1210', 'VBAT_VTX', GND, B, '9V BEC input')
         cap('C100N_100', 'VBAT_VTX', GND, B, '9V BEC input HF')
-        cap('C470N', 'BUCK9_CB', 'BUCK9_SW', B, '9V BEC bootstrap')
-        cap('C2U2', 'BUCK9_VCC', GND, B, '9V BEC VCC')
-        cap('C1U_25', '+9V', GND, B, '9V BEC BIAS')
-        res('R24K3', 'BUCK9_RT', GND, B, '9V BEC 994 kHz')
+        res('R57K6', 'BUCK9_RT', GND, B, '9V BEC 455 kHz')
+        cap('C100N', 'BUCK9_CB', 'BUCK9_SW', B, '9V BEC bootstrap')
         res('R100K', 'VBAT_VTX', 'BUCK9_EN', B, '9V BEC UVLO top')
         res('R24K9', 'BUCK9_EN', GND, B, '9V BEC UVLO bottom')
         add('Q', 'AO3400A', {'1': 'VTX_OFF_G', '2': GND, '3': 'BUCK9_EN'}, B, 'VTX power switch', ref='Q_VTX')
         res('R100', 'VTX_OFF', 'VTX_OFF_G', B, 'VTX switch gate')
         res('R100K', 'VTX_OFF_G', GND, B, 'VTX switch gate pulldown')
-        add('L', 'L6U8_BIG', {'1': 'BUCK9_SW', '2': '+9V'}, B, '9V BEC inductor', ref='L_9V')
-        for _ in range(4):
-            cap('C22U25', '+9V', GND, B, '9V BEC output')
+        add('U', 'TMP390A2', {'1': 'VTX_TSET', '2': GND, '3': GND, '4': None, '5': '+3V3', '6': 'VTX_COOL'},
+            B, 'video supply thermostat', ref='U_TSW')
+        res('R121K', 'VTX_TSET', GND, B, 'thermostat 96 C')
+        cap('C100N', '+3V3', GND, B, 'thermostat supply')
+        res('R10K', '+3V3', 'VTX_COOL', B, 'thermostat output pullup')
+        # the two FETs in one BSS138DW: FET 1 (gate VTX_COOL) the inverter,
+        # FET 2 (gate its drain, VTX_HOT_G) the cutoff on EN
+        add('Q', 'BSS138DW', {'1': GND, '2': 'VTX_HOT_G', '3': 'VTX_HOT_G', '4': GND, '5': 'VTX_COOL',
+                              '6': 'BUCK9_EN'}, B, 'thermostat inverter and cutoff', ref='Q_TSW')
+        res('R100K', '+3V3', 'VTX_HOT_G', B, 'thermostat inverter pullup')
+        add('L', 'L15U_SPM6530', {'1': 'BUCK9_SW', '2': '+9V'}, B, '9V BEC inductor', ref='L_9V')
+        for _ in range(2):
+            cap('C22U25_X7R', '+9V', GND, B, '9V BEC output')
         res('R100K', '+9V', 'BUCK9_FB', B, '9V BEC feedback top')
         res('R12K4', 'BUCK9_FB', GND, B, '9V BEC feedback bottom')
 
-    # 3.3 V for the MCU, gyro, flash and OSD: TI TLV76733 (16 V, 1 A) from
-    # the 5 V rail.
-    # DRV package: 1 OUT, 2 SNS (tied to OUT, per TI), 3 and 5 GND, 4 EN,
-    # 6 IN, 7 thermal pad.
-    add('U', 'TLV76733', {'1': '+3V3', '2': '+3V3', '3': GND, '4': '+5V', '5': GND,
-                          '6': '+5V', '7': GND}, B, '3.3V LDO', ref='U_LDO')
-    cap('C1U_25', '+5V', GND, B, 'LDO in')
-    cap('C4U7', '+3V3', GND, B, 'LDO out')
+    # 3.3 V for the MCU, gyro, flash and OSD: TI TPS628501 buck from the
+    # 5 V rail (1 A, 150 C junction; SLUSEC8C), in place of rev 1's linear
+    # regulator, which turned (5 - 3.3) V x the whole 3.3 V load into heat
+    # beside the processor.  COMP/FSET to ground: 2.25 MHz, compensation 1
+    # (table 8-1: at least 8 uF out at 3.3 V); MODE high: forced PWM, a
+    # steady frequency near the gyro.  Vout = 0.6 V x (1 + 100k / 22.1k) =
+    # 3.31 V, 10 pF across the top resistor (table 7-1).  0.47 uH (TDK
+    # TFM252012ALMAR47MTAA, 150 C); out, 2 x 4.7 uF X7R at it (about 7.6
+    # uF at 3.3 V) with the 3.3 V plane's own (4.7 + 1 + 0.5 uF at the
+    # MCU), over table 8-1's 8 uF.  It runs from USB too: VBUS feeds the
+    # 5 V rail.
+    add('U', 'TPS628501', {'1': '+5V', '2': '+5V', '3': '+5V', '4': GND, '5': 'BUCK3_FB',
+                           '6': None, '7': 'BUCK3_SW', '8': GND}, B, '3.3V buck', ref='U_BUCK3')
+    cap('C10U25_X7R', '+5V', GND, B, '3.3V buck input')
+    add('L', 'L470N_TFM', {'1': 'BUCK3_SW', '2': '+3V3'}, B, '3.3V buck inductor', ref='L_3V3')
+    for _ in range(2):
+        cap('C4U7_X7R', '+3V3', GND, B, '3.3V buck output')
+    res('R100K', '+3V3', 'BUCK3_FB', B, '3.3V buck feedback top')
+    cap('C10P', '+3V3', 'BUCK3_FB', B, '3.3V buck feed-forward')
+    res('R22K1', 'BUCK3_FB', GND, B, '3.3V buck feedback bottom')
 
 def fc_core():
     B = 'fc'
@@ -257,8 +291,8 @@ def fc_core():
     add('U', 'STM32G473', pins, B, 'flight controller MCU', ref='U_FC')
     for n in ('pin 1 VBAT', 'pin 23 VDD', 'pin 35 VDD', 'pin 48 VDD', 'pin 20/21 VREF+/VDDA'):
         cap('C100N', '+3V3', GND, B, 'U_FC ' + n)
-    cap('C1U', '+3V3', GND, B, 'U_FC VDDA bulk')
-    cap('C4U7', '+3V3', GND, B, 'U_FC bulk')
+    cap('C1U_25_X7R', '+3V3', GND, B, 'U_FC VDDA bulk')
+    cap('C4U7_X7R', '+3V3', GND, B, 'U_FC bulk')
     cap('C100N', 'NRST', GND, B, 'U_FC reset filter')
 
     # 8 MHz crystal (Betaflight SYSTEM_HSE_MHZ 8), 10 pF load: 2 x (10 - ~3
@@ -267,9 +301,13 @@ def fc_core():
     cap('C12P', 'HSE_IN', GND, B, 'crystal load')
     cap('C12P', 'HSE_OUT', GND, B, 'crystal load')
 
-    # BOOT0: pulled low; the button pulls it to 3.3 V for USB DFU.
-    res('R10K', 'BOOT0', GND, B, 'BOOT0 pulldown')
-    add('SW', 'BOOTSW', {'1': '+3V3', '2': 'BOOT0'}, B, 'DFU boot button', ref='SW_BOOT')
+    # BOOT0: pulled low; the button pulls it to 3.3 V for USB DFU.  C&K
+    # KMR223G (-40..125 C, gold): its gold contacts want 1 mA to make, so a
+    # 3.3k pull-down (1 mA, only while pressed).  Pads 1/4 and 2/3 are
+    # joined inside; pad 5 is the frame's ground pin.
+    res('R3K3', 'BOOT0', GND, B, 'BOOT0 pulldown')
+    add('SW', 'KMR223G', {'1': 'BOOT0', '4': 'BOOT0', '2': '+3V3', '3': '+3V3', '5': GND}, B,
+        'DFU boot button', ref='SW_BOOT')
 
     # IMU on SPI1: TDK IIM-42652, the industrial member of the ICM-42688-P
     # family, specified -40..+105 C (DS-000440 table 1; the consumer IMUs
@@ -290,7 +328,7 @@ def fc_core():
                           '9': GND, '10': None, '11': None, '12': 'GYRO_CS',
                           '13': 'SPI1_SCK', '14': 'SPI1_MOSI'}, B, 'gyro', ref='U_IMU')
     res('R10', '+3V3', '+3V3_GYRO', B, 'gyro supply filter')
-    cap('C4U7', '+3V3_GYRO', GND, B, 'gyro VDD bulk')
+    cap('C4U7_X7R', '+3V3_GYRO', GND, B, 'gyro VDD bulk')
     cap('C100N', '+3V3_GYRO', GND, B, 'gyro VDD')
     cap('C100N', '+3V3_GYRO', GND, B, 'gyro VDDIO')
 
@@ -327,7 +365,7 @@ def fc_core():
                              '23': GND, '24': '+3V3_OSD', '25': 'OSD_VOUT', '26': 'OSD_VOUT',
                              '27': None, '28': None, '29': GND}, B, 'analog OSD', ref='U_OSD')
         add('FB', 'FB600', {'1': '+3V3', '2': '+3V3_OSD'}, B, 'OSD supply filter', ref='FB_OSD')
-        cap('C4U7', '+3V3_OSD', GND, B, 'OSD bulk')
+        cap('C4U7_X7R', '+3V3_OSD', GND, B, 'OSD bulk')
         for n in ('DVDD', 'AVDD', 'PVDD'):
             cap('C100N', '+3V3_OSD', GND, B, 'OSD ' + n)
         res('R10K', '+3V3_OSD', 'OSD_RST', B, 'OSD reset pullup')

@@ -3,18 +3,21 @@
 placement, power copper, planes and silkscreen.
 
 Double-sided assembly.  Top: MCU, gyro, flash, OSD and both crystals,
-connectors, solder pads, LEDs, boot button.  Bottom: the two switching
-supplies (5 V at the rear, 9 V on the right), the 3.3 V LDO and the
+connectors, solder pads, LEDs, the boot button and the video battery's
+clamp.  Bottom: the three switching supplies (5 V at the rear, 9 V on the
+right, 3.3 V at the front left), the video supply's thermostat and the
 USB-C's VBUS diode and CC resistors.  Front of the quad is -y (top of
 every plot).  USB-C faces LEFT, as in v1; the ESC lead leaves from the
 rear.
 
-Power: the battery comes in on the ESC lead (pin 1) and the P_BAT pad.  A
-top pour behind the lead's pins joins them and runs down a leg inside the
-rear-right hole to the 9 V BEC's vias; each BEC's input capacitor, IC and
-inductor sit together on the bottom with their switch node, input and
-ground as pours (routers kept out of them).  5 V and 9 V leave their BECs
-as pours; the rest of their nets is routed at 0.4 and 0.3 mm.
+Power: two battery inputs (circuit.fc_power).  The ESC lead's pin 1 feeds
+the 5 V BEC: a top pour behind the lead's pins, vias down to the BEC's
+input pour.  The P_BAT pad feeds only the 9 V video BEC: a top pour to its
+clamp and input capacitor, vias down to its input pour.  Each BEC's input
+capacitor, IC and inductor sit together on the bottom with their switch
+node, input and ground as pours (routers kept out of them).  5 V and 9 V
+leave their BECs as pours; the rest of their nets is routed at 0.4 and
+0.3 mm.
 
 Stackup (6 layers): F.Cu signals | In1 solid GND | In2 signals | In3
 signals | In4 solid 3.3 V | B.Cu signals, parts and the supplies' copper.
@@ -31,15 +34,16 @@ PRODUCT = 'Ridge 3'
 FIRMWARE = 'RIDGE3'              # the Betaflight build to flash (firmware/)
 # the board's revision, printed by a corner and kept in the title block;
 # each board keeps its own (a change to one board moves only its number)
-REVISION = '1.0'
+REVISION = '2.0'
 
 T, Bo = 'T', 'B'
 PE = 16.8                        # edge solder pads: centre distance from the board centre
 
-# Anchors: the two BEC ICs.  Their passives and pours are placed relative
+# Anchors: the three buck ICs.  Their passives and pours are placed relative
 # to them.
 A5 = (-3.0, 11.9)                # U_BUCK5, rot 180, bottom: VIN/GND pins rear, SW front right
-A9 = (13.0, 5.0)                 # U_BUCK9, rot 0, bottom: SW pins front, PVIN/PGND rear
+A9 = (13.0, 4.0)                 # U_BUCK9, rot 180, bottom: as U_BUCK5, VIN/GND/EN rear, SW front right
+A3 = (-8.9, -6.4)                # U_BUCK3 (3.3 V), bottom front left, beside the flag
 
 
 def at(a, dx, dy, rot, side=Bo):
@@ -52,7 +56,7 @@ PLACE = {
     #   rear  (1-12)  crystal, NRST, MOTOR1-4, gyro INT      -> ESC lead
     #   right (13-24) SPI1 gyro, ADC, VDDA/VREF, TLM         -> gyro
     #   front (25-36) SPI2 flash + OSD, UART1, USB, SWDIO     -> flash, OSD, USB
-    #   left  (37-48) SWCLK, beeper, UART4, UART2, VTX switch,
+    #   left  (37-48) SWCLK, UART4, UART2, VTX switch,
     #                 LED strip, LED0, BOOT0                  -> left pads
     'U_FC':    (-1.0, 1.1, 0, T),
     # gyro right of the MCU, rotation fixed at 90 (circuit.py, firmware CW270)
@@ -75,19 +79,18 @@ PLACE = {
     'U_ESD':   (-6.8, -3.6, 180, T),
     # under the USB-C (bottom): VBUS diode
     'D_USB':   (-13.2, 1.3, 180, Bo),
-    'J_ESC':   (-1.0, 14.6, 0, T),
+    'J_ESC':   (-2.3, 14.6, 0, T),
     'P_BATG':  (6.0, 16.2, 0, T),
     'P_BAT':   (8.5, 16.2, 0, T),
     'J_HD':    (15.4, -4.5, 90, T),
-    'SW_BOOT': (16.3, 6.0, 90, T),
+    'SW_BOOT': (15.9, 6.0, 90, T),
     'SJ_SBUS': (12.0, -8.0, 90, T),
-    'Q_BZ':    (11.0, 1.2, 0, T),
     'LED_STAT': (-7.0, 6.0, 0, T),
     'LED_PWR':  (13.2, 5.0, 90, T),
     'FB_OSD':  (-7.0, -9.5, 90, T),
     # SWD (debugging only: the FC flashes over USB) on the bottom, left of
     # the name band, near the MCU's SWD pins; reset on top
-    'TP_SWDIO': (-9.0, -6.0, 0, Bo), 'TP_SWCLK': (-9.0, -4.4, 0, Bo), 'TP_NRST': (-5.3, 10.4, 0, T),
+    'TP_SWDIO': (-9.0, -1.6, 0, Bo), 'TP_SWCLK': (-9.0, -0.2, 0, Bo), 'TP_NRST': (-5.3, 10.4, 0, T),
     # ---- solder pads.  Left edge: receiver at the front, LED strip at the rear.
     'P_RX5V': (-PE, -10.3, 90, T), 'P_RXG': (-PE, -8.8, 90, T),
     'P_R2':   (-PE, -7.3, 90, T),  'P_T2':  (-PE, -5.8, 90, T),
@@ -98,17 +101,19 @@ PLACE = {
     'P_VTX9V': (-6.8, -PE, 0, T), 'P_VTXG': (-5.3, -PE, 0, T), 'P_VTX': (-3.8, -PE, 0, T),
     'P_CAM':   (-2.3, -PE, 0, T), 'P_CAMG': (-0.8, -PE, 0, T), 'P_CAM5V': (0.7, -PE, 0, T),
     'P_T1':    (6.5, -PE, 0, T), 'P_R1': (8.0, -PE, 0, T),
-    # right edge: buzzer
-    'P_BZ+':   (PE, 0.9, 90, T), 'P_BZ-': (PE, 2.4, 90, T),
-    # ---- bottom, 9 V BEC on the right: switch pins forward to the
-    # inductor, PVIN/PGND pins back to the input capacitor
-    'U_BUCK9': at(A9, 0, 0, 0),
-    'L_9V':    at(A9, 0.5, -8.3, 90),
+    # ---- bottom, 9 V BEC on the right: its SW pin (front right) at the
+    # inductor's near end in front of it, VIN/GND (rear) at the input
+    # capacitors
+    'U_BUCK9': at(A9, 0, 0, 180),
+    'L_9V':    at(A9, 0.3, -8.8, 90),
     # ---- bottom, 5 V BEC at the rear: IC and inductor side by side, the
-    # IC's SW pin (front right) at the inductor's SW end, its VIN/GND pins
-    # (rear) at the input capacitor
+    # IC's SW pin (front right) at the inductor's front end, its VIN/GND
+    # pins (rear) at the input capacitor
     'U_BUCK5': at(A5, 0, 0, 180),
-    'L_5V':    at(A5, 5.45, -0.3, 270),
+    'L_5V':    at(A5, 6.15, -0.3, 270),
+    # ---- bottom front left: the 3.3 V buck and its inductor
+    'U_BUCK3': at(A3, 0, 0, 90),
+    'L_3V3':   at(A3, 3.03, 0, 180),          # its SW end (pad 1) at the IC's SW pin
     # ---- mounting
     'H1': (-pcb.HOLE, -pcb.HOLE, 0, T), 'H2': (pcb.HOLE, -pcb.HOLE, 0, T),
     'H3': (pcb.HOLE, pcb.HOLE, 0, T),   'H4': (-pcb.HOLE, pcb.HOLE, 0, T),
@@ -116,9 +121,12 @@ PLACE = {
 # Passives, by their circuit.py note; a list for notes that repeat (in
 # circuit order).
 PLACE_BY_NOTE = {
-    # battery: bulk capacitor on the top VBAT pour, TVS at its left end
-    'VBAT bulk':            (5.3, 9.3, 90, T),
-    'VBAT TVS':             (-8.2, 13.8, 90, T),
+    # the lead's battery: its clamp on the bottom behind the 5 V BEC, its
+    # anode end in the BEC's input pour, its ground end outboard of it
+    'VBAT TVS':             (-7.4, 16.6, 180, Bo),
+    # the video supply's own input (fpv group): its clamp and bulk
+    # capacitor in front of its pads
+    'VBAT_VTX TVS':         (7.0, 12.6, 270, T),
     # current and battery-voltage dividers and filters: right front, clear
     # of the gyro
     'CUR default low':      (10.6, -3.4, 0, T),
@@ -130,29 +138,49 @@ PLACE_BY_NOTE = {
     '5V BEC input HF':      at(A5, 0.63, 4.55, 0),
     '5V BEC bootstrap':     at(A5, 1.27, -4.5, 0),
     '5V BEC input':         at(A5, -4.4, -0.9, 90),
-    '5V BEC 1 MHz':         at(A5, -3.5, 2.5, 90),
-    '5V BEC output':        [(6.2, 14.3, 270, Bo), (6.2, 10.7, 90, Bo), (8.4, 12.5, 90, Bo)],
+    '5V BEC 455 kHz':       at(A5, -3.5, 2.5, 90),
+    '5V BEC output':        [(8.1, 10.3, 90, Bo), (8.1, 15.05, 90, Bo)],
     '5V BEC feedback top':  at(A5, -2.4, -4.5, 0),
     '5V BEC feedback bottom': at(A5, -2.4, -5.5, 0),
-    '3.3V LDO':             (8.4, 8.0, 0, Bo),
-    'LDO in':               (8.4, 9.6, 0, Bo),
-    'LDO out':              (8.4, 6.5, 0, Bo),
-    # 9 V BEC: input capacitors behind PVIN/PGND, the pin-6..11 parts in
-    # the strip between the IC and the inductor, feedback at FB (right)
-    '9V BEC input HF':      at(A9, -1.0, 3.2, 180),
-    '9V BEC input':         (11.5, 7.2, 0, T),
-    '9V BEC bootstrap':     at(A9, -0.3, -3.25, 180),
-    '9V BEC BIAS':          at(A9, 2.3, -3.25, 0),
-    '9V BEC 994 kHz':       at(A9, 4.0, -3.0, 90),
-    '9V BEC VCC':           at(A9, 2.8, 3.2, 0),
-    '9V BEC UVLO top':      at(A9, 2.6, 4.3, 0),
-    '9V BEC UVLO bottom':   at(A9, 3.6, 5.0, 90),
-    'VTX power switch':     (12.2, 3.8, 0, T),
+    # 9 V BEC, as the 5 V one (relative to A9, IC turned 180: rear row x
+    # +1.9 GND, +0.63 VIN, -0.63 EN, -1.9 RT at +2.68; front row +1.9 SW,
+    # +0.63 CB, -0.63 PG, -1.9 FB at -2.68): input HF capacitor behind
+    # VIN/GND, bulk input capacitor above it on the top, bootstrap in
+    # front of CB/SW, between the IC and the inductor; RT's resistor at
+    # its pin, the UVLO divider beside it (EN leaves its pin by a via in
+    # the pad, vias())
+    '9V BEC input HF':      at(A9, 1.27, 4.45, 0),
+    '9V BEC input':         (12.0, 7.9, 0, T),
+    '9V BEC bootstrap':     at(A9, 1.3, -4.3, 0),
+    '9V BEC 455 kHz':       at(A9, -3.15, 2.68, 180),
+    '9V BEC UVLO top':      at(A9, -2.65, 4.9, 90),
+    '9V BEC UVLO bottom':   (9.61, 5.08, 90, Bo),
+    'VTX power switch':     (12.0, 4.6, 0, T),
     'VTX switch gate':      (10.0, 3.4, 90, T),
-    'VTX switch gate pulldown': (10.0, 5.2, 90, T),
-    '9V BEC output':        [(9.0, -2.4, 270, Bo), (9.0, -6.0, 90, Bo), (9.0, -9.4, 90, Bo), (16.0, -8.9, 0, Bo)],
-    '9V BEC feedback top':  at(A9, 4.1, -2.4, 90),
-    '9V BEC feedback bottom': at(A9, 4.1, -4.4, 90),
+    'VTX switch gate pulldown': (10.0, 5.4, 90, T),
+    # the thermostat on the bottom beside the 9 V BEC, the board's warmest
+    # part, its inverter and cutoff at the IC's EN side
+    'video supply thermostat': (9.3, 1.8, 90, Bo),
+    'thermostat 96 C':      (7.72, 1.78, 90, Bo),
+    'thermostat supply':    (8.03, 3.77, 180, Bo),
+    'thermostat inverter and cutoff': (7.07, 5.94, 90, Bo),
+    'thermostat inverter pullup': (4.77, 6.28, 90, Bo),
+    'thermostat output pullup': (3.7, 6.28, 90, Bo),
+    # the rear one's ground end over the 9 V pour's front edge, the front
+    # one's under the flash (its via between the flash's pins, vias())
+    '9V BEC output':        [(8.1, -5.4, 270, Bo), (8.1, -10.1, 90, Bo)],
+    # the feedback divider beside the FB pin (the inductor in front of it)
+    '9V BEC feedback top':  (9.28, -0.23, 0, Bo),
+    '9V BEC feedback bottom': (9.27, -1.83, 270, Bo),
+    # 3.3 V buck: input capacitor at VIN/GND, the inductor beside the SW
+    # pin, output capacitors at the inductor's far end, feedback at FB
+    # (IC turned 90: VIN/EN/MODE and COMP (ground) down its left side,
+    # GND, SW, PG, FB down its right; VIN and GND at its rear end)
+    '3.3V buck input':      at(A3, 0.0, 2.25, 0),
+    '3.3V buck output':     [at(A3, 3.9, -2.6, 90), at(A3, 5.45, -2.6, 90)],
+    '3.3V buck feedback top': at(A3, -1.9, -1.6, 90),
+    '3.3V buck feed-forward': at(A3, -2.9, -1.6, 90),
+    '3.3V buck feedback bottom': at(A3, -1.3, -3.4, 0),
     # MCU decoupling, in line with its own supply pin
     # (pin 35's under the MCU's front-left corner, on the bottom: the
     # strip in front of the MCU stays free for its front pins' lines)
@@ -190,19 +218,19 @@ PLACE_BY_NOTE = {
     # USB: CC resistors under the connector (bottom)
     'CC1 Rd':               (-13.2, -1.2, 0, Bo),
     'CC2 Rd':               (-13.2, -0.1, 0, Bo),
-    # LEDs, beeper
+    # LEDs
     'power LED':            (13.2, 7.0, 90, T),
     'status LED':           (-7.0, 7.7, 0, T),
-    'beeper gate':          (11.0, 3.0, 0, T),
-    'beeper gate pulldown': (11.0, 4.0, 0, T),
 }
 # parts that stay exactly where the tables put them; the rest are hints
 # for the packer
 FIXED_REFS = {'U_FC', 'U_IMU', 'U_OSD', 'U_FLASH', 'J_USB', 'J_ESC', 'J_HD', 'SW_BOOT', 'P_BAT', 'P_BATG',
-              'L_9V', 'U_BUCK9', 'U_BUCK5', 'L_5V', 'D_USB'}
-FIXED_NOTES = {'5V BEC input HF', '5V BEC bootstrap', '5V BEC input', '5V BEC 1 MHz', '5V BEC output',
-               '9V BEC input HF', '9V BEC input', '9V BEC bootstrap', '9V BEC VCC', '9V BEC output',
-               'VBAT bulk', 'VBAT TVS', 'CC1 Rd', 'CC2 Rd'}
+              'L_9V', 'U_BUCK9', 'U_BUCK5', 'L_5V', 'D_USB', 'U_BUCK3', 'L_3V3'}
+# (the hot loops' capacitors stay where the table puts them too)
+FIXED_NOTES = {'5V BEC input HF', '5V BEC bootstrap', '5V BEC input', '5V BEC 455 kHz', '5V BEC output',
+               '9V BEC input HF', '9V BEC input', '9V BEC bootstrap', '9V BEC output', '9V BEC 455 kHz',
+               '9V BEC UVLO top',
+               'VBAT TVS', 'VBAT_VTX TVS', 'CC1 Rd', 'CC2 Rd', '3.3V buck input', '3.3V buck output'}
 
 
 def placement(comps):
@@ -246,7 +274,6 @@ KEEP_FREE = [
     (T, (5.8, -15.7, 8.7, -13.5)),
     (T, (-15.8, -11.0, -12.8, -5.1)),      # left pads' labels
     (T, (-15.8, 5.7, -12.8, 10.1)),
-    (T, (12.6, 0.2, 15.8, 3.1)),           # buzzer pads' labels
     (T, (-12.4, 5.4, -8.4, 10.2)),         # the OffGrid mark
     (Bo, (-10.0, -17.7, 10.0, -12.5)),     # the lockup (bottom, front band)
     (Bo, (-7.0, -3.0, 7.0, 4.6)),          # the board's name (bottom, under the MCU)
@@ -254,7 +281,7 @@ KEEP_FREE = [
     # the MCU's rear pins, kept free of parts on top so the six lines run
     # straight on the top layer (the 5 V BEC's pours under it leave no
     # room for vias)
-    (T, (-3.0, 5.7, 3.2, 11.7)),
+    (T, (-3.0, 5.7, 3.2, 12.6)),
 ]
 
 
@@ -264,7 +291,7 @@ def reserved():
     out = [(side, r) for net, side, poly in pours() if net != 'GND' for r in _rects(poly)] + KEEP_FREE
     # the production panel's tab zones along the edges, near the corners
     out += [(side, z) for z in pcb.tab_zones() for side in (T, Bo)]
-    for net, pts in vias():
+    for net, pts, *_ in vias():
         for x, y in pts:
             for side in (T, Bo):
                 out.append((side, (x - 0.35, y - 0.35, x + 0.35, y + 0.35)))
@@ -303,48 +330,74 @@ def _rel(a, pts):
 def pours():
     """(net, side, polygon) of every power pour, board mm."""
     return [
-        # top: battery.  Pin 1 of the ESC lead and the P_BAT pad joined
-        # behind the lead's pins; a leg down inside the rear-right hole to
-        # the 9 V BEC's vias and bulk capacitor; arms to the battery bulk
-        # capacitor and the TVS
-        ('VBAT', T, [(-5.0, 12.2), (-4.0, 12.2), (-4.0, 13.75), (3.9, 13.75), (3.9, 11.4), (7.4, 11.4),
-                     (7.4, 8.45), (14.9, 8.45), (14.9, 9.55), (9.5, 9.55), (9.5, 17.4), (7.4, 17.4),
-                     (7.4, 14.95), (-3.8, 14.95), (-3.8, 17.4), (-5.0, 17.4), (-5.0, 15.35), (-7.5, 15.35),
-                     (-7.5, 16.15), (-8.9, 16.15), (-8.9, 14.75), (-5.0, 14.75)]),
+        # top: the lead's battery, from the ESC lead's pin 1 behind its
+        # signal pins (clear of the connector's left tab) to the vias down
+        # to the 5 V BEC
+        ('VBAT', T, [(-7.25, 12.65), (-6.1, 12.65), (-6.1, 14.3), (-3.6, 14.3), (-3.6, 17.4), (-7.7, 17.4),
+                     (-7.7, 14.3), (-7.25, 14.3)]),
+        # top: the video supply's battery, from its pad down to its clamp and
+        # the 9 V BEC's input capacitor and the vias by it
+        ('VBAT_VTX', T, [(7.8, 17.4), (9.6, 17.4), (9.6, 9.75), (12.5, 9.75), (12.5, 8.3), (7.8, 8.3),
+                         (7.8, 10.0), (6.2, 10.0), (6.2, 11.8), (7.8, 11.8)]),
         # 5 V BEC (bottom, relative to its IC): input round the back of
-        # its VIN/EN pins and the input capacitors, switch node to the
-        # inductor, ground at the IC's GND pin and the HF capacitor
-        ('VBAT', Bo, _rel(A5, [(-5.9, -0.15), (-4.25, -0.15), (-4.25, 3.85), (-0.95, 3.85), (-0.95, 3.2),
-                               (0.95, 3.2), (0.95, 5.45), (-5.9, 5.45)])),
-        ('BUCK5_SW', Bo, _rel(A5, [(1.3, -4.9), (2.3, -4.9), (2.3, -3.75), (7.0, -3.75), (7.0, -1.6),
-                                   (1.3, -1.6)])),
+        # its VIN/EN pins, the HF capacitor, the clamp and the input
+        # capacitor; switch node to the inductor; ground at the IC's GND
+        # pin and the HF capacitor
+        ('VBAT', Bo, _rel(A5, [(-4.95, -0.15), (-4.25, -0.15), (-4.25, 3.85), (-0.95, 3.85), (-0.95, 3.2),
+                               (0.95, 3.2), (0.95, 3.85), (0.7, 3.85), (0.7, 5.45), (-4.95, 5.45)])),
+        ('BUCK5_SW', Bo, _rel(A5, [(1.3, -4.9), (2.3, -4.9), (2.3, -4.15), (7.9, -4.15), (7.9, -1.9),
+                                   (1.3, -1.9)])),
         ('GND', Bo, _rel(A5, [(1.2, 1.6), (3.4, 1.6), (3.4, 5.45), (1.2, 5.45)])),
-        ('+5V', Bo, [(0.8, 11.2), (7.1, 11.2), (7.1, 12.8), (9.0, 12.8), (9.0, 14.0), (7.1, 14.0),
-                     (7.1, 13.9), (0.8, 13.9)]),
-        # 9 V BEC (bottom, relative to its IC)
-        ('VBAT', Bo, _rel(A9, [(-0.75, 1.55), (0.72, 1.55), (0.72, 2.9), (2.2, 2.9), (2.2, 4.55),
-                               (-0.9, 4.55), (-0.9, 2.5), (-0.75, 2.5)])),
-        ('BUCK9_SW', Bo, _rel(A9, [(-2.9, -1.95), (-0.37, -1.95), (-0.37, -3.95), (2.35, -3.95),
-                                   (2.35, -6.7), (-1.35, -6.7), (-1.35, -3.95), (-2.9, -3.95)])),
-        # (its left edge 0.8 mm clear of the 3.3 V LDO's pins: the lane
-        # where the LDO's EN pin loops round its GND pin to IN)
-        ('GND', Bo, _rel(A9, [(-3.05, 0.6), (-1.05, 0.6), (-1.05, 4.3), (-3.05, 4.3)])),
-        # 9 V: the inductor's output end, the output capacitors (left
-        # column and front right) and the vias up to the HD connector
-        ('+9V', Bo, [(8.3, -2.85), (11.6, -2.85), (11.6, -4.85), (15.7, -4.85), (15.7, -9.75), (13.5, -9.75),
-                     (13.5, -7.9), (11.6, -7.9), (11.6, -9.1), (8.3, -9.1), (8.3, -8.0), (9.93, -8.0),
-                     (9.93, -5.6), (8.3, -5.6)]),
+        # 5 V: the inductor's output end to both output capacitors (round
+        # the rear one's ground pad)
+        ('+5V', Bo, [(1.2, 11.15), (9.6, 11.15), (9.6, 12.45), (5.4, 12.45), (5.4, 15.75), (9.6, 15.75),
+                     (9.6, 17.4), (1.2, 17.4)]),
+        # 9 V BEC (bottom, relative to its IC, turned as the 5 V one):
+        # input from the vias to VIN, the HF capacitor and the UVLO
+        # divider's top, clear of EN;
+        # switch node to the inductor round the bootstrap's CB end; ground
+        # at the GND pin and the HF capacitor
+        ('VBAT_VTX', Bo, _rel(A9, [(-3.0, 5.75), (1.1, 5.75), (1.1, 2.0), (0.15, 2.0), (0.15, 3.7),
+                                   (-2.0, 3.7), (-2.0, 5.1), (-3.0, 5.1)])),
+        ('BUCK9_SW', Bo, _rel(A9, [(1.35, -1.9), (2.45, -1.9), (2.45, -7.1), (-1.5, -7.1), (-1.5, -4.95),
+                                   (1.35, -4.95)])),
+        ('GND', Bo, _rel(A9, [(1.45, 1.9), (2.9, 1.9), (2.9, 5.3), (1.45, 5.3)])),
+        # 9 V: the inductor's output end and both output capacitors' 9 V
+        # pads, and the vias up to the HD connector
+        ('+9V', Bo, [(6.5, -9.4), (15.2, -9.4), (15.2, -6.3), (6.5, -6.3)]),
         # top: from those vias to pin 1 of the HD connector
         ('+9V', T, [(13.3, -8.75), (15.2, -8.75), (15.2, -6.5), (13.3, -6.5)]),
+        # top: the 9 V BEC's input capacitor's ground end, over the input
+        # pour, to its via down to the BEC's ground pin
+        ('GND', T, [(12.9, 6.55), (14.05, 6.55), (14.05, 6.95), (14.7, 6.95), (14.7, 7.45), (14.05, 7.45),
+                    (14.05, 9.25), (12.9, 9.25)]),
+        # 3.3 V buck (bottom, relative to its IC, turned 90: VIN, EN, MODE
+        # and COMP down its left side, GND, SW, PG, FB down its right):
+        # 5 V to the VIN/EN/MODE pins from the input capacitor, ground from
+        # its other end to the GND pin, the switch node from the SW pin
+        # (between PG and GND) to the inductor, 3.3 V from the inductor's
+        # far end to both output capacitors
+        ('+5V', Bo, _rel(A3, [(-1.55, -0.35), (-0.35, -0.35), (-0.35, 3.05), (-1.55, 3.05)])),
+        ('GND', Bo, _rel(A3, [(0.4, 0.65), (1.3, 0.65), (1.3, 3.05), (0.4, 3.05)])),
+        ('BUCK3_SW', Bo, _rel(A3, [(0.7, 0.1), (1.5, 0.1), (1.5, -1.2), (2.65, -1.2), (2.65, 1.2), (1.5, 1.2),
+                                   (1.5, 0.4), (0.7, 0.4)])),
+        ('+3V3', Bo, _rel(A3, [(3.3, -2.4), (6.0, -2.4), (6.0, -1.2), (4.7, -1.2), (4.7, 1.2), (3.4, 1.2),
+                               (3.4, -1.2), (3.3, -1.2)])),
     ]
 
 
 def vias():
-    """(net, [(x, y)]) of the power vias."""
+    """(net, [(x, y)]) of the power vias, or (net, [(x, y)], (diameter,
+    drill)) for a smaller one."""
     return [
-        ('VBAT', [(-4.4, 16.55), (-4.4, 17.25)]),                   # top pour to the 5 V BEC
-        ('VBAT', [(12.7, 9.1), (13.5, 9.1), (14.3, 9.1)]),           # top pour to the 9 V BEC
+        ('VBAT', [(-4.45, 16.3), (-4.45, 17.05), (-3.7, 17.3)]),     # the lead's battery to the 5 V BEC
+        ('VBAT_VTX', [(11.4, 9.3), (12.2, 9.3)]),                   # the video battery to the 9 V BEC
         ('+9V', [(13.9, -8.3), (14.7, -8.3)]),                      # 9 V to the HD connector (pin 1 above)
+        ('GND', [(14.45, 7.2)]),                                    # the 9 V input capacitor's ground
+        ('GND', [(9.27, -11.55)], VIA_SIG),                         # the front 9 V output capacitor's ground
+        # the 9 V BEC's EN pin, boxed in by its input pour, the exposed pad
+        # and the RT pin: a signal via in its pad (filled and capped)
+        ('BUCK9_EN', [_rel(A9, [(-0.63, 3.25)])[0]], VIA_SIG),
     ]
 
 
@@ -354,9 +407,10 @@ def power_copper(b):
         layer = pcbnew.F_Cu if side == T else pcbnew.B_Cu
         pcb.zone(b, net, layer, poly, clearance=0.2, min_width=0.2, priority=2 if net == 'GND' else 3,
                  thermal=False, name='%s pour' % net)
-    for net, pts in vias():
+    for net, pts, *size in vias():
+        d, drill = size[0] if size else VIA_PWR
         for x, y in pts:
-            v = pcb.via(b, x, y, net, d=VIA_PWR[0], drill=VIA_PWR[1]); v.SetLocked(True)
+            v = pcb.via(b, x, y, net, d=d, drill=drill); v.SetLocked(True)
             k += 1
     return k
 
@@ -411,35 +465,32 @@ else:
     ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
     PLANES = [('GND', pcbnew.In1_Cu), ('+3V3', pcbnew.In4_Cu)]
 # Router rules per supply net (netclasses): (width, clearance) in mm.
-# 9 V and the switch nodes 0.4 mm.  The battery's current runs in its
-# pours; its tracks feed the dividers and the 9 V BEC's input capacitor:
-# 0.3 mm, as USB's 0.5 A.  5 V 0.3 mm: its heavy
+# 9 V and the 5 V / 9 V switch nodes 0.4 mm; the 3.3 V buck's switch node
+# 0.3 mm (its ~0.5 A).  The lead's battery current runs in its pours; its
+# tracks feed the dividers and the clamp: 0.3 mm, as USB's 0.5 A.  The
+# video battery's (up to 2 A, at 9 V 18 W from an empty 3S) runs in its
+# pours too; anything the router adds is 0.5 mm.  5 V 0.3 mm: its heavy
 # current stays in the BEC's pour, and no branch carries more than the
-# camera's or the LED strip's ~0.7 A (0.3 mm outer copper: 1 A at a
-# 10 C rise), while 0.4 mm could not pass between the LDO's input
-# capacitor and its thermal pad.  The bootstrap nodes swing with the
-# switch nodes, 0.25 mm.  The filtered 3.3 V feeds (OSD ~0.1 A, gyro ~1
-# mA) and the 9 V BEC's VCC reach 0.5 mm pitch pins: 0.2 and 0.15 mm, and
-# 3.3-5 V needs only the 0.1 mm clearance.
+# camera's, the 3.3 V buck's or the LED strip's ~0.7 A (0.3 mm outer
+# copper: 1 A at a 10 C rise).  The bootstrap nodes swing with the switch
+# nodes, 0.25 mm.  The filtered 3.3 V feeds (OSD ~0.1 A, gyro ~1 mA) reach
+# 0.5 mm pitch pins: 0.2 and 0.15 mm, and 3.3-5 V needs only the 0.1 mm
+# clearance.
 NET_RULES = {
     'VBAT': (0.3, 0.15), '+9V': (0.4, 0.15), 'USB_VBUS': (0.3, 0.15),
-    'BUCK5_SW': (0.4, 0.15), 'BUCK9_SW': (0.4, 0.15),
+    'BUCK5_SW': (0.4, 0.15), 'BUCK9_SW': (0.4, 0.15), 'BUCK3_SW': (0.3, 0.15),
+    'VBAT_VTX': (0.5, 0.15),
     '+5V': (0.3, 0.15),
     'BUCK5_CB': (0.25, 0.15), 'BUCK9_CB': (0.25, 0.15),
-    '+3V3_OSD': (0.2, 0.1), 'BUCK9_VCC': (0.2, 0.1), '+3V3_GYRO': (0.15, 0.1),
+    '+3V3_OSD': (0.2, 0.1), '+3V3_GYRO': (0.15, 0.1),
 }
 # Low-current pins on the supply nets, by part note and net: joined to
 # their net at this width before the autorouter runs (finish.route_taps).
-# The BECs' feedback tops and the 9 V BEC's BIAS pin and capacitor are
-# sense lines (TI: thin, from the output capacitors); the 3.3 V LDO draws
-# at most ~0.3 A from 5 V (0.2 mm outer copper: 0.7 A), its EN pin none.
-# The 9 V BEC's two VCC pins, on opposite sides of the IC, join their
-# capacitor while the space round the IC is still open.
+# The bucks' feedback tops are sense lines (TI: thin, from the output
+# capacitors).
 TAPS = {
     ('5V BEC feedback top', '+5V'): 0.2, ('9V BEC feedback top', '+9V'): 0.2,
-    ('9V BEC BIAS', '+9V'): 0.2, ('9V VTX BEC', '+9V'): 0.2,
-    ('3.3V LDO', '+5V'): 0.2, ('LDO in', '+5V'): 0.2,
-    ('9V VTX BEC', 'BUCK9_VCC'): 0.2,
+    ('3.3V buck feedback top', '+3V3'): 0.2,
 }
 
 
@@ -512,10 +563,10 @@ def build(out_path):
     bounds = (pcb.CX - e2, pcb.CY - e2, pcb.CX + e2, pcb.CY + e2)
     # plane vias: the supplies' exposed pads on a 1 mm grid (heat), the
     # signal ICs' on a 1.6 mm grid, so tracks still pass under them
-    bec = {'U_BUCK5', 'U_BUCK9', 'U_LDO'}
+    bec = {'U_BUCK5', 'U_BUCK9', 'U_BUCK3'}
     # ground pins beside a ground exposed pad join it with a stub, which
-    # leaves the spot outside them to the pins round them (the LDO's
-    # thermal pad is 1.6 mm2: exposed pads from 1 mm2 in this group)
+    # leaves the spot outside them to the pins round them (exposed pads
+    # from 1 mm2 in this group)
     n1, f1 = fanout.fanout(b, {'GND', '+3V3'}, bounds, skip={c.ref for c in comps} - bec, ep_pitch=1.0,
                            ep_join=0.2, ep_min_area=1.0)
     n2, f2 = fanout.fanout(b, {'GND', '+3V3'}, bounds, skip=bec, ep_pitch=1.6, via_d=VIA_SIG[0],
@@ -554,7 +605,6 @@ LABELS = [
     ('P_T4', 'T4'), ('P_R4', 'R4'), ('P_T1', 'T1'), ('P_R1', 'R1'),
     ('P_RX5V', '5V'), ('P_RXG', 'G'), ('P_R2', 'R2'), ('P_T2', 'T2'),
     ('P_5V', '5V'), ('P_G1', 'G'), ('P_LED', 'LED'),
-    ('P_BZ+', '5V'), ('P_BZ-', 'BZ-'),                                    # buzzer: 5V and BZ-
     ('P_VTX9V', '9V'), ('P_VTXG', 'G'), ('P_VTX', 'VTX'),
     ('P_CAM', 'CAM'), ('P_CAMG', 'G'), ('P_CAM5V', '5V'),
     ('P_BAT', 'BAT'), ('P_BATG', 'G'),

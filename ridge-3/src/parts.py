@@ -309,6 +309,21 @@ PARTS = {
                       mpn='LMR38020FDDAR', value='LMR38020F',
                       desc='Buck 80 V in, 2 A, FPWM, SO-8 PowerPAD', kind='U',
                       dk='296-LMR38020FDDARCT-ND', maker=TI),
+    # Rev 2 FC 3.3 V: TI TPS628501DRLR, 2.7-6 V in, 1 A sync buck, -40..150
+    # C junction, SOT-583 (DRL): 1 VIN, 2 EN, 3 MODE/SYNC, 4 COMP/FSET, 5 FB,
+    # 6 PG, 7 SW, 8 GND (SLUSEC8C table 5-1).  JLC 85 ext (C3193207,
+    # 2026-10-01); DK 1,168: PCBWay sources it for volume.
+    'TPS628501': dict(fp='aio:SOT-583-8_L2.1-W1.6-P0.50-LS1.6-BL', lcsc='C3193207',
+                      mpn='TPS628501DRLR', value='TPS628501',
+                      desc='Buck 2.7-6 V in, 1 A, 150 C, SOT-583', kind='U', maker=TI),
+    # Rev 2 FC video-supply thermostat: TI TMP390A2DRLR, resistor-set
+    # temperature switch, open-drain active-low outputs, SOT-563 (DRL):
+    # 1 SETA, 2 SETB, 3 GND, 4 OUTB, 5 VDD, 6 OUTA (SBOS904A 5).  JLC 37,610
+    # ext (C5219772, 2026-10-01).
+    'TMP390A2': dict(fp='aio:SOT-563_L1.6-W1.2-P0.50-LS1.6-BR', lcsc='C5219772',
+                     mpn='TMP390A2DRLR', value='TMP390A2',
+                     desc='Temperature switch, resistor-set trip, open drain, SOT-563', kind='U',
+                     maker=TI),
     # TI LM76003: 3.5-60 V in (42 %), 3.5 A, WQFN-30 4x6 (RNP):
     # 1-5 SW, 6 BOOT, 7 19 23 27 28 29 30 NC (to GND), 8 VCC, 9 BIAS, 10 RT,
     # 11 SS/TRK, 12 FB, 13-15 AGND, 16 PGOOD, 17 SYNC/MODE, 18 EN,
@@ -354,6 +369,13 @@ PARTS = {
                     desc='Dual asymmetric N-MOSFET half-bridge 30 V, DFN3x3', kind='Q'),
     # Beeper and VTX-rail switch.  2.5 V-specified gate (48 mOhm).
     # JLC 1,062,531 basic, $0.07 / 0.05; DK fc 785-1000-1-ND 316,253.
+    # Diodes Inc. BSS138DW-7-F: two N-FETs, 50 V, VGS(th) 0.5-1.5 V,
+    # -55..150 C, SOT-363: 1 S2, 2 G2, 3 D1, 4 S1, 5 G1, 6 D2 (DS30203 rev
+    # 16-2, top view).  JLC 121,381 ext (C154900, 2026-10-01).
+    'BSS138DW': dict(fp='aio:SC-70-6_L2.0-W1.3-P0.65-LS2.1-BL', lcsc='C154900',
+                     mpn='BSS138DW-7-F', value='BSS138DW',
+                     desc='Dual N-MOSFET 50 V logic level, SOT-363, -55..150 C', kind='Q',
+                     maker='Diodes Incorporated (USA)'),
     'AO3400A': dict(fp='aio:SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR', lcsc='C20917',
                     mpn='AO3400A', value='AO3400A',
                     desc='N-MOSFET 30 V logic level, SOT-23', kind='Q',
@@ -422,6 +444,12 @@ PARTS = {
                     mpn='EDZVT2R4.7B', value='4.7V', maker='ROHM (Japan)',
                     desc='Zener 4.7 V 150 mW, SOD-523', kind='D'),
     # v1 only (the DRV8300D has its bootstrap diodes inside).
+    # onsemi RB521S30T1G: the same Schottky (30 V, 200 mA), -55..125 C.  JLC
+    # 50,947 ext (C145179, 2026-10-01).  Pad 1 = cathode.
+    'RB521S30_ON': dict(fp='aio:SOD-523_L1.2-W0.8-LS1.6-RD', lcsc='C145179',
+                        mpn='RB521S30T1G', value='RB521S30',
+                        desc='Schottky 30 V 200 mA, SOD-523, -55..125 C', kind='D',
+                        maker='onsemi (USA)'),
     'RB521S30': dict(fp='aio:SOD-523_L1.2-W0.8-LS1.6-RD', lcsc='C8523',
                      mpn='RB521S-30', value='RB521S30',
                      desc='Schottky 30 V 200 mA, SOD-523 (JSCJ; alt. onsemi RB521S30T1G C145179)', kind='D'),
@@ -526,6 +554,21 @@ PARTS = {
     # current limit, 0.62 A max (runaway limit 0.73 A).  Replaces the
     # Bourns SRN4018-330M (187 at LCSC), same size.
     # JLC 3,341 ext, $0.21 / 0.16; DK web 587-6096-1-ND 6,657.
+    # Rev 2 FC bucks (both LMR38020F at 455 kHz, on the bottom, facing the
+    # ESC across the stack's gap: 3.0 mm tall at most, as rev 1's IHLP):
+    # TDK SPM6530T-150M-HZ, 15 uH, 109 mOhm max, 3.3 A, metal composite,
+    # AEC-Q200, -40..+125 C, 7.1 x 6.5 x 3.0 mm.  JLC 2,707 ext (C307809,
+    # 2026-10-01).  (Coilcraft's XAL5050, 69.7 mOhm, is 5.1 mm tall.)
+    'L15U_SPM6530': dict(fp='aio:IND-SMD_L7.1-W6.5_SPM6530T', lcsc='C307809',
+                         mpn='SPM6530T-150M-HZ', value='15uH',
+                         desc='Inductor 15 uH 3.3 A, 7.1 x 6.5 x 3.0 mm, AEC-Q200, 125 C', kind='L',
+                         maker='TDK (Japan)'),
+    # Rev 2 FC 3.3 V buck: TDK TFM252012ALMAR47MTAA, 0.47 uH, 19 mOhm, 4.9 A,
+    # -55..150 C, 2.5 x 2.0 mm.  JLC 130 ext (C404800, 2026-10-01).
+    'L470N_TFM': dict(fp='aio:IND-SMD_L2.5-W2.0_TFM252012ALMA2R2MTAA', lcsc='C404800',
+                      mpn='TFM252012ALMAR47MTAA', value='0.47uH',
+                      desc='Inductor 0.47 uH 4.9 A, 2.5 x 2.0 mm, -55..150 C', kind='L',
+                      maker='TDK (Japan)'),
     'L33U': dict(fp='aio:IND-SMD_L4.0-W4.0', lcsc='C1329473',
                  mpn='NRS4018T330MDGJV', value='33uH',
                  desc='Inductor 33 uH Isat 0.7 A, 4 x 4 mm shielded', kind='L',
@@ -597,6 +640,14 @@ PARTS = {
                  dk='2073-USB4105-GF-A-120CT-ND', maker='Global Connector Technology (UK)'),
     # JST SH 1.0 mm 8-pin.  Right-angle on the FC, vertical on the ESC.
     # SM08B: JLC 123,874 ext; DK fc 455-1808-1-ND 62,910.
+    # Rev 2 stack lead, flight-controller end: Molex Micro-Lock Plus 1.25 mm,
+    # 8 positions, right angle, positive lock, -40..+105 C, 1.5 A per
+    # contact (505567-0871; mate 505565-0801 + 505431 terminals).  Pads 9/10
+    # are the solder tabs.  JLC 13,230 ext (C585387, 2026-10-01).
+    'MLP8_RA': dict(fp='aio:CONN-SMD_8P-P1.25_5055670871', lcsc='C585387',
+                    mpn='5055670871', value='Micro-Lock Plus 8P RA',
+                    desc='Molex Micro-Lock Plus 1.25 mm 8-pin right-angle SMD, locking', kind='J',
+                    maker='Molex (USA)'),
     'SH8_RA': dict(fp='aio:CONN-TH_SM08B-SRSS-TB-LF-SN', lcsc='C160407',
                    mpn='SM08B-SRSS-TB(LF)(SN)', value='SH-8P RA',
                    desc='JST SH 8-pin right-angle SMD', kind='J',
@@ -617,6 +668,14 @@ PARTS = {
     # components spin-off of July 2026): 3.0 x 2.5 mm, pads 1, 2; land 0.8 x
     # 1.7 mm at 3.4 mm centres = Omron's.  Replaces v1's XUNPU TS-1088.
     # JLC 153,225 ext, $0.15 / 0.11; DK fc SW1020CT-ND 135,347.
+    # Rev 2 boot button: C&K KMR223G LFG, 4.2 x 2.8 x 1.9 mm, 2 N, gold
+    # contacts, -40..125 C, 200k cycles, ground pin (pad 5).  Terminals 1-4
+    # and 2-3 are joined; the button closes 1/4 to 2/3.  Gold contacts want
+    # 1 mA to make reliably.  JLC 6,990 ext (C221678, 2026-10-01).
+    'KMR223G': dict(fp='aio:SW-SMD_5P-L4.2-W2.8-P1.60-LS4.6-TR', lcsc='C221678',
+                    mpn='KMR223GLFG', value='BOOT',
+                    desc='Tact switch 4.2 x 2.8 mm SMD, gold, -40..125 C', kind='SW',
+                    maker='C&K (USA)'),
     'BOOTSW': dict(fp='aio:KEY-SMD_B3U-1000PM', lcsc='C231329',
                    mpn='B3U-1000P', value='BOOT',
                    desc='Tact switch 3.0 x 2.5 mm SMD', kind='SW',
@@ -683,6 +742,10 @@ PARTS = {
     # JLC 9,762,794 basic; DK fc 311-100KLRCT-ND 6,854,918.
     'R33K_0603': dict(R('33k', 'C126359', 'RC0603FR-0733KL'), fp='Resistor_SMD:R_0603_1608Metric',
                       desc='Resistor 33k 1% 0603, 100 mW 75 V', maker='Yageo (Taiwan)'),
+    'R57K6': R('57.6k', 'C26983', '0402WGF5762TCE'),
+    'R121K': R('121k', 'C11693', '0402WGF1213TCE'),
+    'R22K1': R('22.1k', 'C43473', '0402WGF2212TCE'),
+    'R3K3': R('3.3k', 'C25890', '0402WGF3301TCE'),
     'R100K': R('100k', 'C25741', '0402WGF1003TCE', '311-100KLRCT-ND', 'RC0402FR-07100KL', UR_YAGEO),
     # 0 ohm.  JLC 10,230,848 basic.  DK web: Yageo RC0402JR-070RL 0 (due 9 Nov);
     # Panasonic ERJ-2GE0R00X, DK web P0.0JCT-ND 9,890,212.
@@ -797,6 +860,13 @@ PARTS = {
     # (ASSUMPTION: Murata's data for the same-size GRM32ER71H106K gives
     # 6.1 uF; X7S taken lower).  JLC 260 ext, $0.53 (2026-09-30); Murata
     # makes it in volume (DigiKey not checked).
+    # Rev 2 FC: X7R in place of every X5R (X5R is rated to 85 C)
+    'C22U25_X7R': C('22uF', C1210, 'C21397', 'GRM32ER71E226KE15L', '25V X7R 1210', maker=MURATA),
+    'C10U25_X7R': C('10uF', C0805, 'C237493', 'GRM21BZ71E106KE15L', '25V X7R 0805', maker=MURATA),
+    'C4U7_X7R': C('4.7uF', C0603, 'C913474', 'GRM188Z71A475KE15D', '10V X7R 0603', maker=MURATA),
+    'C2U2_X7R': C('2.2uF', C0603, 'C576485', 'GRM188Z71C225KE43D', '16V X7R 0603', maker=MURATA),
+    'C1U_50_X7R': C('1uF', C0603, 'C5199872', 'CL10B105KB8NQNC', '50V X7R 0603'),
+    'C10P': C('10pF', C0402, 'C76946', 'GRM1555C1H100JA01D', '50V C0G 0402', maker=MURATA),
     'C10U50_SOFT': C('10uF', C1210, 'C437431', 'GCJ32EC71H106KA01L', '50V X7S 1210 soft termination',
                      maker=MURATA),
     # 1 uF 25 V X7R 0603, Murata automotive (driver charge pump across

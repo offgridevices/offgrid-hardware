@@ -14,7 +14,13 @@ the time, the low leg a third and floats a third.  So per phase:
                   the two dead times of each switched-leg period, 2 t_dead f / 3
   shunt           carries I during D (the free-wheel current circulates
                   between the low sides, on the bridge side of the shunt)
-  gate drive      both FETs of the switched leg, Qg Vgvdd f each
+  gate drive      both FETs of the switched leg, Qg Vgvdd f each (rev 1:
+                  DRV8300 from the gate-drive LDO); rev 2's DRV8320H runs
+                  from the battery: its low side through its regulator
+                  (Qg V f), its high side through its charge pump (taken as
+                  twice the charge from the battery, 2 Qg V f), its own
+                  quiescent current, and the channel's 3.3 V from its DVDD
+                  regulator ((V - 3.3) x the MCU, amplifier and thermistor)
 
 On-resistance is the datasheet maximum at 25 C times the datasheet's own
 temperature curve (Fig. 8.9), at each FET's junction temperature.
@@ -43,13 +49,23 @@ def esc_channel(I, D, V, f, dead, Tj, sw):
         out['%sL' % p] = ((1 - D) / 3 + 1 / 3) * I * I * rds(Tj['%sL' % p]) \
             + 2 * dead * f * data.FET['vsd_hot'] * I / 3
     out['shunt'] = D * I * I * data.SHUNT['r']
-    out['driver'] = 2 * data.FET['qg_11v'] * data.GVDD * f + data.DRV8300['i_q'] * data.GVDD
+    out['driver'] = driver(V, f)
     return out
 
 
+def driver(V, f):
+    """One channel's gate driver heat (W) at battery voltage V, PWM f."""
+    D = data.DRIVER
+    qg = data.FET['qg_11v']
+    if D['kind'] == 'gvdd':
+        return 2 * qg * data.GVDD * f + D['i_q'] * data.GVDD
+    return 3 * qg * V * f + D['i_vm'][1] * V + (V - 3.3) * data.DVDD_LOAD
+
+
 def gvdd_current(f):
-    """The four drivers' supply current (A): gate charge and quiescent."""
-    return 4 * (2 * data.FET['qg_11v'] * f + data.DRV8300['i_q'])
+    """The four drivers' supply current from the gate-drive LDO (A): gate
+    charge and quiescent (rev 1; rev 2 has no such LDO)."""
+    return 4 * (2 * data.FET['qg_11v'] * f + data.DRIVER['i_q'])
 
 
 def buck_loss(part, iout, vout):
