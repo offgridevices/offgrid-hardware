@@ -42,6 +42,10 @@ from shapely.ops import unary_union, split
 import pcb, route
 
 ALL_CU = pcb.CU_ALL
+# Part of the board a channel holds whatever copper is nearest (template
+# frame, board mm from the centre; turned for each channel), or None: the
+# layout's own (esc_layout.STAMP_CLAIM).
+CLAIM = None
 VIA_RING = 0.0          # vias count with at least this ring (route.VIA_RING)
 
 
@@ -175,6 +179,14 @@ def region(b, parts, channels, res=0.1, shrink=0.07):
     others = np.min([dist[k] for k in channels if k != t], axis=0)
     g = _mask_polys(dist[t] < others, res, K).buffer(-shrink).simplify(0.02)
     g = shapely.transform(g, lambda xy: xy + (pcb.CX, pcb.CY))
+    if CLAIM:
+        # each channel's claim is its own (where claims overlap, nearest
+        # copper decides as before)
+        c = Polygon([(x + pcb.CX, y + pcb.CY) for x, y in CLAIM])
+        claims = {k: _turn_geom(c, a) for k, a in channels.items()}
+        excl = {k: claims[k].difference(unary_union([claims[j] for j in claims if j != k])) for k in claims}
+        g = g.union(excl[t].buffer(-shrink)).difference(
+            unary_union([excl[k] for k in excl if k != t]).buffer(shrink))
     return unary_union([q for q in getattr(g, 'geoms', [g]) if q.area > 0.05])
 
 

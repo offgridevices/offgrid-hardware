@@ -436,6 +436,13 @@ VIA_RING = HOLE_CL - 0.1
 VIA_IN_PAD = VIA_SIG
 
 GAPS = (-7.5, -2.5, 2.5, 7.5)  # via corridors: the gaps between phases and both ends
+# The FET band is its channel's, whatever channel's copper is nearest
+# (stamp.region): the next channel's MCU sits beside the band's end
+# corridor, and would otherwise take its entrance from the gate lines
+# that cross the FET row there.
+STAMP_CLAIM = [(-9.0, 9.0), (9.0, 9.0), (9.0, 19.0), (-9.0, 19.0)]
+import stamp as _stamp          # (route_local and the pipeline both ask stamp.region)
+_stamp.CLAIM = STAMP_CLAIM
 # per corridor, from its centre: one return via on the centre line.  Every
 # signal between the driver and MCU and the FETs, the motor pads and the
 # back-EMF resistors (gate drives, switch-node taps, back-EMF: 12 a

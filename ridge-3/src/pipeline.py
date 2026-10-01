@@ -185,6 +185,7 @@ def run(board_name, work, passes=None, log=print):
         # one channel routed alone, stamped onto the others (stamp.py)
         import stamp
         stamp.VIA_RING = getattr(L, 'VIA_RING', None) or 0.0
+        stamp.CLAIM = getattr(L, 'STAMP_CLAIM', None)
         comps = circuit.build(board_name)
         tmpl, nets, left, _, ties = stamp.route_template(placed, work, L.channel_parts(comps), L.CHANNELS,
                                                          passes=L.STAMP_PASSES, log=log, planes=planes,
