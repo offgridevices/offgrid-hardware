@@ -54,7 +54,18 @@ class Grid:
         for g in gs:
             if g.is_empty:
                 continue
-            d.polygon([self.px(x, y) for x, y in g.exterior.coords], fill=1)
+            if not g.interiors:
+                d.polygon([self.px(x, y) for x, y in g.exterior.coords], fill=1)
+                continue
+            # a polygon with holes (an inner pour round its windows): drawn
+            # on its own with the holes cleared, then added, so the holes
+            # do not clear what else is drawn there
+            tmp = Image.new('1', img.size, 0)
+            dt = ImageDraw.Draw(tmp)
+            dt.polygon([self.px(x, y) for x, y in g.exterior.coords], fill=1)
+            for r in g.interiors:
+                dt.polygon([self.px(x, y) for x, y in r.coords], fill=0)
+            img.paste(1, mask=tmp)
 
     def netcl(self, net):
         return self.clmap.get(net, self.cl)
@@ -131,9 +142,15 @@ class Grid:
                 if not (z.GetLayerSet().Contains(l) and z.IsFilled()):
                     continue
                 fp_ = z.GetFilledPolysList(l)
+                inner = l not in (pcbnew.F_Cu, pcbnew.B_Cu)
                 for k in range(fp_.OutlineCount()):
                     ol = fp_.Outline(k)
-                    g = Polygon([(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())])
+                    ring = lambda c: [(mm(c.CPoint(q).x), mm(c.CPoint(q).y)) for q in range(c.PointCount())]
+                    # an inner pour's holes are room to route (a battery
+                    # plane's windows for signals, esc_layout.SIG_WINDOW);
+                    # the outer layers' pours keep their outline
+                    hs = [ring(fp_.CHole(k, h)) for h in range(fp_.HoleCount(k))] if inner else []
+                    g = Polygon(ring(ol), [h for h in hs if len(h) > 2])
                     if z.GetNetname() == net_exclude:
                         same[l].append(g)
                     elif l in (pcbnew.F_Cu, pcbnew.B_Cu):
