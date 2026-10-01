@@ -4,7 +4,8 @@
 Each channel's MCU (AT32F421, QFN-28, on the bottom) has fourteen small
 parts on the top over it: its supply and reset capacitors, the
 thermistor's bias, the three back-EMF low legs and the neutral star, the
-current filter's capacitor and the two SWD test points.  This searches
+current filter (resistor and capacitor, between the amplifier's output
+and the MCU's pin) and the two SWD test points.  This searches
 their spots and turns in the template channel's frame (simulated
 annealing on a 0.05 mm grid) on a board built with the rest of the
 layout as it is.
@@ -13,9 +14,9 @@ Hard rules (each broken one costs heavily):
   * courtyards clear of each other and of every other part's top
     courtyard (all four channels, as the template channel's routing sees
     them);
-  * pads 0.1 mm clear of other nets' pads, and of other nets' vias by the
-    via's ring plus 0.1 mm or its hole plus 0.2 mm, the larger (JLCPCB
-    multilayer hole to copper);
+  * pads 0.1 mm clear of other nets' pads and top tracks, and of other
+    nets' vias by the via's ring plus 0.1 mm or its hole plus 0.2 mm, the
+    larger (JLCPCB multilayer hole to copper);
   * the MCU pins' escape vias where the build puts them: each pin's pad
     end taken in pin order round the chip, inner first where its net lies
     across the chip (esc_layout.across), the other end where its
@@ -25,7 +26,7 @@ Hard rules (each broken one costs heavily):
   * the parts inside the channel's area (the middle above, the next
     channel's region left of it).
 Cost: per net, the minimum spanning tree over its terminals (pin vias,
-the parts' pads, other parts' pads nearby), plus three times the distance
+the parts' pads, other parts' pads and vias nearby), plus three times the distance
 from each capacitor's supply pad (and the reset capacitor's NRST pad) to
 its own pin's via.
 
@@ -44,10 +45,10 @@ import pcbnew, pcb, parts, circuit
 import esc_layout as E
 
 ROLES = ['C_VDD', 'C_VDDA', 'C_RST', 'R_NTB', 'RS_A', 'RS_B', 'RS_C', 'RBL_A', 'RBL_B', 'RBL_C', 'TP_DIO', 'TP_CLK',
-         'C_IF']
+         'C_IF', 'R_IF']
 # the nets of the cluster, in channel 1 (and the planes')
-NETS = {'M1_' + n for n in ('NRST', 'DVDD', 'CMP_A', 'CMP_B', 'CMP_C', 'NEUTRAL', 'NTC', 'ISENSE', 'SWDIO',
-                            'SWCLK')} | {'GND'}
+NETS = {'M1_' + n for n in ('NRST', 'DVDD', 'CMP_A', 'CMP_B', 'CMP_C', 'NEUTRAL', 'NTC', 'ISENSE', 'IOUT',
+                            'SWDIO', 'SWCLK')} | {'GND'}
 AREA = (-9.6, 3.0, -1.8, 10.6)            # template frame, what the search looks at
 BOUND = (-8.9, 3.95, -2.2)                # courtyards right of / below / left of these
 PIN_VIA = (0.25, 0.15)                    # the MCU's in-pad escape vias (esc_layout.VIA_ESCAPE)
@@ -75,6 +76,34 @@ def circ_box(cx, cy, r, bx):
     return max(0.0, box_dist((cx, cy, cx, cy), bx) - r)
 
 
+def seg_box(p0, p1, bx):
+    """Distance from a segment to a box (0 when they meet)."""
+    (x0, y0), (x1, y1) = p0, p1
+    dx, dy = x1 - x0, y1 - y0
+    # clipped against the box (Liang-Barsky): any part inside meets it
+    t0, t1 = 0.0, 1.0
+    for p, q in ((-dx, x0 - bx[0]), (dx, bx[2] - x0), (-dy, y0 - bx[1]), (dy, bx[3] - y0)):
+        if p == 0:
+            if q < 0:
+                break
+        else:
+            t = q / p
+            if p < 0:
+                t0 = max(t0, t)
+            else:
+                t1 = min(t1, t)
+    else:
+        if t0 <= t1:
+            return 0.0
+    ll = dx * dx + dy * dy
+
+    def pt_seg(px, py):
+        t = 0.0 if ll == 0 else min(1.0, max(0.0, ((px - x0) * dx + (py - y0) * dy) / ll))
+        return math.hypot(px - x0 - t * dx, py - y0 - t * dy)
+    return min([box_dist((x0, y0, x0, y0), bx), box_dist((x1, y1, x1, y1), bx)]
+               + [pt_seg(cx, cy) for cx in (bx[0], bx[2]) for cy in (bx[1], bx[3])])
+
+
 class Problem:
     def __init__(self, board_path):
         self.b = b = pcbnew.LoadBoard(board_path)
@@ -92,8 +121,9 @@ class Problem:
             bb = fp.GetCourtyard(pcbnew.F_CrtYd).BBox()
             self.geo[ref] = (pads, (mm(bb.GetLeft()), mm(bb.GetTop()), mm(bb.GetRight()), mm(bb.GetBottom())))
         inside = lambda x0, y0, x1, y1: x1 > AREA[0] and x0 < AREA[2] and y1 > AREA[1] and y0 < AREA[3]
-        self.fix_cy, self.fix_pads, self.fix_vias, self.terms = [], [], [], {}
+        self.fix_cy, self.fix_pads, self.fix_vias, self.fix_tracks, self.terms = [], [], [], [], {}
         mcu = b.FindFootprintByReference(r1['MCU'])
+        mcu_nets = set(p.GetNetname() for p in mcu.Pads())
         for fp in b.GetFootprints():
             if fp.GetReference() in self.refs:
                 continue
@@ -111,18 +141,28 @@ class Problem:
                         self.fix_pads.append((p.GetNetname(), bx))
                 if fp.GetReference() != r1['MCU'] and p.GetNetname() in NETS - {'GND'} and inside(x, y, x, y):
                     self.terms.setdefault(p.GetNetname(), []).append((x, y, x, y))
-        # vias that stay whatever the cluster does: not the cluster's nets'
-        # (the MCU's escapes, recomputed below) nor the planes' (fanned out
-        # again round the new pads)
-        mcu_nets = set(p.GetNetname() for p in mcu.Pads())
+        # vias and top tracks that stay whatever the cluster does: not the
+        # MCU's nets' (its escapes, recomputed below, and the lines laid
+        # after placement) nor the planes' (fanned out again round the new
+        # pads).  A cluster net's own (the amplifier's output escape) is
+        # one of its terminals too.
         for t in b.GetTracks():
-            if t.GetClass() != 'PCB_VIA':
+            net = t.GetNetname()
+            if net in mcu_nets | {'GND'}:
                 continue
-            x, y = X(t.GetPosition().x), X(t.GetPosition().y)
-            if not inside(x, y, x, y) or t.GetNetname() in NETS | mcu_nets:
-                continue
-            r, dr = mm(t.GetWidth(pcbnew.F_Cu)) / 2, mm(t.GetDrillValue()) / 2
-            self.fix_vias.append((t.GetNetname(), x, y, max(r + 0.1, dr + 0.2)))
+            if t.GetClass() == 'PCB_VIA':
+                x, y = X(t.GetPosition().x), X(t.GetPosition().y)
+                if not inside(x, y, x, y):
+                    continue
+                r, dr = mm(t.GetWidth(pcbnew.F_Cu)) / 2, mm(t.GetDrillValue()) / 2
+                self.fix_vias.append((net, x, y, max(r + 0.1, dr + 0.2)))
+                if net in NETS:
+                    self.terms.setdefault(net, []).append((x, y, x, y))
+            elif t.GetLayer() == pcbnew.F_Cu:
+                a = (X(t.GetStart().x), X(t.GetStart().y))
+                e = (X(t.GetEnd().x), X(t.GetEnd().y))
+                if inside(min(a[0], e[0]), min(a[1], e[1]), max(a[0], e[0]), max(a[1], e[1])):
+                    self.fix_tracks.append((net, a, e, mm(t.GetWidth()) / 2))
         self.pin_vias = self._escapes(mcu)
 
     def _escapes(self, mcu):
@@ -163,7 +203,7 @@ class Problem:
         xs, ys = zip(*[rot_pt(a, c, r) for a, c in ((cy[0], cy[1]), (cy[2], cy[3]))])
         return out, (x + min(xs), y + min(ys), x + max(xs), y + max(ys))
 
-    def cost(self, pos, detail=False):
+    def cost(self, pos, detail=False, weight=100.0):
         pl = {ref: self.placed(ref, *pos[ref]) for ref in self.refs}
         refs = list(self.refs)
         pen, why = 0.0, []
@@ -190,6 +230,9 @@ class Problem:
             for onet, vx, vy, keep in self.fix_vias:
                 if onet != net and circ_box(vx, vy, 0.0, bx) < keep:
                     bad(10, 'pad-via', self.refs[a], onet)
+            for onet, p0, p1, hw in self.fix_tracks:
+                if onet != net and seg_box(p0, p1, bx) < hw + 0.1:
+                    bad(10, 'pad-track', self.refs[a], onet)
             for pin, (pnet, vx, vy) in self.pin_vias.items():
                 if pnet != net and circ_box(vx, vy, 0.0, bx) < max(PIN_VIA[0] / 2 + 0.1, PIN_VIA[1] / 2 + 0.2):
                     bad(10, 'pad-pin via', self.refs[a], pin)
@@ -222,20 +265,25 @@ class Problem:
         for role, pin in CAPS:
             net, vx, vy = self.pin_vias[pin]
             near += 3.0 * min(circ_box(vx, vy, 0.0, bx) for n_, bx in pl[self.r1[role]][0] if n_ == net)
-        c = 100 * pen + length + near
+        c = weight * pen + length + near
         return (c, pen, length, near, why) if detail else c
 
 
 def search(prob, seed, iters):
+    """Annealing, the broken rules' weight growing from 1 to 100 over the
+    run: early on a part may pass through a spot that breaks a rule to
+    reach a better one (the MCU's edges are rows of vias), by the end
+    every rule binds."""
     rnd = random.Random(seed)
+    wt = lambda it: 1.0 + 99.0 * (it / iters) ** 2
     pos = {}
     for ref in prob.refs:
         fp = prob.b.FindFootprintByReference(ref)
         pos[ref] = (round(X(fp.GetPosition().x), 3), round(X(fp.GetPosition().y), 3),
                     int(round(fp.GetOrientationDegrees())) % 360)
     refs = sorted(prob.refs)
-    cur, cc = pos, prob.cost(pos)
-    best, bc = cur, cc
+    cur, cc = pos, prob.cost(pos, weight=wt(0))
+    best, bc = cur, prob.cost(pos)
     for it in range(iters):
         t = 3.0 * (1 - it / iters) + 0.01
         nxt = dict(cur)
@@ -253,11 +301,15 @@ def search(prob, seed, iters):
             step = rnd.choice((0.05, 0.05, 0.1, 0.2, 0.5, 1.0))
             nxt[ref] = (round(min(max(x + rnd.choice((-1, 0, 1)) * step, -8.9), -2.2), 3),
                         round(min(max(y + rnd.choice((-1, 0, 1)) * step, 3.8), 10.0), 3), r)
-        nc = prob.cost(nxt)
+        w = wt(it)
+        if it % 1000 == 0:
+            cc = prob.cost(cur, weight=w)
+        nc = prob.cost(nxt, weight=w)
         if nc < cc or rnd.random() < math.exp((cc - nc) / t):
             cur, cc = nxt, nc
-            if cc < bc:
-                best, bc = cur, cc
+            full = prob.cost(cur)
+            if full < bc:
+                best, bc = cur, full
     return best
 
 

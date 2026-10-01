@@ -32,8 +32,9 @@ each other at the centre), with their small parts round them.  The top
 carries the high-side FETs, the motor and battery pads, the stack
 connector in the middle and the small parts that fit round it.
 
-Stackup (8 layers): F signals + power | In1 GND | In2 signals | In3 VBAT |
-In4 GND | In5 signals + channel return pours | In6 VBAT | B signals + power.
+Stackup (8 layers): F signals + power | In1 GND | In2 signals | In3 VBAT
+(signals under each channel's chips) | In4 GND | In5 signals + channel
+return pours | In6 VBAT | B signals + power.
 """
 import math, os
 import pcbnew
@@ -726,6 +727,19 @@ def src_ties(b, comps):
     return k
 
 
+def dsn_keepouts(b):
+    """The board handed to Freerouting (route.PRE_EXPORT): the power
+    copper's keepouts (routing_keepouts), and In3 a plane again.  On a
+    signal layer Freerouting takes a pour for copper no other net's via
+    may pass, and a keepout there for one no via may pass either: either
+    way the channel's lines lost every via through the FET row.  The maze
+    router (route_local, the repairs) has In3's windows (SIG_WINDOW): an
+    inner pour keeps its tracks out and lets its vias through."""
+    k = routing_keepouts(b)
+    b.SetLayerType(SIG_IN, pcbnew.LT_POWER)
+    return k
+
+
 def routing_keepouts(b):
     """Rule areas (no tracks, no vias) over the power copper, added only to
     the copy of the board handed to Freerouting, which treats pours as
@@ -773,8 +787,9 @@ def routing_keepouts(b):
     return k
 
 
-# Eight layers: F signals + power | In1 GND | In2 signals | In3 VBAT |
-# In4 GND | In5 signals + channel returns | In6 VBAT | B signals + power.
+# Eight layers: F signals + power | In1 GND | In2 signals | In3 VBAT
+# (signals under the chips, SIG_WINDOW) | In4 GND | In5 signals + channel
+# returns | In6 VBAT | B signals + power.
 # Every amp of the four motors crosses a ground plane and a battery plane
 # on its way from the battery pads to the FETs and back; on six layers
 # (rev 1: one plane each) that was 2.3 mOhm, the biggest single heat source
@@ -788,7 +803,24 @@ INNER_OZ = 1.0
 GND_PLANES = (pcbnew.In1_Cu, pcbnew.In4_Cu)
 VBAT_PLANES = (pcbnew.In3_Cu, pcbnew.In6_Cu)
 SRC_IN = pcbnew.In5_Cu         # the inner layer that carries the channel returns
-ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, SRC_IN, pcbnew.B_Cu]
+# Under each channel's two chips the battery plane on In3 gives way to
+# signals.  Every line from the FET row (gates, switch-node sense, the
+# back-EMF taps, the thermistor, the current amplifier) and every PWM line
+# ends round the MCU and the driver, whose pins take their escape vias in
+# their pads; with In2 and In5 alone (In5's return pour starts at
+# SRC_IN_INNER) the lines laid first walled the comparators' and the
+# current filter's pins in, and no routing reached them.  The battery's
+# current does not run there: it goes from the battery pads to the FET
+# rows round the board's edge, on In6 whole and on In3 outside the
+# windows; In3 keeps In4's ground beside it as the signals' reference.
+# Template frame (u, yr): the chips' strip, from the next channel's region
+# to the return pour's inner edge; the four turned windows clear each
+# other and the middle square.  The maze router (route_local, the
+# repairs) routes in them; Freerouting sees In3 as the plane it was
+# (dsn_keepouts).
+SIG_IN = pcbnew.In3_Cu
+SIG_WINDOW = [(-9.4, 3.7), (3.6, 3.7), (3.6, SRC_IN_INNER), (-9.4, SRC_IN_INNER)]
+ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, SIG_IN, SRC_IN, pcbnew.B_Cu]
 # the maze router's cell (mm): round the 0.5 mm-pitch escape vias its
 # rounding margin (1.2 cells) closes gaps a 0.05 mm grid cannot see
 FINISH_RES = 0.025
@@ -977,8 +1009,13 @@ def build(out_path):
         pcb.zone(b, 'GND', l, full, name='GND plane', thermal=False)
     for l in VBAT_PLANES:
         pcb.zone(b, 'VBAT', l, full, name='VBAT plane', thermal=False)
+    # the battery plane's windows for signals under the chips (SIG_WINDOW)
+    for n in CHANNELS:
+        pcb.rule_area(b, [xf_point(n, u, yr) for u, yr in SIG_WINDOW], [SIG_IN], tracks=False, vias=False,
+                      pads=False, pours=True, name='signal window')
     for l in cu[1:-1]:
-        b.SetLayerType(l, pcbnew.LT_POWER if l in GND_PLANES + VBAT_PLANES else pcbnew.LT_SIGNAL)
+        plane = l in GND_PLANES + VBAT_PLANES and l not in ROUTE_LAYERS
+        b.SetLayerType(l, pcbnew.LT_POWER if plane else pcbnew.LT_SIGNAL)
     print('power vias:', power_copper(b, comps))
     print('shunt ground vias:', shunt_vias(b, comps))
     print('gate stubs:', gate_stubs(b, comps))
@@ -1202,11 +1239,17 @@ def _first_keepouts(b, comps, half, ends):
     obs = stamp.foreign(b, parts, CHANNELS, stamp.counterparts(b, parts, CHANNELS), reg)
     # (inside the middle square they need not: a copy that runs into
     # something there is cut back to the square's edge, _band_part, and
-    # joined on from there)
+    # joined on from there.  Except vias, up to the copy's cut: a via
+    # copied onto a shared part's pad went, and with it the copy's way on
+    # to the next layer, leaving it to be joined on from a layer the
+    # middle has no room on.)
     core = box(pcb.CX - half, pcb.CY - half, pcb.CX + half, pcb.CY + half)
     for l, g in sorted(obs.items()):
         for q in stamp._simple(g.difference(core).simplify(0.01)):
             zs.append(pcb.rule_area(b, rel(q), [l], tracks=True, vias=True, pads=False, pours=False,
+                                    name='other channels'))
+        for q in stamp._simple(g.intersection(core).difference(inner).simplify(0.01)):
+            zs.append(pcb.rule_area(b, rel(q), [l], tracks=False, vias=True, pads=False, pours=False,
                                     name='other channels'))
     return zs
 
@@ -1215,7 +1258,7 @@ def _first_keepouts(b, comps, half, ends):
 def route_local(b, comps):
     """Joined by the maze router before anything else, and fixed:
       * each channel's lines that the board's router does not find
-        (FIRST_LINES), first: the sense, gate and PWM lines have the
+        (FIRST_LINES), first: the sense, gate, 3.3 V and PWM lines have the
         fewest ways through, the lines to the middle below have room to go
         round them;
       * the nets whose every pad is on a shared part (the stack lead's
@@ -1387,6 +1430,15 @@ def route_local(b, comps):
 #     and walled in that phase's gates.  Laid phase by phase, sense first,
 #     each gate line finds its crossing while the strip below the driver is
 #     still open.
+#   * the channel's 3.3 V (the driver's DVDD regulator to the MCU, the
+#     amplifier and their capacitors).  The MCU's two supply pins sit on
+#     opposite sides of the chip (VDDA left, VDD right, by the driver's
+#     regulator pin); the PWM line from the MCU's top edge (LC) passes
+#     under the chip to reach the far end of the driver's row, and laid
+#     before the supply it walled the right-hand pin off from the left on
+#     every layer it could take (no path for the repair either).  Laid
+#     first, the supply crosses under the chip on an inner layer, and the
+#     PWM line takes the other.
 #   * the MCU's six PWM lines, in the order of the driver's inputs (HA LA HB
 #     LB HC LC along its edge facing the middle).  The MCU's timer pins come
 #     round its corner as LC LB | LA HC HB HA, so three of them must cross
@@ -1394,7 +1446,7 @@ def route_local(b, comps):
 #     middle; the board's router, with the comparators' lines through the
 #     same strip, left two of them open in every routing.  Laid first, from
 #     the inner pin out, each takes the line beside the one before.
-FIRST_LINES = ('A', 'GHA', 'GLA', 'B', 'GLB', 'GHB', 'C', 'GLC', 'GHC', 'HA', 'LA', 'HB', 'LB', 'HC', 'LC')
+FIRST_LINES = ('A', 'GHA', 'GLA', 'B', 'GLB', 'GHB', 'C', 'GLC', 'GHC', 'DVDD', 'HA', 'LA', 'HB', 'LB', 'HC', 'LC')
 
 
 def _channel_keepouts(b, comps, n, reg):
