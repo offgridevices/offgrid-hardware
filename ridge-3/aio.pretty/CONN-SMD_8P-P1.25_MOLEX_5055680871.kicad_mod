@@ -1,0 +1,216 @@
+(footprint "CONN-SMD_8P-P1.25_MOLEX_5055680871"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "084f80ae-670c-4b83-bc53-78b260b1949b")
+		(effects
+			(font
+				(size 0.5 0.5)
+				(thickness 0.08)
+			)
+		)
+	)
+	(property "Value" "CONN-SMD_8P-P1.25_MOLEX_5055680871"
+		(at 0 5.187 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "549e5c9e-d137-4a34-89ac-a626a7f018fe")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "38f3c3c2-bcc4-4524-b69e-f2c7fdf900b8")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "194b73e7-41d6-49a5-9f43-d83bf8a981cc")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "LCSC Part" "C563987"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "ef0c910d-da01-411d-8e23-123357f9e6f2")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr smd)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -7.02 -2.67)
+		(end 7.02 -2.67)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "fe4fda3e-aa41-4a6f-858e-38e994e5d382")
+	)
+	(fp_line
+		(start -7.02 1.89)
+		(end -7.02 -2.67)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "a4bfbbfe-d0eb-4af2-bada-f00e33c718c4")
+	)
+	(fp_line
+		(start 7.02 -2.67)
+		(end 7.02 1.89)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "b90f250b-bba4-42f8-b693-64f3cdb7a700")
+	)
+	(fp_line
+		(start 7.02 1.89)
+		(end -7.02 1.89)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "18af708e-3a4d-4910-ae56-59604f0cb5d8")
+	)
+	(fp_line
+		(start -6.63 -2.57)
+		(end 6.62 -2.57)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "dc6bbffa-ebe1-4d69-94e1-475d8e9be3bc")
+	)
+	(fp_line
+		(start -6.63 1.28)
+		(end -6.63 -2.57)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "3863e961-f25a-4a26-a118-4478a66d8599")
+	)
+	(fp_line
+		(start 6.62 -2.57)
+		(end 6.62 1.28)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "09be3fc6-ea4d-44a2-832d-828d5132c3eb")
+	)
+	(fp_line
+		(start 6.62 1.28)
+		(end -6.63 1.28)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "4f189ee3-8387-46ac-af30-de5ac695793a")
+	)
+	(pad "1" smd rect
+		(at -4.38 1.19)
+		(size 0.8 1.2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "b984396c-1895-4bc0-b7b3-851b31c7f519")
+	)
+	(pad "2" smd rect
+		(at -3.13 1.19)
+		(size 0.8 1.2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "34dda89f-187b-4e95-8f3d-490cc31c54e8")
+	)
+	(pad "3" smd rect
+		(at -1.87 1.19)
+		(size 0.8 1.2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "491cdd48-aeec-4ea4-9419-a00f42791faa")
+	)
+	(pad "4" smd rect
+		(at -0.62 1.19)
+		(size 0.8 1.2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "ded719b4-0cd8-4939-99f1-1fab80bed914")
+	)
+	(pad "5" smd rect
+		(at 0.62 1.19)
+		(size 0.8 1.2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "61a8ea60-e2fc-4a17-8d7f-2d308be8fb00")
+	)
+	(pad "6" smd rect
+		(at 1.88 1.19)
+		(size 0.8 1.2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "6bdb98cb-fca6-42c3-a913-e77caf96b68b")
+	)
+	(pad "7" smd rect
+		(at 3.13 1.19)
+		(size 0.8 1.2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "cd459286-779b-437f-a82d-4b07bb8d6916")
+	)
+	(pad "8" smd rect
+		(at 4.38 1.19)
+		(size 0.8 1.2)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "df63eca4-e6ea-4403-b99f-c4594f739b10")
+	)
+	(pad "9" smd rect
+		(at 6.27 -1.19)
+		(size 1.3 2.15)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "592ead3a-e9bb-4202-9ffb-126feec9dbf8")
+	)
+	(pad "10" smd rect
+		(at -6.27 -1.19)
+		(size 1.3 2.15)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "5ab53bbf-18fb-49f5-b318-2357363c9610")
+	)
+	(embedded_fonts no)
+	(model "${KIPRJMOD}/../aio.3dshapes/CONN-SMD_8P-P1.25_MOLEX_5055680871.stpZ"
+		(offset
+			(xyz 0 0 0.06)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 180)
+		)
+	)
+)

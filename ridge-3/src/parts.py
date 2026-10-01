@@ -198,6 +198,47 @@ PARTS = {
                      mpn='DRV8300DRGER', value='DRV8300DRGER',
                      desc='100 V 3-phase gate driver, bootstrap diodes, VQFN-24 4x4', kind='U',
                      dk='296-DRV8300DRGERCT-ND', maker=TI),
+    # Rev 2 ESC MCU.  ST STM32G431KBU3, UFQFPN-32 5x5: TA -40..125 C, TJ
+    # 130 C (suffix 3, DS12589 rev 4 table 17), where the G071's suffix 6
+    # stops at TJ 105 C.  The only AM32-supported MCU in stock rated past
+    # 125 C junction (AM32 g431 port, hardware group G4_A; the bootloader
+    # repo has a g431 build).  Pins: 1 VDD, 2 PF0, 3 PF1, 4 NRST, 5-12
+    # PA0-PA7, 13 PB0, 14 VSSA, 15 VDDA, 16 VSS, 17 VDD, 18-25 PA8-PA15,
+    # 26-31 PB3-PB8, 32 VSS, 33 exposed pad.  EasyEDA land: 0.28 x 0.80 mm
+    # pads, EP 3.5 mm (ST: 0.30 x 0.55, EP 3.45).
+    # JLC 500 ext, $7.83 at 100 (2026-09-30).  DigiKey: 433 (research
+    # 2026-09-30); DK part number not recorded.
+    'STM32G431K': dict(fp='aio:UFQFPN-32_L5.0-W5.0-P0.50-BL-EP3.5', lcsc='C1341901',
+                       mpn='STM32G431KBU3', value='STM32G431KBU3',
+                       desc='ESC MCU Cortex-M4 170 MHz 128 KB, -40..125 C, UFQFPN-32 5x5', kind='U',
+                       maker='STMicroelectronics (Switzerland)'),
+    # Rev 2 ESC MCU.  Artery AT32F421G8U7, QFN-28 4x4 (0.4 mm pitch): Cortex-M4
+    # 120 MHz, TA -40..105 C, TJ 125 C (datasheet v2.02 tables 11, 8), where
+    # the STM32G071GBU6 stops at TJ 105 C.  AM32's f421 port, hardware
+    # groups AT_B + AT_045; AM32 reads an NTC thermistor only on Artery
+    # parts, so its temperature limit can watch the FETs.  The 5 x 5 mm
+    # STM32G431KBU3 (TJ 130 C) was the other candidate; with the 5 x 5 mm
+    # DRV8320H beside it there is no room for it on this board.  Pins:
+    # 1 BOOT0, 2 PF0, 3 PF1, 4 NRST, 5 VDDA, 6-13 PA0-PA7, 14 PB0, 15 PB1,
+    # 16 VSS, 17 VDD, 18-20 PA8-PA10, 21 PA13, 22 PA14, 23 PA15, 24-28
+    # PB3-PB7, 29 exposed pad (VSS).  EasyEDA land: 0.20 x 0.85 mm pads,
+    # EP 2.4 mm.  JLC 6,230 ext, $0.56 at 100 (2026-10-01).
+    'AT32F421G': dict(fp='aio:QFN-28_L4.0-W4.0-P0.40-TL-EP2.4', lcsc='C2765098',
+                      mpn='AT32F421G8U7', value='AT32F421G8U7',
+                      desc='ESC MCU Cortex-M4 120 MHz 64 KB, -40..105 C (TJ 125 C), QFN-28 4x4', kind='U',
+                      maker='Artery Technology'),
+    # Rev 2 gate driver.  TI DRV8320HRTVR, WQFN-32 5x5 (RTV): 6-60 V (65 V
+    # abs), TJ -40..150 C, smart gate drive with the gate current set by
+    # one resistor (IDRIVE, 7 levels, sink = 2 x source), 2 A hold-off of
+    # the other FET while one switches, charge-pump high side (no
+    # bootstrap), VDS overcurrent with 4 ms retry (TI SLVSDJ3D).  Pins as
+    # circuit.esc; 33 = exposed pad.  EasyEDA land 0.28 x 0.80 mm, EP 3.5
+    # (TI RTV0032E: EP 3.45).  VM supply current 10.5 mA typ, 14 max at
+    # 24 V (0.26-0.35 W from 6S, each).
+    # JLC 2,708 ext, $2.05 at 100; TI store 50,791 (2026-09-30).
+    'DRV8320H': dict(fp='aio:QFN-32_L5.0-W5.0-P0.50-TL-EP3.5', lcsc='C701782',
+                     mpn='DRV8320HRTVR', value='DRV8320H',
+                     desc='60 V 3-phase smart gate driver, IDRIVE by pin, WQFN-32 5x5', kind='U', maker=TI),
     # TI INA180A3IDBVR, 100 V/V, SOT-23-5: 1 OUT, 2 GND, 3 IN+, 4 IN-, 5 VS.
     # Common mode -0.2 to 26 V (low-side shunt: ~0 V).
     # JLC 89,459 ext, $0.19 / 0.14; DK web 296-47654-1-ND 4,197.
@@ -400,6 +441,17 @@ PARTS = {
     # FC battery TVS, SMA 400 W: VRWM 33 V, VBR 36.7 V min, VC 53.3 V at
     # 7.5 A.  Pad 1 = cathode.  JLC 11,560 ext, $0.11 / 0.09;
     # DK fc SMAJ33ALFCT-ND 46,757.
+    # Rev 2 ESC battery TVS: Littelfuse 5.0SMDJ33A, SMC (DO-214AB), 5 kW
+    # (10/1000 us), TJ 150 C, derated by Littelfuse's curve to about 62 %
+    # (3.1 kW) at a 120 C junction.  VRWM 33 V, VBR 36.7-40.6 V, VC 53.3 V
+    # at 93.9 A.  EasyEDA's symbol for this LCSC part: pad 1 anode, pad 2
+    # cathode (its band is on pad 2's side).  Alternates: ST SM30T39AY
+    # (3 kW, 175 C, AEC-Q101; LCSC C2965211, 0 in stock), Bourns
+    # 5.0SMDJ33A-Q.  JLC 1,087 ext (C2649871, $0.73, 2026-09-30).
+    'TVS_5SMDJ33A': dict(fp='aio:SMC_L6.9-W5.9-LS7.9-R-RD', lcsc='C2649871',
+                         mpn='5.0SMDJ33A', value='5.0SMDJ33A',
+                         desc='TVS 33 V stand-off, 53.3 V clamp, 5 kW, SMC', kind='D',
+                         maker='Littelfuse (USA)'),
     'SMAJ33A': dict(fp='aio:SMA_L4.3-W2.6-LS5.0-RD', lcsc='C223988',
                     mpn='SMAJ33A', value='SMAJ33A',
                     desc='TVS 33 V stand-off, 53.3 V clamp, 400 W, SMA', kind='D',
@@ -649,6 +701,13 @@ PARTS = {
     'R2K_0201':  R0201('2k', 'C327392', 'RC0201FR-072KL', 'YAG2280CT-ND'),
     # JLC 2,582,336 ext.
     'R10K_0201': R0201('10k', 'C106225', 'RC0201FR-0710KL', '311-10.0KMCT-ND'),
+    # FET thermistor: Murata NCU15XH103F60RC, 10k 1 % at 25 C, B25/50
+    # 3380 K, 0402, AEC-Q200, -40..125 C.  JLC 28,768 ext (2026-10-01).
+    'NTC10K': dict(fp='Resistor_SMD:R_0402_1005Metric', lcsc='C237326', mpn='NCU15XH103F60RC',
+                   value='NTC 10k B3380', desc='NTC thermistor 10k 1% B3380 0402', kind='R', maker=MURATA),
+    # DRV8320H IDRIVE setting (75k 5 %: the pin's level).  JLC 35,170 ext.
+    'R75K_0201': dict(fp='Resistor_SMD:R_0201_0603Metric', lcsc='C295816', mpn='RC0201FR-0775KL',
+                      value='75k', desc='Resistor 75k 1% 0201', kind='R', maker='Yageo (Taiwan)'),
     # =================================================================
     #  Capacitors.  Effective capacitance under DC bias from Murata's
     #  SimSurfing data (25 C) for the Murata part or its Murata equivalent.
@@ -725,6 +784,23 @@ PARTS = {
     # JLC 6,801 ext, $0.31 / 0.28; DK web 587-3167-1-ND 180,319.
     'C10U50_1210': C('10uF', C1210, 'C386167', 'UMK325AB7106KM-T', '50V X7R 1210',
                      '587-3167-1-ND', maker='Taiyo Yuden (Japan)'),
+    # ---- rev 2: every capacitor X7R / X7S (125 C) or better; the X5R
+    # (85 C) parts above are rev 1's.
+    # ESC bus capacitance: Murata GCJ32EC71H106KA01L, 10 uF 50 V X7S 1210,
+    # automotive, soft (resin) terminations.  At 25.2 V: about 5 uF
+    # (ASSUMPTION: Murata's data for the same-size GRM32ER71H106K gives
+    # 6.1 uF; X7S taken lower).  JLC 260 ext, $0.53 (2026-09-30); Murata
+    # makes it in volume (DigiKey not checked).
+    'C10U50_SOFT': C('10uF', C1210, 'C437431', 'GCJ32EC71H106KA01L', '50V X7S 1210 soft termination',
+                     maker=MURATA),
+    # 1 uF 25 V X7R 0603, Murata automotive (driver charge pump across
+    # VBAT and VCP at ~11 V, DVDD, MCU VDDA, buck VCC).  JLC 107,530 ext.
+    'C1U_25_X7R': C('1uF', C0603, 'C85862', 'GCM188R71E105KA64D', '25V X7R 0603', maker=MURATA),
+    # 10 uF 16 V X7R 0805 (3.3 V buck output).  JLC 395,906 ext.
+    'C10U_16_X7R': C('10uF', C0805, 'C95841', 'CL21B106KOQNNNE', '16V X7R 0805'),
+    # 47 nF 50 V X7R 0402, TDK automotive: the DRV8320's charge-pump
+    # flying capacitor (TI: 47 nF, VM-rated).  JLC 61,977 ext.
+    'C47N_50': C('47nF', C0402, 'C343051', 'CGA2B3X7R1H473KT0Y0F', '50V X7R 0402', maker='TDK (Japan)'),
 }
 
 # Things that are copper only: solder pads, test points, solder jumpers,

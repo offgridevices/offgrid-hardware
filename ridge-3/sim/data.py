@@ -102,6 +102,16 @@ CAPS = {
     'C_BRIDGE': ('X7R', 125.0, 'Murata GRM21BZ71H475KE15L'),
     'C10U50_1210': ('X7R', 125.0, 'Taiyo Yuden UMK325AB7106KM-T'),
 }
+CAPS_REV2 = {
+    'C100N': ('X7R', 125.0, 'Samsung CL05B104KB54PNC'),
+    'C1U_100': ('X7R', 125.0, 'Yageo CC0805KKX7R0BB105'),
+    'C1U_25_X7R': ('X7R', 125.0, 'Murata GCM188R71E105KA64D'),
+    'C10U_16_X7R': ('X7R', 125.0, 'Samsung CL21B106KOQNNNE'),
+    'C47N_50': ('X7R', 125.0, 'TDK CGA2B3X7R1H473KT0Y0F'),
+    'C_BRIDGE': ('X7R', 125.0, 'Murata GRM21BZ71H475KE15L'),
+    'C10U50_SOFT': ('X7S', 125.0, 'Murata GCJ32EC71H106KA01L'),
+    'C10U50_1210': ('X7R', 125.0, 'Taiyo Yuden UMK325AB7106KM-T'),
+}
 
 # ------------------------------------------------------------------ FC
 LMR38020F = dict(part='TI LMR38020F', rth_jb=13.6, tj_max=150.0, tsd=163.0,   # SNVSC40E 7.4, 7.3, 7.5
@@ -182,13 +192,39 @@ FC_LOAD_MAX = dict(i5=2.0, i9=2.0)      # both rails at their rating (circuit.py
 IIM42652 = dict(part='TDK IIM-42652', t_max=105.0, p=3.3 * 0.9e-3)      # DS -40..105 C; ~0.9 mA 6-axis LN: ASSUMPTION
 S25FL128L = dict(part='Infineon S25FL128LAGNFM010', t_max=125.0)       # -40..125 C, AEC-Q100 grade 1
 G071_6 = G071
-C_BRIDGE_REV2 = C_BRIDGE                # TBD: X7R or X8R 4.7 uF 50 V (research C)
+# ESC gate driver: TI DRV8320H (RTV), TI SLVSDJ3D (March 2022)
+DRV8320 = dict(
+    part='TI DRV8320H (RTV)', src='TI SLVSDJ3D, March 2022',
+    idrive=(0.01, 0.03, 0.06, 0.12, 0.26, 0.57, 1.0),  # A source, by the IDRIVE pin (7.5); sink = 2 x
+    sink_ratio=2.0,
+    r_pu=6.0, r_pd=1.5,                 # ohm near the rails: ASSUMPTION (as the DRV8300's, 7.5)
+    vgs=11.0,                           # V: VGSH / VGSL typ at VM >= 12-13 V (7.5)
+    dead_add=100e-9,                    # s after the other gate is seen low (8.3.1.3)
+    i_vm=(10.5e-3, 14e-3),              # A typ / max, VM = 24 V, not switching (7.5)
+    tj_max=150.0, ta_max=125.0, rth_jb=6.8, rth_ja=32.9,   # (7.3, 7.4)
+    i_strong=2.0,                       # A hold-off of the other gate for 4 us (8.3.1.3)
+    vds_ocp=0.6,                        # V: VDS pin open (7.5)
+)
+AT32F421 = dict(part='Artery AT32F421G8U7', tj_max=125.0, ta_max=105.0,      # datasheet v2.02 tables 11, 8
+                rth_jb=44.8,                    # thetaJA QFN28 4x4 (table 63), used as junction-to-board
+                p_run=3.3 * 20e-3)              # ~20 mA at 120 MHz, hot (table 18): ASSUMPTION within it
+TVS_5SMDJ33A = dict(part='Littelfuse 5.0SMDJ33A', vbr=(36.7, 40.6), vc=53.3, ipp=93.9,
+                    p_pk=5000.0, tj_max=150.0,  # 10/1000 us; derated to ~62 % at 120 C (Littelfuse curve)
+                    c=3.0e-9)                   # ASSUMPTION: junction capacitance at 0 V, 5 kW SMC class
+# On-board bus capacitance: twelve 10 uF 50 V X7S 1210 (Murata GCJ32EC71H106KA01L)
+CERAMIC_BULK = dict(desc='8 x Murata GCJ32EC71H106KA01L 10 uF 50 V X7S 1210 on the board',
+                    c=8 * 5.0e-6,               # ASSUMPTION 5 uF each at 25 V (Murata GRM32ER71H106K: 6.1)
+                    esr=3e-3 / 8,               # ASSUMPTION 3 mOhm each at 100 kHz
+                    esl=0.6e-9 / 8 + 0.3e-9,    # ASSUMPTION 0.6 nH each + the planes to them
+                    ripple=None, on_board=True, kind='ceramic')
+C_BRIDGE_REV2 = C_BRIDGE                # same part: Murata X7R (125 C), 0805
 
 # The designs (design.py switches the files, use() these figures).  Each
 # maps the generic names the simulations read to a part above.
 DESIGNS = {
     'rev1': dict(
-        FET=TPN2R304PL, AM32=dict(AM32), MCU_ESC=G071, GATE_LDO=TPS7A16, ESC_BUCK=MAX15062, CSA=INA186,
+        FET=TPN2R304PL, AM32=dict(AM32), DRIVER=dict(DRV8300, kind='gvdd', vgs=GVDD),
+        MCU_ESC=G071, GATE_LDO=TPS7A16, ESC_BUCK=MAX15062, CSA=INA186,
         C_BRIDGE=C_BRIDGE, BULK=dict(EXT_CAP, on_board=False), CAPS=dict(CAPS), ESC_TVS=None,
         BUCK5=LMR38020F, BUCK9=LM76003, V33=dict(TLV76733, kind='ldo'), MCU_FC=G473, OSD=AT7456E,
         GYRO=ICM45686, FLASH=W25Q128, STACK_CONN=JST_SH, HD_CONN=JST_SH, FC_TVS=SMF33A,
@@ -198,11 +234,12 @@ DESIGNS = {
     ),
     'rev2': dict(
         FET=ISZ023N06LM6,
-        AM32=dict(AM32, dead=125e-9,            # DEAD_TIME 8 at 64 MHz (firmware/am32 patch)
+        AM32=dict(AM32, dead=125e-9,            # DEAD_TIME 15 at 120 MHz (F421 target, firmware/am32)
                   f_min=24e3, f_max=24e3),      # fixed 24 kHz PWM (configurator)
-        MCU_ESC=G071, GATE_LDO=TPS7A16, ESC_BUCK=MAX15062, CSA=INA186,          # TBD (research E, D)
-        C_BRIDGE=C_BRIDGE_REV2, BULK=dict(EXT_CAP, on_board=True),               # TBD (research 6)
-        CAPS={k: ('X7R', 125.0, v[2]) for k, v in CAPS.items()}, ESC_TVS=None,     # TBD (research C, 7)
+        DRIVER=dict(DRV8320, kind='vm', i_src=0.06),   # IDRIVE 60 mA (circuit.IDRIVE)
+        MCU_ESC=AT32F421, GATE_LDO=None, ESC_BUCK=MAX15062, CSA=INA186,
+        C_BRIDGE=C_BRIDGE_REV2, BULK=CERAMIC_BULK,
+        CAPS=dict(CAPS_REV2), ESC_TVS=TVS_5SMDJ33A,
         BUCK5=LMR38020F, BUCK9=LM76003, V33=dict(TLV76733, kind='ldo'),           # TBD (research Bucks, 3V3)
         MCU_FC=G473, OSD=AT7456E, GYRO=IIM42652, FLASH=S25FL128L,
         STACK_CONN=JST_SH, HD_CONN=JST_SH, FC_TVS=SMF33A,                          # TBD (research A)
@@ -222,7 +259,17 @@ def use(name):
         g[k] = v
     g['BODY_DIODE'] = FET['body_diode']
     b = g['BRIDGE']
-    b.update(dead=AM32['dead'] + DRV8300['dead'][1], Cb=C_BRIDGE['c_bias'], ESRb=C_BRIDGE['esr'],
+    D = DRIVER
+    if D['kind'] == 'gvdd':             # DRV8300: fixed peak currents through Rg, bootstrap high side
+        b.update(Rg=10.0, gvdd=GVDD, vboot=GVDD - 0.8, ipu=D['i_source'][1], ipd=D['i_sink'][1],
+                 dead=AM32['dead'] + D['dead'][1])
+    else:                               # DRV8320: IDRIVE current, no gate resistor, charge pump
+        # dead time: the driver turns a gate on 100 ns after it sees the
+        # other one low (about Qg / sink current), or AM32's, if longer
+        t_fall = FET['qg_11v'] / (D['sink_ratio'] * D['i_src'])
+        b.update(Rg=0.5, gvdd=D['vgs'], vboot=D['vgs'], ipu=D['i_src'], ipd=D['sink_ratio'] * D['i_src'],
+                 dead=max(AM32['dead'], t_fall + D['dead_add']))
+    b.update(rpu=D['r_pu'], rpd=D['r_pd'], Cb=C_BRIDGE['c_bias'], ESRb=C_BRIDGE['esr'],
              ESLb=C_BRIDGE['esl'], Cb2=2 * C_BRIDGE['c_bias'], ESRb2=C_BRIDGE['esr'] / 2,
              Cext=BULK['c'], ESRext=BULK['esr'], ESLext=BULK['esl'])
     g['BUS'].update(Cbridge=12 * C_BRIDGE['c_bias'], ESRbridge=C_BRIDGE['esr'] / 12,

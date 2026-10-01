@@ -18,11 +18,12 @@ M3/M2-grommet pattern of the GEPRC TAKER G4 AIO that Phase 1 flew:
        HDZero, MSP DisplayPort), 5 V 2 A BEC and a switchable 9 V VTX BEC,
        all rated for 6S.  firmware/ has the board's Betaflight target,
        one build per gyro.
-  ESC  4 x (STM32G071GBU6 + DRV8300D + 6 x ISZ023N06LM6 60 V FETs + 0.5 mOhm
-       shunt and INA186 current sense), 2-6S, wired to the AM32 target
-       RIDGE3_G071 (firmware/am32).
+  ESC  4 x (AT32F421G8U7 + DRV8320H + 6 x ISZ023N06LM6 60 V FETs + 0.5 mOhm
+       shunt and INA186 current sense + FET thermistor), 2-6S, wired to
+       the AM32 target RIDGE3_F421 (firmware/am32).
 
-They connect through one 8-pin JST-SH lead, pin 1 to pin 1:
+They connect through one 8-wire lead, soldered at the ESC, plugged at the
+flight controller (Molex Micro-Lock Plus), pin 1 to pin 1:
 """
 
 # The FPV-standard 8-pin flight-controller <-> 4-in-1 ESC pinout.
@@ -384,75 +385,68 @@ def fc_core():
 # =====================================================================
 #  4-IN-1 ESC BOARD
 # =====================================================================
+# the ESC's bus ceramics (esc_power)
+BULK_N = 8
+
+
 def esc_power():
     B = 'power'
-    # Battery pads, sized for 14-16 AWG.  The pigtail and the low-ESR bulk
-    # capacitors (2 x 100 uF 50 V, soldered across these pads) land here.
+    # Battery pads, sized for 14-16 AWG.  Nothing hangs on the leads: the
+    # bus capacitance is on the board (below).
     add('P', 'PAD_BAT', {'1': 'VBAT'}, B, 'BAT+', ref='P_BAT+')
     add('P', 'PAD_BAT_K', {'1': GND, '2': 'FC_GND'}, B, 'BAT-', ref='P_BAT-')
-    # No TVS of its own: the capacitors across these pads and the twelve
-    # bridge capacitors are what holds the FETs under 40 V, and the flight
-    # controller's TVS sits on the same battery line through the stack
-    # lead.  The board's middle has no room left for one.
-    # To the flight controller.  CUR is the average of the four channels'
-    # current-sense outputs.  TLM is not driven: bidirectional DShot
-    # carries RPM, and AM32's serial telemetry is left unwired.
-    # Ground: the lead's GND pin is FC_GND, which reaches the ground plane
-    # only at the battery pad, through a copper tap of its own (the
-    # battery pad's Kelvin pad, PAD_BAT_K).  The flight controller's video
-    # supply has its own wires from these battery pads, so its ground
-    # meets the ESC's twice: through the lead and through those wires.  Were
-    # the lead's GND pin on the plane where the connector sits, the motor
-    # current's drop across the plane between the battery pad and the
-    # connector (100 mV at 20 A a motor, rev 1) would drive current round
-    # that loop, 1.6 A through the lead's 1 A contact (STRESS.md).  From the
+    # Surge clamp at the battery pads: Littelfuse 5.0SMDJ33A, 5 kW
+    # (10/1000 us), 33 V stand-off, breaking down at 36.7-40.6 V and
+    # clamping 53.3 V at 94 A: under the 60 V FETs.  33 V, not 28 V: a
+    # throttle chop into a tired pack lifts the bus to about 35 V for
+    # milliseconds (STRESS.md), which a 28 V part would try to absorb.
+    # Pad 2 is the cathode (EasyEDA's symbol for this part: 1 A, 2 K).
+    add('D', 'TVS_5SMDJ33A', {'1': GND, '2': 'VBAT'}, B, 'battery TVS', ref='D_TVS')
+    # Bus capacitance: BULK_N 10 uF 50 V 1210 ceramics (about 5 uF each at
+    # 25 V) on the planes, as many as the board takes.  An electrolytic here would carry
+    # 4-10 A of the channels' ripple against a 0.5-3.6 A rating (sim
+    # scratch study, STRESS.md); the ceramics share it at about 0.5 A
+    # each.  Murata GCJ: soft (resin) terminations, so board flex cracks
+    # the termination, not the dielectric, and a cracked part opens
+    # instead of shorting the battery.
+    for k in range(BULK_N):
+        cap('C10U50_SOFT', 'VBAT', GND, B, 'bus bulk %d' % (k + 1))
+
+    # The lead to the flight controller, soldered: one pad per wire,
+    # VBAT, FC_GND, CUR and the four motor signals (the flight controller
+    # has the connector).  No connector on the ESC: its middle runs past
+    # 100 C in hard flying on a hot day (STRESS.md), and a solder joint to
+    # silicone-insulated wire has no such limit.
+    # CUR is the average of the four channels' current-sense outputs.
+    # Ground: FC_GND reaches the ground plane only at the battery pad,
+    # through a copper tap of its own (the battery pad's Kelvin pad,
+    # PAD_BAT_K).  The flight controller's video supply has its own wires
+    # from these battery pads, so its ground meets the ESC's twice: through
+    # the lead and through those wires.  Were the lead's ground on the plane
+    # anywhere else, the motor current's drop across the plane between the
+    # battery pad and that point (100 mV at 20 A a motor, rev 1) would
+    # drive current round that loop, 1.6 A in rev 1 (STRESS.md).  From the
     # battery pad itself the loop carries only the FC's own current.  A
-    # 100 nF capacitor joins FC_GND to the plane at the connector, so the
-    # fast edges of the motor signals still return by the shortest way.
-    add('J', 'SH8_V', dict(STACK_PINS, **{'2': 'FC_GND', '4': None, '9': None, '10': None}), B,
-        'to flight controller (pads 9/10 are mechanical tabs)', ref='J_FC')
-    cap('C100N', 'FC_GND', GND, B, 'stack ground AC tie')
-    # The same lead soldered instead: one pad per wire.  The JST-SH plug is
-    # rated to 85 C including its own heating (JST); the ESC's middle
-    # passes that in hard flying on a hot day (STRESS.md), where a soldered
-    # silicone-insulated lead has no such limit.
+    # 100 nF capacitor joins FC_GND to the plane at the pads, so the fast
+    # edges of the motor signals still return by the shortest way.
     for ref, net in (('P_LV', 'VBAT'), ('P_LG', 'FC_GND'), ('P_LC', 'CUR'), ('P_L1', 'M1_SIG'),
                      ('P_L2', 'M2_SIG'), ('P_L3', 'M3_SIG'), ('P_L4', 'M4_SIG')):
         add('P', 'PAD_SIG', {'1': net}, B, 'stack lead pad', ref=ref)
+    cap('C100N', 'FC_GND', GND, B, 'stack ground AC tie')
     for n in (1, 2, 3, 4):
         res('R10K_0201', 'M%d_IOUT' % n, 'CUR', B, 'CUR average %d' % n)
     cap('C100N', 'CUR', GND, B, 'CUR filter')
 
-    # 3.3 V for the four MCUs and current-sense amplifiers (about 60 mA):
+    # 3.3 V for the four MCUs, current-sense amplifiers and thermistors (about 80 mA):
     # ADI MAX15062A (60 V in, fixed 3.3 V, 300 mA), 33 uH per its table 1.
     # MODE to ground: fixed-frequency PWM.
     add('U', 'MAX15062A', {'1': 'VBAT', '2': 'VBAT', '3': 'BUCK_VCC', '4': '+3V3',
                            '5': GND, '6': None, '7': GND, '8': 'BUCK_LX'},
         B, 'ESC 3.3V buck', ref='U_BUCK')
     cap('C1U_100', 'VBAT', GND, B, 'buck input')
-    cap('C1U_25', 'BUCK_VCC', GND, B, 'buck VCC')
+    cap('C1U_25_X7R', 'BUCK_VCC', GND, B, 'buck VCC')
     add('L', 'L33U', {'1': 'BUCK_LX', '2': '+3V3'}, B, 'buck inductor', ref='L1')
-    cap('C10U_25', '+3V3', GND, B, 'buck output')
-    add('LED', 'LED_RED', {'1': GND, '2': 'LED_PWR_A'}, B, 'power LED', ref='LED_PWR')   # pad 1 cathode
-    res('R1K_0201', '+3V3', 'LED_PWR_A', B, 'power LED')
-
-    # Gate-drive supply for the four DRV8300s: TI TPS7A1601 LDO at 11.3 V
-    # (1.169 V x (1 + 88.7k / 10.2k)); 57% of the FETs' +/-20 V gate
-    # rating and of the driver's 20 V GVDD maximum; 42% of its own 60 V
-    # input rating on 6S.  About 25 mA worst case (25% of 100 mA); at
-    # (25.2 - 11.3) V that is 0.35 W, +16 C through its 44.5 C/W package.
-    # 22 ohm + 1 uF ahead of it blunt spikes.  On 2S it passes the pack
-    # through at about VBAT - 0.8 V.  PG and DELAY unused, EN on IN.
-    add('U', 'TPS7A1601', {'1': 'GVDD', '2': 'GVDD_FB', '3': None, '4': GND, '5': 'GVDD_IN',
-                           '6': None, '7': None, '8': 'GVDD_IN', '9': GND},
-        B, 'gate-drive LDO', ref='U_GVDD')
-    res('R22R', 'VBAT', 'GVDD_IN', B, 'gate-drive LDO input filter')
-    cap('C1U_100', 'GVDD_IN', GND, B, 'gate-drive LDO input')
-    res('R88K7', 'GVDD', 'GVDD_FB', B, 'gate-drive LDO feedback top')
-    res('R10K2', 'GVDD_FB', GND, B, 'gate-drive LDO feedback bottom')
-    # TI asks >= 2.2 uF: the bridge capacitor (4.7 uF 50 V 0805) keeps
-    # 2.26 uF at 11.4 V (Murata bias data, parts.py)
-    cap('C_BRIDGE', 'GVDD', GND, B, 'gate-drive LDO output')
+    cap('C10U_16_X7R', '+3V3', GND, B, 'buck output')
 
     # Shared battery-voltage divider for AM32: 100k / 10k, ratio 11
     # (TARGET_VOLTAGE_DIVIDER 110): 25.2 V -> 2.29 V at PA6.
@@ -466,73 +460,107 @@ def esc_power():
     add('TP', 'PAD_TP', {'1': '+3V3'}, B, 'SWD 3V3', ref='TP_3V3')
     add('TP', 'PAD_TP', {'1': GND}, B, 'SWD GND', ref='TP_GND')
 
-# One ESC channel.  Wired to AM32 hardware group G0_A (targets.h), which
-# the RIDGE3_G071 target in firmware/am32 uses, on the STM32G071's 28-pin
-# package (pin numbers: DS12232 table 12, "GP" version):
-#   input PB4 (TIM3_CH1)
-#   phase A: high PA10 (pad PA12, remapped), low PB1, comparator PB7
-#   phase B: high PA9  (pad PA11, remapped), low PB0, comparator PB3
-#   phase C: high PA8, low PA7, comparator PA2
-#   virtual neutral PA3 (COMP2 +), current PA5, battery voltage PA6
+# The DRV8320H's gate current, set by its IDRIVE pin (TI SLVSDJ3D table
+# 7-2): source / sink 10/20, 30/60, 60/120, 120/240, 260/520, 570/1140 or
+# 1000/2000 mA.  The level is chosen on the half-bridge simulation
+# (sim/spice.py, STRESS.md): the lowest peak drain voltage that keeps the
+# switching loss in the thermal budget.
+#   value: (source A, what the pin connects to: None = open, else (part, net))
+IDRIVE_LEVELS = {0.06: ('R75K_0201', GND), 0.12: None, 0.26: ('R75K_0201', 'DVDD')}
+IDRIVE = 0.06
+
+# One ESC channel.  Wired to AM32 hardware groups AT_B + AT_045 (targets.h:
+# SKYSTARS_F80_F421 and others), which the RIDGE3_F421 target in
+# firmware/am32 uses, on the Artery AT32F421G8U7's QFN-28 (pin numbers:
+# AT32F421 datasheet figure 5, table 5):
+#   input PB4 (TMR3_CH1)
+#   phase A: high PA10, low PB1, comparator PA0
+#   phase B: high PA9,  low PB0, comparator PA4
+#   phase C: high PA8,  low PA7, comparator PA5
+#   virtual neutral PA1 (the comparator's + input)
+#   battery voltage PA3, current PA6, FET thermistor PA2 (USE_NTC: AM32's
+#   temperature limit then reads the power stage itself, not the MCU die)
 def esc(n):
     B = 'esc%d' % n
     p = lambda s: 'M%d_%s' % (n, s)
-    add('U', 'STM32G071G', {
-        '1': None, '2': None,                   # PC14/PC15
-        '3': '+3V3',                            # VDD/VDDA
-        '4': GND,                               # VSS/VSSA
-        '5': p('NRST'),
-        '6': None, '7': None,                   # PA0/PA1
-        '8': p('CMP_C'),                        # PA2
-        '9': p('NEUTRAL'),                      # PA3
-        '10': None,                             # PA4
-        '11': p('ISENSE'),                      # PA5  ADC_IN5
-        '12': 'ESC_VSENSE',                     # PA6  ADC_IN6
-        '13': p('LC'),                          # PA7  TIM1_CH1N
-        '14': p('LB'),                          # PB0  TIM1_CH2N
-        '15': p('LA'),                          # PB1  TIM1_CH3N
-        '16': p('HC'),                          # PA8  TIM1_CH1
-        '17': None,                             # PC6
-        '18': p('HB'),                          # PA11 [PA9]  TIM1_CH2
-        '19': p('HA'),                          # PA12 [PA10] TIM1_CH3
-        '20': p('SWDIO'),                       # PA13
-        '21': p('SWCLK'),                       # PA14-BOOT0
-        '22': None,                             # PA15
-        '23': p('CMP_B'),                       # PB3
-        '24': p('SIG'),                         # PB4  DShot in (and bootloader)
-        '25': None, '26': None,                 # PB5, PB6 (serial telemetry: unwired)
-        '27': p('CMP_A'),                       # PB7
-        '28': None,                             # PB8
+    add('U', 'AT32F421G', {
+        '1': p('BOOT0'),                        # BOOT0: low, boot from flash
+        '2': None, '3': None,                   # PF0, PF1
+        '4': p('NRST'),
+        '5': '+3V3',                            # VDDA
+        '6': p('CMP_A'),                        # PA0  CMP-
+        '7': p('NEUTRAL'),                      # PA1  CMP+
+        '8': p('NTC'),                          # PA2  ADC_IN2
+        '9': 'ESC_VSENSE',                      # PA3  ADC_IN3
+        '10': p('CMP_B'),                       # PA4  CMP-
+        '11': p('CMP_C'),                       # PA5  CMP-
+        '12': p('ISENSE'),                      # PA6  ADC_IN6
+        '13': p('LC'),                          # PA7  TMR1_CH1C
+        '14': p('LB'),                          # PB0  TMR1_CH2C
+        '15': p('LA'),                          # PB1  TMR1_CH3C
+        '16': GND,                              # VSS
+        '17': '+3V3',                           # VDD
+        '18': p('HC'),                          # PA8  TMR1_CH1
+        '19': p('HB'),                          # PA9  TMR1_CH2
+        '20': p('HA'),                          # PA10 TMR1_CH3
+        '21': p('SWDIO'),                       # PA13
+        '22': p('SWCLK'),                       # PA14
+        '23': None, '24': None,                 # PA15, PB3
+        '25': p('SIG'),                         # PB4  DShot in (and bootloader)
+        '26': None, '27': None, '28': None,     # PB5, PB6, PB7
+        '29': GND,                              # exposed pad
     }, B, 'ESC %d MCU' % n, ref='U_ESC%d' % n)
-    # 100 nF at the VDD pin for the fast edges; the 4.7 uF of bulk ST asks
-    # for is shared: the buck's 10 uF output capacitor on the same +3V3
-    # copper (bulk serves the slow load steps, where a centimetre of copper
-    # adds nothing that matters)
+    # 100 nF at VDD and at VDDA for the fast edges; the bulk is the buck's
+    # 10 uF on the same +3V3 copper
     cap('C100N', '+3V3', GND, B, 'U_ESC%d VDD' % n)
+    cap('C100N', '+3V3', GND, B, 'U_ESC%d VDDA' % n)
     cap('C100N', p('NRST'), GND, B, 'U_ESC%d reset filter' % n)
+    res('R10K_0201', p('BOOT0'), GND, B, 'U_ESC%d BOOT0' % n)
+    # The power stage's temperature: a 10k NTC (Murata NCU15XH103F60RC,
+    # B 3380 K) at the channel's FETs, from PA2 to ground, under a 10k from
+    # +3V3 (AM32's NTC_table for it is in firmware/am32).
+    add('RT', 'NTC10K', {'1': p('NTC'), '2': GND}, B, 'ESC %d FET thermistor' % n, ref='RT%d' % n)
+    res('R10K_0201', '+3V3', p('NTC'), B, 'thermistor bias')
 
-    # Gate driver: TI DRV8300D (bootstrap diodes inside).  MODE and DT
-    # open: inputs non-inverting, 215 ns dead time of its own on top of
-    # AM32's.  10 ohm in every gate keeps the switch-node slew near the
-    # 2 V/ns the D variant specifies (tune on a scope).
-    add('U', 'DRV8300D', {
-        '1': p('LA'), '2': p('LB'), '3': p('LC'),           # INLA..C
-        '4': 'GVDD', '5': None, '6': GND, '7': None, '8': None,
-        '9': p('GLC_D'), '10': p('GLB_D'), '11': p('GLA_D'),
-        '12': p('C'), '13': p('GHC_D'), '14': p('BSTC'),    # SHC GHC BSTC
-        '15': p('B'), '16': p('GHB_D'), '17': p('BSTB'),    # SHB GHB BSTB
-        '18': p('A'), '19': p('GHA_D'), '20': p('BSTA'),    # SHA GHA BSTA
-        '21': None,                                         # DT open
-        '22': p('HA'), '23': p('HB'), '24': p('HC'),        # INHA..C
-        '25': GND,                                          # exposed pad
+    # Gate driver: TI DRV8320H (smart gate drive, hardware interface).
+    #   MODE to ground: 6x PWM, INHx / INLx straight from the MCU's timer.
+    #   IDRIVE: the gate current, above.  The driver sources and sinks
+    #     that current (sink twice source) and holds the other FET of the
+    #     leg off with 2 A (ISTRONG) while one switches, then 50 mA: no
+    #     gate resistors.
+    #   VDS open (Hi-Z): overcurrent trip at 0.6 V across a conducting FET,
+    #     150 A hot, a short, not a hard punch; 4 ms automatic retry.
+    #   The high side runs from its charge pump (VCP), not bootstrap
+    #     capacitors, so 100 % duty holds.  Its dead time: it waits for the
+    #     other gate to fall, then 100 ns, on top of AM32's own.
+    #   ENABLE on +3V3: the driver wakes with the MCU's supply.  nFAULT is
+    #     not read (AM32 has no use for it).
+    add('U', 'DRV8320H', {
+        '1': p('CPH'), '32': p('CPL'), '2': p('VCP'), '3': 'VBAT', '4': 'VBAT',   # VM, VDRAIN
+        '5': p('GHA'), '6': p('A'), '7': p('GLA'), '8': p('SRC'),
+        '9': p('SRC'), '10': p('GLB'), '11': p('B'), '12': p('GHB'),
+        '13': p('GHC'), '14': p('C'), '15': p('GLC'), '16': p('SRC'),
+        '17': None,                             # nFAULT
+        '18': GND,                              # MODE: 6x PWM
+        '19': p('IDRIVE') if IDRIVE_LEVELS[IDRIVE] else None,
+        '20': None,                             # VDS: Hi-Z, 0.6 V
+        '21': None,                             # NC
+        '22': '+3V3',                           # ENABLE
+        '23': GND,                              # AGND
+        '24': p('DVDD'),
+        '25': p('HA'), '26': p('LA'), '27': p('HB'), '28': p('LB'), '29': p('HC'), '30': p('LC'),
+        '31': GND,                              # PGND
+        '33': GND,                              # exposed pad
     }, B, 'ESC %d gate driver' % n, ref='U_GD%d' % n)
-    cap('C1U_25', 'GVDD', GND, B, 'driver GVDD')
-    cap('C100N', 'GVDD', GND, B, 'driver GVDD HF')
+    cap('C100N', 'VBAT', GND, B, 'driver VM')
+    cap('C1U_25_X7R', p('VCP'), 'VBAT', B, 'driver charge pump')
+    cap('C47N_50', p('CPH'), p('CPL'), B, 'driver flying cap')
+    cap('C1U_25_X7R', p('DVDD'), GND, B, 'driver DVDD')
+    lvl = IDRIVE_LEVELS[IDRIVE]
+    if lvl:
+        res(lvl[0], p('IDRIVE'), p('DVDD') if lvl[1] == 'DVDD' else lvl[1], B, 'driver IDRIVE')
 
     for ph in 'ABC':
-        cap('C1U_16_0201', p('BST' + ph), p(ph), B, 'bootstrap ' + ph)
-        res('R10R_0201', p('GH%s_D' % ph), p('GH' + ph), B, 'gate high ' + ph)
-        res('R10R_0201', p('GL%s_D' % ph), p('GL' + ph), B, 'gate low ' + ph)
         # Half-bridge of two 60 V FETs.  Pads 1-3 source, 4 gate, 5-8 and
         # the tab (9) drain.  The low side's source goes to the channel's
         # sense node, which returns to ground through the shunt.
@@ -553,14 +581,12 @@ def esc(n):
         # star sits at the mean of the three CMP nodes, so CMP - NEUTRAL
         # crosses zero where the phase crosses the mean of the three phases,
         # as a star of the phases themselves would; the comparator sees
-        # 10k / (10k + 20k || 2k) = 0.85 of that difference.  The star is
-        # made on the MCU's side of the FET row from nets that are there
-        # already, so it adds no line across the row.
+        # 10k / (10k + 20k || 2k) = 0.85 of that difference.
         res('R10K_0201', p('CMP_' + ph), p('NEUTRAL'), B, 'neutral ' + ph)
 
     # Current sense: 0.5 mOhm from the sense node to ground, read by an
-    # INA186A3 (100 V/V): 50 mV/A at PA5 through 1k / 100 nF (1.6 kHz).
-    # 0.2 W in the shunt at 20 A (3% of 6 W).
+    # INA186A3 (100 V/V): 50 mV/A at PA6 through 1k / 100 nF (1.6 kHz).
+    # 0.2 W in the shunt at 20 A.
     # The shunt's footprint has Kelvin sense pads (3 on the sense-node end,
     # 4 on the ground end, net-tied to the current pads), so the amplifier
     # reads the voltage across the resistor itself, not across the pour or
