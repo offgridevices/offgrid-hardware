@@ -26,10 +26,10 @@ index 3250b68..15e7543 100644
  #endif
  
 diff --git a/Inc/targets.h b/Inc/targets.h
-index 38c7e8f..40e7572 100644
+index 38c7e8f..958a7be 100644
 --- a/Inc/targets.h
 +++ b/Inc/targets.h
-@@ -572,6 +572,33 @@
+@@ -572,6 +572,36 @@
  #endif
  
  
@@ -38,9 +38,10 @@ index 38c7e8f..40e7572 100644
 +// source / 120 mA sink), 60 V Infineon OptiMOS 6 FETs, 2S-6S.  Pins are
 +// HARDWARE_GROUP_AT_B + AT_045's: input PB4; phase A PA10/PB1, B PA9/PB0,
 +// C PA8/PA7 (TMR1); comparators A PA0, B PA4, C PA5, neutral PA1.
-+// Battery: 100k/10k (ratio 11) at PA3; current: 0.5 mOhm shunt x INA186A3
-+// (100 V/V) = 50 mV/A at PA6, 0 A = 0 V; both are the MCU_AT421 defaults.
-+// FET temperature: a 10k NTC beside the channel's FETs at PA2 (ADC_IN2),
++// Battery: 100k/10k (ratio 11) at PA2 (ADC_IN2; MCU_AT421's default is
++// PA3, which the board gives the thermistor); current: 0.5 mOhm shunt x
++// INA186A3 (100 V/V) = 50 mV/A at PA6, 0 A = 0 V, the MCU_AT421 default.
++// FET temperature: a 10k NTC beside the channel's FETs at PA3 (ADC_IN3),
 +// so the temperature limit reads the power stage (NTC_table, ntc_tables.h).
 +// DEAD_TIME: TMR1 at 120 MHz, 15 counts = 125 ns.  The DRV8320H turns a
 +// gate on only after it sees the other gate discharged, then waits its
@@ -55,9 +56,11 @@ index 38c7e8f..40e7572 100644
 +#define MILLIVOLT_PER_AMP 50
 +#define CURRENT_OFFSET 0
 +#define TARGET_VOLTAGE_DIVIDER 110
++#define VOLTAGE_ADC_CHANNEL ADC_CHANNEL_2
++#define VOLTAGE_ADC_PIN GPIO_PINS_2
 +#define USE_NTC
-+#define NTC_ADC_CHANNEL ADC_CHANNEL_2
-+#define NTC_ADC_PIN GPIO_PINS_2
++#define NTC_ADC_CHANNEL ADC_CHANNEL_3
++#define NTC_ADC_PIN GPIO_PINS_3
 +#endif
 +
  #ifdef  GEPRC_12S_F421

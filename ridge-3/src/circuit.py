@@ -516,8 +516,11 @@ IDRIVE = 0.06
 #   phase B: high PA9,  low PB0, comparator PA4
 #   phase C: high PA8,  low PA7, comparator PA5
 #   virtual neutral PA1 (the comparator's + input)
-#   battery voltage PA3, current PA6, FET thermistor PA2 (USE_NTC: AM32's
-#   temperature limit then reads the power stage itself, not the MCU die)
+#   battery voltage PA2, current PA6, FET thermistor PA3 (USE_NTC: AM32's
+#   temperature limit then reads the power stage itself, not the MCU die).
+#   (The target swaps AM32's PA3 voltage default for PA2: the thermistor's
+#   bias resistor sits on top over PA3's pad, its own net's via in its pad,
+#   and the battery line's via goes in PA2's.)
 def esc(n):
     B = 'esc%d' % n
     p = lambda s: 'M%d_%s' % (n, s)
@@ -528,8 +531,8 @@ def esc(n):
         '5': p('DVDD'),                         # VDDA
         '6': p('CMP_A'),                        # PA0  CMP-
         '7': p('NEUTRAL'),                      # PA1  CMP+
-        '8': p('NTC'),                          # PA2  ADC_IN2
-        '9': 'ESC_VSENSE',                      # PA3  ADC_IN3
+        '8': 'ESC_VSENSE',                      # PA2  ADC_IN2
+        '9': p('NTC'),                          # PA3  ADC_IN3
         '10': p('CMP_B'),                       # PA4  CMP-
         '11': p('CMP_C'),                       # PA5  CMP-
         '12': p('ISENSE'),                      # PA6  ADC_IN6

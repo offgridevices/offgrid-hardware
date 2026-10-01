@@ -981,12 +981,13 @@ def check_esc_pins():
           len(pin_groups) == 1 and cdefine(c_block(tgt, pin_groups[0]), 'MCU_AT421') == ''
           and td('FILE_NAME') == '"%s"' % AM32_TARGET and 0 < len(fname) <= name_max)
     blocks = [tb] + [c_block(tgt, g) for g in groups]
-    over = [k for k in ('CURRENT_ADC_PIN', 'VOLTAGE_ADC_PIN', 'CURRENT_ADC_CHANNEL', 'VOLTAGE_ADC_CHANNEL', 'PA2_VOLTAGE',
+    over = [k for k in ('CURRENT_ADC_PIN', 'CURRENT_ADC_CHANNEL', 'PA2_VOLTAGE',
                         'USE_ADC_INPUT', 'NO_CURRENT_SENSE', 'USE_SERIAL_TELEMETRY', 'USE_INVERTED_LOW',
                         'USE_INVERTED_HIGH', 'PWM_ENABLE_BRIDGE')
             if any(cdefine(b, k) is not None for b in blocks)]
-    check(S, '%s and its groups leave the MCU_AT421 ADC defaults alone (no ADC pin overrides, PA2_VOLTAGE or '
-             'USE_ADC_INPUT), current sense on, no USE_SERIAL_TELEMETRY, and drive the gates non-inverted (no '
+    check(S, '%s and its groups leave the MCU_AT421 current-sense default alone (no current ADC pin override, '
+             'PA2_VOLTAGE or USE_ADC_INPUT; the voltage and thermistor pins are the target\'s, checked against the '
+             'board below), current sense on, no USE_SERIAL_TELEMETRY, and drive the gates non-inverted (no '
              'USE_INVERTED_LOW / _HIGH, no PWM_ENABLE_BRIDGE: in 6x PWM mode the DRV8320H takes INHx / INLx active high, '
              'SLVSDJ3D 8.3.1.1.1)' % AM32_TARGET, not over, ', '.join(over))
     cant = ['%s (pin %s) cannot be %s' % (p, AT32_PIN.get(p), '/'.join(sorted(f))) for p, (_, f) in want.items()

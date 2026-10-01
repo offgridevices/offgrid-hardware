@@ -47,6 +47,7 @@ PITCH = 5.0          # phase spacing: a 1.7 mm gap between FETs for the channel'
 # as it lies (bottom, turned half round), C and B along its FET-side row,
 # A down its +u side
 PH_U = {'C': -PITCH, 'B': 0.0, 'A': PITCH}
+SHUNT_PHASE = 'C'    # the phase beside the shunt (the channel's -u end)
 Y_HS = 12.3          # high-side FET centre (top)
 Y_LS = 14.7          # low-side FET centre (bottom), its drain under the motor pad
 Y_CAP = 11.35        # bridge capacitor (bottom, along the row): between the driver and the low side
@@ -89,8 +90,11 @@ def template():
         # return's inner edge (its vias, VBAT_VIAS), its return pad (2) at
         # +u sits in the return strip above the low-side source pins.
         # (Upright, 3.5 mm of courtyard, it does not fit the 2.9 mm between
-        # the driver and the low side.)
-        t['CBR_' + ph] = (u, Y_CAP, 0, 'B')
+        # the driver and the low side.)  The phase beside the shunt
+        # (SHUNT_PHASE) has it turned round: there its return pad faces the
+        # shunt, so the return reaches the shunt's sense pad on the bottom
+        # past it (the battery pad there walled the shunt's pocket off).
+        t['CBR_' + ph] = (u, Y_CAP, 180 if ph == SHUNT_PHASE else 0, 'B')
         # back-EMF: the phase-side 20k resistor on the bottom beside the
         # low-side drain it taps, in a gap between the FETs (RBH).  Pin 1
         # is the phase end; it reaches its drain copper through a short tab
@@ -136,9 +140,9 @@ def template():
     # MCU: supply and reset capacitors, the thermistor's bias, the
     # back-EMF dividers' low legs and the neutral star
     t['C_VDD'] = (-4.0, 6.0, 180, 'T')
-    t['C_VDDA'] = (-7.2, 6.2, 270, 'T')       # DVDD beside the bias resistor's, ground out to its plane via
+    t['C_VDDA'] = (-7.2, 6.2, 90, 'T')
     t['C_RST'] = (-6.9, 7.7, 0, 'T')
-    t['R_NTB'] = (-6.9, 5.1, 90, 'T')         # its NTC pad over pin 8, clear of pin 9's via
+    t['R_NTB'] = (-6.3, 5.1, 90, 'T')         # its NTC pad over the thermistor pin's (PA3) via
     t['RS_A'] = (-5.9, 6.3, 0, 'T')
     t['RS_B'] = (-5.5, 5.1, 270, 'T')
     t['RS_C'] = (-5.2, 7.4, 180, 'T')
@@ -467,6 +471,10 @@ DRIVER_RING = (-4.45, 5.45, -0.95, 9.0)
 # A row along the channel's return current leaves it a clear run; a column
 # across it (rev 1) walled it off.
 VBAT_VIAS = ((-1.2, 10.2), (-0.35, 10.15), (0.35, 10.15), (1.2, 10.15))
+# beside the shunt the strip starts here (from the phase centre): the
+# return passes it to the shunt's pocket, 1.2 mm wide over the bridge
+# capacitor's turned-round return pad; three of the drain's vias stay
+BRIDGE_VBAT_SHUNT = -0.8
 # the return's vias between the bottom and In5 at every phase, from the
 # phase centre: beside the half-bridge, just outside the high side's drain
 # (pad 9 and leads reach u +-1.145 on the top, where these through vias
@@ -474,6 +482,10 @@ VBAT_VIAS = ((-1.2, 10.2), (-0.35, 10.15), (0.35, 10.15), (1.2, 10.15))
 # out, clear of the bridge capacitor's battery pad, and between the
 # shunt's Kelvin pads where phase C's lands
 SRC_PH_VIAS = ((-1.9, 11.8), (1.6, 11.3), (1.6, 12.2))
+# beside the shunt, with the bridge capacitor turned round (its battery pad
+# at +u), only the -u one, in the return's way to the shunt's pocket (the
+# shunt's Kelvin pad takes its escape via below it)
+SRC_PH_VIAS_SHUNT = ((-1.9, 11.8),)
 # the return's copper on In5 reaches further out, under the low-side source
 # pins, to the switch node's vias
 SRC_IN_EDGE = Y_LS - 0.4        # under the low side's drain body, short of its switch-node vias
@@ -600,12 +612,16 @@ def power_copper(b, comps):
                 tab = [(ua, ya), (ub, ya), (ub, yb), (ua, yb)]
                 _zone(b, n, sw, pcbnew.B_Cu, tab, prio=4, name='bemf tab')
             # bottom: a battery strip along the return's inner edge, round
-            # the bridge capacitor's VBAT pad and the drain's vias
-            _zone(b, n, 'VBAT', pcbnew.B_Cu, [(u - 1.62, 9.75), (u + 1.62, 9.75), (u + 1.62, 10.75),
-                                              (u - 1.62, 10.75)], prio=5, name='bridge VBAT')
+            # the bridge capacitor's VBAT pad and the drain's vias.  Beside
+            # the shunt it starts short of the phase's -u end, where the
+            # return passes to the shunt's pocket (BRIDGE_VBAT_SHUNT)
+            lo = u + (BRIDGE_VBAT_SHUNT if ph == SHUNT_PHASE else -1.62)
+            _zone(b, n, 'VBAT', pcbnew.B_Cu, [(lo, 9.75), (u + 1.62, 9.75), (u + 1.62, 10.75),
+                                              (lo, 10.75)], prio=5, name='bridge VBAT')
             for du, yr in VBAT_VIAS:
-                _via(b, n, u + du, yr, 'VBAT', VIA_PWR, count)
-            for du, yr in SRC_PH_VIAS:
+                if u + du - VIA_PWR[0] / 2 >= lo:
+                    _via(b, n, u + du, yr, 'VBAT', VIA_PWR, count)
+            for du, yr in (SRC_PH_VIAS_SHUNT if ph == SHUNT_PHASE else SRC_PH_VIAS):
                 _via(b, n, u + du, yr, m('SRC'), VIA_PWR, count)
             for du, yr in SW_VIAS:
                 _via(b, n, u + du, yr, sw, VIA_PWR, count)
@@ -663,6 +679,36 @@ def gate_stubs(b, comps):
                 v = pcb.via(b, vx, vy, gate.GetNetname(), d=VIA_SIG[0], drill=VIA_SIG[1])
                 v.SetLocked(True)
                 k += 1
+    return k
+
+
+# The driver's low-side source pins next to the return (the corner of its
+# FET-side row) reach its bottom pour straight out, on the bottom: no
+# router may cross the pour to them.
+SRC_TIE_TO = 10.05                    # template yr: inside the bottom return (BOT_SRC from 9.75)
+
+
+def src_ties(b, comps):
+    """Fixed bottom tracks from the driver's return pins at the corner by
+    the return (the FET-side ends of the +u column and of the FET-side
+    row) out into the bottom return pour.  Locked."""
+    k = 0
+    for n in CHANNELS:
+        r = roles(comps, n)
+        fp = b.FindFootprintByReference(r['GD'])
+        for p in fp.Pads():
+            if p.GetNetname() != 'M%d_SRC' % n:
+                continue
+            x, y = p.GetPosition().x / 1e6 - pcb.CX, p.GetPosition().y / 1e6 - pcb.CY
+            u, yr = _to_template(n, x, y)
+            if u < 1.0:                # (the -u end of the row reaches the return through In5)
+                continue
+            ex, ey = xf_point(n, u, SRC_TIE_TO)
+            tr = pcbnew.PCB_TRACK(b)
+            tr.SetStart(p.GetPosition()); tr.SetEnd(pcb.P(ex, ey)); tr.SetWidth(MM(0.25))
+            tr.SetLayer(pcbnew.B_Cu); tr.SetNet(p.GetNet()); tr.SetLocked(True)
+            b.Add(tr)
+            k += 1
     return k
 
 
@@ -859,6 +905,7 @@ def build(out_path):
     print('power vias:', power_copper(b, comps))
     print('shunt ground vias:', shunt_vias(b, comps))
     print('gate stubs:', gate_stubs(b, comps))
+    print('return ties:', src_ties(b, comps))
     print('stack lead pad vias:', lead_vias(b, comps))
     nets, gate, boot, drv = net_groups(comps)
     cl = clearances(comps)
@@ -1109,6 +1156,11 @@ def route_local(b, comps):
     finish.VIA_RING, finish.POFV_GAP = VIA_RING, None
     w, cl = widths(comps), clearances(comps)
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    # the power pours' keepouts, as the board's router has them: a via in a
+    # pour's neck (the return's at the shunt) cuts it in two
+    zones0 = set(z.m_Uuid.AsString() for z in b.Zones())
+    routing_keepouts(b)
+    pours = [z for z in b.Zones() if z.m_Uuid.AsString() not in zones0]
     import stamp
     from shapely.geometry import box
     half = core_half(b, comps)
@@ -1190,7 +1242,58 @@ def route_local(b, comps):
         if finish.route_net(b, n, track_w=w.get(n, 0.1), clmap=cl, lock=True):
             left.append(n)
         _drop(b, ko)
+    # 5. each channel's switch-node sense lines (the driver's SHx pins).  The
+    # phases' copper lies under the pours' keepouts, all but the switch-node
+    # vias under the FETs (on the inner layers), and the board's router aims
+    # at the nearest pad, a FET's lead inside a pour; the maze router takes
+    # any copper of the net it can reach.  Channel 1's, in its region and
+    # off the copper other channels have and it lacks, copied onto every
+    # channel (each finished in its own region if a copy was cut short).
+    reg = stamp.region(b, channel_parts(comps), CHANNELS)
+    for ph in sorted(PH_U):
+        t1 = 'M1_%s' % ph
+        before = set(t.m_Uuid.AsString() for t in b.GetTracks())
+        ko = _channel_keepouts(b, comps, 1, reg)
+        failed = finish.route_net(b, t1, track_w=w.get(t1, 0.1), clmap=cl, lock=True)
+        _drop(b, ko)
+        local.append(t1)
+        if failed:
+            print('   %s: the switch-node sense line found no way in channel 1\'s region' % t1)
+            left.append(t1)
+            continue
+        pins = [p for fp in b.GetFootprints() if fp.GetReference() in chan_refs for p in fp.Pads()
+                if p.GetNetname() == t1]
+        exit_ = _band_part(b, before, half, pins)
+        for n in sorted(CHANNELS):
+            if n == 1:
+                continue
+            net = 'M%d_%s' % (n, ph)
+            _copy(b, n, net, exit_, cl)
+            ko = _channel_keepouts(b, comps, n, reg)
+            if finish.route_net(b, net, track_w=w.get(net, 0.1), clmap=cl, lock=True):
+                left.append(net)
+            _drop(b, ko)
+    _drop(b, pours)
     return local, left
+
+
+def _channel_keepouts(b, comps, n, reg):
+    """Keepouts for routing channel n's own net: everything outside its
+    region (`reg`, the template's, turned), and for the template channel
+    the copper other channels have where it has none (stamp.foreign)."""
+    import stamp
+    from shapely.geometry import box
+    full = box(pcb.CX - pcb.HALF - 1, pcb.CY - pcb.HALF - 1, pcb.CX + pcb.HALF + 1, pcb.CY + pcb.HALF + 1)
+    mine = stamp._turn_geom(reg, CHANNELS[n])
+    zs = _keepouts(b, full.difference(mine), 'channel %d' % n)
+    if n == stamp.template_channel(CHANNELS):
+        rel = lambda q: [(x - pcb.CX, y - pcb.CY) for x, y in list(q.exterior.coords)[:-1]]
+        parts = channel_parts(comps)
+        for l, g in sorted(stamp.foreign(b, parts, CHANNELS, stamp.counterparts(b, parts, CHANNELS), reg).items()):
+            for q in stamp._simple(g.intersection(mine.buffer(0.5)).simplify(0.01)):
+                zs.append(pcb.rule_area(b, rel(q), [l], tracks=True, vias=True, pads=False, pours=False,
+                                        name='other channels'))
+    return zs
 
 
 def _nearest(pads, p):

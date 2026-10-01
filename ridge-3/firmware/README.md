@@ -16,8 +16,8 @@ committed.  None of it has run on this hardware yet: see "Bring-up" in
 1de5aae29180c3d3ac26d998e678f2c5b2eb2b228632fc935901acc217ecd626  betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex
 5265b0c388e604d380f7bb1b00cc2a2d96f47b65393e38532cca0b72dd8d3b6e  betaflight/patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch
 c6ce4d235f18b0c3d6067ac1ec4c57ee7616ece91efe47e8495c0704731161df  am32/AM32_F421_BOOTLOADER_PB4_V19.hex
-fc455015a90e1175687a5c034ac6df781e7376a081369ce40287a866e502843a  am32/AM32_RIDGE3_F421_2.21.hex
-6365b58b421c7b3f0e9d79cb419ee60b29ebed637dd8feed146c81e1f24147db  am32/AM32_2738df3_RIDGE3_F421_target.patch
+c26d092cd1d2306588e06c9459935c29134ed220c506dc296f5a34a049f7ea29  am32/AM32_RIDGE3_F421_2.21.hex
+1754f3f435e393a7b01303af7ca2e8dd01337782151e0a6832d8794414640c71  am32/AM32_2738df3_RIDGE3_F421_target.patch
 ```
 
 ## Flight controller (Betaflight)
@@ -195,8 +195,8 @@ figure 5, table 5):
 | Phase C high / low (TMR1_CH1 / CH1C) | PA8 / PA7 | 18 / 13 | `Mn_HC` / `Mn_LC` |
 | Back-EMF A / B / C (comparator −) | PA0 / PA4 / PA5 | 6 / 10 / 11 | `Mn_CMP_A` / `_B` / `_C` |
 | Virtual neutral (comparator +) | PA1 | 7 | `Mn_NEUTRAL` |
-| FET thermistor (ADC_IN2) | PA2 | 8 | `Mn_NTC` |
-| Battery voltage, 100k/10k (ADC_IN3) | PA3 | 9 | `ESC_VSENSE` |
+| Battery voltage, 100k/10k (ADC_IN2) | PA2 | 8 | `ESC_VSENSE` |
+| FET thermistor (ADC_IN3) | PA3 | 9 | `Mn_NTC` |
 | Current, 50 mV/A (ADC_IN6) | PA6 | 12 | `Mn_ISENSE` |
 | SWDIO / SWCLK | PA13 / PA14 | 21 / 22 | `Mn_SWDIO` / `Mn_SWCLK` |
 | BOOT0 | – | 1 | ground |
@@ -205,9 +205,12 @@ figure 5, table 5):
 
 - `MILLIVOLT_PER_AMP 50`, `CURRENT_OFFSET 0`: 0.5 mΩ shunt × INA186A3
   (100 V/V), 0 A = 0 V.
-- `TARGET_VOLTAGE_DIVIDER 110`: the 100k/10k divider (ratio 11).  Voltage
-  on PA3 and current on PA6 are AM32's `MCU_AT421` defaults.
-- `USE_NTC` on PA2 with its own `NTC_table`: Murata NCU15XH103F60RC (10 kΩ,
+- `TARGET_VOLTAGE_DIVIDER 110`: the 100k/10k divider (ratio 11).
+  `VOLTAGE_ADC_PIN` / `_CHANNEL` put the battery voltage on PA2 (ADC_IN2)
+  instead of `MCU_AT421`'s PA3: on the board the thermistor's bias
+  resistor sits over PA3's pad, its own net's via in its pad, and the
+  battery line takes its via in PA2's.  Current on PA6 is the default.
+- `USE_NTC` on PA3 (ADC_IN3) with its own `NTC_table`: Murata NCU15XH103F60RC (10 kΩ,
   B25/50 3380 K) under a 10 kΩ pull-up from the channel's 3.3 V.  Entry *i*
   is the temperature at ADC count 64 *i* on Murata's own resistance curve
   (catalog R44E), not the B equation, which reads 1-5 °C high from 80 to
