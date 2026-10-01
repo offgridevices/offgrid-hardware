@@ -28,7 +28,11 @@ Hard rules (each broken one costs heavily):
 Cost: per net, the minimum spanning tree over its terminals (pin vias,
 the parts' pads, other parts' pads and vias nearby), plus three times the distance
 from each capacitor's supply pad (and the reset capacitor's NRST pad) to
-its own pin's via.
+its own pin's via, plus, with the trees' edges taken as straight top
+tracks, each crossing of two nets' tracks (CROSS_W) and each track through
+another net's pad or via (BLOCK_W): the top is the one layer the parts'
+pads are on, and under the chip there is hardly a spot for a via to take
+a track round.
 
     python3.12 tools/mcu_cluster_search.py BOARD [--seed N] [--iters N] [--out FILE]
 
@@ -54,6 +58,8 @@ BOUND = (-8.9, 3.95, -2.2)                # courtyards right of / below / left o
 PIN_VIA = (0.25, 0.15)                    # the MCU's in-pad escape vias (esc_layout.VIA_ESCAPE)
 GND_VIA = 0.45                            # in-pad plane vias (esc_layout.VIA_INPAD)
 CAPS = (('C_VDD', '17'), ('C_VDDA', '5'), ('C_RST', '4'))
+CROSS_W = 1.5                             # mm of connection a crossing of two nets' top tracks costs
+BLOCK_W = 1.0                             # ... and a track through another net's pad or via
 
 mm = lambda v: v / 1e6
 X = lambda v: mm(v) - pcb.CX
@@ -74,6 +80,22 @@ def box_dist(a, b):
 
 def circ_box(cx, cy, r, bx):
     return max(0.0, box_dist((cx, cy, cx, cy), bx) - r)
+
+
+def near_pts(a, b):
+    """The nearest points of two boxes (a track's ends between them)."""
+    cb = ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
+    pa = (min(max(cb[0], a[0]), a[2]), min(max(cb[1], a[1]), a[3]))
+    pb = (min(max(pa[0], b[0]), b[2]), min(max(pa[1], b[1]), b[3]))
+    return pa, pb
+
+
+def seg_cross(p, q, r, s):
+    """Whether segments pq and rs cross (not merely touch at an end)."""
+    def o(a, b, c):
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    d1, d2, d3, d4 = o(p, q, r), o(p, q, s), o(r, s, p), o(r, s, q)
+    return d1 * d2 < -1e-9 and d3 * d4 < -1e-9
 
 
 def seg_box(p0, p1, bx):
@@ -124,6 +146,8 @@ class Problem:
         self.fix_cy, self.fix_pads, self.fix_vias, self.fix_tracks, self.terms = [], [], [], [], {}
         mcu = b.FindFootprintByReference(r1['MCU'])
         mcu_nets = set(p.GetNetname() for p in mcu.Pads())
+        self._mcu_vias = [(t.GetNetname(), X(t.GetPosition().x), X(t.GetPosition().y)) for t in b.GetTracks()
+                          if t.GetClass() == 'PCB_VIA' and t.GetNetname() in mcu_nets]
         for fp in b.GetFootprints():
             if fp.GetReference() in self.refs:
                 continue
@@ -164,6 +188,17 @@ class Problem:
                 if inside(min(a[0], e[0]), min(a[1], e[1]), max(a[0], e[0]), max(a[1], e[1])):
                     self.fix_tracks.append((net, a, e, mm(t.GetWidth()) / 2))
         self.pin_vias = self._escapes(mcu)
+        # the escape via the build put each pin on (escape_pins: in its pad,
+        # in the build's order round the chip, or beside it where a part
+        # covered the pad's spot): a part kept off it leaves it where it is.
+        # A pin with none in reach keeps the model's spot.
+        for pin, (net, x, y) in list(self.pin_vias.items()):
+            pad = next(q for q in mcu.Pads() if q.GetNumber() == pin)
+            px, py = X(pad.GetPosition().x), X(pad.GetPosition().y)
+            near = [(vx, vy) for vnet, vx, vy in self._mcu_vias if vnet == net and math.hypot(vx - px, vy - py) < 1.6]
+            if near:
+                self.pin_vias[pin] = (net,) + min(near, key=lambda v: math.hypot(v[0] - px, v[1] - py))
+        self.pin_spots = set((net, x, y) for net, x, y in self.pin_vias.values())
 
     def _escapes(self, mcu):
         """{pin: (net, x, y)}: the MCU's signal pins' escape vias as the build
@@ -254,19 +289,46 @@ class Problem:
         for a, net, bx in pads:
             if net != 'GND':
                 terms.setdefault(net, []).append(bx)
-        length = 0.0
-        for ts in terms.values():
-            used, rest = [ts[0]], ts[1:]
+        # minimum spanning tree per net, its edges taken as straight top
+        # tracks; an MCU net with two pins (the 3.3 V) is joined under the
+        # chip first (esc_layout.FIRST_LINES), so its pins start joined
+        length, edges = 0.0, []
+        for net, ts in terms.items():
+            pins = [i for i, t in enumerate(ts) if t[0] == t[2] and (net, t[0], t[1]) in self.pin_spots]
+            seed = pins if len(pins) > 1 else [0]
+            used = [ts[i] for i in seed]
+            rest = [t for i, t in enumerate(ts) if i not in seed]
             while rest:
-                d, i = min((min(box_dist(t, u) for u in used), i) for i, t in enumerate(rest))
+                d, i, u = min((box_dist(t, u), i, u) for i, t in enumerate(rest) for u in used)
                 length += d
-                used.append(rest.pop(i))
+                t = rest.pop(i)
+                edges.append((net, near_pts(u, t)))
+                used.append(t)
+        # a top layer is planar: tracks of two nets that cross, or a track
+        # through another net's pad or via, need a way round on another
+        # layer, which under the chip has hardly a spot for a via
+        cross = 0
+        for i, (n1, (p, q)) in enumerate(edges):
+            for n2, (r, s_) in edges[i + 1:]:
+                if n1 != n2 and seg_cross(p, q, r, s_):
+                    cross += 1
+        blocks = 0
+        obst = [(net, bx) for a, net, bx in pads] + self.fix_pads + \
+               [(net, (vx - .125, vy - .125, vx + .125, vy + .125)) for _, (net, vx, vy) in self.pin_vias.items()] + \
+               [(net, (vx - k + .1, vy - k + .1, vx + k - .1, vy + k - .1)) for net, vx, vy, k in self.fix_vias]
+        for net, (p, q) in edges:
+            sb = (min(p[0], q[0]), min(p[1], q[1]), max(p[0], q[0]), max(p[1], q[1]))
+            for onet, ob in obst:
+                if onet == net or ob[2] < sb[0] or ob[0] > sb[2] or ob[3] < sb[1] or ob[1] > sb[3]:
+                    continue
+                if seg_box(p, q, ob) < 0.05:
+                    blocks += 1
         near = 0.0
         for role, pin in CAPS:
             net, vx, vy = self.pin_vias[pin]
             near += 3.0 * min(circ_box(vx, vy, 0.0, bx) for n_, bx in pl[self.r1[role]][0] if n_ == net)
-        c = weight * pen + length + near
-        return (c, pen, length, near, why) if detail else c
+        c = weight * pen + length + near + CROSS_W * cross + BLOCK_W * blocks
+        return (c, pen, length, near, cross, blocks, why) if detail else c
 
 
 def search(prob, seed, iters):
@@ -322,10 +384,10 @@ def main():
     a = ap.parse_args()
     prob = Problem(a.board)
     best = search(prob, a.seed, a.iters)
-    c, pen, length, near, why = prob.cost(best, detail=True)
+    c, pen, length, near, cross, blocks, why = prob.cost(best, detail=True)
     roles = {prob.refs[r]: v for r, v in best.items()}
-    print('cost %.2f: %d rules broken %s, %.2f mm of connections, %.2f from capacitors to pins'
-          % (c, len(why), why[:5], length, near / 3))
+    print('cost %.2f: %d rules broken %s, %.2f mm of connections, %.2f from capacitors to pins, '
+          '%d crossings, %d tracks through other copper' % (c, len(why), why[:5], length, near / 3, cross, blocks))
     for role in ROLES:
         x, y, r = roles[role]
         print("    t['%s'] = (%s, %s, %d, 'T')" % (role, round(x, 3), round(y, 3), r))
