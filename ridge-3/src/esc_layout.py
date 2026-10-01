@@ -69,14 +69,17 @@ def xf(n, u, yr, rot, side):
     return (round(x, 4), round(y, 4), (rot + CHANNELS[n]) % 360, side)
 
 
-# The back-EMF resistors (bottom, upright) in the two gaps between the low
-# sides, one above the other at the edge end: phase C's and phase B's on
-# their own +u side, phase A's beside phase B's, at the edge, with the
-# thermistor in the same spot of the other gap.  The end corridors past
-# the outer FETs stay clear (motor 1's edge has the battery pads there).
-# (Turned 90 their pin 1 is the outer end, 270 the inner: phase A's pin 1
-# faces its tab to phase A's drain, away from phase B's resistor.)
-RBH = {'C': (-PITCH / 2, 14.9, 90, 'B'), 'B': (PITCH / 2, 14.9, 90, 'B'), 'A': (PITCH / 2, 16.9, 270, 'B')}
+# The back-EMF resistors (top, over the driver) tap each phase where its
+# switch-node sense line reaches the driver: pin 1 on the escape via in
+# the driver's SHx pad (the same node as the FETs' switch node, the sense
+# line's few mm of track between), pin 2 the divided tap towards the MCU.
+# In the gaps between the low sides, beside the drains they tapped, their
+# three lines to the MCU had to cross the FET row with the gate and sense
+# lines and the thermistor's, and the row has room for those alone: no
+# routing found them all a way.  From over the driver they stay in the
+# chips' strip, where In3's window (SIG_WINDOW) takes them under the MCU.
+# Spots found by tools/mcu_cluster_search.py, with the MCU's parts.
+RBH = {'C': (-0.4, 7.82, 90, 'T'), 'B': (1.05, 8.92, 90, 'T'), 'A': (2.62, 9.3, 180, 'T')}
 
 
 def template():
@@ -96,10 +99,8 @@ def template():
         # shunt, so the return reaches the shunt's sense pad on the bottom
         # past it (the battery pad there walled the shunt's pocket off).
         t['CBR_' + ph] = (u, Y_CAP, 180 if ph == SHUNT_PHASE else 0, 'B')
-        # back-EMF: the phase-side 20k resistor on the bottom beside the
-        # low-side drain it taps, in a gap between the FETs (RBH).  Pin 1
-        # is the phase end; it reaches its drain copper through a short tab
-        # (power_copper).
+        # back-EMF: the phase-side 20k resistor over the driver, on its
+        # SHx pin's via (RBH)
         t['RBH_' + ph] = RBH[ph]
     # The gate driver (DRV8320H, 5 x 5) on the bottom behind the FET row,
     # turned half round: its FET-side row carries phases C and B, its +u
@@ -120,13 +121,15 @@ def template():
     t['R_SH'] = (-8.5, 11.8, 270, 'B')
     t['U_CS'] = (-8.1, 11.5, 0, 'T')
     t['C_CS'] = (-9.7, 10.2, 90, 'T')
-    t['R_IF'] = (-6.8, 9.4, 0, 'T')
-    t['C_IF'] = (-8.05, 8.45, 270, 'T')
+    t['R_IF'] = (-6.8, 8.8, 0, 'T')
+    t['C_IF'] = (-8.05, 8.65, 90, 'T')
     t['R_CUR'] = (-7.4, 15.0, 90, 'T')
-    # the FETs' thermistor on the bottom at the edge between phase C's and
-    # phase B's low sides (the end corridors stay clear: on motor 1's edge
-    # they hold the battery pads)
-    t['RT'] = (-PITCH / 2, 16.9, 90, 'B')
+    # the FETs' thermistor on top in the strip between the MCU and phase
+    # C's high side, by its drain copper (the battery side, where the high
+    # side's heat spreads) and in the chips' strip with the MCU's analog
+    # inputs: at the edge between the low sides its line to the MCU had to
+    # cross the FET row (see RBH)
+    t['RT'] = (-4.4, 9.35, 0, 'T')
     # The chips' small parts on top over them, inside the rings of their
     # pins' escape vias, each beside the pins it serves (a pad over its
     # own net's via takes it in the pad).  Found by a search for the
@@ -147,21 +150,21 @@ def template():
     # pad by its own pin, and the rest as short as that leaves: a
     # simulated-annealing search over their spots and turns
     # (tools/mcu_cluster_search.py).
-    t['C_VDD'] = (-3.8, 6.0, 180, 'T')
-    t['C_VDDA'] = (-7.95, 5.35, 90, 'T')
-    t['C_RST'] = (-7.7, 6.9, 0, 'T')
-    t['R_NTB'] = (-6.7, 5.55, 90, 'T')
-    t['RS_A'] = (-5.4, 7.9, 180, 'T')
-    t['RS_B'] = (-5.8, 7.05, 0, 'T')
-    t['RS_C'] = (-5.55, 6.25, 180, 'T')
-    t['RBL_A'] = (-3.55, 9.0, 0, 'T')
-    t['RBL_B'] = (-6.6, 8.2, 270, 'T')
-    t['RBL_C'] = (-5.55, 5.45, 180, 'T')
+    t['C_VDD'] = (-3.75, 6.0, 180, 'T')
+    t['C_VDDA'] = (-8.0, 5.45, 90, 'T')
+    t['C_RST'] = (-7.5, 6.95, 0, 'T')
+    t['R_NTB'] = (-6.9, 5.6, 90, 'T')
+    t['RS_A'] = (-6.8, 7.9, 0, 'T')
+    t['RS_B'] = (-5.7, 6.1, 180, 'T')
+    t['RS_C'] = (-5.75, 5.3, 180, 'T')
+    t['RBL_A'] = (-6.15, 9.7, 180, 'T')
+    t['RBL_B'] = (-4.7, 6.9, 180, 'T')
+    t['RBL_C'] = (-2.9, 9.3, 90, 'T')
     # SWD test points on top, the side that faces the flight controller
     # (the bootloader is flashed once, before the stack goes together),
     # beside the MCU's SWD pins
-    t['TP_DIO'] = (-3.1, 7.95, 90, 'T')
-    t['TP_CLK'] = (-4.9, 8.95, 0, 'T')
+    t['TP_DIO'] = (-3.1, 7.95, 270, 'T')
+    t['TP_CLK'] = (-4.6, 8.2, 90, 'T')
     return t
 
 
@@ -635,10 +638,14 @@ def power_copper(b, comps):
                 py0, py1 = min(q[0][1], q[1][1]), max(q[0][1], q[1][1])
                 # copper from the pad to the nearest point well inside the
                 # pour (0.25 mm in from its edge): the box spanning both, so
-                # it overlaps the pour whichever way the pad lies from it
+                # it overlaps the pour whichever way the pad lies from it.
+                # (A resistor away from the pour, on its sense line by the
+                # driver, takes none.)
                 cu_ = min(max((pu0 + pu1) / 2, u - 1.35), u + 1.35)
                 cy_ = min(max((py0 + py1) / 2, 13.9), 16.6)
                 if u - 1.6 <= (pu0 + pu1) / 2 <= u + 1.6 and BOT_SW_START <= (py0 + py1) / 2 <= 16.85:
+                    continue
+                if abs((pu0 + pu1) / 2 - cu_) > 2.0 or abs((py0 + py1) / 2 - cy_) > 2.0:
                     continue
                 w2 = 0.25
                 ua, ub = min(pu0, cu_ - w2), max(pu1, cu_ + w2)
@@ -1751,19 +1758,11 @@ def kelvin_pins(comps):
     and the amplifier's inputs (top), a via each in or beside the pad.  The
     shunt's sense pads sit inside the channel's return pour, where no
     router could find a spot for a via of its own.  Also the amplifier's
-    output: its via lands on the filter resistor's pad below.  And the
-    back-EMF resistors' MCU ends (pin 2): they stand on the bottom among
-    the FETs' pads, where no router finds a spot for a via of its own, and
-    their nets come in on the inner layers.  Likewise the signal ends of
-    the row of dividers' low legs by the MCU (back-EMF, neutral, current
-    filter output): five 0201s side by side at 0.9 mm, walled in by the
-    MCU, the next channel's driver and the shunt.  (The neutral leg's CMP
-    end sits beside its partner's, where a track joins them.)"""
+    output, which leaves its corner of the amplifier on the inner layers."""
     out = []
     for n in CHANNELS:
         r = roles(comps, n)
         out += [(r['R_SH'], '3'), (r['R_SH'], '4'), (r['U_CS'], '4'), (r['U_CS'], '5'), (r['U_CS'], '6')]
-        out += [(r['RBH_' + ph], '2') for ph in 'ABC']
     return out
 
 

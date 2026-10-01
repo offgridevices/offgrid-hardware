@@ -5,7 +5,9 @@ Each channel's MCU (AT32F421, QFN-28, on the bottom) has fourteen small
 parts on the top over it: its supply and reset capacitors, the
 thermistor's bias, the three back-EMF low legs and the neutral star, the
 current filter (resistor and capacitor, between the amplifier's output
-and the MCU's pin) and the two SWD test points.  This searches
+and the MCU's pin) and the two SWD test points.  With them: the back-EMF
+dividers' 20k legs over the driver, each on its switch-node sense pin,
+and the FETs' thermistor by phase C's high side.  This searches
 their spots and turns in the template channel's frame (simulated
 annealing on a 0.05 mm grid) on a board built with the rest of the
 layout as it is.
@@ -49,12 +51,18 @@ import pcbnew, pcb, parts, circuit
 import esc_layout as E
 
 ROLES = ['C_VDD', 'C_VDDA', 'C_RST', 'R_NTB', 'RS_A', 'RS_B', 'RS_C', 'RBL_A', 'RBL_B', 'RBL_C', 'TP_DIO', 'TP_CLK',
-         'C_IF', 'R_IF']
+         'C_IF', 'R_IF', 'RBH_A', 'RBH_B', 'RBH_C', 'RT']
 # the nets of the cluster, in channel 1 (and the planes')
 NETS = {'M1_' + n for n in ('NRST', 'DVDD', 'CMP_A', 'CMP_B', 'CMP_C', 'NEUTRAL', 'NTC', 'ISENSE', 'IOUT',
-                            'SWDIO', 'SWCLK')} | {'GND'}
-AREA = (-9.6, 3.0, -1.8, 10.6)            # template frame, what the search looks at
-BOUND = (-8.9, 3.95, -2.2)                # courtyards right of / below / left of these
+                            'SWDIO', 'SWCLK', 'A', 'B', 'C')} | {'GND'}
+AREA = (-9.6, 3.0, 3.8, 10.6)             # template frame, what the search looks at
+# courtyards inside these (left, top, right, bottom): the MCU's parts over
+# it, the back-EMF resistors over the driver (on its switch-node sense
+# pins), the thermistor by phase C's high side, short of its drain's vias
+BOUNDS = {None: (-8.9, 3.95, -2.2, 10.6),
+          'RBH_A': (-2.6, 3.95, 3.6, 9.9), 'RBH_B': (-2.6, 3.95, 3.6, 9.9), 'RBH_C': (-2.6, 3.95, 3.6, 9.9),
+          'RT': (-6.6, 8.9, -3.4, 9.95)}
+bounds = lambda role: BOUNDS.get(role, BOUNDS[None])
 PIN_VIA = (0.25, 0.15)                    # the MCU's in-pad escape vias (esc_layout.VIA_ESCAPE)
 GND_VIA = 0.45                            # in-pad plane vias (esc_layout.VIA_INPAD)
 CAPS = (('C_VDD', '17'), ('C_VDDA', '5'), ('C_RST', '4'))
@@ -249,7 +257,9 @@ class Problem:
             why.append(what)
         for i, a in enumerate(refs):
             ca = pl[a][1]
-            over = max(0.0, BOUND[0] - ca[0]) + max(0.0, BOUND[1] - ca[1]) + max(0.0, ca[2] - BOUND[2])
+            bd = bounds(self.refs[a])
+            over = max(0.0, bd[0] - ca[0]) + max(0.0, bd[1] - ca[1]) + max(0.0, ca[2] - bd[2]) + \
+                max(0.0, ca[3] - bd[3])
             if over > 0:
                 bad(10 + 50 * over, 'area', self.refs[a])
             for c in self.fix_cy + [pl[o][1] for o in refs[i + 1:]]:
@@ -361,8 +371,9 @@ def search(prob, seed, iters):
                 nxt[ref], nxt[o] = (xo, yo, r), (x, y, ro)
         else:
             step = rnd.choice((0.05, 0.05, 0.1, 0.2, 0.5, 1.0))
-            nxt[ref] = (round(min(max(x + rnd.choice((-1, 0, 1)) * step, -8.9), -2.2), 3),
-                        round(min(max(y + rnd.choice((-1, 0, 1)) * step, 3.8), 10.0), 3), r)
+            bd = bounds(prob.refs[ref])
+            nxt[ref] = (round(min(max(x + rnd.choice((-1, 0, 1)) * step, bd[0]), bd[2]), 3),
+                        round(min(max(y + rnd.choice((-1, 0, 1)) * step, bd[1] - 0.15), bd[3]), 3), r)
         w = wt(it)
         if it % 1000 == 0:
             cc = prob.cost(cur, weight=w)
