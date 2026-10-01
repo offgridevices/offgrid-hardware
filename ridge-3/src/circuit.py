@@ -17,7 +17,7 @@ M3/M2-grommet pattern of the GEPRC TAKER G4 AIO that Phase 1 flew:
        button, analog OSD (AT7456E) and an HD VTX port (DJI / Walksnail /
        HDZero, MSP DisplayPort), 5 V 2 A BEC and a switchable 9 V VTX BEC,
        all rated for 6S.  firmware/ has the board's Betaflight target,
-       one build per gyro.
+       one build for either gyro (Betaflight finds the one fitted).
   ESC  4 x (AT32F421G8U7 + DRV8320H + 6 x ISZ023N06LM6 60 V FETs + 0.5 mOhm
        shunt and INA186 current sense + FET thermistor), 2-6S, wired to
        the AM32 target RIDGE3_F421 (firmware/am32).
@@ -184,7 +184,7 @@ def fc_power():
         #     The video transmitter, the board's largest load, stops before
         #     the flight controller's own parts reach their limits; the
         #     processor and the 5 V and 3.3 V rails keep running.
-        add('U', 'LMR38020F', {'1': GND, '2': 'VBAT_VTX', '3': 'BUCK9_EN', '4': 'BUCK9_RT',
+        add('U', 'LMR38020F', {'1': GND, '2': 'BUCK9_EN', '3': 'VBAT_VTX', '4': 'BUCK9_RT',
                                '5': 'BUCK9_FB', '6': None, '7': 'BUCK9_CB', '8': 'BUCK9_SW', '9': GND},
             B, '9V VTX BEC', ref='U_BUCK9')
         cap('C10U50_1210', 'VBAT_VTX', GND, B, '9V BEC input')

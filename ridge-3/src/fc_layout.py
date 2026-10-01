@@ -143,19 +143,20 @@ PLACE_BY_NOTE = {
     '5V BEC feedback top':  at(A5, -2.4, -4.5, 0),
     '5V BEC feedback bottom': at(A5, -2.4, -5.5, 0),
     # 9 V BEC, as the 5 V one (relative to A9, IC turned 180: rear row x
-    # +1.9 GND, +0.63 VIN, -0.63 EN, -1.9 RT at +2.68; front row +1.9 SW,
+    # +1.9 GND, +0.63 EN, -0.63 VIN, -1.9 RT at +2.68; front row +1.9 SW,
     # +0.63 CB, -0.63 PG, -1.9 FB at -2.68): input HF capacitor behind
-    # VIN/GND, bulk input capacitor above it on the top, bootstrap in
-    # front of CB/SW, between the IC and the inductor; RT's resistor at
-    # its pin, the UVLO divider beside it (EN leaves its pin by a via in
-    # the pad, vias())
-    '9V BEC input HF':      at(A9, 1.27, 4.45, 0),
+    # the rear row, across EN from VIN's pour to GND's, bulk input
+    # capacitor above it on the top, bootstrap in front of CB/SW, between
+    # the IC and the inductor; RT's resistor at its pin, the UVLO divider
+    # beside it (EN, boxed in between VIN and GND, leaves its pin by a via
+    # in the pad, vias())
+    '9V BEC input HF':      at(A9, 0.63, 4.45, 0),
     '9V BEC input':         (12.0, 7.9, 0, T),
     '9V BEC bootstrap':     at(A9, 1.3, -4.3, 0),
     '9V BEC 455 kHz':       at(A9, -3.15, 2.68, 180),
     '9V BEC UVLO top':      at(A9, -2.65, 4.9, 90),
     '9V BEC UVLO bottom':   (9.61, 5.08, 90, Bo),
-    'VTX power switch':     (12.0, 4.6, 0, T),
+    'VTX power switch':     (11.8, 4.3, 0, T),      # clear of the EN via above U_BUCK9's pin 2
     'VTX switch gate':      (10.0, 3.4, 90, T),
     'VTX switch gate pulldown': (10.0, 5.4, 90, T),
     # the thermostat on the bottom beside the 9 V BEC, the board's warmest
@@ -353,15 +354,15 @@ def pours():
         ('+5V', Bo, [(1.2, 11.15), (9.6, 11.15), (9.6, 12.45), (5.4, 12.45), (5.4, 15.75), (9.6, 15.75),
                      (9.6, 17.4), (1.2, 17.4)]),
         # 9 V BEC (bottom, relative to its IC, turned as the 5 V one):
-        # input from the vias to VIN, the HF capacitor and the UVLO
-        # divider's top, clear of EN;
+        # input from the vias down VIN's pin and to the HF capacitor and
+        # the UVLO divider's top, clear of EN beside it;
         # switch node to the inductor round the bootstrap's CB end; ground
         # at the GND pin and the HF capacitor
-        ('VBAT_VTX', Bo, _rel(A9, [(-3.0, 5.75), (1.1, 5.75), (1.1, 2.0), (0.15, 2.0), (0.15, 3.7),
-                                   (-2.0, 3.7), (-2.0, 5.1), (-3.0, 5.1)])),
+        ('VBAT_VTX', Bo, _rel(A9, [(-3.0, 5.75), (0.55, 5.75), (0.55, 3.9), (0.0, 3.9), (0.0, 1.9),
+                                   (-1.25, 1.9), (-1.25, 5.1), (-3.0, 5.1)])),
         ('BUCK9_SW', Bo, _rel(A9, [(1.35, -1.9), (2.45, -1.9), (2.45, -7.1), (-1.5, -7.1), (-1.5, -4.95),
                                    (1.35, -4.95)])),
-        ('GND', Bo, _rel(A9, [(1.45, 1.9), (2.9, 1.9), (2.9, 5.3), (1.45, 5.3)])),
+        ('GND', Bo, _rel(A9, [(1.25, 1.9), (2.9, 1.9), (2.9, 5.3), (0.85, 5.3), (0.85, 3.85), (1.25, 3.85)])),
         # 9 V: the inductor's output end and both output capacitors' 9 V
         # pads, and the vias up to the HD connector
         ('+9V', Bo, [(6.5, -9.4), (15.2, -9.4), (15.2, -6.3), (6.5, -6.3)]),
@@ -395,9 +396,11 @@ def vias():
         ('+9V', [(13.9, -8.3), (14.7, -8.3)]),                      # 9 V to the HD connector (pin 1 above)
         ('GND', [(14.45, 7.2)]),                                    # the 9 V input capacitor's ground
         ('GND', [(9.27, -11.55)], VIA_SIG),                         # the front 9 V output capacitor's ground
-        # the 9 V BEC's EN pin, boxed in by its input pour, the exposed pad
-        # and the RT pin: a signal via in its pad (filled and capped)
-        ('BUCK9_EN', [_rel(A9, [(-0.63, 3.25)])[0]], VIA_SIG),
+        # the 9 V BEC's EN pin, boxed in by its VIN and GND pins, the
+        # exposed pad and the HF capacitor: a signal via in its pad (filled
+        # and capped), at the pad's inner end, clear of the bulk
+        # capacitor's ground pad on the top
+        ('BUCK9_EN', [_rel(A9, [(0.63, 1.98)])[0]], VIA_SIG),
     ]
 
 

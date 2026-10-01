@@ -10,13 +10,14 @@ committed.  None of it has run on this hardware yet: see "Bring-up" in
 | `am32/AM32_F421_BOOTLOADER_PB4_V19.hex` | ESC bootloader, all four ESC MCUs | AM32-bootloader `578ff29`, target `AM32_F421_BOOTLOADER_PB4` |
 | `am32/AM32_RIDGE3_F421_2.21.hex` | ESC firmware, all four ESC MCUs | AM32 `2738df3` (v2.21) + `am32/AM32_2738df3_RIDGE3_F421_target.patch`, target `RIDGE3_F421` |
 | `am32/flash_esc.sh` | Writes both to each ESC MCU over SWD | – |
+| `am32/ntc_table.py` | Prints the FET thermistor's `NTC_table` (in the patch) | Murata's R-T curve |
 
 ```
 1de5aae29180c3d3ac26d998e678f2c5b2eb2b228632fc935901acc217ecd626  betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex
 5265b0c388e604d380f7bb1b00cc2a2d96f47b65393e38532cca0b72dd8d3b6e  betaflight/patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch
 c6ce4d235f18b0c3d6067ac1ec4c57ee7616ece91efe47e8495c0704731161df  am32/AM32_F421_BOOTLOADER_PB4_V19.hex
-1af8ace717d2be0a5154513c691d63bcb82617c3ceb3ad67dbac40a67c80f12a  am32/AM32_RIDGE3_F421_2.21.hex
-a9b4edaa27eebeba1e8915a2d6426e6a7cced42740a7d7ee9ba2c5b10a929f00  am32/AM32_2738df3_RIDGE3_F421_target.patch
+fc455015a90e1175687a5c034ac6df781e7376a081369ce40287a866e502843a  am32/AM32_RIDGE3_F421_2.21.hex
+6365b58b421c7b3f0e9d79cb419ee60b29ebed637dd8feed146c81e1f24147db  am32/AM32_2738df3_RIDGE3_F421_target.patch
 ```
 
 ## Flight controller (Betaflight)
@@ -207,10 +208,14 @@ figure 5, table 5):
 - `TARGET_VOLTAGE_DIVIDER 110`: the 100k/10k divider (ratio 11).  Voltage
   on PA3 and current on PA6 are AM32's `MCU_AT421` defaults.
 - `USE_NTC` on PA2 with its own `NTC_table`: Murata NCU15XH103F60RC (10 kΩ,
-  B25/50 3380 K) under a 10 kΩ pull-up from the channel's 3.3 V, computed
-  from the B equation (entry *i* is the temperature at ADC count 64 *i*).
-  At 110 °C the divider gives about 0.25 V; the table's 64-count steps
-  there are about 10 °C, interpolated linearly.
+  B25/50 3380 K) under a 10 kΩ pull-up from the channel's 3.3 V.  Entry *i*
+  is the temperature at ADC count 64 *i* on Murata's own resistance curve
+  (catalog R44E), not the B equation, which reads 1-5 °C high from 80 to
+  130 °C; `am32/ntc_table.py` prints it.  At 110 °C the divider gives
+  about 0.23 V; the table's 64-count steps there are about 10 °C,
+  interpolated linearly.  A shorted sensor reads 200 °C (the motor stops);
+  an open one reads -60 °C, so the limit never acts: the bring-up check
+  below catches it.
 - `DEAD_TIME 15`: 15 counts of TMR1's 120 MHz clock = 125 ns.  The
   DRV8320H itself holds a gate off until it sees the other one discharged,
   then adds ~100 ns, so AM32's dead time is a floor here, not the
@@ -247,7 +252,9 @@ make ARM_SDK_PREFIX=<gcc>/bin/arm-none-eabi- RIDGE3_F421 \
 - Nothing here has run on an AT32F421, on this ESC or on this FC.
   `flash_esc.sh` has not been run (no Artery OpenOCD or part was at hand).
 - `DEAD_TIME 15` with the DRV8320H's hold-off: scope the gate drive.
-- The NTC table against a thermometer at the FETs, and the 50 mV/A and
+- The NTC table against a thermometer at the FETs, on all four channels
+  (an open thermistor reads -60 °C and disables that channel's limit), and
+  the 50 mV/A and
   12.5 mV/A current scales against a bench ammeter.
 - The Betaflight gyro patch: on the bench, the Setup tab's model must follow
   the board one for one (a 90° turn reads 90°), and the accelerometer reads

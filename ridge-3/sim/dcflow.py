@@ -17,6 +17,7 @@ bridge capacitors are not in it.
 """
 import numpy as np
 import scipy.sparse as sp
+from scipy.sparse import csgraph
 
 RHO20 = 1.724e-8          # copper, ohm m at 20 C (IEC 60028 annealed)
 ALPHA = 0.00393           # copper resistance temperature coefficient, 1/K
@@ -153,20 +154,29 @@ def solve(c, net, currents, T=20.0, net_cache=_cache):
     assert abs(sum(currents.values())) < 1e-9 * max(1, max(map(abs, currents.values()))), currents
     ref = min(currents, key=currents.get)
     r = info['terms'][ref]
-    keep = np.ones(info['n'], bool); keep[r] = False
     if ref not in lu:
-        lu[ref] = amg(G[keep][:, keep].tocsr())
+        # only the copper joined to the reference terminal: an island (a
+        # pour or stub not tied in, or a board still being routed) carries
+        # no current, and left in it makes the matrix singular
+        _, comp = csgraph.connected_components(G, directed=False)
+        live = comp == comp[r]
+        keep = live.copy(); keep[r] = False
+        lu[ref] = (live, keep, amg(G[keep][:, keep].tocsr()))
+    live, keep, sol = lu[ref]
+    cut = sorted(p for p, a in currents.items() if a and not live[info['terms'][p]])
+    if cut:
+        raise RuntimeError('%s: no copper joins %s to %s' % (net, ', '.join(cut), ref))
     I = np.zeros(info['n'])
     for part, amps in currents.items():
         I[info['terms'][part]] += amps
     V = np.zeros(info['n'])
-    V[keep] = lu[ref](I[keep])
+    V[keep] = sol(I[keep])
     s = Solution()
     s.net, s.V, s.info, s.currents = net, V, info, currents
     a, b, g = info['edges']
     s.edge_i = g * (V[a] - V[b])             # amps from a to b
     s.loss = float(np.sum(g * (V[a] - V[b]) ** 2))
-    s.term_v = {p: float(V[t]) for p, t in info['terms'].items()}
+    s.term_v = {p: float(V[t]) if live[t] else float('nan') for p, t in info['terms'].items()}
     return s
 
 

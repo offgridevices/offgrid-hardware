@@ -259,10 +259,10 @@ TMP390 = dict(part='TI TMP390A2', ref='U_TSW', trip=96.0, hyst=20.0, acc=3.0, t_
 # ASSUMPTION, JST SH's 20 / 40 mOhm (Molex's product specification not read).
 MICROLOCK = dict(part='Molex Micro-Lock Plus 505567', i_rated=1.5, r_contact=20e-3, r_contact_aged=40e-3,
                  t_max=105.0)
-# FC inductors (TDK catalog): SPM6530T-150M-HZ 109 mOhm max, 125 C;
+# FC inductors (TDK catalog): SPM6530T-150M-HZ 119.9 mOhm max (109 typ), 125 C;
 # TFM252012ALMAR47MTAA 19 mOhm, 150 C
-INDUCTORS_REV2 = {'L_5V': dict(part='TDK SPM6530T-150M-HZ', dcr=109e-3, t_max=125.0),
-                  'L_9V': dict(part='TDK SPM6530T-150M-HZ', dcr=109e-3, t_max=125.0),
+INDUCTORS_REV2 = {'L_5V': dict(part='TDK SPM6530T-150M-HZ', dcr=119.9e-3, t_max=125.0),
+                  'L_9V': dict(part='TDK SPM6530T-150M-HZ', dcr=119.9e-3, t_max=125.0),
                   'L_3V3': dict(part='TDK TFM252012ALMAR47MTAA', dcr=19e-3, t_max=150.0)}
 CAPS_REV2.update({
     'C22U25_X7R': ('X7R', 125.0, 'Murata GRM32ER71E226KE15L'),

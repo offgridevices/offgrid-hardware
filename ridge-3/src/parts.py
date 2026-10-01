@@ -563,12 +563,18 @@ PARTS = {
     # JLC 3,341 ext, $0.21 / 0.16; DK web 587-6096-1-ND 6,657.
     # Rev 2 FC bucks (both LMR38020F at 455 kHz, on the bottom, facing the
     # ESC across the stack's gap: 3.0 mm tall at most, as rev 1's IHLP):
-    # TDK SPM6530T-150M-HZ, 15 uH, 109 mOhm max, 3.3 A, metal composite,
-    # AEC-Q200, -40..+125 C, 7.1 x 6.5 x 3.0 mm.  JLC 2,707 ext (C307809,
-    # 2026-10-01).  (Coilcraft's XAL5050, 69.7 mOhm, is 5.1 mm tall.)
+    # TDK SPM6530T-150M-HZ, 15 uH, 119.9 mOhm max (109 typ), Isat 3.0 A (L down
+    # 20 %), Itemp 3.3 A, metal composite, AEC-Q200, -40..+125 C, 7.1 x 6.5 x
+    # 3.0 mm.  JLC 2,707 ext (C307809, 2026-10-01).  (Coilcraft's XAL5050, 69.7
+    # mOhm, is 5.1 mm tall.)  Isat against the LMR38020: the full-load peak is
+    # 2.4 A (2 A + half the 0.85 A ripple at 9 V from 6S), under Isat as TI
+    # requires; the high-side current limit (3.2 A typ, 3.8 A max) is above it,
+    # which TI allows for soft-saturating cores like this metal composite
+    # (SNVSC40E, inductor selection): on an output short the inductance sags, it
+    # does not collapse, and hiccup mode follows.
     'L15U_SPM6530': dict(fp='aio:IND-SMD_L7.1-W6.5_SPM6530T', lcsc='C307809',
                          mpn='SPM6530T-150M-HZ', value='15uH',
-                         desc='Inductor 15 uH 3.3 A, 7.1 x 6.5 x 3.0 mm, AEC-Q200, 125 C', kind='L',
+                         desc='Inductor 15 uH, Isat 3.0 A, 7.1 x 6.5 x 3.0 mm, AEC-Q200, 125 C', kind='L',
                          maker='TDK (Japan)'),
     # Rev 2 FC 3.3 V buck: TDK TFM252012ALMAR47MTAA, 0.47 uH, 19 mOhm, 4.9 A,
     # -55..150 C, 2.5 x 2.0 mm.  JLC 130 ext (C404800, 2026-10-01).

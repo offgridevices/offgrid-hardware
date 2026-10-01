@@ -19,7 +19,8 @@
  *
  *   1. Alignment.  TAKERG4AIO ships GYRO_1_ALIGN CW270 plus
  *      DEFAULT_ALIGN_BOARD_YAW 45 because GEPRC mounted its gyro at 45
- *      degrees.  Here the ICM-45686 sits square, its axes ARE the board's
+ *      degrees.  Here the IIM-42652 (or the ICM-42688-P second source on
+ *      the same pads) sits square, its axes ARE the board's
  *      axes: GYRO_1_ALIGN CW0 and no board rotation.  (A wrong default here
  *      cost Phase 1 three crashes.)
  *   2. Receiver on UART2 (the pads labelled 5V G R2 T2), CRSF.
