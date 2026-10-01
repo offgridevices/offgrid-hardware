@@ -1,16 +1,16 @@
 /*
  * Betaflight target for the OffGrid Ridge 3 flight controller (ridge-3/fc),
- * ICM-45686 build.
+ * revision 2.
  *
  * This file is part of Betaflight and is distributed under the terms of the
  * GNU General Public License v3 or later, like the rest of Betaflight.
  *
- * The IMU pads take a TDK ICM-45686 or a Bosch BMI270.  The BOM fits the
- * ICM-45686: this build.  A board assembled with the BMI270 runs
- * configs/RIDGE3_BMI.  This one has no BMI270 driver on purpose: flashed onto
- * a BMI270 board it reports no gyro and will not arm, instead of flying with
- * the 90-degree axis error the two chips would have with one alignment (see
- * GYRO_1_ALIGN below).
+ * IMU: TDK IIM-42652 (industrial, -40..+105 C).  Its second source on the
+ * same pads is the ICM-42688-P (85 C): same pins, same axes, same driver, so
+ * this one build runs either.  Betaflight 2025.12.5 scales the IIM-42652 as
+ * if it were the IIM-42653 (4000 dps, 32 g) and programs its anti-alias
+ * filter from the ICM-42605's table; build with
+ * patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch (README).
  *
  * The pin map is the GEPRC TAKER G4 AIO's (Betaflight target GEPR/TAKERG4AIO),
  * minus the baro and magnetometer, plus a switch for the video transmitter's
@@ -32,20 +32,21 @@
 
 #pragma once
 
-#define FC_TARGET_MCU       STM32G47X      // STM32G473CEU6, the Betaflight 2025.12 G47x target
+#define FC_TARGET_MCU       STM32G47X      // STM32G473CEU6 (CEU3 fits the same pads), the G47x target
 
 #define BOARD_NAME          RIDGE3
 #define MANUFACTURER_ID     OFFG
 
 #define USE_ACC
 #define USE_GYRO
-#define USE_ACCGYRO_ICM45686                // ICM-45686 ONLY: a BMI270 board finds no gyro and will not arm
+#define USE_ACCGYRO_IIM42652                // fitted
+#define USE_GYRO_SPI_ICM42688P              // second source, same pads
+#define USE_ACC_SPI_ICM42688P
 #define USE_FLASH
-#define USE_FLASH_W25Q128FV                 // m25p16 driver: W25Q128JV-IM (EF 70 18), -IQ (EF 40 18), PY25Q128HA (85 20 18)
+#define USE_FLASH_M25P16                    // Infineon S25FL128L (JEDEC 01 60 18); the board runs without it
 #define USE_MAX7456                         // AT7456E; a CONFIG= build does not get this from common_pre.h
 
-#define BEEPER_PIN          PA15
-#define BEEPER_INVERTED
+// No beeper: the board has none (Betaflight's DShot beacon beeps the motors).
 
 #define MOTOR1_PIN          PA0
 #define MOTOR2_PIN          PA1
@@ -74,8 +75,8 @@
 #define GYRO_1_SPI_INSTANCE SPI1
 #define GYRO_1_CS_PIN       PB0
 #define GYRO_1_EXTI_PIN     PA4
-// ICM-45686 on these pads (pin 1 rear-left): +X to the front, +Y to the left
-// (TDK DS-000577 fig. 13 p.50), so no rotation.
+// IIM-42652 (and ICM-42688-P) on these pads, pin 1 rear-left: +X to the
+// front, +Y to the left (TDK DS-000440 fig. 15), so no rotation.
 #define GYRO_1_ALIGN        CW0_DEG
 
 #define FLASH_SPI_INSTANCE  SPI2
@@ -115,7 +116,7 @@
 
 #define SYSTEM_HSE_MHZ      8
 
-#define DEFAULT_PID_PROCESS_DENOM       2     // ICM-45686 6.4 kHz gyro -> 3.2 kHz PID (bidirectional DShot limit)
+#define DEFAULT_PID_PROCESS_DENOM       2     // 8 kHz gyro -> 4 kHz PID (bidirectional DShot300)
 #define DEFAULT_BLACKBOX_DEVICE         BLACKBOX_DEVICE_FLASH
 #define DEFAULT_VOLTAGE_METER_SOURCE    VOLTAGE_METER_ADC
 #define DEFAULT_VOLTAGE_METER_SCALE     160   // 30k / 2k divider: ratio 16 x 10

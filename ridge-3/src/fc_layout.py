@@ -59,7 +59,7 @@ PLACE = {
     #   left  (37-48) SWCLK, UART4, UART2, VTX switch,
     #                 LED strip, LED0, BOOT0                  -> left pads
     'U_FC':    (-1.0, 1.1, 0, T),
-    # gyro right of the MCU, rotation fixed at 90 (circuit.py, firmware CW270)
+    # gyro right of the MCU, rotation fixed at 90 (circuit.py: firmware GYRO_1_ALIGN CW0)
     'U_IMU':   (5.2, 2.2, 90, T),
     # OSD in front of the MCU: SPI towards it, video towards the front pads
     'U_OSD':   (-1.0, -8.8, 0, T),

@@ -1,0 +1,64 @@
+diff --git a/Inc/ntc_tables.h b/Inc/ntc_tables.h
+index 3250b68..44d71a2 100644
+--- a/Inc/ntc_tables.h
++++ b/Inc/ntc_tables.h
+@@ -57,5 +57,21 @@ int NTC_table[65] = {            // 1k pullup 10k ntc
+   26, 21, 15, 8, -1, -16, -31
+ };
+ #endif
++#ifdef RIDGE3_F421
++// Murata NCU15XH103F60RC (10k, B25/50 3380 K) to ground under a 10k
++// from VDDA (the driver's DVDD): ADC = 4096 R / (R + 10k).  Entry i is
++// the temperature at ADC = 64 i, from the B equation; 0 and 64 are
++// extrapolated (the sensor is never there).
++int NTC_table[65] = {
++  239, 197, 155, 133, 119, 108, 100, 93, 87,
++  82, 77, 73, 69, 66, 63, 60, 57, 54,
++  52, 50, 47, 45, 43, 41, 39, 37, 35,
++  34, 32, 30, 28, 27, 25, 23, 22, 20,
++  19, 17, 15, 14, 12, 11, 9, 7, 6,
++  4, 2, 0, -1, -3, -5, -7, -9, -11,
++  -14, -16, -19, -22, -25, -28, -32, -38, -44,
++  -55, -65
++};
++#endif
+ #endif
+ 
+diff --git a/Inc/targets.h b/Inc/targets.h
+index 38c7e8f..40e7572 100644
+--- a/Inc/targets.h
++++ b/Inc/targets.h
+@@ -572,6 +572,33 @@
+ #endif
+ 
+ 
++// OffGrid Ridge 3 4-in-1 ESC, rev 2 (ridge-3/esc): four Artery
++// AT32F421G8U7 (QFN-28), TI DRV8320H smart gate drivers (IDRIVE 60 mA
++// source / 120 mA sink), 60 V Infineon OptiMOS 6 FETs, 2S-6S.  Pins are
++// HARDWARE_GROUP_AT_B + AT_045's: input PB4; phase A PA10/PB1, B PA9/PB0,
++// C PA8/PA7 (TMR1); comparators A PA0, B PA4, C PA5, neutral PA1.
++// Battery: 100k/10k (ratio 11) at PA3; current: 0.5 mOhm shunt x INA186A3
++// (100 V/V) = 50 mV/A at PA6, 0 A = 0 V; both are the MCU_AT421 defaults.
++// FET temperature: a 10k NTC beside the channel's FETs at PA2 (ADC_IN2),
++// so the temperature limit reads the power stage (NTC_table, ntc_tables.h).
++// DEAD_TIME: TMR1 at 120 MHz, 15 counts = 125 ns.  The DRV8320H turns a
++// gate on only after it sees the other gate discharged, then waits its
++// own ~100 ns, so AM32's dead time is a floor, not the protection.
++// No USE_SERIAL_TELEMETRY: the TLM line is not wired on this ESC.
++#ifdef RIDGE3_F421
++#define FIRMWARE_NAME "OffGrid Rd3 "
++#define FILE_NAME "RIDGE3_F421"
++#define DEAD_TIME 15
++#define HARDWARE_GROUP_AT_B
++#define HARDWARE_GROUP_AT_045
++#define MILLIVOLT_PER_AMP 50
++#define CURRENT_OFFSET 0
++#define TARGET_VOLTAGE_DIVIDER 110
++#define USE_NTC
++#define NTC_ADC_CHANNEL ADC_CHANNEL_2
++#define NTC_ADC_PIN GPIO_PINS_2
++#endif
++
+ #ifdef  GEPRC_12S_F421
+ #define FIRMWARE_NAME "GEPRC_12S_F4"
+ #define FILE_NAME "GEPRC_12S_F421"

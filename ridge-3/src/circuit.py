@@ -490,7 +490,7 @@ def esc_power():
     cap('C100N', 'DRV_EN', GND, B, 'driver enable filter')
 
     # Shared battery-voltage divider for AM32: 100k / 10k, ratio 11
-    # (TARGET_VOLTAGE_DIVIDER 110): 25.2 V -> 2.29 V at PA6.
+    # (TARGET_VOLTAGE_DIVIDER 110): 25.2 V -> 2.29 V at PA3.
     res('R100K', 'VBAT', 'ESC_VSENSE', B, 'ESC vsense top')
     res('R10K_0201', 'ESC_VSENSE', GND, B, 'ESC vsense bottom')
     cap('C100N', 'ESC_VSENSE', GND, B, 'ESC vsense filter')

@@ -1,6 +1,6 @@
-# Ridge 3 stack - Betaflight 2025.12 first-time setup
-# Paste into the Betaflight CLI after flashing RIDGE3 (ICM-45686 gyro) or
-# RIDGE3_BMI (BMI270 gyro), then check the orientation in the Setup tab
+# Ridge 3 stack (revision 2) - Betaflight 2025.12 first-time setup
+# Paste into the Betaflight CLI after flashing RIDGE3, then check the
+# orientation in the Setup tab
 # BEFORE the first flight: tilt the nose down and the model must tilt nose
 # down; right side down, it must roll right; yaw right and it must yaw right.
 # Do not change the board alignment from 0/0/0.
@@ -37,8 +37,14 @@ set current_meter = ADC
 set ibata_scale = 125
 set ibata_offset = 0
 
-# blackbox to the 16 MB flash
+# blackbox to the 16 MB flash (a board built without it: set blackbox_device = NONE)
 set blackbox_device = SPIFLASH
+
+# no beeper on the board: the motors beep instead (DShot beacon), on a lost
+# receiver link and on the beeper switch (the two conditions the beacon takes)
+set beeper_dshot_beacon_tone = 1
+beacon RX_LOST
+beacon RX_SET
 
 # ---------------------------------------------------------------- video
 # Pick ONE of the two blocks below.  The HD connector and the T1/R1 pads
@@ -64,8 +70,11 @@ set vcd_video_system = HD
 # set vcd_video_system = AUTO
 
 # ---------------------------------------------------------------- VTX power
-# The VTX's 9 V rail (HD connector pin 1 and the VTX 9V pad) can be switched
-# off from the radio, e.g. to keep the VTX cool on the bench.  PB5 (PINIO1)
+# The 9 V video supply runs from its own battery pads (VBAT and G by the HD
+# connector, wired to the ESC's battery pads), never from the stack lead.
+# A thermostat on the board switches it off above 96 C at the regulator and
+# back on at 76 C, whatever Betaflight does.  It can also be switched off
+# from the radio, e.g. to keep the VTX cool on the bench.  PB5 (PINIO1)
 # drives an N-FET that pulls the 9 V regulator's enable low:
 #   PB5 low  = VTX ON   (the default, and during boot: the FET gate has a
 #                        pull-down, so the VTX powers up with the FC)
@@ -80,7 +89,7 @@ set box_user_1_name = VTX_OFF
 # aux 5 40 3 1700 2100 0 0
 # Do not free PB5 ("resource PINIO 1 NONE"): Betaflight pulls unused pins up,
 # which would half-switch the FET.
-# On USB power alone the 9 V rail stays off whatever PINIO says (its
-# regulator's under-voltage lockout is 6 V, above what USB back-feeds).
+# On USB power alone the 9 V rail stays off whatever PINIO says: it has no
+# battery input then (its own pads).
 
 save
