@@ -1,4 +1,4 @@
-# Firmware for the Ridge 3 stack
+# Firmware for the Ridge 3 stack (revision 2)
 
 Everything here was built from source; the hashes below are of the files as
 committed.  None of it has run on this hardware yet: see "Bring-up" in
@@ -6,84 +6,86 @@ committed.  None of it has run on this hardware yet: see "Bring-up" in
 
 | File | What | Built from |
 |---|---|---|
-| `betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex` | Flight controller, **ICM-45686** gyro (the BOM part) | Betaflight `2025.12.5` (commit `7348054`) + `betaflight/configs/RIDGE3/config.h` |
-| `betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3_BMI.hex` | Flight controller, **BMI270** gyro (second source) | same, + `betaflight/configs/RIDGE3_BMI/config.h` |
-| `am32/AM32_G071_BOOTLOADER_PB4_64K_V19.hex` | ESC bootloader, all four ESC MCUs | AM32-bootloader `578ff29`, target `AM32_G071_BOOTLOADER_PB4_64K` |
-| `am32/AM32_RIDGE3_G071_2.21.hex` | ESC firmware, all four ESC MCUs | AM32 `55c9684` (v2.21) + `am32/AM32_55c9684_RIDGE3_G071_targets.patch`, target `RIDGE3_G071` |
-| `am32/flash_esc.sh` | Writes both to each ESC MCU over SWD, plus the option bytes | – |
+| `betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex` | Flight controller (IIM-42652 gyro, or the ICM-42688-P on the same pads) | Betaflight `2025.12.5` (commit `7348054`) + `betaflight/patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch` + `betaflight/configs/RIDGE3/config.h` |
+| `am32/AM32_F421_BOOTLOADER_PB4_V19.hex` | ESC bootloader, all four ESC MCUs | AM32-bootloader `578ff29`, target `AM32_F421_BOOTLOADER_PB4` |
+| `am32/AM32_RIDGE3_F421_2.21.hex` | ESC firmware, all four ESC MCUs | AM32 `2738df3` (v2.21) + `am32/AM32_2738df3_RIDGE3_F421_target.patch`, target `RIDGE3_F421` |
+| `am32/flash_esc.sh` | Writes both to each ESC MCU over SWD | – |
 
 ```
-4220e32da80d1cdb5d6fcb43254fa914d2fe878d6ae5fdd7d34128a5716fe632  betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex
-8f612b0a292fd5b5d1d582808367f0371c445afaf9bfeccc625c2fd76a6a8e3c  betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3_BMI.hex
-05f7109c5f5a0a8a8d4505e311b99599b6ca6ac7f5ea8e8c83c47c1089423f2d  am32/AM32_G071_BOOTLOADER_PB4_64K_V19.hex
-5d6558599c7e5e22c4787e2f06c030cc602f5667bf2db5540bfa4fc32d170087  am32/AM32_RIDGE3_G071_2.21.hex
-ff237ad28e60315feec38c1327ab1ec172fb0ebea7ce1a89433fa89451f2a6da  am32/AM32_55c9684_RIDGE3_G071_targets.patch
+1de5aae29180c3d3ac26d998e678f2c5b2eb2b228632fc935901acc217ecd626  betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex
+5265b0c388e604d380f7bb1b00cc2a2d96f47b65393e38532cca0b72dd8d3b6e  betaflight/patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch
+c6ce4d235f18b0c3d6067ac1ec4c57ee7616ece91efe47e8495c0704731161df  am32/AM32_F421_BOOTLOADER_PB4_V19.hex
+1af8ace717d2be0a5154513c691d63bcb82617c3ceb3ad67dbac40a67c80f12a  am32/AM32_RIDGE3_F421_2.21.hex
+a9b4edaa27eebeba1e8915a2d6426e6a7cced42740a7d7ee9ba2c5b10a929f00  am32/AM32_2738df3_RIDGE3_F421_target.patch
 ```
 
 ## Flight controller (Betaflight)
 
-### Which image
+### One image, two gyros
 
-The gyro pads take a TDK **ICM-45686** (the BOM part) or a Bosch **BMI270**
-(the second source: cheaper, and stocked in the tens of thousands).  The two
-chips have the same pinout, but not the same axes: relative to pin 1, the
-BMI270's axes are the ICM-45686's turned 90 degrees (BMI270 datasheet
-BST-BMI270-DS000-08 sec. 8.2, p.144; ICM-45686 DS-000577 fig. 13, p.50).
-Betaflight 2025.12 applies one alignment whichever chip it finds, and that
-alignment cannot be changed from the CLI.  So there is one image per chip:
+The gyro pads take a TDK **IIM-42652** (the BOM part: industrial,
+-40..+105 °C) or its consumer sibling, the **ICM-42688-P** (85 °C).  The two
+have the same pins and the same axes (IIM-42652 DS-000440 fig. 15), and
+Betaflight's `icm426xx` driver reads both, so one image runs either:
+`GYRO_1_ALIGN CW0_DEG`, an 8 kHz gyro and a 4 kHz PID loop (denom 2, what
+bidirectional DShot300 allows).
 
-| Gyro fitted (read the marking, or the assembly order) | Flash | `GYRO_1_ALIGN` | PID loop |
-|---|---|---|---|
-| ICM-45686 | `..._RIDGE3.hex` | `CW0_DEG` | 3.2 kHz (6.4 kHz gyro, denom 2) |
-| BMI270 | `..._RIDGE3_BMI.hex` | `CW270_DEG` | 3.2 kHz (denom 1) |
+**The image carries a fix to Betaflight.**  Betaflight 2025.12.5 detects the
+IIM-42652 (WHO_AM_I `0x6F`) but treats it as its big brother, the IIM-42653:
+it scales the gyro as ±4000 °/s and the accelerometer as ±32 g, and
+programs its anti-alias filter from the ICM-42605's table.  The IIM-42652's
+datasheet (DS-000440 tables 1-2 and section 5.3) gives ±2000 °/s at
+16.4 LSB/(°/s), ±16 g at 2048 LSB/g, and the ICM-42688-P's filter table
+(258 Hz = DELT 6, DELTSQR 36, BITSHIFT 10).  Unpatched, the gyro would read
+every rotation at twice its rate and the filter would sit near 1 kHz instead
+of 258 Hz.  `patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch`
+changes those three cases in `accgyro_spi_icm426xx.c` and nothing else.  It
+should go upstream; until then, **never flash a stock Betaflight build onto
+this board with the IIM-42652 fitted.**
 
-The ICM-42688-P no longer fits these pads: it wants its pin 9 (an unused
-FSYNC) at ground, and the ICM-45686 and the BMI270 both want that pin left
-unconnected, which is how the board has it.
+Stock targets are not a substitute either.  `TAKERG4AIO` (whose pin map this
+board copies) fixes its chip alignment at CW270 and sets a 45° board yaw,
+both wrong here.
 
-Each image has only its own chip's driver.  The wrong image on a board finds
-**no gyro** and refuses to arm.  It cannot fly with the axes 90 degrees off.
-
-Stock Betaflight targets are not a substitute.  `TAKERG4AIO` (whose pin
-map this board copies) fixes its chip alignment at CW270 and sets a 45° board
-yaw, both wrong for either chip here.
-
-Both configs also set these defaults for this board (see the top of
+The config also sets these defaults for this board (see the top of
 `config.h`):
 
 - **Board alignment 0/0/0.** The gyro sits square with the board, and the
-  front arrow on the silkscreen points forward.  TAKERG4AIO's default 45°
-  board yaw is wrong here.
+  front arrow on the silkscreen points forward.
 - **Receiver on UART2, CRSF.**  UART4 is spare (GPS).  LPUART1 RX (PB11) is
   on the stack lead's TLM pin, which this stack's ESC does not drive.
 - **DShot300 with bidirectional DShot on.** This is what the AM32 ESC board
   expects.
+- **No beeper.**  The board has none; `cli-setup.txt` turns the DShot beacon
+  on (the motors beep on a lost receiver link and on the beeper switch).
 - **Video.**  The AT7456E analog OSD is on SPI2 (shared with the blackbox
-  flash), chip select PA8 (`USE_MAX7456`; Betaflight tells the AT7456E from a
-  MAX7456 itself).  The HD VTX connector is UART1, which defaults to
-  *VTX (MSP + DisplayPort)* (`MSP_DISPLAYPORT_UART`).  No camera-control pin.
+  flash), chip select PA8 (`USE_MAX7456`).  The HD VTX connector is UART1,
+  which defaults to *VTX (MSP + DisplayPort)*.  No camera-control pin.
 - **VTX power switch.**  PINIO1 on PB5, driving the N-FET that pulls the
   9 V regulator's enable low: PB5 high = VTX off.  PINIO1 is a plain
   output tied to the USER1 mode (`PINIO1_BOX 40`), so it is low, and the
-  VTX **on**, at boot and until a USER1 switch turns it off.
+  VTX **on**, at boot and until a USER1 switch turns it off.  The 9 V
+  regulator runs from its own battery pads, and a thermostat beside it turns
+  it off above 96 °C (back on at 76 °C) whatever the firmware does.
 - **Battery.**  Voltage from the 30k/2k divider: `vbat_scale` 160 (2S-6S).
   Current from the ESC's CUR output, the average of its four 50 mV/A
   channel sensors, i.e. 12.5 mV per amp of battery current: `ibata_scale`
-  125 (Betaflight's unit is mV per 10 A), offset 0, meter source ADC.  The
-  FC's 100k pull-down on CUR loads the ESC's averaging resistors (2.5 kΩ
-  together), so the reading comes out about 2.4 % low; 122 would be exact
-  with today's circuit (`VERIFICATION.md`, *Firmware scales*).
+  125 (Betaflight's unit is mV per 10 A), offset 0, meter source ADC.
 
-The 16 MB blackbox flash is a Winbond W25Q128JV (-IM, JEDEC `EF 70 18`, or
--IQ, `EF 40 18`).  Betaflight's `m25p16` driver knows both (and the Puya
-PY25Q128HA, `85 20 18`).
+The 16 MB blackbox flash is an Infineon S25FL128L (JEDEC `01 60 18`,
+-40..+125 °C), which Betaflight's `m25p16` driver lists.  The board runs
+without it: Betaflight then finds no flash, and `blackbox_device = NONE`.
+
+The processor is the STM32G473CEU6 (suffix 6: 105 °C junction).  The
+suffix-3 part (STM32G473CEU3, 130 °C junction) fits the same pads and runs
+the same image; it was not stocked anywhere when this was written.
 
 ### Flashing
 
-1. Hold **BOOT** (right-rear edge of the FC) and plug in USB-C. The board
-   comes up in DFU mode.
+1. Hold **BOOT** (right edge of the FC, rear half) and plug in USB-C. The
+   board comes up in DFU mode.
 2. In Betaflight Configurator, open *Firmware Flasher*, click **Load Firmware
-   [Local]**, pick the `.hex` for the gyro that is fitted, and flash with
+   [Local]**, pick `betaflight_2025.12.5_STM32G47X_RIDGE3.hex`, and flash with
    *Full chip erase* on.
 3. Connect, then paste `betaflight/cli-setup.txt` into the CLI and `save`.
    It has two video blocks: keep the HD block for a DJI, Walksnail or HDZero
@@ -93,189 +95,148 @@ PY25Q128HA, `85 20 18`).
 4. **Props off, in the Setup tab:** tilt the nose down, and the model must pitch
    nose down.  Tilt the right side down, and it must roll right.  Turn it
    clockwise seen from above, and it must yaw right.  With the board level, the
-   accelerometer reads about 0, 0, +1 g.  If any of these is wrong, do not fly.
+   accelerometer reads about 0, 0, +1 g (not +2 g: that would be the
+   unpatched driver).  If any of these is wrong, do not fly.
 
 ### Building it yourself
 
 In a Betaflight 2025.12.5 checkout:
 
 ```
+git apply <this repo>/ridge-3/firmware/betaflight/patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch
 make arm_sdk_install
 SOURCE_DATE_EPOCH=1790412014 make CONFIG=RIDGE3 \
   CONFIG_DIR=<this repo>/ridge-3/firmware/betaflight CONFIG_REVISION_DEFINE=
-# and CONFIG=RIDGE3_BMI for the BMI270 image
 ```
 
 With that build date, and with no git revision stamped in, the build
-reproduces the committed images bit for bit (Arm GNU 13.3.rel1, which is what
-`make arm_sdk_install` fetches for 2025.12.5).  The defaults above were read
-back out of the built ELF files, not only from `config.h`.
+reproduces the committed image bit for bit (Arm GNU 13.3.rel1, which is what
+`make arm_sdk_install` fetches for 2025.12.5).
 
 ## ESC (AM32, four times)
 
-The four STM32G071 on the ESC board (G071GBU6, 128 KB, or G071G8U6, 64 KB:
-same die and pads, and the same images) come blank from the assembler.  Each
-one needs the AM32 bootloader and firmware once, over SWD.  After that, all
-firmware updates and settings go through the flight controller in the usual
-way.
+The four Artery AT32F421G8U7 on the ESC board come blank from the
+assembler.  Each one needs the AM32 bootloader and firmware once, over SWD.
+After that, all firmware updates and settings go through the flight
+controller in the usual way.
 
-**First flash (ST-Link V2 or a clone; a few minutes for all four):**
+**First flash** (an ST-Link V2 or Artery AT-Link, and Artery's OpenOCD;
+`am32/flash_esc.sh` has the details):
 
-1. Flash the ESC while it is bare: **no battery**, no capacitors on the
-   battery pads, not stacked.  The ST-Link's 3.3 V powers the four MCUs and
-   the current amplifiers.
-2. Wire the ST-Link to the pads on the ESC's top (the side that faces the
-   flight controller): `GND` to `G`, `3.3V` to `3V3`, and `SWCLK` to `Cn`
-   and `SWDIO` to `Dn`, where *n* is the ESC being flashed.  `3V3` and `G`
-   are at the two ends of the rear edge, outboard of motor 1's pads.  Each
-   MCU's `Cn` and `Dn` are over that MCU, on the board's middle side of
-   motor n's FETs.  NRST is not on a pad; resets are software resets.
-3. Run `am32/flash_esc.sh`.  It asks for each ESC in turn (move `SWCLK` and
-   `SWDIO` to `C1`/`D1`, `C2`/`D2`, ...), or takes the numbers to flash as
-   arguments (`./flash_esc.sh 3`).  It uses OpenOCD (`target/stm32g0x.cfg`);
-   `TOOL=cubeprog ./flash_esc.sh` uses STM32CubeProgrammer instead.  For each
-   MCU it:
-   - mass-erases the flash;
-   - writes and reads back the bootloader (at `0x08000000`) and the firmware
-     (at `0x08001000`);
-   - **checks the option bytes**.  On this 28-pin package PA14 is both SWCLK
-     and BOOT0.  The G0 boots from its flash, whatever that pin does, when
-     `nBOOT_SEL = 1` (BOOT0 comes from the option bit, not the pin) and
-     `nBOOT0 = 1`.  ST ships parts that way; the script writes the two bits
-     only if a part arrives otherwise, then reloads the option bytes;
-   - clears `FLASH_ACR.EMPTY`.  A G0 decides at power-on whether its flash is
-     blank, and if so starts ST's ROM bootloader, not the flash.  Right after
-     programming a blank part that flag is still set, so without this a
-     reset would not start AM32 (a power cycle also clears it).
-
-   With STM32CubeProgrammer, power-cycle the board after flashing for the
-   same reason.
+1. Each MCU runs from its own gate driver's 3.3 V, which is on whenever the
+   board has a battery.  Power the bare ESC (not stacked, no motors) from a
+   **current-limited bench supply, 12 V, 0.3 A**, on its battery pads.  The
+   drivers' inputs have pull-downs, so the FETs stay off while an MCU is
+   blank or halted.
+2. Wire the probe's `GND` to the battery pad marked `-`, and `SWCLK` to `Cn`
+   and `SWDIO` to `Dn`, where *n* is the ESC being flashed (the pads sit over
+   each MCU on the board's top).  Do not connect the probe's 3.3 V output.
+3. Run `am32/flash_esc.sh` (all four, asking before each) or
+   `./flash_esc.sh 3` for one.  For each MCU it erases the flash, writes and
+   verifies the bootloader (`0x08000000`) and the firmware (`0x08001000`),
+   and starts it.  The board ties BOOT0 low, so there are no option bytes to
+   set.  Artery's ISP Programmer with an AT-Link does the same from a GUI.
 
 **Then, with the stack assembled and the battery on:**
 
-1. Open the AM32 Configurator (<https://am32.ca>, AM32's own tool) in Chrome,
-   connect to the flight controller (Betaflight passthrough) and read the
-   ESCs.  All four should show AM32 2.21 with the target name `RIDGE3_G071`.
+1. Open the AM32 Configurator (<https://am32.ca>) in Chrome, connect to the
+   flight controller (Betaflight passthrough) and read the ESCs.  All four
+   should show AM32 2.21 with the target name `RIDGE3_F421`.
 2. **Click "Send default config" before anything spins.**  An MCU flashed
-   over SWD starts with an erased settings page.  On its first boot AM32
-   writes only its version bytes there, and reads the other erased bytes
-   (0xFF) as *on*: 3D mode, car-type reversing and stall boost among them.
-   The configurator fills in defaults by itself only when the page is
-   entirely blank, which it no longer is by then.
+   over SWD starts with an erased settings page, which AM32 would read as 3D
+   mode, car-type reversing and stall boost *on*.
 3. Set these on all four, then **Save config**:
 
    | AM32 Configurator setting | Value | Why |
    |---|---|---|
-   | *Motor KV*, *Motor poles* | your motor (XING2 1404: 3800, 12) | RPM telemetry |
-   | *3D mode* | **off** | Bidirectional DShot needs no ESC setting: AM32 detects the inverted DShot signal itself.  This switch is 3D flight |
+   | *Motor KV*, *Motor poles* | your motor | RPM telemetry |
+   | *3D mode* | **off** | Bidirectional DShot needs no ESC setting |
    | *Car type reverse braking* | off | A car mode |
    | *30ms interval telemetry* | off | The TLM line is not wired on this ESC |
-   | *Stuck rotor protection* | **on** (the default) | Cuts a motor whose back-EMF disappears: a stalled or jammed rotor |
-   | *Stall protection* | off (the default) | A crawler feature that *adds* power at stall; AM32 says not for multirotors |
+   | *Stuck rotor protection* | **on** (the default) | Cuts a motor whose back-EMF disappears |
+   | *Stall protection* | off (the default) | A crawler feature that *adds* power at stall |
    | *Limits* → *Low voltage cut off* | Off | Betaflight does battery warnings |
-   | *Limits* → *Temperature limit* | **110** °C | See below.  70-140; the slider's end (141) is off, the default |
-   | *Limits* → *Current limit* | **20** A | See below.  2 A steps; the slider's end (202) is off, the default |
+   | *Limits* → *Temperature limit* | **110** °C | Read at the FET thermistor; see below |
+   | *Limits* → *Current limit* | **20** A | See below |
 
-   esc-configurator.com also works (AM32 lists it as an alternative).  Its
-   names differ: *Restore Default Settings*, *Forward/Reverse (3D mode)*,
-   and *Temperature Limit* / *Current Limit [A]* under *Safety Settings*.
 4. Use Betaflight's *Motors* tab (props off!) to check the motor order and
    direction. Motor 1 is rear-right, 2 front-right, 3 rear-left, and 4
-   front-left. Reverse any motor that spins the wrong way with the
-   *Reversed* switch in the configurator, not by swapping wires (either
-   works).
-5. Check the current reading: with the quad on a bench supply, Betaflight's
-   current should match the supply's ammeter within a few percent (trim
-   `ibata_scale` if not).  The same sensors feed AM32's current limit, so
-   this also checks the limit.
+   front-left.  Reverse a motor with the *Reversed* switch in the
+   configurator.
+5. Check the current reading against a bench supply's ammeter (trim
+   `ibata_scale` if needed).  The same sensors feed AM32's current limit.
 
-**The limits.**  The ESC's current rating has not been measured.  The design
-estimate is about 20 A per motor in bursts, and a sustained 9-12 A per motor
-with airflow (5 A in still air) before the board passes 100 °C.
+**The limits.**  The ESC's ratings have not been measured; `../STRESS.md`
+has the simulated ones.
 
+- *Temperature limit* reads a 10 kΩ thermistor beside each channel's FETs
+  (rev 1 read the processor's own die, a few millimetres away, which lagged
+  the FETs in a burst).  Above the limit AM32 cuts that motor's maximum duty
+  to about a quarter, falling to zero 10 °C above it.  In the heat test of
+  the bring-up, compare the hottest FET with the ESC temperature Betaflight
+  shows (`dshot_edt`).
 - *Current limit* acts on each motor's own battery-side current, averaged
-  over 50 ms, through a PID loop that lowers the duty.  20 A caps punch-outs
-  at the burst figure and still leaves the XING2 1404's 15.8 A.  It is not a
-  thermal limit: a long full-throttle run under 20 A still overheats the
-  board.  That is the temperature limit's job.
-- *Temperature limit* uses each MCU's own die sensor, so it reads the
-  board near that MCU, not the FETs themselves.  Above the limit AM32 cuts
-  that motor's maximum duty to about a quarter, falling to zero 10 °C above
-  it.  In the heat test of the bring-up, compare the hottest FET with the
-  ESC temperature Betaflight shows (`dshot_edt`) and move the limit if the
-  two differ by much.
-- *Stuck rotor protection* works without current sensing.  A stalled motor
-  at low throttle draws little battery current (the shunt sees duty ×
-  phase current), so the current limit alone would not catch it.
+  over 50 ms.  It caps bursts; it is not a thermal limit.
+- *Stuck rotor protection* works without current sensing.
 
-### The target: `RIDGE3_G071`
+### The target: `RIDGE3_F421`
 
 The ESC schematic (`src/circuit.py`, `esc()`) is wired to AM32's hardware
-group `G0_A`, the pin map of the stock `GEN_64K_G071` and `TBS_4IN1_G071`
-targets.  Pin numbers are the STM32G071's UFQFPN28 "GP" pinout (DS12232,
-table 12):
+groups `AT_B` + `AT_045`, the pin map of stock AT32F421 targets such as
+`SKYSTARS_F80_F421`.  Pin numbers are the AT32F421's QFN-28 (datasheet
+figure 5, table 5):
 
 | Function | Port | QFN28 pin | Net (ESC *n*) |
 |---|---|---|---|
-| DShot input (TIM3_CH1; also the bootloader's pin) | PB4 | 24 | `Mn_SIG` |
-| Phase A high / low (TIM1_CH3 / CH3N) | PA10 / PB1 | 19 / 15 | `Mn_HA` / `Mn_LA` |
-| Phase B high / low (TIM1_CH2 / CH2N) | PA9 / PB0 | 18 / 14 | `Mn_HB` / `Mn_LB` |
-| Phase C high / low (TIM1_CH1 / CH1N) | PA8 / PA7 | 16 / 13 | `Mn_HC` / `Mn_LC` |
-| Back-EMF A / B / C (COMP2 −) | PB7 / PB3 / PA2 | 27 / 23 / 8 | `Mn_CMP_A` / `_B` / `_C` |
-| Virtual neutral (COMP2 +) | PA3 | 9 | `Mn_NEUTRAL` |
-| Current, 50 mV/A (ADC_IN5) | PA5 | 11 | `Mn_ISENSE` |
-| Battery voltage, 100k/10k (ADC_IN6) | PA6 | 12 | `ESC_VSENSE` |
-| SWDIO / SWCLK (BOOT0) | PA13 / PA14 | 20 / 21 | `Mn_SWDIO` / `Mn_SWCLK` |
+| DShot input (also the bootloader's pin) | PB4 | 25 | `Mn_SIG` |
+| Phase A high / low (TMR1_CH3 / CH3C) | PA10 / PB1 | 20 / 15 | `Mn_HA` / `Mn_LA` |
+| Phase B high / low (TMR1_CH2 / CH2C) | PA9 / PB0 | 19 / 14 | `Mn_HB` / `Mn_LB` |
+| Phase C high / low (TMR1_CH1 / CH1C) | PA8 / PA7 | 18 / 13 | `Mn_HC` / `Mn_LC` |
+| Back-EMF A / B / C (comparator −) | PA0 / PA4 / PA5 | 6 / 10 / 11 | `Mn_CMP_A` / `_B` / `_C` |
+| Virtual neutral (comparator +) | PA1 | 7 | `Mn_NEUTRAL` |
+| FET thermistor (ADC_IN2) | PA2 | 8 | `Mn_NTC` |
+| Battery voltage, 100k/10k (ADC_IN3) | PA3 | 9 | `ESC_VSENSE` |
+| Current, 50 mV/A (ADC_IN6) | PA6 | 12 | `Mn_ISENSE` |
+| SWDIO / SWCLK | PA13 / PA14 | 21 / 22 | `Mn_SWDIO` / `Mn_SWCLK` |
+| BOOT0 | – | 1 | ground |
 
-Pins 18 and 19 are PA11 and PA12 until the firmware remaps them to PA9 and
-PA10.  AM32's G071 code does that at start-up unless a target defines
-`NO_PA11_PA12_REMAP`, which this one does not.  Until then (and in the
-bootloader) the DRV8300's inputs sit on their internal pull-downs, so the
-gates stay off.
+`RIDGE3_F421` (`AM32_2738df3_RIDGE3_F421_target.patch`):
 
-`RIDGE3_G071` is `GEN_64K_G071` with this board's numbers
-(`AM32_55c9684_RIDGE3_G071_targets.patch`):
+- `MILLIVOLT_PER_AMP 50`, `CURRENT_OFFSET 0`: 0.5 mΩ shunt × INA186A3
+  (100 V/V), 0 A = 0 V.
+- `TARGET_VOLTAGE_DIVIDER 110`: the 100k/10k divider (ratio 11).  Voltage
+  on PA3 and current on PA6 are AM32's `MCU_AT421` defaults.
+- `USE_NTC` on PA2 with its own `NTC_table`: Murata NCU15XH103F60RC (10 kΩ,
+  B25/50 3380 K) under a 10 kΩ pull-up from the channel's 3.3 V, computed
+  from the B equation (entry *i* is the temperature at ADC count 64 *i*).
+  At 110 °C the divider gives about 0.25 V; the table's 64-count steps
+  there are about 10 °C, interpolated linearly.
+- `DEAD_TIME 15`: 15 counts of TMR1's 120 MHz clock = 125 ns.  The
+  DRV8320H itself holds a gate off until it sees the other one discharged,
+  then adds ~100 ns, so AM32's dead time is a floor here, not the
+  protection.  (AM32 also uses DEAD_TIME as its minimum duty.)
+- No `USE_SERIAL_TELEMETRY`: the ESC's TLM line is not wired.
+  Bidirectional DShot carries eRPM, and, with `dshot_edt = ON` in
+  Betaflight, the ESCs' temperature, voltage and current.
+- `FIRMWARE_NAME "OffGrid Rd3 "` (12 characters).  The configurators show
+  `FILE_NAME`, `RIDGE3_F421`.
 
-- `MILLIVOLT_PER_AMP 50`, `CURRENT_OFFSET 0`: 0.5 mΩ shunt × INA180A3
-  (100 V/V), 0 A = 0 V.  Stock is 20 mV/A.
-- `TARGET_VOLTAGE_DIVIDER 110`: the 100k/10k divider (ratio 11), AM32's
-  default.
-- `DEAD_TIME 40`: 40 counts of TIM1's 64 MHz clock = 625 ns, on top of
-  which the DRV8300 inserts its own ~215 ns (DT pin open; 150-280 ns).
-  That is conservative for this driver and these FETs, yet shorter than
-  stock `GEN_64K_G071`'s 60 (938 ns), which is safe but spends more time
-  in body-diode conduction (about 0.4 W per motor more at 6S, 20 A,
-  48 kHz, by the design's loss estimate).  Scope
-  the gate drive on the first board before shortening it further.  (AM32
-  also uses DEAD_TIME as its minimum duty.)
-- No `USE_SERIAL_TELEMETRY`: the ESC's TLM line is not wired.  Bidirectional
-  DShot carries eRPM, and, with `dshot_edt = ON` in Betaflight, the ESCs'
-  temperature, voltage and current.
-- `SIXTY_FOUR_KB_MEMORY`: settings at `0x0800F800`, so one image (and the
-  `G071_64K` bootloader) runs on both the 64 KB and the 128 KB part.
-- `FIRMWARE_NAME "OffGrid Rdg3"`: AM32 allows 12 characters, so not "OffGrid
-  Ridge3".  Only DroneCAN builds use it; the configurators show `FILE_NAME`,
-  `RIDGE3_G071`.
-
-No official AM32 release is built for `RIDGE3_G071`, so the configurators'
-online firmware lists have nothing for it; update from a local `.hex`.  The
-stock `GEN_64K_G071` release would also run this board (same pins), but it
-reads current 2.5 times too high (the limit trips early) and uses the longer
-dead time.
+No official AM32 release is built for `RIDGE3_F421`, so update from a local
+`.hex`.
 
 ### Building it yourself
 
 AM32 releases are built with xPack GCC 10.3.  These images were built with
 Arm GNU 13.3.rel1, which needs `-Wno-array-bounds` for one false positive in
 `main.c` (a pointer into the device-info flash block).  The code is
-unchanged.  Both builds reproduce the committed files bit for bit.
+unchanged.
 
 ```
 # bootloader (repo am32-firmware/AM32-bootloader, commit 578ff29)
-make ARM_SDK_PREFIX=<gcc>/bin/arm-none-eabi- AM32_G071_BOOTLOADER_PB4_64K
-# firmware (repo am32-firmware/AM32, commit 55c9684)
-git apply <this repo>/ridge-3/firmware/am32/AM32_55c9684_RIDGE3_G071_targets.patch
-make ARM_SDK_PREFIX=<gcc>/bin/arm-none-eabi- RIDGE3_G071 \
+make ARM_SDK_PREFIX=<gcc>/bin/arm-none-eabi- AM32_F421_BOOTLOADER_PB4
+# firmware (repo am32-firmware/AM32, commit 2738df3)
+git apply <this repo>/ridge-3/firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch
+make ARM_SDK_PREFIX=<gcc>/bin/arm-none-eabi- RIDGE3_F421 \
   CFLAGS_BASE="-fsingle-precision-constant -fomit-frame-pointer -ffast-math -IInc -g3 -O3 \
   -ffunction-sections --specs=nosys.specs -Wall -Wundef -Wextra -Werror \
   -Wno-unused-parameter -Wno-stringop-truncation -Wno-array-bounds"
@@ -283,10 +244,13 @@ make ARM_SDK_PREFIX=<gcc>/bin/arm-none-eabi- RIDGE3_G071 \
 
 ### Not yet verified
 
-- Nothing here has run on a G071 or on this ESC.  `flash_esc.sh`'s OpenOCD
-  commands were run with the hardware commands stubbed out, against OpenOCD
-  built from upstream `e5888bda`.  The STM32CubeProgrammer line (in
-  particular the `-ob nBOOT_SEL=1 nBOOT0=1` names) was not run at all.
-- `DEAD_TIME 40` against the DRV8300 and these FETs: scope it.
-- The 50 mV/A and 12.5 mV/A current scales: check against a bench ammeter.
-- The 110 °C / 20 A limits are design estimates, not measurements.
+- Nothing here has run on an AT32F421, on this ESC or on this FC.
+  `flash_esc.sh` has not been run (no Artery OpenOCD or part was at hand).
+- `DEAD_TIME 15` with the DRV8320H's hold-off: scope the gate drive.
+- The NTC table against a thermometer at the FETs, and the 50 mV/A and
+  12.5 mV/A current scales against a bench ammeter.
+- The Betaflight gyro patch: on the bench, the Setup tab's model must follow
+  the board one for one (a 90° turn reads 90°), and the accelerometer reads
+  1 g level.
+- The 110 °C / 20 A limits are design estimates from the simulations, not
+  measurements.
