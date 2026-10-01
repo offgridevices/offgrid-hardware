@@ -1773,7 +1773,12 @@ def escape_pins(b, comps):
             # neighbours at once)
             s = via_spots(obst, fp, p, room)
             spots[key] = s if key not in spots else spots[key] & s
-    pins = lambda keys: sorted((ref, num) for ref, role in qfn.items() for r_, num in keys if r_ == role)
+    # in pin order round each chip: an escape takes the end of its pad its
+    # neighbour on one side left it (at a 0.4 mm pitch two neighbours'
+    # vias at the same end break the hole-to-copper gap), so taken in
+    # order the vias alternate ends along a row
+    pins = lambda keys: sorted(((ref, num) for ref, role in qfn.items() for r_, num in keys if r_ == role),
+                               key=lambda q: (q[0], int(q[1]) if q[1].isdigit() else 0, q[1]))
     maybe = sorted(k for k, s in spots.items() if not s and k not in need | late | tight)
     inpad = sorted(tight - need - late)
     return pins(need), [pins([k]) for k in maybe], pins(late), [pins([k]) for k in inpad]
