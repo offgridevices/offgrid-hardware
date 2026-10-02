@@ -214,28 +214,38 @@ def switching_section():
         'capacitor\'s own inductance, about 5 nH.  That is an estimate, not a '
         'field solution, so 3 and 8 nH are run too.')
     say()
+    # every half-bridge run of this section, all at once (spice.half_bridges)
+    main = [(diode, T, I, L, lm) for diode, lm, tt in DIODES()
+            for T in ((150,) if QUICK else (25, 150)) for I in (10, 20, 30)
+            for L in ((5e-9,) if QUICK else (3e-9, 5e-9, 8e-9))
+            if not (diode == 'as supplied' and data.BODY_DIODE and (L != 5e-9 or T != 150))]
+    buses = (31.3, 35.3)
+    fixes = [(tag, kw, I) for tag, kw in (('as designed', {}),) + (
+                 (('gate resistors 22 ohm', dict(Rg=22)), ('gate resistors 47 ohm', dict(Rg=47)))
+                 if data.DRIVER['kind'] == 'gvdd' else ()) + (
+                 ('RC snubber 2.2 ohm + 2.2 nF per FET', dict(snub=(2.2, 2.2e-9))),
+                 ('RC snubber 1 ohm + 4.7 nF per FET', dict(snub=(1.0, 4.7e-9))),
+                 ('RC snubber 1 ohm + 10 nF per FET', dict(snub=(1.0, 10e-9))),) + idrive_steps()
+             for I in (10, 30)]
+    runs = spice.half_bridges(
+        [hb_params(I=I, T=T, Lloop=L, lm=lm, tag='sw') for diode, T, I, L, lm in main] +
+        [hb_params(V=Vb, I=20.0, T=150, Lloop=5e-9, lm=data.BODY_DIODE, tag='regen') for Vb in buses] +
+        [hb_params(I=I, T=150, Lloop=5e-9, lm=data.BODY_DIODE, tag='fix', **kw) for tag, kw, I in fixes])
+    fixed = runs[len(main) + len(buses):]
     rows = []
     res = {}
     gear = []
-    for diode, lm, tt in DIODES():
-        for T in ((150,) if QUICK else (25, 150)):
-            for I in (10, 20, 30):
-                for L in ((5e-9,) if QUICK else (3e-9, 5e-9, 8e-9)):
-                    if diode == 'as supplied' and data.BODY_DIODE and (L != 5e-9 or T != 150):
-                        continue
-                    n_gear = len(spice.GEAR)
-                    r = spice.half_bridge(hb_params(I=I, T=T, Lloop=L, lm=lm, tag='sw'))
-                    if len(spice.GEAR) > n_gear:
-                        gear.append('%s, %d C, %d A, %.0f nH' % (diode, T, I, L * 1e9))
-                    res[(diode, T, I, L)] = r
-                    rows.append([diode, T, I, '%.0f' % (L * 1e9), '%.1f' % r['vds_hs_peak'],
-                                 '%.1f' % r['vds_ls_peak'], '%.1f' % r['sh_min'],
-                                 '%.1f / %.1f' % (r['slew_rise'], r['slew_fall']),
-                                 '%.2f' % r['vgs_ls_miller'], '%.0f' % r['irr'],
-                                 '%.1f / %.1f' % (r['e_on'] * 1e6, r['e_off'] * 1e6)])
+    for (diode, T, I, L, lm), r in zip(main, runs):
+        if r['gear']:
+            gear.append('%s, %d C, %d A, %.0f nH' % (diode, T, I, L * 1e9))
+        res[(diode, T, I, L)] = r
+        rows.append([diode, T, I, '%.0f' % (L * 1e9), '%.1f' % r['vds_hs_peak'],
+                     '%.1f' % r['vds_ls_peak'], '%.1f' % r['sh_min'],
+                     '%.1f / %.1f' % (r['slew_rise'], r['slew_fall']),
+                     '%.2f' % r['vgs_ls_miller'], '%.0f' % r['irr'],
+                     '%.1f / %.1f' % (r['e_on'] * 1e6, r['e_off'] * 1e6)])
     # the same edges while a throttle chop has lifted the bus (section 4)
-    for Vb in (31.3, 35.3):
-        r = spice.half_bridge(hb_params(V=Vb, I=20.0, T=150, Lloop=5e-9, lm=data.BODY_DIODE, tag='regen'))
+    for Vb, r in zip(buses, runs[len(main):]):
         res[('bus %.1f V' % Vb, 150, 20, 5e-9)] = r
         rows.append(['%s, bus at %.1f V (throttle chop)' % (MAIN(), Vb), 150, 20, '5', '%.1f' % r['vds_hs_peak'],
                      '%.1f' % r['vds_ls_peak'], '%.1f' % r['sh_min'],
@@ -278,21 +288,15 @@ def switching_section():
                 data.FET['vth_min'], data.FET['vth_min_hot']))
     # what brings the ringing down
     rows = []
-    for tag, kw in (('as designed', {}),) + ((('gate resistors 22 ohm', dict(Rg=22)), ('gate resistors 47 ohm', dict(Rg=47)))
-                                             if data.DRIVER['kind'] == 'gvdd' else ()) + (
-                    ('RC snubber 2.2 ohm + 2.2 nF per FET', dict(snub=(2.2, 2.2e-9))),
-                    ('RC snubber 1 ohm + 4.7 nF per FET', dict(snub=(1.0, 4.7e-9))),
-                    ('RC snubber 1 ohm + 10 nF per FET', dict(snub=(1.0, 10e-9))),) + idrive_steps():
-        for I in (10, 30):
-            r = spice.half_bridge(hb_params(I=I, T=150, Lloop=5e-9, lm=data.BODY_DIODE, tag='fix', **kw))
-            if tag == 'as designed':
-                found.setdefault('hs30', {})[I] = r['vds_hs_peak']
-            extra = 0.0
-            if 'snub' in kw:
-                extra = 2 * kw['snub'][1] * data.BRIDGE['V'] ** 2 * data.AM32['f_max']   # per switched leg
-            rows.append([tag, I, '%.1f' % r['vds_hs_peak'], '%.1f' % r['vds_ls_peak'], '%.1f' % r['sh_min'],
-                         '%.1f / %.1f' % (r['e_on'] * 1e6, r['e_off'] * 1e6),
-                         '%.2f W' % extra if extra else '-'])
+    for (tag, kw, I), r in zip(fixes, fixed):
+        if tag == 'as designed':
+            found.setdefault('hs30', {})[I] = r['vds_hs_peak']
+        extra = 0.0
+        if 'snub' in kw:
+            extra = 2 * kw['snub'][1] * data.BRIDGE['V'] ** 2 * data.AM32['f_max']   # per switched leg
+        rows.append([tag, I, '%.1f' % r['vds_hs_peak'], '%.1f' % r['vds_ls_peak'], '%.1f' % r['sh_min'],
+                     '%.1f / %.1f' % (r['e_on'] * 1e6, r['e_off'] * 1e6),
+                     '%.2f W' % extra if extra else '-'])
     say('What brings the peaks down (T<sub>j</sub> 150 C, 5 nH, %s):' % (
         'the recovery-fit diode' if data.BODY_DIODE else 'the maker\'s model'))
     say()

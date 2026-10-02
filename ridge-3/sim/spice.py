@@ -242,6 +242,26 @@ CgHo goH sH 10p
         edges=(t_off_ls, t_on_hs, t_off_hs, t_on_ls))
 
 
+def _hb_one(p):
+    n = len(GEAR)
+    r = half_bridge(p)
+    r['gear'] = len(GEAR) > n
+    return r
+
+
+def half_bridges(ps, procs=None):
+    """half_bridge on each parameter set in ps, one ngspice per CPU at once
+    (forked, so each run sees the design data.use chose).  Each run gets a
+    file name of its own; the runs Gear's integration solved go on GEAR as
+    in half_bridge.  Results in the order of ps."""
+    from multiprocessing import get_context
+    ps = [dict(p, tag='%s_%d' % (p.get('tag', 'hb'), i)) for i, p in enumerate(ps)]
+    with get_context('fork').Pool(procs or os.cpu_count() or 1) as pool:
+        out = pool.map(_hb_one, ps, chunksize=1)
+    GEAR.extend('hb_' + p['tag'] for p, r in zip(ps, out) if r['gear'])
+    return out
+
+
 # ----------------------------------------------------------------- model checks
 LM_DIODE = """
 * Body diode with reverse recovery by charge control (Lauritzen and Ma,
@@ -274,7 +294,10 @@ def _fet_variant(lm=None):
                  ('.MODEL DDS1 D', '.MODEL DDSJ D\n+ IS=1e-30 CJO=2.05e-09 VJ=0.9 M=0.45 BV=40 IBV=0.01\n.MODEL DDS1 D')):
         assert a in text, a
         text = text.replace(a, b)
-    open(path, 'w').write(LM_DIODE + text)
+    # written whole, then put in place: runs in parallel (half_bridges) read it
+    tmp = '%s.%d' % (path, os.getpid())
+    open(tmp, 'w').write(LM_DIODE + text)
+    os.replace(tmp, path)
     return path
 
 
