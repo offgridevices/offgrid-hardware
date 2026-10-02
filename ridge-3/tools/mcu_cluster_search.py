@@ -324,7 +324,7 @@ class Problem:
         come before them (fanout): those keep to the board as built, and
         one on a reserved line costs as a blocked track."""
         b = self.b
-        nets = set('M1_' + r for r in E.FIRST_LINES)
+        nets = set(r if r.startswith('ESC_') else 'M1_' + r for r in E.FIRST_LINES)
         # and the nets from the channel's parts to the shared parts in the
         # middle (the MCU's signal input, the battery-voltage and enable
         # buses), laid right after them

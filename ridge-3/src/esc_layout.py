@@ -1405,9 +1405,28 @@ def route_local(b, comps):
     # channels have and it lacks, copied onto every channel (each finished
     # in its own region if a copy was cut short).
     reg = stamp.region(b, channel_parts(comps), CHANNELS)
+    buses = stamp.buses(b, channel_parts(comps), CHANNELS)
+
+    def bus_leg(net):
+        """Channel 1's leg of a bus (one pin in every channel, and shared
+        parts): from its pin to the nearest of the shared parts' pads.
+        Copied and joined with the other legs (3., 4.)."""
+        local.append(net)
+        ref, num = buses[net][1]
+        pin = next(q for q in b.FindFootprintByReference(ref).Pads() if q.GetNumber() == num)
+        far = [q for fp in b.GetFootprints() if fp.GetReference() not in chan_refs
+               for q in fp.Pads() if q.GetNetname() == net]
+        exit_ = leg(net, [pin], pin, _nearest(far, pin.GetPosition()))
+        if exit_ is None:
+            left.append(net)
+        else:
+            legs.append((exit_, {n: net for n in CHANNELS}))
 
     def lay(roles):
         for role in roles:
+            if role in buses:              # a bus's leg, laid in the lines' order
+                bus_leg(role)
+                continue
             t1 = 'M1_%s' % role
             before = set(t.m_Uuid.AsString() for t in b.GetTracks())
             ko = _channel_keepouts(b, comps, 1, reg)
@@ -1444,19 +1463,10 @@ def route_local(b, comps):
             legs.append((exit_, {n: net for n, net in m.items()}))
     # the buses (one pin in every channel, and shared parts: each MCU's
     # battery voltage input from the one divider, the current amplifiers'
-    # outputs to the average): from channel 1's pin to the nearest of the
-    # shared parts' pads
-    for net, m in stamp.buses(b, channel_parts(comps), CHANNELS).items():
-        local.append(net)
-        ref, num = m[1]
-        pin = next(q for q in b.FindFootprintByReference(ref).Pads() if q.GetNumber() == num)
-        far = [q for fp in b.GetFootprints() if fp.GetReference() not in chan_refs
-               for q in fp.Pads() if q.GetNetname() == net]
-        exit_ = leg(net, [pin], pin, _nearest(far, pin.GetPosition()))
-        if exit_ is None:
-            left.append(net)
-        else:
-            legs.append((exit_, {n: net for n in CHANNELS}))
+    # outputs to the average), but for those laid among the lines (1.)
+    for net in buses:
+        if net not in FIRST_LINES + LATE_LINES:
+            bus_leg(net)
     # 3. every leg's band part copied, turned, onto every channel, and
     # 4. joined in the middle only: each copy from its end to the nearest
     # shared pad, then each net whole.  (The keepout lies half a track and
@@ -1502,7 +1512,12 @@ def route_local(b, comps):
 #     each gate line finds its crossing while the strip below the driver is
 #     still open.
 #   * the channel's 3.3 V (its feed bead to the MCU, the amplifier and
-#     their capacitors), then the driver's DVDD (its pin to its 1 uF).
+#     their capacitors), then the bead's feed from the middle (ESC_3V3, a
+#     bus: channel 1's leg, copied and joined with the others), then the
+#     driver's DVDD (its pin to its 1 uF).  The bead sits over the driver,
+#     inside the fan of PWM lines from the MCU to the driver's inputs
+#     (below): laid after them, the feed found one on every layer between
+#     it and the middle.
 #     The MCU's two supply pins sit on
 #     opposite sides of the chip (VDDA left, VDD right, by the driver's
 #     regulator pin); the PWM line from the MCU's top edge (LC) passes
@@ -1518,7 +1533,8 @@ def route_local(b, comps):
 #     middle; the board's router, with the comparators' lines through the
 #     same strip, left two of them open in every routing.  Laid first, from
 #     the inner pin out, each takes the line beside the one before.
-FIRST_LINES = ('A', 'GHA', 'GLA', 'B', 'GLB', 'GHB', 'C', 'GLC', 'GHC', '3V3', 'DVDD', 'HA', 'LA', 'HB', 'LB', 'HC', 'LC')
+FIRST_LINES = ('A', 'GHA', 'GLA', 'B', 'GLB', 'GHB', 'C', 'GLC', 'GHC', '3V3', 'ESC_3V3', 'DVDD',
+               'HA', 'LA', 'HB', 'LB', 'HC', 'LC')
 # Channel lines laid by the maze router after the lines and buses to the
 # middle (route_local, step 4b): the MCU's analog inputs, round its pins
 # (the neutral star, the comparators' dividers, the thermistor, the current
