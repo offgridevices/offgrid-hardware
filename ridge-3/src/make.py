@@ -127,12 +127,15 @@ def build(board, reroute, art=False, pan=True, finish_dir=None):
         fab.install(fin, os.path.join(V1, board), name)
     elif art:
         artwork(dst, board)
-    # 3D models as the footprint library has them (renders, STEP): models
-    # only, the copper stays
+    # 3D models as the footprint library has them (renders, STEP), and each
+    # part's value and LCSC number as circuit.py has them: the copper stays
     import models3d
     got = models3d.refresh(dst)
     if got:
         print('  3D models from the library: %s' % ', '.join(sorted(got)))
+    got = pcb.refresh_fields(dst, circuit.build(board))
+    if got:
+        print('  value and LCSC fields from circuit.py: %s' % ', '.join(sorted(got)))
     tmp = tempfile.mkdtemp()
     e, w, u = pcb.drc(dst, os.path.join(tmp, 'drc.json'))
     gate(not e and not w and not u, '%s: DRC %d errors, %d warnings, %d unconnected' % (board, len(e), len(w), len(u)))

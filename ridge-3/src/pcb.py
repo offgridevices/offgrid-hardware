@@ -267,6 +267,42 @@ def outline(b):
         s.SetLayer(pcbnew.Edge_Cuts); s.SetWidth(MM(0.1))
         b.Add(s)
 
+def refresh_fields(board_path, comps):
+    """Each footprint's Value and LCSC fields from its part in circuit.py
+    again: a part changed for another on the same land (a resistor's value)
+    needs no new layout.  A part whose land changed does: SystemExit, use
+    --reroute.  Returns the references whose fields changed."""
+    allp = {**parts.PARTS, **parts.PADS}
+    by_ref = {c.ref: c for c in comps}
+    b = pcbnew.LoadBoard(board_path)
+    changed, moved = [], []
+    for fp in b.GetFootprints():
+        c = by_ref.get(fp.GetReference())
+        if c is None:
+            continue
+        pd = allp[c.part]
+        # the board's footprints carry no library name (load_fp)
+        if str(fp.GetFPID().GetLibItemName()) != pd['fp'].split(':')[-1]:
+            moved.append('%s (%s, now %s)' % (fp.GetReference(), fp.GetFPID().GetLibItemName(), pd['fp']))
+            continue
+        # as place_components sets them (a part with no LCSC number has the
+        # field as 'None', or none)
+        number = lambda v: None if v in (None, '', 'None') else v
+        want = (pd.get('value', c.part), number(pd.get('lcsc')))
+        have = (fp.GetValue(), number(fp.GetFieldText('LCSC')) if fp.HasField('LCSC') else None)
+        if have != want:
+            fp.SetValue(want[0])
+            if want[1] is not None:
+                fp.SetField('LCSC', want[1])
+            changed.append(fp.GetReference())
+    if moved:
+        raise SystemExit('parts on another land than the board has, place and route again (--reroute): '
+                         + ', '.join(moved))
+    if changed:
+        b.Save(board_path)
+    return changed
+
+
 def place_components(b, comps, placement):
     """placement: ref -> (x, y, rot, side)  side 'T' or 'B'."""
     allp = {**parts.PARTS, **parts.PADS}

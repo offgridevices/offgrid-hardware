@@ -271,9 +271,14 @@ def switching_section():
     if data.DRIVER.get('slew_max'):
         verdict('Voltage', 'Switch-node slew (%s recommends <= %.0f V/ns)' % (data.DRIVER['part'], data.DRIVER['slew_max']),
                 slew <= data.DRIVER['slew_max'] or 'MARGINAL', '%.1f V/ns' % slew, '%.0f V/ns' % data.DRIVER['slew_max'])
+    # judged at the loop's estimate (5 nH), as the drain peak is; a run of
+    # the 3-8 nH bracket past the limit makes it marginal
     shm = min(v['sh_min'] for v in res.values())
-    verdict('Voltage', 'SHx below ground at high-side turn-off', shm > data.DRIVER['sh_min'],
-            '%.1f V' % shm, data.DRIVER['sh_note'])
+    sh5 = min(v['sh_min'] for k, v in res.items() if k[3] == 5e-9)
+    lim = data.DRIVER['sh_min']
+    verdict('Voltage', 'SHx below ground at high-side turn-off, 5 nH loop (3-8 nH bracket)',
+            shm > lim or ('MARGINAL' if sh5 > lim else False),
+            '%.1f V (%.1f V in the bracket)' % (sh5, shm) if shm < sh5 else '%.1f V' % sh5, data.DRIVER['sh_note'])
     found['ls_peak'] = ls
     found['slew'] = slew
     mil = max(v['vgs_ls_miller'] for k, v in res.items() if k[1] == 150 and k[0] == MAIN())
