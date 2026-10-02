@@ -6,8 +6,9 @@ parts on the top over it: its supply and reset capacitors, the
 thermistor's bias, the three back-EMF low legs and the neutral star, the
 current filter (resistor and capacitor, between the amplifier's output
 and the MCU's pin) and the two SWD test points.  With them: the back-EMF
-dividers' 20k legs over the driver, each on its switch-node sense pin,
-and the FETs' thermistor by phase C's high side.  This searches
+dividers' 20k legs (over the driver on their switch-node sense pins, or
+by the MCU with their phase pads on the sense lines) and the FETs'
+thermistor by phase C's high side.  This searches
 their spots and turns in the template channel's frame (simulated
 annealing on a 0.05 mm grid) on a board built with the rest of the
 layout as it is.
@@ -23,9 +24,15 @@ Hard rules (each broken one costs heavily):
     end taken in pin order round the chip, inner first where its net lies
     across the chip (esc_layout.across), the other end where its
     neighbour took that one (escape_pins);
-  * each GND pad's plane via in the pad (fanout's inpad rule: 0.45 mm,
-    0.1 mm from other nets' copper on every layer, its hole 0.2 mm from
-    their copper and 0.45 mm from every other hole);
+  * each GND pad's plane via, laid as the build's fanout lays it, in its
+    order (the channel's parts' pads, the driver's and the MCU's exposed
+    pads): in the pad, else a stub to a plane via in reach, else on
+    fanout's rings round the pad with a stub out; each net's clearance
+    on every layer, 0.2 mm hole to copper, 0.25 mm hole to hole, its
+    turned copies 0.6 mm from the other channels' vias (plane_spot,
+    ep_spots: on the boards built so far they land where the build put
+    them);
+  * a pad with no via spot in reach not walled in on the top (walled);
   * the parts inside the channel's area (the middle above, the next
     channel's region left of it).
 Cost: per net, the minimum spanning tree over its terminals (pin vias,
@@ -39,15 +46,21 @@ a track round.  The edges that count are the short ones (LOCAL), and
 those from a pad with no spot for its own via within VIA_REACH (through
 vias only: none over the chips' exposed pads, in the power copper's
 keepouts, outside the channel's region or by other nets' copper), which
-run on top to the nearest spot that takes one (and add that length).
+run on top to the nearest spot that takes one (and add that length), and
+the plane vias' stubs; each mm of them costs TOP_W more.
 
     python3.12 tools/mcu_cluster_search.py BOARD [--seed N] [--iters N] [--out FILE]
+                                              [--reserve ROUTED] [--start JSON] [--t0 T]
                                               [--cross-w MM] [--block-w MM]
 
 BOARD: an ESC board built by esc_layout.build(path, route=False): the
 copper laid before the routing, which stays wherever the parts go (with
 route_local's lines, which follow the parts, the search would take them
-for fixed).  Prints the template lines to paste into
+for fixed).  ROUTED: a board esc_layout.build routed (route_local's lines
+all laid): its driver lines to the FET row are kept as fixed copper, a
+way through the strip the parts' vias would otherwise close (each of
+three searches without it walled a phase's sense and gate lines in).
+Prints the template lines to paste into
 esc_layout.template(), and writes them as JSON to --out.  The search is
 seeded: the same board, seed and count give the same spots.
 """
@@ -68,10 +81,11 @@ NETS = {'M1_' + n for n in ('NRST', 'DVDD', 'CMP_A', 'CMP_B', 'CMP_C', 'NEUTRAL'
                             'SWDIO', 'SWCLK', 'A', 'B', 'C')} | {'GND'}
 AREA = (-9.6, 3.0, 3.8, 10.6)             # template frame, what the search looks at
 # courtyards inside these (left, top, right, bottom): the MCU's parts over
-# it, the back-EMF resistors over the driver (on its switch-node sense
-# pins), the thermistor by phase C's high side, short of its drain's vias
+# it, the back-EMF resistors anywhere over the two chips (over the driver
+# on its switch-node sense pins, or by the MCU on a tap of those lines),
+# the thermistor by phase C's high side, short of its drain's vias
 BOUNDS = {None: (-8.9, 3.95, -2.2, 10.6),
-          'RBH_A': (-2.6, 3.95, 3.6, 9.9), 'RBH_B': (-2.6, 3.95, 3.6, 9.9), 'RBH_C': (-2.6, 3.95, 3.6, 9.9),
+          'RBH_A': (-8.9, 3.95, 3.6, 9.9), 'RBH_B': (-8.9, 3.95, 3.6, 9.9), 'RBH_C': (-8.9, 3.95, 3.6, 9.9),
           'RT': (-6.6, 8.9, -3.4, 10.4)}
 bounds = lambda role: BOUNDS.get(role, BOUNDS[None])
 PIN_VIA = (0.25, 0.15)                    # the MCU's in-pad escape vias (esc_layout.VIA_ESCAPE)
@@ -80,10 +94,14 @@ GND_CL, GND_HOLE_GAP = 0.1, 0.25          # beside it: 0.1 mm to other nets' cop
 GND_PITCH = 0.6                           # a plane via beside its pad: 0.6 mm from every via (via_room)
 STUB_W, SHARE = 0.25, 0.9                 # its stub, or one to a plane via already there
 STEPS = (0.02, 0.15, 0.3, 0.5, 0.75, 1.0, 1.3, 1.7, 2.1, 2.5)   # fanout's rings round the pad
+PLANE_MARGIN = 0.01                       # fanout.Obstacles.MARGIN as esc_layout.build sets it
+TRACK_W = 0.1                             # the cluster's lines (esc_layout.widths)
+WALL = 2.0                                # mm round a top-only pad its way out is looked for in
 CAPS = (('C_VDD', '17'), ('C_VDDA', '5'), ('C_RST', '4'))
 CROSS_W = 20.0                            # mm of connection a crossing of two nets' top tracks costs
 BLOCK_W = 20.0                            # ... and a track through another net's pad or via
 LOCAL = 2.0                               # mm: joins shorter than this are top tracks
+TOP_W = 1.0                               # extra cost per mm of top track (the top over the chips is scarce)
 VIA = (0.35, 0.15)                        # the routers' signal via (esc_layout.VIA_SIG)
 VIA_REACH = 0.45                          # mm from a pad's edge to a via that takes it off the top
 ESCAPE_REACH = 4.0                        # mm: how far a pad with none in reach looks for one
@@ -155,7 +173,7 @@ def seg_box(p0, p1, bx):
 
 
 class Problem:
-    def __init__(self, board_path):
+    def __init__(self, board_path, reserve=None):
         self.b = b = pcbnew.LoadBoard(board_path)
         self.comps = comps = circuit.build('esc')
         r1 = E.roles(comps, 1)
@@ -174,6 +192,9 @@ class Problem:
         self.fix_cy, self.fix_pads, self.fix_vias, self.fix_tracks, self.terms = [], [], [], [], {}
         mcu = b.FindFootprintByReference(r1['MCU'])
         mcu_nets = set(p.GetNetname() for p in mcu.Pads())
+        self._resv = set()
+        if reserve:
+            self._reserve(reserve, mcu_nets)
         self._mcu_vias = [(t.GetNetname(), X(t.GetPosition().x), X(t.GetPosition().y)) for t in b.GetTracks()
                           if t.GetClass() == 'PCB_VIA' and t.GetNetname() in mcu_nets]
         for fp in b.GetFootprints():
@@ -227,15 +248,41 @@ class Problem:
             if near:
                 self.pin_vias[pin] = (net,) + min(near, key=lambda v: math.hypot(v[0] - px, v[1] - py))
         self.pin_spots = set((net, x, y) for net, x, y in self.pin_vias.values())
-        # the cluster parts' own plane vias (in their GND pads, or at the end
-        # of a stub from one): fanned out again round the new spots
-        cl_pads = []
-        for ref in self.refs:
-            for p in b.FindFootprintByReference(ref).Pads():
-                if p.GetNetname() == 'GND':
-                    bb = p.GetBoundingBox()
-                    cl_pads.append((X(bb.GetLeft()), X(bb.GetTop()), X(bb.GetRight()), X(bb.GetBottom())))
-        inpad = lambda x, y: any(q[0] - 0.01 <= x <= q[2] + 0.01 and q[1] - 0.01 <= y <= q[3] + 0.01 for q in cl_pads)
+        # the template channel's plane vias in the area are fanned out again
+        # round the new spots, in fanout's order (the board's footprints,
+        # last placed first: esc_layout.plane_vias): each part's GND pads,
+        # and the chips' exposed pads (fanout's grid of vias, else up to
+        # two nearest the middle); a chip's GND pins join its exposed pad.
+        # fan: ('part', ref, pad index) for a cluster part, ('fixed', box,
+        # part centre) and ('ep', box) for the others.
+        comps_ = self.comps
+        mine = set(E.channel_parts(comps_)[1].values()) - E.power_refs(comps_)
+        self.fan, boxes = [], []
+        for c in reversed(comps_):
+            if c.ref not in mine:
+                continue
+            fp = b.FindFootprintByReference(c.ref)
+            fx, fy = X(fp.GetPosition().x), X(fp.GetPosition().y)
+            gp = [p for p in fp.Pads() if p.GetNetname() == 'GND' and p.GetAttribute() == pcbnew.PAD_ATTRIB_SMD]
+            box_of = lambda p: (X(p.GetBoundingBox().GetLeft()), X(p.GetBoundingBox().GetTop()),
+                                X(p.GetBoundingBox().GetRight()), X(p.GetBoundingBox().GetBottom()))
+            eps = [p for p in gp if mm(p.GetSize(pcbnew.B_Cu if fp.IsFlipped() else pcbnew.F_Cu).x) *
+                   mm(p.GetSize(pcbnew.B_Cu if fp.IsFlipped() else pcbnew.F_Cu).y) >= 2.0]
+            for p in gp:
+                bx = box_of(p)
+                if not (bx[2] > AREA[0] - 1 and bx[0] < AREA[2] + 1 and bx[3] > AREA[1] - 1 and bx[1] < AREA[3] + 1):
+                    continue
+                boxes.append(bx)
+                if p in eps:
+                    self.fan.append(('ep', bx))
+                elif eps and min(box_dist(bx, box_of(q)) for q in eps) <= 1.2:
+                    continue
+                elif c.ref in self.refs:
+                    k = [i for i, q in enumerate(self.geo[c.ref][0]) if q[0] == p.GetNumber()][0]
+                    self.fan.append(('part', c.ref, k))
+                else:
+                    self.fan.append(('fixed', bx, (fx, fy)))
+        inpad = lambda x, y: any(q[0] - 0.01 <= x <= q[2] + 0.01 and q[1] - 0.01 <= y <= q[3] + 0.01 for q in boxes)
         ends = set()
         for t in b.GetTracks():
             if t.GetClass() != 'PCB_VIA' and t.GetNetname() == 'GND':
@@ -253,6 +300,32 @@ class Problem:
                     self.own_gnd.add((x, y))
         self._via_spots(mcu_nets)
         self._spots = {}
+
+    def _reserve(self, path, mcu_nets):
+        """The driver's lines to the FET row (route_local's first lines that
+        are not the MCU's: the switch-node sense and gate lines), as the
+        routed board `path` has them, onto the board as fixed copper: laid
+        first, through the strip between the chips and the FET row, they
+        need a way the cluster's vias and pads leave them.  The plane vias
+        come before them (fanout): those keep to the board as built, and
+        one on a reserved line costs as a blocked track."""
+        b = self.b
+        nets = set('M1_' + r for r in E.FIRST_LINES) - mcu_nets
+        k = 0
+        for t in pcbnew.LoadBoard(path).GetTracks():
+            if t.GetNetname() not in nets:
+                continue
+            if t.GetClass() == 'PCB_VIA':
+                c = pcbnew.PCB_VIA(b)
+                c.SetPosition(t.GetPosition()); c.SetWidth(t.GetWidth(pcbnew.F_Cu)); c.SetDrill(t.GetDrillValue())
+            else:
+                c = pcbnew.PCB_TRACK(b)
+                c.SetStart(t.GetStart()); c.SetEnd(t.GetEnd()); c.SetWidth(t.GetWidth()); c.SetLayer(t.GetLayer())
+            c.SetNet(b.FindNet(t.GetNetname()))
+            b.Add(c)
+            self._resv.add(c.m_Uuid.AsString())
+            k += 1
+        self.reserved = (sorted(nets), k)
 
     def _via_spots(self, mcu_nets):
         """self.vok[net]: where a via of each cluster net may stand, on a
@@ -301,6 +374,8 @@ class Problem:
             if fp.GetReference() in self.refs:
                 continue
             for p in fp.Pads():
+                if not p.IsOnCopperLayer():
+                    continue
                 bb = p.GetBoundingBox()
                 bx = (X(bb.GetLeft()), X(bb.GetTop()), X(bb.GetRight()), X(bb.GetBottom()))
                 if bx[2] < x0 - keep or bx[0] > x0 + W * RES + keep or bx[3] < y0 - keep or bx[1] > y0 + H * RES + keep:
@@ -329,70 +404,164 @@ class Problem:
         for pin, (net, vx, vy) in self.pin_vias.items():
             k = PIN_VIA[0] / 2 + ring + 0.1
             block(net, (XX - vx) ** 2 + (YY - vy) ** 2 >= k * k)
-        # where a GND pad's plane via may stand (esc_layout.plane_vias,
-        # fanout: its turned copies clear of the other channels too): in the
-        # pad GND_CL from other nets' copper on every layer, its hole 0.2 mm
-        # from their copper and GND_HOLE_GAP from every via hole (gin);
-        # beside the pad also GND_PITCH from every via (goff); and where the
-        # stub out to it may run on top (stub: STUB_W, 0.1 mm clear)
-        gr, gh = GND_VIA[0] / 2, GND_VIA[1] / 2
-        self.gkeep = gk = max(GND_CL + gr, E.HOLE_CL + gh)
-        gin = np.ones((H, W), bool)
-        stub = np.ones((H, W), bool)
-        sk = STUB_W / 2 + 0.1
-        for l, g in self._foreign.items():
-            gin &= ~shapely.contains_xy(g.buffer(gk), XX + pcb.CX, YY + pcb.CY)
-            if l == pcbnew.F_Cu:
-                stub &= ~shapely.contains_xy(g.buffer(sk), XX + pcb.CX, YY + pcb.CY)
+        # the copper a plane via keeps from (esc_layout.plane_vias, fanout,
+        # at the time it runs: before route_local's lines), checked exactly
+        # at each spot tried: other nets' pads on every layer, tracks and
+        # vias (the MCU's escapes where the model puts them), each net's
+        # clearance (esc_layout.clearances, fanout's NET_CL and MARGIN)
+        # from the via's copper and E.HOLE_CL from its hole; via holes
+        # GND_HOLE_GAP apart; its turned copies GND_PITCH from the other
+        # channels' vias, so from the fixed ones here; and the copper other
+        # channels have here (stamp.foreign).  A one on route_local's
+        # reserved lines costs as a blocked track (resv).
+        cl = E.clearances(self.comps)
+        self.ncl = ncl = lambda n: max(0.1, cl.get(n, 0.1)) + PLANE_MARGIN
 
         def box_d2(bx):
             dx = np.maximum(np.maximum(bx[0] - XX, XX - bx[2]), 0.0)
             dy = np.maximum(np.maximum(bx[1] - YY, YY - bx[3]), 0.0)
             return dx * dx + dy * dy
+        win = (AREA[0] - 4, AREA[1] - 4, AREA[2] + 4, AREA[3] + 4)
+        inwin = lambda x0, y0, x1, y1: x1 > win[0] and x0 < win[2] and y1 > win[1] and y0 < win[3]
+        op, ot, ov = [], [], []
         for fp in b.GetFootprints():
             if fp.GetReference() in self.refs:
                 continue
             for p in fp.Pads():
-                if p.GetNetname() == 'GND':
+                if p.GetNetname() == 'GND' or not p.IsOnCopperLayer():
                     continue
                 bb = p.GetBoundingBox()
-                d2 = box_d2((X(bb.GetLeft()), X(bb.GetTop()), X(bb.GetRight()), X(bb.GetBottom())))
-                gin &= d2 >= gk * gk
-                if p.IsOnLayer(pcbnew.F_Cu):
-                    stub &= d2 >= sk * sk
-        vias = []
+                bx = (X(bb.GetLeft()), X(bb.GetTop()), X(bb.GetRight()), X(bb.GetBottom()))
+                if inwin(*bx):
+                    # a round, oval or rounded pad as its box shrunk by the
+                    # corner radius, that radius round it
+                    l = pcbnew.B_Cu if fp.IsFlipped() else pcbnew.F_Cu
+                    sz = p.GetSize(l)
+                    r = {pcbnew.PAD_SHAPE_CIRCLE: min(mm(sz.x), mm(sz.y)) / 2,
+                         pcbnew.PAD_SHAPE_OVAL: min(mm(sz.x), mm(sz.y)) / 2,
+                         pcbnew.PAD_SHAPE_ROUNDRECT: mm(p.GetRoundRectCornerRadius(l))}.get(p.GetShape(), 0.0)
+                    op.append((bx[0] + r, bx[1] + r, bx[2] - r, bx[3] - r, ncl(p.GetNetname()),
+                               1.0 if p.IsOnLayer(pcbnew.F_Cu) else 0.0, r))
+        resv = np.zeros((H, W), bool)
+        gr = GND_VIA[0] / 2
         for t in b.GetTracks():
             net = t.GetNetname()
             if t.GetClass() == 'PCB_VIA':
                 vx, vy = X(t.GetPosition().x), X(t.GetPosition().y)
-                if net == 'GND' and (vx, vy) not in self.own_gnd:
-                    vias.append((vx, vy, mm(t.GetDrillValue()) / 2, None))
-                elif net not in mcu_nets | {'GND'}:
-                    vias.append((vx, vy, mm(t.GetDrillValue()) / 2, mm(t.GetWidth(pcbnew.F_Cu)) / 2))
+                r, hr = mm(t.GetWidth(pcbnew.F_Cu)) / 2, mm(t.GetDrillValue()) / 2
+                if t.m_Uuid.AsString() in self._resv:
+                    resv |= (XX - vx) ** 2 + (YY - vy) ** 2 < (r + gr + ncl(net)) ** 2
+                elif net == 'GND':
+                    if (vx, vy) not in self.own_gnd:
+                        ov.append((vx, vy, 0.0, hr, 1.0))
+                elif net not in mcu_nets and inwin(vx, vy, vx, vy):
+                    ov.append((vx, vy, r, hr, ncl(net)))
                 continue
-            if net in mcu_nets | {'GND'}:
+            if net == 'GND':
                 continue
             ax, ay, ex, ey = X(t.GetStart().x), X(t.GetStart().y), X(t.GetEnd().x), X(t.GetEnd().y)
+            hw = mm(t.GetWidth()) / 2
+            if t.m_Uuid.AsString() in self._resv:
+                dx, dy = ex - ax, ey - ay
+                ll = dx * dx + dy * dy
+                tt = np.clip(((XX - ax) * dx + (YY - ay) * dy) / ll, 0.0, 1.0) if ll else 0.0
+                resv |= (XX - ax - tt * dx) ** 2 + (YY - ay - tt * dy) ** 2 < (hw + gr + ncl(net)) ** 2
+                continue
+            if inwin(min(ax, ex), min(ay, ey), max(ax, ex), max(ay, ey)):
+                ot.append((ax, ay, ex, ey, hw, ncl(net), 1.0 if t.GetLayer() == pcbnew.F_Cu else 0.0))
+        ov += [(vx, vy, PIN_VIA[0] / 2, PIN_VIA[1] / 2, ncl(net)) for net, vx, vy in self.pin_vias.values()]
+        self.op, self.ot, self.ov = np.array(op).reshape(-1, 7), np.array(ot).reshape(-1, 7), np.array(ov).reshape(-1, 5)
+        fg = [g for g in self._foreign.values()]
+        from shapely.ops import unary_union
+        self.fall = unary_union(fg).buffer(gr + 0.1 + PLANE_MARGIN) if fg else None
+        self.ffront = self._foreign[pcbnew.F_Cu].buffer(STUB_W / 2 + 0.1 + PLANE_MARGIN) \
+            if pcbnew.F_Cu in self._foreign else None
+        self.resv = resv
+        self.gkeep = max(GND_CL + gr, E.HOLE_CL + GND_VIA[1] / 2) + PLANE_MARGIN
+        # where a top track of each cluster net may run past the fixed
+        # copper (TRACK_W, each net's clearance): the fixed top pads,
+        # tracks and every via, the other channels' top copper (the wall
+        # check, walled)
+        hw = TRACK_W / 2
+        self.tfree = {n: np.ones((H, W), bool) for n in signets}
+        for fp in b.GetFootprints():
+            if fp.GetReference() in self.refs:
+                continue
+            for p in fp.Pads():
+                if not p.IsOnLayer(pcbnew.F_Cu):
+                    continue
+                bb = p.GetBoundingBox()
+                bx = (X(bb.GetLeft()), X(bb.GetTop()), X(bb.GetRight()), X(bb.GetBottom()))
+                if not inwin(*bx):
+                    continue
+                d2 = box_d2(bx)
+                for n in signets:
+                    if p.GetNetname() != n:
+                        self.tfree[n] &= d2 >= (hw + max(ncl(n), ncl(p.GetNetname()))) ** 2
+        for t in b.GetTracks():
+            net = t.GetNetname()
+            if t.GetClass() == 'PCB_VIA':
+                vx, vy = X(t.GetPosition().x), X(t.GetPosition().y)
+                if (net == 'GND' and (vx, vy) in self.own_gnd) or net in mcu_nets or not inwin(vx, vy, vx, vy):
+                    continue
+                d2 = (XX - vx) ** 2 + (YY - vy) ** 2
+                r = mm(t.GetWidth(pcbnew.F_Cu)) / 2
+            elif t.GetLayer() == pcbnew.F_Cu and net != 'GND':
+                ax, ay, ex, ey = X(t.GetStart().x), X(t.GetStart().y), X(t.GetEnd().x), X(t.GetEnd().y)
+                if not inwin(min(ax, ex), min(ay, ey), max(ax, ex), max(ay, ey)):
+                    continue
+                dx, dy = ex - ax, ey - ay
+                ll = dx * dx + dy * dy
+                tt = np.clip(((XX - ax) * dx + (YY - ay) * dy) / ll, 0.0, 1.0) if ll else 0.0
+                d2 = (XX - ax - tt * dx) ** 2 + (YY - ay - tt * dy) ** 2
+                r = mm(t.GetWidth()) / 2
+            else:
+                continue
+            for n in signets:
+                if net != n:
+                    self.tfree[n] &= d2 >= (r + hw + max(ncl(n), ncl(net))) ** 2
+        for net, vx, vy in self.pin_vias.values():
+            d2 = (XX - vx) ** 2 + (YY - vy) ** 2
+            for n in signets:
+                if net != n:
+                    self.tfree[n] &= d2 >= (PIN_VIA[0] / 2 + hw + max(ncl(n), ncl(net))) ** 2
+        if pcbnew.F_Cu in self._foreign:
+            fb = shapely.contains_xy(self._foreign[pcbnew.F_Cu].buffer(hw + 0.11), XX + pcb.CX, YY + pcb.CY)
+            for n in signets:
+                self.tfree[n] &= ~fb
+        # the plane vias that stay (a share stub may reach them)
+        self.fix_gnd = [(v[0], v[1]) for v in ov if v[2] == 0.0]
+
+    def _plane_ok(self, x, y, pads):
+        """For plane vias at (x, y) (arrays): clear of the fixed copper and
+        the boxes `pads` ((box, clearance)), and GND_PITCH from the fixed
+        vias."""
+        gr, gh = GND_VIA[0] / 2, GND_VIA[1] / 2
+        ok = np.ones(len(x), bool)
+        lo, hi = x.min() - 1.5, x.max() + 1.5
+        lo2, hi2 = y.min() - 1.5, y.max() + 1.5
+        op = self.op[(self.op[:, 2] > lo) & (self.op[:, 0] < hi) & (self.op[:, 3] > lo2) & (self.op[:, 1] < hi2)]
+        boxes = [(q[:4], q[4], q[6]) for q in op] + [(bx, c, 0.0) for bx, c in pads]
+        for bx, c, r in boxes:
+            dx = np.maximum(np.maximum(bx[0] - x, x - bx[2]), 0.0)
+            dy = np.maximum(np.maximum(bx[1] - y, y - bx[3]), 0.0)
+            k = max(gr + c, gh + E.HOLE_CL) + r
+            ok &= dx * dx + dy * dy >= k * k
+        ot = self.ot[(np.maximum(self.ot[:, 0], self.ot[:, 2]) > lo) & (np.minimum(self.ot[:, 0], self.ot[:, 2]) < hi) &
+                     (np.maximum(self.ot[:, 1], self.ot[:, 3]) > lo2) & (np.minimum(self.ot[:, 1], self.ot[:, 3]) < hi2)]
+        for ax, ay, ex, ey, hw, c, _ in ot:
             dx, dy = ex - ax, ey - ay
             ll = dx * dx + dy * dy
-            tt = np.clip(((XX - ax) * dx + (YY - ay) * dy) / ll, 0.0, 1.0) if ll else 0.0
-            d2 = (XX - ax - tt * dx) ** 2 + (YY - ay - tt * dy) ** 2
-            hw = mm(t.GetWidth()) / 2
-            gin &= d2 >= (hw + gk) ** 2
-            if t.GetLayer() == pcbnew.F_Cu:
-                stub &= d2 >= (hw + sk) ** 2
-        vias += [(vx, vy, PIN_VIA[1] / 2, PIN_VIA[0] / 2) for _, vx, vy in self.pin_vias.values()]
-        goff = gin.copy()
-        for vx, vy, hr, r in vias:
-            d2 = (XX - vx) ** 2 + (YY - vy) ** 2
-            k = hr + GND_HOLE_GAP + gh if r is None else max(hr + GND_HOLE_GAP + gh, r + gk)
-            gin &= d2 >= k * k
-            goff &= d2 >= max(k, GND_PITCH) ** 2
-            if r is not None:
-                stub &= d2 >= (r + sk) ** 2
-        self.gin, self.goff, self.stub = gin, goff, stub
-        # the plane vias that stay (a share stub may reach them)
-        self.fix_gnd = [(vx, vy) for vx, vy, hr, r in vias if r is None]
+            tt = np.clip(((x - ax) * dx + (y - ay) * dy) / ll, 0.0, 1.0) if ll else 0.0
+            k = hw + max(gr + c, gh + E.HOLE_CL)
+            ok &= (x - ax - tt * dx) ** 2 + (y - ay - tt * dy) ** 2 >= k * k
+        ov = self.ov[(self.ov[:, 0] > lo) & (self.ov[:, 0] < hi) & (self.ov[:, 1] > lo2) & (self.ov[:, 1] < hi2)]
+        for vx, vy, r, hr, c in ov:
+            k = max(GND_PITCH, hr + GND_HOLE_GAP + gh, (r + gr + c) if r > 0 else 0.0)
+            ok &= (x - vx) ** 2 + (y - vy) ** 2 >= k * k
+        if self.fall is not None and ok.any():
+            ok &= ~shapely.contains_xy(self.fall, x + pcb.CX, y + pcb.CY)
+        return ok
 
     def via_spot(self, net, bx, pads, gnd, reach):
         """The nearest spot within `reach` of the box `bx` (in it too: a pad
@@ -448,19 +617,85 @@ class Problem:
         return j, i
 
     def _stubs_ok(self, px, py, x, y, pads):
-        """For each end (x, y): whether a top stub from (px, py) to it keeps
-        clear of the fixed top copper (self.stub) and the boxes `pads`."""
-        n = 12
+        """For each end (x, y): whether a top stub (STUB_W) from (px, py)
+        to it keeps each net's clearance from the top copper: the fixed
+        pads, tracks and vias, the other channels', and the boxes `pads`
+        ((box, clearance))."""
+        n = int(min(80, max(4, math.ceil(max(np.hypot(x - px, y - py).max(), 0.05) / 0.05) + 1)))
         t = np.linspace(0.0, 1.0, n)[None, :]
-        sx, sy = px + (x[:, None] - px) * t, py + (y[:, None] - py) * t
-        j, i = self._cell(sx, sy)
-        ok = self.stub[j, i].all(axis=1)
-        sk = STUB_W / 2 + 0.1
-        for ob in pads:
-            dx = np.maximum(np.maximum(ob[0] - sx, sx - ob[2]), 0.0)
-            dy = np.maximum(np.maximum(ob[1] - sy, sy - ob[3]), 0.0)
-            ok &= (dx * dx + dy * dy).min(axis=1) >= sk * sk
-        return ok
+        sx, sy = (px + (x[:, None] - px) * t).ravel(), (py + (y[:, None] - py) * t).ravel()
+        sw = STUB_W / 2
+        ok = np.ones(len(sx), bool)
+        lo, hi, lo2, hi2 = sx.min() - 1, sx.max() + 1, sy.min() - 1, sy.max() + 1
+        op = self.op[(self.op[:, 5] > 0) & (self.op[:, 2] > lo) & (self.op[:, 0] < hi) & (self.op[:, 3] > lo2) &
+                     (self.op[:, 1] < hi2)]
+        for bx, c, r in [(q[:4], q[4], q[6]) for q in op] + [(bx, c, 0.0) for bx, c in pads]:
+            dx = np.maximum(np.maximum(bx[0] - sx, sx - bx[2]), 0.0)
+            dy = np.maximum(np.maximum(bx[1] - sy, sy - bx[3]), 0.0)
+            ok &= dx * dx + dy * dy >= (sw + c + r) ** 2
+        ot = self.ot[(self.ot[:, 6] > 0) & (np.maximum(self.ot[:, 0], self.ot[:, 2]) > lo) &
+                     (np.minimum(self.ot[:, 0], self.ot[:, 2]) < hi) & (np.maximum(self.ot[:, 1], self.ot[:, 3]) > lo2) &
+                     (np.minimum(self.ot[:, 1], self.ot[:, 3]) < hi2)]
+        for ax, ay, ex, ey, hw, c, _ in ot:
+            dx, dy = ex - ax, ey - ay
+            ll = dx * dx + dy * dy
+            tt = np.clip(((sx - ax) * dx + (sy - ay) * dy) / ll, 0.0, 1.0) if ll else 0.0
+            ok &= (sx - ax - tt * dx) ** 2 + (sy - ay - tt * dy) ** 2 >= (hw + sw + c) ** 2
+        ov = self.ov[(self.ov[:, 2] > 0) & (self.ov[:, 0] > lo) & (self.ov[:, 0] < hi) & (self.ov[:, 1] > lo2) &
+                     (self.ov[:, 1] < hi2)]
+        for vx, vy, r, hr, c in ov:
+            ok &= (sx - vx) ** 2 + (sy - vy) ** 2 >= (r + sw + c) ** 2
+        if self.ffront is not None and ok.any():
+            ok &= ~shapely.contains_xy(self.ffront, sx + pcb.CX, sy + pcb.CY)
+        return ok.reshape(len(x), n).all(axis=1)
+
+    def ep_spots(self, bx, pads, taken):
+        """An exposed pad's plane vias, as fanout lays them: its grid
+        (FANOUT ep_pitch), else (past the grid) spots on a 0.25 mm grid
+        nearest its middle, up to two; each inside the pad, clear of the
+        copper (_plane_ok; `pads`: the cluster's of other nets) and
+        GND_PITCH from the plane vias `taken`.  None when it gets none and
+        has no other plane via in it."""
+        near = tuple(q for q in pads if not (q[0][2] < bx[0] - 1 or q[0][0] > bx[2] + 1 or q[0][3] < bx[1] - 1
+                                             or q[0][1] > bx[3] + 1))
+        tk = tuple(v for v in taken if bx[0] - 1 < v[0] < bx[2] + 1 and bx[1] - 1 < v[1] < bx[3] + 1)
+        key = ('ep', bx, near, tk)
+        if key not in self._spots:
+            if len(self._spots) > 200000:
+                self._spots.clear()
+            self._spots[key] = self._ep_spots(bx, near, tk)
+        return self._spots[key]
+
+    def _ep_spots(self, bx, near, taken):
+        gr = GND_VIA[0] / 2
+        pitch = E.FANOUT['ep_pitch']
+        w, h = bx[2] - bx[0], bx[3] - bx[1]
+        nx, ny = max(1, int((w - GND_VIA[0]) / pitch) + 1), max(1, int((h - GND_VIA[0]) / pitch) + 1)
+        cx, cy = (bx[0] + bx[2]) / 2, (bx[1] + bx[3]) / 2
+        ox, oy = cx - (nx - 1) * pitch / 2, cy - (ny - 1) * pitch / 2
+        grid = [(ox + i * pitch, oy + j * pitch) for i in range(nx) for j in range(ny)]
+        m = 0.05 + gr
+        fits = lambda q: bx[0] + m <= q[0] <= bx[2] - m and bx[1] + m <= q[1] <= bx[3] - m
+        if len(grid) > 1 and not any(fits(q) for q in grid):
+            grid = [(cx, cy)]
+        fine = [(bx[0] + 0.25 * i, bx[1] + 0.25 * j) for i in range(int(w / 0.25) + 1) for j in range(int(h / 0.25) + 1)]
+        fine.sort(key=lambda q: (round((q[0] - cx) ** 2 + (q[1] - cy) ** 2, 6), q))
+        cand = [q for q in grid + fine]
+        x, y = np.array([q[0] for q in cand]), np.array([q[1] for q in cand])
+        ok = (x >= bx[0] + m) & (x <= bx[2] - m) & (y >= bx[1] + m) & (y <= bx[3] - m)
+        ok &= self._plane_ok(x, y, near)
+        placed = []
+        for k in range(len(cand)):
+            if k >= len(grid) and len(placed) >= 2:
+                break
+            if not ok[k]:
+                continue
+            q = (float(x[k]), float(y[k]))
+            if all((q[0] - t[0]) ** 2 + (q[1] - t[1]) ** 2 >= GND_PITCH ** 2 for t in list(taken) + placed):
+                placed.append(q)
+        if not placed and not any(fits(t) for t in list(taken) + self.fix_gnd):
+            return None
+        return tuple(placed)
 
     def plane_spot(self, bx, centre, pads, taken):
         """Where the GND pad `bx` (of a part centred at `centre`) takes its
@@ -468,11 +703,13 @@ class Problem:
         then along the long axis); else a stub to a plane via within SHARE;
         else a via on fanout's rings round the pad (STEPS, 15 degree steps
         from the part's centre outward) and a stub to it.  Clear of the
-        cluster's pads of other nets (`pads`: their boxes) and of the plane
-        vias `taken` ((x, y): placed before it, in the pad).  Returns
-        (stub length, (x, y), via placed), or None.  Cached."""
+        copper (_plane_ok, _stubs_ok; `pads`: the cluster's of other nets,
+        (box, clearance)) and of the plane vias `taken` ((x, y): placed
+        before it).  Returns (stub length, (x, y), via placed), or None.
+        Cached."""
         lo, hi = bx[0] - 3.5, bx[1] - 3.5
-        near = tuple(ob for ob in pads if not (ob[2] < lo or ob[0] > bx[2] + 3.5 or ob[3] < hi or ob[1] > bx[3] + 3.5))
+        near = tuple(q for q in pads if not (q[0][2] < lo or q[0][0] > bx[2] + 3.5 or q[0][3] < hi or
+                                             q[0][1] > bx[3] + 3.5))
         tk = tuple(v for v in taken if lo < v[0] < bx[2] + 3.5 and hi < v[1] < bx[3] + 3.5)
         key = ('plane', bx, centre, near, tk)
         if key not in self._spots:
@@ -486,12 +723,8 @@ class Problem:
         px, py = (bx[0] + bx[2]) / 2, (bx[1] + bx[3]) / 2
         w, h = bx[2] - bx[0], bx[3] - bx[1]
 
-        def clear(x, y, pitch):
+        def apart(x, y, pitch):
             ok = np.ones(len(x), bool)
-            for ob in near:
-                dx = np.maximum(np.maximum(ob[0] - x, x - ob[2]), 0.0)
-                dy = np.maximum(np.maximum(ob[1] - y, y - ob[3]), 0.0)
-                ok &= dx * dx + dy * dy >= self.gkeep * self.gkeep
             for tx, ty in taken:
                 ok &= (x - tx) ** 2 + (y - ty) ** 2 >= pitch * pitch
             return ok
@@ -503,14 +736,14 @@ class Problem:
                 if free * f > 0.05:
                     spots.append((px + sg * free * f, py) if w >= h else (px, py + sg * free * f))
         x, y = np.array([q[0] for q in spots]), np.array([q[1] for q in spots])
-        j, i = self._cell(x, y)
-        ok = self.gin[j, i] & clear(x, y, 2 * gh + GND_HOLE_GAP)
+        ok = apart(x, y, 2 * gh + GND_HOLE_GAP)
+        if ok.any():
+            ok &= self._plane_ok(x, y, near)
         if ok.any():
             k = int(np.argmax(ok))
             return 0.0, (float(x[k]), float(y[k])), True
         # a stub to a plane via already there
-        vs = [(vx, vy) for vx, vy in self.fix_gnd + list(taken)
-              if box_dist(bx, (vx, vy, vx, vy)) <= SHARE + gr]
+        vs = [(vx, vy) for vx, vy in self.fix_gnd + list(taken) if box_dist(bx, (vx, vy, vx, vy)) <= SHARE + gr]
         if vs:
             vs.sort(key=lambda v: box_dist(bx, (v[0], v[1], v[0], v[1])))
             x, y = np.array([v[0] for v in vs]), np.array([v[1] for v in vs])
@@ -525,14 +758,76 @@ class Problem:
         for st in STEPS:
             d = reach + gr + GND_CL + st
             x, y = px + d * np.cos(ang), py + d * np.sin(ang)
-            j, i = self._cell(x, y)
-            ok = self.goff[j, i] & clear(x, y, GND_PITCH)
+            ok = apart(x, y, GND_PITCH)
+            if ok.any():
+                ok &= self._plane_ok(x, y, near)
             if ok.any():
                 ok &= self._stubs_ok(px, py, x, y, near)
                 if ok.any():
                     k = int(np.argmax(ok))
                     return d, (float(x[k]), float(y[k])), True
         return None
+
+    def walled(self, net, bx, pads, gvias, gstubs, terms):
+        """Whether the pad `bx` of `net`, which has no spot for a via of its
+        own in reach, is walled in on the top: no way for a track from it
+        (TRACK_W, each net's clearance) past the fixed copper (tfree), the
+        cluster's pads of other nets (`pads`: (box, net)) and its plane
+        vias and their stubs (`gvias`, `gstubs`) to another of the net's
+        terminals (`terms`: boxes), a spot for its via, or WALL away.
+        Cached."""
+        lo, hi = (bx[0] - WALL - 0.5, bx[1] - WALL - 0.5), (bx[2] + WALL + 0.5, bx[3] + WALL + 0.5)
+        inb = lambda q: not (q[2] < lo[0] or q[0] > hi[0] or q[3] < lo[1] or q[1] > hi[1])
+        near = tuple((ob, n) for ob, n in pads if n != net and inb(ob))
+        gv = tuple(v for v in gvias if lo[0] < v[0] < hi[0] and lo[1] < v[1] < hi[1])
+        gs = tuple(st for st in gstubs if inb((min(st[0][0], st[1][0]), min(st[0][1], st[1][1]),
+                                              max(st[0][0], st[1][0]), max(st[0][1], st[1][1]))))
+        tm = tuple(q for q in terms if inb(q))
+        key = ('wall', net, bx, near, gv, gs, tm)
+        if key not in self._spots:
+            if len(self._spots) > 200000:
+                self._spots.clear()
+            self._spots[key] = self._walled(net, bx, near, gv, gs, tm)
+        return self._spots[key]
+
+    def _walled(self, net, bx, near, gv, gs, tm):
+        from scipy import ndimage
+        x0, y0, W, H = self.grid
+        i0, i1 = max(0, int((bx[0] - WALL - x0) / RES)), min(W, int(math.ceil((bx[2] + WALL - x0) / RES)))
+        j0, j1 = max(0, int((bx[1] - WALL - y0) / RES)), min(H, int(math.ceil((bx[3] + WALL - y0) / RES)))
+        XX, YY = self.XX[j0:j1, i0:i1], self.YY[j0:j1, i0:i1]
+        hw, c0 = TRACK_W / 2, self.ncl(net)
+        free = self.tfree[net][j0:j1, i0:i1].copy()
+
+        def d2box(q):
+            dx = np.maximum(np.maximum(q[0] - XX, XX - q[2]), 0.0)
+            dy = np.maximum(np.maximum(q[1] - YY, YY - q[3]), 0.0)
+            return dx * dx + dy * dy
+        for ob, n in near:
+            free &= d2box(ob) >= (hw + max(c0, self.ncl(n))) ** 2
+        cg = max(c0, self.ncl('GND'))
+        for vx, vy in gv:
+            free &= (XX - vx) ** 2 + (YY - vy) ** 2 >= (GND_VIA[0] / 2 + hw + cg) ** 2
+        for (ax, ay), (ex, ey) in gs:
+            dx, dy = ex - ax, ey - ay
+            ll = dx * dx + dy * dy
+            tt = np.clip(((XX - ax) * dx + (YY - ay) * dy) / ll, 0.0, 1.0) if ll else 0.0
+            free &= (XX - ax - tt * dx) ** 2 + (YY - ay - tt * dy) ** 2 >= (STUB_W / 2 + hw + cg) ** 2
+        mine = d2box(bx) == 0.0
+        free |= mine
+        lab, k = ndimage.label(free, structure=np.ones((3, 3), bool))
+        ids = set(np.unique(lab[mine])) - {0}
+        if not ids:
+            return True
+        reach = np.isin(lab, list(ids))
+        if reach[0, :].any() or reach[-1, :].any() or reach[:, 0].any() or reach[:, -1].any():
+            return False
+        if (reach & self.vok[net][j0:j1, i0:i1]).any():
+            return False
+        for q in tm:
+            if (reach & (d2box(q) == 0.0)).any():
+                return False
+        return True
 
     def _escapes(self, mcu):
         """{pin: (net, x, y)}: the MCU's signal pins' escape vias as the build
@@ -593,16 +888,28 @@ class Problem:
                 if o[0] > 0.001 and o[1] > 0.001:
                     bad(10 + 50 * min(o), 'courtyard', self.refs[a])
         pads = [(a, net, bx) for a in refs for net, bx in pl[a][0]]
-        # each GND pad's plane via, in the order fanout takes them: in the
-        # pad, or a top stub out to one (plane_spot)
+        # the plane vias, in the order fanout takes them (self.fan): a pad's
+        # in the pad or at the end of a top stub (plane_spot), an exposed
+        # pad's inside it (ep_spots)
         gnd, stubs, gtaken, glen = [], [], (), 0.0
-        others = tuple(bx for a, net, bx in pads if net != 'GND')
-        for a, net, bx in pads:
-            if net != 'GND':
+        others = tuple((bx, self.ncl(net)) for a, net, bx in pads if net != 'GND')
+        for item in self.fan:
+            if item[0] == 'ep':
+                vs = self.ep_spots(item[1], others, gtaken)
+                if vs is None:
+                    bad(10, 'plane via', 'exposed pad')
+                    continue
+                gnd.extend(vs)
+                gtaken += tuple(vs)
                 continue
-            v = self.plane_spot(bx, pos[a][:2], others, gtaken)
+            if item[0] == 'part':
+                a = item[1]
+                bx, centre = pl[a][0][item[2]][1], pos[a][:2]
+            else:
+                a, bx, centre = None, item[1], item[2]
+            v = self.plane_spot(bx, centre, others, gtaken)
             if v is None:
-                bad(10, 'plane via', self.refs[a])
+                bad(10, 'plane via', self.refs.get(a, 'fixed part'))
                 continue
             d, spot, new = v
             if d > 0:
@@ -658,7 +965,7 @@ class Problem:
         mine = set((net, bx) for a, net, bx in pads)
         other = [(net, bx) for a, net, bx in pads]
         kg = GND_VIA[0] / 2 + VIA[0] / 2 + 0.1
-        taken = tuple((gx, gy, kg) for gx, gy in gnd)
+        taken0 = taken = tuple((gx, gy, kg) for gx, gy in gnd)
         top, esc = [], {}
         for n, (p, q), u, t in edges:
             if math.hypot(q[0] - p[0], q[1] - p[1]) < LOCAL:
@@ -676,14 +983,37 @@ class Problem:
                         taken += ((v[1][0], v[1][1], VIA[0] + 0.1),)
             if any((n, e) in esc and not esc[(n, e)] for e in (u, t)):
                 top.append((n, (p, q)))
+        # a pad with no via spot in reach must find a way out on the top:
+        # to the net's pin via, a fixed terminal or a pad that takes a via,
+        # to a via spot, or away (walled)
+        nets_pads = [(bx, net) for a, net, bx in pads]
+        gst = tuple(pq for _, pq in stubs)
+        topo = {}
+        for a, net, bx in pads:
+            if net == 'GND' or net not in self.vok:
+                continue
+            topo[(net, bx)] = self.via_spot(net, bx, other, taken0, VIA_REACH) is None
+        for a, net, bx in pads:
+            if not topo.get((net, bx)):
+                continue
+            anchors = [b2 for a2, n2, b2 in pads if n2 == net and b2 != bx and not topo.get((n2, b2))] + \
+                list(self.terms.get(net, [])) + \
+                [(vx - .125, vy - .125, vx + .125, vy + .125) for n2, vx, vy in self.pin_vias.values() if n2 == net]
+            if self.walled(net, bx, nets_pads, tuple(gnd), gst, tuple(anchors)):
+                bad(10, 'walled', self.refs[a], net)
         edges = top + [(n, pq) for (n, e), pq in esc.items() if pq] + stubs
         length += glen
+        if gnd:
+            gj, gi = self._cell(np.array([g[0] for g in gnd]), np.array([g[1] for g in gnd]))
+            on_resv = int(self.resv[gj, gi].sum())
+        else:
+            on_resv = 0
         cross = 0
         for i, (n1, (p, q)) in enumerate(edges):
             for n2, (r, s_) in edges[i + 1:]:
                 if n1 != n2 and seg_cross(p, q, r, s_):
                     cross += 1
-        blocks = 0
+        blocks = on_resv
         obst = [(net, bx) for a, net, bx in pads] + self.fix_pads + \
                [(net, (vx - .125, vy - .125, vx + .125, vy + .125)) for _, (net, vx, vy) in self.pin_vias.items()] + \
                [(net, (vx - k + .1, vy - k + .1, vx + k - .1, vy + k - .1)) for net, vx, vy, k in self.fix_vias] + \
@@ -700,11 +1030,12 @@ class Problem:
         for role, pin in CAPS:
             net, vx, vy = self.pin_vias[pin]
             near += 3.0 * min(circ_box(vx, vy, 0.0, bx) for n_, bx in pl[self.r1[role]][0] if n_ == net)
-        c = weight * pen + length + near + CROSS_W * cross + BLOCK_W * blocks
+        top_len = sum(math.hypot(q[0] - p[0], q[1] - p[1]) for _, (p, q) in edges)
+        c = weight * pen + length + near + TOP_W * top_len + CROSS_W * cross + BLOCK_W * blocks
         return (c, pen, length, near, cross, blocks, why) if detail else c
 
 
-def search(prob, seed, iters):
+def search(prob, seed, iters, t0=3.0, start=None):
     """Annealing, the broken rules' weight growing from 1 to 100 over the
     run: early on a part may pass through a spot that breaks a rule to
     reach a better one (the MCU's edges are rows of vias), by the end
@@ -716,11 +1047,15 @@ def search(prob, seed, iters):
         fp = prob.b.FindFootprintByReference(ref)
         pos[ref] = (round(X(fp.GetPosition().x), 3), round(X(fp.GetPosition().y), 3),
                     int(round(fp.GetOrientationDegrees())) % 360)
+    if start:
+        inv = {role: ref for ref, role in prob.refs.items()}
+        for role, v in start.items():
+            pos[inv[role]] = tuple(v)
     refs = sorted(prob.refs)
     cur, cc = pos, prob.cost(pos, weight=wt(0))
     best, bc = cur, prob.cost(pos)
     for it in range(iters):
-        t = 3.0 * (1 - it / iters) + 0.01
+        t = t0 * (1 - it / iters) + 0.01
         nxt = dict(cur)
         k = rnd.random()
         ref = rnd.choice(refs)
@@ -755,12 +1090,15 @@ def main():
     ap.add_argument('--seed', type=int, default=10)
     ap.add_argument('--iters', type=int, default=150000)
     ap.add_argument('--out')
+    ap.add_argument('--reserve', help='a routed board whose driver lines to the FET row the parts must leave a way')
+    ap.add_argument('--start', help='a JSON result (--out) to start from instead of the board\'s spots')
+    ap.add_argument('--t0', type=float, default=3.0, help='starting temperature (lower: refine the board\'s spots)')
     ap.add_argument('--cross-w', type=float, default=CROSS_W)
     ap.add_argument('--block-w', type=float, default=BLOCK_W)
     a = ap.parse_args()
     globals().update(CROSS_W=a.cross_w, BLOCK_W=a.block_w)
-    prob = Problem(a.board)
-    best = search(prob, a.seed, a.iters)
+    prob = Problem(a.board, a.reserve)
+    best = search(prob, a.seed, a.iters, a.t0, json.load(open(a.start))['pos'] if a.start else None)
     c, pen, length, near, cross, blocks, why = prob.cost(best, detail=True)
     roles = {prob.refs[r]: v for r, v in best.items()}
     print('cost %.2f: %d rules broken %s, %.2f mm of connections, %.2f from capacitors to pins, '
