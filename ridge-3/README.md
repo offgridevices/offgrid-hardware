@@ -62,7 +62,14 @@ and where the slot meets the hole by a 0.3 mm round, which keeps the lip
 that holds the grommet.
 
 **Stack lead:** 8 wires in the FPV standard's order, pin 1 to pin 1:
-`1 VBAT, 2 GND, 3 CUR, 4 TLM, 5 M1, 6 M2, 7 M3, 8 M4`.  At the ESC the wires
+`1 VBAT, 2 GND, 3 CUR, 4 3V3, 5 M1, 6 M2, 7 M3, 8 M4`, but for pin 4: the
+standard's ESC telemetry wire carries the FC's 3.3 V down to the ESC's four
+MCUs (86 mA at most), so the ESC needs no 3.3 V regulator and its gate
+drivers' own 3.3 V outputs, which are linear from the battery, carry no
+load.  The ESC's MCUs therefore run only with the FC connected.  Neither
+board pairs with another maker's 4-in-1 or FC on a standard lead: an ESC
+that drives telemetry on pin 4 would fight the FC's 3.3 V (the Micro-Lock
+housing does not fit the usual JST-SH header anyway).  At the ESC the wires
 are soldered to pads (no connector at the hot end): VBAT, CUR and the four
 signals to a row in the middle of the top, and the ground wire to a pad of
 its own beside the battery minus pad, where the FC's ground meets the
@@ -129,7 +136,7 @@ bring-up step 6 measures it.
 **What it cannot do:**
 
 - 7S or 8S. That is Ridge 7's job.
-- Serial ESC telemetry: the stack lead's TLM wire is not connected.
+- Serial ESC telemetry: the stack lead's TLM wire carries 3.3 V instead.
   Bidirectional DShot carries RPM, and AM32's extended DShot telemetry
   carries temperature, voltage and current, instead.
 - A barometer or a magnetometer. GPS goes on UART4.
@@ -289,9 +296,9 @@ few parts have only prototype-sized stock: see [Sourcing](#sourcing-lcscjlcpcb-g
 - **Stack lead:** a Molex Micro-Lock Plus housing, 505565-0801, with eight
   505431 crimp terminals and eight 26-28 AWG wires, about 7 cm, crimped
   in the pin order of [the stack lead](#what-it-does) and soldered to the
-  ESC's lead pads (`+ C 1 2 3 4` in the middle of the top, the ground
-  wire on `G` beside the battery minus pad, TLM left open).  Check it with a
-  multimeter: VBAT must reach pin 1.
+  ESC's lead pads (`+ 3V3 C` and `1 2 3 4` in the middle of the top, the
+  ground wire on `G` beside the battery minus pad).  Check it with a
+  multimeter: VBAT must reach pin 1, and the `3V3` pad pin 4.
 - **Video battery wires (HD or analog VTX):** two 22-24 AWG wires from the
   FC's `BAT` and `G` pads (rear right) to the ESC's battery pads.  Without
   them the 9 V video supply has no input and stays off; the rest of the FC
@@ -341,16 +348,17 @@ pre-programming service.
      along the front edge.
 3. **Battery lead** onto the ESC's rear pads: `+` left, `-` right, as
    printed on both sides.
-4. **Flash the ESCs** while the ESC board is not stacked and has no motors:
-   power it from a current-limited bench supply (12 V, 0.3 A) on the
-   battery lead; each MCU runs from its own gate driver.  See
+4. **Stack lead:** solder its wires to the ESC's lead pads, the ground wire
+   to `G` beside the battery minus pad.
+5. **Flash the ESCs** with the two boards side by side (not stacked, no
+   motors) and the stack lead plugged into the FC: the ESC's MCUs run from
+   the FC's 3.3 V on the lead's pin 4.  Power them from a current-limited
+   bench supply (12 V, 0.3 A) on the battery lead.  See
    [`firmware/README.md`](firmware/README.md).  Each MCU's `Cn` (clock) and
    `Dn` (data) pads are on the ESC's top, over that MCU; the probe's ground
    goes to the battery pad.
-5. **Motor wires:** each motor's three wires to the three pads beside its
+6. **Motor wires:** each motor's three wires to the three pads beside its
    number.
-6. **Stack lead:** solder its wires to the ESC's lead pads, the ground wire
-   to `G` beside the battery minus pad.
 7. **Stack:** ESC at the bottom, FC on top, both with the **front arrow
    forward** and the side marked **Top** facing up. Slide the grommets into
    the corner slots, then plug the stack lead into the FC (it latches).

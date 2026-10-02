@@ -125,14 +125,17 @@ controller in the usual way.
 **First flash** (an ST-Link V2 or Artery AT-Link, and Artery's OpenOCD;
 `am32/flash_esc.sh` has the details):
 
-1. Each MCU runs from its own gate driver's 3.3 V, which is on whenever the
-   board has a battery.  Power the bare ESC (not stacked, no motors) from a
-   **current-limited bench supply, 12 V, 0.3 A**, on its battery pads.  The
-   drivers' inputs have pull-downs, so the FETs stay off while an MCU is
-   blank or halted.
+1. The four MCUs run from the flight controller's 3.3 V, which comes down
+   the stack lead's pin 4 (the ESC has no 3.3 V regulator of its own).
+   Solder the stack lead to the ESC first, plug it into the flight
+   controller (the two boards side by side, not stacked, no motors), and
+   power them from a **current-limited bench supply, 12 V, 0.3 A**, on the
+   ESC's battery pads.  The drivers' inputs have pull-downs, so the FETs
+   stay off while an MCU is blank or halted.
 2. Wire the probe's `GND` to the battery pad marked `-`, and `SWCLK` to `Cn`
    and `SWDIO` to `Dn`, where *n* is the ESC being flashed (the pads sit over
-   each MCU on the board's top).  Do not connect the probe's 3.3 V output.
+   each MCU on the board's top).  Do not connect the probe's 3.3 V output:
+   it would feed the flight controller's 3.3 V rail.
 3. Run `am32/flash_esc.sh` (all four, asking before each) or
    `./flash_esc.sh 3` for one.  For each MCU it erases the flash, writes and
    verifies the bootloader (`0x08000000`) and the firmware (`0x08001000`),
