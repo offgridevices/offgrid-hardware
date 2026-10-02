@@ -287,8 +287,10 @@ GLOBAL_BY_NOTE = {
     'bus bulk 3': (1.8, 1.1, 90, 'B'),
     'driver enable clamp': (-2.85, -2.4, 90, 'B'),
     # the four channels' 3.3 V feeds meet at a capacitor by the lead's
-    # 3.3 V pad, in the gap between the enable feed and the current filter
-    'ESC 3.3V hub': (0.38, -0.45, 0, 'T'),
+    # 3.3 V pad: on the bottom between the lead's two rows of pad vias
+    # (on top, between the enable feed and the current filter, it took the
+    # only room for the pad's '3V3', which the wire's solderer must see)
+    'ESC 3.3V hub': (0.0, -2.5, 0, 'B'),
 }
 
 
