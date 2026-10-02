@@ -322,6 +322,15 @@ def design_name():
     return design.current
 
 
+def idrive(i_src):
+    """The DRV8320's gate drive at an IDRIVE source current (A): source and
+    sink current, and the dead time that follows (the driver turns a gate
+    on 100 ns after it sees the other one low, about Qg / sink current, or
+    AM32's, if longer)."""
+    ipd = DRIVER['sink_ratio'] * i_src
+    return dict(ipu=i_src, ipd=ipd, dead=max(AM32['dead'], FET['qg_11v'] / ipd + DRIVER['dead_add']))
+
+
 def use(name):
     """Point the generic names at one design's parts, and the files too
     (design.use).  The simulations read data.FET, data.MCU_ESC, ... ."""
@@ -337,11 +346,7 @@ def use(name):
         b.update(Rg=10.0, gvdd=GVDD, vboot=GVDD - 0.8, ipu=D['i_source'][1], ipd=D['i_sink'][1],
                  dead=AM32['dead'] + D['dead'][1])
     else:                               # DRV8320: IDRIVE current, no gate resistor, charge pump
-        # dead time: the driver turns a gate on 100 ns after it sees the
-        # other one low (about Qg / sink current), or AM32's, if longer
-        t_fall = FET['qg_11v'] / (D['sink_ratio'] * D['i_src'])
-        b.update(Rg=0.5, gvdd=D['vgs'], vboot=D['vgs'], ipu=D['i_src'], ipd=D['sink_ratio'] * D['i_src'],
-                 dead=max(AM32['dead'], t_fall + D['dead_add']))
+        b.update(Rg=0.5, gvdd=D['vgs'], vboot=D['vgs'], **idrive(D['i_src']))
     b.update(rpu=D['r_pu'], rpd=D['r_pd'], Cb=C_BRIDGE['c_bias'], ESRb=C_BRIDGE['esr'],
              ESLb=C_BRIDGE['esl'], Cb2=2 * C_BRIDGE['c_bias'], ESRb2=C_BRIDGE['esr'] / 2,
              Cext=BULK['c'], ESRext=BULK['esr'], ESLext=BULK['esl'])

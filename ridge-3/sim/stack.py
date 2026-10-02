@@ -121,9 +121,11 @@ class StackModel:
         P = np.zeros(self.n)
         e = op.get('esc')
         if e:
-            V, f = e['V'], e['f']
+            V = e['V']
+            # a stopped motor's bridge does not switch: no gate charge
+            fs = {n: e['f'] if e['I'][n] > 0 else 0.0 for n in CH}
             for n in CH:
-                I, D = e['I'][n], e['D'][n]
+                I, D, f = e['I'][n], e['D'][n], fs[n]
                 Tj = {p + s: (self.temp(T, 'ESC Q%d%s%s' % (n, p, s)) if T is not None else 100.0)
                       for p in PH for s in 'HL'}
                 for k, w in losses.esc_channel(I, D, V, f, e['dead'], Tj, e['sw']).items():
@@ -132,7 +134,7 @@ class StackModel:
                 self.put(P, 'ESC U_ESC%d' % n, data.MCU_ESC['p_run'])
                 self.put(P, 'ESC U_CS%d' % n, data.CSA['p'])
             if data.GATE_LDO:
-                self.put(P, 'ESC U_GVDD', (V - data.GVDD) * losses.gvdd_current(f))
+                self.put(P, 'ESC U_GVDD', (V - data.GVDD) * losses.gvdd_current(fs.values()))
             if data.ESC_BUCK:
                 p3 = data.ESC_3V3_LOAD * 3.3
                 self.put(P, 'ESC U_BUCK', p3 * (1 / data.ESC_BUCK['eff'] - 1))

@@ -210,8 +210,16 @@ CgHo goH sH 10p
     sh = w['v(sH)'] - w['v(gb)']
     iH, iL = w['i(vidh)'], w['i(vidl)']
     win = lambda a, b: (t >= a) & (t <= b)
-    on = win(t_on_hs - 20e-9, t_on_hs + 400e-9)
-    off = win(t_off_hs - 20e-9, t_off_hs + 400e-9)
+
+    def until(t0, cond, t_max):
+        """20 ns past the first time after t0 that cond holds; t_max at most."""
+        m = (t > t0) & cond
+        return min(float(t[np.argmax(m)]) + 20e-9, t_max) if m.any() else t_max
+    # each edge from its command to where it has finished, whatever the gate
+    # current: turn-on until V_DS is down to 2 % of the bus, turn-off until
+    # the current is down to 2 % of the load's
+    on = win(t_on_hs - 20e-9, until(t_on_hs, vdsH <= 0.02 * p['V'], t_off_hs))
+    off = win(t_off_hs - 20e-9, until(t_off_hs, iH <= 0.02 * p['I'], t_on_ls))
     E = lambda m, v, i: float(np.trapz((v * i)[m], t[m]))
     def edge_rate(m, rising):
         # 10-90 % of the bus swing on the switch node, as a slew-rate spec is read

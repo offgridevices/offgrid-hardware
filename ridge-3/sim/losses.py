@@ -63,10 +63,11 @@ def driver(V, f):
     return 3 * qg * V * f + D['i_vm'][1] * V + (V - 3.3) * data.DVDD_LOAD
 
 
-def gvdd_current(f):
-    """The four drivers' supply current from the gate-drive LDO (A): gate
-    charge and quiescent (rev 1; rev 2 has no such LDO)."""
-    return 4 * (2 * data.FET['qg_11v'] * f + data.DRIVER['i_q'])
+def gvdd_current(fs):
+    """The drivers' supply current from the gate-drive LDO (A): gate charge
+    at each channel's PWM frequency in fs, and quiescent (rev 1; rev 2 has
+    no such LDO)."""
+    return sum(2 * data.FET['qg_11v'] * f + data.DRIVER['i_q'] for f in fs)
 
 
 def buck_loss(part, iout, vout):

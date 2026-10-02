@@ -282,10 +282,7 @@ def switching_section():
                                              if data.DRIVER['kind'] == 'gvdd' else ()) + (
                     ('RC snubber 2.2 ohm + 2.2 nF per FET', dict(snub=(2.2, 2.2e-9))),
                     ('RC snubber 1 ohm + 4.7 nF per FET', dict(snub=(1.0, 4.7e-9))),
-                    ('RC snubber 1 ohm + 10 nF per FET', dict(snub=(1.0, 10e-9))),) + (
-                    (('IDRIVE 30 mA (slower edges)', dict(ipu=0.03, ipd=0.06)),
-                     ('IDRIVE 120 mA (faster edges)', dict(ipu=0.12, ipd=0.24)))
-                    if data.DRIVER['kind'] != 'gvdd' else ()):
+                    ('RC snubber 1 ohm + 10 nF per FET', dict(snub=(1.0, 10e-9))),) + idrive_steps():
         for I in (10, 30):
             r = spice.half_bridge(hb_params(I=I, T=150, Lloop=5e-9, lm=data.BODY_DIODE, tag='fix', **kw))
             if tag == 'as designed':
@@ -293,13 +290,13 @@ def switching_section():
             extra = 0.0
             if 'snub' in kw:
                 extra = 2 * kw['snub'][1] * data.BRIDGE['V'] ** 2 * data.AM32['f_max']   # per switched leg
-            rows.append([tag, I, '%.1f' % r['vds_hs_peak'], '%.1f' % r['vds_ls_peak'],
+            rows.append([tag, I, '%.1f' % r['vds_hs_peak'], '%.1f' % r['vds_ls_peak'], '%.1f' % r['sh_min'],
                          '%.1f / %.1f' % (r['e_on'] * 1e6, r['e_off'] * 1e6),
                          '%.2f W' % extra if extra else '-'])
     say('What brings the peaks down (T<sub>j</sub> 150 C, 5 nH, %s):' % (
         'the recovery-fit diode' if data.BODY_DIODE else 'the maker\'s model'))
     say()
-    table(['Change', 'I A', 'High side V', 'Low side V', 'E<sub>on</sub> / E<sub>off</sub> uJ',
+    table(['Change', 'I A', 'High side V', 'Low side V', 'SHx min V', 'E<sub>on</sub> / E<sub>off</sub> uJ',
            'Snubber loss per switched leg at %.0f kHz' % (data.AM32['f_max'] / 1e3)], rows)
     sw = {'V': data.BRIDGE['V'], 'I': [0.0], 'on': [0.0], 'off': [0.0]}
     for I in (10, 20, 30):
@@ -311,6 +308,18 @@ def switching_section():
     found['sw'] = sw
     plot_edges(res)
     return sw
+
+
+def idrive_steps():
+    """The DRV8320's IDRIVE levels either side of the design's, each with the
+    dead time it brings: (label, half-bridge parameters)."""
+    D = data.DRIVER
+    if D['kind'] == 'gvdd':
+        return ()
+    lv = D['idrive']
+    k = lv.index(D['i_src'])
+    return tuple(('IDRIVE %.0f mA (%s edges)' % (lv[j] * 1e3, how), data.idrive(lv[j]))
+                 for j, how in ((k - 1, 'slower'), (k + 1, 'faster')) if 0 <= j < len(lv))
 
 
 def DIODES():
@@ -808,7 +817,7 @@ def heat_section(sw):
         cat['shunts'] += D * I * I * data.SHUNT['r']
         cat['gate drive'] += losses.driver(V, f)
     if data.GATE_LDO:
-        cat['gate-drive LDO'] = (V - data.GVDD) * losses.gvdd_current(e['f'])
+        cat['gate-drive LDO'] = (V - data.GVDD) * losses.gvdd_current([e['f']] * len(CH))
     Tcu = np.mean([m.temp(T, k) for k in m.parts if k.startswith('ESC Q')])
     for k, w in copperloss.loss_groups(m.units, e['I'], e['D']).items():
         cat['copper: ' + k] = w * (1 + dcflow.ALPHA * (Tcu - 20))
@@ -1070,7 +1079,8 @@ def ground_section(sw):
             T = steady(m, op)
             over = [x for x in worst(m, T, op) if x[0] < 0]
             res[(Ta, tag)] = (over, op['fc'].get('vtx_on', 1.0), {k: m.temp(T, k) for k in ('FC U_FC', 'FC U_IMU')})
-            rows.append(['%.0f C' % Ta, tag, '%.1f W' % losses.fc_power(fc['i5'], fc['i9'])[0]] +
+            # the FC's input over the thermostat's cycle (the video's share of it)
+            rows.append(['%.0f C' % Ta, tag, '%.1f W' % losses.fc_power(op['fc']['i5'], op['fc']['i9'])[0]] +
                         (['%.0f %%' % (100 * op['fc'].get('vtx_on', 1.0))] if data.THERMOSTAT else []) +
                         ['%.0f C' % m.temp(T, 'FC U_BUCK9'), '%.0f C' % m.temp(T, 'FC U_IMU'),
                          '%.0f C' % m.temp(T, 'FC U_FC'), '%.0f C' % m.temp(T, 'FC J_ESC'), '%.0f C' % m.temp(T, 'FC J_HD'),
