@@ -150,7 +150,11 @@ def template():
     # for the exposed pad's middle via.)
     t['C_VM'] = (1.95, 7.27, 180, 'T')
     t['C_DVDD'] = (-1.7, 4.7, 0, 'T')
-    t['FB_3V3'] = (-1.75, 6.3, 0, 'T')
+    # The channel's 3.3 V feed (a ferrite bead from the flight controller's
+    # 3.3 V, circuit.esc_power): on the bottom left of the MCU by its VDDA
+    # pin, upright, its shared pad towards the middle.  (On the top, every
+    # spot near the chips sat over their escape vias or exposed pads.)
+    t['FB_3V3'] = (-8.95, 6.0, 270, 'B')
     t['R_ID'] = (-1.7, 7.35, 0, 'T')
     # MCU: supply and reset capacitors, the thermistor's bias, the
     # back-EMF dividers' low legs and the neutral star, and the SWD test
@@ -163,6 +167,8 @@ def template():
     # (tools/mcu_cluster_search.py).
     t['C_VDD'] = (-3.7, 6.0, 180, 'T')
     t['C_VDDA'] = (-8.0, 5.25, 90, 'T')
+    # the 1 uF beside the VDDA capacitor, over the bead on the bottom
+    t['C_MB'] = (-9.12, 5.45, 90, 'T')
     t['C_RST'] = (-7.4, 6.85, 0, 'T')
     t['R_NTB'] = (-6.85, 5.6, 90, 'T')
     t['RS_A'] = (-6.2, 8.9, 180, 'T')
@@ -198,6 +204,7 @@ def roles(comps, n):
         elif ref == 'TP_E%d_CLK' % n: out['TP_CLK'] = ref
         elif note == 'U_ESC%d VDD' % n: out['C_VDD'] = ref
         elif note == 'U_ESC%d VDDA' % n: out['C_VDDA'] = ref
+        elif note == 'U_ESC%d bulk' % n: out['C_MB'] = ref
         elif note == 'U_ESC%d reset filter' % n: out['C_RST'] = ref
         elif note == 'driver VM': out['C_VM'] = ref
         elif note == 'driver charge pump': out['C_VCP'] = ref

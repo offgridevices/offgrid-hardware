@@ -13,7 +13,8 @@ set serialrx_provider = CRSF
 feature TELEMETRY
 
 # motors: AM32 ESC board, bidirectional DShot for the RPM filter.
-# The ESC's TLM line is not wired, so there is no ESC serial telemetry
+# The ESC has no TLM line (the lead's pin 4 brings it 3.3 V), so there is
+# no ESC serial telemetry
 # (leave feature ESC_SENSOR off).  Extended DShot telemetry brings the
 # ESCs' temperature, voltage and current back over the motor lines instead.
 set motor_pwm_protocol = DSHOT300

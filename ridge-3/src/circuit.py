@@ -574,6 +574,9 @@ def esc(n):
     add('FB', 'FB600', {'1': 'ESC_3V3', '2': p('3V3')}, B, 'channel 3.3 V feed', ref='FB%d' % n)
     cap('C100N', p('3V3'), GND, B, 'U_ESC%d VDD' % n)
     cap('C100N', p('3V3'), GND, B, 'U_ESC%d VDDA' % n)
+    # Artery's VDDA decoupling is 100 nF + 1 uF (AT32F421 figure 8); the
+    # 1 uF also holds the channel's 3.3 V up behind its bead
+    cap('C1U_10_X7R', p('3V3'), GND, B, 'U_ESC%d bulk' % n)
     cap('C100N', p('NRST'), GND, B, 'U_ESC%d reset filter' % n)
     # The power stage's temperature: a 10k NTC (Murata NCU15XH103F60RC,
     # B 3380 K) at the channel's FETs, from PA2 to ground, under a 10k from

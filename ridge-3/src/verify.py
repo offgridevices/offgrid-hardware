@@ -311,6 +311,9 @@ FIGS = {
                'LMR38020 RT(kOhm) = 30970 x fSW(kHz)^-1.027, equation 2'),
     # TI TPS628501, SLUSEC8C (3.3 V)
     'tps_vfb': (0.6, 'ti_tps628501.txt', r'VFB\nFeedback voltage, adjustable version\n0\.6\nV\n', 'TPS628501 VFB 0.6 V'),
+    'tps_vfb_acc': (0.01, 'ti_tps628501.txt', r'VFB\nFeedback voltage accuracy\nPWM, VIN ≥ VOUT \+ 1V\n–1\n1\n%',
+                    'TPS628501 VFB accuracy +/-1 % in PWM (7.5)'),
+    'tps_iout': (1.0, 'ti_tps628501.txt', r'TPS628501DRLR\n1A\n', 'TPS628501: 1 A output current (device information)'),
     'tps_ilim': ((2.1, 2.6, 3.0), 'ti_tps628501.txt', r'DC value, for TPS628501;\nVIN = 3V to 6V\n2\.1\n2\.6\n3\.0\n',
                  'TPS628501 high-side current limit 2.1/2.6/3.0 A'),
     # TI TMP390, SBOS904A (video-supply thermostat)
@@ -663,7 +666,7 @@ def check_fc_pins():
     want = {'MOTOR1': 'M1_SIG', 'MOTOR2': 'M2_SIG', 'MOTOR3': 'M3_SIG', 'MOTOR4': 'M4_SIG',
             'LED0': 'LED0', 'LED_STRIP': 'LED_STRIP',
             'UART1_TX': 'UART1_TX', 'UART1_RX': 'UART1_RX', 'UART2_TX': 'UART2_TX', 'UART2_RX': 'UART2_RX',
-            'UART4_TX': 'UART4_TX', 'UART4_RX': 'UART4_RX', 'LPUART1_TX': None, 'LPUART1_RX': 'TLM',
+            'UART4_TX': 'UART4_TX', 'UART4_RX': 'UART4_RX',
             'SPI1_SCK': 'SPI1_SCK', 'SPI1_SDI': 'SPI1_MISO', 'SPI1_SDO': 'SPI1_MOSI',
             'SPI2_SCK': 'SPI2_SCK', 'SPI2_SDI': 'SPI2_MISO', 'SPI2_SDO': 'SPI2_MOSI',
             'GYRO_1_CS': 'GYRO_CS', 'GYRO_1_EXTI': 'GYRO_INT', 'FLASH_CS': 'FLASH_CS',
@@ -935,9 +938,9 @@ def check_esc_pins():
     for n in (1, 2, 3, 4):
         m = 'M%d_' % n
         p = at32_ports('U_ESC%d' % n)
-        check(S, 'ESC %d: VDD (pin %s) and VDDA (pin %s) on %sDVDD, VSS (%s) and the exposed pad (%s) on GND, BOOT0 (%s) '
+        check(S, 'ESC %d: VDD (pin %s) and VDDA (pin %s) on %s3V3, VSS (%s) and the exposed pad (%s) on GND, BOOT0 (%s) '
                  'on GND' % (n, AT32_PIN['VDD'], AT32_PIN['VDDA'], m, AT32_PIN['VSS'], AT32_PIN['EPAD'], AT32_PIN['BOOT0']),
-              p['VDD'] == m + 'DVDD' and p['VDDA'] == m + 'DVDD' and p['VSS'] == 'GND' and p['EPAD'] == 'GND'
+              p['VDD'] == m + '3V3' and p['VDDA'] == m + '3V3' and p['VSS'] == 'GND' and p['EPAD'] == 'GND'
               and p['BOOT0'] == 'GND', ', '.join('%s %s' % (k, p[k]) for k in ('VDD', 'VDDA', 'VSS', 'EPAD', 'BOOT0')))
         check(S, 'ESC %d: NRST (pin %s) filtered 100 nF to ground; SWDIO (PA13, pin %s) to its own test pad TP_E%d_DIO, '
                  'SWCLK (PA14, pin %s) to TP_E%d_CLK' % (n, AT32_PIN['NRST'], AT32_PIN['PA13'], n, AT32_PIN['PA14'], n),
@@ -945,14 +948,17 @@ def check_esc_pins():
               and p['PA13'] == m + 'SWDIO' and p['PA14'] == m + 'SWCLK'
               and comp('esc', 'TP_E%d_DIO' % n).pins.get('1') == m + 'SWDIO'
               and comp('esc', 'TP_E%d_CLK' % n).pins.get('1') == m + 'SWCLK')
-    # the stack lead: the FC's connector pins, soldered at the ESC
+    # the stack lead: the FC's connector pins, soldered at the ESC.  Pin 4,
+    # the usual pinout's telemetry, carries the FC's 3.3 V to the ESC
     lead = sorted(set(c.pins.get('1') for c in esc if c.part == 'PAD_LEAD'))
     jesc = comp('fc', 'J_ESC').pins
-    want_lead = sorted(set('FC_GND' if v == 'GND' else v for k, v in jesc.items() if v and v != 'TLM'))
-    tlm = [k for k, v in jesc.items() if v == 'TLM']
-    check(S, 'stack lead: the ESC\'s lead pads carry the FC connector\'s nets (its GND as FC_GND), and nothing on the ESC '
-             'drives TLM (connector pin %s): no serial telemetry' % '/'.join(tlm),
-          lead == want_lead and not any('TLM' in c.pins.values() for c in esc), 'pads %s; connector %s' % (lead, want_lead))
+    at_esc = {'GND': 'FC_GND', '+3V3': 'ESC_3V3'}
+    want_lead = sorted(set(at_esc.get(v, v) for v in jesc.values() if v))
+    p3 = [k for k, v in jesc.items() if v == '+3V3']
+    tlm = [c.ref for c in esc + circuit.build('fc') if 'TLM' in c.pins.values()]
+    check(S, 'stack lead: the ESC\'s lead pads carry the FC connector\'s nets (its GND as FC_GND, its +3V3 on pin %s '
+             'as ESC_3V3); no TLM line on either board: no serial telemetry' % '/'.join(p3),
+          lead == want_lead and p3 == ['4'] and not tlm, 'pads %s; connector %s; TLM on %s' % (lead, want_lead, tlm))
     if not AM32:
         check(S, 'AM32 targets.h', 'SKIP', 'set AM32_SRC to an AM32 checkout (commit %s) to check against the firmware'
               % AM32_COMMIT)
@@ -1094,8 +1100,8 @@ def check_fw_scales():
         # low side, Kelvin: IN+ on the shunt's sense-node sense pad, IN- on
         # its ground sense pad (SBOS318B table 5-1: for low-side sensing
         # IN+ to the load side, IN- to the ground side); REF grounded, so
-        # 0 A reads 0 V; supplied from the channel's DVDD
-        want_amp = {ina['REF']: 'GND', ina['GND']: 'GND', ina['VS']: m + 'DVDD', ina['IN+']: m + 'SNSP',
+        # 0 A reads 0 V; supplied from the channel's 3.3 V
+        want_amp = {ina['REF']: 'GND', ina['GND']: 'GND', ina['VS']: m + '3V3', ina['IN+']: m + 'SNSP',
                     ina['IN–']: m + 'SNSN', ina['OUT']: m + 'IOUT'}
         if not (g and shunt_mohm(sh.part) and sh.pins == {'1': src, '2': 'GND', '3': m + 'SNSP', '4': m + 'SNSN'}
                 and amp.pins == want_amp):
@@ -1423,40 +1429,71 @@ def check_power():
               'Zener voltage 4.7 V nominal from parts.py: its datasheet is not in the set (unverified)')
     else:
         check(S, 'driver ENABLE: one resistor from VBAT and a Zener to ground', False, '%s %s' % (ren, dz))
-    # each channel's 3.3 V: its driver's DVDD
-    dvdd = fig('drv_dvdd')
-    worst = []
+    # each channel's 3.3 V: the FC's 3.3 V buck (TPS628501, forced PWM),
+    # down the stack lead's pin 4 (ESC_3V3), through the channel's bead
+    tf = find('fc', '3.3V buck feedback top')[0]
+    t, b = value(tf.part), value(find('fc', '3.3V buck feedback bottom')[0].part)
+    acc, rtol = fig('tps_vfb_acc'), 0.01                # 0402WGF: F = 1 %
+    v3 = (fig('tps_vfb') * (1 - acc) * (1 + t * (1 - rtol) / (b * (1 + rtol))),
+          fig('tps_vfb') * (1 + acc) * (1 + t * (1 + rtol) / (b * (1 - rtol))))
+    worst, bad3, chans = [], [], []
     for n in (1, 2, 3, 4):
         m = 'M%d_' % n
-        net = m + 'DVDD'
-        on = [x for x in esc if net in x.pins.values()]
+        net = m + '3V3'
+        bead = [x for x in esc if set(x.pins.values()) == {'ESC_3V3', net}]
+        if not (len(bead) == 1 and parts.PARTS[bead[0].part].get('kind') == 'FB'):
+            bad3.append('ESC %d: no single bead from ESC_3V3 to %s' % (n, net))
         load, other = 0.0, []
-        for x in on:
-            if x.ref == 'U_GD%d' % n or x.ref.startswith('C'):
+        for x in [x for x in esc if net in x.pins.values()]:
+            if x in bead or x.ref.startswith('C'):
                 continue
             if x.part == 'AT32F421G':
                 load += fig('at32_idd')
             elif x.part.startswith('INA186'):
                 load += fig('ina186_iq')
             elif re.match(r'R\d', x.ref):
-                load += dvdd[2] / value(x.part)          # the far end at 0 V
+                load += v3[1] / value(x.part)            # the far end at 0 V
             else:
                 other.append(x.ref)
         gates = 6 * fig('drv_iih')                       # INHx, INLx high (the 5 V figure)
+        chans.append(load + gates)
         worst.append((load + gates, n, other))
+        # the driver's DVDD regulator: its 1 uF and, at most, its IDRIVE resistor
+        dv = [x for x in esc if m + 'DVDD' in x.pins.values() and x.ref != 'U_GD%d' % n]
+        dv_load = sum(fig('drv_dvdd')[2] / value(x.part) for x in dv if re.match(r'R\d', x.ref))
+        if [x.ref for x in dv if not (x.note in ('driver DVDD', 'driver IDRIVE'))] or dv_load > fig('drv_idvdd'):
+            bad3.append('ESC %d: DVDD feeds %s' % (n, [x.ref for x in dv]))
+    hub = sorted(x.ref for x in esc if 'ESC_3V3' in x.pins.values())
+    want_hub = sorted(['P_L3V'] + ['FB%d' % n for n in (1, 2, 3, 4)] + [x.ref for x in find('esc', 'ESC 3.3V hub')])
+    if hub != want_hub:
+        bad3.append('ESC_3V3 carries %s' % hub)
     tot, n, other = max(worst)
-    check(S, 'ESC channel 3.3 V (each DRV8320H\'s DVDD, %.0f mA external): worst %.1f mA (ESC %d): AT32F421 %.1f mA (table '
-             '19), INA186 %.2f mA, thermistor divider and other resistors at DVDD max into 0 V, six gate inputs %.2f mA'
-          % (fig('drv_idvdd') * 1e3, tot * 1e3, n, fig('at32_idd') * 1e3, fig('ina186_iq') * 1e3, 6 * fig('drv_iih') * 1e3),
-          tot <= fig('drv_idvdd') and not other, 'unknown loads: %s' % other if other else '')
+    esc_i = sum(chans)
+    check(S, 'ESC 3.3 V: each channel\'s MCU, amplifier, thermistor and gate inputs from ESC_3V3 (the FC\'s 3.3 V, lead '
+             'pin 4) through its own bead; worst channel %.1f mA (ESC %d): AT32F421 %.1f mA (table 19), INA186 %.2f mA, '
+             'resistors at %.2f V into 0 V, six gate inputs %.2f mA.  Each DRV8320H\'s DVDD feeds only its 1 uF (and '
+             'IDRIVE resistor), no external load (SLVSDJ3D: 30 mA max)'
+          % (tot * 1e3, n, fig('at32_idd') * 1e3, fig('ina186_iq') * 1e3, v3[1], 6 * fig('drv_iih') * 1e3),
+          not bad3 and not other, '; '.join(bad3 + (['unknown loads: %s' % other] if other else [])))
+    iout = fig('tps_iout')
+    check(S, 'FC 3.3 V buck (TPS628501, %.0f A): the ESC\'s four channels take %.0f mA (datasheet maxima), %.0f %% of it, '
+             'leaving %.0f mA for the FC\'s own 3.3 V parts' % (iout, esc_i * 1e3, 100 * esc_i / iout, (iout - esc_i) * 1e3),
+          esc_i <= 0.25 * iout, 'pass mark: the ESC under a quarter of the buck')
+    # the drop from the FC's buck to the farthest pin (ASSUMPTION: 0.1 Ohm
+    # for the lead's wire and its one connector contact, aged; 0.3 Ohm for
+    # the bead's DC resistance; the beads' datasheet is not in the set)
+    drop = esc_i * 0.1 + tot * 0.3
+    vlo, vhi = v3[0] - drop, v3[1]
     vdd, vs = fig('at32_vdd'), fig('ina186_vs')
-    check(S, 'DVDD %.1f-%.1f V (SLVSDJ3D) inside the AT32F421\'s VDD %.1f-%.1f V (table 11) and the INA186\'s VS %.1f-%.1f V'
-          % (dvdd[0], dvdd[2], vdd[0], vdd[1], vs[0], vs[1]), vdd[0] <= dvdd[0] and dvdd[2] <= vdd[1]
-          and vs[0] <= dvdd[0] and dvdd[2] <= vs[1])
+    check(S, 'ESC channel 3.3 V %.3f-%.3f V: the FC buck\'s 0.6 V +/-%.0f %% (PWM, SLUSEC8C 7.5) x (1 + %gk/%gk, 1 %%) less '
+             '%.0f mV of lead and bead at full load; inside the AT32F421\'s VDD %.1f-%.1f V (table 11) and the INA186\'s VS '
+             '%.1f-%.1f V' % (vlo, vhi, 100 * acc, t / 1e3, b / 1e3, drop * 1e3, vdd[0], vdd[1], vs[0], vs[1]),
+          vdd[0] <= vlo and vhi <= vdd[1] and vs[0] <= vlo and vhi <= vs[1],
+          'lead and bead resistance assumed (0.1 + 0.3 Ohm)')
     # battery dividers
     r = esc_vsense_ratio()
-    check(S, 'ESC battery sense: %.1f V / %.1f = %.2f V (< %.1f V, the lowest DVDD = VDDA, the ADC reference)'
-          % (VMAX, r, VMAX / r, dvdd[0]), VMAX / r < dvdd[0])
+    check(S, 'ESC battery sense: %.1f V / %.1f = %.2f V (< %.2f V, the lowest channel 3.3 V = VDDA, the ADC reference)'
+          % (VMAX, r, VMAX / r, vlo), VMAX / r < vlo)
     t, b = value(find('fc', 'VBAT divider top')[0].part), value(find('fc', 'VBAT divider bottom')[0].part)
     k = (t + b) / b
     check(S, 'FC battery sense: %.1f V / %.0f = %.2f V at PB2 (< 3.3 V; vbat_scale 160)' % (VMAX, k, VMAX / k), VMAX / k < 3.0)
@@ -1464,9 +1501,9 @@ def check_power():
     ph = find('esc', 'BEMF A')
     bt = value([c for c in ph if c.part == 'R20K'][0].part); bb = value([c for c in ph if c.part != 'R20K'][0].part)
     kr = bb / (bt + bb)
-    lim = dvdd[0] + fig('at32_fta')
-    check(S, 'BEMF divider %gk/%gk: %.1f V phase -> %.2f V at the comparator; a 35 V spike -> %.2f V (< %.1f V: an FTa pin '
-             'in analog mode stays under VDD + 0.3 V, at the lowest DVDD)' % (bt / 1e3, bb / 1e3, VMAX, VMAX * kr, 35 * kr, lim),
+    lim = vlo + fig('at32_fta')
+    check(S, 'BEMF divider %gk/%gk: %.1f V phase -> %.2f V at the comparator; a 35 V spike -> %.2f V (< %.2f V: an FTa pin '
+             'in analog mode stays under VDD + 0.3 V, at the lowest channel 3.3 V)' % (bt / 1e3, bb / 1e3, VMAX, VMAX * kr, 35 * kr, lim),
           35 * kr < lim)
     # virtual neutral: equal legs from the three divided phases to a star
     # that only the MCU's comparator input loads; the star is then the mean
@@ -1601,11 +1638,13 @@ def check_power():
           len(fc_caps) == 5)
     for n in (1, 2, 3, 4):
         e = [x for x in esc if x.note.startswith('U_ESC%d V' % n)]
-        bulk = [x for x in esc if x.note == 'driver DVDD' and 'M%d_DVDD' % n in x.pins.values()]
-        check(S, 'ESC %d MCU: 100 nF on VDD and on VDDA (%d); the bulk is the driver\'s 1 uF DVDD capacitor on the same net'
-              % (n, len(e)), len(e) == 2 and all(x.part == 'C100N' and set(x.pins.values()) == {'M%d_DVDD' % n, 'GND'}
-                                                 for x in e) and len(bulk) == 1)
-    figs_check(S, ['lmr_vref', 'lmr_en_rise', 'lmr_en_fall', 'lmr_ihs', 'lmr_vin', 'lmr_rt', 'tps_vfb', 'tps_ilim',
+        bulk = [x for x in esc if x.note == 'U_ESC%d bulk' % n]
+        net = {'M%d_3V3' % n, 'GND'}
+        check(S, 'ESC %d MCU: 100 nF on VDD and on VDDA (%d), and 1 uF on the same net (AT32F421 figure 8: VDDA 100 nF '
+                 '+ 1 uF)' % (n, len(e)),
+              len(e) == 2 and all(x.part == 'C100N' and set(x.pins.values()) == net for x in e) and len(bulk) == 1
+              and abs(value(bulk[0].part) - 1e-6) < 1e-9 and set(bulk[0].pins.values()) == net)
+    figs_check(S, ['lmr_vref', 'lmr_en_rise', 'lmr_en_fall', 'lmr_ihs', 'lmr_vin', 'lmr_rt', 'tps_vfb', 'tps_vfb_acc', 'tps_iout', 'tps_ilim',
                    'tmp390_h20', 'drv_vm', 'drv_vi', 'drv_idvdd', 'drv_dvdd', 'drv_vih', 'drv_iih', 'drv_rpd', 'drv_vgsh',
                    'drv_vgsh6', 'drv_idrive', 'drv_vds_hiz', 'at32_vdd', 'at32_idd', 'at32_fta', 'ina186_iq', 'ina186_vs',
                    'fet_vds', 'fet_vgs', 'fet_rds', 'fet_rds45', 'fet_qg', 'spm6530_150', 'tfm_r47', 'xtal_cl'])
@@ -1729,7 +1768,7 @@ def check_board(board, name):
                  'of the driver pad on its net' % (len(far), max(far)[0] if far else 0), len(far) == 16 and not missing
               and max(far)[0] <= 2.0, 'farthest %s' % ', '.join('%s %.2f mm' % (r, v) for v, r in sorted(far)[-3:])
               + ('; not placed: %s' % missing if missing else ''))
-        # the thermistors at their FETs, and the MCUs' bulk (the driver's 1 uF)
+        # the thermistors at their FETs, and the MCUs' 1 uF
         rt, bulk = [], []
         for n in (1, 2, 3, 4):
             fets = [x.ref for x in comps_ if x.part == 'ISZ023N06LM6' and x.block == 'esc%d' % n]
@@ -1738,18 +1777,18 @@ def check_board(board, name):
             if rt_fp and fpads:
                 rt.append(min(math.hypot(a.GetPosition().x - q.GetPosition().x, a.GetPosition().y - q.GetPosition().y)
                               for a in rt_fp.Pads() for q in fpads) / 1e6)
-            cap = [x.ref for x in comps_ if x.note == 'driver DVDD' and 'M%d_DVDD' % n in x.pins.values()]
+            cap = [x.ref for x in comps_ if x.note == 'U_ESC%d bulk' % n]
             mcu = b.FindFootprintByReference('U_ESC%d' % n)
             cp = b.FindFootprintByReference(cap[0]) if cap else None
             if mcu and cp:
-                c0 = [p_ for p_ in cp.Pads() if p_.GetNetname() == 'M%d_DVDD' % n]
-                vdd = [p_ for p_ in mcu.Pads() if p_.GetNetname() == 'M%d_DVDD' % n]
+                c0 = [p_ for p_ in cp.Pads() if p_.GetNetname() == 'M%d_3V3' % n]
+                vdd = [p_ for p_ in mcu.Pads() if p_.GetNetname() == 'M%d_3V3' % n]
                 if c0 and vdd:
                     bulk.append(min(math.hypot(p_.GetPosition().x - c0[0].GetPosition().x,
                                                p_.GetPosition().y - c0[0].GetPosition().y) for p_ in vdd) / 1e6)
         check(S, 'FET thermistors: nearest pad of each to a FET of its channel: %s mm'
               % ', '.join('%.1f' % v for v in rt), 'INFO', 'they read the power stage through the copper between')
-        check(S, 'MCU bulk: each driver\'s 1 uF DVDD capacitor to its MCU\'s VDD/VDDA pins: %s mm'
+        check(S, 'MCU bulk: each channel\'s 1 uF to its MCU\'s VDD/VDDA pins: %s mm'
               % ', '.join('%.1f' % v for v in bulk), 'INFO',
               'the 100 nF at each pin takes the fast edges; bulk serves the slow load steps')
     ds = b.GetDesignSettings()
@@ -2209,7 +2248,8 @@ def check_options():
             check(S, '%s without the %s group: no net left with a single pin, beyond MCU pins the group used'
                   % (board, opt), not lost, 'left on an MCU pin only: %s' % (', '.join(single) or 'none'))
             supplies = {'fc': ['VBAT', 'GND', '+5V', '+3V3', '+3V3_GYRO'],
-                        'esc': ['VBAT', 'GND', 'DRV_EN'] + ['M%d_DVDD' % n for n in (1, 2, 3, 4)]}[board]
+                        'esc': ['VBAT', 'GND', 'DRV_EN', 'ESC_3V3'] + ['M%d_%s' % (n, r) for n in (1, 2, 3, 4)
+                                                                      for r in ('DVDD', '3V3')]}[board]
             src = {n: sorted(r for r, _ in left.get(n, [])) for n in supplies}
             check(S, '%s without the %s group: every supply keeps its source' % (board, opt),
                   all(len(v) >= 2 for v in src.values()) and not any(n in owned for n in supplies),

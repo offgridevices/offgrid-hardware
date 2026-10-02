@@ -63,8 +63,6 @@
 #define UART2_RX_PIN        PB4
 #define UART4_TX_PIN        PC10            // spare (GPS)
 #define UART4_RX_PIN        PC11
-#define LPUART1_TX_PIN      PB10
-#define LPUART1_RX_PIN      PB11            // ESC lead TLM pin
 
 #define SPI1_SCK_PIN        PA5
 #define SPI1_SDI_PIN        PA6

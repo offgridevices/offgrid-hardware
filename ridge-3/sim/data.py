@@ -114,6 +114,7 @@ CAPS_REV2 = {
     'C100N': ('X7R', 125.0, 'Samsung CL05B104KB54PNC'),
     'C1U_100': ('X7R', 125.0, 'Yageo CC0805KKX7R0BB105'),
     'C1U_25_X7R': ('X7R', 125.0, 'Murata GCM188R71E105KA64D'),
+    'C1U_10_X7R': ('X7R', 125.0, 'Murata GRM155Z71A105KE01D'),
     'C10U_16_X7R': ('X7R', 125.0, 'Samsung CL21B106KOQNNNE'),
     'C47N_50': ('X7R', 125.0, 'TDK CGA2B3X7R1H473KT0Y0F'),
     'C_BRIDGE': ('X7R', 125.0, 'Murata GRM21BZ71H475KE15L'),
@@ -138,7 +139,8 @@ AT7456E = dict(part='AT7456E', t_max=85.0, rth_jb=20.0,     # -40..85 C (AT7456E
                p=3.3 * 51e-3)                   # 51 mA typ at 5 V (the only figure given), at 3.3 V: ASSUMPTION
 ICM45686 = dict(part='TDK ICM-45686', t_max=85.0, p=3.3 * 0.44e-3)   # DS-000577 table 3 / abs max
 W25Q128 = dict(part='Winbond W25Q128JVPIM', t_max=85.0)             # 9.2 (I grade)
-FC_3V3_LOAD = 92e-3 + 0.5e-3 + 20e-3 + 51e-3 + 2e-3   # A: MCU, gyro, flash writing, OSD, LEDs
+FC_3V3_OWN = 92e-3 + 0.5e-3 + 20e-3 + 51e-3 + 2e-3    # A: MCU, gyro, flash writing, OSD, LEDs
+FC_3V3_LOAD = FC_3V3_OWN                              # the design's (DESIGNS)
 INDUCTORS = {'L_5V': dict(part='TDK SPM5020T-4R7M-LR', dcr=67.7e-3, t_max=125.0),     # TDK catalog
              'L_9V': dict(part='Vishay IHLP2525CZER6R8M01', dcr=60e-3, t_max=125.0),  # Vishay
              'L1': dict(part='Taiyo Yuden NRS4018T330MDGJV', dcr=0.552, t_max=125.0)}
@@ -221,11 +223,12 @@ AT32F421 = dict(part='Artery AT32F421G8U7', tj_max=125.0, ta_max=105.0,      # d
                 i_run=20.7e-3,                  # A max at 120 MHz, all peripherals, 105 C (table 19)
                 p_run=3.3 * 20e-3)              # ~20 mA at 120 MHz, hot (table 18): ASSUMPTION within it
 # Each rev 2 channel's 3.3 V: the MCU, the INA186 (48 uA) and the
-# thermistor's divider (~0.3 mA hot), from the board's 3.3 V buck through
-# the channel's ferrite bead.  The drivers' DVDD regulators feed only their
-# own logic (inside their VM current), so they carry no external load
-# (DVDD_LOAD); the first rev 2 layout ran each channel from its DVDD, which
-# the ground run showed at 0.46 W a driver.
+# thermistor's divider (~0.3 mA hot), from the flight controller's 3.3 V
+# buck down the stack lead's pin 4 and through the channel's ferrite bead.
+# The drivers' DVDD regulators feed only their own logic (inside their VM
+# current), so they carry no external load (DVDD_LOAD); the first rev 2
+# layout ran each channel from its DVDD, which the ground run showed at
+# 0.46 W a driver.
 CHANNEL_3V3 = AT32F421['i_run'] + 0.1e-3 + 0.3e-3
 TVS_5SMDJ33A = dict(part='Littelfuse 5.0SMDJ33A', vbr=(36.7, 40.6), vc=53.3, ipp=93.9,
                     p_pk=5000.0, tj_max=150.0,  # 10/1000 us; derated to ~62 % at 120 C (Littelfuse curve)
@@ -265,8 +268,7 @@ MICROLOCK = dict(part='Molex Micro-Lock Plus 505567', i_rated=1.5, r_contact=20e
                  t_max=105.0)
 # FC inductors (TDK catalog): SPM6530T-150M-HZ 119.9 mOhm max (109 typ), 125 C;
 # TFM252012ALMAR47MTAA 19 mOhm, 150 C
-INDUCTORS_REV2 = {'L1': INDUCTORS['L1'],      # the ESC's 3.3 V buck, as rev 1's
-                  'L_5V': dict(part='TDK SPM6530T-150M-HZ', dcr=119.9e-3, t_max=125.0),
+INDUCTORS_REV2 = {'L_5V': dict(part='TDK SPM6530T-150M-HZ', dcr=119.9e-3, t_max=125.0),
                   'L_9V': dict(part='TDK SPM6530T-150M-HZ', dcr=119.9e-3, t_max=125.0),
                   'L_3V3': dict(part='TDK TFM252012ALMAR47MTAA', dcr=19e-3, t_max=150.0)}
 CAPS_REV2.update({
@@ -282,7 +284,7 @@ DESIGNS = {
     'rev1': dict(
         FET=TPN2R304PL, AM32=dict(AM32), DRIVER=dict(DRV8300, kind='gvdd', vgs=GVDD),
         MCU_ESC=G071, GATE_LDO=TPS7A16, ESC_BUCK=MAX15062, CSA=INA186,
-        ESC_3V3_LOAD=ESC_3V3_LOAD_REV1, DVDD_LOAD=0.0,
+        ESC_3V3_LOAD=ESC_3V3_LOAD_REV1, DVDD_LOAD=0.0, FC_3V3_LOAD=FC_3V3_OWN,
         C_BRIDGE=C_BRIDGE, BULK=dict(EXT_CAP, on_board=False), CAPS=dict(CAPS), ESC_TVS=None,
         BUCK5=LMR38020F, BUCK9=LM76003, V33=TLV76733_LDO, MCU_FC=G473, OSD=AT7456E,
         GYRO=ICM45686, FLASH=W25Q128, STACK_CONN=JST_SH, HD_CONN=JST_SH, FC_TVS=SMF33A,
@@ -298,10 +300,11 @@ DESIGNS = {
                   sensor='RT',                  # the FET thermistor beside each channel's FETs
                   temp_limit=110.0),            # C at the thermistor (firmware/am32)
         DRIVER=dict(DRV8320, kind='vm', i_src=0.06),   # IDRIVE 60 mA (circuit.IDRIVE)
-        # the 3.3 V buck (rev 1's) for the four channels; no load on the
-        # drivers' DVDD regulators
-        MCU_ESC=AT32F421, GATE_LDO=None, ESC_BUCK=MAX15062, CSA=INA186,
+        # no 3.3 V regulator on the ESC: its four channels run from the
+        # FC's 3.3 V buck (stack lead pin 4), none from the drivers' DVDD
+        MCU_ESC=AT32F421, GATE_LDO=None, ESC_BUCK=None, CSA=INA186,
         ESC_3V3_LOAD=4 * CHANNEL_3V3, DVDD_LOAD=0.0,
+        FC_3V3_LOAD=FC_3V3_OWN + 4 * CHANNEL_3V3,
         C_BRIDGE=C_BRIDGE_REV2, BULK=CERAMIC_BULK,
         CAPS=dict(CAPS_REV2), ESC_TVS=None,
         BUCK5=LMR38020F_455, BUCK9=LMR38020F_9V, V33=TPS628501,

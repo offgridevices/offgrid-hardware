@@ -53,8 +53,9 @@ The config also sets these defaults for this board (see the top of
 
 - **Board alignment 0/0/0.** The gyro sits square with the board, and the
   front arrow on the silkscreen points forward.
-- **Receiver on UART2, CRSF.**  UART4 is spare (GPS).  LPUART1 RX (PB11) is
-  on the stack lead's TLM pin, which this stack's ESC does not drive.
+- **Receiver on UART2, CRSF.**  UART4 is spare (GPS).  LPUART1 is not
+  defined: the stack lead's pin 4, the TLM pin in the usual pinout, carries
+  the flight controller's 3.3 V to the ESC's MCUs instead.
 - **DShot300 with bidirectional DShot on.** This is what the AM32 ESC board
   expects.
 - **No beeper.**  The board has none; `cli-setup.txt` turns the DShot beacon
@@ -153,7 +154,7 @@ controller in the usual way.
    | *Motor KV*, *Motor poles* | your motor | RPM telemetry |
    | *3D mode* | **off** | Bidirectional DShot needs no ESC setting |
    | *Car type reverse braking* | off | A car mode |
-   | *30ms interval telemetry* | off | The TLM line is not wired on this ESC |
+   | *30ms interval telemetry* | off | This ESC has no TLM line (lead pin 4 is its 3.3 V) |
    | *Stuck rotor protection* | **on** (the default) | Cuts a motor whose back-EMF disappears |
    | *Stall protection* | off (the default) | A crawler feature that *adds* power at stall |
    | *Limits* → *Low voltage cut off* | Off | Betaflight does battery warnings |
@@ -223,7 +224,8 @@ figure 5, table 5):
   DRV8320H itself holds a gate off until it sees the other one discharged,
   then adds ~100 ns, so AM32's dead time is a floor here, not the
   protection.  (AM32 also uses DEAD_TIME as its minimum duty.)
-- No `USE_SERIAL_TELEMETRY`: the ESC's TLM line is not wired.
+- No `USE_SERIAL_TELEMETRY`: the ESC has no TLM line (the lead's pin 4 is
+  its 3.3 V supply).
   Bidirectional DShot carries eRPM, and, with `dshot_edt = ON` in
   Betaflight, the ESCs' temperature, voltage and current.
 - `FIRMWARE_NAME "OffGrid Rd3 "` (12 characters).  The configurators show

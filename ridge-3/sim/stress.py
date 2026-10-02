@@ -492,10 +492,11 @@ def lead_section(i_motor=20.0):
             '(pin 1 VBAT, pin 2 ground): soldered to the ESC\'s pads, and at the FC '
             'a %s, rated %.1f A per contact, %.0f C (%d mOhm per contact assumed, '
             '%d mOhm aged).  The lead feeds only the FC\'s 5 V BEC (and through it '
-            'the 3.3 V buck).  The 9 V video supply has its own battery pads, wired '
+            'the 3.3 V buck); its pin 4 takes that 3.3 V back to the ESC\'s four MCUs '
+            '(%.0f mA).  The 9 V video supply has its own battery pads, wired '
             'to the ESC\'s battery pads, so the video load never passes through '
             'the lead.' % (J['part'], J['i_rated'], J['t_max'], J['r_contact'] * 1e3,
-                           J['r_contact_aged'] * 1e3))
+                           J['r_contact_aged'] * 1e3, data.ESC_3V3_LOAD * 1e3))
     else:
         say('The FC takes its power from the ESC through the 8-pin JST-SH lead (pin 1 '
             'VBAT, pin 2 GND), rated %.0f A per contact with AWG 28 wire, %d mOhm per '

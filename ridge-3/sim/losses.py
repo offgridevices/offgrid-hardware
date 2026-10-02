@@ -19,8 +19,9 @@ the time, the low leg a third and floats a third.  So per phase:
                   from the battery: its low side through its regulator
                   (Qg V f), its high side through its charge pump (taken as
                   twice the charge from the battery, 2 Qg V f), its own
-                  quiescent current, and the channel's 3.3 V from its DVDD
-                  regulator ((V - 3.3) x the MCU, amplifier and thermistor)
+                  quiescent current, and any external load on its DVDD
+                  regulator ((V - 3.3) x DVDD_LOAD; none in rev 2, whose
+                  channels take 3.3 V from the FC's buck)
 
 On-resistance is the datasheet maximum at 25 C times the datasheet's own
 temperature curve (Fig. 8.9), at each FET's junction temperature.
