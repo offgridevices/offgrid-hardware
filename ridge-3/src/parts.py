@@ -885,8 +885,8 @@ PARTS = {
     # 1 uF 25 V X7R 0603, Murata automotive (driver charge pump across
     # VBAT and VCP at ~11 V, DVDD, MCU VDDA, buck VCC).  JLC 107,530 ext.
     'C1U_25_X7R': C('1uF', C0603, 'C85862', 'GCM188R71E105KA64D', '25V X7R 0603', maker=MURATA),
-    # 1 uF 10 V X7R 0402, Murata (each ESC channel's 3.3 V: the 1 uF of
-    # Artery's VDDA decoupling, AT32F421 figure 8).  JLC 233,801 ext, $0.021.
+    # 1 uF 10 V X7R 0402, Murata (each ESC MCU's VDDA: Artery's 100 nF +
+    # 1 uF, AT32F421 figure 8, in one 0402).  JLC 233,801 ext, $0.021.
     'C1U_10_X7R': C('1uF', C0402, 'C528974', 'GRM155Z71A105KE01D', '10V X7R 0402', maker=MURATA),
     # 10 uF 16 V X7R 0805 (3.3 V buck output).  JLC 395,906 ext.
     'C10U_16_X7R': C('10uF', C0805, 'C95841', 'CL21B106KOQNNNE', '16V X7R 0805'),

@@ -1637,13 +1637,14 @@ def check_power():
     check(S, 'FC MCU: one 100 nF per VDD/VBAT/VDDA pin group (%d) plus 1 uF and 4.7 uF bulk' % len(fc_caps),
           len(fc_caps) == 5)
     for n in (1, 2, 3, 4):
-        e = [x for x in esc if x.note.startswith('U_ESC%d V' % n)]
-        bulk = [x for x in esc if x.note == 'U_ESC%d bulk' % n]
         net = {'M%d_3V3' % n, 'GND'}
-        check(S, 'ESC %d MCU: 100 nF on VDD and on VDDA (%d), and 1 uF on the same net (AT32F421 figure 8: VDDA 100 nF '
-                 '+ 1 uF)' % (n, len(e)),
-              len(e) == 2 and all(x.part == 'C100N' and set(x.pins.values()) == net for x in e) and len(bulk) == 1
-              and abs(value(bulk[0].part) - 1e-6) < 1e-9 and set(bulk[0].pins.values()) == net)
+        vdd, vdda = find('esc', 'U_ESC%d VDD' % n), find('esc', 'U_ESC%d VDDA' % n)
+        ok = (len(vdd) == 1 and len(vdda) == 1 and abs(value(vdd[0].part) - 100e-9) < 1e-12
+              and abs(value(vdda[0].part) - 1e-6) < 1e-9 and parts.PARTS[vdda[0].part]['fp'] == parts.C0402
+              and all(set(x.pins.values()) == net for x in vdd + vdda))
+        check(S, 'ESC %d MCU: 100 nF at VDD; at VDDA 1 uF 0402, Artery\'s 100 nF + 1 uF (AT32F421 figure 8) in one '
+                 'case (its impedance the 100 nF\'s or lower at every frequency)' % n, ok,
+              '%s %s' % ([x.part for x in vdd], [x.part for x in vdda]))
     figs_check(S, ['lmr_vref', 'lmr_en_rise', 'lmr_en_fall', 'lmr_ihs', 'lmr_vin', 'lmr_rt', 'tps_vfb', 'tps_vfb_acc', 'tps_iout', 'tps_ilim',
                    'tmp390_h20', 'drv_vm', 'drv_vi', 'drv_idvdd', 'drv_dvdd', 'drv_vih', 'drv_iih', 'drv_rpd', 'drv_vgsh',
                    'drv_vgsh6', 'drv_idrive', 'drv_vds_hiz', 'at32_vdd', 'at32_idd', 'at32_fta', 'ina186_iq', 'ina186_vs',
@@ -1768,7 +1769,7 @@ def check_board(board, name):
                  'of the driver pad on its net' % (len(far), max(far)[0] if far else 0), len(far) == 16 and not missing
               and max(far)[0] <= 2.0, 'farthest %s' % ', '.join('%s %.2f mm' % (r, v) for v, r in sorted(far)[-3:])
               + ('; not placed: %s' % missing if missing else ''))
-        # the thermistors at their FETs, and the MCUs' 1 uF
+        # the thermistors at their FETs, and the MCUs' 1 uF (at VDDA)
         rt, bulk = [], []
         for n in (1, 2, 3, 4):
             fets = [x.ref for x in comps_ if x.part == 'ISZ023N06LM6' and x.block == 'esc%d' % n]
@@ -1777,7 +1778,7 @@ def check_board(board, name):
             if rt_fp and fpads:
                 rt.append(min(math.hypot(a.GetPosition().x - q.GetPosition().x, a.GetPosition().y - q.GetPosition().y)
                               for a in rt_fp.Pads() for q in fpads) / 1e6)
-            cap = [x.ref for x in comps_ if x.note == 'U_ESC%d bulk' % n]
+            cap = [x.ref for x in comps_ if x.note == 'U_ESC%d VDDA' % n]
             mcu = b.FindFootprintByReference('U_ESC%d' % n)
             cp = b.FindFootprintByReference(cap[0]) if cap else None
             if mcu and cp:
@@ -1788,9 +1789,8 @@ def check_board(board, name):
                                                p_.GetPosition().y - c0[0].GetPosition().y) for p_ in vdd) / 1e6)
         check(S, 'FET thermistors: nearest pad of each to a FET of its channel: %s mm'
               % ', '.join('%.1f' % v for v in rt), 'INFO', 'they read the power stage through the copper between')
-        check(S, 'MCU bulk: each channel\'s 1 uF to its MCU\'s VDD/VDDA pins: %s mm'
-              % ', '.join('%.1f' % v for v in bulk), 'INFO',
-              'the 100 nF at each pin takes the fast edges; bulk serves the slow load steps')
+        check(S, 'MCU 1 uF (VDDA): each one\'s supply pad to the nearer of its MCU\'s VDD/VDDA pins: %s mm'
+              % ', '.join('%.1f' % v for v in bulk), 'INFO', 'on the top, the MCU on the bottom: through the board')
     ds = b.GetDesignSettings()
     check(S, '%d copper layers; min track %.2f mm, clearance %.2f mm, via %.2f/%.2f mm (JLCPCB multilayer: '
              '%.2f mm track and gap, %.2f mm via, %.2f mm hole)'
