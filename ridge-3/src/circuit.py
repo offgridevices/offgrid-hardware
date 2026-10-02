@@ -619,7 +619,9 @@ def esc(n):
     cap('C100N', 'VBAT', GND, B, 'driver VM')
     cap('C1U_25_X7R', p('VCP'), 'VBAT', B, 'driver charge pump')
     cap('C47N_50', p('CPH'), p('CPL'), B, 'driver flying cap')
-    cap('C1U_25_X7R', p('DVDD'), GND, B, 'driver DVDD')
+    # DVDD's 1 uF (6.3 V or more, SLVSDJ3D 7.3): the 0402 X7R, leaving room
+    # beside it for the channel's 3.3 V feed
+    cap('C1U_10_X7R', p('DVDD'), GND, B, 'driver DVDD')
     lvl = IDRIVE_LEVELS[IDRIVE]
     if lvl:
         res(lvl[0], p('IDRIVE'), p('DVDD') if lvl[1] == 'DVDD' else lvl[1], B, 'driver IDRIVE')
