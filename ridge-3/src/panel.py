@@ -542,29 +542,15 @@ def bom_cpl(panel_board, src_board, board_name, refmap, out_dir, name):
         if ref in refmap and refmap[ref][0] in asm:
             p = asm[refmap[ref][0]]
             rows.append(_cpl_row(ref, fp, p))
-            sides[p['lcsc']].add('Bottom' if fp.IsFlipped() else 'Top')
-    for orig, p in sorted(asm.items(), key=lambda a: (a[1]['lcsc'], fab._natural(a[0]))):
-        groups.setdefault(p['lcsc'], (p, []))
+            sides[fab.bom_key(p)].add('Bottom' if fp.IsFlipped() else 'Top')
+    for orig, p in sorted(asm.items(), key=lambda a: (fab.bom_key(a[1]), fab._natural(a[0]))):
+        groups.setdefault(fab.bom_key(p), (p, []))
     for ref, (orig, k) in refmap.items():
         if orig in asm:
-            groups[asm[orig]['lcsc']][1].append(ref)
+            groups[fab.bom_key(asm[orig])][1].append(ref)
     rows.sort(key=lambda r: fab._natural(r[0]))
-    fpname = lambda p: p['fp'].split(':')[1]
     paths = {}
-    paths['bom'] = os.path.join(out_dir, '%s-bom-jlcpcb.csv' % name)
-    with open(paths['bom'], 'w', newline='') as f:
-        w = csv.writer(f)
-        w.writerow(['Comment', 'Designator', 'Footprint', 'LCSC Part #'])
-        for lcsc, (p, refs) in groups.items():
-            w.writerow([p['value'], ','.join(sorted(refs, key=fab._natural)), fpname(p), lcsc])
-    paths['bom_pcbway'] = os.path.join(out_dir, '%s-bom-pcbway.csv' % name)
-    with open(paths['bom_pcbway'], 'w', newline='') as f:
-        w = csv.writer(f)
-        w.writerow(['Item #', 'Designator', 'Qty', 'Manufacturer Part Number', 'Description', 'Value',
-                    'Package/Footprint', 'Type', 'LCSC Part #', 'Side'])
-        for i, (lcsc, (p, refs)) in enumerate(groups.items(), 1):
-            w.writerow([i, ','.join(sorted(refs, key=fab._natural)), len(refs), p['mpn'], p['desc'], p['value'],
-                        fpname(p), 'SMD', lcsc, '+'.join(sorted(sides[lcsc]))])
+    paths['bom'], paths['bom_pcbway'] = fab.write_boms(out_dir, name, groups, sides)
     paths['cpl'] = os.path.join(out_dir, '%s-cpl-jlcpcb.csv' % name)
     with open(paths['cpl'], 'w', newline='') as f:
         w = csv.writer(f)
@@ -601,16 +587,15 @@ def check_bom_cpl(panel_paths, single_dir, single_name, refmap, offsets):
         worst = max(worst, abs(got[0] - ex[0]), abs(got[1] - ex[1]))
         if got != ex or r['Layer'] != s['Layer'] or float(r['Rotation']) != float(s['Rotation']):
             raise SystemExit('CPL %s: %s, want %s moved by %s' % (ref, dict(r), dict(s), offsets[k]))
-    sbom = {r['LCSC Part #']: r for r in _read_csv(os.path.join(single_dir, '%s-bom-jlcpcb.csv' % single_name))}
-    pbom = {r['LCSC Part #']: r for r in _read_csv(panel_paths['bom'])}
+    sbom = {fab.bom_row_key(r): r for r in _read_csv(os.path.join(single_dir, '%s-bom-jlcpcb.csv' % single_name))}
+    pbom = {fab.bom_row_key(r): r for r in _read_csv(panel_paths['bom'])}
     if set(sbom) != set(pbom):
         raise SystemExit('panel BOM parts differ from the board BOM')
     back = {(o, k): ref for ref, (o, k) in refmap.items()}
-    for lcsc, r in pbom.items():
-        want = sorted((back[(o, k)] for o in sbom[lcsc]['Designator'].split(',') for k in offsets), key=fab._natural)
-        if r['Designator'].split(',') != want or r['Comment'] != sbom[lcsc]['Comment'] \
-                or r['Footprint'] != sbom[lcsc]['Footprint']:
-            raise SystemExit('panel BOM line %s does not match the board BOM line' % lcsc)
+    for key, r in pbom.items():
+        want = sorted((back[(o, k)] for o in sbom[key]['Designator'].split(',') for k in offsets), key=fab._natural)
+        if r['Designator'].split(',') != want or any(r[c] != sbom[key][c] for c in fab.BOM_JLC if c != 'Designator'):
+            raise SystemExit('panel BOM line %s does not match the board BOM line' % key)
     bom_refs = sorted(d for r in pbom.values() for d in r['Designator'].split(','))
     if bom_refs != sorted(panel) or len(bom_refs) != len(set(bom_refs)):
         raise SystemExit('panel BOM and CPL designators disagree')

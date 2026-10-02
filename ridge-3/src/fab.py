@@ -74,30 +74,56 @@ def _natural(ref):
     return tuple((0, int(t)) if t.isdigit() else (1, t) for t in re.findall(r'\d+|\D+', ref))
 
 
+# BOM columns, the single board's and the panel's (panel.py)
+BOM_JLC = ['Comment', 'Designator', 'Footprint', 'LCSC Part #', 'Manufacturer Part #', 'Manufacturer']
+BOM_PCBWAY = ['Item #', 'Designator', 'Qty', 'Manufacturer Part Number', 'Description', 'Value',
+              'Package/Footprint', 'Type', 'LCSC Part #', 'Side']
+
+
+def bom_key(p):
+    """One BOM line per orderable part: its LCSC number, or for a part LCSC
+    does not stock (JLCPCB's global sourcing, PCBWay's turnkey) its MPN."""
+    return p['lcsc'] or 'MPN ' + p['mpn']
+
+
+def bom_row_key(row):
+    """bom_key of a JLCPCB BOM row as written."""
+    return row['LCSC Part #'] or 'MPN ' + row['Manufacturer Part #']
+
+
+def bom_rows(groups, sides):
+    """(JLCPCB rows, PCBWay rows) from {bom_key: (part, [refs])} and
+    {bom_key: {'Top', 'Bottom'}}."""
+    fpname = lambda p: p['fp'].split(':')[1]
+    jlc, pcbway = [], []
+    for i, (k, (p, refs)) in enumerate(groups.items(), 1):
+        refs = ','.join(sorted(refs, key=_natural))
+        jlc.append([p['value'], refs, fpname(p), p['lcsc'] or '', p['mpn'], p.get('maker', '').split(' (')[0]])
+        pcbway.append([i, refs, len(refs.split(',')), p['mpn'], p['desc'], p['value'], fpname(p), 'SMD',
+                       p['lcsc'] or '', '+'.join(sorted(sides[k]))])
+    return jlc, pcbway
+
+
+def write_boms(out_dir, name, groups, sides):
+    jlc, pcbway = bom_rows(groups, sides)
+    paths = (os.path.join(out_dir, '%s-bom-jlcpcb.csv' % name), os.path.join(out_dir, '%s-bom-pcbway.csv' % name))
+    for path, head, rows in zip(paths, (BOM_JLC, BOM_PCBWAY), (jlc, pcbway)):
+        with open(path, 'w', newline='') as f:
+            w = csv.writer(f)
+            w.writerow(head)
+            w.writerows(rows)
+    return paths
+
+
 def bom_cpl(board, out_dir, name, board_name):
     b = pcbnew.LoadBoard(board)
     asm = _assembled(b, board_name)
-    # one BOM line per orderable part: its LCSC number, or for a part LCSC
-    # does not stock (JLCPCB's global sourcing, PCBWay's turnkey) its MPN
-    key = lambda p: p['lcsc'] or 'MPN ' + p['mpn']
     groups = collections.OrderedDict()
-    for fp, p in sorted(asm, key=lambda a: (key(a[1]), _natural(a[0].GetReference()))):
-        groups.setdefault(key(p), (p, []))[1].append(fp.GetReference())
-    fpname = lambda p: p['fp'].split(':')[1]
-    with open(os.path.join(out_dir, '%s-bom-jlcpcb.csv' % name), 'w', newline='') as f:
-        w = csv.writer(f)
-        w.writerow(['Comment', 'Designator', 'Footprint', 'LCSC Part #', 'Manufacturer Part #', 'Manufacturer'])
-        for k, (p, refs) in groups.items():
-            w.writerow([p['value'], ','.join(sorted(refs, key=_natural)), fpname(p), p['lcsc'] or '', p['mpn'],
-                        p.get('maker', '').split(' (')[0]])
-    with open(os.path.join(out_dir, '%s-bom-pcbway.csv' % name), 'w', newline='') as f:
-        w = csv.writer(f)
-        w.writerow(['Item #', 'Designator', 'Qty', 'Manufacturer Part Number', 'Description', 'Value',
-                    'Package/Footprint', 'Type', 'LCSC Part #', 'Side'])
-        for i, (k, (p, refs)) in enumerate(groups.items(), 1):
-            sides = sorted(set('Bottom' if fp.IsFlipped() else 'Top' for fp, q in asm if key(q) == k))
-            w.writerow([i, ','.join(sorted(refs, key=_natural)), len(refs), p['mpn'], p['desc'], p['value'],
-                        fpname(p), 'SMD', p['lcsc'] or '', '+'.join(sides)])
+    sides = collections.defaultdict(set)
+    for fp, p in sorted(asm, key=lambda a: (bom_key(a[1]), _natural(a[0].GetReference()))):
+        groups.setdefault(bom_key(p), (p, []))[1].append(fp.GetReference())
+        sides[bom_key(p)].add('Bottom' if fp.IsFlipped() else 'Top')
+    write_boms(out_dir, name, groups, sides)
     with open(os.path.join(out_dir, '%s-cpl-jlcpcb.csv' % name), 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['Designator', 'Mid X', 'Mid Y', 'Layer', 'Rotation'])
