@@ -26,8 +26,6 @@ Sources read: AM32 /tmp/claude-0/-home-user-offgrid-hardware/f2e388a8-ffc2-528b-
 | PASS | Betaflight UART2_RX_PIN PB4 | carries UART2_RX |
 | PASS | Betaflight UART4_TX_PIN PC10 | carries UART4_TX |
 | PASS | Betaflight UART4_RX_PIN PC11 | carries UART4_RX |
-| PASS | Betaflight LPUART1_TX_PIN PB10 | not connected (unused on this board) |
-| PASS | Betaflight LPUART1_RX_PIN PB11 | carries TLM |
 | PASS | Betaflight SPI1_SCK_PIN PA5 | carries SPI1_SCK |
 | PASS | Betaflight SPI1_SDI_PIN PA6 | carries SPI1_MISO |
 | PASS | Betaflight SPI1_SDO_PIN PA7 | carries SPI1_MOSI |
@@ -86,15 +84,15 @@ Sources read: AM32 /tmp/claude-0/-home-user-offgrid-hardware/f2e388a8-ffc2-528b-
 | Result | Check | Detail |
 |---|---|---|
 | PASS | AT32F421 QFN28 pin numbers and the functions AM32 uses (Artery datasheet v2.02 table 5; KiCad 10 has no AT32 symbol): as copied here, 29 entries |  |
-| PASS | ESC 1: VDD (pin 17) and VDDA (pin 5) on M1_DVDD, VSS (16) and the exposed pad (29) on GND, BOOT0 (1) on GND | VDD M1_DVDD, VDDA M1_DVDD, VSS GND, EPAD GND, BOOT0 GND |
+| PASS | ESC 1: VDD (pin 17) and VDDA (pin 5) on M1_3V3, VSS (16) and the exposed pad (29) on GND, BOOT0 (1) on GND | VDD M1_3V3, VDDA M1_3V3, VSS GND, EPAD GND, BOOT0 GND |
 | PASS | ESC 1: NRST (pin 4) filtered 100 nF to ground; SWDIO (PA13, pin 21) to its own test pad TP_E1_DIO, SWCLK (PA14, pin 22) to TP_E1_CLK |  |
-| PASS | ESC 2: VDD (pin 17) and VDDA (pin 5) on M2_DVDD, VSS (16) and the exposed pad (29) on GND, BOOT0 (1) on GND | VDD M2_DVDD, VDDA M2_DVDD, VSS GND, EPAD GND, BOOT0 GND |
+| PASS | ESC 2: VDD (pin 17) and VDDA (pin 5) on M2_3V3, VSS (16) and the exposed pad (29) on GND, BOOT0 (1) on GND | VDD M2_3V3, VDDA M2_3V3, VSS GND, EPAD GND, BOOT0 GND |
 | PASS | ESC 2: NRST (pin 4) filtered 100 nF to ground; SWDIO (PA13, pin 21) to its own test pad TP_E2_DIO, SWCLK (PA14, pin 22) to TP_E2_CLK |  |
-| PASS | ESC 3: VDD (pin 17) and VDDA (pin 5) on M3_DVDD, VSS (16) and the exposed pad (29) on GND, BOOT0 (1) on GND | VDD M3_DVDD, VDDA M3_DVDD, VSS GND, EPAD GND, BOOT0 GND |
+| PASS | ESC 3: VDD (pin 17) and VDDA (pin 5) on M3_3V3, VSS (16) and the exposed pad (29) on GND, BOOT0 (1) on GND | VDD M3_3V3, VDDA M3_3V3, VSS GND, EPAD GND, BOOT0 GND |
 | PASS | ESC 3: NRST (pin 4) filtered 100 nF to ground; SWDIO (PA13, pin 21) to its own test pad TP_E3_DIO, SWCLK (PA14, pin 22) to TP_E3_CLK |  |
-| PASS | ESC 4: VDD (pin 17) and VDDA (pin 5) on M4_DVDD, VSS (16) and the exposed pad (29) on GND, BOOT0 (1) on GND | VDD M4_DVDD, VDDA M4_DVDD, VSS GND, EPAD GND, BOOT0 GND |
+| PASS | ESC 4: VDD (pin 17) and VDDA (pin 5) on M4_3V3, VSS (16) and the exposed pad (29) on GND, BOOT0 (1) on GND | VDD M4_3V3, VDDA M4_3V3, VSS GND, EPAD GND, BOOT0 GND |
 | PASS | ESC 4: NRST (pin 4) filtered 100 nF to ground; SWDIO (PA13, pin 21) to its own test pad TP_E4_DIO, SWCLK (PA14, pin 22) to TP_E4_CLK |  |
-| PASS | stack lead: the ESC's lead pads carry the FC connector's nets (its GND as FC_GND), and nothing on the ESC drives TLM (connector pin 4): no serial telemetry | pads ['CUR', 'FC_GND', 'M1_SIG', 'M2_SIG', 'M3_SIG', 'M4_SIG', 'VBAT']; connector ['CUR', 'FC_GND', 'M1_SIG', 'M2_SIG', 'M3_SIG', 'M4_SIG', 'VBAT'] |
+| PASS | stack lead: the ESC's lead pads carry the FC connector's nets (its GND as FC_GND, its +3V3 on pin 4 as ESC_3V3); no TLM line on either board: no serial telemetry | pads ['CUR', 'ESC_3V3', 'FC_GND', 'M1_SIG', 'M2_SIG', 'M3_SIG', 'M4_SIG', 'VBAT']; connector ['CUR', 'ESC_3V3', 'FC_GND', 'M1_SIG', 'M2_SIG', 'M3_SIG', 'M4_SIG', 'VBAT']; TLM on [] |
 | PASS | AM32 checkout /tmp/claude-0/-home-user-offgrid-hardware/f2e388a8-ffc2-528b-879f-757b53364e4b/scratchpad/am32 at commit 2738df3 (the patch and the images are for 2738df3) |  |
 | PASS | firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch applies to Inc/targets.h | the checkout already has AM32_2738df3_RIDGE3_F421_target.patch |
 | PASS | firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch applies to Inc/ntc_tables.h (the thermistor's NTC_table) | the checkout already has AM32_2738df3_RIDGE3_F421_target.patch |
@@ -150,13 +148,15 @@ Sources read: AM32 /tmp/claude-0/-home-user-offgrid-hardware/f2e388a8-ffc2-528b-
 | PASS | U_BUCK3 (3.3V buck) against the TPS628501 DRL pin table (1 VIN, 2 EN, 3 MODE/SYNC, 4 COMP/FSET, 5 FB, 6 PG, 7 SW, 8 GND): VIN on +5V with its capacitor, EN high, MODE high (forced PWM), COMP/FSET GND, SW to the inductor, FB divider from +3V3 | 1 VIN=+5V, 2 EN=+5V, 3 MODE/SYNC=+5V, 4 COMP/FSET=GND, 5 FB=BUCK3_FB, 6 PG=None, 7 SW=BUCK3_SW, 8 GND=GND |
 | PASS | FC 3.3 V (TPS628501, VFB 0.6 V): 0.6 x (1 + 100k/22.1k) = 3.315 V (MCU, gyro, flash and OSD: 3.3 V within 3 %) |  |
 | PASS | video-supply thermostat: U_TSW (TMP390) SETA 121k -> trips at 96 C (SBOS904A table 7-1), SETB to ground -> 20 C hysteresis, back on at 76 C; OUTA (open drain, low when hot) pulled up to its own 3.3 V supply drives the BSS138DW inverter, whose second FET pulls the 9 V BEC's EN (LMR38020 pin 2) low when hot | the cut-off FET's drain (BUCK9_EN) is on U_BUCK9 pin 2 (EN) |
-| PASS | DRV8320H, all four, against TI's pin table: VM and VDRAIN on VBAT, VCP 1 uF 25 V to VM, CPH-CPL 47 nF VM-rated, DVDD 1 uF, grounds, ENABLE on DRV_EN, MODE to ground (6x PWM), VDS open (Hi-Z: 0.6 V trip, 261 A through a 2.3 mOhm FET), IDRIVE 75k to GND: 60 mA source / 120 mA sink |  |
+| PASS | DRV8320H, all four, against TI's pin table: VM and VDRAIN on VBAT, VCP 1 uF 25 V to VM, CPH-CPL 47 nF VM-rated, DVDD 1 uF, grounds, ENABLE on DRV_EN, MODE to ground (6x PWM), VDS open (Hi-Z: 0.6 V trip, 261 A through a 2.3 mOhm FET), IDRIVE 18k to GND: 30 mA source / 60 mA sink |  |
 | PASS | driver ENABLE (DRV_EN, 4 drivers): 33k from VBAT; at 6.0 V (2S empty) 2.59 V typ, 2.11 V with every input at its 70 uA maximum (VIH 1.5 V); at 6S a 4.7 V Zener holds it under the inputs' 5.5 V (0.43 mA in it, 13 mW in the 33k) | Zener voltage 4.7 V nominal from parts.py: its datasheet is not in the set (unverified) |
-| PASS | ESC channel 3.3 V (each DRV8320H's DVDD, 30 mA external): worst 21.6 mA (ESC 4): AT32F421 20.7 mA (table 19), INA186 0.09 mA, thermistor divider and other resistors at DVDD max into 0 V, six gate inputs 0.42 mA |  |
-| PASS | DVDD 3.0-3.6 V (SLVSDJ3D) inside the AT32F421's VDD 2.4-3.6 V (table 11) and the INA186's VS 1.7-5.5 V |  |
-| PASS | ESC battery sense: 25.2 V / 11.0 = 2.29 V (< 3.0 V, the lowest DVDD = VDDA, the ADC reference) |  |
+| PASS | ESC 3.3 V: each channel's MCU, amplifier, thermistor and gate inputs from ESC_3V3 (the FC's 3.3 V, lead pin 4) through its own bead; worst channel 21.6 mA (ESC 4): AT32F421 20.7 mA (table 19), INA186 0.09 mA, resistors at 3.40 V into 0 V, six gate inputs 0.42 mA.  Each DRV8320H's DVDD feeds only its 1 uF (and IDRIVE resistor), no external load (SLVSDJ3D: 30 mA max) |  |
+| PASS | FC 3.3 V buck (TPS628501, 1 A): the ESC's four channels take 86 mA (datasheet maxima), 9 % of it, leaving 914 mA for the FC's own 3.3 V parts | pass mark: the ESC under a quarter of the buck |
+| PASS | ESC channel 3.3 V 3.201-3.403 V: the FC buck's 0.6 V +/-1 % (PWM, SLUSEC8C 7.5) x (1 + 100k/22.1k, 1 %) less 28 mV of lead and bead at full load; inside the AT32F421's VDD 2.4-3.6 V (table 11) and the INA186's VS 1.7-5.5 V | the lead's 0.1 Ohm assumed; the bead's 0.90 Ohm from Murata |
+| PASS | ESC channel beads (FB600_0201, Murata BLM03AX601SN1D): 21.6 mA in the worst channel, 9 % of the 250 mA rating |  |
+| PASS | ESC battery sense: 25.2 V / 11.0 = 2.29 V (< 3.20 V, the lowest channel 3.3 V = VDDA, the ADC reference) |  |
 | PASS | FC battery sense: 25.2 V / 16 = 1.57 V at PB2 (< 3.3 V; vbat_scale 160) |  |
-| PASS | BEMF divider 20k/2k: 25.2 V phase -> 2.29 V at the comparator; a 35 V spike -> 3.18 V (< 3.3 V: an FTa pin in analog mode stays under VDD + 0.3 V, at the lowest DVDD) |  |
+| PASS | BEMF divider 20k/2k: 25.2 V phase -> 2.29 V at the comparator; a 35 V spike -> 3.18 V (< 3.50 V: an FTa pin in analog mode stays under VDD + 0.3 V, at the lowest channel 3.3 V) |  |
 | PASS | virtual neutral: 10k from each of CMP_A/B/C to a star only the comparator loads, in all four ESCs: the star is their mean; the comparator sees 0.85 of CMP minus that mean | [] |
 | PASS | current sense: 0.5 mOhm x 100 V/V = 50 mV/A; the 3.3 V ADC range is 66 A per motor |  |
 | PASS | shunt dissipation at 20 A per motor: 0.20 W in a 2 W 1206 (10 %) |  |
@@ -188,11 +188,11 @@ Sources read: AM32 /tmp/claude-0/-home-user-offgrid-hardware/f2e388a8-ffc2-528b-
 | PASS | HSE load caps 10 pF each: CL = 8.0 pF with 3 pF stray (crystal CL 8 pF) |  |
 | PASS | USB-C: 5.1k Rd on CC1 and CC2 (C-to-C cables supply 5 V) |  |
 | PASS | FC MCU: one 100 nF per VDD/VBAT/VDDA pin group (5) plus 1 uF and 4.7 uF bulk |  |
-| PASS | ESC 1 MCU: 100 nF on VDD and on VDDA (2); the bulk is the driver's 1 uF DVDD capacitor on the same net |  |
-| PASS | ESC 2 MCU: 100 nF on VDD and on VDDA (2); the bulk is the driver's 1 uF DVDD capacitor on the same net |  |
-| PASS | ESC 3 MCU: 100 nF on VDD and on VDDA (2); the bulk is the driver's 1 uF DVDD capacitor on the same net |  |
-| PASS | ESC 4 MCU: 100 nF on VDD and on VDDA (2); the bulk is the driver's 1 uF DVDD capacitor on the same net |  |
-| PASS | the 33 datasheet figures used here are in the datasheets' text: LMR38020 VREF 1.00 V (0.985-1.015); LMR38020 EN rising 1.1/1.25/1.4 V; LMR38020 EN falling 0.95/1.10/1.22 V; LMR38020 high-side current limit 2.6/3.2/3.8 A; LMR38020 input 4.2-80 V; LMR38020 RT(kOhm) = 30970 x fSW(kHz)^-1.027, equation 2; TPS628501 VFB 0.6 V; TPS628501 high-side current limit 2.1/2.6/3.0 A; TMP390: SETB to ground gives channel A 20 C hysteresis; DRV8320 VM 6-60 V (7.3); DRV8320 ENABLE, INHx, INLx 0-5.5 V (7.3); DRV8320 DVDD external load 30 mA max (7.3); DRV8320 DVDD 3.0/3.3/3.6 V (7.5); DRV8320 VIH 1.5 V min (7.5); DRV8320 logic-input current 50/70 uA at 5 V (7.5); DRV8320 logic-input pull-down 100 kOhm (7.5); DRV8320 high-side gate drive 8.4/11/12.5 V at VM 13 V, 25 mA (7.5); DRV8320 high-side gate drive 4/5/6 V at VM 6 V, 10 mA (7.5); DRV8320H IDRIVE levels, source 10-1000 mA / sink 20-2000 mA (7.5); DRV8320H VDS pin open: 0.6 V trip (7.5); AT32F421 VDD 2.4-3.6 V (table 11); AT32F421 IDD 20.7 mA max, 120 MHz, 105 C, all peripherals on (table 19); AT32F421 FTa pins in analog mode: below VDD + 0.3 V (table 5 note 2); INA186 supply current 90 uA max; INA186 VS 1.7-5.5 V (table 5-1); ISZ023N06LM6 V(BR)DSS 60 V; ISZ023N06LM6 VGS +/-20 V; ISZ023N06LM6 RDS(on) 2.3 mOhm max; ISZ023N06LM6 RDS(on) 2.9 mOhm max at VGS 4.5 V; ISZ023N06LM6 Qg 46/61 nC to 10 V; TDK SPM6530T-150M-HZ Isat 3.0 A (L down 20 %), Itemp 3.3 A; TDK TFM252012ALMAR47MTAA Isat 5.8 A (L down 30 %); NDK NX3225GD STD-CRA-3 load capacitance 8 pF |  |
+| PASS | ESC 1 MCU: 100 nF at VDD; at VDDA 1 uF 0402, Artery's 100 nF + 1 uF (AT32F421 figure 8) in one case (its impedance the 100 nF's or lower at every frequency) | ['C100N'] ['C1U_10_X7R'] |
+| PASS | ESC 2 MCU: 100 nF at VDD; at VDDA 1 uF 0402, Artery's 100 nF + 1 uF (AT32F421 figure 8) in one case (its impedance the 100 nF's or lower at every frequency) | ['C100N'] ['C1U_10_X7R'] |
+| PASS | ESC 3 MCU: 100 nF at VDD; at VDDA 1 uF 0402, Artery's 100 nF + 1 uF (AT32F421 figure 8) in one case (its impedance the 100 nF's or lower at every frequency) | ['C100N'] ['C1U_10_X7R'] |
+| PASS | ESC 4 MCU: 100 nF at VDD; at VDDA 1 uF 0402, Artery's 100 nF + 1 uF (AT32F421 figure 8) in one case (its impedance the 100 nF's or lower at every frequency) | ['C100N'] ['C1U_10_X7R'] |
+| PASS | the 36 datasheet figures used here are in the datasheets' text: LMR38020 VREF 1.00 V (0.985-1.015); LMR38020 EN rising 1.1/1.25/1.4 V; LMR38020 EN falling 0.95/1.10/1.22 V; LMR38020 high-side current limit 2.6/3.2/3.8 A; LMR38020 input 4.2-80 V; LMR38020 RT(kOhm) = 30970 x fSW(kHz)^-1.027, equation 2; TPS628501 VFB 0.6 V; TPS628501 VFB accuracy +/-1 % in PWM (7.5); TPS628501: 1 A output current (device information); TPS628501 high-side current limit 2.1/2.6/3.0 A; BLM03AX601SN1D 250 mA at 85 C, 0.85 Ohm max (0.90 after the tests); TMP390: SETB to ground gives channel A 20 C hysteresis; DRV8320 VM 6-60 V (7.3); DRV8320 ENABLE, INHx, INLx 0-5.5 V (7.3); DRV8320 DVDD external load 30 mA max (7.3); DRV8320 DVDD 3.0/3.3/3.6 V (7.5); DRV8320 VIH 1.5 V min (7.5); DRV8320 logic-input current 50/70 uA at 5 V (7.5); DRV8320 logic-input pull-down 100 kOhm (7.5); DRV8320 high-side gate drive 8.4/11/12.5 V at VM 13 V, 25 mA (7.5); DRV8320 high-side gate drive 4/5/6 V at VM 6 V, 10 mA (7.5); DRV8320H IDRIVE levels, source 10-1000 mA / sink 20-2000 mA (7.5); DRV8320H VDS pin open: 0.6 V trip (7.5); AT32F421 VDD 2.4-3.6 V (table 11); AT32F421 IDD 20.7 mA max, 120 MHz, 105 C, all peripherals on (table 19); AT32F421 FTa pins in analog mode: below VDD + 0.3 V (table 5 note 2); INA186 supply current 90 uA max; INA186 VS 1.7-5.5 V (table 5-1); ISZ023N06LM6 V(BR)DSS 60 V; ISZ023N06LM6 VGS +/-20 V; ISZ023N06LM6 RDS(on) 2.3 mOhm max; ISZ023N06LM6 RDS(on) 2.9 mOhm max at VGS 4.5 V; ISZ023N06LM6 Qg 46/61 nC to 10 V; TDK SPM6530T-150M-HZ Isat 3.0 A (L down 20 %), Itemp 3.3 A; TDK TFM252012ALMAR47MTAA Isat 5.8 A (L down 30 %); NDK NX3225GD STD-CRA-3 load capacitance 8 pF |  |
 
 ## Option groups
 
@@ -200,10 +200,10 @@ Sources read: AM32 /tmp/claude-0/-home-user-offgrid-hardware/f2e388a8-ffc2-528b-
 |---|---|---|
 | PASS | fc, fpv group: its nets (20) reach no part outside it | 43 parts in the group |
 | PASS | fc without the fpv group: no net left with a single pin, beyond MCU pins the group used | left on an MCU pin only: VTX_OFF |
-| PASS | fc without the fpv group: every supply keeps its source | VBAT 7 parts; GND 54 parts; +5V 11 parts; +3V3 29 parts; +3V3_GYRO 6 parts |
+| PASS | fc without the fpv group: every supply keeps its source | VBAT 7 parts; GND 54 parts; +5V 11 parts; +3V3 30 parts; +3V3_GYRO 6 parts |
 | PASS | fc, blackbox group: its nets (0) reach no part outside it | 2 parts in the group |
 | PASS | fc without the blackbox group: no net left with a single pin, beyond MCU pins the group used | left on an MCU pin only: none |
-| PASS | fc without the blackbox group: every supply keeps its source | VBAT 7 parts; GND 85 parts; +5V 12 parts; +3V3 30 parts; +3V3_GYRO 6 parts |
+| PASS | fc without the blackbox group: every supply keeps its source | VBAT 7 parts; GND 85 parts; +5V 12 parts; +3V3 31 parts; +3V3_GYRO 6 parts |
 
 ## Board FC
 
@@ -260,9 +260,9 @@ Sources read: AM32 /tmp/claude-0/-home-user-offgrid-hardware/f2e388a8-ffc2-528b-
 | PASS | mounting: four 3.2 mm holes on the 25.5 mm pattern, each open to its corner through a 2.5 mm slot (M2 soft-mount grommets slide in); outline closed | [(-12.75, -12.75, 1.6), (-12.75, 12.75, 1.6), (12.75, -12.75, 1.6), (12.75, 12.75, 1.6)] |
 | PASS | outline: no sharp point; where each slot opens through the edge a round of r 0.3 mm sweeping into r 2.0 mm (8), where it meets the hole r 0.3 mm (8); every one of its 40 joints tangent (largest turn 0.01 degrees) | {0.3: 16, 2.0: 8, 1.6: 4} |
 | PASS | grommet places H1-H4 on the holes' centres: [(-12.75, -12.75), (-12.75, 12.75), (12.75, -12.75), (12.75, 12.75)] |  |
-| PASS | driver capacitors (VM, charge pump, flying, DVDD) at their drivers: 16, each pad's centre within 1.45 mm of the driver pad on its net | farthest C23 1.45 mm, C35 1.45 mm, C47 1.45 mm |
+| PASS | driver capacitors (VM, charge pump, flying, DVDD) at their drivers: 16, each pad's centre within 1.45 mm of the driver pad on its net | farthest C24 1.45 mm, C36 1.45 mm, C48 1.45 mm |
 | INFO | FET thermistors: nearest pad of each to a FET of its channel: 1.3, 1.3, 1.3, 1.3 mm | they read the power stage through the copper between |
-| INFO | MCU bulk: each driver's 1 uF DVDD capacitor to its MCU's VDD/VDDA pins: 1.9, 1.9, 1.9, 1.9 mm | the 100 nF at each pin takes the fast edges; bulk serves the slow load steps |
+| INFO | MCU 1 uF (VDDA): each one's supply pad to the nearer of its MCU's VDD/VDDA pins: 0.6, 0.6, 0.6, 0.6 mm | on the top, the MCU on the bottom: through the board |
 | PASS | 8 copper layers; min track 0.10 mm, clearance 0.10 mm, via 0.25/0.15 mm (JLCPCB multilayer: 0.09 mm track and gap, 0.25 mm via, 0.15 mm hole) |  |
 | PASS | inner copper 1 oz: the fab's finest track and gap for it, 0.09 mm, are what the board-setup minimums and the DRC hold every layer to | [0.035] |
 | PASS | stackup in the board file: black mask, white silk, ENIG |  |
@@ -274,22 +274,22 @@ Sources read: AM32 /tmp/claude-0/-home-user-offgrid-hardware/f2e388a8-ffc2-528b-
 | PASS | production/ridge3-esc-bom-pcbway.csv present |  |
 | PASS | production/ridge3-esc-assembly.pdf present |  |
 | PASS | production/ridge3-esc-netlist.csv present |  |
-| PASS | 3D models: all 154 inside their parts' courtyards (0.15 mm), so the renders show each body where the part goes |  |
+| PASS | 3D models: all 159 inside their parts' courtyards (0.15 mm), so the renders show each body where the part goes |  |
 | PASS | 3D models: every surface-mount part's model starts at the board (0.02 mm), none sunk into it or showing through to the other side |  |
-| PASS | solder pads: 32 pad faces on 29 parts (battery, motor, wire, lead and test pads, jumpers), mask open over every one, no part's courtyard or 3D body over any |  |
+| PASS | solder pads: 33 pad faces on 30 parts (battery, motor, wire, lead and test pads, jumpers), mask open over every one, no part's courtyard or 3D body over any |  |
 | INFO | nearest part body to a wire pad: 0.50 mm (R1 from P_BAT+.1 top) | room for the iron and the wire beside it |
 
 ## Silkscreen ESC
 
 | Result | Check | Detail |
 |---|---|---|
-| PASS | top: 47 outlines; stroke width median 0.155 mm, 10th percentile 0.120 mm (pass: median >= 0.15, 10th percentile >= 0.12) | 17 outlines (hyphens, underscores, crossbars) have their own median under 0.15 mm, the thinnest 0.097 mm at (2.6, -3.7); JLCPCB lists 0.153 mm as the silkscreen minimum |
+| PASS | top: 54 outlines; stroke width median 0.150 mm, 10th percentile 0.120 mm (pass: median >= 0.15, 10th percentile >= 0.12) | 24 outlines (hyphens, underscores, crossbars) have their own median under 0.15 mm, the thinnest 0.120 mm at (-0.5, -0.0); JLCPCB lists 0.153 mm as the silkscreen minimum |
 | PASS | top: no stroke-font text left (brand faces only) |  |
 | PASS | top: OffGrid mark at 16.4 px (brand minimum 16 px, 1 px = 1/96 in) |  |
 | PASS | top: the front arrow, 1.80 x 2.60 mm (brand.FRONT_ARROW, the same on both sides of both boards): 1 found |  |
 | PASS | top: the side's name, "Top", printed by the arrow: 1 found |  |
 | PASS | top: no ink under the grommet flanges (2.8 mm round each mounting hole) |  |
-| PASS | bottom: 9 outlines; stroke width median 0.160 mm, 10th percentile 0.125 mm (pass: median >= 0.15, 10th percentile >= 0.12) | 3 outlines (hyphens, underscores, crossbars) have their own median under 0.15 mm, the thinnest 0.141 mm at (13.2, -8.8); JLCPCB lists 0.153 mm as the silkscreen minimum |
+| PASS | bottom: 9 outlines; stroke width median 0.160 mm, 10th percentile 0.125 mm (pass: median >= 0.15, 10th percentile >= 0.12) | 3 outlines (hyphens, underscores, crossbars) have their own median under 0.15 mm, the thinnest 0.141 mm at (13.5, -8.5); JLCPCB lists 0.153 mm as the silkscreen minimum |
 | PASS | bottom: no stroke-font text left (brand faces only) |  |
 | PASS | bottom: the front arrow, 1.80 x 2.60 mm (brand.FRONT_ARROW, the same on both sides of both boards): 1 found |  |
 | PASS | bottom: the side's name, "Bottom", printed by the arrow: 1 found |  |
