@@ -952,18 +952,21 @@ class Problem:
             o = min(ca[2], c[2]) - max(ca[0], c[0]), min(ca[3], c[3]) - max(ca[1], c[1])
             if o[0] > 0.001 and o[1] > 0.001:
                 out.append((10 + 50 * min(o), ('courtyard', role)))
-        for net, bx in pads:
+        for (net, bx), r in zip(pads, self.prad[a]):
+            # a round or rounded pad by its real corners: the box shrunk
+            # by the radius, that radius round it
+            bx = (bx[0] + r, bx[1] + r, bx[2] - r, bx[3] - r)
             for onet, ob in self.fix_pads:
-                if onet != net and box_dist(bx, ob) < 0.1:
+                if onet != net and box_dist(bx, ob) - r < 0.1:
                     out.append((10, ('pad-pad', role, onet)))
             for onet, vx, vy, keep in self.fix_vias:
-                if onet != net and circ_box(vx, vy, 0.0, bx) < keep:
+                if onet != net and circ_box(vx, vy, 0.0, bx) - r < keep:
                     out.append((10, ('pad-via', role, onet)))
             for onet, p0, p1, hw in self.fix_tracks:
-                if onet != net and seg_box(p0, p1, bx) < hw + 0.1:
+                if onet != net and seg_box(p0, p1, bx) - r < hw + 0.1:
                     out.append((10, ('pad-track', role, onet)))
             for pin, (pnet, vx, vy) in self.pin_vias.items():
-                if pnet != net and circ_box(vx, vy, 0.0, bx) < max(PIN_VIA[0] / 2 + 0.1, PIN_VIA[1] / 2 + 0.2):
+                if pnet != net and circ_box(vx, vy, 0.0, bx) - r < max(PIN_VIA[0] / 2 + 0.1, PIN_VIA[1] / 2 + 0.2):
                     out.append((10, ('pad-pin via', role, pin)))
         if len(self._rules) > 500000:
             self._rules.clear()
