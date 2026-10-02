@@ -68,16 +68,35 @@ def fet_lib():
     return _fet()['lib']()
 
 
+# runs that stalled under trapezoidal integration and were solved with
+# Gear's instead (name, what the netlist was): the report names them
+GEAR = []
+
+
 def run(name, netlist, vectors):
-    """Run a transient; return {vector: array} with 'time' included."""
+    """Run a transient; return {vector: array} with 'time' included.  A run
+    whose time step collapses under the default (trapezoidal) integration
+    is run once more with Gear's, which damps the stiff loops (a few nH
+    against amps) that stall it; nothing else in the netlist changes."""
     os.makedirs(OUT, exist_ok=True)
     cir = os.path.join(OUT, name + '.cir')
     dat = os.path.join(OUT, name + '.dat')
     ctl = '.control\nset wr_singlescale\nset wr_vecnames\nrun\nwrdata %s %s\n.endc\n.end\n' % (
         dat, ' '.join(vectors))
-    open(cir, 'w').write(netlist + '\n' + ctl)
-    p = subprocess.run(['ngspice'] + (['-D', 'ngbehavior=ps'] if _fet()['ps'] else []) + ['-b', cir],
-                       capture_output=True, text=True, timeout=1800)
+
+    def go(nl):
+        if os.path.exists(dat):
+            os.remove(dat)
+        open(cir, 'w').write(nl + '\n' + ctl)
+        return subprocess.run(['ngspice'] + (['-D', 'ngbehavior=ps'] if _fet()['ps'] else []) + ['-b', cir],
+                              capture_output=True, text=True, timeout=1800)
+    p = go(netlist)
+    if (p.returncode != 0 or not os.path.exists(dat)) and 'Timestep too small' in p.stdout + p.stderr \
+            and 'method=gear' not in netlist:
+        gear = re.sub(r'(?m)^(\.options\b.*)$', r'\1 method=gear', netlist, count=1)
+        if gear != netlist:
+            p = go(gear)
+            GEAR.append(name)
     if p.returncode != 0 or not os.path.exists(dat):
         raise RuntimeError('ngspice failed on %s:\n%s' % (cir, p.stdout[-3000:] + p.stderr[-3000:]))
     head = open(dat).readline().split()

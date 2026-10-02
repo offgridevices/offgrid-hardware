@@ -216,13 +216,17 @@ def switching_section():
     say()
     rows = []
     res = {}
+    gear = []
     for diode, lm, tt in DIODES():
         for T in ((150,) if QUICK else (25, 150)):
             for I in (10, 20, 30):
                 for L in ((5e-9,) if QUICK else (3e-9, 5e-9, 8e-9)):
                     if diode == 'as supplied' and data.BODY_DIODE and (L != 5e-9 or T != 150):
                         continue
+                    n_gear = len(spice.GEAR)
                     r = spice.half_bridge(hb_params(I=I, T=T, Lloop=L, lm=lm, tag='sw'))
+                    if len(spice.GEAR) > n_gear:
+                        gear.append('%s, %d C, %d A, %.0f nH' % (diode, T, I, L * 1e9))
                     res[(diode, T, I, L)] = r
                     rows.append([diode, T, I, '%.0f' % (L * 1e9), '%.1f' % r['vds_hs_peak'],
                                  '%.1f' % r['vds_ls_peak'], '%.1f' % r['sh_min'],
@@ -241,6 +245,10 @@ def switching_section():
     table(['Body diode', 'T<sub>j</sub> C', 'I A', 'Loop nH', 'Peak V<sub>DS</sub> high side (turn-off)',
            'Peak V<sub>DS</sub> low side (turn-on)', 'SHx min V', 'SHx slew up / down V/ns',
            'Off gate V<sub>GS</sub> peak V', 'Recovery A', 'E<sub>on</sub> / E<sub>off</sub> uJ'], rows)
+    if gear:
+        say('ngspice\'s default (trapezoidal) integration stalled on %s; %s solved with Gear\'s '
+            'integration instead, the same circuit.' % ('; '.join(gear), 'it was' if len(gear) == 1 else 'they were'))
+        say()
     vr = '%.0f V rating' % data.FET['vdss']
     hs = max(v['vds_hs_peak'] for k, v in res.items() if k[0] == MAIN() and k[3] == 5e-9)
     ls = max(v['vds_ls_peak'] for k, v in res.items() if k[0] == MAIN())
