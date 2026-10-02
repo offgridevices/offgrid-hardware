@@ -205,6 +205,24 @@ def run(board_name, work, passes=None, log=print):
     if os.path.abspath(fin_) != os.path.abspath(fin):
         shutil.copy(fin_, fin)
         _copy_project(placed, fin)
+    return _final(board_name, L, fin, work, log)
+
+
+def finish_run(board_name, work, log=print):
+    """A --reroute run's last steps again, with the code as it is now, on
+    the routed board it left in `work` (the routing is not redone): the
+    ESC's clean-up, then artwork, stackup and the final DRC.  For a run the
+    final DRC stopped after a fix to those steps.  Returns the board."""
+    L, planes, widths, clmap = _setup(board_name, routers=False)
+    fin = os.path.join(work, board_name + '_fin.kicad_pcb')
+    _copy_project(os.path.join(work, board_name + '.kicad_pcb'), fin)
+    if board_name == 'esc':
+        cleanup.clean(fin, EXTRA_RULES, log=log)
+    return _final(board_name, L, fin, work, log)
+
+
+def _final(board_name, L, fin, work, log):
+    """Artwork, stackup and the final DRC on the routed board `fin`."""
     if os.environ.get('NO_ARTWORK') == '1':
         pcb.set_stackup(fin, getattr(L, 'INNER_OZ', 0.5))
         e, w, u = pcb.drc(fin, os.path.join(work, board_name + '_final_drc.json'))

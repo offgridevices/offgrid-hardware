@@ -5,6 +5,11 @@
     python3 make.py --artwork    lay the outline, silkscreen and stackup out again first
                                  (copper untouched)
     python3 make.py --reroute    place and route both boards from scratch first
+    python3 make.py --finish=DIR esc
+                                 a --reroute run that its final DRC stopped (after a
+                                 fix to its last steps): the clean-up, artwork and DRC
+                                 again on the routed board it left in its work
+                                 directory DIR, then on as --reroute
     python3 make.py fc           one board only (fc or esc)
     python3 make.py --no-panel   skip the production panel (it takes ~3 min)
 
@@ -106,12 +111,16 @@ def make_panel(board, name, dst):
                                                   out['geometry'].get('size_mm'), out['copies'], ))
 
 
-def build(board, reroute, art=False, pan=True):
+def build(board, reroute, art=False, pan=True, finish_dir=None):
     name = BOARDS[board]
     print('== %s' % name)
     check_circuit(board)
     dst = os.path.join(V1, board, name + '.kicad_pcb')
-    if reroute:
+    if finish_dir:
+        import pipeline
+        fin = pipeline.finish_run(board, finish_dir)
+        fab.install(fin, os.path.join(V1, board), name)
+    elif reroute:
         import pipeline
         work = tempfile.mkdtemp(prefix='ridge3-%s-' % board)
         fin = pipeline.run(board, work)
@@ -148,8 +157,11 @@ def stack_sheet():
 
 if __name__ == '__main__':
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    fin_dir = next((a.split('=', 1)[1] for a in sys.argv[1:] if a.startswith('--finish=')), None)
+    if fin_dir and len(args) != 1:
+        raise SystemExit('--finish takes one board: make.py --finish=DIR fc|esc')
     for bd in (args or ['fc', 'esc']):
-        build(bd, '--reroute' in sys.argv, '--artwork' in sys.argv, '--no-panel' not in sys.argv)
+        build(bd, '--reroute' in sys.argv, '--artwork' in sys.argv, '--no-panel' not in sys.argv, fin_dir)
     if not args:
         stack_sheet()
     print('all gates passed')

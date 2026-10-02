@@ -11,8 +11,8 @@ open a connection.
   2. each track end that overshoots a T-junction: pulled back to the
      junction (the nearest point on the segment where another track end,
      a via or a pad of the same net touches it; a track end that touches
-     it only edge to edge is moved onto it first); kept only if the
-     warning count drops
+     it only edge to edge, and that nothing else shares, is moved onto it
+     first); kept only if the warning count drops
   3. each track end that only touches same-net copper edge to edge: joined
      to the nearest same-net track end or via by a short segment; kept only
      if the warning count drops
@@ -126,6 +126,12 @@ def _clean_pass(path, extra_rules, rounds, log):
             if L2 == 0:
                 return False
 
+            def lone(q):
+                """No other copper of the net at this track end: moving it
+                leaves nothing behind (an end shared with another track, a
+                via or a pad is a junction already)."""
+                return sum(1 for r, _, _ in pts if abs(r.x - q.x) < 2000 and abs(r.y - q.y) < 2000) == 1
+
             def on_seg(q, o):
                 """(s along the track, snap): a point on it, or a same-net
                 track end touching it only edge to edge, which is moved onto
@@ -137,7 +143,7 @@ def _clean_pass(path, extra_rules, rounds, log):
                 d = math.hypot(q.x - px, q.y - py)
                 if d < t.GetWidth() / 2:
                     return s, False
-                if o is not None and d < (t.GetWidth() + o.GetWidth()) / 2:
+                if o is not None and d < (t.GetWidth() + o.GetWidth()) / 2 and lone(q):
                     return s, True
                 return None
 
