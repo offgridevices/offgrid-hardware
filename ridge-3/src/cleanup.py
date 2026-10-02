@@ -10,8 +10,9 @@ open a connection.
      via with the stubs that end on it; each dangling track: the track
   2. each track end that overshoots a T-junction: pulled back to the
      junction (the nearest point on the segment where another track end,
-     a via or a pad of the same net touches it); kept only if the warning
-     count drops
+     a via or a pad of the same net touches it; a track end that touches
+     it only edge to edge is moved onto it first); kept only if the
+     warning count drops
   3. each track end that only touches same-net copper edge to edge: joined
      to the nearest same-net track end or via by a short segment; kept only
      if the warning count drops
@@ -93,40 +94,52 @@ def clean(path, extra_rules='', rounds=6, log=print):
                 return False
             net, lay = t.GetNetname(), t.GetLayer()
             A, B = t.GetStart(), t.GetEnd()
+            # (point, the track whose end it is, which end) of the same net
             pts = []
             for o in b.GetTracks():
                 if o.m_Uuid.AsString() == uid or o.GetNetname() != net:
                     continue
                 if o.GetClass() == 'PCB_VIA':
-                    pts.append(o.GetPosition())
+                    pts.append((o.GetPosition(), None, None))
                 elif o.GetLayer() == lay:
-                    pts += [o.GetStart(), o.GetEnd()]
+                    pts += [(o.GetStart(), o, 0), (o.GetEnd(), o, 1)]
             for fp in b.GetFootprints():
                 for pd in fp.Pads():
                     if pd.GetNetname() == net and pd.IsOnLayer(lay):
-                        pts.append(pd.GetPosition())
+                        pts.append((pd.GetPosition(), None, None))
             L2 = (B.x - A.x) ** 2 + (B.y - A.y) ** 2
             if L2 == 0:
                 return False
 
-            def on_seg(q):
+            def on_seg(q, o):
+                """(s along the track, snap): a point on it, or a same-net
+                track end touching it only edge to edge, which is moved onto
+                it so the two meet at a real junction."""
                 s = ((q.x - A.x) * (B.x - A.x) + (q.y - A.y) * (B.y - A.y)) / L2
                 if not 0.0 <= s <= 1.0:
                     return None
                 px, py = A.x + s * (B.x - A.x), A.y + s * (B.y - A.y)
-                return s if math.hypot(q.x - px, q.y - py) < t.GetWidth() / 2 else None
+                d = math.hypot(q.x - px, q.y - py)
+                if d < t.GetWidth() / 2:
+                    return s, False
+                if o is not None and d < (t.GetWidth() + o.GetWidth()) / 2:
+                    return s, True
+                return None
 
             def free(end):
-                return not any(abs(q.x - end.x) < 2000 and abs(q.y - end.y) < 2000 for q in pts)
-            ss = sorted(s for s in (on_seg(q) for q in pts) if s is not None)
-            if not ss:
+                return not any(abs(q.x - end.x) < 2000 and abs(q.y - end.y) < 2000 for q, _, _ in pts)
+            js = sorted(((r[0], r[1], o, k) for r, o, k in ((on_seg(q, o), o, k) for q, o, k in pts)
+                         if r is not None), key=lambda j: j[0])
+            if not js:
                 return False
-            if free(A):
-                t.SetStart(pcbnew.VECTOR2I(int(A.x + ss[0] * (B.x - A.x)), int(A.y + ss[0] * (B.y - A.y))))
-            elif free(B):
-                t.SetEnd(pcbnew.VECTOR2I(int(A.x + ss[-1] * (B.x - A.x)), int(A.y + ss[-1] * (B.y - A.y))))
-            else:
+            at_a = free(A)
+            if not at_a and not free(B):
                 return False
+            s, snap, o, k = js[0] if at_a else js[-1]
+            p = pcbnew.VECTOR2I(int(A.x + s * (B.x - A.x)), int(A.y + s * (B.y - A.y)))
+            if snap:
+                (o.SetStart if k == 0 else o.SetEnd)(p)
+            (t.SetStart if at_a else t.SetEnd)(p)
             return True
         r = trial(edit)
         if r is None:
