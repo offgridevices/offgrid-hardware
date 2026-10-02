@@ -797,6 +797,10 @@ PARTS = {
     # DRV8320H IDRIVE setting (75k 5 %: the pin's level).  JLC 35,170 ext.
     'R75K_0201': dict(fp='Resistor_SMD:R_0201_0603Metric', lcsc='C295816', mpn='RC0201FR-0775KL',
                       value='75k', desc='Resistor 75k 1% 0201', kind='R', maker='Yageo (Taiwan)'),
+    # DRV8320H IDRIVE setting 30/60 mA (18k 5 % to AGND).  JLC 23,318 ext
+    # (2026-10-02).
+    'R18K_0201': dict(fp='Resistor_SMD:R_0201_0603Metric', lcsc='C295780', mpn='RC0201FR-0718KL',
+                      value='18k', desc='Resistor 18k 1% 0201', kind='R', maker='Yageo (Taiwan)'),
     # =================================================================
     #  Capacitors.  Effective capacitance under DC bias from Murata's
     #  SimSurfing data (25 C) for the Murata part or its Murata equivalent.

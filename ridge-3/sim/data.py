@@ -299,7 +299,7 @@ DESIGNS = {
                   f_min=24e3, f_max=24e3,       # fixed 24 kHz PWM (configurator)
                   sensor='RT',                  # the FET thermistor beside each channel's FETs
                   temp_limit=110.0),            # C at the thermistor (firmware/am32)
-        DRIVER=dict(DRV8320, kind='vm', i_src=0.06),   # IDRIVE 60 mA (circuit.IDRIVE)
+        DRIVER=dict(DRV8320, kind='vm'),               # IDRIVE: circuit.IDRIVE (use())
         # no 3.3 V regulator on the ESC: its four channels run from the
         # FC's 3.3 V buck (stack lead pin 4), none from the drivers' DVDD
         MCU_ESC=AT32F421, GATE_LDO=None, ESC_BUCK=None, CSA=INA186,
@@ -346,6 +346,8 @@ def use(name):
         b.update(Rg=10.0, gvdd=GVDD, vboot=GVDD - 0.8, ipu=D['i_source'][1], ipd=D['i_sink'][1],
                  dead=AM32['dead'] + D['dead'][1])
     else:                               # DRV8320: IDRIVE current, no gate resistor, charge pump
+        # the IDRIVE level the design's circuit.py sets
+        g['DRIVER'] = D = dict(D, i_src=design.circuit(name).IDRIVE)
         b.update(Rg=0.5, gvdd=D['vgs'], vboot=D['vgs'], **idrive(D['i_src']))
     b.update(rpu=D['r_pu'], rpd=D['r_pd'], Cb=C_BRIDGE['c_bias'], ESRb=C_BRIDGE['esr'],
              ESLb=C_BRIDGE['esl'], Cb2=2 * C_BRIDGE['c_bias'], ESRb2=C_BRIDGE['esr'] / 2,

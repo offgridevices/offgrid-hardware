@@ -516,11 +516,18 @@ def esc_power():
 # The DRV8320H's gate current, set by its IDRIVE pin (TI SLVSDJ3D table
 # 7-2): source / sink 10/20, 30/60, 60/120, 120/240, 260/520, 570/1140 or
 # 1000/2000 mA.  The level is chosen on the half-bridge simulation
-# (sim/spice.py, STRESS.md): the lowest peak drain voltage that keeps the
-# switching loss in the thermal budget.
+# (sim/spice.py, STRESS.md section 3), which reads it from here.  30/60 mA:
+# the high side's turn-off pulls SHx below ground by L di/dt, and at
+# 60/120 mA that reached -9.5 V at 30 A in the 5 nH loop (-7.8 V at 20 A),
+# past the driver's -7 V for 200 ns.  At 30/60 mA: -5.5 V hot, -6.2 V
+# cold at 30 A (TI's remedy for SHx spikes: a slower IDRIVE sink).  It
+# doubles the switching energy and nearly doubles the dead time (the
+# driver waits for the other gate to fall): at 50 C, 5 m/s the stack holds
+# 34 % throttle with every part in its rating (41 % at 60/120 mA), hover
+# being 27 %.
 #   value: (source A, what the pin connects to: None = open, else (part, net))
-IDRIVE_LEVELS = {0.06: ('R75K_0201', GND), 0.12: None, 0.26: ('R75K_0201', 'DVDD')}
-IDRIVE = 0.06
+IDRIVE_LEVELS = {0.03: ('R18K_0201', GND), 0.06: ('R75K_0201', GND), 0.12: None, 0.26: ('R75K_0201', 'DVDD')}
+IDRIVE = 0.03
 
 # One ESC channel.  Wired to AM32 hardware groups AT_B + AT_045 (targets.h:
 # SKYSTARS_F80_F421 and others), which the RIDGE3_F421 target in
