@@ -90,7 +90,7 @@ AM32 = dict(dead=625e-9,                # DEAD_TIME 40 at 64 MHz (firmware/READM
             f_min=24e3, f_max=48e3,     # variable PWM, 24 kHz low rpm to 48 kHz high (esc_power.md)
             current_limit=20.0,         # A per motor, battery side, 50 ms average (firmware/README.md)
             temp_limit=110.0)           # C, each MCU's own die sensor (firmware/README.md)
-ESC_3V3_LOAD = 4 * 11e-3 + 4 * 65e-6 + 1.3e-3   # A: four MCUs, four INA186, the power LED
+ESC_3V3_LOAD_REV1 = 4 * 11e-3 + 4 * 65e-6 + 1.3e-3   # A: four MCUs, four INA186, the power LED
 
 # ------------------------------------------------------------------ capacitors
 C_BRIDGE = dict(part='GRM21BZ71H475KE15L', c=4.7e-6, c_bias=1.03e-6,  # Murata SimSurfing: 1.03 uF at 25 V
@@ -220,9 +220,13 @@ AT32F421 = dict(part='Artery AT32F421G8U7', tj_max=125.0, ta_max=105.0,      # d
                 rth_jb=44.8,                    # thetaJA QFN28 4x4 (table 63), used as junction-to-board
                 i_run=20.7e-3,                  # A max at 120 MHz, all peripherals, 105 C (table 19)
                 p_run=3.3 * 20e-3)              # ~20 mA at 120 MHz, hot (table 18): ASSUMPTION within it
-# Each rev 2 channel's 3.3 V: the driver's DVDD regulator (linear, from VM):
-# the MCU, the INA186 (48 uA) and the thermistor's divider (~0.3 mA hot)
-DVDD_LOAD = AT32F421['i_run'] + 0.1e-3 + 0.3e-3
+# Each rev 2 channel's 3.3 V: the MCU, the INA186 (48 uA) and the
+# thermistor's divider (~0.3 mA hot), from the board's 3.3 V buck through
+# the channel's ferrite bead.  The drivers' DVDD regulators feed only their
+# own logic (inside their VM current), so they carry no external load
+# (DVDD_LOAD); the first rev 2 layout ran each channel from its DVDD, which
+# the ground run showed at 0.46 W a driver.
+CHANNEL_3V3 = AT32F421['i_run'] + 0.1e-3 + 0.3e-3
 TVS_5SMDJ33A = dict(part='Littelfuse 5.0SMDJ33A', vbr=(36.7, 40.6), vc=53.3, ipp=93.9,
                     p_pk=5000.0, tj_max=150.0,  # 10/1000 us; derated to ~62 % at 120 C (Littelfuse curve)
                     c=3.0e-9)                   # ASSUMPTION: junction capacitance at 0 V, 5 kW SMC class
@@ -261,7 +265,8 @@ MICROLOCK = dict(part='Molex Micro-Lock Plus 505567', i_rated=1.5, r_contact=20e
                  t_max=105.0)
 # FC inductors (TDK catalog): SPM6530T-150M-HZ 119.9 mOhm max (109 typ), 125 C;
 # TFM252012ALMAR47MTAA 19 mOhm, 150 C
-INDUCTORS_REV2 = {'L_5V': dict(part='TDK SPM6530T-150M-HZ', dcr=119.9e-3, t_max=125.0),
+INDUCTORS_REV2 = {'L1': INDUCTORS['L1'],      # the ESC's 3.3 V buck, as rev 1's
+                  'L_5V': dict(part='TDK SPM6530T-150M-HZ', dcr=119.9e-3, t_max=125.0),
                   'L_9V': dict(part='TDK SPM6530T-150M-HZ', dcr=119.9e-3, t_max=125.0),
                   'L_3V3': dict(part='TDK TFM252012ALMAR47MTAA', dcr=19e-3, t_max=150.0)}
 CAPS_REV2.update({
@@ -277,6 +282,7 @@ DESIGNS = {
     'rev1': dict(
         FET=TPN2R304PL, AM32=dict(AM32), DRIVER=dict(DRV8300, kind='gvdd', vgs=GVDD),
         MCU_ESC=G071, GATE_LDO=TPS7A16, ESC_BUCK=MAX15062, CSA=INA186,
+        ESC_3V3_LOAD=ESC_3V3_LOAD_REV1, DVDD_LOAD=0.0,
         C_BRIDGE=C_BRIDGE, BULK=dict(EXT_CAP, on_board=False), CAPS=dict(CAPS), ESC_TVS=None,
         BUCK5=LMR38020F, BUCK9=LM76003, V33=TLV76733_LDO, MCU_FC=G473, OSD=AT7456E,
         GYRO=ICM45686, FLASH=W25Q128, STACK_CONN=JST_SH, HD_CONN=JST_SH, FC_TVS=SMF33A,
@@ -292,8 +298,10 @@ DESIGNS = {
                   sensor='RT',                  # the FET thermistor beside each channel's FETs
                   temp_limit=110.0),            # C at the thermistor (firmware/am32)
         DRIVER=dict(DRV8320, kind='vm', i_src=0.06),   # IDRIVE 60 mA (circuit.IDRIVE)
-        # no 3.3 V buck: each channel runs from its driver's DVDD (DVDD_LOAD)
-        MCU_ESC=AT32F421, GATE_LDO=None, ESC_BUCK=None, CSA=INA186,
+        # the 3.3 V buck (rev 1's) for the four channels; no load on the
+        # drivers' DVDD regulators
+        MCU_ESC=AT32F421, GATE_LDO=None, ESC_BUCK=MAX15062, CSA=INA186,
+        ESC_3V3_LOAD=4 * CHANNEL_3V3, DVDD_LOAD=0.0,
         C_BRIDGE=C_BRIDGE_REV2, BULK=CERAMIC_BULK,
         CAPS=dict(CAPS_REV2), ESC_TVS=None,
         BUCK5=LMR38020F_455, BUCK9=LMR38020F_9V, V33=TPS628501,

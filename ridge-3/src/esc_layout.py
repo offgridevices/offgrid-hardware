@@ -150,6 +150,7 @@ def template():
     # for the exposed pad's middle via.)
     t['C_VM'] = (1.95, 7.27, 180, 'T')
     t['C_DVDD'] = (-1.7, 4.7, 0, 'T')
+    t['FB_3V3'] = (-1.75, 6.3, 0, 'T')
     t['R_ID'] = (-1.7, 7.35, 0, 'T')
     # MCU: supply and reset capacitors, the thermistor's bias, the
     # back-EMF dividers' low legs and the neutral star, and the SWD test
@@ -202,6 +203,7 @@ def roles(comps, n):
         elif note == 'driver charge pump': out['C_VCP'] = ref
         elif note == 'driver flying cap': out['C_CP'] = ref
         elif note == 'driver DVDD': out['C_DVDD'] = ref
+        elif note == 'channel 3.3 V feed': out['FB_3V3'] = ref
         elif note == 'driver IDRIVE': out['R_ID'] = ref
         elif note == 'thermistor bias': out['R_NTB'] = ref
         elif note.startswith('bridge '): out['CBR_' + note[-1]] = ref
@@ -246,6 +248,8 @@ GLOBAL = {
     'P_L1': (-1.905, -3.15, 0, 'T'), 'P_L2': (-0.635, -3.15, 0, 'T'),
     'P_L3': (0.635, -3.15, 0, 'T'), 'P_L4': (1.905, -3.15, 0, 'T'),
     'P_LV': (-1.27, -1.88, 0, 'T'), 'P_LC': (1.27, -1.88, 0, 'T'),
+    # the flight controller's 3.3 V for the four channels, between them
+    'P_L3V': (0.0, -1.88, 0, 'T'),
     # the lead's ground wire on top in motor 1's end corridor past phase
     # A's FETs, 2.5 mm from the battery minus pad's Kelvin tap (circuit.py:
     # it carries the FC's own current; from the middle that was a trace
@@ -269,6 +273,9 @@ GLOBAL_BY_NOTE = {
     'bus bulk 2': (-1.8, 1.1, 90, 'B'),
     'bus bulk 3': (1.8, 1.1, 90, 'B'),
     'driver enable clamp': (-2.85, -2.4, 90, 'B'),
+    # the four channels' 3.3 V feeds meet at a capacitor by the lead's
+    # 3.3 V pad, in the gap between the enable feed and the current filter
+    'ESC 3.3V hub': (0.38, -0.45, 0, 'T'),
 }
 
 
@@ -294,7 +301,7 @@ FIXED_ROLES = ('QAH', 'QBH', 'QCH', 'QAL', 'QBL', 'QCL', 'PA', 'PB', 'PC', 'CBR_
 # global parts that stay exactly where the table puts them; the others
 # are only hints for the packer
 # the stack lead's wire pads
-LEAD_PADS = ('P_LV', 'P_LG', 'P_LC', 'P_L1', 'P_L2', 'P_L3', 'P_L4')
+LEAD_PADS = ('P_LV', 'P_LG', 'P_LC', 'P_L3V', 'P_L1', 'P_L2', 'P_L3', 'P_L4')
 # those in the middle, each with a via in the pad (lead_vias); the ground
 # wire's pad by the battery pad joins the pad's tap on the top
 LEAD_MIDDLE = tuple(r for r in LEAD_PADS if r != 'P_LG')
@@ -889,10 +896,14 @@ BOOT_W = 0.2
 # Routed supplies (width, clearance): the battery's current runs in the
 # planes and pours, so what is left on tracks is small: the battery's taps
 # 0.2 mm (the enable clamp, the voltage divider, the stack lead's supply
-# pad to its plane vias).  Each channel's 3.3 V (DVDD, ~22 mA) is 0.15 mm
+# pad to its plane vias).  Each channel's 3.3 V (M*_3V3, ~22 mA, from its
+# feed bead) and its driver's DVDD (the driver's logic) are 0.15 mm
 # (widths).
 SUPPLY_RULES = {
     'VBAT': (0.2, 0.13),
+    # the four channels' 3.3 V (about 85 mA), from the lead's pad to their
+    # feeds
+    'ESC_3V3': (0.2, 0.1),
     # the lead's ground, its wire pad to the battery pad's tap: the FC's
     # own current, up to 2 A
     'FC_GND': (0.4, 0.1),
@@ -908,7 +919,7 @@ def widths(comps):
     w = {x: GATE_W for x in gate}
     w.update({x: BOOT_W for x in boot})
     w.update({x: SENSE_W for x in drv})
-    w.update({x: 0.15 for x in nets if x[:1] == 'M' and x[2:] in ('_VCP', '_CPH', '_CPL', '_DVDD')})
+    w.update({x: 0.15 for x in nets if x[:1] == 'M' and x[2:] in ('_VCP', '_CPH', '_CPL', '_DVDD', '_3V3')})
     w.update({n: r[0] for n, r in SUPPLY_RULES.items()})
     return w
 
@@ -1484,8 +1495,9 @@ def route_local(b, comps):
 #     and walled in that phase's gates.  Laid phase by phase, sense first,
 #     each gate line finds its crossing while the strip below the driver is
 #     still open.
-#   * the channel's 3.3 V (the driver's DVDD regulator to the MCU, the
-#     amplifier and their capacitors).  The MCU's two supply pins sit on
+#   * the channel's 3.3 V (its feed bead to the MCU, the amplifier and
+#     their capacitors), then the driver's DVDD (its pin to its 1 uF).
+#     The MCU's two supply pins sit on
 #     opposite sides of the chip (VDDA left, VDD right, by the driver's
 #     regulator pin); the PWM line from the MCU's top edge (LC) passes
 #     under the chip to reach the far end of the driver's row, and laid
@@ -1500,7 +1512,7 @@ def route_local(b, comps):
 #     middle; the board's router, with the comparators' lines through the
 #     same strip, left two of them open in every routing.  Laid first, from
 #     the inner pin out, each takes the line beside the one before.
-FIRST_LINES = ('A', 'GHA', 'GLA', 'B', 'GLB', 'GHB', 'C', 'GLC', 'GHC', 'DVDD', 'HA', 'LA', 'HB', 'LB', 'HC', 'LC')
+FIRST_LINES = ('A', 'GHA', 'GLA', 'B', 'GLB', 'GHB', 'C', 'GLC', 'GHC', '3V3', 'DVDD', 'HA', 'LA', 'HB', 'LB', 'HC', 'LC')
 # Channel lines laid by the maze router after the lines and buses to the
 # middle (route_local, step 4b): the MCU's analog inputs, round its pins
 # (the neutral star, the comparators' dividers, the thermistor, the current
@@ -2038,8 +2050,8 @@ def artwork(b, comps):
             print('   silk: %s left off: no room on %s at its smallest size'
                   % (runs[0][1], ' or '.join('the ' + {'T': 'top', 'B': 'bottom'}[pl.side] for pl in sides)))
     # the stack lead's pads: what each wire is
-    for ref, s_ in (('P_LV', '+'), ('P_LG', 'G'), ('P_LC', 'C'), ('P_L1', '1'), ('P_L2', '2'),
-                    ('P_L3', '3'), ('P_L4', '4')):
+    for ref, s_ in (('P_LV', '+'), ('P_LG', 'G'), ('P_LC', 'C'), ('P_L3V', '3V3'), ('P_L1', '1'),
+                    ('P_L2', '2'), ('P_L3', '3'), ('P_L4', '4')):
         top.label(ref, s_, dist=0.7, size=0.9, smallest=0.7, face='mono')
     # which way is forward on the bottom too: the ESC must sit in the stack
     # the same way round as the FC, or every motor number is wrong
