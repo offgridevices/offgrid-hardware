@@ -299,7 +299,7 @@ class Problem:
                 if inpad(x, y) or (round(x, 3), round(y, 3)) in ends:
                     self.own_gnd.add((x, y))
         self._via_spots(mcu_nets)
-        self._spots = {}
+        self._spots, self._rules, self._obst = {}, {}, None
 
     def _reserve(self, path, mcu_nets):
         """The driver's lines to the FET row (route_local's first lines that
@@ -799,21 +799,40 @@ class Problem:
         hw, c0 = TRACK_W / 2, self.ncl(net)
         free = self.tfree[net][j0:j1, i0:i1].copy()
 
-        def d2box(q):
-            dx = np.maximum(np.maximum(q[0] - XX, XX - q[2]), 0.0)
-            dy = np.maximum(np.maximum(q[1] - YY, YY - q[3]), 0.0)
+        def sub(q, k):
+            # the window's cells within k of the box q: (slices, X, Y)
+            a0, a1 = max(0, int((q[0] - k - x0) / RES) - i0), min(i1 - i0, int(math.ceil((q[2] + k - x0) / RES)) - i0)
+            b0, b1 = max(0, int((q[1] - k - y0) / RES) - j0), min(j1 - j0, int(math.ceil((q[3] + k - y0) / RES)) - j0)
+            if a0 >= a1 or b0 >= b1:
+                return None
+            sl = (slice(b0, b1), slice(a0, a1))
+            return sl, XX[sl], YY[sl]
+
+        def d2box(q, X_, Y_):
+            dx = np.maximum(np.maximum(q[0] - X_, X_ - q[2]), 0.0)
+            dy = np.maximum(np.maximum(q[1] - Y_, Y_ - q[3]), 0.0)
             return dx * dx + dy * dy
         for ob, n in near:
-            free &= d2box(ob) >= (hw + max(c0, self.ncl(n))) ** 2
+            k = hw + max(c0, self.ncl(n))
+            w = sub(ob, k)
+            if w:
+                free[w[0]] &= d2box(ob, w[1], w[2]) >= k * k
         cg = max(c0, self.ncl('GND'))
+        k = GND_VIA[0] / 2 + hw + cg
         for vx, vy in gv:
-            free &= (XX - vx) ** 2 + (YY - vy) ** 2 >= (GND_VIA[0] / 2 + hw + cg) ** 2
+            w = sub((vx, vy, vx, vy), k)
+            if w:
+                free[w[0]] &= (w[1] - vx) ** 2 + (w[2] - vy) ** 2 >= k * k
+        k = STUB_W / 2 + hw + cg
         for (ax, ay), (ex, ey) in gs:
+            w = sub((min(ax, ex), min(ay, ey), max(ax, ex), max(ay, ey)), k)
+            if not w:
+                continue
             dx, dy = ex - ax, ey - ay
             ll = dx * dx + dy * dy
-            tt = np.clip(((XX - ax) * dx + (YY - ay) * dy) / ll, 0.0, 1.0) if ll else 0.0
-            free &= (XX - ax - tt * dx) ** 2 + (YY - ay - tt * dy) ** 2 >= (STUB_W / 2 + hw + cg) ** 2
-        mine = d2box(bx) == 0.0
+            tt = np.clip(((w[1] - ax) * dx + (w[2] - ay) * dy) / ll, 0.0, 1.0) if ll else 0.0
+            free[w[0]] &= (w[1] - ax - tt * dx) ** 2 + (w[2] - ay - tt * dy) ** 2 >= k * k
+        mine = d2box(bx, XX, YY) == 0.0
         free |= mine
         lab, k = ndimage.label(free, structure=np.ones((3, 3), bool))
         ids = set(np.unique(lab[mine])) - {0}
@@ -825,7 +844,7 @@ class Problem:
         if (reach & self.vok[net][j0:j1, i0:i1]).any():
             return False
         for q in tm:
-            if (reach & (d2box(q) == 0.0)).any():
+            if (reach & (d2box(q, XX, YY) == 0.0)).any():
                 return False
         return True
 
@@ -867,6 +886,44 @@ class Problem:
         xs, ys = zip(*[rot_pt(a, c, r) for a, c in ((cy[0], cy[1]), (cy[2], cy[3]))])
         return out, (x + min(xs), y + min(ys), x + max(xs), y + max(ys))
 
+    def _fixed_rules(self, a, x, y, r):
+        """The rules part `a` at (x, y, r) breaks against what stays: its
+        area, the fixed courtyards, and its pads against the fixed pads,
+        vias, top tracks and the MCU's escape vias: [(penalty, what)].
+        Cached per spot."""
+        key = (a, x, y, r)
+        got = self._rules.get(key)
+        if got is not None:
+            return got
+        pads, ca = self.placed(a, x, y, r)
+        role = self.refs[a]
+        out = []
+        bd = bounds(role)
+        over = max(0.0, bd[0] - ca[0]) + max(0.0, bd[1] - ca[1]) + max(0.0, ca[2] - bd[2]) + max(0.0, ca[3] - bd[3])
+        if over > 0:
+            out.append((10 + 50 * over, ('area', role)))
+        for c in self.fix_cy:
+            o = min(ca[2], c[2]) - max(ca[0], c[0]), min(ca[3], c[3]) - max(ca[1], c[1])
+            if o[0] > 0.001 and o[1] > 0.001:
+                out.append((10 + 50 * min(o), ('courtyard', role)))
+        for net, bx in pads:
+            for onet, ob in self.fix_pads:
+                if onet != net and box_dist(bx, ob) < 0.1:
+                    out.append((10, ('pad-pad', role, onet)))
+            for onet, vx, vy, keep in self.fix_vias:
+                if onet != net and circ_box(vx, vy, 0.0, bx) < keep:
+                    out.append((10, ('pad-via', role, onet)))
+            for onet, p0, p1, hw in self.fix_tracks:
+                if onet != net and seg_box(p0, p1, bx) < hw + 0.1:
+                    out.append((10, ('pad-track', role, onet)))
+            for pin, (pnet, vx, vy) in self.pin_vias.items():
+                if pnet != net and circ_box(vx, vy, 0.0, bx) < max(PIN_VIA[0] / 2 + 0.1, PIN_VIA[1] / 2 + 0.2):
+                    out.append((10, ('pad-pin via', role, pin)))
+        if len(self._rules) > 500000:
+            self._rules.clear()
+        self._rules[key] = out
+        return out
+
     def cost(self, pos, detail=False, weight=100.0):
         pl = {ref: self.placed(ref, *pos[ref]) for ref in self.refs}
         refs = list(self.refs)
@@ -877,13 +934,10 @@ class Problem:
             pen += k
             why.append(what)
         for i, a in enumerate(refs):
+            for k, what in self._fixed_rules(a, *pos[a]):
+                bad(k, *what)
             ca = pl[a][1]
-            bd = bounds(self.refs[a])
-            over = max(0.0, bd[0] - ca[0]) + max(0.0, bd[1] - ca[1]) + max(0.0, ca[2] - bd[2]) + \
-                max(0.0, ca[3] - bd[3])
-            if over > 0:
-                bad(10 + 50 * over, 'area', self.refs[a])
-            for c in self.fix_cy + [pl[o][1] for o in refs[i + 1:]]:
+            for c in [pl[o][1] for o in refs[i + 1:]]:
                 o = min(ca[2], c[2]) - max(ca[0], c[0]), min(ca[3], c[3]) - max(ca[1], c[1])
                 if o[0] > 0.001 and o[1] > 0.001:
                     bad(10 + 50 * min(o), 'courtyard', self.refs[a])
@@ -919,18 +973,6 @@ class Problem:
                 gnd.append(spot)
                 gtaken += (spot,)
         for k, (a, net, bx) in enumerate(pads):
-            for onet, ob in self.fix_pads:
-                if onet != net and box_dist(bx, ob) < 0.1:
-                    bad(10, 'pad-pad', self.refs[a], onet)
-            for onet, vx, vy, keep in self.fix_vias:
-                if onet != net and circ_box(vx, vy, 0.0, bx) < keep:
-                    bad(10, 'pad-via', self.refs[a], onet)
-            for onet, p0, p1, hw in self.fix_tracks:
-                if onet != net and seg_box(p0, p1, bx) < hw + 0.1:
-                    bad(10, 'pad-track', self.refs[a], onet)
-            for pin, (pnet, vx, vy) in self.pin_vias.items():
-                if pnet != net and circ_box(vx, vy, 0.0, bx) < max(PIN_VIA[0] / 2 + 0.1, PIN_VIA[1] / 2 + 0.2):
-                    bad(10, 'pad-pin via', self.refs[a], pin)
             for a2, net2, bx2 in pads[k + 1:]:
                 if a2 != a and net2 != net and box_dist(bx, bx2) < 0.1:
                     bad(10, 'pad-pad', self.refs[a], self.refs[a2])
@@ -1014,16 +1056,20 @@ class Problem:
                 if n1 != n2 and seg_cross(p, q, r, s_):
                     cross += 1
         blocks = on_resv
-        obst = [(net, bx) for a, net, bx in pads] + self.fix_pads + \
-               [(net, (vx - .125, vy - .125, vx + .125, vy + .125)) for _, (net, vx, vy) in self.pin_vias.items()] + \
-               [(net, (vx - k + .1, vy - k + .1, vx + k - .1, vy + k - .1)) for net, vx, vy, k in self.fix_vias] + \
-               [('GND', (gx - GND_VIA[0] / 2, gy - GND_VIA[0] / 2, gx + GND_VIA[0] / 2, gy + GND_VIA[0] / 2))
-                for gx, gy in gnd]
+        if self._obst is None:
+            st = self.fix_pads + \
+                [(net, (vx - .125, vy - .125, vx + .125, vy + .125)) for _, (net, vx, vy) in self.pin_vias.items()] + \
+                [(net, (vx - k + .1, vy - k + .1, vx + k - .1, vy + k - .1)) for net, vx, vy, k in self.fix_vias]
+            self._obst = (np.array([ob for _, ob in st]).reshape(-1, 4), np.array([n for n, _ in st], dtype=object))
+        dyn = [(net, bx) for a, net, bx in pads] + \
+              [('GND', (gx - GND_VIA[0] / 2, gy - GND_VIA[0] / 2, gx + GND_VIA[0] / 2, gy + GND_VIA[0] / 2))
+               for gx, gy in gnd]
+        ob_all = np.vstack([self._obst[0], np.array([ob for _, ob in dyn]).reshape(-1, 4)])
+        on_all = np.concatenate([self._obst[1], np.array([n for n, _ in dyn], dtype=object)])
         for net, (p, q) in edges:
-            sb = (min(p[0], q[0]), min(p[1], q[1]), max(p[0], q[0]), max(p[1], q[1]))
-            for onet, ob in obst:
-                if onet == net or ob[2] < sb[0] or ob[0] > sb[2] or ob[3] < sb[1] or ob[1] > sb[3]:
-                    continue
+            m = (on_all != net) & (ob_all[:, 2] >= min(p[0], q[0])) & (ob_all[:, 0] <= max(p[0], q[0])) & \
+                (ob_all[:, 3] >= min(p[1], q[1])) & (ob_all[:, 1] <= max(p[1], q[1]))
+            for ob in ob_all[m]:
                 if seg_box(p, q, ob) < 0.05:
                     blocks += 1
         near = 0.0
