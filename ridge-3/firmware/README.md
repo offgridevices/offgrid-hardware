@@ -132,9 +132,10 @@ controller in the usual way.
    power them from a **current-limited bench supply, 12 V, 0.3 A**, on the
    ESC's battery pads.  The drivers' inputs have pull-downs, so the FETs
    stay off while an MCU is blank or halted.
-2. Wire the probe's `GND` to the battery pad marked `-`, and `SWCLK` to `Cn`
-   and `SWDIO` to `Dn`, where *n* is the ESC being flashed (the pads sit over
-   each MCU on the board's top).  Do not connect the probe's 3.3 V output:
+2. Wire the probe's `GND` to the battery pad marked `-`, and `SWDIO` to `Dn`
+   and `SWCLK` to the `C` pad beside it, where *n* is the ESC being flashed
+   (the pads sit over each MCU on the board's top; the clock pad is marked
+   `C`, or `Cn` where the number fits).  Do not connect the probe's 3.3 V output:
    it would feed the flight controller's 3.3 V rail.
 3. Run `am32/flash_esc.sh` (all four, asking before each) or
    `./flash_esc.sh 3` for one.  For each MCU it erases the flash, writes and

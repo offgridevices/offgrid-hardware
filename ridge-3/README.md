@@ -354,9 +354,10 @@ pre-programming service.
    motors) and the stack lead plugged into the FC: the ESC's MCUs run from
    the FC's 3.3 V on the lead's pin 4.  Power them from a current-limited
    bench supply (12 V, 0.3 A) on the battery lead.  See
-   [`firmware/README.md`](firmware/README.md).  Each MCU's `Cn` (clock) and
-   `Dn` (data) pads are on the ESC's top, over that MCU; the probe's ground
-   goes to the battery pad.
+   [`firmware/README.md`](firmware/README.md).  Each MCU's `Dn` (data) and
+   `C` (clock) pads are on the ESC's top, over that MCU, side by side (the
+   clock pad's label is the letter alone where the channel's number does not
+   fit); the probe's ground goes to the battery pad.
 6. **Motor wires:** each motor's three wires to the three pads beside its
    number.
 7. **Stack:** ESC at the bottom, FC on top, both with the **front arrow
