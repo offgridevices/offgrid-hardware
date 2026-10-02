@@ -150,10 +150,12 @@ class StackModel:
             self.put(P, 'FC U_FC', data.MCU_FC['p_run'])
             self.put(P, 'FC U_OSD', data.OSD['p'])
             self.put(P, 'FC U_IMU', data.GYRO['p'])
-            # the stack lead's two power contacts at each end, and the HD lead's
+            # the stack lead's two power contacts at each end (rev 2: soldered
+            # at the ESC, no contacts there), and the HD lead's
             ist = fc.get('i_lead', 0.0)
             self.put(P, 'FC J_ESC', 2 * ist ** 2 * data.STACK_CONN['r_contact'])
-            self.put(P, 'ESC J_FC', 2 * ist ** 2 * data.STACK_CONN['r_contact'])
+            if not data.LEAD['soldered']:
+                self.put(P, 'ESC J_FC', 2 * ist ** 2 * data.STACK_CONN['r_contact'])
             self.put(P, 'FC J_HD', 2 * fc['i9'] ** 2 * data.HD_CONN['r_contact'])
             scale = dict(VBAT=ist, VBAT_VTX=fc.get('i_video', 0.0),
                          **{'+9V': fc['i9'], 'BUCK9_SW': fc['i9'], '+5V': fc['i5'], 'BUCK5_SW': fc['i5']})
