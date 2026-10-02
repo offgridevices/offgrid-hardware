@@ -147,7 +147,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
     layers = pcb.cu_layers(board)
     obs = Obstacles(board, layers)
     rv = via_d / 2
-    placed, failed, ep_failed = 0, [], []
+    placed, failed, ep_failed, joined = 0, [], [], []
     for fp in board.GetFootprints():
         fc = fp.GetPosition(); fcx, fcy = mm(fc.x), mm(fc.y)
         if fp.GetReference() in skip:
@@ -306,15 +306,16 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                         ox, oy = mm(op.GetPosition().x), mm(op.GetPosition().y)
                         d = math.hypot(ox - px, oy - py)
                         if d < 3.0 and (best is None or d < best[0]):
-                            best = (d, ox, oy)
+                            best = (d, ox, oy, (ofp.GetReference(), op.GetNumber()))
                 if best:
-                    _, ox, oy = best
+                    _, ox, oy, mate = best
                     sg = LineString([(px, py), (ox, oy)]).buffer(0.1)
                     if obs.clear(sg, net, [layer], clearance):
                         t = pcbnew.PCB_TRACK(board)
                         t.SetStart(pcbnew.VECTOR2I(MM(px), MM(py))); t.SetEnd(pcbnew.VECTOR2I(MM(ox), MM(oy)))
                         t.SetWidth(MM(0.2)); t.SetLayer(layer); t.SetNet(pad.GetNet())
                         board.Add(t); obs.add(sg, net, [layer]); done = True
+                        joined.append(((fp.GetReference(), pad.GetNumber()), pg, px, py, net, layer, pad.GetNet(), mate))
             if not done and far_share > 0:
                 # last resort: a straight stub on the pad's layer to the
                 # nearest same-net via within far_share
@@ -335,6 +336,45 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                     board.Add(t); obs.add(sg, net, [layer]); done = True
             if not done:
                 failed.append((fp.GetReference(), pad.GetNumber()))
+    # a pad only joined to a neighbour of its net floats with it unless the
+    # neighbour reaches a via: now that every via is in, each such pad tries
+    # a stub to one within far_share; one still joined only to a pad of
+    # this fanout's that has none has none either
+    from shapely.geometry import LineString
+    failed_keys = set(failed)
+
+    def floating(skip=()):
+        loose = {q[0]: q[7] for q in joined if q[0] not in skip}
+        grown = True
+        while grown:
+            grown = False
+            for key, mate in list(loose.items()):
+                if mate not in loose and mate not in failed_keys:
+                    del loose[key]
+                    grown = True
+        return loose
+
+    linked = set()
+    for key, pg, px, py, net, layer, netinfo, mate in joined:
+        if key not in floating(linked):
+            continue
+        best = None
+        for vx, vy, vn in obs.netvias:
+            if vn != net:
+                continue
+            d = pg.distance(Point(vx, vy))
+            if d <= far_share and (best is None or d < best[0]):
+                sg = LineString([(px, py), (vx, vy)]).buffer(stub_w / 2)
+                if obs.clear(sg, net, [layer], clearance):
+                    best = (d, vx, vy, sg)
+        if best:
+            _, vx, vy, sg = best
+            t = pcbnew.PCB_TRACK(board)
+            t.SetStart(pcbnew.VECTOR2I(MM(px), MM(py))); t.SetEnd(pcbnew.VECTOR2I(MM(vx), MM(vy)))
+            t.SetWidth(MM(stub_w)); t.SetLayer(layer); t.SetNet(netinfo)
+            board.Add(t); obs.add(sg, net, [layer])
+            linked.add(key)
+    failed.extend(floating(linked))
     # an exposed pad with no room for a via of its own is still connected
     # by a same-net via inside it (the far side's exposed pad's)
     for ref, num, pg, net in ep_failed:

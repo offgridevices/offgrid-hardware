@@ -70,16 +70,17 @@ def xf(n, u, yr, rot, side):
 
 
 # The back-EMF resistors (top, over the driver) tap each phase where its
-# switch-node sense line reaches the driver: pin 1 on the escape via in
-# the driver's SHx pad (the same node as the FETs' switch node, the sense
-# line's few mm of track between), pin 2 the divided tap towards the MCU.
+# switch-node sense line reaches the driver: pin 1 on or beside the escape
+# via in the driver's SHx pad (the same node as the FETs' switch node, the
+# sense line's few mm of track between; route_local's sense line takes
+# the pad in), pin 2 the divided tap towards the MCU.
 # In the gaps between the low sides, beside the drains they tapped, their
 # three lines to the MCU had to cross the FET row with the gate and sense
 # lines and the thermistor's, and the row has room for those alone: no
 # routing found them all a way.  From over the driver they stay in the
 # chips' strip, where In3's window (SIG_WINDOW) takes them under the MCU.
 # Spots found by tools/mcu_cluster_search.py, with the MCU's parts.
-RBH = {'C': (-0.4, 7.82, 90, 'T'), 'B': (1.05, 8.92, 90, 'T'), 'A': (2.62, 9.3, 180, 'T')}
+RBH = {'C': (-1.3, 8.67, 180, 'T'), 'B': (1.05, 8.92, 90, 'T'), 'A': (2.32, 8.8, 270, 'T')}
 
 
 def template():
@@ -121,15 +122,15 @@ def template():
     t['R_SH'] = (-8.5, 11.8, 270, 'B')
     t['U_CS'] = (-8.1, 11.5, 0, 'T')
     t['C_CS'] = (-9.7, 10.2, 90, 'T')
-    t['R_IF'] = (-6.8, 8.8, 0, 'T')
-    t['C_IF'] = (-8.05, 8.65, 90, 'T')
+    t['R_IF'] = (-6.9, 8.1, 180, 'T')
+    t['C_IF'] = (-8.15, 8.35, 90, 'T')
     t['R_CUR'] = (-7.4, 15.0, 90, 'T')
     # the FETs' thermistor on top in the strip between the MCU and phase
     # C's high side, by its drain copper (the battery side, where the high
     # side's heat spreads) and in the chips' strip with the MCU's analog
     # inputs: at the edge between the low sides its line to the MCU had to
     # cross the FET row (see RBH)
-    t['RT'] = (-4.4, 9.35, 0, 'T')
+    t['RT'] = (-4.4, 9.45, 0, 'T')
     # The chips' small parts on top over them, inside the rings of their
     # pins' escape vias, each beside the pins it serves (a pad over its
     # own net's via takes it in the pad).  Found by a search for the
@@ -137,8 +138,13 @@ def template():
     # four turned channels.  Driver: charge-pump flying and VCP capacitors
     # and VM decoupling at its +u side, DVDD and the IDRIVE setting at -u.
     t['C_CP'] = (2.5, 4.45, 180, 'T')
-    t['C_VCP'] = (1.6, 5.75, 180, 'T')
-    t['C_VM'] = (1.95, 7.05, 0, 'T')     # its ground pad clear of phase A's high gate pin's via
+    t['C_VCP'] = (1.6, 5.75, 0, 'T')
+    # (the VM and the charge-pump capacitors turned so their battery pads
+    # are off the driver's exposed pad, where no battery via fits: the
+    # charge pump's by the VM pins' via, a stub to it, the VM capacitor's
+    # joined to it; the VM capacitor's ground pad over the exposed pad
+    # takes a via there)
+    t['C_VM'] = (1.95, 7.05, 180, 'T')
     t['C_DVDD'] = (-1.7, 4.7, 0, 'T')
     t['R_ID'] = (-1.7, 7.35, 0, 'T')
     # MCU: supply and reset capacitors, the thermistor's bias, the
@@ -150,21 +156,21 @@ def template():
     # pad by its own pin, and the rest as short as that leaves: a
     # simulated-annealing search over their spots and turns
     # (tools/mcu_cluster_search.py).
-    t['C_VDD'] = (-3.75, 6.0, 180, 'T')
-    t['C_VDDA'] = (-8.0, 5.45, 90, 'T')
-    t['C_RST'] = (-7.5, 6.95, 0, 'T')
-    t['R_NTB'] = (-6.9, 5.6, 90, 'T')
-    t['RS_A'] = (-6.8, 7.9, 0, 'T')
-    t['RS_B'] = (-5.7, 6.1, 180, 'T')
-    t['RS_C'] = (-5.75, 5.3, 180, 'T')
-    t['RBL_A'] = (-6.15, 9.7, 180, 'T')
-    t['RBL_B'] = (-4.7, 6.9, 180, 'T')
-    t['RBL_C'] = (-2.9, 9.3, 90, 'T')
+    t['C_VDD'] = (-3.7, 6.0, 180, 'T')
+    t['C_VDDA'] = (-8.0, 5.25, 90, 'T')
+    t['C_RST'] = (-7.4, 6.85, 0, 'T')
+    t['R_NTB'] = (-6.85, 5.6, 90, 'T')
+    t['RS_A'] = (-6.2, 8.9, 180, 'T')
+    t['RS_B'] = (-5.7, 6.25, 180, 'T')
+    t['RS_C'] = (-5.1, 7.15, 180, 'T')
+    t['RBL_A'] = (-6.15, 9.7, 0, 'T')
+    t['RBL_B'] = (-5.4, 5.4, 0, 'T')
+    t['RBL_C'] = (-2.7, 9.15, 270, 'T')
     # SWD test points on top, the side that faces the flight controller
     # (the bootloader is flashed once, before the stack goes together),
     # beside the MCU's SWD pins
-    t['TP_DIO'] = (-3.1, 7.95, 270, 'T')
-    t['TP_CLK'] = (-4.6, 8.2, 90, 'T')
+    t['TP_DIO'] = (-3.1, 7.75, 90, 'T')
+    t['TP_CLK'] = (-4.85, 8.25, 270, 'T')
     return t
 
 
@@ -1483,13 +1489,21 @@ def route_local(b, comps):
 #     the inner pin out, each takes the line beside the one before.
 FIRST_LINES = ('A', 'GHA', 'GLA', 'B', 'GLB', 'GHB', 'C', 'GLC', 'GHC', 'DVDD', 'HA', 'LA', 'HB', 'LB', 'HC', 'LC')
 # Channel lines laid by the maze router after the lines and buses to the
-# middle (route_local, step 4b): the MCU's analog inputs from the FET row
-# (each phase's back-EMF tap, the thermistor) and round its pins (the
-# neutral star, the current filter).  Left to the board's router with the
-# rest, the lines from the FET row found its crossings and the strip under
-# the chips taken; laid before the legs to the middle they took the legs'
-# way in.
-LATE_LINES = ()
+# middle (route_local, step 4b): the MCU's analog inputs, round its pins
+# (the neutral star, the comparators' dividers, the thermistor, the current
+# filter).  Most of their parts sit over the MCU's exposed pad, where no
+# through via fits, so their pads join on the top or along it to a via
+# spot at the chip's edge, and the few ways there are taken by whichever
+# line comes first: left to the board's router with the rest, two or three
+# of them stayed open in every routing (the star or comparator B walled in
+# by the others).  Laid here in this order, the star first (four pads,
+# three of them over the exposed pad), then the comparators, each finds
+# its way, and the board's router has only the shunt's sense lines and the
+# reset and debug lines left round them.  (Laid before the legs to the
+# middle they took the legs' way in.)  The parts' spots were searched with
+# these lines' ways in mind (tools/mcu_cluster_search.py: --reserve, the
+# wall check).
+LATE_LINES = ('NEUTRAL', 'CMP_B', 'CMP_C', 'CMP_A', 'NTC', 'ISENSE', 'IOUT')
 
 
 def _channel_keepouts(b, comps, n, reg):
