@@ -172,9 +172,9 @@
 		(uuid "9920b1e4-e0c0-5e8f-aa27-73f847908cb5")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../aio.3dshapes/SW-SMD_5P-L4.2-W2.8-P1.60-LS4.6-TR.stpZ"
+	(model "${KICAD10_3DMODEL_DIR}/Button_Switch_SMD.3dshapes/SW_Push_1P1T-SH_NO_CK_KMR2xxG.step"
 		(offset
-			(xyz 0 0 0.98)
+			(xyz 0 -0.311 0.04)
 		)
 		(scale
 			(xyz 1 1 1)

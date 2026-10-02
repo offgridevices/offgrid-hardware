@@ -204,7 +204,7 @@
 	(embedded_fonts no)
 	(model "${KIPRJMOD}/../aio.3dshapes/CONN-SMD_8P-P1.25_5055670871.stpZ"
 		(offset
-			(xyz 0 0 1.95)
+			(xyz 0 -0.58 1.95)
 		)
 		(scale
 			(xyz 1 1 1)

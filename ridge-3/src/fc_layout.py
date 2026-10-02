@@ -284,7 +284,10 @@ KEEP_FREE = [
     (T, (-15.8, -11.0, -12.8, -5.1)),      # left pads' labels
     (T, (-15.8, 5.7, -12.8, 10.1)),
     (T, (-12.4, 5.4, -8.4, 10.2)),         # the OffGrid mark
-    (Bo, (-10.0, -17.7, 10.0, -12.5)),     # the lockup (bottom, front band)
+    # the lockup (bottom, front band): at its smallest, 16 mm (the mark at
+    # the brand's 24 px), 5.0 mm tall, from 0.75 mm inside the edge, with
+    # the silk placer's 0.4 mm margin and 0.12 mm round pads
+    (Bo, (-10.0, -17.7, 10.0, -11.7)),
     (Bo, (-7.0, -3.0, 7.0, 4.6)),          # the board's name (bottom, under the MCU)
     # the stack lead's corridor: from the ESC lead's signal pins (3-8) to
     # the MCU's rear pins, kept free of parts on top so the six lines run
@@ -711,12 +714,14 @@ def artwork(b):
     # under the MCU (what the board is).  The lockup and the name sit
     # exactly on the centre line: only their height may move to clear a via
     # or a part.
-    for w in (20.0, 18.0, 16.0):
+    for w in (20.0, 18.0, 16.0):           # 16 mm: the mark at the brand's 24 px
         g, clear = brand.lockup_mm(w, mirror=True)
         h = g.bounds[3] - g.bounds[1]
         y0 = -pcb.HALF + 0.35 + 0.4 + h / 2 + 0.01       # edge, then the placer's 0.4 mm margin
         if bot.geom(g, [(0.0, y0 + 0.05 * k) for k in range(30)], clear=clear, vias='fewest', quiet=True):
             break
+    else:
+        raise SystemExit('fc: no room for the lockup on the bottom (KEEP_FREE keeps its band free of parts)')
     # the front arrow and which side this is: along the left edge, under
     # the USB-C, else as near there as fits
     spots = [(x, y) for x in (-16.2, -16.0, -15.8, -15.6) for y in (0.0, -0.5, 0.5, -1.0, 1.0)]

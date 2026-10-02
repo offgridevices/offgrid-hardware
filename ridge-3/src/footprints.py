@@ -454,6 +454,21 @@ OFFICIAL_MODELS = {
     'CONN-TH_BM08B-SRSS-TB-LF-SN': 'Connector_JST:JST_SH_BM08B-SRSS-TB_1x08-1MP_P1.00mm_Vertical',
     'CONN-TH_SM08B-SRSS-TB-LF-SN': 'Connector_JST:JST_SH_SM08B-SRSS-TB_1x08-1MP_P1.00mm_Horizontal',
     'USB-C-SMD_MC-311D': 'Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal',
+    # C&K KMR2 with ground terminal: EasyEDA's model sits 1.27 mm off the
+    # terminals; KiCad numbers the pads 1, 1, 2, 2, SH (official_model
+    # matches them by place)
+    'SW-SMD_5P-L4.2-W2.8-P1.60-LS4.6-TR': 'Button_Switch_SMD:SW_Push_1P1T-SH_NO_CK_KMR2xxG',
+}
+# EasyEDA models off their pads with no KiCad footprint of the same part:
+# the model moved (x, y in the footprint's frame, mm) to where the maker's
+# drawing puts the body.
+#   Molex 505567-0871 (Micro-Lock Plus RA, 8 circuits; Molex 5055670000-SD
+#   sheet 2, recommended PCB layout): the part outline runs from 0.2 mm
+#   inside the signal pads' outer ends to 0.48 mm past the nail pads, so
+#   its 4.2 mm body is centred 0.58 mm towards the nail pads from EasyEDA's
+#   origin, where EasyEDA's model is centred.
+MODEL_SHIFT = {
+    'CONN-SMD_8P-P1.25_5055670871': (0.0, 0.58),
 }
 
 
@@ -492,14 +507,23 @@ def official_model(fp, ref):
     for p in fp.Pads():
         ours.setdefault(p.GetNumber(), []).append(xy(p))
     common = [n for n in ours if n and len(ours[n]) == 1 and len(theirs.get(n, [])) == 1]
-    if len(common) < 2:
-        raise SystemExit('%s: fewer than two pads in common with %s' % (fp.GetFPID().GetLibItemName(), ref))
+    mean = lambda qs: (sum(q[0] for q in qs) / len(qs), sum(q[1] for q in qs) / len(qs))
+    # numbered alike: the shift from the pads that are; numbered otherwise
+    # (KiCad's 1, 1, 2, 2, SH for EasyEDA's 1-5): from the pads' centres,
+    # which coincide when the land patterns do (checked below either way)
+    by_number = len(common) >= 2
+    if not by_number and sum(len(v) for v in ours.values()) != sum(len(v) for v in theirs.values()):
+        raise SystemExit('%s: pads differ in number from %s' % (fp.GetFPID().GetLibItemName(), ref))
     best = None
     for th in (0, 90, 180, 270):
         c, s = round(math.cos(math.radians(th))), round(math.sin(math.radians(th)))
         turn = lambda q: (q[0] * c + q[1] * s, -q[0] * s + q[1] * c)
-        d = [(ours[n][0][0] - turn(theirs[n][0])[0], ours[n][0][1] - turn(theirs[n][0])[1]) for n in common]
-        t = (sum(v[0] for v in d) / len(d), sum(v[1] for v in d) / len(d))
+        if by_number:
+            d = [(ours[n][0][0] - turn(theirs[n][0])[0], ours[n][0][1] - turn(theirs[n][0])[1]) for n in common]
+            t = mean(d)
+        else:
+            mo, mt = mean([q for v in ours.values() for q in v]), turn(mean([q for v in theirs.values() for q in v]))
+            t = (mo[0] - mt[0], mo[1] - mt[1])
         mine = [q for v in ours.values() for q in v]
         err = max(min(math.hypot(turn(q)[0] + t[0] - o[0], turn(q)[1] + t[1] - o[1]) for o in mine)
                   for v in theirs.values() for q in v)
@@ -580,6 +604,16 @@ def main():
         if name in OFFICIAL_MODELS:
             th, t = official_model(fp, OFFICIAL_MODELS[name])
             print('%s: KiCad model of %s (turned %d, shifted %.3f, %.3f)' % (name, OFFICIAL_MODELS[name], th, *t))
+        if name in MODEL_SHIFT:
+            dx, dy = MODEL_SHIFT[name]
+            # (the SWIG list hands out copies: rebuilt, as in official_model)
+            ms = list(fp.Models())
+            fp.Models().clear()
+            for m in ms:
+                # the model frame has y up
+                m.m_Offset = pcbnew.VECTOR3D(m.m_Offset.x + dx, m.m_Offset.y - dy, m.m_Offset.z)
+                fp.Models().append(m)
+            print('%s: model moved %.2f, %.2f mm (MODEL_SHIFT)' % (name, dx, dy))
         _save(LIB, fp); n += 1
     gen = [
         # battery pads: 3.0 mm round a 1.8 mm hole, for up to 14 AWG
