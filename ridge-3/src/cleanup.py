@@ -16,6 +16,9 @@ open a connection.
   3. each track end that only touches same-net copper edge to edge: joined
      to the nearest same-net track end or via by a short segment; kept only
      if the warning count drops
+and again from 1 while a pass keeps any edit and dangling copper is left (a
+trim can leave a stub lying along its own net's track, which step 1 then
+takes away).
 """
 import math, shutil
 from collections import Counter
@@ -32,9 +35,20 @@ def _by_uuid(b, uid):
     return next((t for t in b.GetTracks() if t.m_Uuid.AsString() == uid), None)
 
 
-def clean(path, extra_rules='', rounds=6, log=print):
+def clean(path, extra_rules='', rounds=6, log=print, passes=4):
     """Edits `path` in place.  Returns the final DRC (errors, warnings,
     unconnected)."""
+    for _ in range(passes):
+        (e, w, u), kept = _clean_pass(path, extra_rules, rounds, log)
+        if not kept or not any(v['type'] in ('via_dangling', 'track_dangling') for v in w):
+            break
+    return e, w, u
+
+
+def _clean_pass(path, extra_rules, rounds, log):
+    """One pass of steps 1-3: (the DRC after it, whether any edit was kept)."""
+    kept = 0
+
     def drc():
         pcb.write_rules(path, extra_rules)
         return pcb.drc(path, path + '.clean.json')
@@ -79,6 +93,7 @@ def clean(path, extra_rules='', rounds=6, log=print):
                     shutil.copy(path + '.bak', path)
                     continue
                 log('  removed %-14s %s%s' % (net, kind, '' if k == 0 else ' + %d stubs' % (len(ids) - 1)))
+                kept += 1
                 e, w, u = e2, w2, u2
                 progress = True
                 break
@@ -149,6 +164,7 @@ def clean(path, extra_rules='', rounds=6, log=print):
             shutil.copy(path + '.bak', path)
         else:
             log('  trimmed %s' % v['items'][0]['description'][:40])
+            kept += 1
             e, w, u = e2, w2, u2
 
     # a dangling end that only touches same-net copper edge to edge (KiCad
@@ -192,7 +208,8 @@ def clean(path, extra_rules='', rounds=6, log=print):
             shutil.copy(path + '.bak', path)
         else:
             log('  joined %s' % v['items'][0]['description'][:40])
+            kept += 1
             e, w, u = e2, w2, u2
     e, w, u = drc()
     log('clean-up end: ' + _counts(e, w, u))
-    return e, w, u
+    return (e, w, u), kept

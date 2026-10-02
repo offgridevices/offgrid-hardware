@@ -2020,11 +2020,14 @@ def artwork(b, comps):
     A.side_mark(top, mirror, 'Top')
     # SWD test points, on whichever side they are, before the motor
     # numbers: each has one pad to sit by
+    # (where the channel's number leaves no room, the letter alone: the
+    # pair's other pad carries the number)
     for n in CHANNELS:
         r = roles(comps, n)
         for role, s_ in (('TP_DIO', 'D%d'), ('TP_CLK', 'C%d')):
             pl = top if side[r[role]] == 'T' else bot
-            pl.label(r[role], s_ % n, size=1.2, dist=0.7, smallest=1.0, face='mono')
+            if not pl.label(r[role], s_ % n, size=1.2, dist=0.7, smallest=1.0, face='mono'):
+                pl.label(r[role], s_[0], size=1.2, dist=0.7, smallest=1.0, face='mono')
     # one number per motor on top, as large as fits, in the nearest free
     # spot that is clearly this motor's: at least 2 mm nearer its own three
     # pads than any other motor's pads or the battery pads
