@@ -5,19 +5,19 @@
       "Application": "Pcbnew",
       "Version": "10.0.6-10.0.6~ubuntu24.04.1"
     },
-    "CreationDate": "2026-09-29T02:57:08+00:00"
+    "CreationDate": "2026-10-02T08:50:24+00:00"
   },
   "GeneralSpecs": {
     "ProjectId": {
       "Name": "ridge3-esc",
       "GUID": "72696467-6533-42d6-9573-632e6b696361",
-      "Revision": "1.0"
+      "Revision": "2.0"
     },
     "Size": {
       "X": 36.1,
       "Y": 36.1
     },
-    "LayerNumber": 6,
+    "LayerNumber": 8,
     "BoardThickness": 1.6,
     "Finish": "ENIG"
   },
@@ -68,8 +68,18 @@
       "FilePolarity": "Positive"
     },
     {
+      "Path": "ridge3-esc-In5_Cu.g5",
+      "FileFunction": "Copper,L6,Inr",
+      "FilePolarity": "Positive"
+    },
+    {
+      "Path": "ridge3-esc-In6_Cu.g6",
+      "FileFunction": "Copper,L7,Inr",
+      "FilePolarity": "Positive"
+    },
+    {
       "Path": "ridge3-esc-B_Cu.gbl",
-      "FileFunction": "Copper,L6,Bot",
+      "FileFunction": "Copper,L8,Bot",
       "FilePolarity": "Positive"
     },
     {
@@ -132,7 +142,7 @@
     {
       "Type": "Dielectric",
       "Color": "R109G116B75",
-      "Thickness": 0.1,
+      "Thickness": 0.12,
       "Material": "FR4",
       "Name": "F.Cu/In1.Cu",
       "Notes": "Type: dielectric layer 1 (from F.Cu to In1.Cu)"
@@ -145,7 +155,7 @@
     {
       "Type": "Dielectric",
       "Color": "R109G116B75",
-      "Thickness": 0.4,
+      "Thickness": 0.2,
       "Material": "FR4",
       "Name": "In1.Cu/In2.Cu",
       "Notes": "Type: dielectric layer 2 (from In1.Cu to In2.Cu)"
@@ -158,7 +168,7 @@
     {
       "Type": "Dielectric",
       "Color": "R109G116B75",
-      "Thickness": 0.45,
+      "Thickness": 0.23,
       "Material": "FR4",
       "Name": "In2.Cu/In3.Cu",
       "Notes": "Type: dielectric layer 3 (from In2.Cu to In3.Cu)"
@@ -171,7 +181,7 @@
     {
       "Type": "Dielectric",
       "Color": "R109G116B75",
-      "Thickness": 0.4,
+      "Thickness": 0.2,
       "Material": "FR4",
       "Name": "In3.Cu/In4.Cu",
       "Notes": "Type: dielectric layer 4 (from In3.Cu to In4.Cu)"
@@ -184,10 +194,36 @@
     {
       "Type": "Dielectric",
       "Color": "R109G116B75",
-      "Thickness": 0.1,
+      "Thickness": 0.23,
       "Material": "FR4",
-      "Name": "In4.Cu/B.Cu",
-      "Notes": "Type: dielectric layer 5 (from In4.Cu to B.Cu)"
+      "Name": "In4.Cu/In5.Cu",
+      "Notes": "Type: dielectric layer 5 (from In4.Cu to In5.Cu)"
+    },
+    {
+      "Type": "Copper",
+      "Thickness": 0.035,
+      "Name": "In5.Cu"
+    },
+    {
+      "Type": "Dielectric",
+      "Color": "R109G116B75",
+      "Thickness": 0.2,
+      "Material": "FR4",
+      "Name": "In5.Cu/In6.Cu",
+      "Notes": "Type: dielectric layer 6 (from In5.Cu to In6.Cu)"
+    },
+    {
+      "Type": "Copper",
+      "Thickness": 0.035,
+      "Name": "In6.Cu"
+    },
+    {
+      "Type": "Dielectric",
+      "Color": "R109G116B75",
+      "Thickness": 0.12,
+      "Material": "FR4",
+      "Name": "In6.Cu/B.Cu",
+      "Notes": "Type: dielectric layer 7 (from In6.Cu to B.Cu)"
     },
     {
       "Type": "Copper",
