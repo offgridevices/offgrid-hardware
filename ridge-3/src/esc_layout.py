@@ -138,12 +138,16 @@ def template():
     # four turned channels.  Driver: charge-pump flying and VCP capacitors
     # and VM decoupling at its +u side, DVDD and the IDRIVE setting at -u.
     t['C_CP'] = (2.5, 4.45, 180, 'T')
-    t['C_VCP'] = (1.6, 5.75, 0, 'T')
+    t['C_VCP'] = (1.9, 6.0, 0, 'T')
     # (the VM and the charge-pump capacitors turned so their battery pads
     # are off the driver's exposed pad, where no battery via fits: the
-    # charge pump's by the VM pins' via, a stub to it, the VM capacitor's
-    # joined to it; the VM capacitor's ground pad over the exposed pad
-    # takes a via there)
+    # charge pump's over the VM pin, a via in it, the VM capacitor's
+    # joined to that; the VM capacitor's ground pad over the exposed pad
+    # takes a via there.  The charge pump's VCP pad, over the exposed pad,
+    # has no via either: its line leaves on the top past the battery pad's
+    # north edge, between it and the CPH pin's via, to the VCP pin's via,
+    # so the capacitor sits far enough south and east for that line and
+    # for the exposed pad's middle via.)
     t['C_VM'] = (1.95, 7.05, 180, 'T')
     t['C_DVDD'] = (-1.7, 4.7, 0, 'T')
     t['R_ID'] = (-1.7, 7.35, 0, 'T')
@@ -914,7 +918,9 @@ def clearances(comps):
     overshoot, so 31-50 V: IPC-2221B asks 0.13 mm on outer layers under
     solder mask (B4) and 0.1 mm on inner layers (B1).  0.13 mm round those
     nets everywhere; everything else is 3.3 V or 11.4 V logic and gate
-    drive, 0.1 mm (B4 and B1 both allow it below 30 V)."""
+    drive, 0.1 mm (B4 and B1 both allow it below 30 V), except the
+    high-side gates and the charge pump, 11 V above the battery and the
+    phases: the DRC holds them to 0.13 mm on the outer layers (HV_RULES)."""
     nets, gate, boot, drv = net_groups(comps)
     cl = {x: 0.1 for x in widths(comps)}
     for x in drv:
@@ -934,7 +940,20 @@ def via_rules(b):
     nc.SetViaDiameter(MM(VIA_SIG[0])); nc.SetViaDrill(MM(VIA_SIG[1]))
 
 
-DRU_EXTRA = pcb.POFV_RULES
+# IPC-2221B, table 6-1: 31-50 V between conductors asks 0.13 mm on the outer
+# layers under solder mask (B4), 0.1 mm on the inner layers (B1).  The
+# high-side gates and the charge pump ride up to 11 V above the battery
+# and the phases, about 36 V from ground and from the other phases' low
+# side; the battery and the phases already keep 0.13 mm (clearances()).
+# Inner layers hold them to the 0.1 mm the routers use.
+HV_RULES = """# High-side gates and charge pump: up to battery + 11 V (IPC-2221B B4,
+# 31-50 V, outer layers under solder mask)
+(rule "battery + 11 V nets, outer layers"
+  (layer outer)
+  (condition "A.NetName == 'M?_GH?' || A.NetName == 'M?_VCP' || A.NetName == 'M?_CPH'")
+  (constraint clearance (min 0.13mm)))
+"""
+DRU_EXTRA = pcb.POFV_RULES + HV_RULES
 
 FANOUT = dict(ep_pitch=1.5, share=0.9, ep_join=0.2, via_d=VIA_INPAD[0], via_drill=VIA_INPAD[1],
               off_drill=0.25, clearance=0.1, steps=(0.02, 0.15, 0.3, 0.5, 0.75, 1.0, 1.3, 1.7, 2.1, 2.5),
