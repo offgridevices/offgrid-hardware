@@ -613,6 +613,13 @@ PARTS = {
     'FB600': dict(fp=L0402, lcsc='C160977', mpn='BLM15PX601SN1D', value='600R@100MHz',
                   desc='Ferrite bead 600 Ohm at 100 MHz, 0.9 A, 0402', kind='FB',
                   dk='490-9657-1-ND', maker=MURATA),
+    # ESC channel 3.3 V bead, Murata BLM03AX601SN1D (0201): 600 Ohm +/-25 %
+    # at 100 MHz, 250 mA at 85 C, 0.85 Ohm max (0.90 after the life tests),
+    # -55..125 C (Murata JENF243A-0020AD-01); a channel draws <= 22 mA.
+    # LCSC C88953, 63,350 in stock.
+    'FB600_0201': dict(fp='Inductor_SMD:L_0201_0603Metric', lcsc='C88953', mpn='BLM03AX601SN1D',
+                       value='600R@100MHz', desc='Ferrite bead 600 Ohm at 100 MHz, 0.25 A, 0201', kind='FB',
+                       maker=MURATA),
 
     # =================================================================
     #  Shunts

@@ -311,6 +311,9 @@ FIGS = {
                'LMR38020 RT(kOhm) = 30970 x fSW(kHz)^-1.027, equation 2'),
     # TI TPS628501, SLUSEC8C (3.3 V)
     'tps_vfb': (0.6, 'ti_tps628501.txt', r'VFB\nFeedback voltage, adjustable version\n0\.6\nV\n', 'TPS628501 VFB 0.6 V'),
+    # Murata BLM03AX601SN1D (each ESC channel's 3.3 V bead), JENF243A-0020AD-01
+    'blm03': ((0.25, 0.85, 0.90), 'murata_BLM03AX601SN1D.txt', r'BLM03AX601SN1D\s+600±25％\s+600\s+250\s+0\.85\s+0\.90',
+              'BLM03AX601SN1D 250 mA at 85 C, 0.85 Ohm max (0.90 after the tests)'),
     'tps_vfb_acc': (0.01, 'ti_tps628501.txt', r'VFB\nFeedback voltage accuracy\nPWM, VIN ≥ VOUT \+ 1V\n–1\n1\n%',
                     'TPS628501 VFB accuracy +/-1 % in PWM (7.5)'),
     'tps_iout': (1.0, 'ti_tps628501.txt', r'TPS628501DRLR\n1A\n', 'TPS628501: 1 A output current (device information)'),
@@ -1479,17 +1482,22 @@ def check_power():
     check(S, 'FC 3.3 V buck (TPS628501, %.0f A): the ESC\'s four channels take %.0f mA (datasheet maxima), %.0f %% of it, '
              'leaving %.0f mA for the FC\'s own 3.3 V parts' % (iout, esc_i * 1e3, 100 * esc_i / iout, (iout - esc_i) * 1e3),
           esc_i <= 0.25 * iout, 'pass mark: the ESC under a quarter of the buck')
-    # the drop from the FC's buck to the farthest pin (ASSUMPTION: 0.1 Ohm
-    # for the lead's wire and its one connector contact, aged; 0.3 Ohm for
-    # the bead's DC resistance; the beads' datasheet is not in the set)
-    drop = esc_i * 0.1 + tot * 0.3
+    # the drop from the FC's buck to the farthest pin: the lead's wire and
+    # its one connector contact, aged (ASSUMPTION: 0.1 Ohm), and the bead
+    # (Murata: 0.90 Ohm max after its tests)
+    bead_i, _, bead_r = fig('blm03')
+    beads = [x.part for x in esc if x.note == 'channel 3.3 V feed']
+    drop = esc_i * 0.1 + tot * bead_r
     vlo, vhi = v3[0] - drop, v3[1]
     vdd, vs = fig('at32_vdd'), fig('ina186_vs')
     check(S, 'ESC channel 3.3 V %.3f-%.3f V: the FC buck\'s 0.6 V +/-%.0f %% (PWM, SLUSEC8C 7.5) x (1 + %gk/%gk, 1 %%) less '
              '%.0f mV of lead and bead at full load; inside the AT32F421\'s VDD %.1f-%.1f V (table 11) and the INA186\'s VS '
              '%.1f-%.1f V' % (vlo, vhi, 100 * acc, t / 1e3, b / 1e3, drop * 1e3, vdd[0], vdd[1], vs[0], vs[1]),
           vdd[0] <= vlo and vhi <= vdd[1] and vs[0] <= vlo and vhi <= vs[1],
-          'lead and bead resistance assumed (0.1 + 0.3 Ohm)')
+          'the lead\'s 0.1 Ohm assumed; the bead\'s %.2f Ohm from Murata' % bead_r)
+    check(S, 'ESC channel beads (%s, Murata BLM03AX601SN1D): %.1f mA in the worst channel, %.0f %% of the %.0f mA rating'
+          % (', '.join(sorted(set(beads))), tot * 1e3, 100 * tot / bead_i, bead_i * 1e3),
+          len(beads) == 4 and set(parts.PARTS[x]['mpn'] for x in beads) == {'BLM03AX601SN1D'} and tot <= 0.5 * bead_i)
     # battery dividers
     r = esc_vsense_ratio()
     check(S, 'ESC battery sense: %.1f V / %.1f = %.2f V (< %.2f V, the lowest channel 3.3 V = VDDA, the ADC reference)'
@@ -1645,7 +1653,7 @@ def check_power():
         check(S, 'ESC %d MCU: 100 nF at VDD; at VDDA 1 uF 0402, Artery\'s 100 nF + 1 uF (AT32F421 figure 8) in one '
                  'case (its impedance the 100 nF\'s or lower at every frequency)' % n, ok,
               '%s %s' % ([x.part for x in vdd], [x.part for x in vdda]))
-    figs_check(S, ['lmr_vref', 'lmr_en_rise', 'lmr_en_fall', 'lmr_ihs', 'lmr_vin', 'lmr_rt', 'tps_vfb', 'tps_vfb_acc', 'tps_iout', 'tps_ilim',
+    figs_check(S, ['lmr_vref', 'lmr_en_rise', 'lmr_en_fall', 'lmr_ihs', 'lmr_vin', 'lmr_rt', 'tps_vfb', 'tps_vfb_acc', 'tps_iout', 'tps_ilim', 'blm03',
                    'tmp390_h20', 'drv_vm', 'drv_vi', 'drv_idvdd', 'drv_dvdd', 'drv_vih', 'drv_iih', 'drv_rpd', 'drv_vgsh',
                    'drv_vgsh6', 'drv_idrive', 'drv_vds_hiz', 'at32_vdd', 'at32_idd', 'at32_fta', 'ina186_iq', 'ina186_vs',
                    'fet_vds', 'fet_vgs', 'fet_rds', 'fet_rds45', 'fet_qg', 'spm6530_150', 'tfm_r47', 'xtal_cl'])

@@ -151,17 +151,19 @@ def template():
     t['C_VM'] = (1.95, 7.27, 180, 'T')
     t['C_DVDD'] = (-1.35, 4.7, 0, 'T')
     # The channel's 3.3 V feed (a ferrite bead from the flight controller's
-    # 3.3 V, circuit.esc_power): across the mouth of the channel's way into
-    # the middle (between the middle's corner and the driver's row of input
-    # vias), its shared pad on the way, the other a short way from the
-    # MCU's VDD capacitor, both 4.08 mm from the centre (the middle's own
-    # pads reach 3.55 mm), its courtyard 0.1 mm clear of the bus
-    # capacitor's (closer, the packer moved that into the enable feed's).  (By the MCU's VDDA pin, at the board's
+    # 3.3 V, circuit.esc_power, 0201): across the mouth of the channel's way
+    # into the middle (between the middle's corner and the driver's row of
+    # input vias), its shared pad on the way, the other a short way from
+    # the MCU's VDD capacitor, both 4.05 mm from the centre (the middle's
+    # own pads reach 3.55 mm).  An 0402 there was held to hundredths of a
+    # millimetre between the MCU's LB escape via (0.2 mm hole to copper),
+    # the bus capacitor's courtyard (closer, the packer moved that into the
+    # enable feed's) and, turned for motor 4, the lead's pad 4.  (By the MCU's VDDA pin, at the board's
     # side, its turned copies sat in the next channel's gate lines and its
     # feed had no way to the middle; over the driver's exposed pad no via
     # can take its feed down, and the row of vias and the driver's
     # capacitors wall it in on top.)
-    t['FB_3V3'] = (-3.42, 4.4, 0, 'T')
+    t['FB_3V3'] = (-3.4, 4.25, 0, 'T')
     t['R_ID'] = (-1.7, 7.35, 0, 'T')
     # MCU: supply and reset capacitors, the thermistor's bias, the
     # back-EMF dividers' low legs and the neutral star, and the SWD test

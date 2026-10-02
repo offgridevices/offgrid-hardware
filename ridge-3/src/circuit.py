@@ -567,13 +567,13 @@ def esc(n):
         '29': GND,                              # exposed pad
     }, B, 'ESC %d MCU' % n, ref='U_ESC%d' % n)
     # The channel's 3.3 V from the board's buck (esc_power) through its own
-    # ferrite bead (0.3 ohm: 6 mV at the MCU's 21 mA, so VDDA, the ADC's
-    # reference, stays 3.3 V), which keeps the channel's switching noise
-    # off the others' supply.  100 nF at VDD; at VDDA, Artery's 100 nF +
+    # ferrite bead (Murata BLM03AX601SN1D, 0201: 0.85 ohm max, 18 mV at the
+    # channel's 22 mA, so VDDA, the ADC's reference, stays 3.3 V), which
+    # keeps the channel's switching noise off the others' supply.  100 nF at VDD; at VDDA, Artery's 100 nF +
     # 1 uF (AT32F421 figure 8) as one 1 uF 0402: in the same case its
     # impedance is the 100 nF's or lower at every frequency, and the 1 uF
     # holds the channel's 3.3 V up behind its bead.
-    add('FB', 'FB600', {'1': 'ESC_3V3', '2': p('3V3')}, B, 'channel 3.3 V feed', ref='FB%d' % n)
+    add('FB', 'FB600_0201', {'1': 'ESC_3V3', '2': p('3V3')}, B, 'channel 3.3 V feed', ref='FB%d' % n)
     cap('C100N', p('3V3'), GND, B, 'U_ESC%d VDD' % n)
     cap('C1U_10_X7R', p('3V3'), GND, B, 'U_ESC%d VDDA' % n)
     cap('C100N', p('NRST'), GND, B, 'U_ESC%d reset filter' % n)
