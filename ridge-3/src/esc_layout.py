@@ -2082,9 +2082,12 @@ def artwork(b, comps):
             print('   silk: %s left off: no room on %s at its smallest size'
                   % (runs[0][1], ' or '.join('the ' + {'T': 'top', 'B': 'bottom'}[pl.side] for pl in sides)))
     # the stack lead's pads: what each wire is
-    for ref, s_ in (('P_LV', '+'), ('P_LG', 'G'), ('P_LC', 'C'), ('P_L3V', '3V3'), ('P_L1', '1'),
-                    ('P_L2', '2'), ('P_L3', '3'), ('P_L4', '4')):
-        top.label(ref, s_, dist=0.7, size=0.9, smallest=0.7, face='mono')
+    # (0.9 mm at the least: below that the mono face's crossbars print
+    # under 0.12 mm; the 3.3 V pad's three letters last, where the single
+    # ones have left room)
+    for ref, s_ in (('P_LV', '+'), ('P_LG', 'G'), ('P_LC', 'C'), ('P_L1', '1'), ('P_L2', '2'),
+                    ('P_L3', '3'), ('P_L4', '4'), ('P_L3V', '3V3')):
+        top.label(ref, s_, dist=0.7, size=0.9, smallest=0.9, face='mono')
     # which way is forward on the bottom too: the ESC must sit in the stack
     # the same way round as the FC, or every motor number is wrong
     A.side_mark(bot, bot.grid_spots((0.0, -6.0), radius=16.0, step=0.25), 'Bottom')
