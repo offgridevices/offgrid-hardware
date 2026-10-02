@@ -96,7 +96,12 @@ STUB_W, SHARE = 0.25, 0.9                 # its stub, or one to a plane via alre
 STEPS = (0.02, 0.15, 0.3, 0.5, 0.75, 1.0, 1.3, 1.7, 2.1, 2.5)   # fanout's rings round the pad
 PLANE_MARGIN = 0.01                       # fanout.Obstacles.MARGIN as esc_layout.build sets it
 TRACK_W = 0.1                             # the cluster's lines (esc_layout.widths)
-WALL = 2.0                                # mm round a top-only pad its way out is looked for in
+# the maze router's view (finish.Grid): every via an obstacle at least its
+# hole plus VIA_RING (esc_layout.VIA_RING: the hole-to-copper rule), each
+# net's clearance, ROUTE_M of grid rounding margin
+VIA_RING = 0.1
+ROUTE_M = 0.03
+WALL = 3.0                                # mm round a top-only pad its way out is looked for in
 CAPS = (('C_VDD', '17'), ('C_VDDA', '5'), ('C_RST', '4'))
 CROSS_W = 20.0                            # mm of connection a crossing of two nets' top tracks costs
 BLOCK_W = 20.0                            # ... and a track through another net's pad or via
@@ -181,18 +186,24 @@ class Problem:
         self.refs = {r1[k]: k for k in ROLES}
         allp = {**parts.PARTS, **parts.PADS}
         self.cmap = cmap = {c.ref: c for c in comps}
-        self.geo = {}
+        self.geo, self.prad = {}, {}
         for ref in self.refs:
             fp = pcb.load_fp(allp[cmap[ref].part]['fp'])
             pads = [(p.GetNumber(), mm(p.GetPosition().x), mm(p.GetPosition().y), mm(p.GetSize(pcbnew.F_Cu).x),
                      mm(p.GetSize(pcbnew.F_Cu).y)) for p in fp.Pads() if p.GetNumber()]
             bb = fp.GetCourtyard(pcbnew.F_CrtYd).BBox()
             self.geo[ref] = (pads, (mm(bb.GetLeft()), mm(bb.GetTop()), mm(bb.GetRight()), mm(bb.GetBottom())))
+            # each pad's corner radius (round, oval, rounded): the wall check
+            # takes the pads by their real corners
+            self.prad[ref] = [{pcbnew.PAD_SHAPE_CIRCLE: min(mm(p.GetSize(pcbnew.F_Cu).x), mm(p.GetSize(pcbnew.F_Cu).y)) / 2,
+                               pcbnew.PAD_SHAPE_OVAL: min(mm(p.GetSize(pcbnew.F_Cu).x), mm(p.GetSize(pcbnew.F_Cu).y)) / 2,
+                               pcbnew.PAD_SHAPE_ROUNDRECT: mm(p.GetRoundRectCornerRadius(pcbnew.F_Cu))}.get(p.GetShape(), 0.0)
+                              for p in fp.Pads() if p.GetNumber()]
         inside = lambda x0, y0, x1, y1: x1 > AREA[0] and x0 < AREA[2] and y1 > AREA[1] and y0 < AREA[3]
         self.fix_cy, self.fix_pads, self.fix_vias, self.fix_tracks, self.terms = [], [], [], [], {}
         mcu = b.FindFootprintByReference(r1['MCU'])
         mcu_nets = set(p.GetNetname() for p in mcu.Pads())
-        self._resv = set()
+        self._resv, self.rterms = set(), {}
         if reserve:
             self._reserve(reserve, mcu_nets)
         self._mcu_vias = [(t.GetNetname(), X(t.GetPosition().x), X(t.GetPosition().y)) for t in b.GetTracks()
@@ -221,7 +232,7 @@ class Problem:
         # one of its terminals too.
         for t in b.GetTracks():
             net = t.GetNetname()
-            if net in mcu_nets | {'GND'}:
+            if net == 'GND' or (net in mcu_nets and t.m_Uuid.AsString() not in self._resv):
                 continue
             if t.GetClass() == 'PCB_VIA':
                 x, y = X(t.GetPosition().x), X(t.GetPosition().y)
@@ -302,15 +313,30 @@ class Problem:
         self._spots, self._rules, self._obst = {}, {}, None
 
     def _reserve(self, path, mcu_nets):
-        """The driver's lines to the FET row (route_local's first lines that
-        are not the MCU's: the switch-node sense and gate lines), as the
-        routed board `path` has them, onto the board as fixed copper: laid
-        first, through the strip between the chips and the FET row, they
-        need a way the cluster's vias and pads leave them.  The plane vias
+        """route_local's lines (the driver's switch-node sense and gate
+        lines to the FET row, the 3.3 V and the PWM lines between the
+        chips, the channel's lines and buses to the middle: its signal
+        input, battery voltage, driver enable), as the routed board `path`
+        has them, onto the board as fixed copper: laid before the
+        cluster's own lines, they need a way the cluster's vias and pads
+        leave them, and they take the gaps and via spots the cluster's
+        lines might have used.  The plane vias
         come before them (fanout): those keep to the board as built, and
         one on a reserved line costs as a blocked track."""
         b = self.b
-        nets = set('M1_' + r for r in E.FIRST_LINES) - mcu_nets
+        nets = set('M1_' + r for r in E.FIRST_LINES)
+        # and the nets from the channel's parts to the shared parts in the
+        # middle (the MCU's signal input, the battery-voltage and enable
+        # buses), laid right after them
+        parts = E.channel_parts(self.comps)
+        ch1 = set(parts[1].values())
+        anych = set(r for rr in parts.values() for r in rr.values())
+        on = {}
+        for c in self.comps:
+            for n in c.pins.values():
+                if n:
+                    on.setdefault(n, set()).add(c.ref)
+        nets |= set(n for n, rr in on.items() if rr & ch1 and rr - anych and n not in ('GND', 'VBAT'))
         k = 0
         for t in pcbnew.LoadBoard(path).GetTracks():
             if t.GetNetname() not in nets:
@@ -324,6 +350,15 @@ class Problem:
             c.SetNet(b.FindNet(t.GetNetname()))
             b.Add(c)
             self._resv.add(c.m_Uuid.AsString())
+            # its copper anchors the net's top-only pads (walled): points
+            # along it, 0.1 mm apart
+            if t.GetClass() == 'PCB_VIA':
+                pts = [(X(t.GetPosition().x), X(t.GetPosition().y))]
+            else:
+                ax, ay, ex, ey = X(t.GetStart().x), X(t.GetStart().y), X(t.GetEnd().x), X(t.GetEnd().y)
+                m = max(1, int(math.hypot(ex - ax, ey - ay) / 0.1))
+                pts = [(ax + (ex - ax) * i / m, ay + (ey - ay) * i / m) for i in range(m + 1)]
+            self.rterms.setdefault(t.GetNetname(), []).extend((x, y, x, y) for x, y in pts)
             k += 1
         self.reserved = (sorted(nets), k)
 
@@ -333,9 +368,10 @@ class Problem:
         off the copper other channels have there (stamp.region, foreign),
         outside every no-via rule area (the power copper's, the holes'),
         and clear of other nets' pads on every layer (the MCU's and the
-        driver's exposed pads among them), their tracks and vias by the
-        via's ring plus 0.1 mm or its hole plus 0.2 mm.  The cluster's own
-        parts are not in it (via_spot)."""
+        driver's exposed pads among them), their tracks and vias, as the
+        maze router keeps a via (finish.Grid: 0.1 mm, ROUTE_M, every via at
+        least its hole plus VIA_RING).  The cluster's own parts are not in
+        it (via_spot)."""
         import stamp
         b = self.b
         x0, y0 = AREA[0] - 1.0, AREA[1] - 1.0
@@ -345,10 +381,10 @@ class Problem:
         ys = y0 + (np.arange(H) + 0.5) * RES
         self.XX, self.YY = XX, YY = np.meshgrid(xs, ys)
         ring = VIA[0] / 2
-        self.keep = keep = max(ring + 0.1, VIA[1] / 2 + 0.2)
+        self.keep = keep = 0.1 + ring + ROUTE_M
         common = np.ones((H, W), bool)
         parts = E.channel_parts(self.comps)
-        reg = stamp.region(b, parts, E.CHANNELS)
+        self._reg = reg = stamp.region(b, parts, E.CHANNELS)
         common &= shapely.contains_xy(reg.buffer(-ring), XX + pcb.CX, YY + pcb.CY)
         self._foreign = stamp.foreign(b, parts, E.CHANNELS, stamp.counterparts(b, parts, E.CHANNELS), reg)
         for l, g in self._foreign.items():
@@ -362,7 +398,7 @@ class Problem:
                 ol = o.Outline(k)
                 poly = Polygon([(mm(ol.CPoint(i).x), mm(ol.CPoint(i).y)) for i in range(ol.PointCount())])
                 if poly.is_valid and poly.area > 0:
-                    common &= ~shapely.contains_xy(poly.buffer(ring), XX + pcb.CX, YY + pcb.CY)
+                    common &= ~shapely.contains_xy(poly.buffer(ring + ROUTE_M), XX + pcb.CX, YY + pcb.CY)
         signets = sorted(NETS - {'GND'})
         self.vok = {n: common.copy() for n in signets}
 
@@ -385,11 +421,11 @@ class Problem:
                 block(p.GetNetname(), dx * dx + dy * dy >= keep * keep)
         for t in b.GetTracks():
             net = t.GetNetname()
-            if net in mcu_nets | {'GND'}:
+            if net == 'GND' or (net in mcu_nets and t.m_Uuid.AsString() not in self._resv):
                 continue
             if t.GetClass() == 'PCB_VIA':
                 vx, vy = X(t.GetPosition().x), X(t.GetPosition().y)
-                k = mm(t.GetWidth(pcbnew.F_Cu)) / 2 + ring + 0.1
+                k = max(mm(t.GetWidth(pcbnew.F_Cu)) / 2, mm(t.GetDrillValue()) / 2 + VIA_RING) + keep
                 block(net, (XX - vx) ** 2 + (YY - vy) ** 2 >= k * k)
                 continue
             ax, ay, ex, ey = X(t.GetStart().x), X(t.GetStart().y), X(t.GetEnd().x), X(t.GetEnd().y)
@@ -402,7 +438,7 @@ class Problem:
             tt = np.clip(((XX - ax) * dx + (YY - ay) * dy) / ll, 0.0, 1.0) if ll else 0.0
             block(net, (XX - ax - tt * dx) ** 2 + (YY - ay - tt * dy) ** 2 >= k * k)
         for pin, (net, vx, vy) in self.pin_vias.items():
-            k = PIN_VIA[0] / 2 + ring + 0.1
+            k = max(PIN_VIA[0] / 2, PIN_VIA[1] / 2 + VIA_RING) + keep
             block(net, (XX - vx) ** 2 + (YY - vy) ** 2 >= k * k)
         # the copper a plane via keeps from (esc_layout.plane_vias, fanout,
         # at the time it runs: before route_local's lines), checked exactly
@@ -479,11 +515,15 @@ class Problem:
         self.resv = resv
         self.gkeep = max(GND_CL + gr, E.HOLE_CL + GND_VIA[1] / 2) + PLANE_MARGIN
         # where a top track of each cluster net may run past the fixed
-        # copper (TRACK_W, each net's clearance): the fixed top pads,
-        # tracks and every via, the other channels' top copper (the wall
-        # check, walled)
+        # copper, as the maze router sees it (TRACK_W, each net's
+        # clearance, VIA_RING, ROUTE_M): the fixed top pads (by their real
+        # corners), tracks and every via, the other channels' top copper,
+        # inside the channel's region (route_local and the template's
+        # routing keep each channel's lines to it): the wall check (walled)
         hw = TRACK_W / 2
-        self.tfree = {n: np.ones((H, W), bool) for n in signets}
+        self.rcl = rcl = lambda n: max(0.1, cl.get(n, 0.1)) + ROUTE_M
+        inreg = shapely.contains_xy(self._reg.buffer(-hw), XX + pcb.CX, YY + pcb.CY)
+        self.tfree = {n: inreg.copy() for n in signets}
         for fp in b.GetFootprints():
             if fp.GetReference() in self.refs:
                 continue
@@ -494,18 +534,23 @@ class Problem:
                 bx = (X(bb.GetLeft()), X(bb.GetTop()), X(bb.GetRight()), X(bb.GetBottom()))
                 if not inwin(*bx):
                     continue
-                d2 = box_d2(bx)
+                sz = p.GetSize(pcbnew.F_Cu)
+                r = {pcbnew.PAD_SHAPE_CIRCLE: min(mm(sz.x), mm(sz.y)) / 2,
+                     pcbnew.PAD_SHAPE_OVAL: min(mm(sz.x), mm(sz.y)) / 2,
+                     pcbnew.PAD_SHAPE_ROUNDRECT: mm(p.GetRoundRectCornerRadius(pcbnew.F_Cu))}.get(p.GetShape(), 0.0)
+                d2 = box_d2((bx[0] + r, bx[1] + r, bx[2] - r, bx[3] - r))
                 for n in signets:
                     if p.GetNetname() != n:
-                        self.tfree[n] &= d2 >= (hw + max(ncl(n), ncl(p.GetNetname()))) ** 2
+                        self.tfree[n] &= d2 >= (r + hw + max(rcl(n), rcl(p.GetNetname()))) ** 2
         for t in b.GetTracks():
             net = t.GetNetname()
             if t.GetClass() == 'PCB_VIA':
                 vx, vy = X(t.GetPosition().x), X(t.GetPosition().y)
-                if (net == 'GND' and (vx, vy) in self.own_gnd) or net in mcu_nets or not inwin(vx, vy, vx, vy):
+                if (net == 'GND' and (vx, vy) in self.own_gnd) or not inwin(vx, vy, vx, vy) or \
+                        (net in mcu_nets and t.m_Uuid.AsString() not in self._resv):
                     continue
                 d2 = (XX - vx) ** 2 + (YY - vy) ** 2
-                r = mm(t.GetWidth(pcbnew.F_Cu)) / 2
+                r = max(mm(t.GetWidth(pcbnew.F_Cu)) / 2, mm(t.GetDrillValue()) / 2 + VIA_RING)
             elif t.GetLayer() == pcbnew.F_Cu and net != 'GND':
                 ax, ay, ex, ey = X(t.GetStart().x), X(t.GetStart().y), X(t.GetEnd().x), X(t.GetEnd().y)
                 if not inwin(min(ax, ex), min(ay, ey), max(ax, ex), max(ay, ey)):
@@ -519,14 +564,15 @@ class Problem:
                 continue
             for n in signets:
                 if net != n:
-                    self.tfree[n] &= d2 >= (r + hw + max(ncl(n), ncl(net))) ** 2
+                    self.tfree[n] &= d2 >= (r + hw + max(rcl(n), rcl(net))) ** 2
         for net, vx, vy in self.pin_vias.values():
             d2 = (XX - vx) ** 2 + (YY - vy) ** 2
             for n in signets:
                 if net != n:
-                    self.tfree[n] &= d2 >= (PIN_VIA[0] / 2 + hw + max(ncl(n), ncl(net))) ** 2
+                    self.tfree[n] &= d2 >= (max(PIN_VIA[0] / 2, PIN_VIA[1] / 2 + VIA_RING) + hw +
+                                            max(rcl(n), rcl(net))) ** 2
         if pcbnew.F_Cu in self._foreign:
-            fb = shapely.contains_xy(self._foreign[pcbnew.F_Cu].buffer(hw + 0.11), XX + pcb.CX, YY + pcb.CY)
+            fb = shapely.contains_xy(self._foreign[pcbnew.F_Cu].buffer(hw + 0.1 + ROUTE_M), XX + pcb.CX, YY + pcb.CY)
             for n in signets:
                 self.tfree[n] &= ~fb
         # the plane vias that stay (a share stub may reach them)
@@ -772,13 +818,13 @@ class Problem:
         """Whether the pad `bx` of `net`, which has no spot for a via of its
         own in reach, is walled in on the top: no way for a track from it
         (TRACK_W, each net's clearance) past the fixed copper (tfree), the
-        cluster's pads of other nets (`pads`: (box, net)) and its plane
+        cluster's pads of other nets (`pads`: (box, net, corner radius)) and its plane
         vias and their stubs (`gvias`, `gstubs`) to another of the net's
         terminals (`terms`: boxes), a spot for its via, or WALL away.
         Cached."""
         lo, hi = (bx[0] - WALL - 0.5, bx[1] - WALL - 0.5), (bx[2] + WALL + 0.5, bx[3] + WALL + 0.5)
         inb = lambda q: not (q[2] < lo[0] or q[0] > hi[0] or q[3] < lo[1] or q[1] > hi[1])
-        near = tuple((ob, n) for ob, n in pads if n != net and inb(ob))
+        near = tuple((ob, n, r) for ob, n, r in pads if n != net and inb(ob))
         gv = tuple(v for v in gvias if lo[0] < v[0] < hi[0] and lo[1] < v[1] < hi[1])
         gs = tuple(st for st in gstubs if inb((min(st[0][0], st[1][0]), min(st[0][1], st[1][1]),
                                               max(st[0][0], st[1][0]), max(st[0][1], st[1][1]))))
@@ -796,7 +842,7 @@ class Problem:
         i0, i1 = max(0, int((bx[0] - WALL - x0) / RES)), min(W, int(math.ceil((bx[2] + WALL - x0) / RES)))
         j0, j1 = max(0, int((bx[1] - WALL - y0) / RES)), min(H, int(math.ceil((bx[3] + WALL - y0) / RES)))
         XX, YY = self.XX[j0:j1, i0:i1], self.YY[j0:j1, i0:i1]
-        hw, c0 = TRACK_W / 2, self.ncl(net)
+        hw, c0 = TRACK_W / 2, self.rcl(net)
         free = self.tfree[net][j0:j1, i0:i1].copy()
 
         def sub(q, k):
@@ -812,12 +858,12 @@ class Problem:
             dx = np.maximum(np.maximum(q[0] - X_, X_ - q[2]), 0.0)
             dy = np.maximum(np.maximum(q[1] - Y_, Y_ - q[3]), 0.0)
             return dx * dx + dy * dy
-        for ob, n in near:
-            k = hw + max(c0, self.ncl(n))
+        for ob, n, r in near:
+            k = hw + max(c0, self.rcl(n)) + r
             w = sub(ob, k)
             if w:
-                free[w[0]] &= d2box(ob, w[1], w[2]) >= k * k
-        cg = max(c0, self.ncl('GND'))
+                free[w[0]] &= d2box((ob[0] + r, ob[1] + r, ob[2] - r, ob[3] - r), w[1], w[2]) >= k * k
+        cg = max(c0, self.rcl('GND'))
         k = GND_VIA[0] / 2 + hw + cg
         for vx, vy in gv:
             w = sub((vx, vy, vx, vy), k)
@@ -844,7 +890,7 @@ class Problem:
         if (reach & self.vok[net][j0:j1, i0:i1]).any():
             return False
         for q in tm:
-            if (reach & (d2box(q, XX, YY) == 0.0)).any():
+            if (reach & (d2box(q, XX, YY) <= RES * RES)).any():
                 return False
         return True
 
@@ -1028,7 +1074,7 @@ class Problem:
         # a pad with no via spot in reach must find a way out on the top:
         # to the net's pin via, a fixed terminal or a pad that takes a via,
         # to a via spot, or away (walled)
-        nets_pads = [(bx, net) for a, net, bx in pads]
+        nets_pads = [(bx, net, r) for a in refs for (net, bx), r in zip(pl[a][0], self.prad[a])]
         gst = tuple(pq for _, pq in stubs)
         topo = {}
         for a, net, bx in pads:
@@ -1039,7 +1085,7 @@ class Problem:
             if not topo.get((net, bx)):
                 continue
             anchors = [b2 for a2, n2, b2 in pads if n2 == net and b2 != bx and not topo.get((n2, b2))] + \
-                list(self.terms.get(net, [])) + \
+                list(self.terms.get(net, [])) + list(self.rterms.get(net, [])) + \
                 [(vx - .125, vy - .125, vx + .125, vy + .125) for n2, vx, vy in self.pin_vias.values() if n2 == net]
             if self.walled(net, bx, nets_pads, tuple(gnd), gst, tuple(anchors)):
                 bad(10, 'walled', self.refs[a], net)
