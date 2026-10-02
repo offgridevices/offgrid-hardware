@@ -211,9 +211,16 @@ class SilkPlacer:
         bb = item.GetEffectiveTextShape().BBox() if hasattr(item, 'GetEffectiveTextShape') else item.GetBoundingBox()
         return box(bb.GetLeft() / 1e6, bb.GetTop() / 1e6, bb.GetRight() / 1e6, bb.GetBottom() / 1e6)
 
-    def text(self, s, spots, size=0.8, thick=0.15, face='sans', vias=False):
+    def fits(self, env, margin=0.0):
+        """Whether ink with the box `env` (KiCad mm) would fit, as placed
+        so far."""
+        return self._fits(env, margin=margin)
+
+    def text(self, s, spots, size=0.8, thick=0.15, face='sans', vias=False, accept=None):
         """spots: [(x, y, rot, just), ...] in board-centre mm.  With brand
-        faces `s` may also be a list of (face, text) runs."""
+        faces `s` may also be a list of (face, text) runs.  accept(env), if
+        given, must also hold for a brand text's spot (room for what goes
+        with it)."""
         best = None
         for sp in spots:
             x, y, rot, just = sp[:4]
@@ -221,6 +228,8 @@ class SilkPlacer:
             if self.brand:
                 g = self._brand_geom(s, x, y, rot, just, sz, face)
                 env = g.envelope
+                if accept is not None and not accept(env):
+                    continue
                 if vias == 'fewest':
                     if self._fits(env):
                         hits = sum(1 for v in self.vias if g.intersects(v))

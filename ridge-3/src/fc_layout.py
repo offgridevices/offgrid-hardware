@@ -726,7 +726,24 @@ def artwork(b):
     # the USB-C, else as near there as fits
     spots = [(x, y) for x in (-16.2, -16.0, -15.8, -15.6) for y in (0.0, -0.5, 0.5, -1.0, 1.0)]
     A.side_mark(bot, spots + bot.grid_spots((-15.0, 0.0), radius=16.0, step=0.25), 'Bottom')
-    # what the board is: the product name, then the firmware to flash
+    # what the board is: the product name, then the firmware to flash.
+    # The flag of the United States goes over the product name, on the
+    # centre line (the owner's request: where the company's name is), so
+    # the name takes only a spot that leaves the flag room above it.
+    from shapely import affinity
+
+    def flag_spots(h, env):
+        above = env.bounds[1] - pcb.CY - FLAG_GAP
+        return [(0.0, above - h / 2 - 0.05 * k) for k in range(40)]
+
+    def flag_room(env):
+        for h in FLAG_H:
+            f = brand.us_flag_mm(h, mirror=True)
+            for x, y in flag_spots(h, env):
+                e = affinity.translate(f, pcb.CX + x, pcb.CY + y).envelope
+                if bot.fits(e, margin=0.1) and e.distance(env) >= bot.silk_clear:
+                    return True
+        return False
     base = -0.8
     name = None
     for runs, cap, step in (([('sans', PRODUCT)], 2.4, 2.2),
@@ -735,17 +752,13 @@ def artwork(b):
         g0 = brand.line(runs, cap)[0].bounds
         mid = (g0[1] + g0[3]) / 2           # box centre below the baseline
         spots = [(0.0, base + mid + dy, 0, None) for dy in (0.0, 0.1, -0.1, 0.2, 0.3, 0.4, 0.6, 0.8)]
-        if bot.text(runs, spots, size=cap, vias='fewest'):
+        if bot.text(runs, spots, size=cap, vias='fewest', accept=None if name else flag_room):
             base = bot.placed[-1].centroid.y - pcb.CY - mid + step
             name = name or bot.placed[-1]
-    # the flag of the United States over the product name, on the centre
-    # line (the owner's request: where the company's name is)
     if name is None:
-        raise SystemExit('fc: the product name found no room, nor then the flag')
-    above = name.bounds[1] - pcb.CY - FLAG_GAP
+        raise SystemExit('fc: the product name found no room with the flag over it')
     for h in FLAG_H:
-        if bot.geom(brand.us_flag_mm(h, mirror=True), [(0.0, above - h / 2 - 0.05 * k) for k in range(40)],
-                    vias='fewest', margin=0.1, quiet=True):
+        if bot.geom(brand.us_flag_mm(h, mirror=True), flag_spots(h, name), vias='fewest', margin=0.1, quiet=True):
             break
     else:
         raise SystemExit('fc: no room for the flag over the product name')
