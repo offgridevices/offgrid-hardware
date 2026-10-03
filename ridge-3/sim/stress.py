@@ -765,7 +765,7 @@ def heat_section(sw):
         P, th = hsk.PARAMS, hsk.thermal()
         mp = model(5.0, HOT).plate
         say('Under the ESC, its heatsink (`src/heatsink.py`; the STEP and drawing in '
-            '`mechanical/`): a %s plate, %.1f mm base with a pocket over every part '
+            '`mechanical/`): an aluminium plate (%s), %.1f mm base with a pocket over every part '
             'on the ESC\'s bottom, %.0f mm fins along the air (%.0f mm thick, %.0f mm '
             'slots), on a %s %s gap pad squeezed from %.1f to %.2f mm.  The pad is '
             'taken at its maker\'s measured thermal impedance at that squeeze (%.2f C '
@@ -775,7 +775,7 @@ def heat_section(sw):
             '(Teertstra, Yovanovich and Culham, 2000) with %.0f %% of the free stream '
             'getting between them (ASSUMPTION), %.0f W/m2 K at 5 m/s; in still air '
             'they count as a flat plate.' % (
-                P['material'].split(',')[0], P['base'], P['fins']['h'], P['fins']['t'],
+                P['material'].split(',')[0].replace('Aluminium ', ''), P['base'], P['fins']['h'], P['fins']['t'],
                 P['fins']['gap'], P['pad']['maker'], P['pad']['mpn'], P['pad']['t'], P['gap'],
                 th['pad_r'] / hsk.IN2, P['pad']['k_sheet'], mp['contact'].sum() * HEAT_H ** 2,
                 100 * th['bypass'], mp['h']))
