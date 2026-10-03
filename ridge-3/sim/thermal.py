@@ -28,6 +28,8 @@ K_CU = 390.0          # W/m K
 K_FR4_XY = 0.8        # glass epoxy, in plane
 K_FR4_Z = 0.3         # glass epoxy, through
 K_AIR = 0.028         # at 60 C
+K_AL = 167.0          # 6061-T6 aluminium, W/m K
+RC_AL = 2.42e6        # 6061: 2700 kg/m3 x 896 J/kg K
 RC_CU = 3.45e6        # J/m3 K
 RC_FR4 = 2.0e6        # J/m3 K
 PLATING = 20e-6       # via barrel wall, m
@@ -96,13 +98,30 @@ class Grid:
 
 
 class Stack:
-    """Boards bottom to top, gap in mm between neighbours; assembled network."""
+    """Boards bottom to top, gap in mm between neighbours; assembled network.
 
-    def __init__(self, grids, gaps, air, T_amb):
+    plate (optional): a heatsink under the bottom board, one node per cell of
+    that board's grid where plate['mask'] is set.  It conducts sideways
+    through its base (k t), takes heat from the board's bottom copper through
+    a gap pad over the whole mask (k_pad / t_pad), and loses it from its
+    underside to the air (the fins' extra area times their efficiency) and by
+    radiation (its emissivity).  The board's bottom face under it no longer
+    sees the air."""
+
+    def __init__(self, grids, gaps, air, T_amb, plate=None):
         """air: dict(h_out, h_gap, eps) convection W/m2K on outer faces and in the gaps."""
         self.grids, self.gaps, self.air, self.T_amb = grids, gaps, air, T_amb
         self.off = np.cumsum([0] + [g.n for g in grids])
-        self.n = int(self.off[-1])
+        self.plate = plate
+        self.plate_ids = None
+        n = int(self.off[-1])
+        if plate is not None:
+            g = grids[0]
+            m = np.asarray(plate['mask'], bool) & (g.ids[g.L - 1] >= 0)
+            self.plate_ids = -np.ones((g.ny, g.nx), np.int64)
+            self.plate_ids[m] = n + np.arange(int(m.sum()))
+            n += int(m.sum())
+        self.n = n
         self.rows, self.cols, self.vals = [], [], []
         self.gamb = np.zeros(self.n)          # conductance to ambient per node
         self.cap = np.zeros(self.n)
@@ -140,9 +159,12 @@ class Stack:
                     gz = K_FR4_Z * A / (c.diel[li] * 1e-3) + g.gvia[li]
                     self._link(o + ids[ok], o + b[ok], gz[ok])
             # outer faces: bottom face of the lowest board and top face of the highest
-            # see the open air; faces toward a neighbour see the gap.
+            # see the open air (the bottom one not where a heatsink covers it);
+            # faces toward a neighbour see the gap.
             for li, facing in ((0, bi + 1 < len(self.grids)), (g.L - 1, bi > 0)):
                 ids = g.ids[li]; ok = ids >= 0
+                if bi == 0 and li == g.L - 1 and self.plate_ids is not None:
+                    ok = ok & (self.plate_ids < 0)
                 if not facing:
                     self.gamb[o + ids[ok]] += (air['h_out'] + eps * hr) * A
             if bi + 1 < len(self.grids):
@@ -160,6 +182,27 @@ class Stack:
                 h_side = air['h_gap'] + (1 - F) * eps * hr
                 self.gamb[o + a[a >= 0]] += h_side * A
                 self.gamb[self.off[bi + 1] + b[b >= 0]] += h_side * A
+        if self.plate_ids is not None:
+            self._build_plate(hr)
+
+    def _build_plate(self, hr):
+        p, g, air = self.plate, self.grids[0], self.air
+        A = (g.h * 1e-3) ** 2
+        pid = self.plate_ids
+        t = p['t'] * 1e-3
+        # sideways through the base
+        for dy, dx in ((0, 1), (1, 0)):
+            a = pid[:g.ny - dy, :g.nx - dx]; b = pid[dy:, dx:]
+            ok = (a >= 0) & (b >= 0)
+            self._link(a[ok], b[ok], K_AL * t)
+        # the gap pad, from the board's bottom copper to the plate
+        bot = g.ids[g.L - 1]
+        ok = pid >= 0
+        self._link(self.off[0] + bot[ok], pid[ok], p['k_pad'] / (p['t_pad'] * 1e-3) * A)
+        # underside to the air: the fins' area times their efficiency, and radiation
+        self.gamb[pid[ok]] += (air['h_out'] * p.get('area', 1.0) + p.get('eps', air['eps']) * hr) * A
+        # heat capacity: the base and the fins' metal, and the pad
+        self.cap[pid[ok]] += (RC_AL * (t + p.get('fin_vol', 0.0) * 1e-3) + p.get('rc_pad', 2.5e6) * p['t_pad'] * 1e-3) * A
 
     def junction(self, bi, ref, fine_cells, layer, R, C):
         """A part's junction node, R (K/W) to the copper under fine_cells on `layer`."""

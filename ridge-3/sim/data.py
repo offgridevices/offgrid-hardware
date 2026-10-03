@@ -288,7 +288,7 @@ DESIGNS = {
         C_BRIDGE=C_BRIDGE, BULK=dict(EXT_CAP, on_board=False), CAPS=dict(CAPS), ESC_TVS=None,
         BUCK5=LMR38020F, BUCK9=LM76003, V33=TLV76733_LDO, MCU_FC=G473, OSD=AT7456E,
         GYRO=ICM45686, FLASH=W25Q128, STACK_CONN=JST_SH, HD_CONN=JST_SH, FC_TVS=SMF33A,
-        INDUCTORS=dict(INDUCTORS), THERMOSTAT=None,
+        INDUCTORS=dict(INDUCTORS), THERMOSTAT=None, HEATSINK=None,
         # the FC's video supply runs from the lead (split=False); the lead's GND
         # pin is the ESC's plane at the connector (kelvin=False)
         LEAD=dict(split=False, kelvin=False, soldered=False),
@@ -310,7 +310,7 @@ DESIGNS = {
         BUCK5=LMR38020F_455, BUCK9=LMR38020F_9V, V33=TPS628501,
         MCU_FC=G473, OSD=AT7456E, GYRO=IIM42652, FLASH=S25FL128L,
         STACK_CONN=MICROLOCK, HD_CONN=JST_SH, FC_TVS=SMF33A,
-        INDUCTORS=dict(INDUCTORS_REV2), THERMOSTAT=TMP390,
+        INDUCTORS=dict(INDUCTORS_REV2), THERMOSTAT=TMP390, HEATSINK=None,
         LEAD=dict(split=True, kelvin=True, soldered=True),
     ),
 }
