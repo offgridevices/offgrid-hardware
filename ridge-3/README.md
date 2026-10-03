@@ -12,10 +12,11 @@ Ridge 3 is the first of a line named by prop size: **Ridge 3**, **Ridge 7**,
 **Revision 2** is built for a heavy quad on a 50 °C day: every part is
 chosen for the temperatures the simulations give, and the firmware's limits
 act before the power stage burns out.  On such a day, with 5 m/s of air over
-the stack, it holds 28 % throttle indefinitely before AM32's temperature
-limit starts cutting a motor (hover is 27 %; 41 % on a 25 °C day), and hard
-flying brings that limit on within about 20 s: fly gently when it is that
-hot.  [`docs/REV2.md`](docs/REV2.md) lists every change from revision 1 and
+the stack and the ESC on its heatsink, it holds 52 % throttle indefinitely
+before AM32's temperature limit starts cutting a motor (hover is 27 %; 58 %
+on a 25 °C day).  A hard three-minute flight has that limit cutting a motor
+for 10 % of it, from about a minute in, with the hottest FET at 128 °C:
+on a day that hot the limit, not the parts, sets the pace.  [`docs/REV2.md`](docs/REV2.md) lists every change from revision 1 and
 why; [`STRESS.md`](STRESS.md) runs both revisions through the same
 simulations, including what rev 2 still does not pass.
 

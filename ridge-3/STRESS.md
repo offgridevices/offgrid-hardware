@@ -40,10 +40,13 @@ The same simulations on both designs: rev 1's boards and circuit from git (commi
 |---|---|---|---|
 | Throttle held indefinitely with every part in its rating, 50 C air, 5 m/s | 5 % | 55 % |  |
 | Throttle held indefinitely with the FETs under 150 C, 50 C air, 5 m/s | 40 % | 58 % |  |
+| Throttle held indefinitely before AM32's temperature limit cuts, 50 C air, 5 m/s | 30 % | 52 % |  |
 | Throttle held indefinitely with every part in its rating, 60 C air, 5 m/s | 0 % | 52 % |  |
 | Throttle held indefinitely with the FETs under 150 C, 60 C air, 5 m/s | 36 % | 55 % |  |
+| Throttle held indefinitely before AM32's temperature limit cuts, 60 C air, 5 m/s | 27 % | 48 % |  |
 | Throttle held indefinitely with every part in its rating, 50 C air, 2 m/s | 0 % | 50 % |  |
 | Throttle held indefinitely with the FETs under 150 C, 50 C air, 2 m/s | 30 % | 53 % |  |
+| Throttle held indefinitely before AM32's temperature limit cuts, 50 C air, 2 m/s | 24 % | 44 % |  |
 | Full-throttle burst from hover, 50 C, 5 m/s: a FET reaches 175 C after | 1.8 s | never (10 s) |  |
 | Same, with AM32's temperature limit acting: hottest FET | 167 C | 126 C |  |
 | Hard 3-minute flight, 50 C: hottest FET | 153 C | 128 C |  |
@@ -215,19 +218,19 @@ Under the ESC, its heatsink (`src/heatsink.py`; the STEP and drawing in `mechani
 
 Motor current comes from the motor maker's thrust-stand table (BrotherHobby VY1507 3100KV on 6S, HQ 3x4x3 (maker test report 1507VY2019122301; typical)): battery current against throttle, scaled to the pack voltage; the phase current is that over the duty; AM32 holds each motor to 20 A battery-side.
 
-**What the stack can hold indefinitely**: the highest throttle on all four motors that holds, at steady state, (a) every part inside its rating, and (b) the FETs under 150 C (the power stage survives, even where smaller parts are out of their ratings).  Bisection to 1 %:
+**What the stack can hold indefinitely**: the highest throttle on all four motors that holds, at steady state, (a) every part inside its rating, and (b) the FETs under 150 C (the power stage survives, even where smaller parts are out of their ratings); and (c) the highest that AM32's temperature limit (110 C at its FET thermistor) lets run without cutting a motor.  Bisection to 1 %:
 
-| Air over the stack | Air temperature | (a) Every part in its rating: throttle (battery A per motor) | First part past its rating above that | (b) FETs under 150 C | Video on, at (b) |
-|---|---|---|---|---|---|
-| 2 m/s | 25 C | 54 % (8.7 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 57 % (9.8 A battery, 17.2 A phase) | 100 % |
-| 2 m/s | 50 C | 50 % (6.8 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 53 % (8.0 A battery, 15.2 A phase) | 100 % |
-| 2 m/s | 60 C | 45 % (5.7 A) | ESC U_ESC1 (Artery AT32F421G8U7 junction, 125 C) | 51 % (7.4 A battery, 14.4 A phase) | 65 % |
-| 5 m/s | 25 C | 61 % (11.4 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 64 % (12.7 A battery, 19.9 A phase) | 100 % |
-| 5 m/s | 50 C | 55 % (8.9 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 58 % (10.3 A battery, 17.8 A phase) | 100 % |
-| 5 m/s | 60 C | 52 % (7.9 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 55 % (9.2 A battery, 16.7 A phase) | 100 % |
-| 10 m/s | 25 C | 67 % (13.7 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 71 % (15.2 A battery, 21.5 A phase) | 100 % |
-| 10 m/s | 50 C | 58 % (10.5 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 62 % (12.0 A battery, 19.3 A phase) | 100 % |
-| 10 m/s | 60 C | 55 % (9.2 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 59 % (10.8 A battery, 18.3 A phase) | 100 % |
+| Air over the stack | Air temperature | (a) Every part in its rating: throttle (battery A per motor) | First part past its rating above that | (b) FETs under 150 C | (c) Below AM32's limit | Video on, at (b) |
+|---|---|---|---|---|---|---|
+| 2 m/s | 25 C | 54 % (8.7 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 57 % (9.8 A battery, 17.2 A phase) | 52 % | 100 % |
+| 2 m/s | 50 C | 50 % (6.8 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 53 % (8.0 A battery, 15.2 A phase) | 44 % | 100 % |
+| 2 m/s | 60 C | 45 % (5.7 A) | ESC U_ESC1 (Artery AT32F421G8U7 junction, 125 C) | 51 % (7.4 A battery, 14.4 A phase) | 40 % | 65 % |
+| 5 m/s | 25 C | 61 % (11.4 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 64 % (12.7 A battery, 19.9 A phase) | 58 % | 100 % |
+| 5 m/s | 50 C | 55 % (8.9 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 58 % (10.3 A battery, 17.8 A phase) | 52 % | 100 % |
+| 5 m/s | 60 C | 52 % (7.9 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 55 % (9.2 A battery, 16.7 A phase) | 48 % | 100 % |
+| 10 m/s | 25 C | 67 % (13.7 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 71 % (15.2 A battery, 21.5 A phase) | 63 % | 100 % |
+| 10 m/s | 50 C | 58 % (10.5 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 62 % (12.0 A battery, 19.3 A phase) | 55 % | 100 % |
+| 10 m/s | 60 C | 55 % (9.2 A) | ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L), 125 C) | 59 % (10.8 A battery, 18.3 A phase) | 52 % | 100 % |
 
 Where the ESC's heat comes from while hovering (27 % throttle: 2.3 A per motor from the pack, 8.6 A in the motor phases at 27 % duty, 24 kHz PWM) in 50 C air, 5 m/s, at the temperatures that reach (copper near 74 C):
 
@@ -336,4 +339,4 @@ Where the ESC's heat goes while hovering on a 50 C day (6.5 W in all): gate driv
 - Firmware behaviour beyond AM32's current limit and temperature limit as the README describes them.
 
 ---
-Run time 114 min.
+Run time 104 min.
