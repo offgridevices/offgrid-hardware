@@ -807,27 +807,37 @@ def heat_section(sw):
 
     all_ok = lambda m, T, op: worst(m, T, op)[0][0] >= 0
     fet_ok = lambda m, T, op: max(m.temp(T, k) for k in m.parts if k.startswith('ESC Q')) <= 150.0
+    sensor = ['ESC %s%d' % (data.AM32.get('sensor', 'U_ESC'), n) for n in CH]
+    am32_ok = lambda m, T, op: max(m.temp(T, k) for k in sensor) <= data.AM32['temp_limit']
     for v in ((5.0,) if QUICK else (2.0, 5.0, 10.0)):
         for Ta in ((HOT,) if QUICK else AIRS):
             m = model(v, Ta)
             th, op, T = search(m, all_ok)
             th2, op2, T2 = search(m, fet_ok)
+            th3 = search(m, am32_ok)[0]
             results[(v, Ta)] = (th, op, T, th2, op2)
             nxt = worst(m, steady(m, operating(min(th + 3, 100), V, sw, fcmax)), op)[0]
             rows.append(['%.0f m/s' % v, '%.0f C' % Ta,
                          '%.0f %% (%.1f A)' % (th, op['Ib'][1]),
                          '%s (%s, %.0f C)' % (nxt[1], nxt[4], nxt[3]),
-                         '%.0f %% (%.1f A battery, %.1f A phase)' % (th2, op2['Ib'][1], op2['esc']['I'][1])] +
+                         '%.0f %% (%.1f A battery, %.1f A phase)' % (th2, op2['Ib'][1], op2['esc']['I'][1]),
+                         '%.0f %%' % th3] +
                         (['%.0f %%' % (100 * op2['fc'].get('vtx_on', 1.0))] if data.THERMOSTAT else []))
             found.setdefault('hold', {})[(v, Ta)] = (th, th2, nxt[1], nxt[4], op2['fc'].get('vtx_on', 1.0))
-            log('  air %.0f m/s, %.0f C: %.0f %% all ratings (%s), %.0f %% FETs 150 C' % (v, Ta, th, nxt[1], th2))
+            found.setdefault('am32_hold', {})[(v, Ta)] = th3
+            log('  air %.0f m/s, %.0f C: %.0f %% all ratings (%s), %.0f %% FETs 150 C, %.0f %% AM32'
+                % (v, Ta, th, nxt[1], th2, th3))
     say('**What the stack can hold indefinitely**: the highest throttle on all '
         'four motors that holds, at steady state, (a) every part inside its '
         'rating, and (b) the FETs under 150 C (the power stage survives, even '
-        'where smaller parts are out of their ratings).  Bisection to 1 %:')
+        'where smaller parts are out of their ratings); and (c) the highest '
+        'that AM32\'s temperature limit (%.0f C at %s) lets run without cutting '
+        'a motor.  Bisection to 1 %%:' % (data.AM32['temp_limit'],
+                                          'its processor\'s die' if data.AM32.get('sensor', 'U_ESC') == 'U_ESC'
+                                          else 'its FET thermistor'))
     say()
     table(['Air over the stack', 'Air temperature', '(a) Every part in its rating: throttle (battery A per motor)',
-           'First part past its rating above that', '(b) FETs under 150 C'] +
+           'First part past its rating above that', '(b) FETs under 150 C', '(c) Below AM32\'s limit'] +
           (['Video on, at (b)'] if data.THERMOSTAT else []), rows)
     # where the heat comes from, hovering on a hot day
     m = model(5.0, HOT)
@@ -1296,6 +1306,8 @@ def compare_section(r1, r2):
             hold(f1, (v, Ta), 0), hold(f2, (v, Ta), 0), '%.0f %%')
         row('Throttle held indefinitely with the FETs under 150 C, %.0f C air, %.0f m/s' % (Ta, v),
             hold(f1, (v, Ta), 1), hold(f2, (v, Ta), 1), '%.0f %%')
+        row('Throttle held indefinitely before AM32\'s temperature limit cuts, %.0f C air, %.0f m/s' % (Ta, v),
+            f1.get('am32_hold', {}).get((v, Ta)), f2.get('am32_hold', {}).get((v, Ta)), '%.0f %%')
     b1 = f1.get('bursts', {}).get((HOT, 5.0), (None, None))[0]
     b2 = f2.get('bursts', {}).get((HOT, 5.0), (None, None))[0]
     rows.append(['Full-throttle burst from hover, %.0f C, 5 m/s: a FET reaches 175 C after' % HOT,
