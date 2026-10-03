@@ -1833,16 +1833,26 @@ def check_board(board, name):
         job = zipfile.ZipFile(zp).read([x for x in names if x.endswith('.gbrjob')][0]).decode()
         check(S, 'gerber job file states %d layers and ENIG' % ncu,
               ('"LayerNumber": %d' % ncu in job or '"LayerNumber":  %d' % ncu in job) and 'ENIG' in job)
-    cpl = os.path.join(prod, name + '-cpl-jlcpcb.csv')
-    if os.path.exists(cpl):
-        import csv
+    # each build's CPL (circuit.BUILDS: the default's, and the others' beside
+    # it as <name>-<build>-cpl-jlcpcb.csv) against the parts that build fits
+    import csv
+    comps_ = {c.ref: c for c in circuit.build(board)}
+    builds = [None] + sorted(x for x in circuit.BUILDS if x != circuit.DEFAULT_BUILD) \
+        if any(c.option for c in comps_.values()) else [None]
+    offs = sorted('%s +%d' % (c.ref, parts.PARTS[c.part]['jlc_rot']) for c in comps_.values()
+                  if c.part in parts.PARTS and parts.PARTS[c.part].get('jlc_rot'))
+    for bld in builds:
+        cpl = os.path.join(prod, '%s-cpl-jlcpcb.csv' % (name if bld is None else '%s-%s' % (name, bld)))
+        if not os.path.exists(cpl):
+            check(S, 'production/%s present' % os.path.basename(cpl), False)
+            continue
         rows_ = {r['Designator']: r for r in csv.DictReader(open(cpl))}
-        comps_ = {c.ref: c for c in circuit.build(board)}
+        fitted = {c.ref for c in circuit.fitted(list(comps_.values()), bld) if c.part in parts.PARTS}
         bad = []
         for fp in b.GetFootprints():
-            c = comps_.get(fp.GetReference())
-            if c is None or c.part not in parts.PARTS:
+            if fp.GetReference() not in fitted:
                 continue
+            c = comps_[fp.GetReference()]
             off = parts.PARTS[c.part].get('jlc_rot', 0)
             want = (fp.GetOrientationDegrees() + off) % 360
             if fp.IsFlipped():
@@ -1850,10 +1860,11 @@ def check_board(board, name):
             if fp.GetReference() not in rows_ or \
                     abs((float(rows_[fp.GetReference()]['Rotation']) - want + 180) % 360 - 180) > 0.01:
                 bad.append(fp.GetReference())
-        offs = sorted('%s +%d' % (c.ref, parts.PARTS[c.part]['jlc_rot']) for c in comps_.values()
-                      if c.part in parts.PARTS and parts.PARTS[c.part].get('jlc_rot'))
-        check(S, 'CPL rotation of every part = board rotation (+ JLCPCB footprint offset for second-source '
-                 'parts: %s)' % (', '.join(offs) or 'none'), not bad, ', '.join(bad))
+        extra = sorted(set(rows_) - fitted)
+        check(S, '%sCPL rotation of every part = board rotation (+ JLCPCB footprint offset for second-source '
+                 'parts: %s); no part the build leaves off' % ('' if bld is None else '%s build: ' % bld,
+                                                              ', '.join(offs) or 'none'),
+              not bad and not extra, ', '.join(bad + ['%s not fitted' % r for r in extra]) or '%d parts' % len(fitted))
     for f in ('-bom-jlcpcb.csv', '-cpl-jlcpcb.csv', '-bom-pcbway.csv', '-assembly.pdf', '-netlist.csv'):
         check(S, 'production/%s%s present' % (name, f), os.path.exists(os.path.join(prod, name + f)))
 
