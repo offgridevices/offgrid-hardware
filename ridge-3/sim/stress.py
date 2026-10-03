@@ -936,14 +936,17 @@ def bursts_section(sw, fcmax):
         fets = [k for k in m.parts if k.startswith('ESC Q')]
         caps = esc_caps(m)
         mcu = ['ESC U_ESC%d' % n for n in CH]
+        # what AM32's temperature limit reads (rev 1: the processor's die;
+        # rev 2: the thermistor at the FETs)
+        sensor = ['ESC %s%d' % (data.AM32.get('sensor', 'U_ESC'), n) for n in CH]
         hot = lambda T, ks: max(m.temp(T, k) for k in ks)
         T, tr, first = run_transient(m, [(3.0 if QUICK else 10.0, 100.0)], sw, T0, 0.25, fcmax, V, am32=False,
-                                     watch=fets + mcu + caps)
+                                     watch=sorted(set(fets + mcu + caps + sensor)))
         if (Ta, v) == (HOT, 5.0):
             last_burst.update({k: tr[k] for k in fets})
         t = np.array(tr['t'])
         fmax = np.max([tr[k] for k in fets], axis=0)
-        mmax = np.max([tr[k] for k in mcu], axis=0)
+        mmax = np.max([tr[k] for k in sensor], axis=0)
         when = lambda arr, lim: ('%.1f s' % t[np.argmax(arr >= lim)]) if (arr >= lim).any() else '> %.0f s' % t[-1]
         at = lambda arr, s_: ('%.0f C' % np.interp(s_, t, arr)) if np.interp(s_, t, arr) < data.FET['tch_max'] else 'past 175 C'
         rows.append(['%.0f C, %.0f m/s' % (Ta, v),
@@ -954,7 +957,9 @@ def bursts_section(sw, fcmax):
                                                    t[np.argmax(mmax >= data.AM32['temp_limit'])] if (mmax >= data.AM32['temp_limit']).any() else None)
     table(['Air', 'Hovering: hottest FET / processor / %s capacitor' % CAP_LABEL[0],
            'Hottest FET after 1 / 2 s of full throttle', 'A FET reaches 150 C', 'A FET reaches its 175 C maximum',
-           'A processor reaches AM32\'s %.0f C cut' % data.AM32['temp_limit']], rows)
+           'AM32\'s sensor (%s) reaches its %.0f C cut' % (
+               'the processor' if data.AM32.get('sensor', 'U_ESC') == 'U_ESC' else 'the FET thermistor',
+               data.AM32['temp_limit'])], rows)
     # which FET got hottest, and how far it is from a battery pad
     m = model(5.0, HOT)
     ce = m.ce
