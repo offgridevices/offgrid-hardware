@@ -29,7 +29,17 @@ CH = (1, 2, 3, 4)
 
 
 def _key(c):
-    return hashlib.sha1(open(c.path, 'rb').read() + b'copperloss-v4').hexdigest()[:12]
+    """The copper the maps come from, not the board file: a part's value,
+    a silkscreen line or a field changes the file and leaves the maps."""
+    h = hashlib.sha1(b'copperloss-v5')
+    h.update(repr((c.res, c.x0, c.y0, c.nx, c.ny, list(c.layers), list(c.nets), list(c.t), list(c.diel))).encode())
+    h.update(np.ascontiguousarray(c.owner).tobytes())
+    h.update(repr(sorted((v['x'], v['y'], v['d'], v['net'], tuple(v['layers']), v['kind']) for v in c.holes)).encode())
+    for k in sorted(c.terminals):
+        h.update(repr(k).encode())
+        for li, cells in sorted(c.terminals[k]['cells'].items()):
+            h.update(repr(li).encode() + np.ascontiguousarray(cells).tobytes())
+    return h.hexdigest()[:12]
 
 
 _loaded = {}

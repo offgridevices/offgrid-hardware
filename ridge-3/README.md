@@ -78,7 +78,7 @@ squeeze; the two tall 1210 capacitors have a window through the plate and a
 hole in the pad.  Notches at the rear let the battery lead in from below.
 `src/heatsink.py` makes it from the routed ESC: the STEP, the gap pad's
 outline (DXF) and a drawing for the CNC order are in `mechanical/`, and
-the stress simulations use the same geometry.  It weighs about 14 g, the pad
+the stress simulations use the same geometry.  It weighs about 14.5 g, the pad
 5 g, and the stack stands 11.6 mm higher on the frame.  The ESC no longer
 takes grommets: the FC carries the gyro and keeps its own.
 
