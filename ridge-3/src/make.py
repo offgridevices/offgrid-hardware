@@ -62,14 +62,20 @@ def check_circuit(board):
 
 def check_outputs(board, name, prod):
     b = pcbnew.LoadBoard(os.path.join(V1, board, name + '.kicad_pcb'))
-    comps = {c.ref: c for c in circuit.build(board)}
-    asm = sorted(r for r, c in comps.items() if c.part in parts.PARTS)
-    with open(os.path.join(prod, name + '-cpl-jlcpcb.csv')) as f:
-        cpl = sorted(r['Designator'] for r in csv.DictReader(f))
-    with open(os.path.join(prod, name + '-bom-jlcpcb.csv')) as f:
-        bom = sorted(d for r in csv.DictReader(f) for d in r['Designator'].split(','))
-    gate(cpl == asm, '%s: CPL lists exactly the %d assembled parts' % (board, len(asm)))
-    gate(bom == asm, '%s: BOM lists exactly the %d assembled parts' % (board, len(asm)))
+    every = circuit.build(board)
+    comps = {c.ref: c for c in every}
+    builds = [None] + sorted(x for x in circuit.BUILDS if x != circuit.DEFAULT_BUILD) \
+        if any(c.option for c in every) else [None]
+    for bld in builds:
+        fname = name if bld is None else '%s-%s' % (name, bld)
+        label = board if bld is None else '%s %s build' % (board, bld)
+        asm = sorted(c.ref for c in circuit.fitted(every, bld) if c.part in parts.PARTS)
+        with open(os.path.join(prod, fname + '-cpl-jlcpcb.csv')) as f:
+            cpl = sorted(r['Designator'] for r in csv.DictReader(f))
+        with open(os.path.join(prod, fname + '-bom-jlcpcb.csv')) as f:
+            bom = sorted(d for r in csv.DictReader(f) for d in r['Designator'].split(','))
+        gate(cpl == asm, '%s: CPL lists exactly the %d assembled parts' % (label, len(asm)))
+        gate(bom == asm, '%s: BOM lists exactly the %d assembled parts' % (label, len(asm)))
     fps = {fp.GetReference() for fp in b.GetFootprints()}
     gate(fps == set(comps), '%s: board footprints == circuit.py components (%d)' % (board, len(comps)))
 

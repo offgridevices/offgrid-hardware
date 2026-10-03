@@ -858,10 +858,12 @@ HEAT_H = 0.5
 _models = {}
 
 
-def model(v, Ta, gap=None):
-    key = (v, Ta, gap)
+def model(v, Ta, gap=None, build=None):
+    """The stack in air at v m/s and Ta C; build: the FC's (circuit.BUILDS,
+    default its DEFAULT_BUILD)."""
+    key = (v, Ta, gap, build)
     if key not in _models:
-        _models[key] = stack.StackModel(thermal.air(v), Ta, h=HEAT_H, gap=gap, out=OUT)
+        _models[key] = stack.StackModel(thermal.air(v), Ta, h=HEAT_H, gap=gap, out=OUT, build=build)
     return _models[key]
 
 
@@ -1103,15 +1105,37 @@ def ground_section(sw):
             over = [x for x in worst(m, T, op) if x[0] < 0]
             res[(Ta, tag)] = (over, op['fc'].get('vtx_on', 1.0), {k: m.temp(T, k) for k in ('FC U_FC', 'FC U_IMU')})
             # the FC's input over the thermostat's cycle (the video's share of it)
+            hd = 'FC J_HD' in m.parts            # rev 1's HD socket (rev 2: solder pads)
             rows.append(['%.0f C' % Ta, tag, '%.1f W' % losses.fc_power(op['fc']['i5'], op['fc']['i9'])[0]] +
                         (['%.0f %%' % (100 * op['fc'].get('vtx_on', 1.0))] if data.THERMOSTAT else []) +
                         ['%.0f C' % m.temp(T, 'FC U_BUCK9'), '%.0f C' % m.temp(T, 'FC U_IMU'),
-                         '%.0f C' % m.temp(T, 'FC U_FC'), '%.0f C' % m.temp(T, 'FC J_ESC'), '%.0f C' % m.temp(T, 'FC J_HD'),
-                         '%d; worst %s' % (len(over), ', '.join('%s %.0f C (%.0f)' % (x[1], x[2], x[3]) for x in over[:3]))
+                         '%.0f C' % m.temp(T, 'FC U_FC'), '%.0f C' % m.temp(T, 'FC J_ESC')] +
+                        (['%.0f C' % m.temp(T, 'FC J_HD')] if hd else []) +
+                        ['%d; worst %s' % (len(over), ', '.join('%s %.0f C (%.0f)' % (x[1], x[2], x[3]) for x in over[:3]))
                          if over else 'none'])
     table(['Air', 'FC load', 'FC input'] + (['Video on'] if data.THERMOSTAT else []) +
-          ['9 V buck', 'Gyro', 'Processor', 'Stack connector', 'HD connector', 'Parts past their rating (rating)'], rows)
+          ['9 V buck', 'Gyro', 'Processor', 'Stack connector'] + (['HD connector'] if hd else []) +
+          ['Parts past their rating (rating)'], rows)
     found['ground'] = res
+    # a build with an option group the default leaves off (rev 2's analog
+    # build: the AT7456E, an 85 C part): the same, for its parts
+    import design
+    circ = design.circuit()
+    other = [b_ for b_ in getattr(circ, 'BUILDS', {}) if b_ != getattr(circ, 'DEFAULT_BUILD', None)]
+    for bld in other:
+        rows = []
+        for Ta in ((HOT,) if QUICK else (25.0, HOT)):
+            tag, fc = '9 V at 1 A, 5 V at 0.5 A', dict(i5=0.5, i9=1.0)
+            m = model(0.0, Ta, build=bld)
+            op = operating(0.0, V, sw, fc)
+            T = steady(m, op)
+            over = [x for x in worst(m, T, op) if x[0] < 0]
+            rows.append(['%.0f C' % Ta, tag, '%.0f %%' % (100 * op['fc'].get('vtx_on', 1.0)),
+                         '%d; worst %s' % (len(over), ', '.join('%s %.0f C (%.0f)' % (x[1], x[2], x[3]) for x in over[:3]))
+                         if over else 'none'])
+        say('The %s build (circuit.BUILDS) fits more parts; the same, still air:' % bld)
+        say()
+        table(['Air', 'FC load', 'Video on', 'Parts past their rating (rating)'], rows)
     rows = []
     for Ta in ((HOT,) if QUICK else (25.0, HOT)):
         for tag, fc in (('9 V at 1.5 A, 5 V at 1 A', dict(i5=1.0, i9=1.5)), ('9 V at 1 A, 5 V at 0.5 A', dict(i5=0.5, i9=1.0))):
@@ -1120,21 +1144,23 @@ def ground_section(sw):
             low = min(data.CAPS[m.parts[x]['kind']][1] for x in fcaps)
             groups = {'gyro': ['FC U_IMU'], 'processor': ['FC U_FC'], 'buck': ['FC U_BUCK9'],
                       'caps': [x for x in fcaps if data.CAPS[m.parts[x]['kind']][1] == low],
-                      'connector': [x for x in ('FC J_ESC', 'ESC J_FC') if x in m.parts], 'hd': ['FC J_HD']}
+                      'connector': [x for x in ('FC J_ESC', 'ESC J_FC') if x in m.parts]}
+            if hd:
+                groups['hd'] = ['FC J_HD']
             T, tr, first = run_transient(m, [(60.0 if QUICK else 600.0, 0.0)], sw, np.full(m.n, Ta), 5.0, fc, V,
                                          am32=False, watch=groups)
             t = np.array(tr['t'])
             when = lambda key, lim: ('%.1f min' % (t[np.argmax(np.array(tr[key]) >= lim)] / 60)
                                      if (np.array(tr[key]) >= lim).any() else '> %.0f min' % (t[-1] / 60))
             off = np.array(tr['vtx']) == False
-            rows.append(['%.0f C' % Ta, tag, when('caps', low), when('connector', data.STACK_CONN['t_max']),
-                         when('hd', data.HD_CONN['t_max']), when('gyro', data.GYRO['t_max']),
-                         when('processor', data.MCU_FC['tj_max'])] +
+            rows.append(['%.0f C' % Ta, tag, when('caps', low), when('connector', data.STACK_CONN['t_max'])] +
+                        ([when('hd', data.HD_CONN['t_max'])] if hd else []) +
+                        [when('gyro', data.GYRO['t_max']), when('processor', data.MCU_FC['tj_max'])] +
                         (['%.1f min' % (t[np.argmax(off)] / 60) if off.any() else 'never'] if data.THERMOSTAT else []))
     table(['Air', 'FC load', 'An FC capacitor reaches its %.0f C' % low,
-           'The stack connector reaches %.0f C' % data.STACK_CONN['t_max'],
-           'The HD connector reaches %.0f C' % data.HD_CONN['t_max'],
-           'The gyro reaches %.0f C' % data.GYRO['t_max'], 'The processor reaches %.0f C' % data.MCU_FC['tj_max']] +
+           'The stack connector reaches %.0f C' % data.STACK_CONN['t_max']] +
+          (['The HD connector reaches %.0f C' % data.HD_CONN['t_max']] if hd else []) +
+          ['The gyro reaches %.0f C' % data.GYRO['t_max'], 'The processor reaches %.0f C' % data.MCU_FC['tj_max']] +
           (['The thermostat cuts the video'] if data.THERMOSTAT else []), rows)
 
 

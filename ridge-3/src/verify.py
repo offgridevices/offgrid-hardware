@@ -714,14 +714,13 @@ def check_fc_pins():
           and d('MAX7456_SPI_CS_PIN') != d('FLASH_CS_PIN') and pullup('OSD_CS') and pullup('FLASH_CS'))
     check(S, 'USE_MAX7456 in the build (a CONFIG= build does not get it from common_pre.h)',
           all(cdefine(v, 'USE_MAX7456') is not None for v in cfgs.values()))
-    # HD VTX: MSP DisplayPort on UART1, to the 6-pin connector
-    hd = comp('fc', 'J_HD').pins
+    # HD VTX: MSP DisplayPort on UART1, to its solder pads (9 V, G, T1, R1)
+    hd = {r: comp('fc', r).pins.get('1') for r in ('P_HD9V', 'P_HDG', 'P_HDT', 'P_HDR')}
     tx, rx = ports.get(d('UART1_TX_PIN')), ports.get(d('UART1_RX_PIN'))
-    check(S, 'HD VTX: MSP_DISPLAYPORT_UART %s; UART1 TX/RX (%s/%s) on HD connector pins 3/4 '
-             '(Betaflight connector standard: 1 V+, 2 GND, 3 FC TX, 4 FC RX, 5 GND, 6 SBUS)'
+    check(S, 'HD VTX: MSP_DISPLAYPORT_UART %s; its pads: 9 V on +9V, G on ground, T1/R1 on UART1 TX/RX (%s/%s)'
           % (d('MSP_DISPLAYPORT_UART'), tx, rx),
-          d('MSP_DISPLAYPORT_UART') == 'SERIAL_PORT_USART1' and hd.get('3') == tx and hd.get('4') == rx
-          and hd.get('2') == 'GND' and hd.get('5') == 'GND')
+          d('MSP_DISPLAYPORT_UART') == 'SERIAL_PORT_USART1' and hd['P_HDT'] == tx and hd['P_HDR'] == rx
+          and hd['P_HD9V'] == '+9V' and hd['P_HDG'] == 'GND', str(hd))
     # VTX power switch: PINIO1 -> gate resistor -> N-FET (pins from KiCad's
     # AO3400A symbol) -> the 9 V regulator's EN (pin from the LMR38020 table)
     sw = ports.get(d('PINIO1_PIN'))
@@ -748,7 +747,7 @@ def check_fc_pins():
           bool(fet) and fet[0].pins.get(ao['S']) == 'GND' and len(reg) == 1 and reg[0].pins.get(lmr['EN']) == drain
           and pulldown and rail is not None,
           'drain (%s) on %s' % (drain, ', '.join(on) or 'no regulator pin'))
-    check(S, 'the switched rail %s feeds HD connector pin 1' % rail, rail is not None and hd.get('1') == rail)
+    check(S, 'the switched rail %s feeds the HD video pad 9V (P_HD9V)' % rail, rail is not None and hd.get('P_HD9V') == rail)
     check(S, 'PINIO1_CONFIG %s (PINIO_CONFIG_MODE_OUT_PP, not inverted: low at boot and while its mode is off = '
              'VTX on), PINIO1_BOX %s (BOXUSER1: the USER1 switch turns the VTX off)'
           % (d('PINIO1_CONFIG'), d('PINIO1_BOX')), d('PINIO1_CONFIG') == '1' and d('PINIO1_BOX') == '40')

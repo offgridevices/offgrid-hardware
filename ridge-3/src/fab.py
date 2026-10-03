@@ -54,17 +54,21 @@ def gerbers(board, out_dir, name):
     return zp, sorted(os.listdir(gdir))
 
 
-def _assembled(b, board_name):
-    """(footprint, part-dict) for every part the assembler places."""
-    comps = {c.ref: c for c in circuit.build(board_name)}
+def _assembled(b, board_name, build=None):
+    """(footprint, part-dict) for every part the assembler places in a build
+    (circuit.BUILDS; default circuit.DEFAULT_BUILD): the board carries every
+    build's footprints, the build fits only its option groups."""
+    every = circuit.build(board_name)
+    comps = {c.ref: c for c in every}
+    fit = {c.ref for c in circuit.fitted(every, build)}
     out = []
     for fp in b.GetFootprints():
         c = comps.get(fp.GetReference())
         if c is None:
             raise SystemExit('footprint %s is not in circuit.py' % fp.GetReference())
-        if c.part in parts.PARTS:
+        if c.part in parts.PARTS and c.ref in fit:
             out.append((fp, parts.PARTS[c.part]))
-    if len(out) != sum(1 for c in comps.values() if c.part in parts.PARTS):
+    if len(out) != sum(1 for r in fit if comps[r].part in parts.PARTS):
         raise SystemExit('board and circuit.py disagree on the assembled parts')
     return out
 
@@ -115,9 +119,9 @@ def write_boms(out_dir, name, groups, sides):
     return paths
 
 
-def bom_cpl(board, out_dir, name, board_name):
+def bom_cpl(board, out_dir, name, board_name, build=None):
     b = pcbnew.LoadBoard(board)
-    asm = _assembled(b, board_name)
+    asm = _assembled(b, board_name, build)
     groups = collections.OrderedDict()
     sides = collections.defaultdict(set)
     for fp, p in sorted(asm, key=lambda a: (bom_key(a[1]), _natural(a[0].GetReference()))):
@@ -332,6 +336,12 @@ def produce(board, board_name, name, v1_dir):
     os.makedirs(prod, exist_ok=True); os.makedirs(img, exist_ok=True)
     zp, files = gerbers(board, prod, name)
     n_parts, n_lines, n_bottom = bom_cpl(board, prod, name, board_name)
+    # the other builds' BOM and CPL beside the default build's
+    variants = {}
+    if any(c.option for c in circuit.build(board_name)):
+        for bld in sorted(circuit.BUILDS):
+            if bld != circuit.DEFAULT_BUILD:
+                variants[bld] = bom_cpl(board, prod, '%s-%s' % (name, bld), board_name, bld)
     n_pads = netlist(board, prod, name)
     pdf = assembly_pdf(board, prod, name)
     pics = renders(board, img, name)
@@ -340,4 +350,4 @@ def produce(board, board_name, name, v1_dir):
         pics.append(silk)
     stp = step(board, os.path.join(v1_dir, 'mechanical', name + '.step'))
     return dict(zip=zp, gerber_files=files, parts=n_parts, bom_lines=n_lines, bottom_parts=n_bottom,
-                pads=n_pads, pdf=pdf, images=pics, step=stp)
+                pads=n_pads, pdf=pdf, images=pics, step=stp, variants=variants)

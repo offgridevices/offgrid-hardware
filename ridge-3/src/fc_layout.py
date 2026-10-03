@@ -2,9 +2,9 @@
 """Ridge 3 flight controller (36 x 36 mm, 25.5 mm slotted holes):
 placement, power copper, planes and silkscreen.
 
-Double-sided assembly.  Top: MCU, gyro, flash, OSD and both crystals,
-connectors, solder pads, LEDs, the boot button and the video battery's
-clamp.  Bottom: the three switching supplies (5 V at the rear, 9 V on the
+Double-sided assembly.  Top: MCU, gyro, flash, OSD (analog build) and
+both crystals, connectors, solder pads (the HD video transmitter's on the
+right edge), LEDs, the boot button and the video battery's clamp.  Bottom: the three switching supplies (5 V at the rear, 9 V on the
 right, 3.3 V at the front left), the video supply's thermostat and the
 USB-C's VBUS diode and CC resistors.  Front of the quad is -y (top of
 every plot).  USB-C faces LEFT, as in v1; the ESC lead leaves from the
@@ -82,9 +82,7 @@ PLACE = {
     'J_ESC':   (-2.3, 14.6, 0, T),
     'P_BATG':  (6.0, 16.2, 0, T),
     'P_BAT':   (8.5, 16.2, 0, T),
-    'J_HD':    (15.4, -4.5, 90, T),
     'SW_BOOT': (15.9, 6.0, 90, T),
-    'SJ_SBUS': (12.0, -8.0, 90, T),
     'LED_STAT': (-7.0, 6.0, 0, T),
     'LED_PWR':  (13.2, 5.0, 90, T),
     'FB_OSD':  (-7.0, -9.5, 90, T),
@@ -101,6 +99,10 @@ PLACE = {
     'P_VTX9V': (-6.8, -PE, 0, T), 'P_VTXG': (-5.3, -PE, 0, T), 'P_VTX': (-3.8, -PE, 0, T),
     'P_CAM':   (-2.3, -PE, 0, T), 'P_CAMG': (-0.8, -PE, 0, T), 'P_CAM5V': (0.7, -PE, 0, T),
     'P_T1':    (6.5, -PE, 0, T), 'P_R1': (8.0, -PE, 0, T),
+    # right edge, front: the HD video transmitter's cable (9 V, ground,
+    # UART1), where its wires come off the front-right corner
+    'P_HD9V':  (PE, -7.5, 90, T), 'P_HDG': (PE, -6.0, 90, T),
+    'P_HDT':   (PE, -4.5, 90, T), 'P_HDR': (PE, -3.0, 90, T),
     # ---- bottom, 9 V BEC on the right: its SW pin (front right) at the
     # inductor's near end in front of it, VIN/GND (rear) at the input
     # capacitors
@@ -233,7 +235,7 @@ PLACE_BY_NOTE = {
 }
 # parts that stay exactly where the tables put them; the rest are hints
 # for the packer
-FIXED_REFS = {'U_FC', 'U_IMU', 'U_OSD', 'U_FLASH', 'J_USB', 'J_ESC', 'J_HD', 'SW_BOOT', 'P_BAT', 'P_BATG',
+FIXED_REFS = {'U_FC', 'U_IMU', 'U_OSD', 'U_FLASH', 'J_USB', 'J_ESC', 'SW_BOOT', 'P_BAT', 'P_BATG',
               'L_9V', 'U_BUCK9', 'U_BUCK5', 'L_5V', 'D_USB', 'U_BUCK3', 'L_3V3'}
 # (the hot loops' capacitors stay where the table puts them too)
 FIXED_NOTES = {'5V BEC input HF', '5V BEC bootstrap', '5V BEC input', '5V BEC 455 kHz', '5V BEC output',
@@ -421,9 +423,9 @@ def pours():
                                    (1.35, -4.95)])),
         ('GND', Bo, _rel(A9, [(1.25, 1.9), (2.9, 1.9), (2.9, 5.3), (0.85, 5.3), (0.85, 3.85), (1.25, 3.85)])),
         # 9 V: the inductor's output end and both output capacitors' 9 V
-        # pads, and the vias up to the HD connector
+        # pads, and the vias up to the HD video pads
         ('+9V', Bo, [(6.5, -9.4), (15.2, -9.4), (15.2, -6.3), (6.5, -6.3)]),
-        # top: from those vias to pin 1 of the HD connector
+        # top: from those vias towards the HD video's 9 V pad
         ('+9V', T, [(13.3, -8.75), (15.2, -8.75), (15.2, -6.5), (13.3, -6.5)]),
         # top: the 9 V BEC's input capacitor's ground end, over the input
         # pour, to its via down to the BEC's ground pin
@@ -451,7 +453,7 @@ def vias():
     return [
         ('VBAT', [(-4.45, 16.3), (-4.45, 17.05), (-3.7, 17.3)]),     # the lead's battery to the 5 V BEC
         ('VBAT_VTX', [(11.4, 9.3), (12.2, 9.3)]),                   # the video battery to the 9 V BEC
-        ('+9V', [(13.9, -8.3), (14.7, -8.3)]),                      # 9 V to the HD connector (pin 1 above)
+        ('+9V', [(13.9, -8.3), (14.7, -8.3)]),                      # 9 V up to the HD video's pads
         ('GND', [(14.45, 7.2)]),                                    # the 9 V input capacitor's ground
         ('GND', [(9.27, -11.55)], VIA_SIG),                         # the front 9 V output capacitor's ground
         # the 9 V BEC's EN pin, boxed in by its VIN and GND pins, the
@@ -667,6 +669,7 @@ LABELS = [
     ('P_RX5V', '5V'), ('P_RXG', 'G'), ('P_R2', 'R2'), ('P_T2', 'T2'),
     ('P_5V', '5V'), ('P_G1', 'G'), ('P_LED', 'LED'),
     ('P_VTX9V', '9V'), ('P_VTXG', 'G'), ('P_VTX', 'VTX'),
+    ('P_HD9V', '9V'), ('P_HDG', 'G'), ('P_HDT', 'T1'), ('P_HDR', 'R1'),
     ('P_CAM', 'CAM'), ('P_CAMG', 'G'), ('P_CAM5V', '5V'),
     ('P_BAT', 'BAT'), ('P_BATG', 'G'),
     ('TP_SWDIO', 'DIO'), ('TP_SWCLK', 'CLK'), ('TP_NRST', 'RST'),
@@ -697,7 +700,6 @@ def artwork(b):
         if side[ref] == 'T':
             top.label(ref, s, size=1.2, smallest=1.1, face='mono')
     top.label('J_ESC', '1', pad='1', dist=0.8, size=1.2, face='mono')
-    top.label('J_HD', '1', pad='1', dist=0.8, size=1.2, face='mono')
     top.label('SW_BOOT', 'Boot', pad='1', size=1.2)
     everywhere = top.grid_spots((0.0, 0.0), radius=17.0, step=0.25)
     mark, clear = brand.mark_mm(3.0)

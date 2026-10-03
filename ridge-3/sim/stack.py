@@ -28,7 +28,7 @@ def pad_cells(c, ref, nets=None):
 
 
 class StackModel:
-    def __init__(self, air, T_amb, h=0.5, gap=None, out='sim/out'):
+    def __init__(self, air, T_amb, h=0.5, gap=None, out='sim/out', build=None):
         self.ce, self.cf = copper.extract('esc'), copper.extract('fc')
         self.ge, self.gf = thermal.Grid(self.ce, h), thermal.Grid(self.cf, h)
         self.T_amb, self.air = T_amb, air
@@ -61,18 +61,25 @@ class StackModel:
             self._pads(0, 'L1')
         if not data.LEAD['soldered']:
             self._pads(0, 'J_FC')
+        # the FC's build (default circuit.DEFAULT_BUILD): an option group it
+        # leaves off (rev 2's HD build: the analog OSD) has no part here
+        import design
+        circ = design.circuit()
+        comps = circ.build('fc')
+        self.fc_fitted = {c.ref for c in (circ.fitted(comps, build) if hasattr(circ, 'fitted') else comps)}
         for ref, part in (('U_BUCK5', data.BUCK5), ('U_BUCK9', data.BUCK9), (data.V33['ref'], data.V33),
                           ('U_FC', data.MCU_FC), ('U_OSD', data.OSD)):
-            self._junction(1, ref, *pad_cells(cf, ref), part['rth_jb'], 0.03)
+            if ref in self.fc_fitted:
+                self._junction(1, ref, *pad_cells(cf, ref), part['rth_jb'], 0.03)
         # (rev 2 only: the 3.3 V buck's inductor, the thermostat, the video
         # battery's clamp; _pads skips a part the board does not have)
         for ref in ('U_IMU', 'U_FLASH', 'L_5V', 'L_9V', 'L_3V3', 'J_ESC', 'J_HD', 'D_TVS', 'D_TVS9', 'U_TSW'):
-            self._pads(1, ref)
+            if ref in self.fc_fitted:
+                self._pads(1, ref)
         # capacitors whose dielectric has a lower temperature limit than the board
-        import design
         for bi, c in ((0, ce), (1, cf)):
-            for cp in design.circuit().build(c.board):
-                if cp.part in data.CAPS:
+            for cp in circ.build(c.board):
+                if cp.part in data.CAPS and (bi == 0 or cp.ref in self.fc_fitted):
                     self._pads(bi, cp.ref, kind=cp.part)
         self.solver = thermal.Solver(self.st)
         self.n = self.solver.G.shape[0]
@@ -150,7 +157,8 @@ class StackModel:
                 if key:
                     self.put(P, 'FC ' + key, pl)
             self.put(P, 'FC U_FC', data.MCU_FC['p_run'])
-            self.put(P, 'FC U_OSD', data.OSD['p'])
+            if 'FC U_OSD' in self.parts:
+                self.put(P, 'FC U_OSD', data.OSD['p'])
             self.put(P, 'FC U_IMU', data.GYRO['p'])
             # the stack lead's two power contacts at each end (rev 2: soldered
             # at the ESC, no contacts there), and the HD lead's
@@ -158,7 +166,8 @@ class StackModel:
             self.put(P, 'FC J_ESC', 2 * ist ** 2 * data.STACK_CONN['r_contact'])
             if not data.LEAD['soldered']:
                 self.put(P, 'ESC J_FC', 2 * ist ** 2 * data.STACK_CONN['r_contact'])
-            self.put(P, 'FC J_HD', 2 * fc['i9'] ** 2 * data.HD_CONN['r_contact'])
+            if 'FC J_HD' in self.parts:          # rev 1's HD connector (rev 2: soldered pads)
+                self.put(P, 'FC J_HD', 2 * fc['i9'] ** 2 * data.HD_CONN['r_contact'])
             scale = dict(VBAT=ist, VBAT_VTX=fc.get('i_video', 0.0),
                          **{'+9V': fc['i9'], 'BUCK9_SW': fc['i9'], '+5V': fc['i5'], 'BUCK5_SW': fc['i5']})
             W = sum(self.fc_units[k][0] * (scale[k] / self.fc_units[k][1]) ** 2 for k in self.fc_units)
@@ -198,7 +207,7 @@ FC_PATHS_REV1 = {
 FC_PATHS_REV2 = {
     'VBAT': ({'J_ESC': 0.57, 'U_BUCK5': -0.57}, 0.57),
     'VBAT_VTX': ({'P_BAT': 1.04, 'U_BUCK9': -1.04}, 1.04),
-    '+9V': ({'L_9V': 2.0, 'J_HD': -2.0}, 2.0),
+    '+9V': ({'L_9V': 2.0, ('P_HD9V', 'J_HD'): -2.0}, 2.0),    # the HD VTX's 9 V: its pad (or socket)
     'BUCK9_SW': ({'U_BUCK9': 2.0, 'L_9V': -2.0}, 2.0),
     '+5V': ({'L_5V': 2.0, 'P_RX5V': -0.5, 'P_CAM5V': -0.5, 'P_5V': -0.875, 'U_BUCK3': -0.125}, 2.0),
     'BUCK5_SW': ({'U_BUCK5': 2.0, 'L_5V': -2.0}, 2.0),
@@ -217,6 +226,9 @@ def fc_copper(c, g):
     if key not in _fc:
         out = {}
         for net, (cur, ref) in fc_paths().items():
+            # a tuple names alternatives: the first part the board has
+            cur = {(next((r for r in k if r in c.parts), k[0]) if isinstance(k, tuple) else k): i
+                   for k, i in cur.items()}
             s = dcflow.solve(c, net, cur, T=20.0)
             W = dcflow.maps(c, s)['W']
             out[net] = (copperloss.coarse({'W': W}, g.f, g.ny, g.nx)['W'], ref)

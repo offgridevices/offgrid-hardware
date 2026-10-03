@@ -14,8 +14,9 @@ Two boards, one stack (Ridge 3), both 36 x 36 mm on the 25.5 mm
 M3/M2-grommet pattern of the GEPRC TAKER G4 AIO that Phase 1 flew:
 
   FC   STM32G473CEU6 + IIM-42652 (105 C) + 16 MB flash, USB-C, boot
-       button, analog OSD (AT7456E) and an HD VTX port (DJI / Walksnail /
-       HDZero, MSP DisplayPort), 5 V 2 A BEC and a switchable 9 V VTX BEC,
+       button, solder pads for an HD VTX (DJI / Walksnail / HDZero, MSP
+       DisplayPort) and, in the analog build, an analog OSD (AT7456E), 5 V
+       2 A BEC and a switchable 9 V VTX BEC,
        all rated for 6S.  firmware/ has the board's Betaflight target,
        one build for either gyro (Betaflight finds the one fitted).
   ESC  4 x (AT32F421G8U7 + DRV8320H + 6 x ISZ023N06LM6 60 V FETs + 0.5 mOhm
@@ -43,25 +44,31 @@ class Comp:
 COMPS = []
 _counts = {}
 
-# Option groups: parts a cheaper build may leave off, from the same board.
-# Each group owns nets that only its own parts use (OPTION_NETS); nothing
+# Option groups: parts a build may leave off, from the same board.  Each
+# group owns nets that only its own parts use (OPTION_NETS); nothing
 # outside the group may touch them, so leaving the group off cannot take
 # power or a signal from anything else (verify.py checks this).
-#   fpv       the analog OSD, the 9 V video supply and its switch, the HD
-#             video connector and the video pads' parts
+#   video     the 9 V video supply, its switch and thermostat, its battery
+#             pads, and the video transmitter's pads (HD and analog)
+#   analog    the analog OSD and its parts, the camera and analog video pads
 #   blackbox  the 16 MB flash (Betaflight runs without it: no blackbox)
-OPTIONS = ('fpv', 'blackbox')
+OPTIONS = ('video', 'analog', 'blackbox')
 OPTION_NETS = {
-    'fpv': {'VBAT_VTX', '+9V', 'BUCK9_SW', 'BUCK9_CB', 'BUCK9_RT', 'BUCK9_FB', 'BUCK9_EN',
-            'VTX_OFF_G', 'VTX_TSET', 'VTX_COOL', 'VTX_HOT_G', '+3V3_OSD', 'OSD_XI', 'OSD_XO', 'OSD_RST', 'OSD_VIN', 'OSD_VOUT', 'CAM_VIDEO',
-            'VTX_VIDEO', 'HD_SBUS'},
+    'video': {'VBAT_VTX', '+9V', 'BUCK9_SW', 'BUCK9_CB', 'BUCK9_RT', 'BUCK9_FB', 'BUCK9_EN',
+              'VTX_OFF_G', 'VTX_TSET', 'VTX_COOL', 'VTX_HOT_G'},
+    'analog': {'+3V3_OSD', 'OSD_XI', 'OSD_XO', 'OSD_RST', 'OSD_VIN', 'OSD_VOUT', 'CAM_VIDEO', 'VTX_VIDEO'},
     'blackbox': set(),
 }
+# The builds: which option groups each fits.  'hd' is the default (the
+# production BOM and CPL): an HD video transmitter needs no analog OSD,
+# whose AT7456E is an 85 C part (README); 'analog' fits it too.
+BUILDS = {'hd': ('video', 'blackbox'), 'analog': ('video', 'analog', 'blackbox')}
+DEFAULT_BUILD = 'hd'
 _option = None
 
 
 class option:
-    """with option('fpv'): every part added inside belongs to that group."""
+    """with option('video'): every part added inside belongs to that group."""
     def __init__(self, name):
         assert name in OPTIONS, name
         self.name = name
@@ -106,7 +113,7 @@ def fc_power():
     #     1.5 A (-40..+105 C, positive lock), which the FC's own loads stay
     #     under from 2S up (README).
     #   * two solder pads, wired to the ESC's battery pads: VBAT_VTX, the
-    #     9 V video supply's own input (fpv group).  A digital VTX takes up
+    #     9 V video supply's own input (video group).  A digital VTX takes up
     #     to 18 W; through the lead that is 1.5 A on an empty 6S pack, past
     #     the contact's rating.  Fed only from these pads, the video supply
     #     can never load the lead: with the pads unwired it has no input
@@ -158,7 +165,7 @@ def fc_power():
     res('R100K', '+5V', 'BUCK5_FB', B, '5V BEC feedback top')
     res('R24K9', 'BUCK5_FB', GND, B, '5V BEC feedback bottom')
 
-    with option('fpv'):
+    with option('video'):
         # the video supply's input: two pads for 20-22 AWG from the ESC's
         # battery pads, and its own surge clamp
         add('P', 'PAD_MOTOR', {'1': 'VBAT_VTX'}, B, 'video battery in +', ref='P_BAT')
@@ -348,12 +355,12 @@ def fc_core():
         cap('C100N', '+3V3', GND, B, 'flash')
     res('R10K', '+3V3', 'FLASH_CS', B, 'flash CS pullup')
 
-    # The video group (fpv): the analog OSD and the HD VTX port.  Optional:
-    # nothing outside the group uses its nets (OPTION_NETS).  The OSD's
-    # chip-select pull-up stays with the core, for the same reason as the
-    # flash's.
+    # The analog group: the analog OSD.  Optional (an HD build leaves it
+    # off): nothing outside the group uses its nets (OPTION_NETS).  The
+    # OSD's chip-select pull-up stays with the core, for the same reason as
+    # the flash's.
     res('R10K', '+3V3', 'OSD_CS', B, 'OSD CS pullup')
-    with option('fpv'):
+    with option('analog'):
         # Analog OSD: AT7456E (MAX7456-compatible; the only one still made) on
         # SPI2 with the flash, at 3.3 V: PB14 (SPI2 MISO) is a 4.0 V-maximum
         # pin, and the chip is specified from 3.15 V.  27 MHz crystal on
@@ -377,14 +384,15 @@ def fc_core():
         cap('C100N', 'CAM_VIDEO', 'OSD_VIN', B, 'camera coupling')
         res('R75', 'OSD_VOUT', 'VTX_VIDEO', B, 'VTX back-termination')
 
-        # Digital HD VTX: JST-SH 6-pin, Betaflight connector standard, which is
-        # DJI's O3/O4 cable pin for pin: 1 V+ (9 V rail), 2 GND, 3 FC TX,
-        # 4 FC RX, 5 GND, 6 SBUS/HDL.  Pin 6 reaches UART2 RX (the receiver
-        # port) only through a solder jumper, closed only when a DJI radio
-        # replaces the receiver.
-        add('J', 'SH6_V', {'1': '+9V', '2': GND, '3': 'UART1_TX', '4': 'UART1_RX', '5': GND,
-                           '6': 'HD_SBUS', '7': None, '8': None}, B, 'HD VTX (DJI / Walksnail / HDZero)', ref='J_HD')
-        add('SJ', 'SJ_OPEN', {'1': 'HD_SBUS', '2': 'UART2_RX'}, B, 'SBUS jumper (open)', ref='SJ_SBUS')
+    # Digital HD VTX (DJI O3/O4, Walksnail, HDZero): solder pads for its
+    # cable's wires, 9 V, ground and UART1 (MSP DisplayPort), in the video
+    # group.  No JST-SH socket: no header of that family is rated above
+    # 85 C, and on the ground in still air the board passes that (STRESS.md);
+    # a soldered wire also cannot shake loose.  A DJI radio's SBUS wire goes
+    # to the receiver pad (R2, UART2 RX).
+    with option('video'):
+        for ref, net in [('P_HD9V', '+9V'), ('P_HDG', GND), ('P_HDT', 'UART1_TX'), ('P_HDR', 'UART1_RX')]:
+            add('P', 'PAD_SIG', {'1': net}, B, 'HD VTX pad', ref=ref)
 
     # USB-C.  5.1k Rd on each CC so a C-to-C cable supplies 5 V.  VBUS feeds
     # the 5 V rail through a Schottky so the board runs (and configures) on
@@ -415,10 +423,13 @@ def fc_core():
             ('P_5V', '+5V'), ('P_G1', GND), ('P_LED', 'LED_STRIP')]
     for ref, net in pads:
         add('P', 'PAD_SIG', {'1': net}, B, 'pad', ref=ref)
-    # analog video: camera (5 V, G, video) and VTX (9 V, G, video)
-    with option('fpv'):
-        for ref, net in [('P_CAM5V', '+5V'), ('P_CAMG', GND), ('P_CAM', 'CAM_VIDEO'),
-                         ('P_VTX9V', '+9V'), ('P_VTXG', GND), ('P_VTX', 'VTX_VIDEO')]:
+    # analog video: camera (5 V, G, video) and VTX (9 V, G, video); the
+    # VTX's power pads belong to the video supply's group
+    with option('analog'):
+        for ref, net in [('P_CAM5V', '+5V'), ('P_CAMG', GND), ('P_CAM', 'CAM_VIDEO'), ('P_VTX', 'VTX_VIDEO')]:
+            add('P', 'PAD_SIG', {'1': net}, B, 'pad', ref=ref)
+    with option('video'):
+        for ref, net in [('P_VTX9V', '+9V'), ('P_VTXG', GND)]:
             add('P', 'PAD_SIG', {'1': net}, B, 'pad', ref=ref)
     for ref, net in [('TP_SWDIO', 'SWDIO'), ('TP_SWCLK', 'SWCLK'), ('TP_NRST', 'NRST')]:
         add('TP', 'PAD_TP', {'1': net}, B, 'test point', ref=ref)
@@ -690,6 +701,13 @@ def build(board):
         raise ValueError(board)
     mounting()
     return list(COMPS)
+
+def fitted(comps, build=None):
+    """The parts a build assembles: those in no option group, and those in
+    the groups BUILDS[build] fits (default DEFAULT_BUILD)."""
+    groups = BUILDS[build or DEFAULT_BUILD]
+    return [c for c in comps if c.option is None or c.option in groups]
+
 
 def nets(comps):
     out = {}

@@ -43,11 +43,11 @@ a change to one board moves only its number.
 | Battery | 2-6S (up to 25.2 V).  The ESC lead feeds the FC; the video supply has its own battery pads | 2-6S.  60 V FETs: 42 % of their rating on 6S |
 | Brain | STM32G473 (170 MHz). Betaflight target `RIDGE3` | 4 × Artery AT32F421 (120 MHz). AM32 target `RIDGE3_F421` |
 | Sensors | TDK IIM-42652 industrial gyro (-40..105 °C; an ICM-42688-P fits the same pads), battery voltage, current from the ESC | Current per motor (0.5 mΩ Kelvin shunt + TI INA186), battery voltage, an NTC thermistor at each motor's FETs |
-| Video (optional group) | **HD:** 6-pin JST-SH port for DJI O3/O4, Walksnail and HDZero (MSP DisplayPort on UART1, SBUS jumper). **Analog:** AT7456E OSD with camera and VTX pads | – |
+| Video (optional groups) | **HD** (the default build): solder pads for DJI O3/O4, Walksnail and HDZero air units, `9V G T1 R1` (MSP DisplayPort on UART1). **Analog build:** adds an AT7456E OSD with camera and VTX pads | – |
 | Power out | 5 V 2 A (TI LMR38020F). **9 V 2 A for the VTX** (a second LMR38020F) from its own battery pads, which Betaflight can switch off and a thermostat cuts above 96 °C. 3.3 V from a TI TPS628501 buck | – |
 | Power stage | – | 24 × Infineon ISZ023N06LM6 (60 V, 2.3 mΩ), TI DRV8320H smart gate drivers (set gate current, 2 A hold-off, overcurrent shutdown) |
 | Protection | TVS on each battery input. The 9 V rail stays off without its battery pads, and when its thermostat trips | Three 10 µF 50 V bus ceramics on the board, the FC's TVS on the same battery line. Current limit and temperature limit (read at the FETs) per motor (AM32), the drivers' overcurrent shutdown, stuck-rotor cut-out |
-| Connectors | USB-C, BOOT button, Molex Micro-Lock Plus stack lead (locking), 6-pin HD lead, solder pads | Through-hole battery pads, motor pads, soldered stack lead |
+| Connectors | USB-C, BOOT button, Molex Micro-Lock Plus stack lead (locking), solder pads | Through-hole battery pads, motor pads, soldered stack lead |
 | Blackbox | 16 MB Infineon flash (-40..125 °C); the board runs without it | – |
 | Layers | 6 | 8 (two battery plane pairs) |
 | Mounting | 25.5 mm, M2 soft-mount grommets; boards at least 6 mm apart | same |
@@ -198,7 +198,7 @@ The exceptions and thin spots, checked 1 October 2026:
 
 | Part | Issue | What to do |
 |---|---|---|
-| AT7456E analog OSD | Made in China; the only analog OSD chip still in production | Accepted exception, and optional: the `fpv` group leaves it off |
+| AT7456E analog OSD | Made in China; the only analog OSD chip still in production | Accepted exception, and only in the analog build: the default HD build leaves it off |
 | Artery AT32F421G8U7 (ESC MCUs) | Artery lists an office in Hsinchu, Taiwan and its R&D in mainland China (Chongqing, Suzhou) | A second exception to the non-Chinese rule, taken because it is the AM32-supported MCU that reads a FET thermistor and fits beside the DRV8320H.  The ST alternative (STM32G431KBU3, 5 × 5 mm) needs a board relayout |
 | Infineon ISZ023N06LM6 (ESC FETs) | Not stocked by LCSC | JLC global sourcing or PCBWay turnkey; DigiKey had 2,625 on 30 September |
 | Infineon S25FL128L (flash) | LCSC lists it with 0 stock | JLC global sourcing; the board runs without it |
@@ -349,9 +349,10 @@ pre-programming service.
    the receiver's TX, `T2` to the receiver's RX. CRSF on UART2 is the
    default.
 2. **Video:**
-   - **HD** (DJI O3/O4, Walksnail, HDZero): plug the air unit's 6-pin lead
-     into the FC's HD port. If the air unit carries the receiver's SBUS
-     (DJI), close the `SBUS` jumper.
+   - **HD** (DJI O3/O4, Walksnail, HDZero): solder the air unit's lead to
+     the FC's front pads: its supply to `9V`, ground to `G`, its RX to `T1`
+     and its TX to `R1`.  If the air unit carries the receiver's SBUS (DJI),
+     solder that wire to `R2` in place of the receiver's TX.
    - **Analog:** camera on `CAM`, `G`, `5V`; VTX on `VTX`, `G` and `9V`,
      along the front edge.
 3. **Battery lead** onto the ESC's rear pads: `+` left, `-` right, as
@@ -497,7 +498,7 @@ ridge-3/
                           power stage, FC video, sourcing and market
   aio.pretty/ aio.3dshapes/   footprints and 3D models (from JLCPCB/EasyEDA's
                           own library entries for the exact LCSC parts; the
-                          JST-SH and USB-C connectors use KiCad's own models)
+                          USB-C connector uses KiCad's own model)
   fonts/                  Instrument Sans and JetBrains Mono (SIL OFL)
   src/                    the design, as Python (see below)
   sim/                    the stress simulations behind STRESS.md
