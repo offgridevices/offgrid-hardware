@@ -9,11 +9,15 @@ not the whole stack.
 Ridge 3 is the first of a line named by prop size: **Ridge 3**, **Ridge 7**,
 **Ridge 12**. Only Ridge 3 is designed so far.
 
-**Revision 2** is built for a heavy quad flown hard on a 50 °C day: every
-part is chosen for the temperatures the simulations give, and nothing on the
-boards is meant to burn out before the firmware's limits act.
-[`docs/REV2.md`](docs/REV2.md) lists every change from revision 1 and why;
-[`STRESS.md`](STRESS.md) runs both revisions through the same simulations.
+**Revision 2** is built for a heavy quad on a 50 °C day: every part is
+chosen for the temperatures the simulations give, and the firmware's limits
+act before the power stage burns out.  On such a day, with 5 m/s of air over
+the stack, it holds 28 % throttle indefinitely before AM32's temperature
+limit starts cutting a motor (hover is 27 %; 41 % on a 25 °C day), and hard
+flying brings that limit on within about 20 s: fly gently when it is that
+hot.  [`docs/REV2.md`](docs/REV2.md) lists every change from revision 1 and
+why; [`STRESS.md`](STRESS.md) runs both revisions through the same
+simulations, including what rev 2 still does not pass.
 
 **Status: designed, not yet built.** Both boards pass KiCad DRC with zero
 errors, zero warnings and zero unconnected items against JLCPCB's rules.
@@ -125,10 +129,14 @@ protection, and the gate drivers' own overcurrent shutdown.  See
 
 **Heat on the flight controller.**  The FC's own losses are its supplies,
 and the video supply is the big one.  It runs from its own battery pads,
-and a thermostat beside it switches it off above 96 °C (on again at 76 °C):
-on the ground with the video on and no airflow, the video drops out before
-the board overheats.  [`STRESS.md`](STRESS.md) shows when that happens and
-that it does not in flight.
+and a thermostat beside it switches it off above 96 °C (on again at 76 °C),
+which keeps the supplies and the processor in their ratings on the ground
+up to a 50 °C day, and in the simulated hard flight at 50 °C never trips.  It does not protect the two 85 °C parts, the
+JST-SH HD video connector and the analog OSD: on the ground in still air
+with the HD video on (9 V at 1.5 A), the connector passes 85 °C after about
+3 minutes on a 25 °C day and 1.5 minutes on a 50 °C one.  On the bench, put
+a fan on the stack or keep the video off; [`STRESS.md`](STRESS.md) has the
+times.
 
 The inner copper is 1 oz on both boards.  None of this is measured yet:
 bring-up step 6 measures it.

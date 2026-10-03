@@ -523,8 +523,8 @@ def esc_power():
 # cold at 30 A (TI's remedy for SHx spikes: a slower IDRIVE sink).  It
 # doubles the switching energy and nearly doubles the dead time (the
 # driver waits for the other gate to fall): at 50 C, 5 m/s the stack holds
-# 34 % throttle with every part in its rating (41 % at 60/120 mA), hover
-# being 27 %.
+# 34 % throttle with every part in its rating (41 % at 60/120 mA), and 28 %
+# before AM32's temperature limit cuts in (34 %), hover being 27 %.
 #   value: (source A, what the pin connects to: None = open, else (part, net))
 IDRIVE_LEVELS = {0.03: ('R18K_0201', GND), 0.06: ('R75K_0201', GND), 0.12: None, 0.26: ('R75K_0201', 'DVDD')}
 IDRIVE = 0.03
