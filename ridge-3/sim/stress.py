@@ -955,11 +955,20 @@ def bursts_section(sw, fcmax):
                      when(fmax, 150.0), when(fmax, data.FET['tch_max']), when(mmax, data.AM32['temp_limit'])])
         found.setdefault('bursts', {})[(Ta, v)] = (t[np.argmax(fmax >= data.FET['tch_max'])] if (fmax >= data.FET['tch_max']).any() else None,
                                                    t[np.argmax(mmax >= data.AM32['temp_limit'])] if (mmax >= data.AM32['temp_limit']).any() else None)
+        # the same burst with AM32's temperature limit acting, as it does in
+        # the air: the hottest FET it lets through
+        Tp, trp, _ = run_transient(m, [(3.0 if QUICK else 10.0, 100.0)], sw, T0, 0.25, fcmax, V, am32=True,
+                                   watch=fets)
+        peak = float(np.max([trp[k] for k in fets]))
+        found.setdefault('bursts_protected', {})[(Ta, v)] = peak
+        rows[-1].append('%.0f C' % peak)
     table(['Air', 'Hovering: hottest FET / processor / %s capacitor' % CAP_LABEL[0],
-           'Hottest FET after 1 / 2 s of full throttle', 'A FET reaches 150 C', 'A FET reaches its 175 C maximum',
+           'Without the temperature limit: hottest FET after 1 / 2 s of full throttle', 'A FET reaches 150 C',
+           'A FET reaches its 175 C maximum',
            'AM32\'s sensor (%s) reaches its %.0f C cut' % (
                'the processor' if data.AM32.get('sensor', 'U_ESC') == 'U_ESC' else 'the FET thermistor',
-               data.AM32['temp_limit'])], rows)
+               data.AM32['temp_limit']),
+           'With the limit acting: hottest FET in %.0f s' % (3.0 if QUICK else 10.0)], rows)
     # which FET got hottest, and how far it is from a battery pad
     m = model(5.0, HOT)
     ce = m.ce
@@ -1245,6 +1254,8 @@ def compare_section(r1, r2):
     b2 = f2.get('bursts', {}).get((HOT, 5.0), (None, None))[0]
     rows.append(['Full-throttle burst from hover, %.0f C, 5 m/s: a FET reaches 175 C after' % HOT,
                  '%.1f s' % b1 if b1 is not None else 'never (10 s)', '%.1f s' % b2 if b2 is not None else 'never (10 s)', ''])
+    row('Same, with AM32\'s temperature limit acting: hottest FET',
+        f1.get('bursts_protected', {}).get((HOT, 5.0)), f2.get('bursts_protected', {}).get((HOT, 5.0)), '%.0f C')
     fl1, fl2 = f1.get('flight', {}), f2.get('flight', {})
     row('Hard 3-minute flight, %.0f C: hottest FET' % HOT, fl1.get('fet'), fl2.get('fet'), '%.0f C')
     row('Hard 3-minute flight, %.0f C: hottest ESC processor' % HOT, fl1.get('mcu'), fl2.get('mcu'), '%.0f C')
@@ -1400,12 +1411,21 @@ def heat_verdicts(results, first):
                     th >= HOVER, 'up to %.0f %% throttle' % th, '%.0f %%' % HOVER)
             verdict('Heat', 'Hover held indefinitely with the FETs under 150 C, %.0f C air, 5 m/s' % Ta,
                     th2 >= HOVER, 'up to %.0f %% throttle' % th2, '%.0f %%' % HOVER)
+    # a full-throttle burst: AM32's temperature limit must act before the
+    # FETs pass their limit (rev 1's limit read the processor's die and acted
+    # after them).  Judged on the hottest FET with the limit acting: under
+    # 150 C (the design limit) passes, under 175 C (the FET's maximum) is
+    # marginal; how fast the FETs climb without it is in the report's table
     for (Ta, v), (t175, tcut) in sorted(found.get('bursts', {}).items()):
         if v == 5.0 and Ta in (25.0, HOT):
-            verdict('Heat', 'Full-throttle burst from hover (AM32 at 20 A per motor), %.0f C air, 5 m/s' % Ta,
-                    t175 is None, 'a FET reaches 175 C after %.1f s; AM32\'s cut after %s' % (
-                        t175, '%.1f s' % tcut if tcut is not None else '> 10 s') if t175 is not None else 'no FET reaches 175 C in 10 s',
-                    '175 C')
+            peak = found.get('bursts_protected', {}).get((Ta, v))
+            verdict('Heat', 'Full-throttle burst from hover (AM32 at 20 A per motor), %.0f C air, 5 m/s: '
+                    'hottest FET with AM32\'s temperature limit acting' % Ta,
+                    peak < 150.0 or ('MARGINAL' if peak < data.FET['tch_max'] else False),
+                    '%.0f C (the limit acts after %s; without it a FET reaches 175 C %s)' % (
+                        peak, '%.1f s' % tcut if tcut is not None else '> 10 s',
+                        'after %.1f s' % t175 if t175 is not None else 'not in 10 s'),
+                    '150 C design, 175 C maximum')
     f = found.get('flight', {})
     verdict('Heat', 'Hard 3-minute flight at %.0f C: AM32 cuts a motor\'s power for heat' % HOT,
             f.get('cut') is None, 'first at %.0f s, %.0f %% of the flight' % (f['cut'], 100 * f['frac'])
