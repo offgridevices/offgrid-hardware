@@ -148,12 +148,15 @@ protection, and the gate drivers' own overcurrent shutdown.  See
 and the video supply is the big one.  It runs from its own battery pads,
 and a thermostat beside it switches it off above 96 °C (on again at 76 °C),
 which keeps the supplies and the processor in their ratings on the ground
-up to a 50 °C day, and in the simulated hard flight at 50 °C never trips.  It does not protect the two 85 °C parts, the
-JST-SH HD video connector and the analog OSD: on the ground in still air
-with the HD video on (9 V at 1.5 A), the connector passes 85 °C after about
-3 minutes on a 25 °C day and 1.5 minutes on a 50 °C one.  On the bench, put
-a fan on the stack or keep the video off; [`STRESS.md`](STRESS.md) has the
-times.
+up to a 50 °C day, and in the simulated hard flight at 50 °C never trips.
+The HD build has no part rated below 105 °C left: the air unit solders to
+pads.  The analog build's AT7456E OSD is an 85 °C part the thermostat does
+not protect: on the ground in still air it reaches 91 °C on a 25 °C day.
+Past the design day, at 60 °C in still air, the processor reaches 107 °C
+against its 105 °C even with the video held off.  The 130 °C STM32G473CEU3
+fits the same pads, but ST quotes 52 weeks for the whole STM32G4 family.
+On the bench, put a fan on the stack or keep the video off;
+[`STRESS.md`](STRESS.md) has the times.
 
 The inner copper is 1 oz on both boards.  None of this is measured yet:
 bring-up step 6 measures it.
@@ -221,7 +224,7 @@ The exceptions and thin spots, checked 1 October 2026:
 | Infineon S25FL128L (flash) | LCSC lists it with 0 stock | JLC global sourcing; the board runs without it |
 | Abracon ABM8AIG 27 MHz (OSD crystal) | JLC stock 1 | DigiKey had 8,544; SCTF SX3B27.000F1010G30 (105 °C) fits the same land with JLC stock |
 | TI TPS628501 (3.3 V buck), TDK TFM252012 (its inductor), Murata GCJ32E 10 µF (ESC bus) | JLC stock 85 / 130 / 259 | Enough for a prototype run; buy ahead or consign for volume |
-| STM32G473CEU6 (FC MCU) | 105 °C junction; the 130 °C CEU3 fits the same pads and image but was out of stock everywhere | Fit the CEU3 when it is available |
+| STM32G473CEU6 (FC MCU) | 105 °C junction; the 130 °C CEU3 fits the same pads and image but is out of stock everywhere: since mid-2026 ST quotes 52 weeks for the whole STM32G4 family (foundry capacity moved to higher-value parts, distributors asking for 2027's orders now), and DigiKey, Mouser, JLC and ST's own store have none of the -3 temperature grade.  The STM32G474CEU3 is the same (DigiKey 0, 52 weeks, 3 October) | Fit the CEU3 when it is available |
 | Resistors | JLC's are UNI-ROYAL (operations in China) | Yageo equivalents are listed as `dk_mpn` in `parts.py` |
 
 ## Selling in the US and allied countries (not legal advice)

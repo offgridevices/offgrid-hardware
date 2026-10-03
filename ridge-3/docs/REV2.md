@@ -72,7 +72,7 @@ Board revision labels: both boards print **REV 2.0**.
 
 | Part | Rating | Why it stays |
 |---|---|---|
-| STM32G473CEU6 | 105 °C junction | The 130 °C STM32G473CEU3 is a drop-in (same pads, same image) but was out of stock everywhere (JLC 0, DigiKey 52 weeks).  The simulations check the junction against 105 °C |
+| STM32G473CEU6 | 105 °C junction | The 130 °C STM32G473CEU3 is a drop-in (same pads, same image) but is out of stock everywhere (JLC 0; DigiKey 0, 52 weeks on 3 October): ST quotes 52 weeks for the whole STM32G4 family since mid-2026, and DigiKey, Mouser, JLC and ST's own store have none of the -3 grade.  The simulations check the junction against 105 °C |
 | AT7456E analog OSD | -40..+85 °C | The only MAX7456-compatible chip still made; only in the `analog` build.  The thermostat keeps the video side from cooking on the ground |
 | GCT USB4105 USB-C | -40..+85 °C | No 16-pin USB 2.0 receptacle in this style is rated 105 °C with stock (the 105 °C ones are 24-pin, other lands).  It carries nothing in flight |
 
