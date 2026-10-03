@@ -310,7 +310,8 @@ DESIGNS = {
         BUCK5=LMR38020F_455, BUCK9=LMR38020F_9V, V33=TPS628501,
         MCU_FC=G473, OSD=AT7456E, GYRO=IIM42652, FLASH=S25FL128L,
         STACK_CONN=MICROLOCK, HD_CONN=JST_SH, FC_TVS=SMF33A,
-        INDUCTORS=dict(INDUCTORS_REV2), THERMOSTAT=TMP390, HEATSINK=None,
+        INDUCTORS=dict(INDUCTORS_REV2), THERMOSTAT=TMP390,
+        HEATSINK='src/heatsink.py',        # the ESC's heatsink (stack.heatsink)
         LEAD=dict(split=True, kelvin=True, soldered=True),
     ),
 }

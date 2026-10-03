@@ -760,6 +760,26 @@ def heat_section(sw):
         'tables say how much of the time the video stays on)' % data.THERMOSTAT['trip']
         if data.THERMOSTAT else ''))
     say()
+    if getattr(data, 'HEATSINK', None):
+        import heatsink as hsk
+        P, th = hsk.PARAMS, hsk.thermal()
+        mp = model(5.0, HOT).plate
+        say('Under the ESC, its heatsink (`src/heatsink.py`; the STEP and drawing in '
+            '`mechanical/`): a %s plate, %.1f mm base with a pocket over every part '
+            'on the ESC\'s bottom, %.0f mm fins along the air (%.0f mm thick, %.0f mm '
+            'slots), on a %s %s gap pad squeezed from %.1f to %.2f mm.  The pad is '
+            'taken at its maker\'s measured thermal impedance at that squeeze (%.2f C '
+            'in2/W: about half of what its %.1f W/m K headline gives), and only where '
+            'it lies between bare board and the plate (%.0f mm2): what it does on '
+            'the parts\' tops is left out.  The fins: laminar plate-fin channel flow '
+            '(Teertstra, Yovanovich and Culham, 2000) with %.0f %% of the free stream '
+            'getting between them (ASSUMPTION), %.0f W/m2 K at 5 m/s; in still air '
+            'they count as a flat plate.' % (
+                P['material'].split(',')[0], P['base'], P['fins']['h'], P['fins']['t'],
+                P['fins']['gap'], P['pad']['maker'], P['pad']['mpn'], P['pad']['t'], P['gap'],
+                th['pad_r'] / hsk.IN2, P['pad']['k_sheet'], mp['contact'].sum() * HEAT_H ** 2,
+                100 * th['bypass'], mp['h']))
+        say()
     say('Motor current comes from the motor maker\'s thrust-stand table '
         '(%s): battery current against throttle, scaled to the pack voltage; the '
         'phase current is that over the duty; AM32 holds each motor to %.0f A '
@@ -1411,11 +1431,14 @@ def limits_section():
         'a 3-inch tri-blade, from its maker\'s thrust table; a 6S pack whose '
         'resistance no maker publishes).  Another motor changes the currents.',
         'Air: the convection over the stack comes from flat-plate correlations '
-        'at an assumed air speed, and the gap between the boards from an '
-        'assumed 5 mm.  A frame\'s top plate, a VTX above the FC or a camera '
-        'in front change it; the air-speed rows show how much it matters.',
+        '(the heatsink\'s fins: a plate-fin channel correlation) at an assumed '
+        'air speed, with an assumed share of it getting between the fins, and '
+        'the gap between the boards from an assumed 5 mm.  A frame\'s top plate, '
+        'a VTX above the FC or a camera in front change it; the air-speed rows '
+        'show how much it matters.',
         'Heat carried away (or brought in) by the motor wires, the battery '
-        'leads, the screws and the grommets, and heat from the VTX itself.',
+        'leads, the screws, the grommets and the heatsink\'s feet on the frame, '
+        'and heat from the VTX itself.',
         'The loop inductance of each half-bridge is estimated from the layout, '
         'not field-solved; the edge results are shown for 3-8 nH.',
         'AC effects in the copper: the switching-frequency part of the battery '

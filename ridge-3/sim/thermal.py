@@ -102,11 +102,12 @@ class Stack:
 
     plate (optional): a heatsink under the bottom board, one node per cell of
     that board's grid where plate['mask'] is set.  It conducts sideways
-    through its base (k t), takes heat from the board's bottom copper through
-    a gap pad over the whole mask (k_pad / t_pad), and loses it from its
-    underside to the air (the fins' extra area times their efficiency) and by
-    radiation (its emissivity).  The board's bottom face under it no longer
-    sees the air."""
+    through its base (k t, t per cell in mm: pockets thin it), takes heat
+    from the board's bottom copper through a gap pad on the share of each
+    cell in plate['contact'] (plate['g_pad'], W/m2 K), and loses it from its
+    underside to the air (plate['h'] over the fins' effective area,
+    plate['area']) and by radiation (its emissivity).  The board's bottom
+    face under it no longer sees the air."""
 
     def __init__(self, grids, gaps, air, T_amb, plate=None):
         """air: dict(h_out, h_gap, eps) convection W/m2K on outer faces and in the gaps."""
@@ -189,20 +190,27 @@ class Stack:
         p, g, air = self.plate, self.grids[0], self.air
         A = (g.h * 1e-3) ** 2
         pid = self.plate_ids
-        t = p['t'] * 1e-3
-        # sideways through the base
+        ok = pid >= 0
+        t = np.broadcast_to(np.asarray(p['t'], float), pid.shape) * 1e-3
+        k = p.get('k', K_AL)
+        # sideways through the base: the two half-cells in series
         for dy, dx in ((0, 1), (1, 0)):
             a = pid[:g.ny - dy, :g.nx - dx]; b = pid[dy:, dx:]
-            ok = (a >= 0) & (b >= 0)
-            self._link(a[ok], b[ok], K_AL * t)
-        # the gap pad, from the board's bottom copper to the plate
+            m = (a >= 0) & (b >= 0)
+            ta, tb = t[:g.ny - dy, :g.nx - dx][m], t[dy:, dx:][m]
+            self._link(a[m], b[m], k * 2 * ta * tb / (ta + tb))
+        # the gap pad, from the board's bottom copper to the plate, on the
+        # share of each cell where it lies between bare board and the plate
         bot = g.ids[g.L - 1]
-        ok = pid >= 0
-        self._link(self.off[0] + bot[ok], pid[ok], p['k_pad'] / (p['t_pad'] * 1e-3) * A)
-        # underside to the air: the fins' area times their efficiency, and radiation
-        self.gamb[pid[ok]] += (air['h_out'] * p.get('area', 1.0) + p.get('eps', air['eps']) * hr) * A
+        share = np.broadcast_to(np.asarray(p.get('contact', 1.0), float), pid.shape)
+        on = ok & (share > 0)
+        self._link(self.off[0] + bot[on], pid[on], p['g_pad'] * share[on] * A)
+        # underside to the air: its own coefficient over the fins' effective
+        # area, and radiation
+        self.gamb[pid[ok]] += (p.get('h', air['h_out']) * p.get('area', 1.0) + p.get('eps', air['eps']) * hr) * A
         # heat capacity: the base and the fins' metal, and the pad
-        self.cap[pid[ok]] += (RC_AL * (t + p.get('fin_vol', 0.0) * 1e-3) + p.get('rc_pad', 2.5e6) * p['t_pad'] * 1e-3) * A
+        self.cap[pid[ok]] += (RC_AL * (t[ok] + p.get('fin_vol', 0.0) * 1e-3)
+                              + p.get('rc_pad', 2.5e6) * p.get('t_pad', 0.0) * 1e-3 * share[ok]) * A
 
     def junction(self, bi, ref, fine_cells, layer, R, C):
         """A part's junction node, R (K/W) to the copper under fine_cells on `layer`."""

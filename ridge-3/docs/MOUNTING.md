@@ -83,10 +83,18 @@ An open U-notch is worse than either, and is what BetaFPV gave up for
 
 ## Hardware
 
-- **Grommets:** M3-to-M2 silicone grommets for a 3.0-3.5 mm board hole,
-  with a flange of 4.4-4.5 mm. Examples are FlyingTech type B
+- **Grommets (the FC):** M3-to-M2 silicone grommets for a 3.0-3.5 mm
+  board hole, with a flange of 4.4-4.5 mm. Examples are FlyingTech type B
   (4.4 x 6.6 mm), or the "M2 x 6.6 mm" grommets SpeedyBee ships with its
   F405 AIO. Not the ones made for 4 mm holes.
+- **The ESC sits on its heatsink** (README, `../src/heatsink.py`): four
+  5 mm bosses round the holes carry it, on the bare ring the outer copper
+  keeps clear (2.6 mm, so the bosses' 2.5 mm radius bears on laminate and
+  solder mask), and an M2 nut on each screw clamps it down; the nut's
+  2.3 mm corner radius bears on the same ring on top.  The bosses set the
+  gap pad's squeeze, which rubber under the board could not.  The slots
+  stay: the FC uses them, and on the ESC they cost the bosses a 2.5 mm
+  strip of the ring.
 - **Screws and nuts:** M2 screws, and M2 nylon-insert or aluminium nuts.
 - **No M3 hard mount.**  The frames' 25.5 mm holes are M2, and an M3 nut
   needs 3.1-3.2 mm of bare board round the hole. A hard mount, if wanted,
@@ -94,10 +102,10 @@ An open U-notch is worse than either, and is what BetaFPV gave up for
 - **Board gap: at least 6 mm** from the ESC's top to the FC's bottom.
   - The FC's two 3.0 mm inductors and its 1210 capacitor C7 sit over the
     ESC's motor and battery pads.
-  - 3.0 mm part + 2.0 mm wire joint + 0.5 mm the grommets give in a
-    1500 g crash leaves 0.5 mm.
+  - 3.0 mm part + 2.0 mm wire joint + 0.5 mm the FC's grommets give in
+    a 1500 g crash leaves 0.5 mm.
   - Solder the battery lead into its pads from below and trim it flush
-    on top.
+    on top; the heatsink's notches let it out to the rear.
   - The simulations assume 5 mm. A wider gap only cools the boards.
 
 ## Still to check on the bench

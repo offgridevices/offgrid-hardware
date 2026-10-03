@@ -907,6 +907,22 @@ PARTS = {
     'C47N_50': C('47nF', C0402, 'C343051', 'CGA2B3X7R1H473KT0Y0F', '50V X7R 0402', maker='TDK (Japan)'),
 }
 
+# Maximum seated height (mm, seating plane to the top of the body, the
+# standoff included) of every part on the ESC's bottom, from each maker's
+# own package drawing: the heatsink (heatsink.py) pockets them to this.
+HEIGHTS = {
+    'ISZ023N06LM6': 1.10,   # Infineon datasheet rev 2.0, PG-TSDSON-8-U03 outline, A 0.90-1.10
+    'C_BRIDGE':     1.45,   # Murata GRM21BZ71H475KE15-01A spec, T 1.25 +/- 0.2
+    'C10U50_SOFT':  2.80,   # Murata GCJ32EC71H106KA01-02B spec, T 2.5 +/- 0.3
+    'C100N':        0.55,   # Samsung CL05B104KB54PN data sheet, T 0.50 +/- 0.05
+    'DRV8320H':     0.80,   # TI SLVSDJ3D, RTV0032E outline, 0.8 max
+    'AT32F421G':    0.80,   # Artery AT32F421 datasheet v2.02 table 50, A 0.70-0.80
+    'EDZV4V7':      0.70,   # ROHM EDZV4.7B datasheet rev 004, EMD2 outline, 0.50-0.70
+    'SHUNT_0M5':    1.05,   # Stackpole HCS series datasheet, 1206 L500, T 0.90 +/- 0.15
+}
+for _k, _h in HEIGHTS.items():
+    PARTS[_k]['h'] = _h
+
 # Things that are copper only: solder pads, test points, solder jumpers,
 # mounting holes.  They carry no LCSC number and are left out of the BOM
 # and pick-and-place.

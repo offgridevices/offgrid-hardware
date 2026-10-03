@@ -18,15 +18,18 @@ Gates (any failure stops the build):
   * every pad's net on the board equals circuit.py
   * every assembled part appears in the BOM and CPL with an LCSC number
   * circuit.py itself: no part without a footprint, no single-pin net
+  * the ESC's heatsink: made from this board (heatsink.current)
   * the 3 x 2 production panel (panel.py): DRC equal to six boards', every
     copy's Gerbers, BOM and CPL identical to the single board's, fiducial
     keep-out measured on the Gerbers
 
 Needs KiCad 10 (pcbnew Python module + kicad-cli) and, for --reroute only,
 Freerouting 1.9 (FREEROUTING_JAR=path/to/freerouting-1.9.0.jar) with java
-and xvfb-run.
+and xvfb-run.  The ESC's heatsink (heatsink.py) is made again only when the
+ESC or its parameters change; that needs CadQuery 2.x
+(CADQUERY_PYTHON=path/to/python if this python does not have it).
 """
-import os, sys, csv, shutil, tempfile
+import os, sys, csv, json, shutil, tempfile
 # one fixed hash seed: set and dict iteration over strings then runs in the
 # same order every time, and with the seeded item IDs (pipeline.SEEDS) a
 # reroute gives the same board, byte for byte in its copper
@@ -152,8 +155,25 @@ def build(board, reroute, art=False, pan=True, finish_dir=None):
           % (os.path.relpath(out['zip'], V1), len(out['gerber_files']), out['parts'], out['bom_lines'],
              out['bottom_parts'], out['pads']))
     check_outputs(board, name, os.path.join(V1, board, 'production'))
+    if board == 'esc':
+        heatsink_outputs(dst)
     if pan:
         make_panel(board, name, dst)
+
+
+def heatsink_outputs(dst):
+    """The ESC's heatsink (heatsink.py) from the board just built: made
+    again when the board or its parameters have changed since the committed
+    one (that needs CadQuery: CADQUERY_PYTHON)."""
+    import heatsink
+    out = os.path.join(V1, 'mechanical')
+    if not heatsink.current(out, dst):
+        heatsink.build(dst, out)
+        print('  heatsink: wrote %s-step.zip, ridge3-esc-gap-pad.dxf, %s.pdf' % (heatsink.NAME, heatsink.NAME))
+    s = json.load(open(os.path.join(out, heatsink.NAME + '.json')))
+    gate(heatsink.current(out, dst), 'esc: heatsink from this board: every bottom part pocketed to its maximum '
+         'height, no wall under %.1f mm, pad at %.0f %% squeeze (in its charts); plate %.1f g, pad %.1f g'
+         % (heatsink.PARAMS['floor'], s['pad_deflection_pct'], s['plate_g'], s['pad_g']))
 
 
 def stack_sheet():

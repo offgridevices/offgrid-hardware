@@ -27,13 +27,71 @@ def pad_cells(c, ref, nets=None):
     return (np.concatenate(cells) if cells else np.zeros(0, int)), li
 
 
+def fin_h(v, b, t, L, k=0.0279, nu=1.79e-5, pr=0.71):
+    """Heat transfer coefficient (W/m2 K) in the channels of a plate-fin
+    heat sink: Teertstra, Yovanovich and Culham, "Analytical forced
+    convection modeling of plate fin heat sinks", J. Electronics
+    Manufacturing 10(4), 2000: the composite of fully developed and
+    developing laminar channel flow.  v: air speed arriving at the sink
+    (m/s); b: the gap between fins, t: fin thickness, L: fin length along
+    the air (mm); air near 50 C."""
+    b, t, L = b * 1e-3, t * 1e-3, L * 1e-3
+    re = v * (1 + t / b) * b / nu * b / L          # channel Reynolds number, scaled by b / L
+    nu_b = ((re * pr / 2) ** -3 + (0.664 * re ** 0.5 * pr ** (1 / 3) * (1 + 3.65 / re ** 0.5) ** 0.5) ** -3) ** (-1 / 3)
+    return nu_b * k / b
+
+
+def heatsink(c, g, hs, air):
+    """The ESC's heatsink (src/heatsink.py) as thermal.Stack takes it: its
+    geometry from the routed board, sampled on the ESC's fine grid and
+    averaged onto the thermal grid.
+
+    A cell is plate where most of it is (not the notches, holes and the
+    windows through the base); its thickness is the base's less its pockets;
+    the gap pad conducts on the share of the cell where it lies between bare
+    board and the plate's face (not over the parts on the ESC's bottom nor
+    their pockets: what it does on their tops is left out), at the pad's
+    impedance from its maker's charts at its squeeze.
+
+    The underside in moving air: straight fins along the air, their sides
+    adding 2 H / pitch of area per area of base at the efficiency
+    tanh(m H) / (m H), m = sqrt(2 h / (k t_fin)), and h the channels' (fin_h)
+    at the speed that gets between the fins (hs['bypass'] of the free
+    stream; an unshrouded fin array sends the rest round it).  In still air
+    the narrow slots do not breathe: the underside counts as a flat plate."""
+    import heatsink as hsk, pcb
+    f = hsk.features(c.path)
+    th = hsk.thermal(f)
+    xs = c.x0 + (np.arange(c.nx) + 0.5) * c.res - pcb.CX
+    ys = c.y0 + (np.arange(c.ny) + 0.5) * c.res - pcb.CY
+    X, Y = np.meshgrid(xs, ys)
+    m = hsk.masks(f, X, Y)
+    k = g.f
+    mean = lambda a: a[:g.ny * k, :g.nx * k].astype(float).reshape(g.ny, k, g.nx, k).mean(axis=(1, 3))
+    share = mean(m['plate'])
+    plate = share > 0.5
+    t = np.where(plate, mean(m['t']) / np.maximum(share, 1e-9), 0.0)
+    fin = th['fins']
+    area, h = 1.0, air['h_out']
+    if air.get('v', 0) > 0:
+        h = fin_h(air['v'] * th['bypass'], fin['gap'], fin['t'], th['length'])
+        mm = np.sqrt(2 * h / (th['k'] * fin['t'] * 1e-3))
+        mH = mm * fin['h'] * 1e-3
+        area = 1 + np.tanh(mH) / mH * 2 * fin['h'] / th['pitch']
+    return dict(mask=plate, contact=np.where(plate, mean(m['contact']), 0.0), t=t, k=th['k'],
+                g_pad=1.0 / th['pad_r'], t_pad=th['pad_t'], h=h, area=area,
+                fin_vol=fin['h'] * fin['t'] / th['pitch'], eps=th['eps'], info=th)
+
+
 class StackModel:
     def __init__(self, air, T_amb, h=0.5, gap=None, out='sim/out', build=None):
         self.ce, self.cf = copper.extract('esc'), copper.extract('fc')
         self.ge, self.gf = thermal.Grid(self.ce, h), thermal.Grid(self.cf, h)
         self.T_amb, self.air = T_amb, air
         gap = gap or data.STACK['gap']
-        self.st = thermal.Stack([self.ge, self.gf], [gap], air, T_amb)
+        hs = getattr(data, 'HEATSINK', None)
+        self.plate = heatsink(self.ce, self.ge, hs, air) if hs else None
+        self.st = thermal.Stack([self.ge, self.gf], [gap], air, T_amb, plate=self.plate)
         g = self.ge
         self.units = coarse_units(self.ce, out, g.f, g.ny, g.nx)
         self.fc_units = fc_copper(self.cf, self.gf)
@@ -81,6 +139,10 @@ class StackModel:
             for cp in circ.build(c.board):
                 if cp.part in data.CAPS and (bi == 0 or cp.ref in self.fc_fitted):
                     self._pads(bi, cp.ref, kind=cp.part)
+        if self.st.plate_ids is not None:
+            ids = self.st.plate_ids[self.st.plate_ids >= 0]
+            self.parts['ESC heatsink'] = dict(board=0, ref='heatsink', nodes=ids, w=np.full(ids.size, 1.0 / ids.size),
+                                              li=None, kind=None)
         self.solver = thermal.Solver(self.st)
         self.n = self.solver.G.shape[0]
 

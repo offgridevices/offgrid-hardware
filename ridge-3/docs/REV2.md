@@ -39,6 +39,7 @@ Board revision labels: both boards print **REV 2.0**.
 | Copper | Return vias out from under the high-side drain tabs; bridge capacitors along the row; shunt ground pad with eight plane vias; power vias per phase | Layout fixes from the rev 1 copper simulation |
 | High-side gates and charge pump at 0.1 mm, like the logic | **0.13 mm**, like the battery and the phases (netclasses GATE_HI and PUMP) | They ride up to 11 V above the battery and the phases, about 36 V from ground: IPC-2221B asks 0.13 mm for 31-50 V under solder mask (B4) |
 | ESC power LED | removed | One less part on the hottest board |
+| On M2 soft-mount grommets, nothing under it | **On a machined aluminium heatsink** (`../src/heatsink.py`, `../mechanical/`): 6061 black anodized, 2.3 mm base with a pocket over every part on the ESC's bottom (as deep as its maker's maximum height), 11 fins 8 mm tall along the air, feet on the frame; a T-Global TG-A6200 1.5 mm gap pad squeezed to 1.25 mm between it and the board, set by four bosses the ESC is screwed down onto.  About 14 g, the pad 5 g; the stack stands 11.6 mm higher | A hard flight on a 50 °C day had AM32's temperature limit cutting the motors most of the time: the board alone cannot shed the heat into hot air (STRESS.md, rev 2 against rev 1).  The ESC carries no gyro, so it gives up its grommets for a machined gap; the FC keeps its own |
 
 ## Flight controller
 
@@ -65,7 +66,7 @@ Board revision labels: both boards print **REV 2.0**.
 | Rev 1 | Rev 2 | Why |
 |---|---|---|
 | No copper within 3.1 mm of a mounting hole, on every layer | **2.6 mm on the outer layers; 0.5 mm from the hole's and slot's walls on the inner ones** (1.0 mm for the ESC's battery planes); parts and silkscreen as before | 3.1 mm suits an M3 nut, not the M2 grommet.  The holes stay on the 25.5 mm pattern: `MOUNTING.md` |
-| Board gap and grommet unspecified; "M3 also fits" | M2 grommets (flange 4.4-4.5 mm), M2 hardware, **boards at least 6 mm apart** | The FC's inductors sit over the ESC's motor joints |
+| Board gap and grommet unspecified; "M3 also fits" | The FC on M2 grommets (flange 4.4-4.5 mm), the ESC screwed down on its heatsink, M2 hardware, **boards at least 6 mm apart** | The FC's inductors sit over the ESC's motor joints |
 
 ### Kept, and why
 

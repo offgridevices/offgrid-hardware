@@ -50,7 +50,8 @@ a change to one board moves only its number.
 | Connectors | USB-C, BOOT button, Molex Micro-Lock Plus stack lead (locking), solder pads | Through-hole battery pads, motor pads, soldered stack lead |
 | Blackbox | 16 MB Infineon flash (-40..125 °C); the board runs without it | – |
 | Layers | 6 | 8 (two battery plane pairs) |
-| Mounting | 25.5 mm, M2 soft-mount grommets; boards at least 6 mm apart | same |
+| Mounting | 25.5 mm, M2 soft-mount grommets, at least 6 mm above the ESC | 25.5 mm, M2, screwed down on its heatsink |
+| Cooling | – | A machined aluminium heatsink under the ESC, fins along the air, on a gap pad over the bottom side's parts (`mechanical/`) |
 
 **Mounting holes.** Each corner hole (3.2 mm) has a 2.5 mm slot cut out to
 the corner. A standard M3-to-M2 rubber grommet slides in from the corner and
@@ -64,6 +65,22 @@ where each slot opens through the edge, the point is rounded by a tight
 of the straight edge, which the production panel's break-off tabs need),
 and where the slot meets the hole by a 0.3 mm round, which keeps the lip
 that holds the grommet.
+
+**The ESC's heatsink.**  The ESC sits on a 6061 aluminium plate the size of
+the board, black anodized, with 8 mm fins underneath along the quad's
+front-rear axis and four feet round the mounting holes that stand on the
+frame.  Four bosses round the holes carry the ESC (on the bare ring the
+copper keeps clear of each hole), so the gap between the board and the plate
+is machined, 1.25 mm, and a 1.5 mm T-Global TG-A6200 gap pad fills it.
+Every part on the ESC's bottom has a pocket as deep as its maximum height
+(from its maker's drawing), so the pad lies over the parts at the same
+squeeze; the two tall 1210 capacitors have a window through the plate and a
+hole in the pad.  Notches at the rear let the battery lead in from below.
+`src/heatsink.py` makes it from the routed ESC: the STEP, the gap pad's
+outline (DXF) and a drawing for the CNC order are in `mechanical/`, and
+the stress simulations use the same geometry.  It weighs about 14 g, the pad
+5 g, and the stack stands 11.6 mm higher on the frame.  The ESC no longer
+takes grommets: the FC carries the gyro and keeps its own.
 
 **Stack lead:** 8 wires in the FPV standard's order, pin 1 to pin 1:
 `1 VBAT, 2 GND, 3 CUR, 4 3V3, 5 M1, 6 M2, 7 M3, 8 M4`, but for pin 4: the
@@ -313,12 +330,23 @@ few parts have only prototype-sized stock: see [Sourcing](#sourcing-lcscjlcpcb-g
   runs from the stack lead.
 - **ST-Link V2 or Artery AT-Link**, Artery's OpenOCD, and a current-limited
   bench supply, to flash the ESC bootloaders once.
-- **Grommets:** four M3-to-M2 soft-mount grommets per board, for a
-  3.0-3.5 mm hole, flange 4.4-4.5 mm (e.g. FlyingTech type B, 4.4 x 6.6 mm),
-  M2 screws and M2 nylon-insert or aluminium nuts.  Stack the boards at
-  least 6 mm apart (ESC top to FC bottom): the FC's inductors and a 1210
-  capacitor sit over the ESC's motor and battery joints.  Solder the
-  battery lead into its pads from below and trim it flush on top.
+- **The ESC's heatsink:** machined from `mechanical/ridge3-esc-heatsink-step.zip`
+  (unzip it) in 6061 with black anodizing, with the drawing
+  `mechanical/ridge3-esc-heatsink.pdf` attached for the one tolerance that
+  matters (the bosses' height over the pad face, ±0.05 mm).  JLCCNC and
+  PCBWay CNC both take a STEP and a PDF drawing; it was not priced here.
+- **Gap pad:** one T-Global TG-A6200-40-40-1.5 (40 × 40 × 1.5 mm, DigiKey
+  1168-TG-A6200-40-40-1.5-ND), cut to `mechanical/ridge3-esc-gap-pad.dxf`
+  (print it 1:1 as a template, or have it die-cut).
+- **Grommets, screws and nuts:** four M3-to-M2 soft-mount grommets for the
+  FC, for a 3.0-3.5 mm hole, flange 4.4-4.5 mm (e.g. FlyingTech type B,
+  4.4 x 6.6 mm).  Four M2 screws long enough for the frame plate, the
+  heatsink (11.6 mm under the ESC), the ESC, the gap to the FC and the FC on
+  its grommets (about 30 mm on a 3 mm frame plate), four M2 nuts to clamp
+  the ESC on the heatsink, M2 nylon spacers above them so that the FC's
+  bottom sits at least 6 mm above the ESC's top (the FC's inductors and a
+  1210 capacitor sit over the ESC's motor and battery joints), and four
+  M2 nylon-insert or aluminium nuts on top.
 
 ### Ordering in volume
 
@@ -355,8 +383,9 @@ pre-programming service.
      solder that wire to `R2` in place of the receiver's TX.
    - **Analog:** camera on `CAM`, `G`, `5V`; VTX on `VTX`, `G` and `9V`,
      along the front edge.
-3. **Battery lead** onto the ESC's rear pads: `+` left, `-` right, as
-   printed on both sides.
+3. **Battery lead** onto the ESC's rear pads, from below (the heatsink's
+   notches take the wires out to the rear) and trimmed flush on top: `+`
+   left, `-` right, as printed on both sides.
 4. **Stack lead:** solder its wires to the ESC's lead pads, the ground wire
    to `G` beside the battery minus pad.
 5. **Flash the ESCs** with the two boards side by side (not stacked, no
@@ -369,9 +398,13 @@ pre-programming service.
    fit); the probe's ground goes to the battery pad.
 6. **Motor wires:** each motor's three wires to the three pads beside its
    number.
-7. **Stack:** ESC at the bottom, FC on top, both with the **front arrow
-   forward** and the side marked **Top** facing up. Slide the grommets into
-   the corner slots, then plug the stack lead into the FC (it latches).
+7. **Stack:** the heatsink on the frame, fins front to rear, its notches at
+   the rear.  Peel the gap pad's liners and lay it on the heatsink's top
+   face between the four bosses.  The ESC on the bosses, pressing the pad,
+   with the **front arrow forward** and the side marked **Top** facing up;
+   a nut on each screw clamps it down.  Then the spacers, and the FC on its
+   grommets (slid into the corner slots), front arrow forward and Top up,
+   and the top nuts.  Plug the stack lead into the FC (it latches).
    (The FC's gyro alignment assumes its top faces up; Betaflight's board
    alignment can change that.)
 8. **Video power:** the two video battery wires from the FC's `BAT` / `G`
@@ -489,7 +522,9 @@ ridge-3/
       panel/              the same for a 3 x 2 panel, for volume assembly
     images/               renders
   esc/                    4-in-1 ESC, same layout
-  mechanical/             STEP models of both boards (zipped), for frame CAD
+  mechanical/             STEP models of both boards (zipped), for frame CAD;
+                          the ESC's heatsink: STEP (zipped), drawing for the
+                          CNC order (PDF), gap pad outline (DXF)
   firmware/               Betaflight image and its gyro patch, AM32
                           bootloader and firmware, the AM32 target patch,
                           flashing script, CLI setup
@@ -524,6 +559,7 @@ is patched after the fact: every board comes out of the same code path.
 | `tools/mcu_cluster_search.py` | Not part of the build: the search that found the spots of the ESC's small parts round its MCU and driver (supply, reset and filter capacitors, the comparators' dividers, the thermistor's bias, the debug pads). It scores each layout against the fan-out's own via rules and the lines `esc_layout.route_local` lays first, so every pin keeps a way out; the spots it found are written into `esc_layout.py`. |
 | `artwork.py`, `brand.py` | Silkscreen placement (labels go only where they touch no pad, hole, part body, grommet or other label) and the OffGrid mark, lockup and type as outlines. |
 | `fab.py` | Gerbers, drills, BOM, CPL, netlist, assembly PDF, renders, STEP. |
+| `heatsink.py` | The ESC's heatsink from the routed board: a pocket over every bottom-side part at its maximum height (`parts.HEIGHTS`), merged where the metal between would be too thin to machine; fins, feet, battery-lead notches; the gap pad at its maker's charted impedance.  STEP and DXF (CadQuery), the drawing, and the geometry the thermal model uses. |
 | `panel.py` | The 3 × 2 production panel (KiKit), checked copy by copy against the single board. |
 | `make.py` | Runs it all with gates. |
 | `verify.py` | Writes `VERIFICATION.md`. |
@@ -584,7 +620,7 @@ as they change.
 | `dcflow.py` | DC current flow in one net's copper: voltage, current density, loss, current in each via barrel. Checked against a strip and a ring. |
 | `copperloss.py` | Where the motor current heats the ESC's copper, per amp squared, over AM32's six commutation steps. |
 | `spice.py` | ngspice: one half-bridge switching (the makers' FET models; each design's gate driver as its datasheet drive), the battery line, and the FET models' checks against their datasheets. |
-| `thermal.py`, `stack.py` | Both boards as thermal grids, stacked with the air gap between them; each part that heats or has a temperature limit gets a node. |
+| `thermal.py`, `stack.py` | Both boards as thermal grids, stacked with the air gap between them, and the ESC's heatsink under it (its plate on the ESC's grid, from `src/heatsink.py`'s geometry: pockets, contact, the gap pad's charted impedance, the fins); each part that heats or has a temperature limit gets a node. |
 | `losses.py` | Heat per part for an operating point: FETs, switching, dead time, shunts, drivers, regulators, the FC's supplies. |
 | `data.py` | Every datasheet figure used, with its source, and each assumption, marked as one; `DESIGNS` maps each revision to its parts. |
 | `design.py` | Where each revision's files come from: rev 2 from the working tree, rev 1 from git. |
