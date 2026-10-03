@@ -610,7 +610,7 @@ def lead_section(i_motor=20.0):
     # the FC's own supply copper at its full load
     cf = copper.extract('fc')
     rows = []
-    for net, (cur, _) in stack.fc_paths().items():
+    for net, (cur, _) in stack.fc_paths(cf).items():
         s = dcflow.solve(cf, net, cur, T=100.0)
         mp = dcflow.maps(cf, s)
         bc = max([a for h, a in dcflow.barrel_currents(cf, s)] or [0.0])

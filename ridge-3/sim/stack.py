@@ -276,8 +276,13 @@ FC_PATHS_REV2 = {
 }
 
 
-def fc_paths():
-    return FC_PATHS_REV2 if data.LEAD['split'] else FC_PATHS_REV1
+def fc_paths(c):
+    """The FC's supply paths on its copper c: {net: ({part: A}, ref)}.  A
+    tuple of parts in the tables names alternatives (rev 2's HD video pad,
+    or rev 1's socket): the first one the board has."""
+    paths = FC_PATHS_REV2 if data.LEAD['split'] else FC_PATHS_REV1
+    pick = lambda k: next((r for r in k if r in c.parts), k[0]) if isinstance(k, tuple) else k
+    return {net: ({pick(k): i for k, i in cur.items()}, ref) for net, (cur, ref) in paths.items()}
 _fc = {}
 _esc = {}
 
@@ -287,10 +292,7 @@ def fc_copper(c, g):
     key = (c.path, g.f)
     if key not in _fc:
         out = {}
-        for net, (cur, ref) in fc_paths().items():
-            # a tuple names alternatives: the first part the board has
-            cur = {(next((r for r in k if r in c.parts), k[0]) if isinstance(k, tuple) else k): i
-                   for k, i in cur.items()}
+        for net, (cur, ref) in fc_paths(c).items():
             s = dcflow.solve(c, net, cur, T=20.0)
             W = dcflow.maps(c, s)['W']
             out[net] = (copperloss.coarse({'W': W}, g.f, g.ny, g.nx)['W'], ref)
