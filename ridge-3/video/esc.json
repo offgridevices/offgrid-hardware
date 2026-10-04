@@ -4,8 +4,8 @@
     "4-in-1 ESC"
   ],
   "highlights": {
-    "top": "12 power FETs, current sensors, 3.3 V supply, stack plug",
-    "bottom": "4 motor processors, 4 gate drivers, 12 power FETs"
+    "top": "12 high-side FETs, current amplifiers, FET thermistors",
+    "bottom": "4 motor processors, 4 gate drivers, 12 low-side FETs, shunts"
   },
   "via_thin": 0.85,
   "music": "music/observatory-32750ms.wav"

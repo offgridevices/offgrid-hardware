@@ -581,7 +581,7 @@ The tools: KiCad 10 (`pcbnew` Python module and `kicad-cli`), Freerouting
 
 ### Exploded-view videos
 
-`python3 video/make_video.py fc` (or `esc`) makes a 16:9 video of a board
+`python3.12 video/make_video.py fc` (or `esc`) makes a 16:9 video of a board
 taking itself apart, straight from its `.kicad_pcb`. The board stands on
 its edge and opens sideways into its layers: the parts on each side, each
 solder mask with its silkscreen printed on it, and every copper layer on its
@@ -600,9 +600,24 @@ closes and lies down under the title.
   and `video/esc.json`: the title and a few words on the main parts. A
   changed board needs only the command again, and a new board needs its own
   small JSON.
-- **Draft or final:** without options it makes a 720p, 30 fps draft in
-  `video/out/`. `--final` renders 4K at 60 fps into the board's `images/`,
-  and `--stills 0,270` renders a few labelled frames to check the look.
+- **Builds:** the flight controller's video shows its default HD build:
+  the analog build's parts (the OSD and its parts) keep their pads and lose
+  their bodies.  `--build analog` shows the analog build, with its own
+  title and highlights (`"builds"` in `video/fc.json`).
+- **Commands**, run from `ridge-3/` with KiCad's Python (`python3.12`):
+
+  ```
+  python3.12 video/make_video.py fc --check     # build the scene only (a minute): no frames
+  python3.12 video/make_video.py fc --stills 0,270    # a few labelled frames
+  python3.12 video/make_video.py fc             # 720p 30 fps draft, video/out/fc/
+  python3.12 video/make_video.py fc --final     # 4K 60 fps, fc/images/ridge3-fc-explode.mp4
+  python3.12 video/make_video.py fc --final --build analog   # ridge3-fc-analog-explode.mp4
+  python3.12 video/make_video.py esc --final    # esc/images/ridge3-esc-explode.mp4
+  ```
+
+  Both boards' final videos run 32.75 s (1,965 frames), the length of the
+  music edit named in `video/music/README.md`; without the licensed track the
+  video comes out silent and the run says so.
 - **Setup:** the first run sets up `video/.venv` (Python 3.11 with Blender as
   a module).
 - **Rendering:** it uses Cycles, on a GPU when Blender finds one (CUDA,

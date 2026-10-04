@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Exploded-view video of a board, made straight from its KiCad file.
 
+    python3 video/make_video.py fc --check          # build the scene only: no frames
     python3 video/make_video.py fc                  # draft, 720p 30 fps
     python3 video/make_video.py fc --final          # 4K 60 fps, into fc/images/
     python3 video/make_video.py fc --stills 0,200   # a few labelled stills
+    python3 video/make_video.py fc --build analog   # another build (circuit.BUILDS)
     python3 video/make_video.py path/to/x.kicad_pcb --config x.json
 
 Run it with the Python that has KiCad's pcbnew (kicad-cli on PATH).  The
@@ -12,6 +14,10 @@ video/requirements.txt; set VIDEO_PYTHON to use another Python 3.11.
 
 What it does, every step from the board file (so a changed board or a new
 one needs no other work):
+  0. For fc and esc, the build (default circuit.DEFAULT_BUILD): a part in an
+     option group that build leaves off keeps its pads but loses its body,
+     in a copy of the board under video/out/, so the video shows the board
+     as that build is assembled.
   1. kicad-cli exports the board as GLB: parts, copper, mask, silkscreen.
   2. The board's facts come from its file: the copper layers and what each
      carries (a layer mostly covered by one net's zone and nearly free of
@@ -31,8 +37,9 @@ one needs no other work):
 The board's own settings are a small JSON beside this file (fc.json,
 esc.json): the title, a few words on the main parts of each side, and
 optionally any label, role, timing, camera or light to override, the
-"tour" (which layers the camera stops on), and "music": an audio file under
-the video (see video/music/README.md).
+"tour" (which layers the camera stops on), "music": an audio file under
+the video (see video/music/README.md), and "builds": settings for one build
+only, over the rest (e.g. its highlights).
 """
 import argparse, collections, hashlib, json, os, re, shutil, subprocess, sys
 
@@ -98,6 +105,34 @@ def human(net):
     if m:
         return '%s V' % '.'.join(m.groups())
     return net
+
+
+def build_copy(pcb, build, out):
+    """The board as `build` assembles it (circuit.fitted): every part of an
+    option group the build leaves off keeps its pads and loses its 3D body,
+    and is marked do-not-place so the part counts leave it out.  Model paths
+    are made absolute, so the copy exports from anywhere.  Returns the copy's
+    path and the references taken off."""
+    import pcbnew
+    sys.path.insert(0, os.path.join(V1, 'src'))
+    import circuit
+    key = next(k for k, v in BOARDS.items() if os.path.join(V1, v) == pcb)
+    comps = circuit.build(key)
+    fitted = {c.ref for c in circuit.fitted(comps, build)}
+    off = sorted(c.ref for c in comps if c.ref not in fitted)
+    b = pcbnew.LoadBoard(pcb)
+    here = os.path.dirname(pcb)
+    for fp in b.GetFootprints():
+        models = list(fp.Models())
+        fp.Models().clear()
+        if fp.GetReference() in off:
+            fp.SetDNP(True)
+            continue
+        for m in models:
+            m.m_Filename = m.m_Filename.replace('${KIPRJMOD}', here)
+            fp.Models().append(m)
+    b.Save(out)
+    return out, off
 
 
 def board_facts(path):
@@ -295,6 +330,8 @@ def main():
     ap.add_argument('--jobs', type=int, default=2, help='renders at once')
     ap.add_argument('--out', help='the MP4 (default: see --final)')
     ap.add_argument('--music', help='an audio file under the video (default: the board settings\' "music")')
+    ap.add_argument('--build', help='fc / esc: the build to show (circuit.BUILDS; default circuit.DEFAULT_BUILD)')
+    ap.add_argument('--check', action='store_true', help='build the scene and stop: no frames, no video')
     a = ap.parse_args()
     pcb = os.path.join(V1, BOARDS[a.board]) if a.board in BOARDS else os.path.abspath(a.board)
     name = os.path.splitext(os.path.basename(pcb))[0]
@@ -304,12 +341,32 @@ def main():
     quality = 'final' if a.final else 'draft'
     work = os.path.join(HERE, 'out', key)
     os.makedirs(work, exist_ok=True)
+    build = None
+    if a.board in BOARDS:
+        sys.path.insert(0, os.path.join(V1, 'src'))
+        import circuit
+        build = a.build or circuit.DEFAULT_BUILD
+        if not any(c.option for c in circuit.build(a.board)):
+            if a.build:
+                raise SystemExit('%s has no option groups: one build only' % a.board)
+            build = None
+        elif build not in circuit.BUILDS:
+            raise SystemExit('no build %r: circuit.BUILDS has %s' % (build, ', '.join(sorted(circuit.BUILDS))))
+        cfg = merge(cfg, cfg.get('builds', {}).get(build, {})) if build else cfg
+    elif a.build:
+        raise SystemExit('--build is for fc and esc')
+    tag = name + ('-' + build if build and build != circuit.DEFAULT_BUILD else '')
 
-    print('== %s (%s)' % (name, quality))
+    print('== %s (%s%s)' % (name, quality, ', %s build' % build if build else ''))
     ensure_venv()
-    glb = os.path.join(work, name + '.glb')
-    export_glb(pcb, glb)
-    facts = board_facts(pcb)
+    src = pcb
+    if build:
+        src, off = build_copy(pcb, build, os.path.join(work, tag + '.kicad_pcb'))
+        if off:
+            print('  %s build: no parts on %s' % (build, ', '.join(off)))
+    glb = os.path.join(work, tag + '.glb')
+    export_glb(src, glb)
+    facts = board_facts(src)
     unit = units(facts)
     tour = [k for k in cfg['tour'] if k in unit]
     n = sum(len(v) for v in unit.values())
@@ -326,17 +383,20 @@ def main():
                                  'fade': F(ov['fade']), 'fade_out': F(ov['fade_out']),
                                  'title_fade': F(ov['title_fade'])})
     spec['sweep'] = merge(cfg['sweep'], {'f0': F(cfg['sweep']['t0']), 'f1': F(cfg['sweep']['t1'])})
-    spec_path = os.path.join(work, 'spec-%s.json' % quality)
+    spec_path = os.path.join(work, 'spec-%s-%s.json' % (tag, quality))
     json.dump(spec, open(spec_path, 'w'), indent=1)
     print('  %d copper layers; %s; silkscreen %s; parts %s; %.1f s'
           % (len(facts['copper']), ', '.join('%s %s' % kv for kv in facts['roles'].items()),
              '+'.join(facts['silk']), facts['parts'], (tl['end'] + 1) / fps))
-    blend = os.path.join(work, 'scene-%s.blend' % quality)
-    anchors = os.path.join(work, 'anchors-%s.json' % quality)
+    blend = os.path.join(work, 'scene-%s-%s.blend' % (tag, quality))
+    anchors = os.path.join(work, 'anchors-%s-%s.json' % (tag, quality))
     blender('scene.py', glb, spec_path, blend, anchors)
+    if a.check:
+        print('scene built: %s (%d frames); render it without --check' % (os.path.relpath(blend, os.getcwd()), tl['end'] + 1))
+        return
 
     if a.stills:
-        stills = os.path.join(work, 'stills')
+        stills = os.path.join(work, 'stills-' + tag)
         shutil.rmtree(stills, ignore_errors=True)
         os.makedirs(stills)
         blender('render.py', blend, stills, str(os.cpu_count() or 4), a.stills)
@@ -345,7 +405,7 @@ def main():
         return
 
     # frames are kept while the board and the spec (but for the music) stay the same
-    frames = os.path.join(work, 'frames-' + quality)
+    frames = os.path.join(work, 'frames-%s-%s' % (tag, quality))
     looks = {k: v for k, v in spec.items() if not k.startswith('music')}
     stamp = hashlib.sha1(json.dumps(looks, indent=1).encode() + open(glb, 'rb').read()).hexdigest()
     stamp_file = os.path.join(frames, 'STAMP')
@@ -357,9 +417,9 @@ def main():
     if a.out:
         mp4 = os.path.abspath(a.out)
     elif a.final:
-        mp4 = os.path.join(os.path.dirname(pcb), 'images', name + '-explode.mp4')
+        mp4 = os.path.join(os.path.dirname(pcb), 'images', tag + '-explode.mp4')
     else:
-        mp4 = os.path.join(work, name + '-explode-draft.mp4')
+        mp4 = os.path.join(work, tag + '-explode-draft.mp4')
     os.makedirs(os.path.dirname(mp4), exist_ok=True)
     run([VPY, os.path.join(HERE, 'overlay.py'), spec_path, anchors, frames, frames + '-labelled', mp4])
     music = a.music or cfg.get('music')
