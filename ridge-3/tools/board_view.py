@@ -1,8 +1,15 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Quick placement/routing view of a .kicad_pcb: one PNG per side showing
 courtyards, pads (coloured by net class), tracks, vias and the ratsnest of
-still-unrouted connections.  For iterating on placement, not for the fab."""
-import sys, math
+still-unrouted connections.  For iterating on placement, not for the fab;
+not part of the build.
+
+    python3.12 tools/board_view.py fc/ridge3-fc.kicad_pcb /tmp/fc
+        writes /tmp/fc_top.png and /tmp/fc_bottom.png
+"""
+import os, sys, math
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src'))
 import pcbnew
 import matplotlib
 matplotlib.use('Agg')

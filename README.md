@@ -5,6 +5,7 @@ Open hardware from [OffGrid Devices](https://github.com/offgridevices). One fold
 | Board | What it is | Status |
 |---|---|---|
 | [`packet-logger-carrier/v1/`](packet-logger-carrier/v1/) | 86 × 58 mm carrier for a LoRa mesh packet logger — RAK19003 + XIAO ESP32-C6 + microSD | v1 ordered, not yet bench-verified |
+| [`ridge-3/`](ridge-3/) | 36 × 36 mm flight controller and 4-in-1 ESC for 3-inch FPV quads, 2-6S, with a machined heatsink for the ESC | Revision 2 designed and simulated, not yet ordered |
 
 The firmware and analysis tooling these boards run with live in
 [`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab).
@@ -60,6 +61,12 @@ If it finishes, every check passed. If a check fails, it stops.
 
 A revision folder is never edited once its board has been ordered. A change
 that alters copper becomes the next revision beside it.
+
+Ridge 3 is the exception to this layout: one folder holds both of its boards
+(`fc/`, `esc/`), their shared generator (`src/`), simulations (`sim/`) and
+mechanical parts (`mechanical/`), and its revision is printed on the boards
+(`REV 2.0`) rather than in a folder name.  Its own [`README.md`](ridge-3/README.md)
+has the map.
 
 Generated outputs are committed alongside the scripts that produce them, so a
 stranger can order a board without a toolchain. They are expected to agree: a
