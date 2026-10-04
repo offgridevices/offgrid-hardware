@@ -3,11 +3,11 @@
 between them, fins underneath.  One source for its CAD (STEP, the gap pad's
 die-cut outline), its drawing, and the thermal model (sim/stack.py).
 
-    python3 heatsink.py [board.kicad_pcb] [out_dir]
-        the STEP (zipped), the gap pad's DXF, the drawing and a JSON summary into
-        out_dir (default ../mechanical); needs pcbnew, and CadQuery 2.x for the
-        STEP and DXF (CADQUERY_PYTHON=/path/to/python that has it, if this
-        one does not)
+    python3.12 src/heatsink.py [board.kicad_pcb] [out_dir]
+        into out_dir (default ../mechanical): the STEP (zipped) and an STL,
+        the gap pad's DXF, the drawing, two 3D views and a JSON summary.
+        Needs pcbnew, and CadQuery 2.x for the CAD files (CADQUERY_PYTHON=
+        /path/to/python that has it, if this one does not)
 
 make.py esc runs it whenever the board or PARAMS change.
 
@@ -382,6 +382,7 @@ def solid(f):
 def write_pad_dxf(f, path):
     """The gap pad's die-cut outline (mm, CAD axes, seen from above)."""
     import ezdxf
+    ezdxf.options.write_fixed_meta_data_for_testing = True     # no time stamp or random GUID: same pad, same bytes
     doc = ezdxf.new('R2010', units=4)
     msp = doc.modelspace()
     for poly in f['pad']:
@@ -391,19 +392,54 @@ def write_pad_dxf(f, path):
 
 
 def write_cad(f, out):
-    """STEP of the plate and DXF of the pad; returns the plate's volume
-    (mm3) and the pad's area (mm2)."""
+    """STEP and STL of the plate, DXF of the pad, the 3D views; returns the
+    plate's volume (mm3) and the pad's area (mm2)."""
     import cadquery as cq
     from cadquery.occ_impl.shapes import Face, Wire
     os.makedirs(out, exist_ok=True)
     s = solid(f)
     cq.exporters.export(s, os.path.join(out, NAME + '.step'))
+    stl = os.path.join(out, NAME + '.stl')
+    cq.exporters.export(s, stl, tolerance=0.02, angularTolerance=0.1)
+    render_views(stl, os.path.join(out, NAME + '-views.png'))
     write_pad_dxf(f, os.path.join(out, 'ridge3-esc-gap-pad.dxf'))
     area = 0.0
     for poly in f['pad']:
         ring = lambda pts: Wire.makePolygon([cq.Vector(x, -y, 0) for x, y in pts[:-1]], close=True)
         area += Face.makeFromWires(ring(poly['ext']), [ring(i) for i in poly['int']]).Area()
     return s.val().Volume(), area
+
+
+def render_views(stl, png):
+    """Two views of the plate from its STL (VTK, off screen, as CadQuery
+    installs it): from above, black anodized as ordered, and from below in
+    grey, where black would hide the fins.  CAD +y is the quad's front."""
+    import vtk
+    r = vtk.vtkSTLReader(); r.SetFileName(stl)
+    n = vtk.vtkPolyDataNormals(); n.SetInputConnection(r.GetOutputPort()); n.SetFeatureAngle(30); n.SplittingOn()
+    fe = vtk.vtkFeatureEdges(); fe.SetInputConnection(r.GetOutputPort())
+    fe.BoundaryEdgesOff(); fe.FeatureEdgesOn(); fe.SetFeatureAngle(40); fe.ManifoldEdgesOff(); fe.NonManifoldEdgesOff()
+    w = vtk.vtkRenderWindow(); w.SetOffScreenRendering(1); w.SetSize(2400, 1000); w.SetMultiSamples(8)
+    for x0, colour, cam_pos in ((0.0, (0.20, 0.21, 0.23), (-55, -75, 70)), (0.5, (0.55, 0.57, 0.60), (-45, 80, -70))):
+        m = vtk.vtkPolyDataMapper(); m.SetInputConnection(n.GetOutputPort())
+        a = vtk.vtkActor(); a.SetMapper(m)
+        p = a.GetProperty(); p.SetColor(*colour); p.SetAmbient(0.25); p.SetDiffuse(0.75)
+        p.SetSpecular(0.35); p.SetSpecularPower(25)
+        em = vtk.vtkPolyDataMapper(); em.SetInputConnection(fe.GetOutputPort()); em.ScalarVisibilityOff()
+        ea = vtk.vtkActor(); ea.SetMapper(em); ea.GetProperty().SetColor(0.55, 0.57, 0.6)
+        ren = vtk.vtkRenderer(); ren.SetViewport(x0, 0, x0 + 0.5, 1)
+        ren.AddActor(a); ren.AddActor(ea)
+        ren.SetBackground(1, 1, 1); ren.SetBackground2(0.88, 0.9, 0.93); ren.GradientBackgroundOn()
+        for pos, k in (((40, -60, 90), 0.9), ((-60, 40, -40), 0.45)):
+            l = vtk.vtkLight(); l.SetPosition(*pos); l.SetFocalPoint(0, 0, 0); l.SetIntensity(k); ren.AddLight(l)
+        l = vtk.vtkLight(); l.SetLightTypeToHeadlight(); l.SetIntensity(0.35); ren.AddLight(l)
+        cam = ren.GetActiveCamera()
+        cam.SetFocalPoint(0, 0, -5.5); cam.SetPosition(*cam_pos); cam.SetViewUp(0, 0, 1)
+        ren.ResetCamera(); cam.Zoom(0.95)
+        w.AddRenderer(ren)
+    w.Render()
+    f = vtk.vtkWindowToImageFilter(); f.SetInput(w); f.ReadFrontBufferOff(); f.Update()
+    out = vtk.vtkPNGWriter(); out.SetFileName(png); out.SetInputConnection(f.GetOutputPort()); out.Write()
 
 
 # ---------------------------------------------------------------- drawing
@@ -517,7 +553,7 @@ def drawing(f, out, summary):
         y -= 0.075 * len(lines) + 0.04
     os.makedirs(out, exist_ok=True)
     pdf = os.path.join(out, NAME + '.pdf')
-    fig.savefig(pdf)
+    fig.savefig(pdf, metadata={'CreationDate': None})      # the same bytes from the same drawing
     fig.savefig(os.path.join(out, NAME + '.png'), dpi=110)
     plt.close(fig)
     return pdf
@@ -546,10 +582,11 @@ def _cad(f, out):
     if not py:
         raise SystemExit('heatsink: the STEP needs CadQuery 2.x: install it, or set CADQUERY_PYTHON '
                          'to a python that has it')
-    tmp = tempfile.mkdtemp(prefix='heatsink-')
-    fj = os.path.join(tmp, 'features.json')
-    json.dump(f, open(fj, 'w'))
-    r = subprocess.run([py, os.path.abspath(__file__), '--cad', fj, out], capture_output=True, text=True)
+    with tempfile.TemporaryDirectory(prefix='heatsink-') as tmp:
+        fj = os.path.join(tmp, 'features.json')
+        with open(fj, 'w') as fh:
+            json.dump(f, fh)
+        r = subprocess.run([py, os.path.abspath(__file__), '--cad', fj, out], capture_output=True, text=True)
     if r.returncode:
         raise SystemExit('heatsink: CadQuery failed:\n' + r.stderr[-3000:])
     v = json.loads(r.stdout.strip().splitlines()[-1])
@@ -558,15 +595,13 @@ def _cad(f, out):
 
 def build(board=BOARD, out=OUT):
     """Everything into out: the STEP, zipped (CadQuery writes it at ~7 MB,
-    every facet of the pockets' rounding a face), the pad's DXF, the
-    drawing, and the JSON that current() checks."""
-    import zipfile
+    every facet of the pockets' rounding a face), an STL (for a viewer or a
+    printed test fit), the 3D views, the pad's DXF, the drawing, and the
+    JSON that current() checks."""
+    import stable
     f = features(board)
     vol, area = _cad(f, out)
-    raw = os.path.join(out, NAME + '.step')
-    with zipfile.ZipFile(os.path.join(out, NAME + '-step.zip'), 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-        z.write(raw, os.path.basename(raw))
-    os.remove(raw)
+    stable.zip_one(os.path.join(out, NAME + '.step'), os.path.join(out, NAME + '-step.zip'))
     s = summary_of(f, vol, area)
     with open(os.path.join(out, NAME + '.json'), 'w') as fh:
         json.dump(s, fh, indent=1, sort_keys=True)
@@ -579,7 +614,8 @@ def current(out=OUT, board=BOARD):
     parameters (their JSON has the same features and PARAMS)."""
     p = os.path.join(out, NAME + '.json')
     if not all(os.path.exists(os.path.join(out, x)) for x in
-               (NAME + '.json', NAME + '-step.zip', NAME + '.pdf', 'ridge3-esc-gap-pad.dxf')):
+               (NAME + '.json', NAME + '-step.zip', NAME + '.stl', NAME + '-views.png', NAME + '.pdf',
+                'ridge3-esc-gap-pad.dxf')):
         return False
     s = json.load(open(p))
     f = json.loads(json.dumps(features(board)))

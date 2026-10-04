@@ -527,8 +527,10 @@ ridge-3/
     images/               renders
   esc/                    4-in-1 ESC, same layout
   mechanical/             STEP models of both boards (zipped), for frame CAD;
-                          the ESC's heatsink: STEP (zipped), drawing for the
-                          CNC order (PDF), gap pad outline (DXF)
+                          the ESC's heatsink: STEP (zipped) for the CNC order,
+                          STL for a viewer or a printed test fit, the order's
+                          drawing (PDF, PNG preview), 3D views, the gap pad's
+                          outline (DXF), and the JSON make.py checks
   firmware/               Betaflight image and its gyro patch, AM32
                           bootloader and firmware, the AM32 target patch,
                           flashing script, CLI setup
@@ -565,7 +567,7 @@ is patched after the fact: every board comes out of the same code path.
 | `artwork.py`, `brand.py` | Silkscreen placement (labels go only where they touch no pad, hole, part body, grommet or other label) and the OffGrid mark, lockup and type as outlines. |
 | `fab.py` | Gerbers, drills, BOM, CPL, netlist, assembly PDF, renders, STEP. |
 | `stable.py` | Keeps a rebuild from rewriting what has not changed: KiCad stamps each Gerber and STEP with the time and its raytracer's noise differs per run, so Gerbers keep their bytes when only the stamp differs, and renders and STEPs are made again only when the board, a 3D model or KiCad changed. |
-| `heatsink.py` | The ESC's heatsink from the routed board: a pocket over every bottom-side part at its maximum height (`parts.HEIGHTS`), merged where the metal between would be too thin to machine; fins, feet, battery-lead notches; the gap pad at its maker's charted impedance.  STEP and DXF (CadQuery), the drawing, and the geometry the thermal model uses. |
+| `heatsink.py` | The ESC's heatsink from the routed board: a pocket over every bottom-side part at its maximum height (`parts.HEIGHTS`), merged where the metal between would be too thin to machine; fins, feet, battery-lead notches; the gap pad at its maker's charted impedance.  STEP, STL, DXF and 3D views (CadQuery), the drawing, and the geometry the thermal model uses. |
 | `panel.py` | The 3 × 2 production panel (KiKit), checked copy by copy against the single board. |
 | `make.py` | Runs it all with gates. |
 | `verify.py` | Writes `VERIFICATION.md`. |

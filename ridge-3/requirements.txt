@@ -17,3 +17,10 @@ kikit           # panel.py: the production panel (1.8.1 on KiCad 10)
 # sim/ (stress simulations): the DC and thermal solvers.  pyamg 5.0 matches
 # Ubuntu's SciPy 1.11; newer pyamg needs SciPy 1.12.  Also needs ngspice.
 pyamg<5.1
+# heatsink.py's CAD files (STEP, STL, DXF, 3D views) need CadQuery 2.x, which
+# pins a newer numpy than Ubuntu's shapely is built for: give it its own
+# environment and point CADQUERY_PYTHON at it.  make.py needs it only when the
+# ESC or the heatsink's parameters change:
+#   python3.12 -m venv cq-env && cq-env/bin/pip install cadquery==2.8.0
+#   CADQUERY_PYTHON=$PWD/cq-env/bin/python python3.12 src/make.py esc
+# video/ (the exploded-view videos) has its own: video/requirements.txt.
