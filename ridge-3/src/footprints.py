@@ -539,10 +539,10 @@ def seat_models():
         fp.SetPosition(pcbnew.VECTOR2I(MM(20 * (i % 10)), MM(20 * (i // 10))))
         b.Add(fp)
         names.append((name, fp))
-    d = tempfile.mkdtemp(prefix='seat-')
-    path = os.path.join(d, 'models.kicad_pcb')
-    b.Save(path)
-    pts = models3d.model_points(path, prjmod=os.path.join(os.path.dirname(LIB), 'fc'))
+    with tempfile.TemporaryDirectory(prefix='seat-') as d:
+        path = os.path.join(d, 'models.kicad_pcb')
+        b.Save(path)
+        pts = models3d.model_points(path, prjmod=os.path.join(os.path.dirname(LIB), 'fc'))
     moved = []
     for name, fp in names:
         if any(p.GetAttribute() == pcbnew.PAD_ATTRIB_PTH for p in fp.Pads()):

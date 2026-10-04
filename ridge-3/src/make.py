@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
 """Build the Ridge 3 stack (flight controller + 4-in-1 ESC): every committed output, with gates.
 
-    python3 make.py              outputs from the committed .kicad_pcb files
-    python3 make.py --artwork    lay the outline, silkscreen and stackup out again first
-                                 (copper untouched)
-    python3 make.py --reroute    place and route both boards from scratch first
-    python3 make.py --finish=DIR esc
-                                 a --reroute run that its final DRC stopped (after a
-                                 fix to its last steps): the clean-up, artwork and DRC
-                                 again on the routed board it left in its work
-                                 directory DIR, then on as --reroute
-    python3 make.py fc           one board only (fc or esc)
-    python3 make.py --no-panel   skip the production panel (it takes ~3 min)
+    python3.12 src/make.py               outputs from the committed .kicad_pcb files
+                                         (unchanged boards give unchanged files: stable.py)
+    python3.12 src/make.py --artwork     lay the outline, silkscreen and stackup out
+                                         again first (copper untouched)
+    python3.12 src/make.py --reroute     place and route both boards from scratch first
+    python3.12 src/make.py --finish=DIR esc
+                                         a --reroute run that its final DRC stopped
+                                         (after a fix to its last steps): the clean-up,
+                                         artwork and DRC again on the routed board it
+                                         left in its work directory DIR, then on as
+                                         --reroute
+    python3.12 src/make.py fc            one board only (fc or esc)
+    python3.12 src/make.py --no-panel    skip the production panel (it takes ~3 min)
 
 Gates (any failure stops the build):
   * KiCad DRC: 0 errors, 0 warnings, 0 unconnected items
@@ -105,16 +107,24 @@ def artwork(dst, board):
 def make_panel(board, name, dst):
     """3 x 2 panel for bulk assembly: order files into production/panel/,
     renders into images/.  panel.make_panel stops on any failed check."""
-    import panel
-    tmp = tempfile.mkdtemp(prefix='ridge3-%s-panel-' % board)
-    out = panel.make_panel(dst, tmp, name, board_name=board)
+    import panel, stable
     prod = os.path.join(V1, board, 'production', 'panel')
-    shutil.rmtree(prod, ignore_errors=True)
-    os.makedirs(prod)
-    for k in ('gerbers_zip', 'bom', 'bom_pcbway', 'cpl'):
-        shutil.copy(out[k], prod)
-    for side in ('top', 'bottom'):
-        shutil.copy(os.path.join(tmp, '%s-panel-%s.png' % (name, side)), os.path.join(V1, board, 'images'))
+    img = os.path.join(V1, board, 'images')
+    pngs = ['%s-panel-%s.png' % (name, side) for side in ('top', 'bottom')]
+    with tempfile.TemporaryDirectory(prefix='ridge3-%s-panel-' % board) as tmp:
+        for p in pngs:                   # stable.render redraws only if the panel changed
+            if os.path.exists(os.path.join(img, p)):
+                shutil.copy(os.path.join(img, p), tmp)
+        out = panel.make_panel(dst, tmp, name, board_name=board)
+        old = stable.snapshot(prod)
+        shutil.rmtree(prod, ignore_errors=True)
+        os.makedirs(prod)
+        for k in ('gerbers_zip', 'bom', 'bom_pcbway', 'cpl'):
+            shutil.copy(out[k], prod)
+        for f in os.listdir(prod):       # the same panel but for KiCad's time stamps: keep the committed file
+            stable.keep_if_same(os.path.join(prod, f), old.get(f))
+        for p in pngs:
+            shutil.copy(os.path.join(tmp, p), img)
     gate(True, '%s: panel %s, %d copies, %s mm; DRC = %d x the board\'s own; Gerbers, BOM and CPL of '
                'every copy equal the board\'s' % (board, out['grid'], out['copies'],
                                                   out['geometry'].get('size_mm'), out['copies'], ))
@@ -134,6 +144,7 @@ def build(board, reroute, art=False, pan=True, finish_dir=None):
         work = tempfile.mkdtemp(prefix='ridge3-%s-' % board)
         fin = pipeline.run(board, work)
         fab.install(fin, os.path.join(V1, board), name)
+        shutil.rmtree(work)              # kept when the run fails, for its logs
     elif art:
         artwork(dst, board)
     # 3D models as the footprint library has them (renders, STEP), and each
@@ -145,8 +156,8 @@ def build(board, reroute, art=False, pan=True, finish_dir=None):
     got = pcb.refresh_fields(dst, circuit.build(board))
     if got:
         print('  value and LCSC fields from circuit.py: %s' % ', '.join(sorted(got)))
-    tmp = tempfile.mkdtemp()
-    e, w, u = pcb.drc(dst, os.path.join(tmp, 'drc.json'))
+    with tempfile.TemporaryDirectory() as tmp:
+        e, w, u = pcb.drc(dst, os.path.join(tmp, 'drc.json'))
     gate(not e and not w and not u, '%s: DRC %d errors, %d warnings, %d unconnected' % (board, len(e), len(w), len(u)))
     bad = fab.check_netlist(dst, board)
     gate(not bad, '%s: copper nets match circuit.py pad for pad %s' % (board, bad[:5] or ''))

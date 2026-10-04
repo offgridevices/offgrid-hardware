@@ -32,15 +32,15 @@ def _rot(a, axis):
 def model_points(board_path, prjmod=None):
     """{model file's base name: Nx3 points, mm, in the model's frame}.
     prjmod: the folder ${KIPRJMOD} stands for (default: the board's)."""
-    d = tempfile.mkdtemp(prefix='models3d-')
-    path = os.path.abspath(board_path)
-    subprocess.run(['kicad-cli', 'pcb', 'export', 'vrml', '-D', 'KIPRJMOD=' + (prjmod or os.path.dirname(path)),
-                    '--units', 'mm', '--models-dir', 'models', '--models-relative',
-                    '-o', os.path.join(d, 'board.wrl'), path], capture_output=True, cwd=d, check=True)
+    with tempfile.TemporaryDirectory(prefix='models3d-') as d:
+        path = os.path.abspath(board_path)
+        subprocess.run(['kicad-cli', 'pcb', 'export', 'vrml', '-D', 'KIPRJMOD=' + (prjmod or os.path.dirname(path)),
+                        '--units', 'mm', '--models-dir', 'models', '--models-relative',
+                        '-o', os.path.join(d, 'board.wrl'), path], capture_output=True, cwd=d, check=True)
+        md = os.path.join(d, 'models')
+        txts = {f: open(os.path.join(md, f)).read() for f in (os.listdir(md) if os.path.isdir(md) else [])}
     out = {}
-    md = os.path.join(d, 'models')
-    for f in os.listdir(md) if os.path.isdir(md) else []:
-        txt = open(os.path.join(md, f)).read()
+    for f, txt in sorted(txts.items()):
         # KiCad writes each model's shapes under identity transforms
         if re.search(r'translation (?!0 0 0\b)', txt) or re.search(r'rotation [-\d.e]+ [-\d.e]+ [-\d.e]+ (?!0\b)', txt):
             raise ValueError('%s: nested transforms in the converted model' % f)

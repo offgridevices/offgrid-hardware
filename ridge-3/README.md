@@ -564,17 +564,20 @@ is patched after the fact: every board comes out of the same code path.
 | `tools/mcu_cluster_search.py` | Not part of the build: the search that found the spots of the ESC's small parts round its MCU and driver (supply, reset and filter capacitors, the comparators' dividers, the thermistor's bias, the debug pads). It scores each layout against the fan-out's own via rules and the lines `esc_layout.route_local` lays first, so every pin keeps a way out; the spots it found are written into `esc_layout.py`. |
 | `artwork.py`, `brand.py` | Silkscreen placement (labels go only where they touch no pad, hole, part body, grommet or other label) and the OffGrid mark, lockup and type as outlines. |
 | `fab.py` | Gerbers, drills, BOM, CPL, netlist, assembly PDF, renders, STEP. |
+| `stable.py` | Keeps a rebuild from rewriting what has not changed: KiCad stamps each Gerber and STEP with the time and its raytracer's noise differs per run, so Gerbers keep their bytes when only the stamp differs, and renders and STEPs are made again only when the board, a 3D model or KiCad changed. |
 | `heatsink.py` | The ESC's heatsink from the routed board: a pocket over every bottom-side part at its maximum height (`parts.HEIGHTS`), merged where the metal between would be too thin to machine; fins, feet, battery-lead notches; the gap pad at its maker's charted impedance.  STEP and DXF (CadQuery), the drawing, and the geometry the thermal model uses. |
 | `panel.py` | The 3 × 2 production panel (KiKit), checked copy by copy against the single board. |
 | `make.py` | Runs it all with gates. |
 | `verify.py` | Writes `VERIFICATION.md`. |
 
-`python3 make.py` rebuilds every output from the committed `.kicad_pcb`
-files. It fails unless each board has zero DRC errors, zero warnings and
-zero unconnected items, the copper matches `circuit.py` pad for pad, and
-every assembled part is in the BOM and the CPL. `python3 make.py --reroute`
-places and routes both boards from scratch first, with a fixed seed per
-board, so the same inputs give the same boards.
+`python3.12 src/make.py` rebuilds every output from the committed
+`.kicad_pcb` files. It fails unless each board has zero DRC errors, zero
+warnings and zero unconnected items, the copper matches `circuit.py` pad for
+pad, and every assembled part is in the BOM and the CPL. Run on unchanged
+boards it changes no file, so `git status` shows only what a change really
+moved. `python3.12 src/make.py --reroute` places and routes both boards from
+scratch first, with a fixed seed per board, so the same inputs give the same
+boards. `python3.12 src/verify.py` then writes `VERIFICATION.md`.
 
 The tools: KiCad 10 (`pcbnew` Python module and `kicad-cli`), Freerouting
 1.9 (Java, headless via `xvfb-run`), KiKit 1.8 for the panel, and Python

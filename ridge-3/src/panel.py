@@ -70,7 +70,7 @@ V1 = os.path.dirname(HERE)
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import pcbnew
-import fab
+import fab, stable
 
 MM = 1000000                 # KiCad internal units per mm
 
@@ -857,8 +857,8 @@ def renders(pcb, out_dir, name, size):
     outs = []
     for side in ('top', 'bottom'):
         o = os.path.join(out_dir, '%s-%s.png' % (name, side))
-        run(['kicad-cli', 'pcb', 'render', '--side', side, '--width', str(width), '--height', str(height),
-             '--quality', 'high', '--use-board-stackup-colors', '--output', o, pcb])
+        stable.render(['kicad-cli', 'pcb', 'render', '--side', side, '--width', str(width), '--height', str(height),
+                       '--quality', 'high', '--use-board-stackup-colors', '--output', o, pcb], o, pcb, run)
         outs.append(o)
     return outs
 

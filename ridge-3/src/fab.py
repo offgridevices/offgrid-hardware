@@ -8,8 +8,13 @@
   <name>-bom-pcbway.csv   PCBWay's assembly BOM columns (MPN + LCSC number)
   <name>-netlist.csv      every pad and its net, for checking against circuit.py
   <name>-assembly.pdf     parts outlines and references, top then bottom
-  <name>-top.png / -bottom.png   rendered views
-  ../mechanical/<name>.step       3D model of the assembled board
+  ../images/<name>-top.png, -bottom.png, -iso.png   rendered views
+  ../../mechanical/<name>-step.zip                  3D model of the assembled board
+
+A rebuild of an unchanged board leaves every file as committed (stable.py):
+Gerbers and drill files keep their bytes when only KiCad's time stamp
+differs, and the renders and the STEP are made again only when the board,
+a 3D model or KiCad changed.
 
 Pick-and-place coordinates are the Gerbers' own (KiCad absolute, y up), so
 the two line up without any origin setting.  Rotation: 0 degrees is the
@@ -18,9 +23,9 @@ own library entry for its part or is a standard two-terminal chip part, so
 no per-part correction is needed.  Bottom parts are given as seen from the
 bottom, which is 180 - (angle seen from the top).
 """
-import csv, os, subprocess, zipfile, collections
+import csv, os, subprocess, collections
 import pcbnew
-import parts, circuit
+import parts, circuit, stable
 
 LAYERS = ['F.Paste', 'B.Paste', 'F.Silkscreen', 'B.Silkscreen', 'F.Mask', 'B.Mask', 'Edge.Cuts']
 
@@ -40,18 +45,20 @@ def run(cmd):
 def gerbers(board, out_dir, name):
     gdir = os.path.join(out_dir, 'gerbers')
     os.makedirs(gdir, exist_ok=True)
-    for f in os.listdir(gdir):
+    old = stable.snapshot(gdir)
+    for f in old:
         os.remove(os.path.join(gdir, f))
     run(['kicad-cli', 'pcb', 'export', 'gerbers', '--layers', ','.join(copper_layers(board) + LAYERS),
          '--subtract-soldermask',
          '--output', gdir + '/', board])
     run(['kicad-cli', 'pcb', 'export', 'drill', '--format', 'excellon', '--excellon-units', 'mm',
          '--excellon-separate-th', '--generate-map', '--map-format', 'gerberx2', '--output', gdir + '/', board])
+    files = sorted(os.listdir(gdir))
+    for f in files:                     # unchanged but for KiCad's time stamps: keep the committed file
+        stable.keep_if_same(os.path.join(gdir, f), old.get(f))
     zp = os.path.join(out_dir, '%s-gerbers.zip' % name)
-    with zipfile.ZipFile(zp, 'w', zipfile.ZIP_DEFLATED) as z:
-        for f in sorted(os.listdir(gdir)):
-            z.write(os.path.join(gdir, f), f)
-    return zp, sorted(os.listdir(gdir))
+    stable.zip_files(zp, [(os.path.join(gdir, f), f) for f in files])
+    return zp, files
 
 
 def _assembled(b, board_name, build=None):
@@ -205,15 +212,18 @@ def assembly_pdf(board, out_dir, name):
 
 
 def renders(board, out_dir, name):
+    """Top, bottom and three-quarter views; each redrawn only when the board,
+    its models or KiCad changed (stable.render)."""
     outs = []
     for side in ('top', 'bottom'):
         o = os.path.join(out_dir, '%s-%s.png' % (name, side))
-        run(['kicad-cli', 'pcb', 'render', '--side', side, '--width', '1600', '--height', '1600',
-             '--quality', 'high', '--use-board-stackup-colors', '--output', o, board])
+        stable.render(['kicad-cli', 'pcb', 'render', '--side', side, '--width', '1600', '--height', '1600',
+                       '--quality', 'high', '--use-board-stackup-colors', '--output', o, board], o, board, run)
         outs.append(o)
     o = os.path.join(out_dir, '%s-iso.png' % name)
-    run(['kicad-cli', 'pcb', 'render', '--width', '1600', '--height', '1200', '--quality', 'high',
-         '--use-board-stackup-colors', '--rotate', '-45,0,-30', '--zoom', '0.9', '--output', o, board])
+    stable.render(['kicad-cli', 'pcb', 'render', '--width', '1600', '--height', '1200', '--quality', 'high',
+                   '--use-board-stackup-colors', '--rotate', '-45,0,-30', '--zoom', '0.9', '--output', o, board],
+                  o, board, run)
     outs.append(o)
     return outs
 
@@ -296,11 +306,9 @@ def step(board, out_path):
     a fifth of that, and every CAD tool reads the STEP inside."""
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     raw = out_path if out_path.endswith('.step') else out_path + '.step'
-    run(['kicad-cli', 'pcb', 'export', 'step', '--subst-models', '--force', '--output', raw, board])
     zp = raw[:-5] + '-step.zip'
-    with zipfile.ZipFile(zp, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-        z.write(raw, os.path.basename(raw))
-    os.remove(raw)
+    stable.exported_zip(['kicad-cli', 'pcb', 'export', 'step', '--subst-models', '--force', '--output', raw, board],
+                        raw, zp, board, run)
     return zp
 
 
