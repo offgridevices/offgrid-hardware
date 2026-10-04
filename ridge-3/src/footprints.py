@@ -21,7 +21,7 @@ Two kinds of footprint go in:
      resizes the few exposed pads where the maker's land pattern is larger
      than EasyEDA's.  The raw files stay verbatim.
 2. Footprints generated here: battery, motor and signal solder pads, test
-   points, the open solder jumper and the M3 mounting hole (copper only),
+   points and the M2 mounting hole (copper only),
    plus the Stackpole HCS1206 shunt land (no EasyEDA entry exists for it).
 
 Run with KiCad's Python (python3.12 on Ubuntu): it uses pcbnew to read and
@@ -106,9 +106,6 @@ FIXUPS = {
     'USB-C-SMD_MC-311D': dict(rename={'A1-B12': 'A1B12', 'B1-A12': 'B1A12',
                                       'A4-B9': 'A4B9', 'B4-A9': 'B4A9'},
                               trim={'A1B12': 0.04, 'B1A12': 0.04}),
-    # TI TPS7A4101 DGN (HVSSOP-8): TI's land (DGN0008B) has a 1.98 x 1.88 mm
-    # thermal pad; EasyEDA's is 1.8 x 1.5.  Rows run along x here.
-    'MSOP-8_L3.0-W3.0-P0.65-LS5.0-BL-EP': dict(resize={'9': (1.98, 1.88)}),
     # TI LMR38020 DDA (SO-8 PowerPAD): TI's land (DDA0008B) has a
     # 3.4 x 2.71 mm thermal pad; EasyEDA's is 3.3 x 2.4.
     'ESOP-8_L4.9-W3.9-P1.27-LS6.0-BL-EP-1': dict(resize={'9': (3.4, 2.71)}),
@@ -338,28 +335,6 @@ def _smd_pad(fp, num, x, y, w, h, paste=True):
     fp.Add(p)
     return p
 
-def solder_jumper_fp(name='SJ_OPEN', w=0.8, h=1.2, gap=0.3):
-    """Open solder jumper: two pads, `gap` apart, one mask opening over both
-    so a blob of solder bridges them.  No paste: it ships open."""
-    fp = pcbnew.FOOTPRINT(None)
-    fp.SetFPID(pcbnew.LIB_ID('aio', name))
-    fp.SetAttributes(pcbnew.FP_SMD | pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
-    fp.SetAllowSolderMaskBridges(True)       # the one opening over both pads is the point
-    fp.SetLibDescription('Solder jumper, normally open: 2 pads %.1f x %.1f mm, %.2f mm gap' % (w, h, gap))
-    dx = (w + gap) / 2
-    _smd_pad(fp, '1', -dx, 0, w, h, paste=False)
-    _smd_pad(fp, '2', dx, 0, w, h, paste=False)
-    x1, y1 = dx + w / 2 + 0.05, h / 2 + 0.05
-    m = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_RECT)
-    m.SetStart(pcbnew.VECTOR2I(-MM(x1), -MM(y1))); m.SetEnd(pcbnew.VECTOR2I(MM(x1), MM(y1)))
-    m.SetFilled(True); m.SetLayer(pcbnew.F_Mask); m.SetWidth(0)
-    fp.Add(m)
-    _rect(fp, pcbnew.F_CrtYd, -MM(x1 + 0.05), -MM(y1 + 0.05), MM(x1 + 0.05), MM(y1 + 0.05), 0.05)
-    fp.Reference().SetLayer(pcbnew.F_Fab); fp.Reference().SetTextSize(pcbnew.VECTOR2I(MM(0.4), MM(0.4)))
-    fp.Reference().SetTextThickness(MM(0.06))
-    fp.Value().SetVisible(False)
-    return fp
-
 def shunt_hcs1206_fp():
     """Stackpole HCS1206 metal-element shunt (0.5 mOhm, 2 W): EasyEDA has no
     entry for C346511, so the land is Stackpole's recommended pad layout
@@ -450,9 +425,6 @@ def tsdson8fl_fp():
 # outlines to 0.01 mm.
 STD_FP = '/usr/share/kicad/footprints'          # as pcb.STD_FP
 OFFICIAL_MODELS = {
-    'CONN-SMD-6P-P1.00_BM06B-SRSS-TB-LF-SN': 'Connector_JST:JST_SH_BM06B-SRSS-TB_1x06-1MP_P1.00mm_Vertical',
-    'CONN-TH_BM08B-SRSS-TB-LF-SN': 'Connector_JST:JST_SH_BM08B-SRSS-TB_1x08-1MP_P1.00mm_Vertical',
-    'CONN-TH_SM08B-SRSS-TB-LF-SN': 'Connector_JST:JST_SH_SM08B-SRSS-TB_1x08-1MP_P1.00mm_Horizontal',
     'USB-C-SMD_MC-311D': 'Connector_USB:USB_C_Receptacle_GCT_USB4105-xx-A_16P_TopMnt_Horizontal',
     # C&K KMR2 with ground terminal: EasyEDA's model sits 1.27 mm off the
     # terminals; KiCad numbers the pads 1, 1, 2, 2, SH (official_model
@@ -631,7 +603,7 @@ def main():
         pad_fp('PAD_LEAD', 0.8, 0.8, shape='circle', desc='Stack lead wire pad, 28-30 AWG, 1.27 mm pitch'),
         hole_fp(),
     ]
-    gen += [solder_jumper_fp(), shunt_hcs1206_fp(), tsdson8fl_fp()]
+    gen += [shunt_hcs1206_fp(), tsdson8fl_fp()]
     for fp in gen:
         _save(LIB, fp); n += 1
     print('wrote %d footprints to %s' % (n, LIB))
