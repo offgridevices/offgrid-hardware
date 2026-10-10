@@ -5,6 +5,7 @@ Open hardware from [OffGrid Devices](https://github.com/offgridevices). One fold
 | Board | What it is | Status |
 |---|---|---|
 | [`packet-logger-carrier/v1/`](packet-logger-carrier/v1/) | 86 × 58 mm carrier for a LoRa mesh packet logger — RAK19003 + XIAO ESP32-C6 + microSD | v1 ordered, not yet bench-verified |
+| [`firebreak/`](firebreak/SPEC.md) | Smart smoke stopper, 1S–12S: probes the drone at 3 V before powering it, soft pre-charge, remembers each drone | Spec only (working name) |
 
 The firmware and analysis tooling these boards run with live in
 [`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab).
