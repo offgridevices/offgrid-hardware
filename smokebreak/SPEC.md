@@ -1,9 +1,9 @@
-# Firebreak (working name): a smoke stopper that checks before it powers
+# SmokeBreak: a smoke stopper that checks before it powers
 
 **Status: spec only.** Nothing is designed or built yet. This document is
 what the schematic and the board will be built against. Research behind it
 is in [`docs/research/market-and-complaints.md`](docs/research/market-and-complaints.md).
-"Firebreak" is a working name.
+Name chosen by the owner, 10 Oct 2026; trademark search pending.
 
 ![Concept faceplate](images/concept-faceplate.png)
 
@@ -15,7 +15,7 @@ is in [`docs/research/market-and-complaints.md`](docs/research/market-and-compla
 
 | # | Decision | Recommendation | Why it matters |
 |---|---|---|---|
-| D1 | Product name | A "Smoke…" name, owner's request: **SmokeBreak**, SmokeCheck or SmokeGate (none found on an FPV product, 10 Oct 2026) | Needs a USPTO class 9 search before any print run |
+| D1 | Product name | **SmokeBreak** — decided (no FPV product of that name found, 10 Oct 2026) | Needs a USPTO class 9 search before any print run |
 | D2 | Top of the voltage range | **14S (60.9 V LiHV)** — decided | 100 V switch parts, 64 V clamp (§9) |
 | D3 | USB-C port | **Yes** — decided | Firmware updates, drone-memory export. +$0.40 (§12) |
 | D4 | Front panel | **The PCB is the front panel**, behind a clear cover | The silkscreen instructions are the product's UI and stay on brand |
@@ -45,10 +45,10 @@ One unit covers **1S whoops to 14S heavy-lift**.
 
 Every smoke stopper today does one thing: apply full voltage and cut off
 if current goes over 1 A or 2 A. Users are stuck choosing between false
-trips (limit too low) and burnt parts (limit too high). Firebreak removes
+trips (limit too low) and burnt parts (limit too high). SmokeBreak removes
 that trade-off.
 
-| What people complain about (ranked) | What Firebreak does |
+| What people complain about (ranked) | What SmokeBreak does |
 |---|---|
 | 1. False trips on healthy builds (inrush, ESC tones, digital VTX) | Soft pre-charge removes inrush entirely. Two-tier limit: a tight *average* limit plus a fast *peak* limit, so ESC tones pass and shorts don't |
 | 2. False sense of security: green light, still smoked | 3 V probe finds the fault **before** battery voltage is applied; half-shorts (e.g. a failing 5 V regulator, ~20 Ω) are named and measured |
