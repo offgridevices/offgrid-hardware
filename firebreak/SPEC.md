@@ -223,7 +223,7 @@ Limit again"). After 30 s at 20 A it drops back to the previous setting.
 |---|---|
 | White, turning | Checking |
 | Green | On, all good |
-| Ember (orange) | On, but something changed since last time — read the screen |
+| Ember (orange) | On, but something changed since last time — look at the screen |
 | Red, flashing | Stopped — read the screen |
 | Blue, pulsing | Bind sequence |
 
@@ -251,19 +251,40 @@ done. The beeper cannot be muted in v1: it is a safety device.
 | Battery reversed | Unplug it |
 | Battery low | 3.4 V per cell |
 
-### Silkscreen text (top face)
+### Silkscreen text and arrows (top face)
 
-Sentence case, Instrument Sans 500; numbers and units in JetBrains Mono
-500, uppercase (brand rules, as on Ridge 3).
+**Rule: noob-proof.** Someone who has never seen one should get it right
+first time from the face alone, without the manual. Arrows do most of
+the explaining; words are short and plain.
 
-- By the Power button: "Press: check, then power on" / "Press again: off"
-- By Bind: "Bind" / "3 quick power cycles"
-- By Limit: "Limit" / `AUTO 1A 2A 5A 10A 20A` / "20A: props off"
-- Legend: "Checking · On, safe · Higher draw · Stopped"
-- Bottom: "1 Battery in   2 Drone in   3 Press Power"
-- Ends: "In" (battery) and "Out" (drone), with arrows
-- "Bench use only. Do not fly with this attached."
+One arrow, used everywhere: the brand arrow from Ridge 3 (`arrow_mm` in
+`ridge-3/src/brand.py`), a thin flat 0.25 mm line with a solid head. Same
+size and shape wherever it is printed, so it always reads the same.
+Clean and quiet, never decorative.
+
+| Where | Arrow | Words |
+|---|---|---|
+| Left end, at the battery inputs | Points **into** the box | "Battery" |
+| Right end, at the drone leads | Points **out of** the box | "Drone" |
+| Back edge, at USB-C | Points to the port | "USB-C: updates" |
+| Bind button | From the label to the button | "Bind" / "Puts the receiver in bind" |
+| Limit button | From the label to the button | "Limit" / `AUTO 1A 2A 5A 10A 20A` / "20A: props off" |
+| Bottom strip | Between the steps | "1 Battery in → 2 Drone in → 3 Press Power" |
+
+The Power button needs no arrow: the ring is the biggest thing on the
+face. Under it: "Press to check, then power on" / "Press again to turn off".
+
+Also printed:
+
+- Ring legend: "Checking · On, safe · Look at screen · Stopped", each with
+  its colour dot.
+- "Bench use only. Do not fly with this attached." (on the case's end).
 - Lockup (mark + "OffGrid"), product name, `REV 1.0`, serial in mono.
+
+Type: sentence case, Instrument Sans 500; numbers and units in JetBrains
+Mono 500, uppercase (brand rules, as on Ridge 3).
+
+The concept render is made by `images/concept_faceplate.py`.
 
 ---
 
@@ -367,7 +388,7 @@ live output is always the female side, whose contacts are recessed.
   (MJF nylon, black); injection-moulded from the second batch.
 - **Ends:** XT60 and XT30 (male) through the left end with a rib between
   them; the two drone leads through clamped grommets on the right end;
-  USB-C on the front edge.
+  USB-C on the back edge, away from the leads.
 - **Underside:** rubber feet; fully closed so it cannot short on a
   conductive bench.
 - **Light pipe:** clear or frosted ring in the shape of the Beacon Ring,
