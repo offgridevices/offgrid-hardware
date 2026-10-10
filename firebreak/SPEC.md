@@ -1,4 +1,4 @@
-# Firebreak: a smoke stopper that checks before it powers
+# Firebreak (working name): a smoke stopper that checks before it powers
 
 **Status: spec only.** Nothing is designed or built yet. This document is
 what the schematic and the board will be built against. Research behind it
@@ -15,11 +15,12 @@ is in [`docs/research/market-and-complaints.md`](docs/research/market-and-compla
 
 | # | Decision | Recommendation | Why it matters |
 |---|---|---|---|
-| D1 | Product name | **Firebreak** (alternatives: Tripwire, Checkpoint) | Needs a trademark search in class 9 before any print run |
-| D2 | Top of the voltage range | **12S (52.2 V)**, not 14S | 14S needs 120 V parts and a bigger clamp; 12S covers almost every heavy-lift build sold today |
-| D3 | USB-C port | **No** in v1; programming pads only | Saves about $1 and a hole in the case. Firmware is updated at the factory |
+| D1 | Product name | A "Smoke…" name, owner's request: **SmokeBreak**, SmokeCheck or SmokeGate (none found on an FPV product, 10 Oct 2026) | Needs a USPTO class 9 search before any print run |
+| D2 | Top of the voltage range | **14S (60.9 V LiHV)** — decided | 100 V switch parts, 64 V clamp (§9) |
+| D3 | USB-C port | **Yes** — decided | Firmware updates, drone-memory export. +$0.40 (§12) |
 | D4 | Front panel | **The PCB is the front panel**, behind a clear cover | The silkscreen instructions are the product's UI and stay on brand |
-| D5 | Price | **$24.99** with XT30 and BT2.0 adapters in the box | $19.99 needs 5k-unit volume or dropping the screen (§12) |
+| D5 | Cost-down parts (§12) | **Take all five** | Brings landed cost from ≈ $14.30 to ≈ $10.50 with 14S and USB-C |
+| D6 | Price | **$22.99** | ≈ 2.2 × landed cost; inside the smart band ($15–23) |
 
 ---
 
@@ -38,7 +39,7 @@ press **Power**. Before any battery voltage reaches the drone, it:
 It also **remembers each drone** it has seen and warns when one draws more
 than last time, or when its big capacitor has shrunk or gone.
 
-One unit covers **1S whoops to 12S heavy-lift**.
+One unit covers **1S whoops to 14S heavy-lift**.
 
 ## 2. What makes it different
 
@@ -51,12 +52,12 @@ that trade-off.
 |---|---|
 | 1. False trips on healthy builds (inrush, ESC tones, digital VTX) | Soft pre-charge removes inrush entirely. Two-tier limit: a tight *average* limit plus a fast *peak* limit, so ESC tones pass and shorts don't |
 | 2. False sense of security: green light, still smoked | 3 V probe finds the fault **before** battery voltage is applied; half-shorts (e.g. a failing 5 V regulator, ~20 Ω) are named and measured |
-| 3. Can't spin motors through it | **25 A motor-test setting** (props off), 60 s window, with the peak fuse still armed |
-| 4. Only 1 A / 2 A, set with solder pads | Six settings on a button (Auto, 1, 2, 5, 10, 25 A), changeable while on |
-| 5. No 1S, nothing smart above 6S | **1S to 12S** in one unit. No smart competitor covers either end |
+| 3. Can't spin motors through it | **20 A motor-test setting** (props off), 30 s window, with the peak fuse still armed |
+| 4. Only 1 A / 2 A, set with solder pads | Six settings on a button (Auto, 1, 2, 5, 10, 20 A), changeable while on |
+| 5. No 1S, nothing smart above 6S | **1S to 14S** in one unit. No smart competitor covers either end |
 | 6. Confusing LEDs → "red meant good to go", burnt motor | A screen that says what happened in words, a status ring, beeps, and printed instructions on the face |
 | 7. Dead on arrival, bare boards short on benches, leads rip off | Closed case, panel-mount battery connector, clamped drone lead, self-test at power-up |
-| 8. XT30/XT60 only; won't reach a frame-mounted XT60 | Flexible 10 cm drone lead; XT30 and BT2.0 adapters in the box |
+| 8. XT30/XT60 only; won't reach a frame-mounted XT60 | XT60 and XT30 built in on both sides, flexible 10 cm drone leads, BT2.0 adapters in the box |
 | Loved feature: the power button for binding | Kept, plus a **Bind** button that does the ELRS three-power-cycle for you |
 
 Three things no product on the market does today:
@@ -71,22 +72,23 @@ Three things no product on the market does today:
 
 | | Value |
 |---|---|
-| Battery | **1S–12S** LiPo, LiHV, Li-ion: **3.5–52.2 V** |
-| Survives | Reversed battery to −55 V; 80 V input transients |
+| Battery | **1S–14S** LiPo, LiHV, Li-ion: **3.5–60.9 V** |
+| Survives | Reversed battery to −61 V; 80 V input transients |
 | Pre-check | 3 V probe, ≤ 30 mA, before any battery voltage reaches the drone |
 | Detects before power | Dead short (< 1 Ω), half-short (1–150 Ω), reversed drone lead, missing bulk capacitor |
-| Pre-charge | Controlled ramp, inrush ≤ 1 A, loads up to 5,000 µF |
-| Trip settings | Auto · 1 · 2 · 5 · 10 · 25 A (25 A = motor test, 60 s, props off) |
-| Peak (short) cut-off | ≤ 5 µs at 4 × the setting; ≤ 1.2 µs hardware short-circuit trip at 60 A |
-| Through-resistance | ≤ 15 mΩ battery-to-drone, connectors included |
-| Current rating | 10 A continuous, 25 A for 60 s |
+| Pre-charge | Through pulse-rated resistors (≈ 2 Ω for 1–7S, ≈ 22 Ω for 8–14S), up to 5,000 µF in < 1 s |
+| Trip settings | Auto · 1 · 2 · 5 · 10 · 20 A (20 A = motor test, 30 s, props off) |
+| Peak (short) cut-off | ≤ 5 µs at 4 × the setting (comparator), plus the driver's own short trip (speed to confirm, §14) |
+| Through-resistance | ≤ 20 mΩ battery-to-drone through the XT60s |
+| Current rating | 10 A continuous, 20 A for 30 s |
 | Measures | Battery V (±1 %), drone current 0–40 A; idle current ±10 mA + 2 % (0.05–3 A) |
 | Remembers | 32 drones (capacitance, idle current, cell count) |
-| Connectors | XT60 panel-mount (battery), 10 cm 14 AWG lead to XT60 (drone). XT30 and BT2.0 adapters in the box |
+| Connectors | Battery side: XT60 + XT30 **male**, panel-mount. Drone side: XT60 + XT30 **female** on 10 cm leads. BT2.0 adapters in the box |
+| USB-C | Firmware update, drone-memory export, powers the screen for reading memory without a battery |
 | UI | 0.96" screen, Beacon Ring status light, 3 buttons, beeper |
 | Power use | ~30 mA on, < 30 µA off (battery still plugged in) |
 | Size / weight | ~86 × 56 × 22 mm, ~60 g (bench tool; not for flying) |
-| Price target | $24.99 retail; ≈ $13 landed cost at 1k |
+| Price target | $22.99 retail; ≈ $10.50 landed cost at 1k (§12) |
 
 ---
 
@@ -133,15 +135,22 @@ like a load. On 1S the half-short verdict is replaced by a softer limit
 
 ### Stage 2 — Pre-charge at battery voltage (≤ 1 s)
 
-- A pre-charge transistor ramps the drone's voltage up at a controlled
-  rate, about 1 V/ms, limiting inrush to ≤ 1 A for up to 5,000 µF.
+- A small switch connects the drone through pulse-rated pre-charge
+  resistors. The resistors, not a transistor, take the charging energy,
+  so this holds at 14S. Two values, picked by cell count: about 2 Ω for
+  1–7S and about 22 Ω for 8–14S. That is low enough for a drone whose
+  digital VTX switches on part-way up (≈ 10–15 W) to still climb past
+  75 % of battery voltage. Peak current is a few amps for a few
+  milliseconds, against hundreds of amps when a battery is plugged in
+  directly.
 - The device watches the voltage and current all the way up.
-- **Abort** if the drone's voltage stops rising while current flows (a
-  fault that appears only at higher voltage, e.g. a 5 V part on battery
-  voltage), or the ramp takes over 1 s. The screen shows at what voltage
-  and current it stopped.
-- **Pass** when the drone is within 0.3 V of the battery. Then the main
-  switch closes with almost no voltage across it: no spark, no inrush.
+- **Abort** if the drone's voltage stops rising below 75 % while current
+  flows (a fault that appears only at higher voltage, e.g. a 5 V part on
+  battery voltage), or the ramp takes over 1 s. The screen shows at what
+  voltage and current it stopped.
+- **Pass** above 75 % of battery voltage. The main switch then turns on
+  over about 50 ms and closes the rest of the gap: no spark, and the
+  remaining charge current stays well under the trip limit.
 
 ### Stage 3 — On
 
@@ -153,7 +162,7 @@ like a load. On 1S the half-short verdict is replaced by a softer limit
     tones and VTX boot spikes pass.
   - **Peak limit** = 4 × the setting, cut off in ≤ 5 µs by a hardware
     comparator. Real shorts never get near the average.
-  - **Short-circuit trip** in the controller chip, ≤ 1.2 µs at 60 A,
+  - **Short-circuit trip** in the driver chip, at a fixed threshold,
     whatever the firmware is doing.
 - Trip reason is always shown: "Over 2 A for 0.2 s (peak 2.6 A)" or
   "Spike over 8 A".
@@ -164,8 +173,8 @@ like a load. On 1S the half-short verdict is replaced by a softer limit
 
 From the fastest, independent of firmware, to the smartest:
 
-1. **Short-circuit trip** in the high-side controller (TPS48111 class): a
-   fixed hardware threshold, ≤ 1.2 µs. Works with the MCU halted.
+1. **Short-circuit trip** in the high-side driver (TPS4800-Q1 class): a
+   fixed hardware threshold. Works with the MCU halted.
 2. **Programmable peak comparator:** MCU sets the threshold (4 × setting),
    the comparator pulls the switch off directly, ≤ 5 µs.
 3. **Firmware average limit:** current sampled at ≥ 10 kHz, 200 ms window.
@@ -174,7 +183,7 @@ From the fastest, independent of firmware, to the smartest:
 6. **Back-to-back MOSFETs:** blocks current both ways when off; a reversed
    battery or a drone with its own battery plugged in cannot back-feed.
 7. **Thermal:** NTC at the switch; firmware cuts at 100 °C and limits the
-   25 A window. Pre-charge transistor has an energy budget per attempt.
+   20 A window. The pre-charge resistors have an energy budget per attempt.
 8. **Self-test at power-up:** switch off-state leakage, probe source and
    comparator checked; a failed self-test locks the switch off and says so.
 
@@ -203,10 +212,10 @@ held in one hand and pressed with the thumb.
 |---|---|---|
 | **Power** | Off → full check → on. On → off | Clears the fault and re-runs the full check |
 | **Bind** | Runs ELRS bind: on, off within 2 s, three times, stays on. Each cycle is protected; the probe runs on the first | — |
-| **Limit** | Steps Auto → 1 → 2 → 5 → 10 → 25 A → Auto. Works while on | Same |
+| **Limit** | Steps Auto → 1 → 2 → 5 → 10 → 20 A → Auto. Works while on | Same |
 
-Going to **25 A** asks for a second press within 3 s ("Props off? Press
-Limit again"). After 60 s at 25 A it drops back to the previous setting.
+Going to **20 A** asks for a second press within 3 s ("Props off? Press
+Limit again"). After 30 s at 20 A it drops back to the previous setting.
 
 ### Status ring
 
@@ -249,7 +258,7 @@ Sentence case, Instrument Sans 500; numbers and units in JetBrains Mono
 
 - By the Power button: "Press: check, then power on" / "Press again: off"
 - By Bind: "Bind" / "3 quick power cycles"
-- By Limit: "Limit" / `AUTO 1A 2A 5A 10A 25A` / "25A: props off"
+- By Limit: "Limit" / `AUTO 1A 2A 5A 10A 20A` / "20A: props off"
 - Legend: "Checking · On, safe · Higher draw · Stopped"
 - Bottom: "1 Battery in   2 Drone in   3 Press Power"
 - Ends: "In" (battery) and "Out" (drone), with arrows
@@ -281,16 +290,24 @@ so together with cell count it identifies a drone without any setup.
 
 ## 8. Connectors
 
-- **Battery side:** XT60 mounted on the board (Amass XT60PW class),
-  through the case's left end. Nothing to rip off.
-- **Drone side:** 10 cm, 14 AWG silicone lead to an XT60, clamped inside
-  the case. Long and flexible enough to reach a frame-mounted XT60.
-- **In the box:** XT60↔XT30 adapters (one for each side) and XT60↔BT2.0
-  adapters (one for each side) for whoops.
-- **Accessory:** XT90 and AS150 adapter pairs for heavy-lift.
+**Rule: male on the battery side, female on the drone side.** In FPV the
+battery carries the female connector and the drone carries the male. The
+device copies both, so it drops in between with nothing to adapt, and its
+live output is always the female side, whose contacts are recessed.
 
-Adapter resistance does not matter at bench currents; it is inside the
-≤ 15 mΩ figure only for the native XT60s.
+| Side | Built in | Gender | Why |
+|---|---|---|---|
+| Battery in (left end) | XT60 + XT30, panel-mounted (Amass XT60PW / XT30PW class) | **Male** | Mates the battery's female. Mounted in the case: no lead to rip off |
+| Drone out (right end) | XT60 + XT30, each on a 10 cm 14 AWG silicone lead, clamped | **Female** | Mates the drone's male. Flexible enough for frame-mounted XT60s |
+| In the box | BT2.0 pair: BT2.0 male → XT30 female (battery), XT30 male → BT2.0 female (drone) | — | 1S whoops |
+| Accessory | XT90 pair and AS150U pair, same pattern | — | 8–14S heavy-lift |
+
+- XT60 and XT30 between them cover almost every 2–8S FPV build, so most
+  users never need an adapter.
+- Only one input may be used at a time. The unused input's pins are
+  live but recessed in their shroud (as on ShortSaver 2); the case puts a
+  rib between the two so a stray wire cannot bridge them.
+- Adapter resistance does not matter at bench currents.
 
 ---
 
@@ -299,34 +316,37 @@ Adapter resistance does not matter at bench currents; it is inside the
 ### Block diagram
 
 ```
- XT60 in ─┬─ TVS ─ shunt ─ [FET A]─[FET B] ──┬──────────────── drone lead
-          │                 back-to-back     │
-          │        ┌─ pre-charge FET + R ────┤
-          │        │                         ├─ 3 V probe (1 kΩ / 100 Ω, 100 V diode)
-          │   high-side controller           ├─ voltage sense (0–60 V and 0–3.3 V ranges)
-          │   (charge pump, SCP, IMON)       │
-          │        ▲  ▲                      │
-          │        │  └── peak comparator ◄── current sense amp ◄── shunt
-          │        │
-          └─ reverse-protected 3.0–65 V buck ─► 3.3 V ─► MCU ─► screen, ring LEDs,
-                                                               buttons, beeper, NTC
+ XT60/XT30 in ─┬─ TVS ─ [FET A]─[FET B] ──────┬──────────────── XT60/XT30 out (+)
+               │        back-to-back          │
+               │   ┌─ switch + pre-charge R ──┤
+               │   │                          ├─ 3 V probe (1 kΩ / 100 Ω, 100 V diode)
+               │   high-side driver           ├─ voltage sense (0–65 V and 0–3.3 V ranges)
+               │   (charge pump, own short    │
+               │    trip, reverse protect)    │
+               │        ▲                     │
+               │        └── peak comparator ◄── op-amp ◄── shunt in the negative lead ◄── out (−)
+               │
+               └─ reverse-protected 3.0–65 V buck ─┐
+                                   USB-C 5 V ──────┴─► 3.3 V ─► MCU ─► screen, ring LEDs,
+                                                                     buttons, beeper, NTC, USB
 ```
 
 ### Candidate parts (to be confirmed at schematic stage)
 
 | Function | Candidate | Notes |
 |---|---|---|
-| High-side controller | **TI TPS48111-Q1** | 3.5–80 V, back-to-back N-FET drive, pre-charge gate driver, 1.2 µs short-circuit trip, IMON, −30 V output tolerance. ~$2 |
-| Main switch | 2 × 100 V N-MOSFET, ≤ 4 mΩ, 5 × 6 mm | Infineon OptiMOS 100 V class (Ridge 3 already uses Infineon FETs) |
-| Pre-charge | 100 V MOSFET rated for linear mode + series resistor | **Safe-operating-area check is the main design risk** (§14) |
-| Shunt | 2 mΩ, 2512, 3 W | 1.25 W at 25 A |
-| Precision current | TI INA186 class, auto-zeroed before each power-on | For the ±10 mA idle figure |
-| Peak comparator | Push-pull comparator, MCU-set threshold (PWM + RC or DAC) | Output pulls the controller's input low directly |
-| Aux supply | **TI LMR36503** buck, 3.0–65 V in | Works from 1S to 12S. Needs its own clamp below 70 V |
-| MCU | ST **STM32C031** | Non-PRC maker, ~$0.45, 12-bit ADC |
+| High-side driver | **TI TPS4800-Q1** | 3.5–80 V (100 V abs max), integrated charge pump, reverse-polarity protection, its own short-circuit trip. One gate output, which is all this design needs |
+| Main switch | 2 × 100 V N-MOSFET, ≤ 6 mΩ, 5 × 6 mm | Two makers qualified (e.g. Infineon and onsemi/Vishay) so price can be bid |
+| Pre-charge | Small 100 V switch + two pulse-rated resistor banks (≈ 2 Ω and ≈ 22 Ω), picked by cell count | The resistors take the ≈ 9 J at 14S, not a transistor |
+| Shunt | 2 mΩ, 2512, 3 W, **in the negative lead** | Low-side, so any $0.10 op-amp reads it; 0.8 W at 20 A |
+| Current amp | Precision op-amp, gain ≈ 50, auto-zeroed before each power-on | ±10 mA idle figure |
+| Peak comparator | Push-pull comparator, MCU-set threshold | Output pulls the driver's input low directly |
+| Aux supply | **TI LMR36503** buck, 3.0–65 V in | 1S–14S. Fed through an RC filter and its own clamp, so input spikes stay under its 70 V limit |
+| MCU | ST **STM32C071** | USB without a crystal, 12-bit ADC, non-PRC maker |
+| USB-C | 16-pin receptacle + ESD array | Data and 5 V. **The drone output stays off while USB is connected to a computer** (§14) |
 | Screen | 0.96" 128 × 64 OLED, I²C | |
-| Status ring | 6 × RGB LED under a ring light pipe | |
-| Input clamp | 54 V stand-off TVS (SMBJ54A class) | Clears 12S LiHV at 52.2 V |
+| Status ring | 3 × addressable RGB LED (2020 size) under a ring light pipe | |
+| Input clamp | 64 V stand-off TVS (SMBJ64A class) | Clears 14S LiHV at 60.9 V |
 | Buttons | 1 × 12 mm and 2 × 6 mm tactile, top side, with caps | |
 
 ### Board
@@ -335,7 +355,8 @@ Adapter resistance does not matter at bench currents; it is inside the
   as the face (only the screen, buttons, LEDs and silkscreen).
 - Built with the repository's generator and verification gates, like
   `packet-logger-carrier` and Ridge 3.
-- Programming and test pads on the bottom, reachable with the case open.
+- Programming and test pads on the bottom, reachable with the case open;
+  everyday updates go over USB-C.
 
 ---
 
@@ -343,9 +364,10 @@ Adapter resistance does not matter at bench currents; it is inside the
 
 - **Case:** a base tray plus the board as the lid, a clear 1 mm
   polycarbonate cover over the face, four screws. First batch printed
-  (MJF nylon, black); injection-moulded once volume justifies the tool.
-- **Ends:** XT60 through the left end; the drone lead through a clamped
-  grommet on the right end.
+  (MJF nylon, black); injection-moulded from the second batch.
+- **Ends:** XT60 and XT30 (male) through the left end with a rib between
+  them; the two drone leads through clamped grommets on the right end;
+  USB-C on the front edge.
 - **Underside:** rubber feet; fully closed so it cannot short on a
   conductive bench.
 - **Light pipe:** clear or frosted ring in the shape of the Beacon Ring,
@@ -373,57 +395,78 @@ Taken from the existing boards (`packet-logger-carrier`, Ridge 3):
 
 ## 12. Cost and price
 
-Estimates at 1,000 units, before quotes:
+Estimates at 1,000 units, before quotes. "First spec" is the version
+committed first (12S, no USB); "this spec" is 14S with USB-C and the
+cost-down parts.
 
-| Item | Est. |
-|---|---|
-| Controller, FETs, shunt, sense, comparator | $4.10 |
-| MCU, buck, passives, TVS, NTC | $1.70 |
-| Screen, LEDs, buttons, beeper | $1.80 |
-| XT60 panel-mount + drone lead | $1.10 |
-| PCB + assembly | $1.70 |
-| Case, light pipe, clear cover | $1.50 |
-| Adapters (XT30 pair, BT2.0 pair) + box | $1.40 |
-| **Total** | **≈ $13** |
+| Item | First spec | This spec | Change | What it costs us |
+|---|---|---|---|---|
+| Switch driver | TPS48111 $2.00 | TPS4800-Q1 ~$1.00 (est.) | −$1.00 | Its pre-charge driver and current monitor; both done another way below |
+| Pre-charge | Linear-mode FET + R $0.35 | Small switch + pulse resistors $0.30 | −$0.05 | Nothing; **removes the biggest design risk** at 14S |
+| Current sense | 80 V+ high-side amp $1.20 | Low-side shunt + op-amp $0.25 | −$0.95 | Output must stay off while USB is connected (§14) |
+| Main FETs (2) | ≤ 4 mΩ, one maker $1.40 | ≤ 6 mΩ, two makers $0.70 | −$0.70 | Motor test 25 A/60 s → 20 A/30 s (props-off spin rarely needs 10 A) |
+| Status LEDs | 6 × RGB $0.40 | 3 × addressable $0.15 | −$0.25 | None visible through the light pipe |
+| Case | Printed $1.50 | Injection-moulded $0.80 | −$0.70 | ~$5k tool, from the second batch |
+| Box contents | XT30 + BT2.0 adapter pairs $1.40 | BT2.0 pair only $0.80 | −$0.60 | XT30 is now built in |
+| Connectors | XT60 in + XT60 lead $1.10 | XT60 + XT30 both sides $1.50 | +$0.40 | — |
+| 14S clamp + buck filter | — | $0.05 | +$0.05 | — |
+| USB-C + USB MCU | — | $0.40 | +$0.40 | — |
+| Aux buck, screen, buttons, beeper, passives, NTC, TVS | $2.75 | $2.75 | — | — |
+| PCB + assembly | $1.70 | $1.60 | −$0.10 | Fewer parts |
+| **Total** | **≈ $14.30** | **≈ $10.50** | **−$3.80** | First batch, printed case: ≈ $11.20 |
+
+(The first spec's own summary said ≈ $13; itemising it gives $14.30.)
 
 Market: polyfuse $5–8; smart $15–23 (ShortSaver 2 $16–17, SpeedyBee
 ≈ $20–23, 4–6S only).
 
-- At **$24.99** Firebreak is $2–9 above the smart units and covers 1S–12S,
-  which none of them do. It is the realistic floor at 1k units.
-- **$19.99** needs one of: 5k volume, adapters sold separately (−$1.40),
-  or LEDs instead of the screen (−$1.20, and gives back fix #6).
+- **$22.99** is ≈ 2.2 × landed cost and sits inside the smart band, with
+  1S–14S, which none of them cover.
+- **$19.99** works direct-to-customer (1.9 ×) but leaves little for
+  retailers.
+
+Further cuts, not recommended: a 0.91" 128 × 32 screen (−$0.40, two lines
+of text instead of three); one MOSFET instead of two (−$0.35, loses
+reversed-battery and back-feed blocking); a discrete gate driver instead
+of the TPS4800 (−$0.80, loses the short trip that works with the MCU
+halted).
 
 ---
 
 ## 13. Compliance
 
 - No radio. In the US it needs an FCC Part 15B Supplier's Declaration of
-  Conformity as an unintentional radiator. CE/UKCA (EMC + RoHS) for
-  Europe.
+  Conformity as an unintentional radiator (USB-C does not change that).
+  CE/UKCA (EMC + RoHS) for Europe.
 - It is ground test equipment that never flies, so the FCC Covered List
   entry for "UAS critical components" (Ridge 3 research) should not apply.
   **Confirm before launch.**
 - LiPo safety wording on the box and the face: bench use only, props off
-  for the 25 A setting, never leave unattended.
+  for the 20 A setting, never leave unattended.
 
 ---
 
 ## 14. Risks and open questions
 
-1. **Pre-charge transistor SOA.** Ramping 5,000 µF to 52 V dissipates
-   ≈ 6.8 J in about 0.2 s. Pick the FET from its linear-mode SOA curve,
-   share heat with the series resistor, and budget energy per attempt.
-2. **Probe on 1S.** 1S flight controllers run near 3 V. Measure real whoops
+1. **Pre-charge resistor energy.** Charging 5,000 µF to 60.9 V puts
+   ≈ 9.3 J into the resistors in under 1 s. Size them from their pulse
+   curves and limit retries (energy budget per minute).
+2. **USB ground path.** The shunt is in the negative lead. If this device
+   and the drone were both plugged into the same computer, fault current
+   could return through the two USB cables, bypassing the shunt and
+   passing through the computer. So the drone output is held off while
+   this device's USB is connected to a host (5 V-only chargers are fine).
+   The driver's own short trip does not use the shunt and still works.
+3. **Probe on 1S.** 1S flight controllers run near 3 V. Measure real whoops
    before fixing the 1S thresholds.
-3. **Reversed-lead signature** on AIO boards with a reverse-protection
+4. **Reversed-lead signature** on AIO boards with a reverse-protection
    diode or ideal-diode chip: they will look "open". Test on several boards;
    the pre-charge stage still stops a reversed drone at low current.
-4. **Capacitance fingerprint repeatability** across temperature and
+5. **Capacitance fingerprint repeatability** across temperature and
    capacitor age. Bench data needed before promising "remembers".
-5. **Aux buck transient limit** (70 V) versus the input TVS clamp
-   (~87 V at full pulse current): give the buck its own clamp.
-6. **Name** needs a trademark search (the Ridge 3 research already found
+6. **TPS4800-Q1 price and short-trip speed** are not yet confirmed from
+   its datasheet. Fallback: TPS48110-Q1 (+$0.80).
+7. **Name** needs a trademark search (the Ridge 3 research already found
    "OFFGRID" registered in class 9 by another company).
 
 ---
@@ -434,25 +477,26 @@ Before a second batch, each of these passes on the bench:
 
 | Test | Pass |
 |---|---|
-| Dead short (10 mΩ) on the output, 1S–12S | Probe stops it; zero battery current |
+| Dead short (10 mΩ) on the output, 1S–14S | Probe stops it; zero battery current |
 | 18 Ω and 100 Ω half-shorts | Named, resistance within 10 % |
 | Reversed lead on 3 different ESCs and 2 AIOs | "Reversed" on every one, or stopped in pre-charge |
-| 2,000 µF + 470 µF at 6S, 5,000 µF at 12S | No trip, inrush ≤ 1 A |
+| 2,000 µF + 470 µF at 6S, 5,000 µF at 14S | No trip, pre-charge resistors within their pulse rating |
 | ESC start-up tones, O4 + 6S, Walksnail + 6S | No trip on Auto |
+| O4 Pro on 3S and 7S, Walksnail on 14S heavy-lift | Pre-charge passes 75 %, then on |
 | Short applied while on, at each setting | Off in ≤ 5 µs (scope) |
-| 25 A for 60 s | Switch < 100 °C, drops back after 60 s |
-| Reversed battery to −55 V | No damage, message shown |
+| 20 A for 30 s | Switch < 100 °C, drops back after 30 s |
+| Reversed battery to −61 V | No damage, message shown |
+| USB-C connected to a laptop | Output refuses to turn on; screen says why |
 | Same drone, 10 plug-ins over a week | Recognised every time |
 | ELRS 3.x receiver, Bind button | Enters bind on every try |
-| MCU held in reset, short applied | Hardware trip still cuts off |
+| MCU held in reset, short applied | Driver's own trip still cuts off |
 
 ---
 
 ## 16. Not in v1
 
-- USB-C logging and firmware update (D3).
-- 14S (D2) and a native XT90 version.
-- **Firebreak Pro:** an in-line unit for 8–14S heavy-lift that stays
+- A native XT90 version.
+- **Pro version:** an in-line unit for 8–14S heavy-lift that stays
   connected in flight as an anti-spark switch and runs the same pre-check
   at every power-up. Anti-spark filters (~$15) don't detect shorts and
   smoke stoppers can't be flown through; nothing does both today.
