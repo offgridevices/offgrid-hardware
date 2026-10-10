@@ -96,6 +96,8 @@ def main():
             c = (lo + hi) / 2
             cam.location = (c.x, c.y, hi.z + 500)
             cam.rotation_euler = (0, 0, 0)
+            sc.cycles.samples = 16
+            sc.render.resolution_percentage = 60 if not quick else 50
             sc.render.filepath = os.path.join(tmp, 'top.png')
             bpy.ops.render.render(write_still=True)
             overlay(sc.render.filepath, os.path.join(folder, 'top.png'), num, name + ' (top)')

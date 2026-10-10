@@ -42,7 +42,7 @@ def build(s):
 
     # screen (1.3" OLED under glass)
     x, y = B(27, 21)
-    s.box((38, 24, 0.6), (x, y, top + 0.2), m='screen', bevel=0.6, name='window')
+    s.box((38, 24, 0.6), (x, y, top + 0.2), m=s.mat('matte glass', '#050505', 0.35), bevel=0.6, name='window')
     s.text('0.42A', 5.0, (x - 15, y - 1.5, top + 0.52), m='white_led', mono=True, align='LEFT', name='amps')
     s.text('On, safe', 1.8, (x - 15, y + 6.8, top + 0.52), m='green', align='LEFT', name='state')
     s.text('16.8V 4S', 1.4, (x + 15, y + 6.8, top + 0.52), m='screen_txt', mono=True, align='RIGHT', name='batt')

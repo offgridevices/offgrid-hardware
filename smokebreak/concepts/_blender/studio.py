@@ -407,12 +407,14 @@ def stage(radius_hint=None, elevation=28.0, azimuth=-35.0, lens=70.0):
     cam_data.lens = lens
     cam_data.clip_start = 1
     cam_data.clip_end = r * 100
+    # keep the product clear of the number and name printed top left
+    cam_data.shift_x, cam_data.shift_y = -0.06, 0.05
     cam = bpy.data.objects.new('cam', cam_data)
     bpy.context.collection.objects.link(cam)
     cam.parent = pivot
     # distance so the object fills ~70 % of the frame
     fov = 2 * math.atan(36 / (2 * lens))
-    dist = (size * 0.55) / math.tan(fov / 2)
+    dist = (size * 0.6) / math.tan(fov / 2)
     el, az = math.radians(elevation), math.radians(azimuth)
     cam.location = (dist * math.cos(el) * math.sin(az), -dist * math.cos(el) * math.cos(az), dist * math.sin(el))
     con = cam.constraints.new('TRACK_TO')
