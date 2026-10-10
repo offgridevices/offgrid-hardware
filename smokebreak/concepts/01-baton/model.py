@@ -49,7 +49,7 @@ def build(s):
     s.text('Battery', 2.0, (X0 + 1.5, 4.0, t), align='LEFT')
     s.arrow(9, (X0 + 7.0, 0.5, t), rot_z=0)
     # screen window: 1.14" IPS under glass
-    s.box((34, 16, 0.6), (-34, 0, TOP + 0.1), m='screen', bevel=0.5, name='window')
+    s.box((34, 16, 0.6), (-34, 0, TOP + 0.1), m=s.mat('ips glass', '#060606', 0.45), bevel=0.5, name='window')
     s.text('16.8V 4S', 3.6, (-35, 2.8, TOP + 0.45), m=s.mat('ips text', s.BONE, 0.5, emit=s.BONE, strength=1.0), mono=True)
     s.text('LIMIT AUTO', 1.7, (-40.5, -2.0, TOP + 0.45), m=s.mat('ips text', s.BONE, 0.5, emit=s.BONE, strength=1.0), mono=True)
     s.text('Press the ring', 1.7, (-40.0, -5.0, TOP + 0.45), m=s.mat('ips ember', s.EMBER, 0.5, emit=s.EMBER, strength=1.2))
