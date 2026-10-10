@@ -107,7 +107,7 @@ def M(kind):
         'red':        lambda: mat('red light', RED, 0.4, emit=RED, strength=5.0),
         'white_led':  lambda: mat('white light', '#FFF6E8', 0.4, emit='#FFF6E8', strength=5.0),
         'glass':      lambda: mat('glass', '#FFFFFF', 0.02, transmission=1.0, ior=1.5),
-        'smoked':     lambda: mat('smoked glass', '#3A3530', 0.05, transmission=0.85, ior=1.5),
+        'smoked':     lambda: mat('smoked glass', '#8C8278', 0.05, transmission=1.0, ior=1.5),
         'frosted':    lambda: mat('frosted pipe', '#FFFFFF', 0.45, transmission=0.9),
         'screen':     lambda: mat('screen black', '#050505', 0.15, coat=1.0),
         'screen_txt': lambda: mat('screen text', '#9FE0A0', 0.5, emit='#9FE0A0', strength=1.2),

@@ -91,15 +91,15 @@ def build(s):
     txt('20A: props off', 1.6, 20.5, 53.6)
 
     # ignition: Beacon Ring + barrel + key
-    c = (66.0, 31.0)
-    s.beacon_ring(17, 1.9, loc=P(c[0], c[1], 0.45), rot=rot, m='green')
+    c = (63.0, 30.0)
+    s.beacon_ring(14.5, 1.9, loc=P(c[0], c[1], 0.45), rot=rot, m='green')
     for lab, a in (('Off', 0), ('On', 60), ('Bind', 110)):
-        r = 23.5
+        r = 19.8
         th = math.radians(a - 90)
         u = c[0] + r * math.cos(th) - (0 if a == 0 else 1.2)
         v = c[1] + r * math.sin(th) + (-0.6 if a == 0 else 1.2)
         txt(lab, 2.2, u, v, align='CENTER' if a == 0 else 'LEFT')
-    s.cyl(12.5, 3.2, P(c[0], c[1], 1.6), m='brushed', bevel=0.8, rot=rot, name='barrel')
+    s.cyl(11.0, 3.2, P(c[0], c[1], 1.6), m='brushed', bevel=0.8, rot=rot, name='barrel')
     hub = bpy.data.objects.new('key-hub', None)
     bpy.context.collection.objects.link(hub)
     hub.location = P(c[0], c[1], 3.2)
