@@ -28,10 +28,11 @@ UI_FRAMES = os.path.join(SB, 'ui', 'frames24')
 UI_VIDEO = os.path.join(SB, 'ui', 'arm-sequence.mp4')
 
 # ---------------------------------------------------------------- geometry
-W, D, H, R = 96.0, 58.0, 18.0, 9.0        # body
-TX, TY = 73.0, 31.0                        # toggle, face coords (x from left, y from back)
+W, D, H, R = 100.0, 58.0, 18.0, 9.0       # body
+TX, TY = 74.0, 31.0                        # toggle, face coords (x from left, y from back)
 HY = 12.0                                  # guard hinge line, face y
-GL, GW, GH = 34.0, 24.0, 17.0              # guard length, width, wall height
+GL, GW, GH = 36.0, 30.0, 17.0              # guard length, width, wall height
+RING = 11.0                                # Beacon Ring centreline radius round the toggle
 OPEN = 108.0                               # open angle, degrees
 LEVER_ON, LEVER_OFF, LEVER_BIND = 24.0, 0.0, -24.0
 SCR = (28.5, 21.0, 46.0, 26.0)             # screen window centre x, y, width, height (face coords)
@@ -148,38 +149,40 @@ def build(still_frame=None):
     # toggle with the Beacon Ring round its bushing
     rmat = ring_material()
     tx, ty = F(TX, TY)
-    ring = s.beacon_ring(13.0, 1.7, loc=(tx, ty, top + 0.65), m=rmat, name='beacon')
+    ring = s.beacon_ring(RING, 1.2, loc=(tx, ty, top + 0.65), m=rmat, name='beacon')
     s.cyl(4.6, 0.9, (tx, ty, top + 0.95), m='steel', bevel=0.2, verts=6, name='nut')
     s.cyl(3.0, 3.4, (tx, ty, top + 3.0), m='steel', bevel=0.3, name='bushing')
     lever = bpy.data.objects.new('lever', None)
     bpy.context.collection.objects.link(lever)
     lever.location = (tx, ty, top + 4.4)
-    L = 11.0
+    L = 8.5                                 # clears the closed guard's top
     for p in (s.cyl(1.25, L, (0, 0, L / 2), m='aluminium', bevel=0.3, name='lever-bat'),
               s.sphere(1.7, (0, 0, L), m='aluminium', name='lever-tip')):
         p.parent = lever
     for lab, dy in (('On', -7.0), ('Off', 0.0), ('Bind', 7.0)):
-        x, y = F(TX + 16.5, TY + dy)
+        x, y = F(TX + 17.0, TY + dy)
         s.text(lab, 1.8, (x, y, top + 0.62), align='LEFT')
 
-    # guard: translucent Ember polycarbonate on a steel pin
+    # guard: translucent Ember polycarbonate, pivoting on a steel pin at its
+    # base at the back; closed, its walls stand on the face and its top
+    # covers the toggle
     hx, hy = F(TX, HY)
-    hz = top + 2.6
-    s.box((GW + 5, 4.5, 3.0), (hx, hy + 0.6, top + 1.5), m='anodised', bevel=0.6, name='hinge-block')
+    hz = top + 1.6
+    s.box((GW + 5, 4.5, 3.2), (hx, hy + 0.4, top + 1.6), m='anodised', bevel=0.6, name='hinge-block')
     s.cyl(1.1, GW + 6, (hx, hy, hz), m='steel', bevel=0.2, rot=(0, 90, 0), name='pin')
     guard = bpy.data.objects.new('guard', None)
     bpy.context.collection.objects.link(guard)
     guard.location = (hx, hy, hz)
     gm = guard_material()
-    wall_z = -GH / 2 + 1.2
-    for p in (s.box((GW, GL, 1.8), (0, -GL / 2 - 1.0, 0), m=gm, bevel=0.6, name='guard-top'),
-              s.box((1.8, GL, GH), (-GW / 2 + 0.9, -GL / 2 - 1.0, wall_z), m=gm, bevel=0.6, name='guard-wall'),
-              s.box((1.8, GL, GH), (GW / 2 - 0.9, -GL / 2 - 1.0, wall_z), m=gm, bevel=0.6, name='guard-wall'),
-              s.box((GW, 1.8, GH), (0, -GL - 0.1, wall_z), m=gm, bevel=0.6, name='guard-lip'),
-              s.text('ARM', 3.2, (0, -GL / 2 - 2, 0.95), m='bone', name='guard-word')):
+    yc = -GL / 2 - 1.0
+    for p in (s.box((GW, GL, 1.8), (0, yc, GH - 0.9), m=gm, bevel=0.6, name='guard-top'),
+              s.box((1.8, GL, GH), (-GW / 2 + 0.9, yc, GH / 2), m=gm, bevel=0.6, name='guard-wall'),
+              s.box((1.8, GL, GH), (GW / 2 - 0.9, yc, GH / 2), m=gm, bevel=0.6, name='guard-wall'),
+              s.box((GW, 1.8, GH), (0, -GL - 0.1, GH / 2), m=gm, bevel=0.6, name='guard-lip'),
+              s.text('ARM', 3.2, (0, yc - 2, GH + 0.05), m='bone', name='guard-word')):
         p.parent = guard
     # an arrow on the face, beside the guard: lift
-    x, y = F(TX - 16.5, TY + 9)
+    x, y = F(TX - 18.5, TY + 9)
     s.arrow(7, (x, y, top + 0.62), rot_z=90, shaft=0.35, head=0.9)
     s.text('Lift', 1.8, (x, y + 5.6, top + 0.62))
 
@@ -190,10 +193,9 @@ def build(still_frame=None):
     x, y = F(W - 4.0, D - 4.8)
     s.text('Drone', 1.9, (x, y, top + 0.62), align='RIGHT')
     s.arrow(8, (x - 4, y + 2.6, top + 0.62), shaft=0.35, head=0.9)
-    x, y = F(50, 51.5)
-    s.beacon_ring(1.3, 0.45, loc=(x - 3.0, y + 0.4, top + 0.65), m='bone', name='mark')
-    s.text('OffGrid', 2.0, (x - 0.5, y, top + 0.62), align='LEFT', name='wordmark')
-    s.text('SmokeBreak', 1.5, (x - 0.5, y - 3.2, top + 0.62), align='LEFT', m=s.mat('bone dim', '#9E978A', 0.6))
+    # the lockup, exactly as the brand file (brand/mark.py)
+    x, y = F(62, 52.0)
+    s.lockup(17.0, (x, y, top + 0.62), m='bone', name='lockup')
 
     # connectors: male XT60 + XT30 in, female leads out, USB-C at the back
     x, y = F(0, 20.75)

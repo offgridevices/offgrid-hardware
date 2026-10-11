@@ -15,6 +15,11 @@ import tempfile
 
 from PIL import Image, ImageDraw, ImageFont
 
+sys_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'brand')
+import sys  # noqa: E402
+sys.path.insert(0, sys_path)
+import mark as brand  # noqa: E402  the one source of the Beacon Ring
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONTS = os.environ.get('SB_FONTS', '/tmp/claude-0/-home-user-offgrid-hardware/'
                        'bb4d9657-83a6-5d9a-b4a3-ba3efc9cb84f/scratchpad/ref')
@@ -64,18 +69,15 @@ class Canvas:
     def line(self, pts, colour, width=1):
         self.d.line([(x * SCALE, y * SCALE) for x, y in pts], fill=colour, width=int(width * SCALE))
 
-    def ring(self, cx, cy, r, w, colour, frac=1.0, node=True):
-        """The Beacon Ring, open at 12 o'clock, drawn `frac` of the way round."""
-        gap = 24
-        a0 = -90 + gap
-        a1 = a0 + (360 - 2 * gap) * frac
-        box = [(cx - r) * SCALE, (cy - r) * SCALE, (cx + r) * SCALE, (cy + r) * SCALE]
-        if frac > 0:
-            self.d.arc(box, a0, a1, fill=colour, width=int(w * SCALE))
-        if node:
-            nr = r * 17 / 58
-            self.d.ellipse([(cx - nr) * SCALE, (cy - r - nr * 0.9) * SCALE,
-                            (cx + nr) * SCALE, (cy - r + nr * 1.1) * SCALE], fill=colour)
+    def ring(self, cx, cy, r, w=None, colour=BONE, frac=1.0, node=True):
+        """The Beacon Ring exactly as the brand draws it (brand/mark.py), its
+        ring's centreline radius r.  Its proportions are never changed: `frac`
+        < 1 only shrinks the whole mark (for reveal animations); `w` and
+        `node` are ignored."""
+        k = 0.6 + 0.4 * max(0.0, min(1.0, frac))
+        g = brand.by_ring_radius(r * k, centre=(cx, cy))
+        for poly in brand.polygons(g):
+            self.d.polygon([(x * SCALE, y * SCALE) for x, y in poly.exterior.coords], fill=colour)
 
     def stripes(self, y0, y1, colour, phase=0.0):
         """Hazard chevrons across the panel, scrolling with `phase`."""
@@ -255,7 +257,7 @@ def s09_reversed(t):
 def s10_bind(t):
     c = Canvas()
     step = min(3, 1 + int(t * 3))
-    c.ring(PW / 2, 58, 30, 5, BLUE, frac=(t * 3) % 1 if t < 1 else 1)
+    c.ring(PW / 2, 58, 30, None, lerp((20, 40, 80), BLUE, 0.4 + 0.6 * abs(math.sin(t * 3 * math.pi))))
     c.text(PW / 2, 100, f'BIND  {step}/3', 24, BLUE, 'sans', 'ma', 600)
     c.text(PW / 2, 136, 'Power-cycling the receiver', 11, BONE, anchor='ma')
     c.text(PW / 2, 152, 'Then press Bind in your radio', 10, DIM, anchor='ma')

@@ -397,6 +397,16 @@ live output is always the female side, whose contacts are recessed.
 
 Taken from the existing boards (`packet-logger-carrier`, Ridge 3):
 
+- **The logo is never redrawn by hand.** The Beacon Ring and the lockup
+  come only from [`brand/mark.py`](brand/mark.py), which builds them from
+  the brand file's own numbers (ring r 58, stroke 22 with round caps, node
+  r 17 at (100, 40) in the 200-unit box; lockup per v3.2 with the word's
+  capitals centred on the ring). [`brand/verify_mark.py`](brand/verify_mark.py)
+  checks it against the brand SVG rendered by Chromium and fails on any
+  edge more than 0.2 units off. Every render, screen, silkscreen and
+  animation takes the mark from there; a status-light ring in the shape
+  of the mark is the mark, at its exact proportions.
+
 - **Pitch** `#1B1813` matte black solder mask; **Bone** `#F1ECE0` white
   silkscreen; **Ember** `#FF6A00` as light, not ink: the ring's caution
   colour and the Beacon Ring itself.

@@ -13,6 +13,9 @@ import os
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'brand'))
+import mark as brand  # noqa: E402  the one source of the mark and lockup
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONTS = os.environ.get('FONTS_DIR', os.path.join(HERE, '..', '..', 'ridge-3', 'fonts'))
 
@@ -77,12 +80,9 @@ def face():
 
     # -- Power: the Beacon Ring --------------------------------------------------
     cx, cy = 62.0, 17.5
-    o.append(f'<g transform="translate({cx},{cy})">'
-             f'<path d="M 3.4 -8.3 A 9 9 0 1 1 -3.4 -8.3" fill="none" stroke="{EMBER}" '
-             f'stroke-width="2.2" stroke-linecap="round"/>'
-             f'<circle cx="0" cy="-10.3" r="1.7" fill="{EMBER}"/>'
-             f'<circle r="5.6" fill="#2a2620" stroke="#4a443b" stroke-width="0.3"/>'
-             + text(0, 0.9, 'Power', 2.5, anchor='middle') + '</g>')
+    o.append(brand.svg_mark(cx, cy, 9.0, EMBER))
+    o.append(f'<circle cx="{cx}" cy="{cy}" r="5.6" fill="#2a2620" stroke="#4a443b" stroke-width="0.3"/>')
+    o.append(text(cx, cy + 0.9, 'Power', 2.5, anchor='middle'))
     o.append(text(cx, 31.6, 'Press to check, then power on', 1.8, anchor='middle'))
     o.append(text(cx, 34.0, 'Press again to turn off', 1.8, anchor='middle'))
 
@@ -113,10 +113,7 @@ def face():
     o.append(arrow(32.8, y - 0.65, 36.6, y - 0.65))
 
     # -- lockup ---------------------------------------------------------------------
-    o.append(f'<g transform="translate(65.6,47.7) scale(0.024)">'
-             f'<path d="M124.5 55.4 A58 58 0 1 1 75.5 55.4" fill="none" stroke="{BONE}" stroke-width="22" stroke-linecap="round"/>'
-             f'<circle cx="100" cy="40" r="17" fill="{BONE}"/></g>')
-    o.append(f'<text x="71" y="50.7" font-family="IS" font-weight="600" font-size="3.1" fill="{BONE}" letter-spacing="-0.1">OffGrid</text>')
+    o.append(brand.svg_lockup(72.9, 49.4, 13.2, BONE))
     return '\n'.join(o)
 
 

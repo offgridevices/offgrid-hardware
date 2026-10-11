@@ -19,8 +19,13 @@ Units: 1 Blender unit = 1 mm.  +X is the product's length (battery end at
 import math
 import os
 
+import sys
+
 import bpy
 from mathutils import Vector
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'brand'))
+import mark as brand   # noqa: E402  the one source of the mark and lockup
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FONTS = os.environ.get('SB_FONTS', '/tmp/claude-0/-home-user-offgrid-hardware/'
@@ -211,45 +216,69 @@ def tube_path(points, radius, m='red_wire', name='wire', resolution=12):
     return o
 
 
-def beacon_ring(radius, thickness, loc=(0, 0, 0), rot=(0, 0, 0), m='ember', node=True, gap_deg=48,
-                name='beacon'):
-    """The OffGrid Beacon Ring as a 3D light pipe: a ring open at 12 o'clock
-    (local +Y) with the node dot in the gap.  Lies in its local XY plane."""
+def flat(geom, depth=0.04, loc=(0, 0, 0), rot=(0, 0, 0), m='bone', name='flat'):
+    """Shapely geometry (mm, y up, in the local XY plane) as a filled shape
+    `depth` mm thick, centred on z = 0, facing +Z.  Holes are kept."""
     cu = bpy.data.curves.new(name, 'CURVE')
-    cu.dimensions = '3D'
-    cu.bevel_depth = thickness / 2
-    cu.bevel_resolution = 6
-    cu.use_fill_caps = True
-    sp = cu.splines.new('POLY')
-    n = 120
-    a0 = math.radians(90 + gap_deg / 2)
-    a1 = math.radians(90 + 360 - gap_deg / 2)
-    sp.points.add(n)
-    for i in range(n + 1):
-        a = a0 + (a1 - a0) * i / n
-        sp.points[i].co = (radius * math.cos(a), radius * math.sin(a), 0, 1)
+    cu.dimensions = '2D'
+    cu.fill_mode = 'BOTH'
+    cu.extrude = depth / 2
+    for poly in brand.polygons(geom):
+        for ring in [poly.exterior, *poly.interiors]:
+            pts = list(ring.coords)[:-1]
+            sp = cu.splines.new('POLY')
+            sp.points.add(len(pts) - 1)
+            for p, (x, y) in zip(sp.points, pts):
+                p.co = (x, y, 0, 1)
+            sp.use_cyclic_u = True
     o = bpy.data.objects.new(name, cu)
     bpy.context.collection.objects.link(o)
+    o.location = loc
+    o.rotation_euler = [math.radians(a) for a in rot]
     assign(o, m)
-    parts = [o]
-    if node:
-        # brand proportions: node r 17 vs ring r 58 / stroke 22
-        nr = radius * 17 / 58
-        nd = sphere(nr, (0, radius + nr * 0.95, 0), m=m, name=name + '-node')
-        nd.scale = (1, 1, max(0.25, thickness / (2 * nr)))
-        parts.append(nd)
-    e = bpy.data.objects.new(name + '-root', None)
-    bpy.context.collection.objects.link(e)
-    for p in parts:
-        p.parent = e
-    e.location = loc
-    e.rotation_euler = [math.radians(a) for a in rot]
-    return e
+    return o
+
+
+def beacon_ring(radius, thickness=1.0, loc=(0, 0, 0), rot=(0, 0, 0), m='ember', node=True, gap_deg=None,
+                name='beacon', depth=None):
+    """The OffGrid Beacon Ring, exactly as the brand draws it (brand/mark.py),
+    scaled so the ring's centreline radius is `radius` mm, lying in its local
+    XY plane with the opening and node toward local +Y.  `thickness` (or
+    `depth`) is how deep the shape is, e.g. a light pipe's height; the
+    stroke, node and opening always come from the brand file, so `node`
+    and `gap_deg` are ignored."""
+    g = brand.by_ring_radius(radius, y_up=True)
+    return flat(g, depth if depth is not None else thickness, loc, rot, m, name)
+
+
+def lockup(width, loc=(0, 0, 0), rot=(0, 0, 0), m='bone', depth=0.04, name='lockup'):
+    """The horizontal lockup (mark + OffGrid) `width` mm across its ink,
+    exactly as the brand file, centred on loc, facing +Z."""
+    mk, wd = brand.lockup_by_width(width, y_up=True)
+    from shapely.ops import unary_union
+    return flat(unary_union([mk, wd]), depth, loc, rot, m, name)
+
+
+def wordmark(cap, loc=(0, 0, 0), rot=(0, 0, 0), m='bone', align='CENTER', depth=0.04, name='wordmark'):
+    """The word OffGrid exactly as in the lockup (Instrument Sans 600,
+    tracking -3/92 em, kerned, no ligatures), capitals `cap` mm tall."""
+    from shapely import affinity
+    g, c = brand.word()
+    k = cap / c
+    g = affinity.scale(g, k, -k, origin=(0, 0))          # y up
+    x0, y0, x1, y1 = g.bounds
+    dx = {'LEFT': -x0, 'RIGHT': -x1}.get(align, -(x0 + x1) / 2)
+    g = affinity.translate(g, dx, -cap / 2)               # caps centred on loc
+    return flat(g, depth, loc, rot, m, name)
 
 
 def text(s, size, loc=(0, 0, 0), rot=(0, 0, 0), m='bone', mono=False, weight=None,
          align='CENTER', depth=0.04, name='text'):
-    """Flat text, `size` = cap-ish height in mm, lying in local XY facing +Z."""
+    """Flat text, `size` = cap-ish height in mm, lying in local XY facing +Z.
+    The word OffGrid is always drawn as the brand's wordmark, never set in
+    a font here."""
+    if s.strip() == 'OffGrid':
+        return wordmark(size, loc, rot, m, align, max(depth, 0.04), name)
     font_file = os.path.join(FONTS, 'JetBrainsMono-VariableFont.ttf' if mono else
                              'InstrumentSans-VariableFont.ttf')
     key = font_file
