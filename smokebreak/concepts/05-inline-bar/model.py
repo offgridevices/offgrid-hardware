@@ -44,7 +44,7 @@ def build(s):
     s.screen(26, 12, ('ON  0.42A', '16.8V  4S'), loc=(x, y, top - 0.1))
     # Power: Beacon Ring light pipe round a cap
     x, y = B(62, 12.6)
-    s.beacon_ring(6.0, 2.0, loc=(x, y, top), m='green')
+    s.status_ring(6.0, 2.0, loc=(x, y, top), m='green')
     s.cyl(3.6, 2.2, (x, y, top + 0.6), m='cap', bevel=0.6, name='power')
     # Limit + pips
     x, y = B(78, 12.6)

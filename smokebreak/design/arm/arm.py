@@ -32,7 +32,8 @@ W, D, H, R = 100.0, 58.0, 18.0, 9.0       # body
 TX, TY = 74.0, 31.0                        # toggle, face coords (x from left, y from back)
 HY = 12.0                                  # guard hinge line, face y
 GL, GW, GH = 36.0, 30.0, 17.0              # guard length, width, wall height
-RING = 11.0                                # Beacon Ring centreline radius round the toggle
+RING = 10.0                                # status light round the toggle (a plain ring, not the mark)
+MARK_R = 3.4                               # the mark on the front wall: ring radius (8.1 mm wide)
 OPEN = 108.0                               # open angle, degrees
 LEVER_ON, LEVER_OFF, LEVER_BIND = 24.0, 0.0, -24.0
 SCR = (28.5, 21.0, 46.0, 26.0)             # screen window centre x, y, width, height (face coords)
@@ -62,8 +63,8 @@ def rbox(w, d, h, r, loc, m, edge=1.4, name='rbox'):
 
 
 def ring_material():
-    """The Beacon Ring's light, its own material so its colour can be animated."""
-    m = bpy.data.materials.new('beacon light')
+    """The status light, its own material so its colour can be animated."""
+    m = bpy.data.materials.new('status light')
     m.use_nodes = True
     p = m.node_tree.nodes['Principled BSDF']
     p.inputs['Base Color'].default_value = s.srgb(s.EMBER)
@@ -146,10 +147,10 @@ def build(still_frame=None):
     s.text('Limit', 1.9, (x, y, top + 0.62), align='LEFT')
     s.text('AUTO 1 2 5 10 25 A', 1.3, (x + 8, y, top + 0.62), mono=True, align='LEFT')
 
-    # toggle with the Beacon Ring round its bushing
+    # toggle with its status light round the bushing
     rmat = ring_material()
     tx, ty = F(TX, TY)
-    ring = s.beacon_ring(RING, 1.2, loc=(tx, ty, top + 0.65), m=rmat, name='beacon')
+    s.status_ring(RING, 1.8, loc=(tx, ty, top + 0.65), m=rmat, depth=1.2, name='status-light')
     s.cyl(4.6, 0.9, (tx, ty, top + 0.95), m='steel', bevel=0.2, verts=6, name='nut')
     s.cyl(3.0, 3.4, (tx, ty, top + 3.0), m='steel', bevel=0.3, name='bushing')
     lever = bpy.data.objects.new('lever', None)
@@ -178,8 +179,7 @@ def build(still_frame=None):
     for p in (s.box((GW, GL, 1.8), (0, yc, GH - 0.9), m=gm, bevel=0.6, name='guard-top'),
               s.box((1.8, GL, GH), (-GW / 2 + 0.9, yc, GH / 2), m=gm, bevel=0.6, name='guard-wall'),
               s.box((1.8, GL, GH), (GW / 2 - 0.9, yc, GH / 2), m=gm, bevel=0.6, name='guard-wall'),
-              s.box((GW, 1.8, GH), (0, -GL - 0.1, GH / 2), m=gm, bevel=0.6, name='guard-lip'),
-              s.text('ARM', 3.2, (0, yc - 2, GH + 0.05), m='bone', name='guard-word')):
+              s.box((GW, 1.8, GH), (0, -GL - 0.1, GH / 2), m=gm, bevel=0.6, name='guard-lip')):
         p.parent = guard
     # an arrow on the face, beside the guard: lift
     x, y = F(TX - 18.5, TY + 9)
@@ -193,9 +193,14 @@ def build(still_frame=None):
     x, y = F(W - 4.0, D - 4.8)
     s.text('Drone', 1.9, (x, y, top + 0.62), align='RIGHT')
     s.arrow(8, (x - 4, y + 2.6, top + 0.62), shaft=0.35, head=0.9)
-    # the lockup, exactly as the brand file (brand/mark.py)
-    x, y = F(62, 52.0)
-    s.lockup(17.0, (x, y, top + 0.62), m='bone', name='lockup')
+    # the brand, placed like Apple places its mark: never on the working
+    # face, never round a control.  The mark alone, centred on the front
+    # wall that faces the user, tone on tone (gloss black on soft-touch
+    # black), with far more than a quarter of its width clear round it.
+    # The lockup and the product name sit on the underside.
+    s.beacon_ring(MARK_R, 0.06, loc=(0, -D / 2 - 0.02, H / 2), rot=(90, 0, 0),
+                  m=s.mat('gloss pitch', '#0E0C09', 0.08, coat=1.0), name='mark-front')
+    s.lockup(30.0, (0, 4, -0.03), rot=(180, 0, 0), m=s.mat('deboss', '#141210', 0.5), name='lockup-under')
 
     # connectors: male XT60 + XT30 in, female leads out, USB-C at the back
     x, y = F(0, 20.75)
@@ -214,8 +219,9 @@ def build(still_frame=None):
 
 # ---------------------------------------------------------------- the story
 # seconds, matching ui/screens.py TIMELINE
-T_LIFT1, T_FLICK1, T_LIVE, T_WARN, T_CLOSE1 = 2.0, 4.2, 8.0, 11.5, 13.9
-T_LIFT2, T_FLICK2, T_ABORT, T_CLOSE2, T_END = 16.1, 17.1, 17.9, 20.5, 22.0
+T0 = 1.5                                   # S00 start-up screen
+T_LIFT1, T_FLICK1, T_LIVE, T_WARN, T_CLOSE1 = (T0 + t for t in (2.0, 4.2, 8.0, 11.5, 13.9))
+T_LIFT2, T_FLICK2, T_ABORT, T_CLOSE2, T_END = (T0 + t for t in (16.1, 17.1, 17.9, 20.5, 22.0))
 
 DIM = (s.EMBER, 0.6)
 
@@ -305,7 +311,7 @@ def camera(cam, pivot):
 
 def render_still():
     sc = s.reset()
-    h = build(still_frame=int(9.5 * FPS))          # a Live screen
+    h = build(still_frame=int((T0 + 9.5) * FPS))   # a Live screen
     key_guard(h['guard'], 0, OPEN)
     key_lever(h['lever'], 0, LEVER_ON)
     key_ring(h['ring'], 0, s.GREEN, 8.0)

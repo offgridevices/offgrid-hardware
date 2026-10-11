@@ -56,7 +56,7 @@ def build(s):
     # Power in the Beacon Ring
     px = -8.0
     s.cyl(8.6, 0.3, (px, 0, TOP + 0.1), m='screen', bevel=0, name='ring-well')
-    s.beacon_ring(6.0, 1.7, loc=(px, -0.6, TOP + 0.4), m='ember')
+    s.status_ring(6.0, 1.7, loc=(px, -0.6, TOP + 0.4), m='ember')
     s.cyl(3.9, 1.8, (px, -0.6, TOP + 0.9), m='brushed', bevel=0.5, name='power')
     s.text('Power', 1.5, (px, -8.0, t))
     # Bind

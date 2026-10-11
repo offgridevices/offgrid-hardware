@@ -8,7 +8,7 @@ def build(s):
     s.box((W - 4, D - 4, 1.2), (0, 0, H + 0.2), m='pcb', bevel=2.5, name='face')
     top = H + 0.85
     s.screen(28, 15, ('16.8V  4S', 'ON  0.42A'), loc=(-20, 10, top))
-    s.beacon_ring(9, 2.2, loc=(20, 9, top + 0.3), m='ember')
+    s.status_ring(9, 2.2, loc=(20, 9, top + 0.3), m='ember')
     s.cyl(5.6, 2.4, (20, 9, top + 1.0), m='cap', bevel=0.6, name='power')
     s.text('Power', 1.8, (20, 9, top + 2.25))
     for i, (lab, y) in enumerate((('Bind', -8), ('Limit', -18))):

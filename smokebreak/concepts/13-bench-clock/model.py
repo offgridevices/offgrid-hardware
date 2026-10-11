@@ -66,7 +66,7 @@ def build(s):
     parts = []
     parts.append(s.box((W - 6, 40.0, 0.8), (0, 0, 0.45), m='screen', bevel=0.6, name='glass'))
     parts.append(s.screen(43, 22, ('16.8V  4S', 'Ready'), loc=(-15, 6, 0.95)))
-    parts.append(s.beacon_ring(8.0, 2.2, loc=(24, 5, 1.2), m='ember'))
+    parts.append(s.status_ring(8.0, 2.2, loc=(24, 5, 1.2), m='ember'))
     for x, lab in ((10, 'Bind'), (26, 'Limit')):
         parts.append(s.cyl(3.8, 1.8, (x, -14, 1.5), m='cap', bevel=0.5, name=lab))
         parts.append(s.text(lab, 1.7, (x + 5, -14, 0.9), align='LEFT', name=lab + '-t'))

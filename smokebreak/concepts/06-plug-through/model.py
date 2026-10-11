@@ -18,7 +18,7 @@ def build(s):
         return (x - L / 2, W / 2 - y)
 
     x, y = B(17, 18)
-    s.beacon_ring(6.6, 1.6, loc=(x, y, top - 0.35), m='green')
+    s.status_ring(6.6, 1.6, loc=(x, y, top - 0.35), m='green')
     x, y = B(17, 32.2)
     s.text('Press the glass', 1.6, (x, y, top))
     x, y = B(45.5, 13)

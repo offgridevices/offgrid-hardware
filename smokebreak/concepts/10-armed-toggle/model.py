@@ -58,7 +58,7 @@ def build(s):
 
     # toggle: Beacon Ring round the bushing, metal lever leaning away (On)
     tx, ty = B(TXF, TYF)
-    s.beacon_ring(RB, 1.6, loc=(tx, ty, top + 0.15), m='green')
+    s.status_ring(RB, 1.6, loc=(tx, ty, top + 0.15), m='green')
     s.cyl(4.6, 0.9, (tx, ty, top + 0.45), m='steel', bevel=0.2, verts=6, name='nut')
     s.cyl(3.0, 3.4, (tx, ty, top + 2.6), m='steel', bevel=0.3, name='bushing')
     L = 12.0
@@ -97,8 +97,7 @@ def build(s):
     s.text('Drone', 1.9, (x, y, top + 0.02), align='RIGHT')
     s.arrow(7, (x - 3.5, y - 2.2, top + 0.02), shaft=0.3, head=0.8)
     x, y = B(TXF - 12, D - 3.2)
-    s.beacon_ring(1.2, 0.4, loc=(x, y + 0.4, top + 0.05), m='bone')
-    s.text('OffGrid', 1.8, (x + 2.2, y + 0.2, top + 0.02), align='LEFT', name='wordmark')
+    s.lockup(10.2, (x + 3.67, y + 0.4, top + 0.05), m='bone')
 
     # connectors
     x, y = B(0, 20.75)

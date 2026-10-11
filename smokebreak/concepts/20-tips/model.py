@@ -35,7 +35,7 @@ def build(s):
         txt(n, 2.0, 20.5, y - 0.6)
         txt(sub, 1.4, 20.5, y + 2.4, mono=(n == 'Limit'))
     rc = B(60, 26)
-    s.beacon_ring(11, 2.2, loc=rc + (top + 0.1,), m='ember')
+    s.status_ring(11, 2.2, loc=rc + (top + 0.1,), m='ember')
     s.cyl(7, 2.2, rc + (top + 1.0,), m='cap', bevel=0.7, name='power')
     s.text('Power', 2.0, rc + (top + 2.12,), m='bone', depth=0.02)
     txt('Press to check, then power on', 1.6, 60, 42.5, align='CENTER')

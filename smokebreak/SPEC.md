@@ -201,7 +201,7 @@ ticks off line by line, a green flash when the drone goes live, and a
 flashing red ABORT when something is wrong.
 
 Demo: [`design/arm/arm-demo.mp4`](design/arm/arm-demo.mp4).
-Screens: [`ui/storyboard.png`](ui/storyboard.png) (S01–S13) and
+Screens: [`ui/storyboard.png`](ui/storyboard.png) (S00–S13) and
 [`ui/arm-sequence.mp4`](ui/arm-sequence.mp4) (with beeps).
 
 ### The face (96 × 58 mm)
@@ -211,7 +211,7 @@ Screens: [`ui/storyboard.png`](ui/storyboard.png) (S01–S13) and
 | Left | Male XT60 + XT30 through the end. "Battery →" |
 | Top left | **1.9" 320 × 170 colour IPS** under black glass |
 | Bottom left | **Limit** rocker: a brushed-aluminium paddle, − and + |
-| Right | **The guarded toggle**: translucent Ember guard over a metal toggle, the **Beacon Ring** lit round its bushing |
+| Right | **The guarded toggle**: translucent Ember guard over a metal toggle, a plain status-light ring round its bushing |
 | Right end | Female XT60 + XT30 on 10 cm leads. "Drone →" |
 | Back | USB-C |
 
@@ -231,7 +231,7 @@ Screens: [`ui/storyboard.png`](ui/storyboard.png) (S01–S13) and
   guard, a physical reset.
 - The toggle carries no drone current: it only signals the MCU.
 
-### Status ring (round the toggle, lights the guard from inside)
+### Status light (a plain ring round the toggle; lights the guard from inside)
 
 | Colour | Meaning |
 |---|---|
@@ -247,11 +247,12 @@ Screens: [`ui/storyboard.png`](ui/storyboard.png) (S01–S13) and
 
 | # | Screen | When |
 |---|---|---|
+| S00 | The mark alone, still, centred | Start-up, 1.5 s |
 | S01 | SAFE · battery voltage and cells · "Lift the guard to arm" | Guard closed |
 | S02 | **ARMED** · hazard stripes · "Flick the switch up" | Guard lifted |
 | S03 | CHECKING · 3 V probe, short, polarity, capacitor, ticking off | Switch on |
 | S04 | Pre-charge bar and voltage climbing | |
-| S05 | Green flash, the ring draws itself, **LIVE** | Main switch on |
+| S05 | Green flash, the status ring grows, **LIVE** | Main switch on |
 | S06 | Live current in large figures, sparkline, limit, timer, "Same as last time" | |
 | S07 | LIVE · LOOK · "Draws more than last time 0.42 → 0.71 A" | Drone memory warning |
 | S08 | **ABORT** · Short circuit · 0.3 Ω · "The battery never reached the drone" | Probe found a short |
@@ -274,8 +275,8 @@ Bind: a pip per cycle. Sounds are in the screen video.
 Same rules as before: one brand arrow, sentence case, few words.
 "Battery →" and "Drone →" at the ends, "Lift ↑" beside the guard, "On /
 Off / Bind" beside the toggle, "Limit" and `AUTO 1 2 5 10 25 A` by the
-rocker, lockup and "SmokeBreak" at the bottom, "ARM" moulded into the
-guard. "Bench use only. Do not fly with this attached." on the base.
+rocker. No logo on the face (see §11): the mark is on the front wall,
+the lockup and "SmokeBreak" on the underside; the guard is plain. "Bench use only. Do not fly with this attached." on the base.
 
 ---
 
@@ -357,7 +358,7 @@ live output is always the female side, whose contacts are recessed.
 | MCU | ST **STM32C071** | USB without a crystal, 12-bit ADC, non-PRC maker |
 | USB-C | 16-pin receptacle + ESD array | Data and 5 V. Works with the drone powered |
 | Screen | **1.9" 320 × 170 colour IPS** (ST7789, SPI) under black glass | The arming screens are drawn for this panel ([`ui/`](ui/)) |
-| Status ring | 12 × addressable RGB LED under the ring light pipe round the toggle | Also lights the translucent guard from inside |
+| Status light | 12 × addressable RGB LED under a plain ring light pipe round the toggle | Also lights the translucent guard from inside |
 | Input clamp | 64 V stand-off TVS (SMBJ64A class) | Clears 14S LiHV at 60.9 V |
 | Toggle | Metal-bushed toggle, ON-OFF-(ON), PCB mount (C&K 7000 / APEM class) | Signals only; Bind is the spring-return position |
 | Guard sensor | Hall-effect switch under the guard tip's magnet | Its output also gates the controller's enable: guard closed = off in hardware |
@@ -382,8 +383,11 @@ live output is always the female side, whose contacts are recessed.
   a 2 mm stainless pin with a torsion spring and a detent at closed. A
   magnet in its tip; a cam on its inside pushes the toggle to Off as it
   closes. Opens to about 108°.
-- **Toggle:** metal bat and bushing, through the face, Beacon Ring light
+- **Toggle:** metal bat and bushing, through the face, a plain ring light
   pipe round the bushing.
+- **Mark:** on the front wall, centred, 8 mm wide, gloss on soft-touch
+  (pad-printed clear gloss or laser-polished). Underside: lockup and name,
+  debossed 0.2 mm.
 - **Ends:** XT60 and XT30 (male) through the left end with a rib between
   them; the two drone leads through clamped grommets on the right end;
   USB-C on the back.
@@ -404,8 +408,26 @@ Taken from the existing boards (`packet-logger-carrier`, Ridge 3):
   capitals centred on the ring). [`brand/verify_mark.py`](brand/verify_mark.py)
   checks it against the brand SVG rendered by Chromium and fails on any
   edge more than 0.2 units off. Every render, screen, silkscreen and
-  animation takes the mark from there; a status-light ring in the shape
-  of the mark is the mark, at its exact proportions.
+  animation takes the mark from there.
+- **Placement, the Apple way** (Apple's own logo rules, applied to ours:
+  nothing in the clear space, never altered, never animated):
+  1. **The mark is never a part.** Not a light, a bezel, a frame or a
+     button; nothing sits inside it or touches it. Status lights are their
+     own shape (a plain closed ring or a dot), never the mark.
+  2. **The working face carries no logo**, like the front of an iPhone.
+     The face is for the screen and the controls.
+  3. **One mark per product, alone, centred**: on SmokeBreak, on the
+     front wall that faces the user, 8 mm wide, tone on tone (gloss black
+     on soft-touch black). The lockup, the product name and the
+     regulatory marks go on the underside.
+  4. **Clear space ≥ a quarter of the mark's width** on every side (Apple's
+     rule for the Mac logo; stricter than the brand file's 1 × node radius).
+  5. **Never altered**: no recolouring off the palette, outlines, shadows,
+     bevels, stretching, rotating, or partial drawing. **Never animated**:
+     it may cut in and cut out, nothing else.
+  6. **On screen, only at start-up** (S00): the mark alone, still,
+     centred, Bone on black. Every other screen uses the plain status shape.
+  7. **Minimum size** 5 mm wide in print and on the product.
 
 - **Pitch** `#1B1813` matte black solder mask; **Bone** `#F1ECE0` white
   silkscreen; **Ember** `#FF6A00` as light, not ink: the ring's caution

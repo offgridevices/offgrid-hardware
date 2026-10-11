@@ -57,7 +57,7 @@ def build(s):
     s.text('LIMIT AUTO 2.0A', 1.25, (x + 0, y - 3.4, top + 0.52), m='screen_txt', mono=True, align='LEFT', name='lim')
     # Beacon Ring status light
     x, y = B(11, 12)
-    s.beacon_ring(6.0, 1.5, loc=(x, y, top + 0.15), m='green')
+    s.status_ring(6.0, 1.5, loc=(x, y, top + 0.15), m='green')
 
     # main slider track, detent ticks and labels
     slot(s, POS['Off'] - 2, TYF, POS['Bind'] + 2, TYF, 3.6, top, 'track')
@@ -104,8 +104,7 @@ def build(s):
     x, y = B(FX - 12, D - 3.2)
     s.text('Drone', 1.8, (x, y, top + 0.02), align='RIGHT')
     x, y = B(4, 27)
-    s.beacon_ring(1.2, 0.4, loc=(x + 1.2, y + 0.3, top + 0.05), m='bone')
-    s.text('OffGrid', 1.8, (x + 3.2, y + 0.1, top + 0.02), align='LEFT', name='wordmark')
+    s.lockup(10.2, (x + 4.87, y + 0.3, top + 0.05), m='bone')
 
     # connectors
     x, y = B(0, 18.75)

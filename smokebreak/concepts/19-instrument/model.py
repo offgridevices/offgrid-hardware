@@ -66,7 +66,7 @@ def build(s):
     so.thickness = 2.0
     so.offset = -1
     rx, ry = B(70, 30)
-    s.beacon_ring(13, 1.9, loc=(rx, ry, ZT + 0.05), m='ember')
+    s.status_ring(13, 1.9, loc=(rx, ry, ZT + 0.05), m='ember')
 
     def glass_txt(t, size, x, y, align='CENTER', mono=False):
         s.text(t, size, B(x, y) + (ZT + 0.02,), m='bone', align=align, mono=mono, depth=0.01)

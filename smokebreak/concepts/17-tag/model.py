@@ -97,7 +97,7 @@ def build(s):
 
     # Beacon Ring around the eyelet (light pipe in the glass)
     ex, ey = B(*EYE)
-    s.beacon_ring(7.6, 2.0, loc=(ex, ey, top + 0.1), m='ember')
+    s.status_ring(7.6, 2.0, loc=(ex, ey, top + 0.1), m='ember')
     # face print
     def bone(txt, size, x, y, align='LEFT', mono=False, w=False):
         bx, by = B(x, y)

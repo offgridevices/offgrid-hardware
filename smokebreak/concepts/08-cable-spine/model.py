@@ -46,7 +46,7 @@ def build(s):
     s.text('AUTO 2.0A · DRONE 3', 1.25, (x, y, top), m=glow, mono=True, align='LEFT')
     # Beacon Ring glowing through the skin, Power dome inside it
     x, y = B(61, 15)
-    s.beacon_ring(5.8, 1.6, loc=(x, y, top - 0.55), m='green')
+    s.status_ring(5.8, 1.6, loc=(x, y, top - 0.55), m='green')
     d = s.sphere(3.6, (x, y + 0.6, H - 0.3), m=sil, name='power-dome')
     d.scale = (1, 1, 0.42)
     x, y = B(61, 27.2)

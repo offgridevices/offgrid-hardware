@@ -45,8 +45,7 @@ def build(s):
     fy = -MD / 2 + 9
     s.text('1 Battery in the bay   →   2 Drone on the circle   →   3 Press Power', 4.2,
            (-185, fy, top + 0.02), align='LEFT', name='steps')
-    s.beacon_ring(4.6, 1.4, loc=(130, MD / 2 - 13, top + 0.3), m='bone')
-    s.text('OffGrid', 6.0, (140, MD / 2 - 13, top + 0.02), align='LEFT', name='lockup')
+    s.lockup(39.1, (144.0, MD / 2 - 13, top + 0.05), m='bone')
     s.torus(DZ[2], 0.5, (DZ[0], DZ[1], top + 0.05), m='bone', name='drone-circle').scale = (1, 1, 0.1)
     s.text('Drone here  ·  props off', 4.5, (DZ[0], DZ[1] - DZ[2] - 8, top + 0.02), name='dz-t')
     bx, by, bw, bd = BAY
@@ -69,7 +68,7 @@ def build(s):
     t = z0 + PH
     s.box((88, 31, 0.6), (px, py + 14, t + 0.1), m='screen', bevel=1.0, name='glass')
     s.screen(44, 24, ('16.8V  4S', 'Drone 3'), loc=(px - 19, py + 14, t + 0.45))
-    s.beacon_ring(10.0, 2.6, loc=(px + 25.5, py + 13, t + 0.6), m='ember')
+    s.status_ring(10.0, 2.6, loc=(px + 25.5, py + 13, t + 0.6), m='ember')
     s.cyl(6.6, 2.6, (px + 25.5, py + 13, t + 1.2), m='cap', bevel=0.8, name='power')
     s.text('Power', 1.8, (px + 25.5, py + 13, t + 2.55), name='power-t')
     # Limit: six direct-select keys, Bind at the end

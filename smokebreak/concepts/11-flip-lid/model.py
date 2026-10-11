@@ -46,7 +46,7 @@ def build(s):
     s.text('16.8V 4S', 1.3, (x + 13.5, y + 6.2, top + 0.52), m='screen_txt', mono=True, align='RIGHT', name='batt')
     # Power in the Beacon Ring
     x, y = B(63, 19.5)
-    s.beacon_ring(10.5, 1.6, loc=(x, y, top + 0.15), m='green')
+    s.status_ring(10.5, 1.6, loc=(x, y, top + 0.15), m='green')
     s.cyl(6.6, 2.0, (x, y, top + 1.0), m='cap', bevel=0.6, name='power')
     s.text('Power', 2.0, (x, y, top + 2.02))
     # Bind key
@@ -97,7 +97,6 @@ def build(s):
     # engraved mark on the outside
     br = s.beacon_ring(8.5, 1.8, loc=(0, -D / 2 + 2, LT + 0.25), m='pitch', name='lid-mark')
     parts.append(br)
-    parts.append(s.text('SmokeBreak', 2.4, (0, -D / 2 - 13, LT + 0.22), m='pitch', name='lid-name'))
     parts.append(s.cyl(1.6, 0.8, (0, -D + 4, 2.0), m='steel', bevel=0.1, name='lid-magnet'))
     for p in parts:
         p.parent = piv

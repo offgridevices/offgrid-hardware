@@ -92,7 +92,7 @@ def build(s):
 
     # ignition: Beacon Ring + barrel + key
     c = (63.0, 30.0)
-    s.beacon_ring(14.5, 1.9, loc=P(c[0], c[1], 0.45), rot=rot, m='green')
+    s.status_ring(14.5, 1.9, loc=P(c[0], c[1], 0.45), rot=rot, m='green')
     for lab, a in (('Off', 0), ('On', 60), ('Bind', 110)):
         r = 19.8
         th = math.radians(a - 90)

@@ -251,6 +251,16 @@ def beacon_ring(radius, thickness=1.0, loc=(0, 0, 0), rot=(0, 0, 0), m='ember', 
     return flat(g, depth if depth is not None else thickness, loc, rot, m, name)
 
 
+def status_ring(radius, width=None, loc=(0, 0, 0), rot=(0, 0, 0), m='ember', depth=1.0, name='status-ring'):
+    """A status light: a plain closed ring, centreline radius `radius`.
+    Deliberately not the mark (no opening, no node): the mark is never a
+    light, a frame or a bezel round a control."""
+    from shapely.geometry import Point
+    w = width if width is not None else radius * 0.16
+    g = Point(0, 0).buffer(radius + w / 2, quad_segs=48).difference(Point(0, 0).buffer(radius - w / 2, quad_segs=48))
+    return flat(g, depth, loc, rot, m, name)
+
+
 def lockup(width, loc=(0, 0, 0), rot=(0, 0, 0), m='bone', depth=0.04, name='lockup'):
     """The horizontal lockup (mark + OffGrid) `width` mm across its ink,
     exactly as the brand file, centred on loc, facing +Z."""

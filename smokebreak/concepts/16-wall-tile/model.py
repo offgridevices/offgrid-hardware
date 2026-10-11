@@ -33,7 +33,7 @@ def build(s):
     s.screen(52, 31, ('16.8V  4S', 'Ready'), loc=(x, yf, z), rot=rot)
     # Beacon Ring round the light-switch rocker
     x, z = F(36, 70)
-    s.beacon_ring(15.5, 3.4, loc=(x, yf - 0.3, z), rot=rot, m='ember')
+    s.status_ring(15.5, 3.4, loc=(x, yf - 0.3, z), rot=rot, m='ember')
     s.box((16, 2.2, 22), (x, yf - 1.2, z), m='cap', bevel=1.2, name='rocker-frame')
     s.box((14, 2.4, 10), (x, yf - 2.6, z + 5.2), m='cap', bevel=1.4, rot=(-6, 0, 0), name='rocker-on')
     s.box((14, 2.0, 10), (x, yf - 2.0, z - 5.2), m='cap', bevel=1.4, rot=(6, 0, 0), name='rocker-off')

@@ -43,7 +43,7 @@ def build(s):
     s.text('AUTO 2.0A', 1.4, (x - 10.5, y - 7.5, top + 0.4), m='eink_txt', mono=True, align='LEFT')
     # Power: Beacon Ring round a big glove-friendly cap
     x, y = B(55, 21.5)
-    s.beacon_ring(8.1, 2.6, loc=(x, y, top), m='green')
+    s.status_ring(8.1, 2.6, loc=(x, y, top), m='green')
     s.cyl(5.2, 2.8, (x, y, top + 0.8), m='cap', bevel=0.8, name='power')
     x, y = B(55, 39.4)
     s.text('Power', 2.0, (x, y, top))

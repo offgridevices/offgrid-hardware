@@ -5,7 +5,7 @@ scaled by SCALE for review, so what is drawn here is what fits the panel.
 
     python3 screens.py            # storyboard.png + arm-sequence.mp4 (with beeps)
 
-Screens are numbered S01..S13 so feedback can point at one.
+Screens are numbered S00..S13 so feedback can point at one.
 """
 import math
 import os
@@ -69,15 +69,25 @@ class Canvas:
     def line(self, pts, colour, width=1):
         self.d.line([(x * SCALE, y * SCALE) for x, y in pts], fill=colour, width=int(width * SCALE))
 
-    def ring(self, cx, cy, r, w=None, colour=BONE, frac=1.0, node=True):
-        """The Beacon Ring exactly as the brand draws it (brand/mark.py), its
-        ring's centreline radius r.  Its proportions are never changed: `frac`
-        < 1 only shrinks the whole mark (for reveal animations); `w` and
-        `node` are ignored."""
-        k = 0.6 + 0.4 * max(0.0, min(1.0, frac))
-        g = brand.by_ring_radius(r * k, centre=(cx, cy))
-        for poly in brand.polygons(g):
+    def mark(self, cx, cy, R, colour=BONE):
+        """The OffGrid mark, exactly as the brand draws it (brand/mark.py),
+        ring centreline radius R, centred on its ring.  Only ever drawn
+        static and alone (the start-up screen): never a status icon, never
+        animated, never with anything inside it."""
+        for poly in brand.polygons(brand.by_ring_radius(R, centre=(cx, cy))):
             self.d.polygon([(x * SCALE, y * SCALE) for x, y in poly.exterior.coords], fill=colour)
+
+    def status(self, cx, cy, r, colour, frac=1.0, fill=False):
+        """The status light on screen: a plain closed ring (or a dot), the
+        same shape as the light round the switch.  Deliberately not the
+        mark: no opening, no node."""
+        box = [(cx - r) * SCALE, (cy - r) * SCALE, (cx + r) * SCALE, (cy + r) * SCALE]
+        if fill:
+            self.d.ellipse(box, fill=colour)
+        elif frac >= 1:
+            self.d.ellipse(box, outline=colour, width=int(max(1.5, r * 0.18) * SCALE))
+        elif frac > 0:
+            self.d.arc(box, -90, -90 + 360 * frac, fill=colour, width=int(max(1.5, r * 0.18) * SCALE))
 
     def stripes(self, y0, y1, colour, phase=0.0):
         """Hazard chevrons across the panel, scrolling with `phase`."""
@@ -110,9 +120,18 @@ BATT = '16.8 V  4S'
 DRONE = 'Drone 3'
 
 
+def s00_startup(t):
+    """Start-up: the mark alone, static, centred, Bone on black, with more
+    than a quarter of its width clear on every side.  It cuts in and cuts out."""
+    c = Canvas()
+    c.mark(PW / 2, PH / 2 + 8, 24)
+    c.tag('S00')
+    return c
+
+
 def s01_safe(t):
     c = Canvas()
-    c.ring(34, 70, 20, 4, lerp(DIM, EMBER, 0.35 + 0.25 * math.sin(t * math.tau)))
+    c.status(34, 70, 18, lerp(DIM, EMBER, 0.35 + 0.25 * math.sin(t * math.tau)))
     c.text(70, 44, 'SAFE', 38, BONE, 'sans', weight=600)
     c.text(72, 92, 'Drone is off', 12, DIM)
     c.text(12, 128, BATT, 16, BONE, 'mono')
@@ -183,7 +202,7 @@ def s04_precharge(t):
 def s05_engaged(t):
     flash = 1 - ease(t * 1.6)
     c = Canvas(lerp(INK, GREEN, flash))
-    c.ring(PW / 2, 64, 34, 6, lerp(GREEN, INK, flash * 0.8), frac=ease(t * 1.4))
+    c.status(PW / 2, 60, 6 + 28 * ease(t * 1.4), lerp(GREEN, INK, flash * 0.8))
     c.text(PW / 2, 116, 'LIVE', 34, lerp(GREEN, INK, flash), 'sans', 'ma', 600)
     c.tag('S05')
     return c
@@ -200,7 +219,7 @@ def spark(c, x0, y0, w, h, t, colour):
 
 def s06_live(t):
     c = Canvas()
-    c.ring(26, 26, 13, 3, GREEN)
+    c.status(26, 26, 9, GREEN, fill=True)
     c.text(48, 13, 'LIVE', 16, GREEN, 'sans', weight=600)
     c.text(PW - 16, 16, DRONE, 11, DIM, anchor='ra')
     amps = 0.42 + 0.01 * math.sin(t * 20)
@@ -218,7 +237,7 @@ def s06_live(t):
 def s07_warning(t):
     c = Canvas()
     c.rect(0, 0, PW, 4, EMBER)
-    c.ring(26, 30, 13, 3, EMBER)
+    c.status(26, 30, 9, EMBER, fill=True)
     c.text(48, 17, 'LIVE · LOOK', 16, EMBER, 'sans', weight=600)
     c.text(14, 52, 'Draws more than last time', 15, BONE)
     c.text(14, 78, '0.42', 34, DIM, 'mono')
@@ -257,7 +276,8 @@ def s09_reversed(t):
 def s10_bind(t):
     c = Canvas()
     step = min(3, 1 + int(t * 3))
-    c.ring(PW / 2, 58, 30, None, lerp((20, 40, 80), BLUE, 0.4 + 0.6 * abs(math.sin(t * 3 * math.pi))))
+    for k in range(3):
+        c.status(PW / 2 - 30 + 30 * k, 58, 9, BLUE if k < step else (30, 45, 70), fill=True)
     c.text(PW / 2, 100, f'BIND  {step}/3', 24, BLUE, 'sans', 'ma', 600)
     c.text(PW / 2, 136, 'Power-cycling the receiver', 11, BONE, anchor='ma')
     c.text(PW / 2, 152, 'Then press Bind in your radio', 10, DIM, anchor='ma')
@@ -308,14 +328,14 @@ def s13_limit(t):
     return c
 
 
-SCREENS = [s01_safe, s02_armed, s03_checking, s04_precharge, s05_engaged, s06_live, s07_warning,
+SCREENS = [s00_startup, s01_safe, s02_armed, s03_checking, s04_precharge, s05_engaged, s06_live, s07_warning,
            s08_short, s09_reversed, s10_bind, s11_motor, s12_closing, s13_limit]
-TITLES = ['Guard closed', 'Guard lifted', 'Switch up: checks', 'Pre-charge', 'Engaged', 'Live',
+TITLES = ['Start-up', 'Guard closed', 'Guard lifted', 'Switch up: checks', 'Pre-charge', 'Engaged', 'Live',
           'Changed since last time', 'Fault: short', 'Fault: reversed', 'Bind', 'Motor test confirm',
           'Guard closed again', 'Limit']
 
 # the story told by the video: (screen, seconds, sound)
-TIMELINE = [(s01_safe, 2.0, None), (s02_armed, 2.2, 'arm'), (s03_checking, 2.4, 'tick'),
+TIMELINE = [(s00_startup, 1.5, None), (s01_safe, 2.0, None), (s02_armed, 2.2, 'arm'), (s03_checking, 2.4, 'tick'),
             (s04_precharge, 1.4, 'rise'), (s05_engaged, 0.9, 'engage'), (s06_live, 2.6, None),
             (s07_warning, 2.4, 'warn'), (s12_closing, 1.2, 'cut'), (s01_safe, 1.0, None),
             (s02_armed, 1.0, 'arm'), (s03_checking, 0.8, 'tick'), (s08_short, 2.6, 'alarm'),
@@ -335,7 +355,7 @@ def storyboard(out):
         x = pad + (i % cols) * (tw + pad)
         y = pad + (i // cols) * (th + 56)
         sheet.paste(im, (x, y + 34))
-        d.text((x, y + 4), f'S{i + 1:02d}  {title}', font=lab, fill=(27, 24, 19))
+        d.text((x, y + 4), f'S{i:02d}  {title}', font=lab, fill=(27, 24, 19))
     sheet.save(out)
 
 

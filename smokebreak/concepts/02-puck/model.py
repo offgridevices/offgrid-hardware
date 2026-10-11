@@ -35,7 +35,7 @@ def build(s):
     s.text('LIMIT AUTO', 1.7, (0, -6.3, g + 0.06), m=ips, mono=True)
     s.text('Press the glass', 1.7, (0, -9.4, g + 0.06), m=s.mat('ips ember', s.EMBER, 0.5, emit=s.EMBER, strength=1.2))
     # Beacon Ring light under the glass (no node: the node is the Bind button)
-    s.beacon_ring(RR, 2.2, loc=(0, 0, g), m='ember', node=False, gap_deg=50)
+    s.status_ring(RR, 2.2, loc=(0, 0, g), m='ember')
     s.torus(5.9, 0.7, (0, NODE_Y, g + 0.2), m='ember', name='bind-halo')
     s.cyl(4.6, 2.2, (0, NODE_Y, g + 0.9), m='brushed', bevel=0.6, name='bind')
     s.text('Bind', 1.8, (7.0, NODE_Y, g + 0.02), align='LEFT')

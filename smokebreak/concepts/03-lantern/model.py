@@ -37,7 +37,7 @@ def build(s):
                rot=(90, 0, t + 90), m='ember' if lab == '20' else 'bone', mono=True)
     # crown top: Power in the Beacon Ring
     s.cyl(R - 1.8, 0.3, (0, 0, ZC + 0.1), m='screen', bevel=0, verts=128, name='crown-face')
-    s.beacon_ring(13.0, 2.2, loc=(0, -1.2, ZC + 0.4), m='ember')
+    s.status_ring(13.0, 2.2, loc=(0, -1.2, ZC + 0.4), m='ember')
     s.cyl(8.2, 2.0, (0, -1.2, ZC + 1.0), m='brushed', bevel=0.7, name='power')
     s.text('Power', 2.2, (0, -1.2, ZC + 2.05), m='pitch')
     # front: index mark, screen, Bind

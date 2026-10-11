@@ -56,7 +56,7 @@ def build(s):
 
     cx, cy = B(CXF, CYF)
     # Beacon Ring light pipe round the crown (lit green: on, safe), gap at 12 o'clock (+Y)
-    s.beacon_ring(RB, 1.7, loc=(cx, cy, top + 0.15), m='green', node=False)
+    s.status_ring(RB, 1.7, loc=(cx, cy, top + 0.15), m='green')
     # Bind key = the ring's node
     nx, ny = cx, cy + RB + 0.6
     s.torus(3.3, 0.45, (nx, ny, top + 0.2), m='green', name='bind-halo')
@@ -96,8 +96,7 @@ def build(s):
     x, y = B(W - 10, D - 3.8)
     s.arrow(8, (x, y, top + 0.02), shaft=0.3, head=0.9)
     x, y = B(9.5, 9)
-    s.beacon_ring(1.4, 0.45, loc=(x, y, top + 0.05), m='bone')
-    s.text('OffGrid', 2.0, (x + 2.6, y - 0.2, top + 0.02), align='LEFT', name='wordmark')
+    s.lockup(11.9, (x + 4.28, y, top + 0.05), m='bone')
 
     # battery side: XT60 + XT30 male, panel mounted in the left end
     x, y = B(0, 24)

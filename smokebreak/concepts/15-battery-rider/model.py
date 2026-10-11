@@ -45,7 +45,7 @@ def build(s):
     # top face: glass, Beacon Ring + Power, screen, Bind, steps
     t = Z1
     s.box((RL - 4, RW - 6, 0.6), (0, 0, t + 0.05), m='screen', bevel=1.2, name='glass')
-    s.beacon_ring(9.6, 2.5, loc=(-22.5, 0, t + 0.5), m='ember')
+    s.status_ring(9.6, 2.5, loc=(-22.5, 0, t + 0.5), m='ember')
     s.cyl(6.2, 2.4, (-22.5, 0, t + 1.1), m='cap', bevel=0.7, name='power')
     s.text('Power', 1.8, (-22.5, 0, t + 2.35), name='power-t')
     s.screen(31, 16, ('16.8V 4S', 'Ready'), loc=(10, 4, t + 0.45))
