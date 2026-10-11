@@ -200,7 +200,7 @@ def art_items():
     bottom = [
         t('Drone', 8.0, 30.6, 1.8, Bs), t('Battery', 86.0, 30.6, 1.8, Bs),
         dict(kind='arrow', x0=46.0, y0=16.0, x1=46.0, y1=10.2, layer=Bs, fixed=True),   # to pin 1
-        t('Black wire', 47.0, 15.6, 1.3, Bs, 'start', fixed=True), t('Balance', 38.0, 12.4, 1.3, Bs),
+        t('Black wire', 47.0, 15.6, 1.3, Bs, 'start', fixed=True), t('Balance', 56.0, 5.4, 1.3, Bs, fixed=True),
         t('USB-C', 37.0, 9.8, 1.3, Bs), t('Pre-charge', 19.0, 10.4, 1.3, Bs), t('Toggle', 27.0, 37.6, 1.3, Bs),
     ]
     return top, bottom
