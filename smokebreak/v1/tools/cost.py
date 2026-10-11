@@ -30,7 +30,7 @@ OTHER = {
     'TFT1901': (2.90, '1.9" 170x320 ST7789 IPS with 30-pin FPC, AliExpress/LCSC-class suppliers'),
 }
 FIXED = [
-    ('PCB, 4 layers 94 x 52 mm, black mask, ENIG, PCBWay, 100 pcs', 1.45),
+    ('PCB, 6 layers 94 x 52 mm, black mask, ENIG, PCBWay, 100 pcs (estimate)', 2.50),
     ('PCBWay SMT assembly (one side), setup + stencil spread over 100', 1.60),
     ('3D-printed case + guard (PETG/PC, ~45 g at $20/kg) + magnet 6x3 N52 + 4 screws + feet', 1.35),
     ('Light pipe ring, Limit paddle (printed), toggle nut/boss hardware', 0.25),
