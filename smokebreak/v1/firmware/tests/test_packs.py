@@ -3,8 +3,8 @@ import pytest
 
 from conftest import make_rig
 from model import limits, memory
-from model.machine import Machine, State
-from model.precharge import RPRE_HIGH_MOHM, RPRE_LOW_MOHM
+from model.machine import Machine, State, fmt_v
+from model import precharge as pc
 from model.sim_world import Balance, Drone, Pack, Rig, World
 
 
@@ -16,13 +16,27 @@ def drone_for(cells):
     return Drone(cap_uf=3300, idle_a=0.1, vtx_w=4.0)      # heavy-lift: VTX on its own BEC
 
 
-def test_8s_with_15w_vtx_stalls_on_22_ohm_and_says_where():
-    """Documents a SPEC §4 gap: 22 Ohm at 8S (33.6 V) only delivers ~9.6 W at
-    75 %, so a 15 W VTX that starts part-way up stalls the pre-charge."""
+def test_8s_with_15w_vtx_goes_live_on_7_5_ohm():
+    """The old 22 Ohm bank stalled here (~9.6 W at 75 % of 8S); the single
+    7.5 Ohm bank gets a 15 W VTX past its UVLO at 8S (SIM.md case 1(a))."""
     w = World(pack=Pack.of(8, 4.2), drone=Drone(cap_uf=1000, idle_a=0.1, vtx_w=15.0))
+    r = Rig(w).boot()
+    assert r.go_live() == State.LIVE
+    assert r.ever_main
+
+
+def test_6s_at_3v5_with_10w_vtx_is_refused_not_closed_across_15v():
+    """SIM.md case 1(b): the VTX sits at its 6 V UVLO, ~14.9 V would be left
+    across the main switch (> 12 V, outside its SOA): refused, with where."""
+    w = World(pack=Pack.of(6, 3.5), drone=Drone(cap_uf=2200, idle_a=0.35, vtx_w=10.0, vtx_on_v=6.0))
     r = Rig(w).boot()
     assert r.go_live() == State.ABORT and r.m.fault.name == 'PRECHARGE_STALL'
     assert not r.ever_main
+    d = r.m.fault_data
+    assert d['vin_mv'] - d['vout_mv'] > pc.CLOSE_GAP_MAX_MV
+    assert 5500 <= d['vout_mv'] <= 6500 and 14_000 <= d['vin_mv'] - d['vout_mv'] <= 16_000
+    assert r.screen.data['title'] == 'Drone draws power at ' + fmt_v(d['vout_mv'])
+    assert r.screen.data['value'].startswith(fmt_v(d['vin_mv'] - d['vout_mv']) + ' gap · ')
 
 
 @pytest.mark.parametrize('cells', range(1, 15))
@@ -33,8 +47,7 @@ def test_full_pack_goes_live(cells):
     assert r.m.cells == cells
     r.run(700)
     assert r.screen.id == 'S06'
-    used = RPRE_HIGH_MOHM if cells >= 8 else RPRE_LOW_MOHM
-    assert r.m.ledger.entries and r.out.rpre_mohm == used
+    assert r.m.ledger.entries
 
 
 def test_1s_whoop_auto_limit_is_1a():
@@ -54,7 +67,8 @@ def test_14s_heavy_lift_5000uf_with_vtx():
     w = World(pack=Pack.of(14, 4.35), drone=Drone(cap_uf=5000, idle_a=0.15, vtx_w=15.0))
     r = Rig(w).boot()
     assert r.go_live() == State.LIVE
-    assert 12_000_000 < r.m.ledger.entries[-1][1] < 20_000_000
+    # SIM.md case 1(c): ~10.6 J, inside the 12 J per-attempt abort
+    assert 8_000_000 < r.m.ledger.entries[-1][1] < pc.ATTEMPT_BUDGET_UJ
 
 
 def test_drone_memory_end_to_end_same_then_draws_more():

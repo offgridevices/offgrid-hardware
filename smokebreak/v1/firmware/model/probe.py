@@ -6,6 +6,15 @@ Sequence run by the machine (main switch and pre-charge OFF the whole time):
     phase LOW  : 3.0 V source through 100 Ohm for PROBE_T_LOW_MS
     phase HIGH2: back to 1 kOhm for PROBE_T_HIGH2_MS
 
+The two sources are switched by MMBT5401 PNPs (Q6 / Q7, 150 V: a reversed
+14S pack on the drone side puts -60 V on them, SIM.md case 5), driven active
+low through their base resistors, then a BAT46WJ Schottky into VOUT.
+
+The board itself hangs BOARD_CAP_NF on VOUT: 0.1 uF plus the output snubber
+(2 x 4.7 uF behind 0.47 Ohm; at probe time-scales the 0.47 Ohm is invisible).
+SIM.md case 7 runs the probe with "firmware board C 4.1 uF".  The probe
+measures drone + board and subtracts the board.
+
 The last phase exists for reversed leads on a drone with a big capacitor:
 on 1 kOhm alone the capacitor is still charging toward the diode clamp when
 the first phase ends, so the two-current comparison is made between the
@@ -18,8 +27,10 @@ returns one verdict.  Pure integer arithmetic; every threshold is a constant.
 
 How each verdict is told apart:
 
-* OPEN      the very first 1 kOhm sample is already near the source: there is
-            less than ~0.7 uF on the lead, i.e. nothing (or only a meter) attached.
+* OPEN      after subtracting the board's own capacitance there is less than
+            OPEN_MAX_NF on the lead and the 100 Ohm phase ends at the source:
+            nothing (or only a meter) attached.  (With 4.1 uF of board C the
+            node can no longer be "near the source on the first sample".)
 * SHORT     the node settles; the load resistance computed from the 100 Ohm
             reading, R = Rs * V / (Vs - V), is under 1 Ohm.
 * HALF_SHORT  same, 1..150 Ohm (1S: only under 10 Ohm, because a 1S flight
@@ -50,7 +61,8 @@ PROBE_T_HIGH2_MS = 50
 PROBE_T_FIRST2_MS = PROBE_T_HIGH_MS + PROBE_T_LOW_MS     # end of the 100 Ohm phase
 PROBE_TOTAL_MS = PROBE_T_FIRST2_MS + PROBE_T_HIGH2_MS
 
-OPEN_FIRST_SAMPLE_MV = 2500        # 1 ms into 1 kOhm: > 2.5 V means C < ~0.7 uF
+BOARD_CAP_NF = 4100                # 0.1 uF + 2 x 4.7 uF / 0.47 Ohm snubber, as SIM.md case 7 gives it
+OPEN_MAX_NF = 2000                 # net of the board: < 2 uF on the lead is "nothing attached"
 SETTLE_WINDOW_SAMPLES = 10         # "settled" = moved less than SETTLE_MAX_MV in 10 ms
 SETTLE_MAX_MV = 15
 AVG_SAMPLES = 5                    # final value = mean of the last 5 samples
@@ -85,7 +97,7 @@ class Verdict(IntEnum):
 class ProbeResult:
     verdict: Verdict
     load_mohm: int = -1            # resistive load seen (-1 = none / capacitor only)
-    cap_uf: int = 0                # capacitance estimate (0 = none found)
+    cap_uf: int = 0                # drone capacitance estimate, board subtracted (0 = none found)
     v_high_mv: int = 0             # final reading on 1 kOhm (the second 1 kOhm phase if run)
     v_low_mv: int = 0              # settled / final reading on 100 Ohm
 
@@ -126,16 +138,17 @@ def extrapolate_mv(s):
     return idiv(v1 * v3 - v2 * v2, v1 + v3 - 2 * v2)
 
 
-def capacitance_uf(high, low, vs_mv=PROBE_SRC_MV):
-    """C = I * t / dV over the first CAP_FIT_RISE_MV of rise, using the
-    average source current over that rise.  I in uA, t in ms, dV in mV -> uF.
-    Uses the 1 kOhm phase if it rose far enough (small caps), else the start
-    of the 100 Ohm phase (big caps)."""
+def capacitance_nf(high, low, vs_mv=PROBE_SRC_MV):
+    """Total capacitance on VOUT (drone + board), C = I * t / dV over the
+    first CAP_FIT_RISE_MV of rise, using the average source current over that
+    rise.  I in uA, t in ms, dV in mV -> uF; x1000 -> nF.  Uses the 1 kOhm
+    phase if it rose far enough (small caps), else the start of the 100 Ohm
+    phase (big caps)."""
     for k, v in enumerate(high):
         if v >= CAP_FIT_RISE_MV:
             t_ms = (k + 1) * PROBE_SAMPLE_MS
             i_ua = idiv((vs_mv - idiv(v, 2)) * 1000, PROBE_R_HIGH_OHM)
-            return idiv(i_ua * t_ms, v)
+            return idiv(i_ua * t_ms * 1000, v)
     v0 = high[-1] if high else 0
     k_end = len(low) - 1
     for k, v in enumerate(low):
@@ -149,7 +162,17 @@ def capacitance_uf(high, low, vs_mv=PROBE_SRC_MV):
         return 0
     t_ms = (k_end + 1) * PROBE_SAMPLE_MS
     i_ua = idiv((vs_mv - v0 - idiv(dv, 2)) * 1000, PROBE_R_LOW_OHM)
-    return idiv(i_ua * t_ms, dv)
+    return idiv(i_ua * t_ms * 1000, dv)
+
+
+def drone_cap_nf(high, low):
+    """The drone's capacitance: the total minus the board's own, never negative."""
+    return max(0, capacitance_nf(high, low) - BOARD_CAP_NF)
+
+
+def capacitance_uf(high, low):
+    """The drone's capacitance in whole uF (rounded), board subtracted."""
+    return idiv(drone_cap_nf(high, low) + 500, 1000)
 
 
 def classify(high, low, high2=None, cells=0):
@@ -163,10 +186,10 @@ def classify(high, low, high2=None, cells=0):
     v_hi = _mean_tail(h2)
     v_lo = _mean_tail(low)
 
-    if high[0] >= OPEN_FIRST_SAMPLE_MV and v_lo * 1000 >= PROBE_SRC_MV * NO_LOAD_PERMILLE:
+    cap_nf = drone_cap_nf(high, low)
+    cap = idiv(cap_nf + 500, 1000)
+    if cap_nf < OPEN_MAX_NF and v_lo * 1000 >= PROBE_SRC_MV * NO_LOAD_PERMILLE:
         return ProbeResult(Verdict.OPEN, -1, 0, v_hi, v_lo)
-
-    cap = capacitance_uf(high, low)
 
     if _settled(low):
         v_inf = v_lo

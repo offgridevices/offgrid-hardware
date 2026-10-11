@@ -1,14 +1,26 @@
-"""Two-tier current limit and the Limit rocker (SPEC §4 stage 3, §6, §7).
+"""Current limit tiers and the Limit rocker (SPEC §4 stage 3, §6, §7).
 
-Tier 1, firmware: the INA290 is sampled at 10 kHz; the ISR sums samples into
-10 ms buckets; the 200 ms average is the sum of the last 20 buckets.  Trip
-when the average exceeds the active setting.
+Current sense (src/circuit.py §3): a 1 mOhm low-side shunt in the drone's
+return, read by an INA181A2 (gain 50: 50 mV/A, 0-3.28 V = 0-65 A).
 
-Tier 2, hardware: a comparator on the INA290 output pulls INP low in <= 5 us
-above a threshold the MCU programs through PWM + RC.  The model computes the
-threshold (4 x the active setting, clamped to the amplifier's 40 A range).
+Tier 1, firmware: the INA181A2 is sampled at 10 kHz; the ISR sums samples
+into 10 ms buckets; the 200 ms average is the sum of the last 20 buckets.
+Trip when the average exceeds the active setting.
 
-Tier 3, the TPS48111's own fixed short trip, needs nothing from firmware.
+Tier 2, hardware: an LMV331 (U8) compares the INA181A2 output with a
+threshold the MCU programs (PEAK_REF, DAC + RC) and clears the SN74LVC1G74
+latch, pulling INP low in < 5 us (SIM.md case 9).  The model computes the
+threshold: 4 x the active setting, capped at PEAK_MAX_MA = 50 A.  The cap
+is the LMV331's input common-mode range: it ends ~0.7 V below its 3.3 V
+supply (~2.6 V = 52 A); above that the comparator pulls PEAK_OK low
+whatever PEAK_REF says, so a higher setting could never be honoured
+(SIM.md finding 3a and case 9: "Cap the firmware setting at 50 A").
+
+Tier 3, hardware, nothing from firmware: a second LMV331 (U12) straight on
+the shunt at a fixed ~65 mV = ~65 A (hard short; it bypasses the INA181A2's
+slew and clears the same latch, so firmware sees it as a peak trip), and the
+TPS48000's own short-circuit protection at ~99 A (RISCP 40.2 kOhm; SIM.md
+case 3, "Design values chosen": hard-short comparator, RISCP).
 
 Rocker: AUTO < 1 < 2 < 5 < 10 < 25 A.  Stepping + from 10 A asks "Props
 off?" (S11); a second + between CONFIRM_MIN_MS and CONFIRM_WINDOW_MS after
@@ -30,7 +42,7 @@ AVG_WINDOW_MS = 200
 BUCKET_MS = 10
 N_BUCKETS = AVG_WINDOW_MS // BUCKET_MS
 PEAK_FACTOR = 4
-PEAK_MAX_MA = 40000                 # INA290 output range: 0-40 A
+PEAK_MAX_MA = 50000                 # LMV331 common-mode ceiling ~52 A (SIM.md finding 3a, case 9)
 
 CONFIRM_WINDOW_MS = 3000
 CONFIRM_MIN_MS = 400

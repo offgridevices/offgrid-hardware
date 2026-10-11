@@ -334,11 +334,26 @@ def test_overtemperature_cut():
 
 
 def test_precharge_stall_end_to_end_shows_where_it_stopped():
-    r = make_rig(drone=Drone(cap_uf=1000, fault_ohm=3.0, fault_on_v=6.0)).boot()
+    # a 3 Ohm fault appearing above 6 V on 8S: ~25 V would be left across the
+    # main switch, so it never closes (SIM.md case 1(b) close rule)
+    r = Rig(World(pack=Pack.of(8, 4.2), drone=Drone(cap_uf=1000, fault_ohm=3.0, fault_on_v=6.0))).boot()
     assert r.go_live() == State.ABORT
     assert r.m.fault.name == 'PRECHARGE_STALL' and not r.ever_main
-    assert r.screen.data['title'] == 'Stopped while charging'
-    assert ' V · ' in r.screen.data['value'] and r.screen.data['value'].endswith(' A')
+    assert r.screen.data['title'].startswith('Drone draws power at ')
+    assert r.screen.data['title'].endswith(' V')
+    assert ' V gap · ' in r.screen.data['value'] and r.screen.data['value'].endswith(' A')
+
+
+def test_fault_under_12v_gap_closes_then_limit_trips():
+    # the same fault on 4S leaves < 12 V across RPRE: indistinguishable from a
+    # VTX at its UVLO, so the switch closes and the current limit catches it
+    r = make_rig(drone=Drone(cap_uf=1000, fault_ohm=3.0, fault_on_v=6.0)).boot()
+    r.open_guard()
+    r.w.toggle = Toggle.ON
+    r.run_until(lambda x: x.state == State.ABORT, 2500)
+    assert r.state == State.ABORT and r.ever_main
+    assert r.m.fault.name in ('OVERCURRENT_AVG', 'OVERCURRENT_PEAK')
+    assert not r.out.main_on
 
 
 def test_precharge_energy_budget_refuses_rapid_retries_at_14s():

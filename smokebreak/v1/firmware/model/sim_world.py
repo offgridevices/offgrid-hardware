@@ -13,9 +13,14 @@ world for every decision in the firmware model to be exercised:
   idle current above a voltage, a digital VTX drawing constant power, a
   fault that appears only above some voltage, and a motor demand
 * the board: probe source (3.0 V through 1 kOhm / 100 Ohm and a Schottky),
-  pre-charge resistor, back-to-back switch with a slow gate, the INP AND
-  gate (MCU_EN, guard, peak comparator latch), the TPS48111 short trip,
-  FET and RPRE temperatures, the aux diode-OR (is the MCU awake at all?)
+  the board's own 4.1 uF on VOUT, pre-charge (D3 + 7.5 Ohm), back-to-back
+  switch with a slow gate, the low-side shunt + INA181A2 (sees pre-charge
+  current too), the INP AND gate (MCU_EN, guard, peak latch cleared by the
+  programmable LMV331 - which also trips above its ~52 A common-mode
+  ceiling - or the fixed ~65 A hard-short LMV331), the TPS48000 SCP at
+  ~99 A, the reverse-battery FET Q11 in the battery return (lifts the
+  balance taps under load), FET and RPRE temperatures, the aux diode-OR
+  (is the MCU awake at all?)
 
 `Rig` wires a World to a Machine and gives the tests human-sized verbs:
 open_guard(), on(), off(), bind(), plus(), close_guard(), run(ms).
@@ -25,13 +30,19 @@ from dataclasses import dataclass, field
 
 from .inputs import Inputs, Toggle, N_TAPS, aux_powered
 from .machine import Machine, ProbeSrc, State
+from .precharge import RPRE_MOHM
+from .probe import BOARD_CAP_NF
 
 PROBE_V = 3.0
 SCHOTTKY_V = 0.0           # the probe's 3.0 V is specified after its diode
 SWITCH_OHM = 0.009         # Q1 + Q2 + shunt
 SLEW_MS_FULL = 50.0        # slow gate: 0 -> VIN in 50 ms
-SHORT_TRIP_A = 60.0        # TPS48111 fixed trip (model value)
-INA_MAX_A = 40.0
+SCP_TRIP_A = 99.0          # TPS48000 SCP, RISCP 40.2 kOhm (SIM.md case 3; model value)
+HARD_SHORT_A = 65.0        # fixed LMV331 on the shunt, 64.7 mV (circuit.py R70/R71; SIM.md case 3)
+PEAK_CM_CEILING_A = 52.0   # LMV331 input above ~2.6 V pulls PEAK_OK low whatever PEAK_REF is (SIM.md 3a)
+INA_MAX_A = 65.6           # INA181A2: 50 V/V x 1 mOhm, output 0-3.28 V
+D3_V = 0.45                # pre-charge Schottky SS2H10 forward drop
+Q11_OHM = 0.007            # reverse-battery FET in the battery return (BSC070N10LS5, gate at 12 V)
 SUBSTEPS = 10              # node solver substeps when the main switch is open
 
 
@@ -108,6 +119,7 @@ class World:
         self.v = 0.0                   # drone-side node, volts
         self.i_main = 0.0
         self.i_pre = 0.0
+        self.i_shunt = 0.0             # drone return current through the low-side shunt
         self.peak_latch = False
         self.short_latch = False
         self.peak_threshold_a = 0.0
@@ -125,7 +137,7 @@ class World:
     def vin(self):
         if self.pack is None or self.input_reversed:
             return 0.0
-        return max(0.0, self.pack.ocv - (self.i_main + self.i_pre) * self.pack.r)
+        return max(0.0, self.pack.ocv - (self.i_main + self.i_pre) * (self.pack.r + Q11_OHM))
 
     # ---------------------------------------------------------- balance taps
     def taps(self, divider_en=True):
@@ -141,7 +153,10 @@ class World:
         n = len(pack.cells_v)
         if b.shift > 0 and not (same and self.pack is not None and not self.input_reversed):
             return t                   # no ground reference: floats, reads 0
-        v = 0.0
+        # pack B- sits above board GND by I x (Q11 + the main lead's negative half):
+        # every tap reads high by that much under load (the 10 Ohm in the black
+        # wire, R75, keeps the balance lead from sharing the return)
+        v = i * (Q11_OHM + pack.lead_mohm / 2000.0) if same else 0.0
         for w in range(1, n + 1):
             v += pack.cells_v[w - 1] - i * pack.cell_ir_mohm / 1000.0
             pin = 1 + b.shift + w      # XH pin number of wire w
@@ -169,7 +184,7 @@ class World:
         out = self.last_out
         vin_mv = int(round(self.vin() * 1000))
         vout_mv = int(round(self.v * 1000))
-        i_ma = int(round(min(self.i_main, INA_MAX_A) * 1000)) + self.ina_offset_ma
+        i_ma = int(round(min(self.i_shunt, INA_MAX_A) * 1000)) + self.ina_offset_ma
         ntc_fet = self.force_ntc_fet_dc if self.force_ntc_fet_dc is not None else int(self.t_fet * 10)
         return Inputs(
             t_ms=self.t_ms, vin_mv=vin_mv, vout_mv=max(vout_mv, -5000),
@@ -207,7 +222,7 @@ class World:
         return g, inl
 
     def _cap_f(self):
-        return (self.drone.cap_uf if self.drone else 0.2) * 1e-6
+        return ((self.drone.cap_uf if self.drone else 0.2) + BOARD_CAP_NF / 1000.0) * 1e-6
 
     def apply(self, out, dt_ms):
         self.last_out = out
@@ -220,7 +235,7 @@ class World:
             self.peak_latch = False    # MCU_EN low resets the comparator latch and the driver
             self.short_latch = False
         self.peak_threshold_a = out.peak_threshold_ma / 1000.0
-        rpre = out.rpre_mohm / 1000.0
+        rpre = RPRE_MOHM / 1000.0
         c = self._cap_f()
         self.i_pre = 0.0
         if inp_gate:
@@ -234,12 +249,14 @@ class World:
             i_cap = c * (v_new - self.v) / dt
             i = max(0.0, i_load + i_cap)
             if out.precharge_on:
-                self.i_pre = max(0.0, (vin_prev - v_new) / rpre)
+                self.i_pre = max(0.0, (vin_prev - D3_V - v_new) / rpre)
             self.v = v_new
             self.i_main = i
-            if i > self.peak_threshold_a and self.peak_threshold_a > 0:
+            if i > min(self.peak_threshold_a, PEAK_CM_CEILING_A) and self.peak_threshold_a > 0:
                 self.peak_latch = True
-            if i > SHORT_TRIP_A:
+            if i > HARD_SHORT_A:
+                self.peak_latch = True     # U12 shares PEAK_OK with the programmable comparator
+            if i > SCP_TRIP_A:
                 self.short_latch = True
             if self.peak_latch or self.short_latch:
                 self.i_main = min(i, INA_MAX_A)
@@ -249,15 +266,17 @@ class World:
             ipre_sum = 0.0
             for _ in range(SUBSTEPS):
                 g, inl = self._drone_loads(self.v)
-                if out.precharge_on and vin_ocv > 0:   # the pre-charge FET is MCU-driven only
-                    g = g + [(1.0 / rpre, vin_prev)]
+                if out.precharge_on and vin_ocv > 0 and self.v < vin_prev - D3_V:   # D3 blocks back-feed
+                    g = g + [(1.0 / rpre, vin_prev - D3_V)]
                 if out.probe_src != ProbeSrc.OFF and self.v < PROBE_V:
                     rs = 1000.0 if out.probe_src == ProbeSrc.R1K else 100.0
                     g = g + [(1.0 / rs, PROBE_V - SCHOTTKY_V)]
                 self.v = self._solve(g, inl, c, h)
                 if out.precharge_on and vin_ocv > 0:
-                    ipre_sum += max(0.0, (vin_prev - self.v) / rpre)
+                    ipre_sum += max(0.0, (vin_prev - D3_V - self.v) / rpre)
             self.i_pre = ipre_sum / SUBSTEPS
+        # low-side shunt: whatever the drone draws, through the main switch or RPRE
+        self.i_shunt = self.i_main if inp_gate else self.i_pre
         if self.v > self.max_drone_v and (out.main_on or out.precharge_on):
             self.max_drone_v = self.v
         self.drone_batt_energy += self.i_main * dt

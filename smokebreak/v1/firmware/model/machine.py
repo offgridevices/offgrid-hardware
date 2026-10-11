@@ -9,8 +9,10 @@ States
     SAFE       guard closed.  S01 / battery screens S14-S18
     ARMED      guard open, nothing powered.  S02
     CHECKING   3 V probe.  S03
-    PRECHARGE  through RPRE.  S04
-    ENGAGING   main switch closing on its slow gate (50 ms), pre-charge still on.  S05
+    PRECHARGE  through RPRE (one 7.5 Ohm bank) until VOUT settles.  S04
+    ENGAGING   main switch closing on its slow gate, pre-charge still on.  Entered
+               only when the pre-charge has settled with VIN - VOUT <= 12 V
+               (SIM.md case 1(b)); otherwise PRECHARGE_STALL, nothing closes.  S05
     LIVE       S05 flash, then S06
     WARNING    live, but something changed / battery warning.  S07 or S15
     ABORT      S08 / S09 / S17, alarm, needs the guard closed
@@ -41,7 +43,8 @@ from .inputs import Toggle, idiv
 
 STARTUP_MS = 1500
 POWER_CUT_MS = 1200
-MAIN_RAMP_MS = 50                  # TPS48111 slow gate (Cdvdt) closes the last 25 %
+MAIN_RAMP_MS = 50                  # TPS48000 slow gate (Cdvdt R1 100k + C1 22n) closes the last <= 12 V
+                                   # in ~6-11 ms (SIM.md case 1(b)); 50 ms allowed
 LIVE_FLASH_MS = 600                # S05 shown this long after going live
 OVERLAY_MS = 2000                  # S13 after a limit change
 SHIFT_NOTICE_MS = 3000             # S18 shown this long after a shifted plug is found
@@ -86,7 +89,7 @@ class Fault(IntEnum):
     BOTH_POWERED = 4
     BATT_ON_DRONE_SIDE = 5
     REVERSED_BATT_DRONE_SIDE = 6
-    PRECHARGE_STALL = 7
+    PRECHARGE_STALL = 7            # settled with > 12 V left across RPRE: refused (drone draws power)
     PRECHARGE_TIMEOUT = 8
     PRECHARGE_ENERGY = 9
     PRECHARGE_BUDGET = 10
@@ -141,7 +144,6 @@ class Outputs:
     main_on: bool = False          # MCU_EN into the INP AND gate
     probe_src: ProbeSrc = ProbeSrc.OFF
     divider_en: bool = True        # balance dividers' ground FET
-    rpre_mohm: int = precharge.RPRE_LOW_MOHM
     peak_threshold_ma: int = 0     # programmed into the comparator's PWM DAC
     screen: Screen = field(default_factory=lambda: Screen('S00'))
     led: Led = Led.OFF
@@ -183,6 +185,7 @@ class Machine:
         self.fault = Fault.NONE
         self.fault_data = {}
         self.batt = battery.BatteryInfo()
+        self.batt_idle = battery.BatteryInfo()   # last analysis taken with (almost) no current flowing
         self.bind_mode = False
         self.bind_saw_on = False
         self.bind_live = False
@@ -259,6 +262,13 @@ class Machine:
         current = max(0, inp.current_ma - self.i_zero)
 
         self.batt = battery.analyse(inp.vin_mv, inp.taps_mv, current)
+        # Cell voltages are trusted at idle only.  The taps are read against
+        # board GND, but the pack's B- reaches GND through the reverse-battery
+        # FET Q11 (and the balance black wire through 10 Ohm, R75), so with
+        # current flowing every tap reads high by I x (Q11 + lead) and the
+        # cells sag by I x their IR.  Per-cell verdicts use batt_idle.
+        if self.batt.resting:
+            self.batt_idle = self.batt
         if self.batt.bal.present and self.batt.bal.shift > 0 and self.batt.main_present:
             if self.shift_since < 0:
                 self.shift_since = now
@@ -376,7 +386,7 @@ class Machine:
         if inp.vout_mv < VOUT_REVERSED_MV:
             self._abort(Fault.REVERSED_BATT_DRONE_SIDE, vout_mv=inp.vout_mv)
             return
-        # start the run: auto-zero the INA290, freeze the resting numbers
+        # start the run: auto-zero the INA181A2 (switch open), freeze the resting numbers
         self.i_zero = inp.current_ma
         self.vin_rest = inp.vin_mv
         self.cells = self.batt.cells
@@ -502,7 +512,7 @@ class Machine:
         r = self.probe_result
         if r is not None and probe.no_big_cap(r.cap_uf, self.cells):
             w.append(('drone', 'no_big_cap', 0, r.cap_uf))
-        for kind, idx, mv in self.batt.warnings:
+        for kind, idx, mv in self.batt_idle.warnings:      # idle cell readings, not under load
             if kind != battery.Warn.HIGH_IR:
                 w.append(('battery', kind, idx, mv))
         self.warn_list = w
@@ -613,9 +623,6 @@ class Machine:
     def _drive(self, inp, now):
         o = Outputs()
         s = self.state
-        o.rpre_mohm = precharge.rpre_for(inp.vin_mv)
-        if self.pre is not None:
-            o.rpre_mohm = self.pre.rpre
         if s == State.CHECKING:
             el = now - self.t_state
             o.probe_src = ProbeSrc.R100 if probe.PROBE_T_HIGH_MS <= el < probe.PROBE_T_FIRST2_MS \
@@ -729,7 +736,9 @@ class Machine:
             Fault.HALF_SHORT: ('Half-short', lambda: fmt_ohm(d['mohm'])),
             Fault.BOTH_POWERED: ('Drone side already has power', lambda: fmt_v(d['vout_mv'])),
             # (the screen's lines: "Unplug the drone's battery, or wait for it to discharge.")
-            Fault.PRECHARGE_STALL: ('Stopped while charging', lambda: f"{fmt_v(d['vout_mv'])} · {fmt_a(d['ma'])}"),
+            # refused: the main switch may only close across <= 12 V (SIM.md case 1(b))
+            Fault.PRECHARGE_STALL: ('Drone draws power at {}'.format(fmt_v(d.get('vout_mv', 0))),
+                                    lambda: f"{fmt_v(d['vin_mv'] - d['vout_mv'])} gap · {fmt_a(d['ma'])}"),
             Fault.PRECHARGE_TIMEOUT: ('Charging took too long', lambda: f"{fmt_v(d['vout_mv'])} · {fmt_a(d['ma'])}"),
             Fault.PRECHARGE_ENERGY: ('Charge resistor too hot', lambda: f"{fmt_v(d['vout_mv'])} · {fmt_a(d['ma'])}"),
             Fault.PRECHARGE_BUDGET: ('Charge resistor cooling', lambda: f"wait {idiv(d['wait_ms'] + 999, 1000)} s"),

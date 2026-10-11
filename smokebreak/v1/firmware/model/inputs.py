@@ -49,11 +49,16 @@ class Inputs:
     vin_mv: int = 0                    # battery input, 0..66000 (a reversed battery reads 0: ADC clamp)
     vout_mv: int = 0                   # drone side, signed: the divider is offset-biased to read to -5 V
     vout_low_mv: int = 0               # clamped 0..3300 channel used by the 3 V probe
-    current_ma: int = 0                # INA290, main path only (pre-charge bypasses the shunt), raw
-    peak_trip: bool = False            # peak comparator has pulled INP low (latched until MCU_EN drops)
-    short_trip: bool = False           # TPS48111 FLT: its own fixed short-circuit trip fired
+    current_ma: int = 0                # INA181A2 on the 1 mOhm low-side shunt in the drone's return,
+                                       # raw (0..65 A): everything the drone draws, pre-charge included
+    peak_trip: bool = False            # PEAK_OK went low (programmable LMV331 or the fixed ~65 A hard-short
+                                       # LMV331, same latch): INP pulled low, latched until MCU_EN drops
+    short_trip: bool = False           # TPS48000 FLT: its own short-circuit protection (~99 A) fired
 
-    # balance lead: voltage of XH pins 2..9 versus board GND, mV (index 0 = pin 2 = "tap 1")
+    # balance lead: voltage of XH pins 2..9 versus board GND, mV (index 0 = pin 2 = "tap 1").
+    # Pin 1 (black wire) meets GND through 10 Ohm (R75) and the pack's B- meets GND through the
+    # reverse-battery FET Q11, so under main current every tap reads high by I x (Q11 + lead):
+    # cell voltages are only trusted at idle (see Machine.batt_idle).
     taps_mv: list = field(default_factory=lambda: [0] * N_TAPS)
 
     # temperatures, deci-degC

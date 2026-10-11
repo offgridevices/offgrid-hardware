@@ -1,15 +1,36 @@
-"""Pre-charge supervisor (SPEC §4 stage 2, §5, §14.1).
+"""Pre-charge supervisor (SPEC §4 stage 2, §5, §14.1; sim/SIM.md case 1).
 
-The pre-charge P-FET connects VIN to the drone through RPRE.  RPRE is fed
-from VIN *ahead of the shunt* (ARCHITECTURE §2), so the INA290 does not see
-pre-charge current: the supervisor computes it, I = (VIN - VOUT) / RPRE.
+The pre-charge P-FET Q3 connects VIN to the drone through the Schottky D3
+and RPRE.  RPRE is ONE bank for 1S-14S: R_PRE + R_PRE2, 2 x 15 Ohm 5 W
+(Vishay AC05) in parallel = 7.5 Ohm (src/circuit.py §4; SIM.md case 1(a):
+6.8-8.2 Ohm gets every 8S-14S drone with a 15 W VTX past 75 % in < 1 s,
+10 Ohm and up stall at 8S).  There is no bank switch any more.
 
-PASS  : VOUT >= 75 % of VIN.
-ABORT : STALL    VOUT rose less than STALL_MIN_RISE over the last STALL_WINDOW
-                 while below 75 % and current still flows (a fault that only
-                 appears at higher voltage, e.g. a 5 V part on battery voltage)
-        TIMEOUT  still below 75 % after 1 s
-        ENERGY   this attempt put more than ATTEMPT_BUDGET into RPRE
+The current shunt is low side, in the drone's return, so the INA181A2 does
+see pre-charge current; the supervisor still computes it from the resistor
+drop, I = (VIN - VOUT) / RPRE, so it does not depend on the amplifier's
+zero or range.  (D3's ~0.5 V makes that a slight over-estimate: safe.)
+
+Closing the main switch.  The BSC040N10NS5's linear-mode SOA is tiny (SIM.md
+finding 4: 0.53 A for 10 ms at 25 V), so the main switch closes only after
+the pre-charge has SETTLED (VOUT rose less than 1 % of VIN over the last
+20 ms) AND the gap still across it, VIN - VOUT, is at most 12 V (SIM.md
+"Design values chosen", main-switch close rule; case 1(b)).  "Settled" is a
+net rise, not a peak-to-peak band, so a drone whose regulator hiccups at its
+UVLO (a 1S whoop on 7.5 Ohm) still counts as settled; the gap is then taken
+from the LOWEST VOUT in the window, the worst case the switch could close
+across.  So:
+
+PASS  : settled, VIN - VOUT <= CLOSE_GAP_MAX_MV.  This includes low-voltage
+        drones whose VTX sits at its 6 V UVLO with a small gap (SIM.md case
+        1(b): 2S-5S with a 10 W VTX stall at ~6 V and close within SOA).
+ABORT : STALL    settled with more than 12 V still across RPRE: the drone
+                 draws power at that voltage (a VTX stuck at its UVLO, a 5 V
+                 part on battery voltage).  Refused; the main switch never
+                 closes.  SIM.md case 1(b): 6S at 3.5 V/cell + 10 W VTX ends
+                 at a 14.9 V gap -> refused.
+        TIMEOUT  not settled after 1 s
+        ENERGY   this attempt put more than ATTEMPT_BUDGET (12 J) into RPRE
         BUDGET   this attempt plus the last minute's attempts exceed MINUTE_BUDGET
         HOT      RPRE thermistor over its limit
         COLLAPSE VIN fell away (bad pack, lead pulled)
@@ -17,34 +38,29 @@ ABORT : STALL    VOUT rose less than STALL_MIN_RISE over the last STALL_WINDOW
 Energy into RPRE = integral of (VIN - VOUT)^2 / RPRE dt.  In integer units:
 mV * mV / mOhm = mW, and mW * ms = uJ.  (VIN - VOUT)^2 reaches 3.7e9 at 14S,
 so the C version uses uint64 for the product.
-
-Two resistor values, chosen from VIN (not from the cell-count guess, so a
-mis-guessed pack still gets the right resistor): ~2 Ohm for packs up to 7S
-LiHV (30.45 V), ~22 Ohm above.
 """
 from dataclasses import dataclass, field
 from enum import IntEnum
 
 from .inputs import idiv
 
-RPRE_LOW_MOHM = 2000
-RPRE_HIGH_MOHM = 22000
-RPRE_SWITCH_MV = 30450             # 7S LiHV full; above this, the 22 Ohm bank
+RPRE_MOHM = 7500                   # 2 x 15 Ohm 5 W AC05 in parallel (circuit.py R_PRE, R_PRE2)
 
-PASS_PERMILLE = 750                # VOUT >= 75 % of VIN
+CLOSE_GAP_MAX_MV = 12000           # SIM.md case 1(b): close the main switch across <= 12 V only
+SETTLE_WINDOW_MS = 20              # SIM.md case 1(b): "VOUT within 1 % for 20 ms"
+SETTLE_PERMILLE = 10               # 1 % of VIN ...
+SETTLE_MIN_MV = 50                 # ... but never finer than 50 mV (1S, ADC noise)
 TIMEOUT_MS = 1000
-STALL_WINDOW_MS = 30
-STALL_MIN_RISE_MV = 50             # or VIN/200, whichever is larger
-STALL_MIN_CURRENT_MA = 20
 
-# Per attempt: 5000 uF to 75 % of 60.9 V is ~8.7 J with no load, but a 15 W
-# digital VTX switching on part-way up raises it to ~17 J (the resistor
-# carries the VTX current too).  RPRE must be pulse-rated for 20 J.
-ATTEMPT_BUDGET_UJ = 20_000_000
+# Per attempt: SIM.md case 1(c): the worst normal attempt (14S LiHV, 5000 uF,
+# 15 W VTX) puts ~10.6 J into RPRE, half in each resistor.  The abort budget
+# is 12 J (6 J per resistor, ~55 % of the AC05's single-pulse rating; SIM.md
+# "Design values chosen", RPRE energy).  Per minute: unchanged.
+ATTEMPT_BUDGET_UJ = 12_000_000
 MINUTE_BUDGET_UJ = 45_000_000      # any 60 s
 MINUTE_MS = 60_000
 LEDGER_SLOTS = 16                  # last 16 attempts are enough to cover a minute
-RPRE_HOT_DC = 1200                 # 120 degC on the resistor's NTC: refuse / abort
+RPRE_HOT_DC = 1200                 # 120 degC on the resistor's NTC (RT2): refuse / abort
 COLLAPSE_PERMILLE = 700            # VIN under 70 % of its value at start
 
 
@@ -56,16 +72,12 @@ class Status(IntEnum):
 
 class Reason(IntEnum):
     NONE = 0
-    STALL = 1
+    STALL = 1                      # settled with gap > CLOSE_GAP_MAX_MV: refused
     TIMEOUT = 2
     ENERGY = 3
     BUDGET = 4
     HOT = 5
     COLLAPSE = 6
-
-
-def rpre_for(vin_mv):
-    return RPRE_HIGH_MOHM if vin_mv > RPRE_SWITCH_MV else RPRE_LOW_MOHM
 
 
 @dataclass
@@ -98,17 +110,18 @@ class EnergyLedger:
 
 
 class Supervisor:
-    """One pre-charge attempt.  Create, call step() every tick, read status."""
+    """One pre-charge attempt.  Create, call step() every tick, read status.
+    `rpre_mohm` exists for unit tests only; the board has one value."""
 
-    def __init__(self, t_ms, vin_mv, ledger, rpre_mohm=None):
+    def __init__(self, t_ms, vin_mv, ledger, rpre_mohm=RPRE_MOHM):
         self.t0 = t_ms
         self.t_last = t_ms
         self.vin0 = vin_mv
-        self.rpre = rpre_mohm if rpre_mohm is not None else rpre_for(vin_mv)
+        self.rpre = rpre_mohm
         self.ledger = ledger
         self.energy_uj = 0
         self.prior_uj = ledger.used_uj(t_ms)
-        self.hist = []                 # (t_ms, vout_mv) for the stall window
+        self.hist = []                 # (t_ms, vout_mv) for the settle window
         self.status = Status.RUNNING
         self.reason = Reason.NONE
         self.stop_vout_mv = 0
@@ -119,6 +132,11 @@ class Supervisor:
     def current_ma(self, vin_mv, vout_mv):
         dv = vin_mv - vout_mv
         return idiv(dv * 1000, self.rpre) if dv > 0 else 0
+
+    @property
+    def gap_mv(self):
+        """VIN - VOUT when the attempt stopped (what the main switch would close across)."""
+        return self.stop_vin_mv - self.stop_vout_mv
 
     def can_start(self, ntc_rpre_dc):
         if ntc_rpre_dc >= RPRE_HOT_DC:
@@ -151,12 +169,10 @@ class Supervisor:
             self.energy_uj += idiv(dv * dv, self.rpre) * dt
         elapsed = t_ms - self.t0
         self.hist.append((t_ms, vout_mv))
-        while self.hist and t_ms - self.hist[0][0] > STALL_WINDOW_MS:
+        while self.hist and t_ms - self.hist[0][0] > SETTLE_WINDOW_MS:
             self.hist.pop(0)
 
-        if vout_mv * 1000 >= vin_mv * PASS_PERMILLE and vin_mv > 0:
-            self._stop(Status.PASS, Reason.NONE, vin_mv, vout_mv)
-        elif vin_mv * 1000 < self.vin0 * COLLAPSE_PERMILLE:
+        if vin_mv * 1000 < self.vin0 * COLLAPSE_PERMILLE:
             self._stop(Status.ABORT, Reason.COLLAPSE, vin_mv, vout_mv)
         elif ntc_rpre_dc >= RPRE_HOT_DC:
             self._stop(Status.ABORT, Reason.HOT, vin_mv, vout_mv)
@@ -164,16 +180,19 @@ class Supervisor:
             self._stop(Status.ABORT, Reason.ENERGY, vin_mv, vout_mv)
         elif self.prior_uj + self.energy_uj > MINUTE_BUDGET_UJ:
             self._stop(Status.ABORT, Reason.BUDGET, vin_mv, vout_mv)
-        elif elapsed >= STALL_WINDOW_MS and self._stalled(vin_mv, vout_mv):
-            self._stop(Status.ABORT, Reason.STALL, vin_mv, vout_mv)
+        elif self._settled(vin_mv, vout_mv):
+            v_low = min(v for _, v in self.hist)        # worst case across the window
+            if vin_mv - v_low <= CLOSE_GAP_MAX_MV:
+                self._stop(Status.PASS, Reason.NONE, vin_mv, v_low)
+            else:
+                self._stop(Status.ABORT, Reason.STALL, vin_mv, v_low)
         elif elapsed >= TIMEOUT_MS:
             self._stop(Status.ABORT, Reason.TIMEOUT, vin_mv, vout_mv)
         return self.status
 
-    def _stalled(self, vin_mv, vout_mv):
+    def _settled(self, vin_mv, vout_mv):
+        """VOUT rose less than max(1 % of VIN, 50 mV) over a full window."""
         t_old, v_old = self.hist[0]
-        if self.hist[-1][0] - t_old < STALL_WINDOW_MS:
+        if self.hist[-1][0] - t_old < SETTLE_WINDOW_MS:
             return False
-        rise_min = max(STALL_MIN_RISE_MV, idiv(vin_mv, 200))
-        return (vout_mv - v_old < rise_min
-                and self.current_ma(vin_mv, vout_mv) >= STALL_MIN_CURRENT_MA)
+        return vout_mv - v_old < max(SETTLE_MIN_MV, idiv(vin_mv * SETTLE_PERMILLE, 1000))
