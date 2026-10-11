@@ -135,41 +135,110 @@ def power_copper(b):
 
 
 # ---------------------------------------------------------------- artwork
-# The bottom is the side the owner solders the connectors, toggle and
-# resistors from, so it carries the words; positions there are given as
-# seen from the bottom (x_view = W - x) and mirrored onto the board.  The
-# lockup sits alone on a clean black field (no copper tracks or vias under
-# it), with clear space far beyond a quarter of its width.
-LOCKUP_FIELD = (30.0, 40.6, 64.0, 51.0)          # bottom view: x0, y0, x1, y1
+# Done on the routed board: every word is placed where it clears the pads
+# (and on the bottom, the vias), nearest its intended spot.  The bottom is
+# the side the owner solders the connectors, toggle and resistors from, so
+# it carries the words; positions there are as seen from the bottom
+# (x_view = W - x) and mirrored onto the board.  The lockup goes where the
+# bottom is cleanest, with clear space far beyond a quarter of its width.
+
+def _obstacles(b, side):
+    """Boxes (board mm) silk must not touch on one side."""
+    mm = lambda v: pcbnew.ToMM(v)
+    box = lambda bb, g: (mm(bb.GetLeft()) - B.OX - g, mm(bb.GetTop()) - B.OY - g,
+                         mm(bb.GetRight()) - B.OX + g, mm(bb.GetBottom()) - B.OY + g)
+    cu = pcbnew.F_Cu if side == 'T' else pcbnew.B_Cu
+    out = []
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.IsOnLayer(cu) or p.GetAttribute() in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH):
+                out.append(box(p.GetBoundingBox(), 0.2))
+        if side == 'T':
+            fp.BuildCourtyardCaches()
+            cy = fp.GetCourtyard(pcbnew.F_CrtYd)
+            if cy.OutlineCount():
+                out.append(box(cy.BBox(), 0.0))
+    for t in b.GetTracks():
+        if t.GetClass() == 'PCB_VIA':
+            out.append(box(t.GetBoundingBox(), 0.15))
+    return out
 
 
-def bottom_art():
-    S = 'B.SilkS'
-    t = lambda s, x, y, cap=1.5, anchor='start', **k: dict(kind='text', text=s, x=x, y=y, cap=cap,
-                                                         anchor=anchor, layer=S, **k)
-    cx = (LOCKUP_FIELD[0] + LOCKUP_FIELD[2]) / 2
-    items = [
-        dict(kind='lockup', x=cx, y=44.6, width=24.0, layer=S),
-        t('SmokeBreak', cx, 49.4, 1.3, 'middle'),
-        # the ends
-        t('Drone', 4.6, 30.6, 1.8), t('Battery', 89.4, 30.6, 1.8, 'end'),
-        # balance: pin 1 is the black wire
-        dict(kind='arrow', x0=46.0, y0=15.0, x1=46.0, y1=10.6, layer=S),
-        t('Black wire', 47.4, 14.6, 1.3),
-        t('Balance', 56.0, 3.0, 1.3, 'middle'),
-        t('USB-C', 37.0, 9.6, 1.3, 'middle'),
-        t('Pre-charge', 19.0, 10.4, 1.3, 'middle'),
-        t('Toggle', 27.0, 37.2, 1.3, 'middle'),
+def _free(bx, obs, edge=0.6):
+    x0, y0, x1, y1 = bx
+    if x0 < edge or y0 < edge or x1 > B.W - edge or y1 > B.H - edge:
+        return False
+    return not any(x0 < c and a < x1 and y0 < d and b_ < y1 for a, b_, c, d in obs)
+
+
+def _count(bx, obs):
+    x0, y0, x1, y1 = bx
+    return sum(1 for a, b_, c, d in obs if x0 < c and a < x1 and y0 < d and b_ < y1)
+
+
+def art_items():
+    """(top items, bottom items) at their intended spots (bottom ones in bottom view)."""
+    T, Bs = 'F.SilkS', 'B.SilkS'
+    t = lambda s, x, y, cap, layer, anchor='middle', **k: dict(kind='text', text=s, x=x, y=y, cap=cap,
+                                                               anchor=anchor, layer=layer, **k)
+    top = [t('Supply', 16.0, 1.9, 1.2, T), t('Cells', 38.0, 24.6, 1.2, T), t('Brain', 38.0, 38.9, 1.2, T),
+           t('Power', 75.0, 51.2, 1.2, T), t('Sense', 89.4, 33.6, 1.2, T), t('Light', 67.0, 16.4, 1.2, T),
+           t('SmokeBreak v1', 47.0, 51.4, 1.2, T)]
+    bottom = [
+        t('Drone', 8.0, 30.6, 1.8, Bs), t('Battery', 86.0, 30.6, 1.8, Bs),
+        dict(kind='arrow', x0=46.0, y0=16.0, x1=46.0, y1=10.2, layer=Bs, fixed=True),   # to pin 1
+        t('Black wire', 47.0, 15.6, 1.3, Bs, 'start', fixed=True), t('Balance', 38.0, 12.4, 1.3, Bs),
+        t('USB-C', 37.0, 9.8, 1.3, Bs), t('Pre-charge', 19.0, 10.4, 1.3, Bs), t('Toggle', 27.0, 37.6, 1.3, Bs),
     ]
-    return items
+    return top, bottom
 
 
 def add_art(b, work):
-    items = bottom_art()
-    res = B.art(items, work)
-    for it, r in zip(items, res):
-        mirror = B.W / 2 if it['layer'].startswith('B.') else None
-        B.add_polys(b, r['polys'], it['layer'], mirror_x=mirror)
+    import json
+    top, bottom = art_items()
+    obs = {'T': _obstacles(b, 'T'), 'B': _obstacles(b, 'B')}
+    placed = []
+    # the lockup: the cleanest 26 x 9 mm of the bottom (fewest vias and pads),
+    # nearest the middle of the front half
+    lw, lh = 24.0, 6.0
+    best = None
+    for yy in [y * 0.5 for y in range(int(2 * (lh / 2 + 2)), int(2 * (B.H - lh / 2 - 4)))]:
+        for xx in [x * 0.5 for x in range(int(2 * (lw / 2 + 2)), int(2 * (B.W - lw / 2 - 2)))]:
+            bx = (xx - lw / 2 - 1, yy - lh / 2 - 1, xx + lw / 2 + 1, yy + lh / 2 + 4)   # + the name below
+            n = _count(bx, obs['B'])
+            score = (n, abs(xx - B.W / 2) + abs(yy - 0.62 * B.H))
+            if best is None or score < best[0]:
+                best = (score, xx, yy)
+    _, lx, ly = best                                   # board coordinates
+    vx = B.W - lx                                      # bottom view
+    bottom = [dict(kind='lockup', x=vx, y=ly, width=lw, layer='B.SilkS'),
+              dict(kind='text', text='SmokeBreak', x=vx, y=ly + lh / 2 + 2.6, cap=1.3, anchor='middle',
+                   layer='B.SilkS')] + bottom
+    # measure every item, then nudge each to the nearest free spot
+    res = B.art(top + bottom, work)
+    out = []
+    for it, r in zip(top + bottom, res):
+        side = 'B' if it['layer'].startswith('B.') else 'T'
+        x0, y0, x1, y1 = r['bounds']
+        if side == 'B':                                # to board coordinates
+            x0, x1 = B.W - x1, B.W - x0
+        fixed = it.get('fixed') or it['kind'] == 'lockup' or it.get('text') == 'SmokeBreak' and side == 'B'
+        dx = dy = 0.0
+        if not fixed:
+            for dx, dy in sorted(((i * 0.25, j * 0.25) for i in range(-24, 25) for j in range(-16, 17)),
+                                 key=lambda d: (d[0] ** 2 + d[1] ** 2, abs(d[1]))):
+                if _free((x0 + dx, y0 + dy, x1 + dx, y1 + dy), obs[side] + placed):
+                    break
+            else:
+                print('  no room for', it.get('text'))
+                continue
+        placed.append((x0 + dx - 0.3, y0 + dy - 0.3, x1 + dx + 0.3, y1 + dy + 0.3))
+        polys = [dict(outer=[[x + (dx if side == 'T' else -dx), y + dy] for x, y in p['outer']],
+                      holes=[[[x + (dx if side == 'T' else -dx), y + dy] for x, y in h] for h in p['holes']])
+                 for p in r['polys']]
+        B.add_polys(b, polys, it['layer'], mirror_x=B.W / 2 if side == 'B' else None)
+        out.append((it.get('text', it['kind']), side, round(x0 + dx, 2), round(y0 + dy, 2)))
+    return out
 
 
 def dsn_keepouts(b):
