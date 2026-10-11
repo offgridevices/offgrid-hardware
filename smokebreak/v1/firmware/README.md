@@ -1,6 +1,6 @@
 # SmokeBreak v1 firmware — reference model
 
-`model/` is a Python reference implementation of every decision the STM32C071
+`model/` is a Python reference implementation of every decision the STM32G0B1
 firmware makes. It is written to port 1:1 to C: integer units in the names
 (`_mv`, `_ma`, `_ms`, `_mohm`, `_uj`, `_dc` = deci-°C), C-style truncating
 division (`inputs.idiv`), no floats in the decision path, no dynamic
