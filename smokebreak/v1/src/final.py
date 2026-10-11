@@ -55,6 +55,21 @@ if __name__ == '__main__':
     src = sys.argv[1]
     b = pcbnew.LoadBoard(src)
     print('widened', widen(b), 'slivers')
+    # each FET's three source pins strapped together, then the SRC net
+    # (driver sense pin, BST cap, the source copper) joined by the maze router
+    for ref in ('Q1', 'Q2'):
+        fp = b.FindFootprintByReference(ref)
+        src = sorted((p.GetPosition() for p in fp.Pads() if p.GetNetname() == 'SRC'), key=lambda q: (q.x, q.y))
+        for a_, c_ in zip(src, src[1:]):
+            t = pcbnew.PCB_TRACK(b)
+            t.SetStart(a_); t.SetEnd(c_); t.SetWidth(pcbnew.FromMM(0.6)); t.SetLayer(pcbnew.F_Cu)
+            t.SetNet(b.FindNet('SRC')); b.Add(t)
+    import finish, finish_run
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    widths, clmap = finish_run.rules()
+    for net in ('SRC', 'GND', 'VIN', 'VOUT'):
+        left = finish.route_net(b, net, track_w=widths.get(net, B.TRACK), clmap=clmap)
+        print('  joined', net, '- islands left', left)
     ground_fill(b)
     # the routing keep-outs become DRC rules (a rule area would bar the power
     # nets' own tracks too)
@@ -70,8 +85,12 @@ if __name__ == '__main__':
     extra = ''.join('(rule "no other track across the %s copper"\n'
                     '  (condition "A.Type == \'Track\' && A.NetName != \'%s\' && A.intersectsArea(\'%s\')")\n'
                     '  (constraint disallow track))\n' % (zn, net, zn)
-                    for zn, net in (('sources', 'SRC'), ('Q1 drain', 'VIN'), ('drone negative', 'DRONE_NEG'),
-                                    ('battery minus', 'BATT_NEG')))
+                    for zn, net in (('sources', 'SRC'), ('Q1 drain', 'VIN'), ('battery minus', 'BATT_NEG')))
+    # the drone-negative strip also hosts C14's and the snubber's short VOUT stubs
+    extra += ('(rule "no other track across the drone negative copper"\n'
+              '  (condition "A.Type == \'Track\' && A.NetName != \'DRONE_NEG\' && A.NetName != \'VOUT\' '
+              '&& A.NetName != \'VOUT_SNUB\' && A.intersectsArea(\'drone negative\')")\n'
+              '  (constraint disallow track))\n')
     B.write_rules(make.OUT, extra)
     errs, warns, unc = drc(make.OUT)
     import collections

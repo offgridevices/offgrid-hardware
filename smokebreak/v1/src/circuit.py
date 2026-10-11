@@ -195,7 +195,7 @@ add('J3', 'XT60F', {XT['XT60F'][0]: 'VOUT', XT['XT60F'][1]: 'DRONE_NEG', '1': NC
 add('J4', 'XT30F', {XT['XT30F'][0]: 'VOUT', XT['XT30F'][1]: 'DRONE_NEG', '3': NC, '4': NC}, 'XT30 female', g)
 capacitor('VOUT', 'DRONE_NEG', '100n', '100V', '0603', g)
 # output snubber (sim cases 3, 5): damps the drone-side ring after a cut and on plug-in
-res('VOUT', 'VOUT_SNUB', 0.47, '1206', group=g, ref='R68')                     # 0.47: 0.22 lets a reversed drone-side 14S pull SRC to -70 V
+res('VOUT', 'VOUT_SNUB', 0.47, '0805', group=g, ref='R68')                     # 0.47: 0.22 lets a reversed drone-side 14S pull SRC to -70 V
 capacitor('VOUT_SNUB', 'DRONE_NEG', '4u7', '100V', '1210', g, ref='C52')
 capacitor('VOUT_SNUB', 'DRONE_NEG', '4u7', '100V', '1210', g, ref='C53')
 # probe: 3.3 V through 1 k or 100 Ohm, then a 100 V Schottky into VOUT.

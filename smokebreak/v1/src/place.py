@@ -148,12 +148,14 @@ at('Q9', 54.8, 35.6, 0)
 at('R60', 52.2, 35.6, 90)
 
 # power district: TPS48000 north of the FETs, its passives around it
-at('U1', 62.2, 47.6, 270)              # TPS48000: control pins west to its passives, gate side east
+fix('U1', 74.6, 41.4, 180)             # TPS48000 right above the FETs: GATE over Q1's gate, SRC over the source copper
 for ref, (x, y, r) in {
-    'C5': (64.4, 43.0, 0), 'R6': (64.4, 41.6, 0), 'R7': (76.6, 43.6, 0),
-    'R1': (60.0, 44.6, 90), 'C4': (61.4, 44.6, 90), 'R2': (60.0, 48.0, 90), 'R3': (61.4, 48.0, 90),
-    'R4': (62.8, 48.0, 90), 'R5': (64.2, 48.0, 90), 'R8': (58.4, 48.0, 90), 'R9': (57.0, 48.0, 90),
-    'R10': (55.6, 48.0, 90), 'R11': (54.2, 48.0, 90), 'R12': (52.8, 48.0, 90), 'R13': (51.4, 48.0, 90),
+    'C5': (71.2, 43.4, 0), 'R6': (78.4, 43.2, 0), 'R7': (78.4, 41.4, 0),
+    # VS filter at pin 20 (east end), the dividers and pull-ups in a row north of the control pins
+    'R1': (79.0, 37.4, 90), 'C4': (80.4, 37.4, 90),
+    'R2': (77.6, 37.6, 90), 'R3': (76.2, 37.6, 90), 'R4': (74.8, 37.6, 90), 'R5': (73.4, 37.6, 90),
+    'R8': (72.0, 38.0, 90), 'R9': (69.0, 41.0, 90), 'R10': (67.6, 41.0, 90), 'R11': (66.2, 41.0, 90),
+    'R12': (64.8, 41.0, 90), 'R13': (63.4, 41.0, 90),
 }.items():
     at(ref, x, y, r)
 # current sense next to the shunt; peak comparator, latch, enable gate in a row
@@ -180,8 +182,8 @@ at('RT2', 82.0, 9.0, 0)                 # thermistor on the resistors' drone-sid
 at('R25', 84.2, 9.0, 0)
 
 # drone side: probe, VOUT and VIN sensing, south of the MCU
-at('C14', 80.6, 33.6, 0)
-at('RT1', 72.6, 43.6, 0)                # thermistor at Q1's source edge
+at('C14', 81.2, 23.4, 90)
+at('RT1', 69.0, 43.4, 0)                # thermistor at Q1's edge
 at('R35', 66.0, 38.4, 0)
 for ref, (x, y, r) in {
     'Q6': (40.6, 40.4, 0), 'Q7': (43.4, 40.4, 0), 'R26': (40.6, 44.2, 90), 'R27': (43.4, 44.2, 90),
@@ -216,16 +218,16 @@ at('D20', 21.8, 37.8, 90)
 at('C50', 25.0, 28.8, 90)
 at('C51', 25.0, 33.2, 90)
 at('R67', 25.0, 37.0, 90)
-at('C52', 81.2, 30.6, 90)
-at('C53', 81.0, 35.0, 90)
-at('R68', 80.6, 42.4, 0)
-at('R69', 66.6, 43.0, 0)                # Cdvdt beside the TPS48000
-at('C54', 68.6, 43.0, 0)
-at('D18', 76.2, 50.6, 0)                # gate clamp across Q1/Q2
-at('U12', 74.6, 40.0, 0)                # hard-short comparator, between the shunt's sense line and the FETs
-at('R70', 72.4, 41.2, 90)
-at('R71', 72.4, 39.0, 90)
-at('C55', 76.8, 41.6, 0)
-at('C56', 76.8, 39.4, 0)
+at('C52', 73.6, 26.6, 90)       # snubber caps inside the status ring, beside the toggle
+at('C53', 73.6, 31.0, 90)
+at('R68', 76.4, 20.6, 90)
+at('R69', 70.6, 39.6, 0)                # Cdvdt beside the TPS48000
+at('C54', 70.6, 41.2, 0)
+at('D18', 78.6, 39.4, 0)                # gate clamp across Q1/Q2
+at('U12', 61.6, 47.4, 0)                # hard-short comparator among the controller's passives
+at('R70', 59.4, 46.2, 90)
+at('R71', 59.4, 48.8, 90)
+at('C55', 63.6, 46.0, 90)
+at('C56', 63.6, 48.8, 90)
 at('R72', 37.8, 41.0, 90)               # probe base resistors
 at('R73', 39.0, 41.0, 90)

@@ -159,7 +159,7 @@ def power_copper(b):
 # (x_view = W - x) and mirrored onto the board.  The lockup goes where the
 # bottom is cleanest, with clear space far beyond a quarter of its width.
 
-def _obstacles(b, side):
+def _obstacles(b, side, vias=True):
     """Boxes (board mm) silk must not touch on one side."""
     mm = lambda v: pcbnew.ToMM(v)
     box = lambda bb, g: (mm(bb.GetLeft()) - B.OX - g, mm(bb.GetTop()) - B.OY - g,
@@ -176,7 +176,7 @@ def _obstacles(b, side):
             if cy.OutlineCount():
                 out.append(box(cy.BBox(), 0.0))
     for t in b.GetTracks():
-        if t.GetClass() == 'PCB_VIA':
+        if vias and t.GetClass() == 'PCB_VIA':
             out.append(box(t.GetBoundingBox(), 0.15))
     return out
 
@@ -218,11 +218,12 @@ def add_art(b, work):
     # the lockup: the cleanest 26 x 9 mm of the bottom (fewest vias and pads),
     # nearest the middle of the front half
     lw, lh = 24.0, 6.0
+    pads_b = [o for o in _obstacles(b, 'B', vias=False)]
     best = None
     for yy in [y * 0.5 for y in range(int(2 * (lh / 2 + 2)), int(2 * (B.H - lh / 2 - 4)))]:
         for xx in [x * 0.5 for x in range(int(2 * (lw / 2 + 2)), int(2 * (B.W - lw / 2 - 2)))]:
             bx = (xx - lw / 2 - 1, yy - lh / 2 - 1, xx + lw / 2 + 1, yy + lh / 2 + 4)   # + the name below
-            n = _count(bx, obs['B'])
+            n = _count(bx, obs['B']) + 100 * _count(bx, pads_b)
             score = (n, abs(xx - B.W / 2) + abs(yy - 0.62 * B.H))
             if best is None or score < best[0]:
                 best = (score, xx, yy)
