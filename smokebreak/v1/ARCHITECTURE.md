@@ -25,46 +25,59 @@ manufacturer part numbers, pick-and-place, Gerbers.
 ## 2. Blocks
 
 ```
- XT60/XT30 male ─┬─ TVS (bidirectional, 64 V) ─ shunt 1 mΩ (Kelvin) ─ Q1 ─┬─ Q2 ─┬──────── XT60/XT30 female (drone)
- (battery in)    │                          │                    common    │      │
-                 │                    INA290 (precise I)     source node  │      ├─ pre-charge: QP (P-FET) + RPRE ── from VIN
-                 │                          │                              │      ├─ 3 V probe (1 kΩ / 100 Ω via P-FETs, 100 V Schottky)
-                 │                 TPS48111 smart high-side controller ────┘      ├─ VOUT sense: 0–65 V divider + 0–3.3 V clamped channel
-                 │                 (charge pump, 1.2 µs short trip, IMON)         └─ diode-OR into AUX (warns "battery on drone side")
-                 │                          ▲ INP = AND3( MCU_EN, GUARD_CLOSED̅ (hall), PEAK_OK (comparator) )
+ XT60/XT30 male ─┬─ TVS SMBJ64CA (bidirectional) ── Q1 ─┬─ Q2 ──┬──────────── XT60/XT30 female (+, drone)
+ (battery in)    │   + input caps (damped)        common │       ├─ pre-charge: Q3 (P-FET) + D3 + RPRE ── from VIN
+                 │                               source  │       ├─ 3 V probe (1 kΩ / 100 Ω via P-FETs, Schottky)
+                 │          TPS48000 high-side driver ───┘       ├─ VOUT sense: 0–65 V divider + 0–3.3 V clamped channel
+                 │          (charge pump, 4 µs short trip,       └─ diode-OR into AUX (wakes on "battery on the drone side")
+                 │           -65 V tolerant, low-side sense)
+                 │          ▲ INP = AND3( MCU_EN, GUARD_OPEN (hall), LATCH_OK (peak comparator latch) )
                  │
-                 └─ diode-OR ─► AUX ─► LMR36503 buck 5 V ─► LEDs, buzzer ─► TLV75533 3.3 V ─► MCU, display, sensors
-                    (VIN, VOUT, balance top pin, USB 5 V)
+ GND ────────────┴──────────── RS1 1 mΩ (Kelvin) ──────────────── XT60/XT30 female (−, DRONE_NEG)
+                               │  │
+                               │  └ INA181A2 (gain 50) ─► I_ADC, LMV331 peak comparator ─► latch
+                               └─── TPS48000 CS+/CS− (short-circuit trip)
 
- JST-XH 9-pin balance ── pin 1 = GND (B−), pins 2–9 ── 0.1 % dividers ── switched ground (N-FET) ── ADC ×8
+ AUX = diode-OR (VIN, VOUT, balance taps, USB 5 V) ─► LMR36506 buck 5 V ─► LEDs, beeper, backlight ─► TLV75533 3.3 V
+
+ JST-XH 9-pin balance ── pin 1 = GND (B−), pins 2–9 ── 0.1 % dividers ── switched ground (2N7002) ── ADC ×8
 ```
 
 ### 2.1 Power path
 
-- **Q1, Q2**: 100 V N-MOSFETs, ≤ 4 mΩ, common-source back-to-back. Q1
-  blocks a reversed battery; Q2 blocks a battery or charged capacitors on
-  the drone side from back-feeding.
-- **Shunt**: 1 mΩ 2512 four-terminal, high side, between the TVS and Q1.
-  The TPS48111 reads it for its short-circuit trip and IMON; the INA290
-  reads the same Kelvin pads for the precise idle current.
-- **Pre-charge**: P-channel FET from VIN through RPRE (~22 Ω, pulse-rated)
-  to the drone side, driven by the MCU through a level shifter with a
-  zener-clamped gate. The resistor, not a transistor, takes the charging
-  energy. After the drone passes 75 % of VIN, the TPS48111 closes Q1/Q2
-  with a slow gate (Cdvdt) to close the remaining gap.
-- **Two-tier limit**: firmware average limit (200 ms) from the INA290; peak
-  limit by a push-pull comparator on the INA290 output with an MCU-set
-  threshold (PWM + RC), pulling INP low in ≤ 5 µs; the TPS48111's own
-  short-circuit trip (fixed, ≤ 1.2 µs) independent of firmware.
-- **Guard = hardware off**: the hall switch output is one input of the AND
-  gate driving INP. Guard closed → INP low → Q1/Q2 off, whatever the MCU does.
-- **TVS**: bidirectional, 64 V stand-off: does not conduct at 14S LiHV
-  (60.9 V) and does not conduct a reversed battery.
+- **Q1, Q2**: Infineon BSC040N10NS5 (100 V, 4 mΩ), common source, back to
+  back. Q2 blocks the battery (or charged capacitors) on the drone side
+  from back-feeding; together they block both polarities when off.
+- **Driver**: TI TPS48000: charge-pump gate drive (PU/PD pins, BST cap),
+  short-circuit trip in ~4 µs set by RISCP, VS/SRC rated to −65 V so a
+  reversed 14S pack on either side cannot hurt it (a reversed input pack
+  pulls SRC to VIN through Q1's body diode; Q2 blocks the path).
+- **Shunt, low side**: 1 mΩ four-terminal WSK1216 in the drone's return.
+  The TPS48000 reads it in low-side mode (CS_SEL high); the INA181A2 reads
+  the same Kelvin pads. Low-side sense keeps every sense pin at ground
+  potential, so cheap 26 V parts do the precise measurement.
+- **Pre-charge**: P-channel FET from VIN through the series Schottky D3
+  (blocks back-feed from the drone side) and RPRE to the drone side, gated
+  by the MCU AND the guard (two NPNs in series). The resistor, not a
+  transistor, takes the charging energy; firmware limits each attempt's
+  energy and watches the resistor's thermistor. Value and rating from the
+  simulations (`sim/SIM.md`).
+- **Two-tier limit**: firmware average limit (200 ms window) from the
+  INA181A2; peak limit by the LMV331 comparator on the INA181A2 output
+  against an MCU DAC threshold, latched in a 74LVC1G74 and pulling INP low
+  in under 1 µs; the TPS48000's own short-circuit trip, independent of
+  firmware.
+- **Guard = hardware off**: the DRV5032 hall switch is one input of the AND
+  gate driving INP and one of the two series NPNs of the pre-charge. Guard
+  closed → nothing can switch on, whatever the MCU does.
+- **TVS**: SMBJ64CA, bidirectional, 64 V stand-off: does not conduct at 14S
+  LiHV (60.9 V) or for a reversed pack.
 
 ### 2.2 Aux supply
 
-Diode-OR of VIN, VOUT, the balance lead's top pin and USB 5 V into AUX,
-then a 3–65 V buck to 5 V (LEDs, buzzer) and an LDO to 3.3 V. The OR is
+Diode-OR of VIN, VOUT, the balance taps and USB 5 V into AUX, then the
+LMR36506 (3.6–65 V in) buck to 5 V (LEDs, beeper, backlight) and a
+TLV75533 LDO to 3.3 V. The OR is
 what lets the board wake up and explain itself when the battery is on the
 wrong side or only the balance lead is plugged in.
 
@@ -75,8 +88,7 @@ wrong side or only the balance lead is plugged in.
 | VIN | 0–66 V | pack voltage, cell count |
 | VOUT high | 0–66 V | drone side voltage, pre-charge progress |
 | VOUT low | 0–3.3 V (clamped) | 3 V probe |
-| I precise | INA290 | 0–40 A, idle ±10 mA after auto-zero |
-| IMON | TPS48111 | cross-check |
+| I precise | INA181A2 (gain 50) | 0–60 A; offset auto-zeroed with the switch open before every arm |
 | BAL1..BAL8 | taps up to 36 V | per-cell voltages |
 | NTC ×2 | | Q1/Q2, RPRE |
 | VREFINT | | ADC calibration |
@@ -124,16 +136,25 @@ wrong side or only the balance lead is plugged in.
 | High internal resistance (sags) | IR estimate | "Pack sags 1.9 V at 10 A — 95 mΩ" |
 | Pack collapsing under load (bad cell) | input UV during on → off | "Battery voltage collapsed" |
 | Input surge / hot-plug spark | TVS, input capacitance limited | — |
-| USB plugged into a computer while drone is on | high-side shunt: no ground-loop issue | — |
+| USB plugged into a computer while the drone is on | the switch is high side, so the drone's minus never floats; a second ground path through USB only bypasses the shunt (reading low), never the switch | — |
 
 ## 5. Mechanical interface (Arm, 100 × 58 × 18 mm body)
 
-- Board ≈ 94 × 52 mm, 4 layers, sits under the top panel. Top side:
-  display (FPC), toggle (through the top panel), 12 LEDs round the toggle,
-  hall switch under the guard tip, two tact switches under the rocker.
-  Everything else on the bottom side? No: all SMD on the **top** side
-  (one-sided assembly is cheaper); the toggle, connectors and the
-  pre-charge resistor are through-hole, hand-soldered.
-- Left edge: XT60PW-M + XT30PW-M (male, right-angle PCB mount). Right
-  edge: pads for the two drone leads (XT60/XT30 female on 14 AWG / 18 AWG).
-  Back edge: USB-C. Front-left corner: JST-XH 9-pin balance header.
+- Board 94 × 52 mm, 4 layers (1.6 mm, 1 oz outer), sits with its top face
+  11.5 mm under the top panel's underside, so the XT connectors' axes are
+  at the body's mid-height. The toggle (8.89 mm PCB-to-shoulder) seats on
+  a 2.6 mm printed boss under the panel. Under the screen (board x 2.5–48.5,
+  y 5–31) parts stay below 8.5 mm (tallest: XT60 at 8.1 mm).
+- All SMD parts on the top side (one-sided assembly); connectors, toggle
+  and pre-charge resistor through-hole, hand-soldered from the bottom (the
+  bottom silkscreen carries the words for that).
+- Left wall: XT60PW-M + XT30PW-M (battery in). Right wall: XT60PW-F +
+  XT30PW-F (drone out), panel-mounted on the board like the inputs (no
+  leads to rip out). Back wall: JST-XH 9 balance (pin 1, the black wire,
+  next to USB) and USB-C.
+- Layers: F.Cu parts, signals and the power pours under the FETs; In1 a
+  solid ground plane; In2 VIN (west side and south band) and VOUT (east
+  side) planes with signals in between; B.Cu signals, ground fill and the
+  drone-negative strip.
+- Through-resistance budget ≤ 20 mΩ: FETs 2 × 4 mΩ, shunt 1 mΩ, planes
+  and connectors the rest.
