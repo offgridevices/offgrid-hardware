@@ -3,6 +3,14 @@
 Twenty form-factor and UX concepts for SmokeBreak (spec: [`../SPEC.md`](../SPEC.md)),
 plus 00, the flat box from the spec, for comparison. Give feedback by number.
 
+**Chosen: 10 Arm**, developed in [`../design/arm/`](../design/arm/).
+
+Logo rule (SPEC §11): the mark is never a part, light or frame. Every
+status ring in these concepts is a plain closed ring; logos are exact
+lockups from `../brand/mark.py`. **04 Halo is retired**: the product
+itself is the mark's shape, which the rule forbids. Some write-ups (02,
+09) still describe a Bind key on the ring's node; that predates the rule.
+
 - [`reel.mp4`](reel.mp4): every concept turning, one after another (63 s)
 - [`contact-sheet-3d.png`](contact-sheet-3d.png): every 3D render in one grid
 - [`contact-sheet-2d.png`](contact-sheet-2d.png): every 2D design sheet in one grid
