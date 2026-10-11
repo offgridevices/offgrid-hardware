@@ -16,10 +16,14 @@ finish.ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
 finish.VIA_D, finish.VIA_DRILL = B.VIA_D, B.VIA_DRILL
 finish.POFV_GAP = None
 finish.HOLE_TO_HOLE = 0.25
+finish.RES = float(os.environ.get('FINISH_RES', 0.1))     # grid cell (mm): 0.1 is 4x faster than 0.05
 
 
 def rules():
-    widths, clmap = {}, {}
+    import circuit
+    nets = {n for c in circuit.COMPONENTS.values() for n in c['pins'].values() if n}
+    widths = {n: B.TRACK for n in nets}           # the board's default class: 0.15 / 0.15
+    clmap = {n: B.CLEAR for n in nets}
     for n in make.HV_NETS:
         widths[n], clmap[n] = 0.2, B.HV_CLEAR
     for n in ('PRE_D', 'PRE_K'):

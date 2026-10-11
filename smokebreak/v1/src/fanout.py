@@ -94,7 +94,7 @@ def fanout_gnd(b, nets=('GND',), via=(0.5, 0.25), track=0.25, classes=None, edge
                     for g, n in fcu:
                         if n == net:
                             continue
-                        cl = max(_clear(n, classes), _clear(net, classes))
+                        cl = max(_clear(n, classes), _clear(net, classes)) + 0.02
                         if g.distance(vg) < cl or g.distance(tg) < cl:
                             ok = False
                             break
