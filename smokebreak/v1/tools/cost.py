@@ -26,7 +26,7 @@ PRECISION = 0.012          # 0.1 % 0603 thin-film resistors (per piece, 100+)
 
 # Not on LCSC, or bought outside the board order.  (USD per unit at ~100)
 OTHER = {
-    'TOGGLE': (10.20, 'C&K 7107SYCQE, Digi-Key/Mouser 100+ (E-Switch 100SP3T1B4M6QE: 2.65)'),
+    'TOGGLE': (10.20, 'C&K 7107SYCQE, Digi-Key/Mouser 100+ (E-Switch 100SP5T1B1M2QE, same ON-OFF-(ON) and footprint: ~3)'),
     'TFT1901': (2.90, '1.9" 170x320 ST7789 IPS with 30-pin FPC, AliExpress/LCSC-class suppliers'),
 }
 FIXED = [
