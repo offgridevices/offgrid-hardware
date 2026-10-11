@@ -30,7 +30,7 @@ HOLES = [(3.6, 3.6), (W - 3.6, 3.6), (3.6, H - 3.6), (W - 3.6, H - 3.6)]
 TRACK, CLEAR = 0.15, 0.15
 VIA_D, VIA_DRILL = 0.6, 0.3
 HV_CLEAR = 0.2       # nets that can carry up to 61 V: IPC-2221B 51-100 V asks 0.13 mm (B4 coated, A6 leads)
-CU_ALL = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+CU_ALL = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
 
 
 def P(x, y):
@@ -72,7 +72,7 @@ def new_board(path):
         if os.path.exists(p):
             os.remove(p)
     b = pcbnew.NewBoard(path)
-    b.SetCopperLayerCount(4)
+    b.SetCopperLayerCount(6)
     ds = b.GetDesignSettings()
     ds.m_TrackMinWidth = MM(0.1)
     ds.m_MinClearance = MM(0.1)

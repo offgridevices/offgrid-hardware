@@ -12,7 +12,7 @@ import board as B
 import finish
 import make
 
-finish.ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+finish.ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
 finish.VIA_D, finish.VIA_DRILL = B.VIA_D, B.VIA_DRILL
 finish.POFV_GAP = None
 finish.HOLE_TO_HOLE = 0.25

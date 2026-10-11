@@ -102,10 +102,10 @@ NEG = [(79.6, 21.4), (82.95, 21.4), (82.95, 29.45), (81.4, 29.45), (81.4, 32.3),
 def power_copper(b):
     full = B.board_poly(0.4)
     B.zone(b, 'GND', pcbnew.In1_Cu, full, clearance=0.3, name='GND plane')
-    # In2: VIN from the battery connectors down the west side and along the
-    # south to Q1; VOUT up the east side.  The rest of In2 routes signals.
-    B.zone(b, 'VIN', pcbnew.In2_Cu, VIN_BAND, clearance=0.4, name='VIN plane')
-    B.zone(b, 'VOUT', pcbnew.In2_Cu, VOUT_BAND, clearance=0.4, name='VOUT plane')
+    # In4: the power layer, VIN west of the FETs, VOUT east of them
+    B.zone(b, 'VIN', pcbnew.In4_Cu, B.rect(0.4, 0.4, SPLIT - 0.4, B.H - 0.4), clearance=0.4, name='VIN plane')
+    B.zone(b, 'VOUT', pcbnew.In4_Cu, B.rect(SPLIT + 0.4, 0.4, B.W - 0.4, B.H - 0.4), clearance=0.4,
+           name='VOUT plane')
     # Q1's drain, the sources, Q2's drain + J4's positive: solid surface copper
     B.zone(b, 'VIN', pcbnew.F_Cu, B.rect(64.6, 44.4, 71.35, 51.2), clearance=0.3, priority=2, thermal=False,
            name='Q1 drain')
@@ -256,14 +256,14 @@ def add_art(b, work):
 
 def dsn_keepouts(b):
     """Routing-only: In2's power bands are copper the signals must leave alone."""
-    for poly in (VIN_BAND, VOUT_BAND):
-        B.rule_area(b, poly, [pcbnew.In2_Cu], tracks=True, vias=False, pads=False, pours=False)
+    return       # 6 layers: the power planes have a layer of their own (In4, a power layer)
 
 
 def build():
     b = B.new_board(OUT)
     B.outline(b)
     b.SetLayerType(pcbnew.In1_Cu, pcbnew.LT_POWER)
+    b.SetLayerType(pcbnew.In4_Cu, pcbnew.LT_POWER)
     fps = B.place_components(b, place.PL)
     B.netclass(b, 'HV', HV_NETS, 0.2, B.HV_CLEAR)
     B.netclass(b, 'Supply', ['+5V', '+3V3'], 0.3, B.CLEAR)

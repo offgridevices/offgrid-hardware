@@ -2,7 +2,7 @@
 
     python3 fab.py            ../smokebreak.kicad_pcb -> ../fab/
 
-  smokebreak-gerbers.zip       copper (4), mask, paste, silk, outline, drills (PTH + NPTH)
+  smokebreak-gerbers.zip       copper (6), mask, paste, silk, outline, drills (PTH + NPTH)
   smokebreak-bom-pcbway.csv    PCBWay's assembly BOM: designators, qty, manufacturer + MPN,
                                LCSC number, package, SMD/THT, notes
   smokebreak-cpl.csv           pick and place (top side, SMD only; through-hole parts are
@@ -49,7 +49,7 @@ def gerbers():
     g = os.path.join(OUT, 'gerbers')
     shutil.rmtree(g, ignore_errors=True)
     os.makedirs(g)
-    layers = 'F.Cu,In1.Cu,In2.Cu,B.Cu,F.Paste,B.Paste,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,Edge.Cuts'
+    layers = 'F.Cu,In1.Cu,In2.Cu,In3.Cu,In4.Cu,B.Cu,F.Paste,B.Paste,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,Edge.Cuts'
     run(['kicad-cli', 'pcb', 'export', 'gerbers', '--layers', layers, '--subtract-soldermask',
          '--output', g + '/', BOARD])
     run(['kicad-cli', 'pcb', 'export', 'drill', '--format', 'excellon', '--excellon-units', 'mm',
