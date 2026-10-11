@@ -30,7 +30,8 @@ def _clear(net, classes):
     return classes.get(net, B.CLEAR)
 
 
-def fanout_gnd(b, nets=('GND',), via=(0.5, 0.25), track=0.25, classes=None, edge=0.5):
+def fanout_gnd(b, nets=('GND',), via=(0.5, 0.25), track=0.25, classes=None, edge=0.5, region=None):
+    """region: (x0, x1) board mm: only pads (and vias) in that x range (a split plane's half)."""
     classes = classes or {}
     vd, vdr = via
     # obstacles: every copper item on F.Cu (pads, tracks, zones of other nets),
@@ -78,6 +79,8 @@ def fanout_gnd(b, nets=('GND',), via=(0.5, 0.25), track=0.25, classes=None, edge
                 continue
             q = p.GetPosition()
             px, py = mm(q.x), mm(q.y)
+            if region and not (region[0] + B.OX < px < region[1] + B.OX):
+                continue
             pad_g = unary_union(_poly(p.GetEffectivePolygon(pcbnew.F_Cu)))
             # outward first (away from the part's centre), then all round
             a0 = math.atan2(py - cy, px - cx) if (px, py) != (cx, cy) else 0.0
@@ -87,6 +90,8 @@ def fanout_gnd(b, nets=('GND',), via=(0.5, 0.25), track=0.25, classes=None, edge
                     a = a0 + d * math.pi / 8
                     vx, vy = px + r * math.cos(a), py + r * math.sin(a)
                     if not (x0 < vx < x1 and y0 < vy < y1):
+                        continue
+                    if region and not (region[0] + B.OX + 0.5 < vx < region[1] + B.OX - 0.5):
                         continue
                     vg = Point(vx, vy).buffer(vd / 2)
                     tg = LineString([(px, py), (vx, vy)]).buffer(track / 2)

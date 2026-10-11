@@ -109,8 +109,7 @@ def power_copper(b):
     # Q1's drain, the sources, Q2's drain + J4's positive: solid surface copper
     B.zone(b, 'VIN', pcbnew.F_Cu, B.rect(64.6, 44.4, 71.35, 51.2), clearance=0.3, priority=2, thermal=False,
            name='Q1 drain')
-    B.zone(b, 'SRC', pcbnew.F_Cu, [(73.45, 45.95), (74.9, 45.95), (74.9, 44.6), (76.55, 44.6), (76.55, 48.45),
-                                   (75.1, 48.45), (75.1, 49.8), (73.45, 49.8)],
+    B.zone(b, 'SRC', pcbnew.F_Cu, B.rect(73.45, 45.95, 76.55, 48.45),
            clearance=0.3, priority=2, thermal=False, name='sources')
     B.zone(b, 'VOUT', pcbnew.F_Cu, [(78.4, 44.4), (81.0, 44.4), (81.0, 42.6), (84.4, 40.0), (86.4, 40.0),
                                     (86.4, 44.6), (86.4, 51.4), (78.4, 51.4)],
@@ -274,6 +273,10 @@ def build():
     cl = {n: B.HV_CLEAR for n in HV_NETS + ['PRE_D', 'PRE_K']}
     done, left = fanout.fanout_gnd(b, classes=cl)
     print(f'  ground fan-out: {done} pads, {left} left to the router')
+    done, left = fanout.fanout_gnd(b, nets=('VIN',), classes=cl, region=(0.0, SPLIT - 1.0))
+    print(f'  VIN fan-out into In4: {done} pads, {left} left')
+    done, left = fanout.fanout_gnd(b, nets=('VOUT',), classes=cl, region=(SPLIT + 1.0, B.W))
+    print(f'  VOUT fan-out into In4: {done} pads, {left} left')
     for t in b.GetTracks():
         t.SetLocked(True)
     return b, fps, moved
