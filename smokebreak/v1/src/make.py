@@ -254,8 +254,24 @@ def add_art(b, work):
 
 
 def dsn_keepouts(b):
-    """Routing-only: In2's power bands are copper the signals must leave alone."""
-    return       # 6 layers: the power planes have a layer of their own (In4, a power layer)
+    """Routing-only extras (none on 6 layers: the planes have In4 to themselves)."""
+    return
+
+
+# (name, polygon, layers): power copper no other track may cut
+POWER_KEEPOUTS = [
+    ('sources', B.rect(73.6, 46.1, 76.4, 48.3), [pcbnew.F_Cu]),
+    ('Q1 drain', B.rect(64.8, 44.6, 71.2, 51.0), [pcbnew.F_Cu]),
+    ('drone negative', NEG, [pcbnew.F_Cu, pcbnew.B_Cu]),
+    ('battery minus', BATT_NEG, [pcbnew.F_Cu, pcbnew.B_Cu]),
+]
+
+
+def power_keepouts(b):
+    """Rule areas over the surface power copper: no tracks through it (a track
+    across the FETs' source copper or the drone-negative strip splits it)."""
+    for name, poly, layers in POWER_KEEPOUTS:
+        B.rule_area(b, poly, layers, tracks=True, vias=False, pads=False, pours=False, name='keepout ' + name)
 
 
 def build():
@@ -279,6 +295,7 @@ def build():
     print(f'  VOUT fan-out into In4: {done} pads, {left} left')
     for t in b.GetTracks():
         t.SetLocked(True)
+    power_keepouts(b)
     return b, fps, moved
 
 

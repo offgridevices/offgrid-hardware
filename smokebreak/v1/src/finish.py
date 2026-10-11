@@ -136,6 +136,15 @@ class Grid:
                     other[t.GetLayer()].append((g, self.netcl(t.GetNetname())))
         for z in b.Zones():
             if z.GetIsRuleArea():
+                # a track keep-out is an obstacle on its layers for every net
+                if z.GetDoNotAllowTracks():
+                    ol = z.Outline()
+                    for k in range(ol.OutlineCount()):
+                        o = ol.Outline(k)
+                        g = Polygon([(mm(o.CPoint(q).x), mm(o.CPoint(q).y)) for q in range(o.PointCount())])
+                        for l in self.layers:
+                            if z.GetLayerSet().Contains(l):
+                                other[l].append((g, 0.0))
                 continue
             # (z.GetLayer() is not the zone's layer for every zone: ask the set)
             for l in self.layers:
