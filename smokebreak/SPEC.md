@@ -5,9 +5,9 @@ what the schematic and the board will be built against. Research behind it
 is in [`docs/research/market-and-complaints.md`](docs/research/market-and-complaints.md).
 Name chosen by the owner, 10 Oct 2026; trademark search pending.
 
-![Concept faceplate](images/concept-faceplate.png)
+![SmokeBreak Arm](design/arm/hero.png)
 
-*Concept only: the final layout comes from the board generator.*
+*The chosen design, Arm (concept 10, refined in [`design/arm/`](design/arm/)). The arming screens are in [`ui/`](ui/).*
 
 ---
 
@@ -20,7 +20,7 @@ Name chosen by the owner, 10 Oct 2026; trademark search pending.
 | D3 | USB-C port | **Yes** — decided | Firmware updates, drone-memory export |
 | D4 | Front panel | **The PCB is the front panel**, behind a clear cover | The silkscreen instructions are the product's UI and stay on brand |
 | D5 | Price | **No target** — decided: "the best smoke stopper on the market" | Every part is picked for the result, not the cost (§12) |
-| D6 | Form factor and industrial design | Open: 20 concepts in [`concepts/`](concepts/) | Sets the case, screen type and how the controls are operated |
+| D6 | Form factor and industrial design | **Arm** (concept 10) — decided, 11 Oct 2026. Guarded toggle, dramatic arming screens | [`design/arm/`](design/arm/), [`ui/`](ui/); the other 19 concepts stay in [`concepts/`](concepts/) |
 
 ---
 
@@ -58,7 +58,7 @@ that trade-off.
 | 6. Confusing LEDs → "red meant good to go", burnt motor | A screen that says what happened in words, a status ring, beeps, and printed instructions on the face |
 | 7. Dead on arrival, bare boards short on benches, leads rip off | Closed case, panel-mount battery connector, clamped drone lead, self-test at power-up |
 | 8. XT30/XT60 only; won't reach a frame-mounted XT60 | XT60 and XT30 built in on both sides, flexible 10 cm drone leads, BT2.0 adapters in the box |
-| Loved feature: the power button for binding | Kept, plus a **Bind** button that does the ELRS three-power-cycle for you |
+| Loved feature: the power button for binding | Kept and made a ritual: lift the guard, flick the switch. Pull the switch toward you and it does the ELRS three-power-cycle for you |
 
 Three things no product on the market does today:
 
@@ -85,9 +85,9 @@ Three things no product on the market does today:
 | Remembers | 32 drones (capacitance, idle current, cell count) |
 | Connectors | Battery side: XT60 + XT30 **male**, panel-mount. Drone side: XT60 + XT30 **female** on 10 cm leads. BT2.0 adapters in the box |
 | USB-C | Firmware update, drone-memory export, powers the screen for reading memory without a battery |
-| UI | 0.96" screen, Beacon Ring status light, 3 buttons, beeper |
+| UI | Guarded toggle (lift, flick), Limit rocker, 1.9" colour screen, Beacon Ring light, beeper |
 | Power use | ~30 mA on, < 30 µA off (battery still plugged in) |
-| Size / weight | ~86 × 56 × 22 mm, ~60 g (bench tool; not for flying) |
+| Size / weight | 96 × 58 × 18 mm body (guard 17 mm above it closed), ~150 g (bench tool; not for flying) |
 | Price | No target: best on the market (§12) |
 
 ---
@@ -184,107 +184,98 @@ From the fastest, independent of firmware, to the smartest:
    battery or a drone with its own battery plugged in cannot back-feed.
 6. **Thermal:** NTC at the switch; firmware cuts at 100 °C and limits the
    25 A window. The pre-charge resistors have an energy budget per attempt.
-8. **Self-test at power-up:** switch off-state leakage, probe source and
+8. **Guard closed = off, in hardware:** the guard sensor gates the
+   controller's enable directly, so closing the guard cuts the drone even if
+   the MCU has crashed.
+9. **Self-test at power-up:** switch off-state leakage, probe source and
    comparator checked; a failed self-test locks the switch off and says so.
 
 ---
 
-## 6. User interface
+## 6. User interface — the Arm
 
-### The face
+Powering a drone is a deliberate act, like arming a switch in a cockpit:
+**lift the guard, flick the switch**. Closing the guard always cuts power.
+The screen makes it dramatic: hazard stripes when armed, a checklist that
+ticks off line by line, a green flash when the drone goes live, and a
+flashing red ABORT when something is wrong.
 
-The circuit board is the front panel: matte black (Pitch), white
-silkscreen (Bone), behind a clear 1 mm polycarbonate cover. Everything
-you press or read is on the top face, away from the leads, so it can be
-held in one hand and pressed with the thumb.
+Demo: [`design/arm/arm-demo.mp4`](design/arm/arm-demo.mp4).
+Screens: [`ui/storyboard.png`](ui/storyboard.png) (S01–S13) and
+[`ui/arm-sequence.mp4`](ui/arm-sequence.mp4) (with beeps).
 
-- **Power** — the big button (12 mm cap) in the centre of the **Beacon
-  Ring** light, the brand mark as a light pipe.
-- **Bind** and **Limit** — two smaller buttons (8 mm caps) on the left,
-  each with its function printed beside it.
-- **Screen** top left. **Status legend** under the ring.
-- **Steps** printed along the bottom edge.
-- Battery comes in on the left end, the drone leaves on the right end.
+### The face (96 × 58 mm)
 
-### Buttons — one job each, no hidden holds
+| Where | What |
+|---|---|
+| Left | Male XT60 + XT30 through the end. "Battery →" |
+| Top left | **1.9" 320 × 170 colour IPS** under black glass |
+| Bottom left | **Limit** rocker: a brushed-aluminium paddle, − and + |
+| Right | **The guarded toggle**: translucent Ember guard over a metal toggle, the **Beacon Ring** lit round its bushing |
+| Right end | Female XT60 + XT30 on 10 cm leads. "Drone →" |
+| Back | USB-C |
 
-| Button | Press | While stopped |
+### Controls
+
+| Control | Action | Result |
 |---|---|---|
-| **Power** | Off → full check → on. On → off | Clears the fault and re-runs the full check |
-| **Bind** | Runs ELRS bind: on, off within 2 s, three times, stays on. Each cycle is protected; the probe runs on the first | — |
-| **Limit** | Steps Auto → 1 → 2 → 5 → 10 → 25 A → Auto. Works while on | Same |
+| **Guard** | Lift | ARMED (S02): Ember stripes, beep, ring pulses Ember. Nothing is powered yet |
+| **Toggle** | Flick away from you (On) | Full check (S03), pre-charge (S04), LIVE (S05–S06) |
+| **Toggle** | Flick back (Off) | Drone off |
+| **Toggle** | Pull toward you (spring-return) | **Bind**: three power cycles (S10) |
+| **Guard** | Close | POWER CUT (S12). The guard cams the toggle back to Off and a magnet sensor cuts power in hardware, whatever the firmware is doing |
+| **Limit** | − / + | AUTO, 1, 2, 5, 10, 25 A (S13). Going to 25 A asks "Props off?" (S11); press + again within 3 s |
 
-Going to **25 A** asks for a second press within 3 s ("Props off? Press
-Limit again"). After 60 s at 25 A it drops back to the previous setting.
+- With the guard closed the toggle cannot be reached: nothing can be
+  powered by accident, and a fault (S08, S09) is cleared by closing the
+  guard, a physical reset.
+- The toggle carries no drone current: it only signals the MCU.
 
-### Status ring
+### Status ring (round the toggle, lights the guard from inside)
 
 | Colour | Meaning |
 |---|---|
-| White, turning | Checking |
-| Green | On, all good |
-| Ember (orange) | On, but something changed since last time — look at the screen |
-| Red, flashing | Stopped — read the screen |
-| Blue, pulsing | Bind sequence |
+| Ember, dim | Safe, guard closed, battery present |
+| Ember, pulsing | Armed |
+| White | Checking |
+| Green | Live, all good |
+| Ember, steady | Live, but something changed since last time — look at the screen |
+| Red, flashing | Abort — read the screen |
+| Blue | Bind |
+
+### Screens
+
+| # | Screen | When |
+|---|---|---|
+| S01 | SAFE · battery voltage and cells · "Lift the guard to arm" | Guard closed |
+| S02 | **ARMED** · hazard stripes · "Flick the switch up" | Guard lifted |
+| S03 | CHECKING · 3 V probe, short, polarity, capacitor, ticking off | Switch on |
+| S04 | Pre-charge bar and voltage climbing | |
+| S05 | Green flash, the ring draws itself, **LIVE** | Main switch on |
+| S06 | Live current in large figures, sparkline, limit, timer, "Same as last time" | |
+| S07 | LIVE · LOOK · "Draws more than last time 0.42 → 0.71 A" | Drone memory warning |
+| S08 | **ABORT** · Short circuit · 0.3 Ω · "The battery never reached the drone" | Probe found a short |
+| S09 | **ABORT** · Leads reversed | Probe found reversed leads |
+| S10 | BIND 1/3 … 3/3 | Toggle pulled |
+| S11 | 25 A MOTOR TEST · "Props off?" | Limit + to 25 A |
+| S12 | POWER CUT · "Guard closed · drone off" | Guard closed |
+| S13 | Limit picker | Rocker |
+
+Wording follows the noob-proof rule: say what happened and what to do.
 
 ### Beeps
 
-One short = on. Two short = warning. One long = stopped. Rising = bind
-done. The beeper cannot be muted in v1: it is a safety device.
+Arm: rising chirp. Each check: a tick. Live: two-tone up. Warning: double
+beep. Abort: alarm until the guard is closed. Power cut: falling tone.
+Bind: a pip per cycle. Sounds are in the screen video.
 
-### Screen messages (draft wording)
+### Printing and arrows (face)
 
-| Screen | Second line |
-|---|---|
-| `16.8V 4S` | Press Power |
-| Checking… | 3 V probe |
-| **SHORT 0.3 Ω** | Don't plug a battery in directly. Find the short |
-| **REVERSED** | Red and black swapped on the drone lead |
-| **HALF-SHORT 18 Ω** | Often a failed 5 V regulator or VTX |
-| **NO BIG CAP** | 4S+ drones need one on the ESC |
-| **STOPPED AT 6.1 V** | Drew 1.9 A while charging. Something on the battery line can't take battery voltage |
-| ON 0.42 A | Limit Auto (2.0 A) · Drone 3 |
-| **MORE THAN LAST TIME** | 0.42 → 0.71 A |
-| **CAP SMALLER** | 1000 → 210 µF. Check the ESC capacitor |
-| **STOPPED** | Over 2 A for 0.2 s (peak 2.6 A) |
-| **STOPPED** | Spike over 8 A |
-| Battery reversed | Unplug it |
-| Battery low | 3.4 V per cell |
-
-### Silkscreen text and arrows (top face)
-
-**Rule: noob-proof.** Someone who has never seen one should get it right
-first time from the face alone, without the manual. Arrows do most of
-the explaining; words are short and plain.
-
-One arrow, used everywhere: the brand arrow from Ridge 3 (`arrow_mm` in
-`ridge-3/src/brand.py`), a thin flat 0.25 mm line with a solid head. Same
-size and shape wherever it is printed, so it always reads the same.
-Clean and quiet, never decorative.
-
-| Where | Arrow | Words |
-|---|---|---|
-| Left end, at the battery inputs | Points **into** the box | "Battery" |
-| Right end, at the drone leads | Points **out of** the box | "Drone" |
-| Back edge, at USB-C | Points to the port | "USB-C: updates" |
-| Bind button | From the label to the button | "Bind" / "Puts the receiver in bind" |
-| Limit button | From the label to the button | "Limit" / `AUTO 1A 2A 5A 10A 25A` / "25A: props off" |
-| Bottom strip | Between the steps | "1 Battery in → 2 Drone in → 3 Press Power" |
-
-The Power button needs no arrow: the ring is the biggest thing on the
-face. Under it: "Press to check, then power on" / "Press again to turn off".
-
-Also printed:
-
-- Ring legend: "Checking · On, safe · Look at screen · Stopped", each with
-  its colour dot.
-- "Bench use only. Do not fly with this attached." (on the case's end).
-- Lockup (mark + "OffGrid"), product name, `REV 1.0`, serial in mono.
-
-Type: sentence case, Instrument Sans 500; numbers and units in JetBrains
-Mono 500, uppercase (brand rules, as on Ridge 3).
-
-The concept render is made by `images/concept_faceplate.py`.
+Same rules as before: one brand arrow, sentence case, few words.
+"Battery →" and "Drone →" at the ends, "Lift ↑" beside the guard, "On /
+Off / Bind" beside the toggle, "Limit" and `AUTO 1 2 5 10 25 A` by the
+rocker, lockup and "SmokeBreak" at the bottom, "ARM" moulded into the
+guard. "Bench use only. Do not fly with this attached." on the base.
 
 ---
 
@@ -365,10 +356,12 @@ live output is always the female side, whose contacts are recessed.
 | Aux supply | **TI LMR36503** buck, 3.0–65 V in | 1S–14S. Fed through an RC filter and its own clamp, so input spikes stay under its 70 V limit |
 | MCU | ST **STM32C071** | USB without a crystal, 12-bit ADC, non-PRC maker |
 | USB-C | 16-pin receptacle + ESD array | Data and 5 V. Works with the drone powered |
-| Screen | 0.96" 128 × 64 OLED baseline; type and size set by the chosen industrial design (D6) | |
-| Status ring | 12 × addressable RGB LED under the ring light pipe | Smooth light; segments show the check progressing |
+| Screen | **1.9" 320 × 170 colour IPS** (ST7789, SPI) under black glass | The arming screens are drawn for this panel ([`ui/`](ui/)) |
+| Status ring | 12 × addressable RGB LED under the ring light pipe round the toggle | Also lights the translucent guard from inside |
 | Input clamp | 64 V stand-off TVS (SMBJ64A class) | Clears 14S LiHV at 60.9 V |
-| Buttons | 1 × 12 mm and 2 × 6 mm tactile, top side, with caps | |
+| Toggle | Metal-bushed toggle, ON-OFF-(ON), PCB mount (C&K 7000 / APEM class) | Signals only; Bind is the spring-return position |
+| Guard sensor | Hall-effect switch under the guard tip's magnet | Its output also gates the controller's enable: guard closed = off in hardware |
+| Limit rocker | Two tact switches under an aluminium paddle | |
 
 ### Board
 
@@ -383,18 +376,20 @@ live output is always the female side, whose contacts are recessed.
 
 ## 10. Mechanical
 
-- **Case:** a base tray plus the board as the lid, a clear 1 mm
-  polycarbonate cover over the face, four screws. First batch printed
-  (MJF nylon, black); injection-moulded from the second batch.
+- **Body:** 96 × 58 × 18 mm, soft-touch black (printed MJF nylon for the
+  first batch, moulded or machined aluminium later), anodised face plate.
+- **Guard:** translucent Ember polycarbonate, 24 × 34 mm, walls 17 mm, on
+  a 2 mm stainless pin with a torsion spring and a detent at closed. A
+  magnet in its tip; a cam on its inside pushes the toggle to Off as it
+  closes. Opens to about 108°.
+- **Toggle:** metal bat and bushing, through the face, Beacon Ring light
+  pipe round the bushing.
 - **Ends:** XT60 and XT30 (male) through the left end with a rib between
   them; the two drone leads through clamped grommets on the right end;
-  USB-C on the back edge, away from the leads.
+  USB-C on the back.
 - **Underside:** rubber feet; fully closed so it cannot short on a
   conductive bench.
-- **Light pipe:** clear or frosted ring in the shape of the Beacon Ring,
-  the node at 12 o'clock.
-- STEP model exported by the generator for case design, as for the
-  carrier board.
+- 3D model and demo: [`design/arm/arm.py`](design/arm/arm.py).
 
 ---
 
@@ -480,6 +475,8 @@ Before a second batch, each of these passes on the bench:
 | Reversed lead on 3 different ESCs and 2 AIOs | "Reversed" on every one, or stopped in pre-charge |
 | 2,000 µF + 470 µF at 6S, 5,000 µF at 14S | No trip, pre-charge resistors within their pulse rating |
 | ESC start-up tones, O4 + 6S, Walksnail + 6S | No trip on Auto |
+| Guard closed while live, MCU held in reset | Drone off within 1 ms |
+| Guard hinge, 10,000 open/close cycles | Still detents, still cams the toggle off |
 | O4 Pro on 3S and 7S, Walksnail on 14S heavy-lift | Pre-charge passes 75 %, then on |
 | Short applied while on, at each setting | Off in ≤ 5 µs (scope) |
 | 25 A for 60 s | Switch < 100 °C, drops back after 60 s |
