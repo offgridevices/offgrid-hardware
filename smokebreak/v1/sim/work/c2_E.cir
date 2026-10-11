@@ -1,0 +1,34 @@
+* SmokeBreak v1 - Case 2: hot plug of a 14S LiHV pack (60.9 V) into the input
+* Ideal contact closure at t=1us (worst case: no arc, 1 ns edge) through the
+* pack's leads (L = 250 nH).  Main switch and pre-charge off; drone side open.
+* Run from sim/:  ngspice -b case2_hotplug.cir
+.include lib/smokebreak.lib
+.include lib/board.lib
+
+.param ncell=14 vcell=4.35 lser=250n rcell=3m cin=2u cd=10u rd=0.33
+
+XB bp pg BATT ncell={ncell} vcell={vcell} rcell={rcell} lser={lser} rlead=3m
+Sw bp bsw ctl 0 SWC
+Vib bsw vin 0
+.model SWC SW(Ron=1m Roff=1G Vt=0.5 Vh=0.1)
+Vctl ctl 0 PWL(0 0 1u 0 1.001u 1)
+Rgnd pg 0 1u
+Rlg lgnd pg 1m
+
+XPP vin vsh src gate vout pg lgnd inp scp PPATH cin={cin} cd={cd} rd={rd}
+XPR vin vout lgnd pen PRECH rpre=8.2
+XAX vin vout lgnd aux AUXSENSE
+Vinp inp lgnd 0
+Vpen pen lgnd 0
+Rdr vout pg 1Meg
+
+.options method=gear reltol=1e-4 abstol=1e-9 vntol=1e-6 itl4=200 klu
+.tran 1n 40u 0 5n uic
+.control
+set wr_singlescale
+set wr_vecnames
+option numdgt=7
+run
+wrdata work/c2_E.dat v(vin) v(vsh) v(src) v(vout) v(xpp.vsf) v(aux) i(vib) i(v.xpp.vtvs)
+.endc
+.end

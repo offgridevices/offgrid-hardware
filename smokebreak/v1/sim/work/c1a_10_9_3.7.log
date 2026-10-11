@@ -1,0 +1,14 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: * smokebreak v1 - case 1: pre-charge through rpre, then main switch close
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using KLU as Direct Linear Solver
+Operating point simulation skipped by 'uic',
+  now using transient initial conditions.
+ Reference value :  9.88927e-01
+No. of Data Rows : 5147
+Note: Simulation executed from .control section 

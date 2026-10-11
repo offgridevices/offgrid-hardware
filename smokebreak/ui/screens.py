@@ -5,7 +5,8 @@ scaled by SCALE for review, so what is drawn here is what fits the panel.
 
     python3 screens.py            # storyboard.png + arm-sequence.mp4 (with beeps)
 
-Screens are numbered S00..S13 so feedback can point at one.
+Screens are numbered S00..S18 so feedback can point at one (S14-S18, the
+battery screens, are in the storyboard but not in the video timeline).
 """
 import math
 import os
@@ -328,11 +329,134 @@ def s13_limit(t):
     return c
 
 
+# ------------------------------------------------------------ battery screens
+# Shown with the guard closed (S14-S16, S18) or whenever the drone side has a
+# battery (S17).  Numbers come from firmware/model/battery.py.
+
+BAR_BG = (40, 36, 30)
+BAR_V0, BAR_V1 = 3.30, 4.35        # bar scale: empty LiPo .. full LiHV
+
+
+def cell_bars(c, cells, x0, y0, x1, y1, labels=True):
+    """One bar per cell, lowest in Ember, highest in Bone, the rest Dim.
+    Voltage under each bar in mono; 'low' / 'high' under those two."""
+    n = len(cells)
+    lo = min(range(n), key=lambda i: cells[i])
+    hi = max(range(n), key=lambda i: cells[i])
+    gap = 6 if n <= 6 else 4
+    w = (x1 - x0 - gap * (n - 1)) / n
+    for i, v in enumerate(cells):
+        x = x0 + i * (w + gap)
+        f = max(0.04, min(1.0, (v - BAR_V0) / (BAR_V1 - BAR_V0)))
+        col = EMBER if i == lo else BONE if i == hi else DIM
+        c.rect(x, y0, x + w, y1, BAR_BG, r=2)
+        c.rect(x, y1 - (y1 - y0) * f, x + w, y1, col, r=2)
+        if labels:
+            c.text(x + w / 2, y1 + 4, f'{v:.2f}', 9, BONE if i in (lo, hi) else DIM, 'mono', 'ma')
+            if i in (lo, hi) and lo != hi:
+                c.text(x + w / 2, y1 + 16, 'low' if i == lo else 'high', 8, col, anchor='ma')
+
+
+DELTA_WORDS = [(20, 'Balanced', GREEN), (50, 'Drifting', EMBER), (10 ** 6, 'Out of balance', RED)]
+
+
+def delta_line(c, x, y, cells):
+    d = round((max(cells) - min(cells)) * 1000)
+    word, col = next((w, k) for lim, w, k in DELTA_WORDS if d <= lim)
+    c.text(x, y, f'Δ {d} mV', 12, col, 'mono')
+    c.text(x + 86, y, word, 12, col)
+
+
+PACK = [4.11, 4.12, 4.09, 4.13, 4.12, 4.11]
+
+
+def s14_battery(t):
+    c = Canvas()
+    c.text(16, 8, 'BATTERY', 13, DIM, 'mono', weight=600)
+    c.text(PW - 16, 10, '6S · LiPo', 11, DIM, anchor='ra')
+    c.text(14, 28, f'{sum(PACK):.2f}', 34, BONE, 'mono')
+    c.text(124, 44, 'V', 18, DIM, 'mono')
+    c.text(PW - 16, 30, '91 %', 26, GREEN, 'mono', 'ra')
+    cell_bars(c, PACK, 16, 78, PW - 16, 118)
+    delta_line(c, 16, 150, PACK)
+    c.text(PW - 16, 151, 'Above storage', 11, DIM, anchor='ra')
+    c.tag('S14')
+    return c
+
+
+def s15_battery_warning(t):
+    c = Canvas()
+    c.rect(0, 0, PW, 4, EMBER)
+    c.status(26, 30, 9, EMBER, fill=True)
+    c.text(48, 17, 'CHECK BATTERY', 16, EMBER, 'sans', weight=600)
+    c.text(14, 50, 'Cell 3 is over-discharged', 15, BONE)
+    c.text(14, 74, '2.71 V', 34, EMBER, 'mono')
+    c.text(PW - 16, 80, 'others 3.30 V', 11, DIM, 'sans', 'ra')
+    c.text(PW - 16, 96, 'damage under 3.0 V', 11, DIM, 'sans', 'ra')
+    c.text(14, 130, 'Charge it slowly, 1C or less, and watch it.', 11, DIM)
+    c.text(14, 148, 'If it will not hold charge, retire the pack.', 11, BONE)
+    c.tag('S15')
+    return c
+
+
+STORE = [3.85, 3.84, 3.86]
+
+
+def s16_balance_only(t):
+    c = Canvas()
+    c.text(16, 8, 'BALANCE CHECK', 13, DIM, 'mono', weight=600)
+    c.text(PW - 16, 10, 'No drone attached', 11, DIM, anchor='ra')
+    c.text(14, 30, f'{sum(STORE):.2f} V  3S', 16, BONE, 'mono')
+    c.text(PW - 16, 30, '55 %', 16, BONE, 'mono', 'ra')
+    cell_bars(c, STORE, 16, 60, PW - 16, 104)
+    delta_line(c, 16, 134, STORE)
+    c.text(16, 152, 'At storage voltage: ready to put away', 11, GREEN)
+    c.tag('S16')
+    return c
+
+
+def s17_wrong_side(t):
+    c = Canvas()
+    c.status(PW / 2, 30, 14, EMBER)
+    c.text(PW / 2, 54, 'Battery on the drone side', 18, BONE, 'sans', 'ma', 600)
+    c.text(PW / 2, 78, '16.4 V', 18, EMBER, 'mono', 'ma')
+    c.text(PW / 2, 114, '← Move it to the Battery end', 13, BONE, anchor='ma')
+    c.text(PW / 2, 138, 'Nothing was powered.', 11, DIM, anchor='ma')
+    c.tag('S17')
+    return c
+
+
+def s18_shifted(t):
+    c = Canvas()
+    c.text(16, 8, 'Balance plug shifted', 17, BONE, 'sans', weight=600)
+    c.text(PW - 16, 12, 'Reading OK', 12, GREEN, anchor='ra')
+    # the 9-pin header, pin 1 on the left; a 4S plug sitting 2 pins along
+    shift, wires = 2, 5
+    x0, pitch, y = 34, 28, 62
+    c.text(x0 + 8, 34, '↓', 12, EMBER, 'mono', 'ma')
+    c.text(x0 + 22, 38, 'Black wire here', 10, EMBER)
+    for p in range(9):
+        x = x0 + p * pitch
+        c.rect(x, y, x + 16, y + 16, (60, 56, 50), width=1.2, r=2)
+        if shift <= p < shift + wires:
+            black = p == shift
+            c.rect(x + 3, y + 3, x + 13, y + 13, DIM if black else BONE, r=1)
+        c.text(x + 8, y + 22, str(p + 1), 8, DIM, 'mono', 'ma')
+    c.rect(x0 + shift * pitch - 4, y - 5, x0 + (shift + wires - 1) * pitch + 20, y + 21, EMBER, width=1, r=3)
+    c.text(16, 114, 'Readings are right with the main lead in.', 11, BONE)
+    c.text(16, 132, 'On its own, a shifted balance lead', 11, DIM)
+    c.text(16, 148, 'cannot be read. Black wire to pin 1.', 11, DIM)
+    c.tag('S18')
+    return c
+
+
 SCREENS = [s00_startup, s01_safe, s02_armed, s03_checking, s04_precharge, s05_engaged, s06_live, s07_warning,
-           s08_short, s09_reversed, s10_bind, s11_motor, s12_closing, s13_limit]
+           s08_short, s09_reversed, s10_bind, s11_motor, s12_closing, s13_limit,
+           s14_battery, s15_battery_warning, s16_balance_only, s17_wrong_side, s18_shifted]
 TITLES = ['Start-up', 'Guard closed', 'Guard lifted', 'Switch up: checks', 'Pre-charge', 'Engaged', 'Live',
           'Changed since last time', 'Fault: short', 'Fault: reversed', 'Bind', 'Motor test confirm',
-          'Guard closed again', 'Limit']
+          'Guard closed again', 'Limit', 'Battery', 'Battery warning', 'Balance check only',
+          'Battery on the drone side', 'Balance plug shifted']
 
 # the story told by the video: (screen, seconds, sound)
 TIMELINE = [(s00_startup, 1.5, None), (s01_safe, 2.0, None), (s02_armed, 2.2, 'arm'), (s03_checking, 2.4, 'tick'),

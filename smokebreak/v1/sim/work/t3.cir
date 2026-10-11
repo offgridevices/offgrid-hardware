@@ -1,0 +1,10 @@
+* include + subckt current test
+.include lib/smokebreak.lib
+.include lib/board.lib
+V1 a 0 10
+R1 a 0 1k
+.control
+op
+print v(a)
+.endc
+.end

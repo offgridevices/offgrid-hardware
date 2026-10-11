@@ -1,0 +1,14 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: * smokebreak v1 - case 2: hot plug of a 14s lihv pack (60.9 v) into the input
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using KLU as Direct Linear Solver
+Operating point simulation skipped by 'uic',
+  now using transient initial conditions.
+ Reference value :  2.62040e-05
+No. of Data Rows : 8287
+Note: Simulation executed from .control section 

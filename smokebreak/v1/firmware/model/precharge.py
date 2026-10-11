@@ -37,8 +37,11 @@ STALL_WINDOW_MS = 30
 STALL_MIN_RISE_MV = 50             # or VIN/200, whichever is larger
 STALL_MIN_CURRENT_MA = 20
 
-ATTEMPT_BUDGET_UJ = 12_000_000     # 12 J per attempt (5000 uF to 75 % of 60.9 V is ~8.7 J)
-MINUTE_BUDGET_UJ = 30_000_000      # 30 J in any 60 s
+# Per attempt: 5000 uF to 75 % of 60.9 V is ~8.7 J with no load, but a 15 W
+# digital VTX switching on part-way up raises it to ~17 J (the resistor
+# carries the VTX current too).  RPRE must be pulse-rated for 20 J.
+ATTEMPT_BUDGET_UJ = 20_000_000
+MINUTE_BUDGET_UJ = 45_000_000      # any 60 s
 MINUTE_MS = 60_000
 LEDGER_SLOTS = 16                  # last 16 attempts are enough to cover a minute
 RPRE_HOT_DC = 1200                 # 120 degC on the resistor's NTC: refuse / abort

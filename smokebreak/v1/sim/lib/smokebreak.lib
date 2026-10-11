@@ -1,0 +1,158 @@
+* =====================================================================
+* SmokeBreak v1 - shared behavioural / device models for ngspice 47
+* (c) OffGrid Devices. Every parameter here is documented in ../SIM.md
+* =====================================================================
+* Conventions
+*   PG   = power ground (battery B- and drone B- tied together on the board)
+*   all subcircuit params are SI units
+
+* ---------------------------------------------------------------------
+* Q1/Q2 main switch: 100 V, 3.5 mOhm (max) OptiMOS-5 class, 5x6 mm
+* (BSC035N10NS5-like).  Calibrated: Rds(on) 3.2 mOhm @ Vgs 10 V,
+* 2.9 mOhm @ 12 V, Id(sat) ~150 A @ Vgs 5 V, Ciss ~4.5 nF, Crss 22 pF
+* @ 50 V (2.2 nF at Vds~0), Coss ~0.7 nF @ 50 V, body diode 0.8 V @ 20 A,
+* avalanche (body-diode breakdown) ~110 V.
+* ---------------------------------------------------------------------
+.model QMAIN VDMOS(nchan Vto=3.0 Kp=75 Rd=0.8m Rs=0.4m Rg=1.2 lambda=0.002 mtriode=1.0
++ Cgdmax=2.2n Cgdmin=22p a=0.5 Cgs=4.4n Cjo=4.2n Vj=0.8 m=0.5 Is=2e-11 N=1.05 Rb=2m
++ Bv=110 Ibv=250u tt=40n ksubthres=0.1)
+
+* Pre-charge switch QP: 100 V P-FET, ~0.25 Ohm class (SOT-23/SOT-223)
+.model QPRE VDMOS(pchan Vto=-2.2 Kp=4 Rd=0.12 Rs=0.05 Rg=3 lambda=0.01 mtriode=1.0
++ Cgdmax=150p Cgdmin=10p a=0.5 Cgs=500p Cjo=250p Vj=0.8 m=0.5 Is=1e-12 N=1.05 Rb=0.05
++ Bv=110 Ibv=100u tt=30n ksubthres=0.1)
+
+* Small 100 V N-FET (level shifter / reverse-polarity logic)
+.model QSIG VDMOS(nchan Vto=1.8 Kp=0.5 Rd=0.5 Rs=0.2 Cgs=40p Cgdmax=10p Cgdmin=2p a=0.5
++ Cjo=15p Is=1e-13 Bv=110 Ibv=10u ksubthres=0.1)
+
+* Low-side reverse-polarity FET Q3/Q4 (same class as Q1/Q2)
+.model QREV VDMOS(nchan Vto=3.0 Kp=75 Rd=0.8m Rs=0.4m Rg=1.2 lambda=0.002 mtriode=1.0
++ Cgdmax=2.2n Cgdmin=22p a=0.5 Cgs=4.4n Cjo=4.2n Vj=0.8 m=0.5 Is=2e-11 N=1.05 Rb=2m
++ Bv=110 Ibv=250u tt=40n ksubthres=0.1)
+
+* ---------------------------------------------------------------------
+* Diodes
+* ---------------------------------------------------------------------
+* 100 V Schottky, 3 A class (SS3H10-like): 0.55 V @ 0.1 A, 0.75 V @ 3 A
+.model DSCH100 D(Is=2e-7 N=1.25 Rs=40m Cjo=150p M=0.45 Bv=110 Ibv=50u Tt=0)
+* 100 V small Schottky / switching diode for aux OR and probe (BAT46-ish/100 V)
+.model DSIG100 D(Is=5e-9 N=1.1 Rs=1.5 Cjo=10p Bv=110 Ibv=5u)
+* 1N4148-like 100 V small-signal diode
+.model D4148 D(Is=2.5n N=1.75 Rs=0.6 Cjo=2p Bv=100 Ibv=100u Tt=4n)
+* 12 V zener (gate clamps)
+.model DZ12 D(Is=1e-12 N=1.0 Rs=5 Bv=12 Ibv=1m Cjo=50p)
+* 15 V zener gate-source clamp on Q1/Q2 (TI fig 9-18 "D3")
+.model DZ15 D(Is=1e-12 N=1.0 Rs=1 Bv=15 Ibv=5m Cjo=200p)
+* MCU pin ESD clamp
+.model DESD D(Is=1e-14 N=1.0 Rs=20 Cjo=2p)
+* ESC power-FET body diode (drone ESC, reversed-lead signature)
+.model DBODY D(Is=1e-10 N=1.35 Rs=0.15 Cjo=1n Bv=60)
+
+* ---------------------------------------------------------------------
+* TVS: bidirectional 64 V stand-off, SMBJ64CA-like
+*   Vrwm 64 V (<1 uA), Vbr 71.1 V min @ 1 mA, Vc 103 V @ Ipp 5.8 A (10/1000)
+*   two anti-series junctions, each Bv=70.3, Rs=2.75 Ohm  -> Rd ~5.5 Ohm
+* ---------------------------------------------------------------------
+.model DTVSH D(Is=1e-12 N=1.0 Rs=2.75 Bv=70.4 Ibv=1m Nbv=2 Cjo=500p M=0.33 Vj=0.8)
+.subckt TVS64CA a b
+D1 m a DTVSH
+D2 m b DTVSH
+Rlk a b 200Meg
+.ends TVS64CA
+
+* ---------------------------------------------------------------------
+* Battery pack: N cells, Ri per cell, lead R and L, optional dead cell
+* (vdead = volts missing), optional polarisation RC per cell
+* ---------------------------------------------------------------------
+.subckt BATT p n params: ncell=6 vcell=4.2 rcell=3m lser=250n rlead=3m vdead=0
++ rpol=1u cpol=1
+V1 x n {ncell*vcell - vdead}
+R1 x y {ncell*rcell + rlead}
+Rp y y2 {ncell*rpol}
+Cp y y2 {cpol/ncell}
+L1 y2 p {lser}
+.ends BATT
+
+* ---------------------------------------------------------------------
+* Constant-power load with input UVLO (digital VTX, FC+RX):
+*   I = P/V above vuv (smooth 0.15 V edge), 0 below.
+* ---------------------------------------------------------------------
+.subckt CPLOAD p n params: pw=10 vuv=6
+B1 p n I = {pw}/max(V(p,n),{vuv}-0.3) * 0.5*(1+tanh((V(p,n)-{vuv})/0.05))
+Rlk p n 100k
+.ends CPLOAD
+
+* ESC bulk capacitance with ESR (+ESL)
+.subckt BULK p n params: c=2200u esr=30m esl=5n
+C1 p x {c}
+R1 x y {esr}
+L1 y n {esl}
+.ends BULK
+
+* ---------------------------------------------------------------------
+* TPS48111-Q1 behavioural model (gate driver section only)
+*   pins: VS GND INP CSP CSM SRC PU PD BST
+*   - charge pump BST-SRC regulated 12.3 V, 100 uA capacity (datasheet 6.5)
+*   - PU: switch BST->PU, 2 Ohm (datasheet: 3.75 A peak source)
+*   - PD: switch PD->SRC, 0.69 Ohm (datasheet R(PD) typ, 4 A peak sink)
+*   - INP: 1.4 V threshold, turn-off propagation tpd_inp (<= 1 us max)
+*   - SCP: (CSP-CSM) > vscp (after RISCP*CSCP filter) -> PD latched
+*     after tsc (1.16 us typ / 1.6 us max), modelled as RC deglitch
+*   - POR: VS > 3.0 V, otherwise PU off and PD held on (passive)
+* ---------------------------------------------------------------------
+.subckt TPS48111 vs gnd inp csp csm src pu pd bst scpflag params: vscp=80m tsc=1.16u
++ tpd_inp=0.5u tscpf=0.46u
+* POR (smooth)
+Bpor por 0 V = 0.5*(1+tanh((V(vs,gnd)-3.0)/0.1))
+* charge pump from VS into BST
+Bcp vs bst I = 100u*V(por)*max(0,min(1,(12.3-V(bst,src))/0.4))
+Rcpl bst src 10Meg
+* INP input buffer + turn-off/on propagation delay (RC deglitch)
+Binp inpc 0 V = 0.5*(1+tanh((V(inp,gnd)-1.4)/0.05))
+Rinpd inpc inpd 1k
+Cinpd inpd 0 {tpd_inp/0.693/1k}
+* SCP comparator: sense filtered by RISCP*CSCP (tscpf)
+Bsns sns 0 V = V(csp,csm)
+Rsnsf sns snsf 1k
+Csnsf snsf 0 {tscpf/1k}
+Bscmp scmp 0 V = 0.5*(1+tanh((V(snsf)-{vscp})/0.5m))
+Rscd scmp scd 1k
+Cscd scd 0 {tsc/0.693/1k}
+* latch (set only - auto-retry not modelled, it is ms later)
+Blat 0 lat I = 10m*0.5*(1+tanh((V(scd)-0.5)/0.02))*0.5*(1+tanh((0.95-V(lat))/0.02))
+Clat lat 0 100p
+Rlat lat 0 1G
+Bflag scpflag 0 V = V(lat)
+* gate drive state
+Bon on 0 V = V(por)*0.5*(1+tanh((V(inpd)-0.5)/0.02))*(1-min(1,max(0,V(lat))))
+* PU / PD as switches (peak-current limiting of the real driver not modelled:
+* 2 Ohm / 0.69 Ohm small-signal resistances are used throughout)
+Boff off 0 V = 1-V(on)
+Spu bst pu on 0 SWDRV
+Rpul pu src 1G
+Spd pd src off 0 SWDRVPD
+.model SWDRV SW(Ron=2 Roff=1G Vt=0.5 Vh=0.05)
+.model SWDRVPD SW(Ron=0.69 Roff=1G Vt=0.5 Vh=0.05)
+* bias/leakage of VS and SRC pins to GND (quiescent ~0.6 mA at 48 V)
+Bvsq vs gnd I = 0.6m*V(por)
+Rsrc src gnd 500k
+.ends TPS48111
+
+* ---------------------------------------------------------------------
+* INA290A2 (gain 50 V/V) + push-pull comparator + AND3 -> PEAK_OK
+*   INA290: 1.1 MHz single pole, 2 V/us slew, output 0..3.2 V
+*   comparator (TLV3201 class) 40 ns, AND3 (74LVC1G11) 4 ns: modelled as
+*   one 45 ns RC deglitch
+*   pins: shp shm (shunt), thr (threshold voltage at comparator, V),
+*   peakok (1 = OK, 0 = trip), out (INA output)
+* ---------------------------------------------------------------------
+.subckt INAPEAK shp shm thr peakok out params: gain=50 tcmp=45n
+Btgt tgt 0 V = max(0, min(3.2, {gain}*V(shp,shm)))
+Bsl 0 out I = 1n*max(-2e6, min(2e6, (V(tgt)-V(out))*6.9115e6))
+Cout out 0 1n
+Rout out 0 1G
+Bc cmp 0 V = 0.5*(1+tanh((V(thr)-V(out))/5m))
+Rcd cmp peakok 1k
+Ccd peakok 0 {tcmp/0.693/1k}
+.ends INAPEAK

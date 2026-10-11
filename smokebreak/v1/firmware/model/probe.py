@@ -2,11 +2,18 @@
 
 Sequence run by the machine (main switch and pre-charge OFF the whole time):
 
-    phase HIGH: 3.0 V source through 1 kOhm for PROBE_T_HIGH_MS
-    phase LOW : 3.0 V source through 100 Ohm for PROBE_T_LOW_MS
+    phase HIGH : 3.0 V source through 1 kOhm for PROBE_T_HIGH_MS
+    phase LOW  : 3.0 V source through 100 Ohm for PROBE_T_LOW_MS
+    phase HIGH2: back to 1 kOhm for PROBE_T_HIGH2_MS
+
+The last phase exists for reversed leads on a drone with a big capacitor:
+on 1 kOhm alone the capacitor is still charging toward the diode clamp when
+the first phase ends, so the two-current comparison is made between the
+settled 100 Ohm reading and the settled 1 kOhm reading *after* 100 Ohm has
+charged the capacitor up to the clamp.
 
 VOUT_low is sampled every PROBE_SAMPLE_MS (ADC on a 1 kHz timer trigger,
-oversampled x16 in hardware).  `classify()` gets the two sample arrays and
+oversampled x16 in hardware).  `classify()` gets the three sample arrays and
 returns one verdict.  Pure integer arithmetic; every threshold is a constant.
 
 How each verdict is told apart:
@@ -17,8 +24,9 @@ How each verdict is told apart:
             reading, R = Rs * V / (Vs - V), is under 1 Ohm.
 * HALF_SHORT  same, 1..150 Ohm (1S: only under 10 Ohm, because a 1S flight
             controller already runs at 3 V and draws ~30-40 mA, looking like ~75 Ohm).
-* REVERSED  the node settles at 0.9-1.6 V on 100 Ohm and barely moves between
-            1 kOhm and 100 Ohm (ratio < 1.35): two body diodes in series.  A
+* REVERSED  the node settles at 0.9-1.6 V on 100 Ohm and barely moves when
+            the source goes back to 1 kOhm (ratio < 1.35): two body diodes in
+            series.  A
             resistor's reading scales by 4x or more between the two sources.
 * OK        the node is still charging at the end (a capacitor), or settles
             above 150 Ohm.  Capacitance comes from the initial rise: C = I*t/dV.
@@ -38,7 +46,9 @@ PROBE_R_LOW_OHM = 100
 PROBE_SAMPLE_MS = 1
 PROBE_T_HIGH_MS = 50
 PROBE_T_LOW_MS = 250
-PROBE_TOTAL_MS = PROBE_T_HIGH_MS + PROBE_T_LOW_MS
+PROBE_T_HIGH2_MS = 50
+PROBE_T_FIRST2_MS = PROBE_T_HIGH_MS + PROBE_T_LOW_MS     # end of the 100 Ohm phase
+PROBE_TOTAL_MS = PROBE_T_FIRST2_MS + PROBE_T_HIGH2_MS
 
 OPEN_FIRST_SAMPLE_MV = 2500        # 1 ms into 1 kOhm: > 2.5 V means C < ~0.7 uF
 SETTLE_WINDOW_SAMPLES = 10         # "settled" = moved less than SETTLE_MAX_MV in 10 ms
@@ -51,8 +61,8 @@ HALF_SHORT_1S_MAX_MOHM = 10000     # 1S: only < 10 Ohm counts (FC runs at 3 V)
 
 DIODE_MIN_MV = 900                 # clamp window on the 100 Ohm source
 DIODE_MAX_MV = 1600
-DIODE_HIGH_MIN_MV = 700            # and it must already clamp on 1 kOhm
-DIODE_MAX_RATIO_PERMILLE = 1350    # V(100 Ohm) / V(1 kOhm) below 1.35: a diode, not a resistor
+DIODE_HIGH_MIN_MV = 700            # and it must still clamp back on 1 kOhm
+DIODE_MAX_RATIO_PERMILLE = 1350    # V(100 Ohm) / V(1 kOhm, 2nd) below 1.35: a diode, not a resistor
 
 CAP_FIT_RISE_MV = 400              # rise used for C = I*t/dV
 EXTRAP_SPACING_SAMPLES = 80        # Aitken points: end-160, end-80, end
@@ -76,7 +86,7 @@ class ProbeResult:
     verdict: Verdict
     load_mohm: int = -1            # resistive load seen (-1 = none / capacitor only)
     cap_uf: int = 0                # capacitance estimate (0 = none found)
-    v_high_mv: int = 0             # settled / final reading on 1 kOhm
+    v_high_mv: int = 0             # final reading on 1 kOhm (the second 1 kOhm phase if run)
     v_low_mv: int = 0              # settled / final reading on 100 Ohm
 
 
@@ -142,13 +152,15 @@ def capacitance_uf(high, low, vs_mv=PROBE_SRC_MV):
     return idiv(i_ua * t_ms, dv)
 
 
-def classify(high, low, cells=0):
-    """high, low: VOUT_low samples in mV, one per PROBE_SAMPLE_MS, for the
-    1 kOhm and 100 Ohm phases.  cells: best cell-count guess (1 enables the
-    1S rule; 0 = unknown, treated as multi-cell)."""
+def classify(high, low, high2=None, cells=0):
+    """high, low, high2: VOUT_low samples in mV, one per PROBE_SAMPLE_MS, for
+    the 1 kOhm, 100 Ohm and second 1 kOhm phases (high2 may be omitted: the
+    first 1 kOhm phase is then used for the diode test).  cells: best
+    cell-count guess (1 enables the 1S rule; 0 = unknown = multi-cell)."""
     if not high or not low:
         return ProbeResult(Verdict.OPEN)
-    v_hi = _mean_tail(high)
+    h2 = high2 if high2 else high
+    v_hi = _mean_tail(h2)
     v_lo = _mean_tail(low)
 
     if high[0] >= OPEN_FIRST_SAMPLE_MV and v_lo * 1000 >= PROBE_SRC_MV * NO_LOAD_PERMILLE:
@@ -163,7 +175,7 @@ def classify(high, low, cells=0):
         if v_inf is None or v_inf * 1000 >= PROBE_SRC_MV * NO_LOAD_PERMILLE:
             return ProbeResult(Verdict.OK, -1, cap, v_hi, v_lo)
 
-    if (_settled(high) and _settled(low) and DIODE_MIN_MV <= v_lo <= DIODE_MAX_MV
+    if (_settled(h2) and _settled(low) and DIODE_MIN_MV <= v_lo <= DIODE_MAX_MV
             and v_hi >= DIODE_HIGH_MIN_MV and v_lo * 1000 <= v_hi * DIODE_MAX_RATIO_PERMILLE):
         return ProbeResult(Verdict.REVERSED, -1, 0, v_hi, v_lo)
 

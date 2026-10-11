@@ -1,0 +1,66 @@
+* SmokeBreak v1 - Case 3: dead short (10 mOhm) at the drone while ON
+* Board starts ON in steady state (VOUT = VIN, gate = VIN+12 V). At t=10us a
+* 10 mOhm short closes at the drone end of 10 cm leads (150 nH loop incl.
+* drone wiring); the drone's 2200 uF bulk sits at the same point.
+* TPS48111 SCP at vscp (80 mV on the 1 mOhm shunt = 80 A), tsc 1.16 us typ.
+* Peak comparator disabled here (worst case: firmware/comparator not helping).
+* Output-side clamp options (params):
+*   rsch : series R of a 100 V Schottky PG->VOUT (1G = not fitted)
+*   cout/rout : output RC snubber VOUT->PG (cout=1p = not fitted)
+*   rtvo : series R of a 2nd SMBJ64CA on VOUT (1G = not fitted)
+* Run from sim/:  ngspice -b case3_short.cir
+.include lib/smokebreak.lib
+.include lib/board.lib
+
+.param ncell=14 vcell=4.35 cin=2u cd=47u rd=0.3 vscp=80m tsc=1.16u lout=150n
+.param rsch=1G cout=1p rout=1 rtvo=1G rshort=10m tstop=30u
+.param vb={ncell*vcell}
+
+XB vin pg BATT ncell={ncell} vcell={vcell} rcell=3m lser=250n rlead=3m
+Rgnd pg 0 1u
+Rlg lgnd pg 1m
+XPP vin vsh src gate vout pg lgnd inp scp PPATH cin={cin} cd={cd} rd={rd} vscp={vscp} tsc={tsc}
+XPR vin vout lgnd pen PRECH rpre=8.2
+XAX vin vout lgnd aux AUXSENSE
+Vinp inp lgnd 3.3
+Vpen pen lgnd 0
+
+* output clamp options
+Dsch pg dsx DSCH100
+Rsch dsx vout {rsch}
+Cout vout cox {cout}
+Rout cox pg {rout}
+Rtvo vout tvo {rtvo}
+XTVO tvo pg TVS64CA
+
+* drone side
+Lol vout d1 {lout}
+Rol d1 drn 2m
+XBK drn pg BULK c=2200u esr=30m
+Ridle drn pg 100
+Ssh drn shn ctl 0 SWS
+Rsh shn pg {rshort}
+.model SWS SW(Ron=1m Roff=1G Vt=0.5 Vh=0.1)
+Vctl ctl 0 PWL(0 0 10u 0 10.001u 1)
+
+.nodeset v(vin)={vb} v(vsh)={vb} v(vout)={vb} v(drn)={vb} v(d1)={vb} v(src)={vb} v(gate)={vb+12}
++ v(xpp.bst)={vb+12.3}
+.options method=gear reltol=5e-4 abstol=1e-8 vntol=1e-5 itl4=300
+.tran 1n {tstop} 0 5n
+.control
+set wr_singlescale
+set wr_vecnames
+option numdgt=7
+op
+print v(vin) v(vsh) v(src) v(gate) v(vout) v(xpp.bst) v(xpp.pu) v(xpp.xc.on) v(xpp.xc.por) i(v.xpp.vq1) i(v.xpp.vtvs) v(xpp.tv) v(xpp.xtvs.m) v(xpp.xc.lat) v(xpp.xc.scd)
+quit
+let iq1 = i(v.xpp.vq1)
+let iq2 = -i(v.xpp.vq2)
+let pq1 = v(vsh,src)*i(v.xpp.vq1)
+let pq2 = v(vout,src)*i(v.xpp.vq2)
+let vds1 = v(vsh,src)
+let vds2 = v(vout,src)
+let vgs = v(gate,src)
+wrdata work/c3.dat v(vin) v(vout) v(src) v(gate) iq1 iq2 pq1 pq2 vds1 vds2 vgs v(scp) i(v.xpp.vtvs) v(xpp.vsf) v(aux) v(drn) v(vin,vsh)
+.endc
+.end
