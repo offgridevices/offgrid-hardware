@@ -3,14 +3,15 @@
 
   export Specctra DSN (KiCad) -> Freerouting 1.9 -> import SES (KiCad)
 
-Freerouting 1.9.0 is used, not 2.x: 2.1 ignores its pass limit and never
-writes a session file in batch mode.  1.9 needs a display even in batch
-mode, so it runs under xvfb-run.  Set FREEROUTING_JAR to the jar's path.
+Freerouting 2.5.0 (the latest release), run headless (--gui.enabled=false)
+on Java 25, which it needs.  Set FREEROUTING_JAR / FREEROUTING_JAVA to
+override the jar and the java binary.
 """
 import os, sys, subprocess, shutil
 import pcbnew
 
-JAR = os.environ.get('FREEROUTING_JAR', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'freerouting-1.9.0.jar'))
+JAR = os.environ.get('FREEROUTING_JAR', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'tools', 'freerouting-2.5.0.jar'))
+JAVA = os.environ.get('FREEROUTING_JAVA', '/usr/lib/jvm/java-25-openjdk-amd64/bin/java')
 
 # A board may add routing-only constraints (keepouts) to the copy exported
 # for Freerouting: PRE_EXPORT(board) is called before the DSN is written.
@@ -105,7 +106,7 @@ def freeroute(dsn_path, ses_path, passes=20, timeout=None, log=None, extra=()):
     """extra: more command-line options (e.g. -inc CLASS,... to leave
     those net classes unrouted)."""
     timeout = timeout or int(os.environ.get('FREEROUTING_TIMEOUT', 1800))
-    cmd = ['xvfb-run', '-a', 'java', '-jar', JAR, '-de', dsn_path, '-do', ses_path, '-mp', str(passes)]
+    cmd = [JAVA, '-jar', JAR, '-de', dsn_path, '-do', ses_path, '-mp', str(passes), '--gui.enabled=false']
     cmd += list(extra)
     with open(log or os.devnull, 'w') as f:
         p = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, start_new_session=True,
@@ -113,7 +114,7 @@ def freeroute(dsn_path, ses_path, passes=20, timeout=None, log=None, extra=()):
         try:
             rc = p.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
-            os.killpg(p.pid, 9)          # java and Xvfb too, not just xvfb-run
+            os.killpg(p.pid, 9)
             p.wait()
             raise SystemExit('Freerouting did not finish in %d s' % timeout)
     if rc != 0 or not os.path.exists(ses_path):
