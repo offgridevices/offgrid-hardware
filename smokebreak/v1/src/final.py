@@ -56,13 +56,23 @@ if __name__ == '__main__':
     b = pcbnew.LoadBoard(src)
     print('widened', widen(b), 'slivers')
     ground_fill(b)
+    # the routing keep-outs become DRC rules (a rule area would bar the power
+    # nets' own tracks too)
+    for z in list(b.Zones()):
+        if z.GetIsRuleArea() and z.GetZoneName().startswith('keepout '):
+            B.remove(b, z)
     placed = make.add_art(b, os.path.join(B.HERE, 'out'))
     for p in placed:
         print('  art', p)
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     pcbnew.SaveBoard(make.OUT, b)
     B.set_stackup(make.OUT)
-    B.write_rules(make.OUT)
+    extra = ''.join('(rule "no other track across the %s copper"\n'
+                    '  (condition "A.Type == \'Track\' && A.NetName != \'%s\' && A.intersectsArea(\'%s\')")\n'
+                    '  (constraint disallow track))\n' % (zn, net, zn)
+                    for zn, net in (('sources', 'SRC'), ('Q1 drain', 'VIN'), ('drone negative', 'DRONE_NEG'),
+                                    ('battery minus', 'BATT_NEG')))
+    B.write_rules(make.OUT, extra)
     errs, warns, unc = drc(make.OUT)
     import collections
     print('DRC errors', len(errs), collections.Counter(v['type'] for v in errs))

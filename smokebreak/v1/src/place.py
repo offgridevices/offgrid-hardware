@@ -181,8 +181,8 @@ at('R25', 84.2, 9.0, 0)
 
 # drone side: probe, VOUT and VIN sensing, south of the MCU
 at('C14', 80.6, 33.6, 0)
-at('RT1', 75.0, 50.6, 0)                # thermistor between the FETs
-at('R35', 72.6, 50.6, 0)
+at('RT1', 72.6, 43.6, 0)                # thermistor at Q1's source edge
+at('R35', 66.0, 38.4, 0)
 for ref, (x, y, r) in {
     'Q6': (40.6, 40.4, 0), 'Q7': (43.4, 40.4, 0), 'R26': (40.6, 44.2, 90), 'R27': (43.4, 44.2, 90),
     'R28': (46.0, 44.2, 90), 'R29': (47.6, 44.2, 90), 'D4': (49.6, 44.2, 90),
@@ -216,16 +216,16 @@ at('D20', 21.8, 37.8, 90)
 at('C50', 25.0, 28.8, 90)
 at('C51', 25.0, 33.2, 90)
 at('R67', 25.0, 37.0, 90)
-at('C52', 84.2, 46.6, 90)
+at('C52', 81.2, 30.6, 90)
 at('C53', 81.0, 35.0, 90)
 at('R68', 80.6, 42.4, 0)
 at('R69', 66.6, 43.0, 0)                # Cdvdt beside the TPS48000
 at('C54', 68.6, 43.0, 0)
 at('D18', 76.2, 50.6, 0)                # gate clamp across Q1/Q2
-at('U12', 86.4, 25.0, 0)                # hard-short comparator on the shunt's sense pad
-at('R70', 89.4, 24.4, 0)
-at('R71', 91.6, 24.4, 0)
-at('C55', 89.4, 25.8, 0)
-at('C56', 91.6, 25.8, 0)
+at('U12', 74.6, 40.0, 0)                # hard-short comparator, between the shunt's sense line and the FETs
+at('R70', 72.4, 41.2, 90)
+at('R71', 72.4, 39.0, 90)
+at('C55', 76.8, 41.6, 0)
+at('C56', 76.8, 39.4, 0)
 at('R72', 37.8, 41.0, 90)               # probe base resistors
 at('R73', 39.0, 41.0, 90)

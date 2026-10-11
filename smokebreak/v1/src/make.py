@@ -64,6 +64,9 @@ def legalise(fps, b):
     for ref, (x, y, rot, side, fixed) in place.PL.items():
         if ref in fps and fixed:
             settled += boxes(fps[ref])
+    for name, poly, layers in POWER_KEEPOUTS:
+        xs, ys = [p[0] for p in poly], [p[1] for p in poly]
+        settled.append((min(xs), min(ys), max(xs), max(ys), 0.1))
     cands = sorted(((i * GRID, j * GRID) for i in range(-40, 41) for j in range(-40, 41)),
                    key=lambda d: (math.hypot(*d), abs(d[1]), d))
     for ref, (x, y, rot, side, fixed) in place.PL.items():
@@ -71,8 +74,10 @@ def legalise(fps, b):
             continue
         fp = fps[ref]
         bs = boxes(fp)
+        allowed = [k for k in KEEPOUT_GUESTS if ref in KEEPOUT_GUESTS[k]]
+        obst = [s for s in settled if not any(_is_keepout(s, k) for k in allowed)]
         for dx, dy in cands:
-            if inside(bs, dx, dy) and not hit(bs, settled, dx, dy):
+            if inside(bs, dx, dy) and not hit(bs, obst, dx, dy):
                 break
         else:
             raise RuntimeError(f'no room for {ref}')
@@ -256,6 +261,16 @@ def add_art(b, work):
 def dsn_keepouts(b):
     """Routing-only extras (none on 6 layers: the planes have In4 to themselves)."""
     return
+
+
+# parts that belong inside a power area (their pads are its copper)
+KEEPOUT_GUESTS = {'drone negative': ('C14', 'C52', 'C53', 'RS1')}
+
+
+def _is_keepout(box, name):
+    poly = [p for n, p, l in POWER_KEEPOUTS if n == name][0]
+    xs, ys = [p[0] for p in poly], [p[1] for p in poly]
+    return box[:4] == (min(xs), min(ys), max(xs), max(ys))
 
 
 # (name, polygon, layers): power copper no other track may cut
