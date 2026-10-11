@@ -28,4 +28,6 @@
 	(fp_line (start 1.00 1.00) (end -1.00 1.00) (layer F.CrtYd) (width 0.05))
 	(fp_poly (pts (xy 2.016887 -0.535000) (xy 1.416914 -0.535051) (xy 1.416914 -0.634924) (xy 2.016836 -0.634924) (xy 2.016887 -0.535000)) (stroke (width 0) (type solid)) (fill solid) (layer "F.SilkS"))
 	(fp_poly (pts (xy 1.666926 -0.284988) (xy 1.666926 -0.884987) (xy 1.766926 -0.884987) (xy 1.766926 -0.284988) (xy 1.666926 -0.284988)) (stroke (width 0) (type solid)) (fill solid) (layer "F.SilkS"))
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/LED_WS2812B-2020.wrl"
+		(offset (xyz 0 0 0)) (scale (xyz 1 1 1)) (rotate (xyz 0 0 0)))
 )

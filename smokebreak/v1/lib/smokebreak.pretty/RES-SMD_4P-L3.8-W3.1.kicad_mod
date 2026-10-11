@@ -25,7 +25,7 @@
 	(fp_line (start -1.37 1.55) (end -1.37 -1.55) (layer F.CrtYd) (width 0.05))
 	(fp_line (start -1.37 -1.55) (end 2.44 -1.55) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 2.44 -1.55) (end 2.44 1.55) (layer F.CrtYd) (width 0.05))
-	(model "/home/user/offgrid-hardware/smokebreak/v1/lib/smokebreak.3dshapes/RES-SMD_4P-L3.8-W3.1.wrl"
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/RES-SMD_4P-L3.8-W3.1.wrl"
 		(offset (xyz 0.000 0.000 0.000))
 		(scale (xyz 1 1 1))
 		(rotate (xyz 0 0 0))

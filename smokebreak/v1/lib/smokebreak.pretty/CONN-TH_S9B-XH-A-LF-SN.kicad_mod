@@ -42,7 +42,7 @@
 	(fp_line (start 12.63 -9.33) (end 12.63 2.43) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 12.63 2.43) (end -12.63 2.43) (layer F.CrtYd) (width 0.05))
 	(fp_line (start -12.63 2.43) (end -12.63 -9.33) (layer F.CrtYd) (width 0.05))
-	(model "/home/user/offgrid-hardware/smokebreak/v1/lib/smokebreak.3dshapes/CONN-TH_S9B-XH-A-LF-SN.wrl"
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/CONN-TH_S9B-XH-A-LF-SN.wrl"
 		(offset (xyz 0.000 0.000 0.000))
 		(scale (xyz 1 1 1))
 		(rotate (xyz 0 0 0))

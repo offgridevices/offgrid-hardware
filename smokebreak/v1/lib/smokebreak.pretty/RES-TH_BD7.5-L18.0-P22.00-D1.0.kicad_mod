@@ -23,4 +23,6 @@
 	(fp_line (start -9.00 -3.75) (end 9.00 -3.75) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 9.00 -3.75) (end 9.00 3.75) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 9.00 3.75) (end -9.00 3.75) (layer F.CrtYd) (width 0.05))
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/R_AC05_P22mm.wrl"
+		(offset (xyz 0 0 0)) (scale (xyz 1 1 1)) (rotate (xyz 0 0 0)))
 )

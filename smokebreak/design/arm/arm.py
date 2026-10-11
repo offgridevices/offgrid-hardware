@@ -29,7 +29,7 @@ UI_VIDEO = os.path.join(SB, 'ui', 'arm-sequence.mp4')
 
 # ---------------------------------------------------------------- geometry
 W, D, H, R = 100.0, 58.0, 18.0, 9.0       # body
-TX, TY = 74.0, 31.0                        # toggle, face coords (x from left, y from back)
+TX, TY = 70.0, 31.0                        # toggle, face coords (x from left, y from back) = PCB (67, 28) + 3 mm wall
 HY = 12.0                                  # guard hinge line, face y
 GL, GW, GH = 36.0, 30.0, 17.0              # guard length, width, wall height
 RING = 10.0                                # status light round the toggle (a plain ring, not the mark)

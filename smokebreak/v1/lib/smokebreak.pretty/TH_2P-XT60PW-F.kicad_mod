@@ -29,7 +29,7 @@
 	(fp_line (start -7.75 -12.40) (end 7.75 -12.40) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 7.75 -12.40) (end 7.75 4.80) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 7.75 4.80) (end -7.75 4.80) (layer F.CrtYd) (width 0.05))
-	(model "/home/user/offgrid-hardware/smokebreak/v1/lib/smokebreak.3dshapes/TH_2P-XT60PW-F.wrl"
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/TH_2P-XT60PW-F.wrl"
 		(offset (xyz 0.000 0.000 0.000))
 		(scale (xyz 1 1 1))
 		(rotate (xyz 0 0 0))

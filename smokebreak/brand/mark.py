@@ -24,8 +24,7 @@ from shapely import affinity
 from shapely.geometry import LineString, Point, Polygon, MultiPolygon
 from shapely.ops import unary_union
 
-FONTS = os.environ.get('SB_FONTS', '/tmp/claude-0/-home-user-offgrid-hardware/'
-                       'bb4d9657-83a6-5d9a-b4a3-ba3efc9cb84f/scratchpad/ref')
+FONTS = os.environ.get('SB_FONTS', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fonts'))
 SANS = os.path.join(FONTS, 'InstrumentSans-VariableFont.ttf')
 
 # ------------------------------------------------------------------ the mark

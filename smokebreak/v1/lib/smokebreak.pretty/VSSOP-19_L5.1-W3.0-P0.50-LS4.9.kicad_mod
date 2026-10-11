@@ -41,4 +41,6 @@
 	(fp_line (start 2.55 -1.50) (end -2.55 -1.50) (layer F.CrtYd) (width 0.05))
 	(fp_line (start -2.55 -1.50) (end -2.55 1.50) (layer F.CrtYd) (width 0.05))
 	(fp_line (start -2.55 1.50) (end 2.55 1.50) (layer F.CrtYd) (width 0.05))
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/VSSOP-19_TPS48000.wrl"
+		(offset (xyz 0 0 0)) (scale (xyz 1 1 1)) (rotate (xyz 0 0 0)))
 )

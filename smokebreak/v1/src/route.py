@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Autoroute a placed board with Freerouting, then pour and check it.
 
-  export Specctra DSN (KiCad) -> Freerouting 1.9 -> import SES (KiCad)
+  export Specctra DSN (KiCad) -> Freerouting -> import SES (KiCad)
 
 Freerouting 2.5.0 (the latest release), run headless (--gui.enabled=false)
 on Java 25, which it needs.  Set FREEROUTING_JAR / FREEROUTING_JAVA to
@@ -106,7 +106,9 @@ def freeroute(dsn_path, ses_path, passes=20, timeout=None, log=None, extra=()):
     """extra: more command-line options (e.g. -inc CLASS,... to leave
     those net classes unrouted)."""
     timeout = timeout or int(os.environ.get('FREEROUTING_TIMEOUT', 1800))
-    cmd = [JAVA, '-jar', JAR, '-de', dsn_path, '-do', ses_path, '-mp', str(passes), '--gui.enabled=false']
+    dsn_path, ses_path = os.path.abspath(dsn_path), os.path.abspath(ses_path)
+    cmd = [JAVA, '-jar', JAR, '-de', dsn_path, '-do', ses_path, '--router.autorouter.max_passes=%d' % passes,
+           '--gui.enabled=false']
     cmd += list(extra)
     with open(log or os.devnull, 'w') as f:
         p = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, start_new_session=True,
@@ -147,8 +149,8 @@ def route(pcb_in, pcb_out, passes=60, rounds=4):
         if r > 0:
             # Freerouting hangs ("normalization of net ... failed") on its own
             # near-degenerate wiring when that is fed back to it
-            import pcb
-            pcb.tidy_tracks(src)
+            import board
+            board.tidy_tracks(src)
         export_dsn(src, dsn)
         freeroute(dsn, ses, passes=passes, log=os.path.join(work, 'freerouting%d.log' % r))
         import_ses(src, ses, pcb_out)

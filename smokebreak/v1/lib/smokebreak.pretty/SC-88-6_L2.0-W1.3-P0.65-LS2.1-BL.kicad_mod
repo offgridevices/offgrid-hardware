@@ -25,7 +25,7 @@
 	(fp_line (start 1.00 -0.65) (end 1.00 0.65) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 1.00 0.65) (end -1.00 0.65) (layer F.CrtYd) (width 0.05))
 	(fp_line (start -1.00 0.65) (end -1.00 -0.65) (layer F.CrtYd) (width 0.05))
-	(model "/home/user/offgrid-hardware/smokebreak/v1/lib/smokebreak.3dshapes/SC-88-6P_L2.0-W1.3-H1.0-LS2.1.wrl"
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/SC-88-6P_L2.0-W1.3-H1.0-LS2.1.wrl"
 		(offset (xyz 0.000 0.000 0.000))
 		(scale (xyz 1 1 1))
 		(rotate (xyz 0 0 0))

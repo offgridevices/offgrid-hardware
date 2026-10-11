@@ -15,4 +15,6 @@
 	(pad "1" thru_hole rect (at 0 4.7) (size 3.0 3.0) (drill 1.9) (layers "*.Cu" "*.Mask"))
 	(pad "2" thru_hole circle (at 0 0) (size 3.0 3.0) (drill 1.9) (layers "*.Cu" "*.Mask"))
 	(pad "3" thru_hole circle (at 0 -4.7) (size 3.0 3.0) (drill 1.9) (layers "*.Cu" "*.Mask"))
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/SW_Toggle_CK7107.wrl"
+		(offset (xyz 0 0 0)) (scale (xyz 1 1 1)) (rotate (xyz 0 0 0)))
 )

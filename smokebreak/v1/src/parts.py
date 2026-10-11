@@ -24,7 +24,7 @@ STD_C = {'0402': 'Capacitor_SMD:C_0402_1005Metric', '0603': 'Capacitor_SMD:C_060
 
 
 def P(fp, mfr, mpn, lcsc, desc, fit='smt'):
-    return dict(fp=fp if ':' in fp else f'{LIB}:{fp}', mfr=mfr, mpn=mpn, lcsc=lcsc, desc=desc, fit=fit)
+    return dict(fp=None if fp is None else (fp if ':' in fp else f'{LIB}:{fp}'), mfr=mfr, mpn=mpn, lcsc=lcsc, desc=desc, fit=fit)
 
 
 PARTS = {
@@ -35,9 +35,9 @@ PARTS = {
                    'N-MOSFET 100 V 4.0 mOhm, SuperSO8'),
     'SHUNT1M':   P('RES-SMD_4P-L3.8-W3.1', 'Vishay Dale', 'WSK12161L000FEA', 'C844476',
                    'Current shunt 1 mOhm 1 % 3 W, four-terminal 1216'),
-    'INA240A2':  P('SOIC-8_L4.9-W3.9-P1.27-LS6.0-BL', 'Texas Instruments', 'INA240A2DR', 'C2060768',
-                   'Current-sense amplifier, gain 50, -4..80 V CM'),
-    'TVS58':     P('SMB_L4.6-W3.6-LS5.3-BI', 'Littelfuse', 'SMBJ58CA', 'C151267',
+    'INA181A2':  P('SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL', 'Texas Instruments', 'INA181A2IDBVR', 'C2058784',
+                   'Current-sense amplifier, gain 50, -0.2..26 V CM (low side: CM ~0 V)'),
+    'TVS64':     P('SMB_L4.6-W3.6-LS5.3-BI', 'Littelfuse', 'SMBJ64CA', 'C151269',
                    'TVS bidirectional 58 V stand-off, 600 W, SMB'),
     'DMP10H':    P('SOT-223_L6.5-W3.5-P2.30-LS7.0-BR', 'Diodes Incorporated', 'DMP10H400SE-13', 'C156277',
                    'P-MOSFET -100 V 250 mOhm, SOT-223 (pre-charge switch)'),
@@ -46,8 +46,8 @@ PARTS = {
     'SS2H10':    P('Diode_SMD:D_SMA', 'Vishay', 'SS2H10-E3/52T', None,
                    'Schottky 100 V 2 A, SMA (pre-charge reverse block)'),
     # ---------------------------------------------------------- aux supply
-    'LMR36503':  P('VQFN-9_L2.0-W2.0-P0.50-TL', 'Texas Instruments', 'LMR36503R5RPER', 'C3190197',
-                   'Buck 3-65 V in, 5 V fixed, 300 mA'),
+    'LMR36506':  P('VQFN-9_L2.1-W2.1-P0.50-TL', 'Texas Instruments', 'LMR36506R5RPER', 'C2866484',
+                   'Buck 3.6-65 V in, 5 V fixed, 600 mA (pin-compatible with LMR36503R5)'),
     'L47U':      P('IND-SMD_L4.0-W4.0_SLS3DXX', 'Sunlord', 'SWPA4030S470MT', 'C54731',
                    'Inductor 47 uH 4x4x3 mm'),
     'TLV75533':  P('SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR', 'Texas Instruments', 'TLV75533PDBVR', 'C404027',
@@ -60,8 +60,8 @@ PARTS = {
                    'Hall switch, omnipolar, push-pull, 1.3 uA (guard magnet)'),
     'LVC1G11':   P('SC-88-6_L2.0-W1.3-P0.65-LS2.1-BL', 'Nexperia', '74LVC1G11GW,125', 'C282348',
                    '3-input AND gate (switch enable)'),
-    'TLV7011':   P('TSOT-23-5_L2.9-W1.6-P0.95-LS2.8-BL', 'Texas Instruments', 'TLV7011DBVR', 'C702117',
-                   'Comparator push-pull 260 ns (peak current)'),
+    'LMV331':    P('SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR', 'Texas Instruments', 'LMV331IDBVR', 'C34731',
+                   'Comparator, open drain, ~200 ns (peak current)'),
     'LVC1G74':   P('SSOP-8_L2.0-W2.3-P0.50-LS3.1-BR', 'Texas Instruments', 'SN74LVC1G74DCUR', 'C70285',
                    'D flip-flop with clear (peak-trip latch)'),
     'AHCT1G125': P('Package_TO_SOT_SMD:SOT-23-5', 'Texas Instruments', 'SN74AHCT1G125DBVR', None,
@@ -71,8 +71,8 @@ PARTS = {
                    'Schottky 100 V 250 mA, SOD-323F'),
     'BAT54S':    P('SOT-23-3_L3.0-W1.7-P0.95-LS2.9-BR', 'Nexperia', 'BAT54S,215', 'C47546',
                    'Dual series Schottky 30 V (ADC clamp)'),
-    '1N4148WS':  P('SOD-323_L1.8-W1.3-LS2.5-RD', 'Diodes Incorporated', '1N4148WS-7-F', 'C60580',
-                   'Switching diode 75 V, SOD-323 (balance OR)'),
+    '1N4148WS':  P('SOD-323_L1.8-W1.3-LS2.5-RD', 'Jiangsu Changjing (CJ)', '1N4148WS', 'C2128',
+                   'Switching diode 100 V / 75 V working, SOD-323 (supply and balance OR)'),
     'BZT52C10':  P('SOD-123_L2.7-W1.6-LS3.7-RD', 'Diodes Incorporated', 'BZT52C10-7-F', 'C155227',
                    'Zener 10 V (P-FET gate clamp)'),
     '2N7002':    P('SOT-23_L2.9-W1.3-P1.90-LS2.4-BR', 'Nexperia', '2N7002,215', 'C65189',

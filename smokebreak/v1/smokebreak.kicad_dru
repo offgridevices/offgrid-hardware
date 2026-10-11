@@ -1,0 +1,17 @@
+(version 1)
+# Pads of one part sit as close as its maker made them (a 0.5 mm pitch
+# controller has 60 V pins 0.22 mm apart): the HV class's clearance is for
+# copper between parts.
+(rule "pads within U1"
+  (condition "A.memberOfFootprint('U1') && B.memberOfFootprint('U1')")
+  (constraint clearance (min 0.09mm)))
+(rule "pads within U3"
+  (condition "A.memberOfFootprint('U3') && B.memberOfFootprint('U3')")
+  (constraint clearance (min 0.09mm)))
+(rule "pads within J8"
+  (condition "A.memberOfFootprint('J8') && B.memberOfFootprint('J8')")
+  (constraint clearance (min 0.09mm)))
+
+(rule "plated hole to track"
+  (condition "A.Type == 'Pad' && A.isPlated() && A.Pad_Type == 'Through-hole' && B.Type == 'Track'")
+  (constraint hole_clearance (min 0.25mm)))
