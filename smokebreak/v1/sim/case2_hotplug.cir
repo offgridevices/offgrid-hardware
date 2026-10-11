@@ -1,13 +1,13 @@
 * SmokeBreak v1 - Case 2: hot plug of a 14S LiHV pack (60.9 V) into the input,
 * correct or reversed polarity (vcell < 0), 250 nH lead. Ideal contact at 1 us.
 * Main switch and pre-charge off; drone side open. Board per src/circuit.py.
-* Option q3byp=1G: reverse-blocking FET Q3 in the battery B- lead.
+* Option q3byp=1G: reverse-blocking FET (new Q11) in the battery B- lead.
 * Run from sim/:  ngspice -b case2_hotplug.cir
 .include lib/smokebreak.lib
 .include lib/board.lib
 
 .param ncell=14 vcell=4.35 lser=250n rcell=3m cin=2u cd=1p rd=1
-.param tvs_vrwm=58 tvs_vbr=71.2 tvs_vc=93.6 tvs_ipp=6.4 q3byp=1m csn=1p rsn=1
+.param tvs_vrwm=58 tvs_vbr=71.2 tvs_vc=93.6 tvs_ipp=6.4 q3byp=1m csn=1p rsn=1 rq3g=47k
 
 XB bp bneg BATT ncell={ncell} vcell={vcell} rcell={rcell} lser={lser} rlead=3m
 Sw bp bsw ctl 0 SWC
@@ -15,12 +15,12 @@ Vib bsw vin 0
 .model SWC SW(Ron=1m Roff=1G Vt=0.5 Vh=0.1)
 Vctl ctl 0 PWL(0 0 1u 0 1.001u 1)
 Rg0 gnd 0 1u
-* optional Q3: 100 V N-FET in the battery B- lead (source GND, drain BNEG),
-* gate from VIN through 2.2 MOhm, 10 V zener; q3byp=1m: not fitted (as built)
+* optional new Q11: 100 V N-FET in the battery B- lead (source GND, drain BNEG),
+* gate from VIN through rq3g (47 k), 12 V zener; q3byp=1m: not fitted (as built)
 Vq3 bneg q3d 0
 MQ3 q3d q3g gnd QMAIN
-Rq3g vin q3g 2.2Meg
-Dq3z gnd q3g DZ10
+Rq3g vin q3g {q3byp>1 ? rq3g : 1e12}
+Dq3z gnd q3g DZ12
 Rq3b bneg gnd {q3byp}
 V33 v33 gnd 0
 Rv33 v33 gnd 1k

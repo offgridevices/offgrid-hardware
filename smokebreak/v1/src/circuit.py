@@ -53,14 +53,15 @@ g = 'battery in'
 add('J1', 'XT60M', {XT['XT60M'][0]: 'VIN', XT['XT60M'][1]: 'GND', '3': NC, '4': NC}, 'XT60 male', g)
 add('J2', 'XT30M', {XT['XT30M'][0]: 'VIN', XT['XT30M'][1]: 'GND', '3': NC, '4': NC}, 'XT30 male', g)
 add('D1', 'TVS64', {'1': 'VIN', '2': 'GND'}, 'SMBJ64CA', g)
-capacitor('VIN', 'GND', '2u2', '100V', '1210', g)
-capacitor('VIN', 'GND', '2u2', '100V', '1210', g)
-capacitor('VIN', 'GND', '100n', '100V', '0603', g)
+capacitor('VIN', 'GND', '2u2', '100V', '1210', g)                               # ~1 uF at 60 V direct (sim)
+capacitor('VIN', 'GND', '100n', '100V', '0603', g, ref='C3')
 # damper (sim case 2): an RC across the input that eats the ring of a
 # hot plug and of a short's turn-off; ceramic, so a reversed pack is fine
+# 16 uF effective at 60 V + 0.33 Ohm: holds a reversed 14S plug-in above the
+# TPS48000's -65 V without a reverse FET (sim cases 2-4)
 res('VIN', 'VIN_DAMP', 0.33, '1206', group=g, ref='R67')
-capacitor('VIN_DAMP', 'GND', '4u7', '100V', '1210', g, ref='C50')
-capacitor('VIN_DAMP', 'GND', '4u7', '100V', '1210', g, ref='C51')
+for ref in ('C2', 'C50', 'C51', 'C57', 'C58', 'C59', 'C60', 'C61'):
+    capacitor('VIN_DAMP', 'GND', '4u7', '100V', '1210', g, ref=ref)
 
 # ======================================================================
 # 2. The switch: TPS48000 + back-to-back BSC040N10NS5, low-side shunt
@@ -137,8 +138,8 @@ res('PEAK_OK', '+3V3', 10e3, group=g, ref='R66')    # open-drain output (late re
 # hard-short comparator straight on the shunt: 80 mV = 80 A, no amplifier
 # slew in the way (sim case 3); wired onto the same latch-clear node
 add('U12', 'LMV331', {'1': 'HS_REF', '2': 'GND', '3': 'SNS_DRN', '4': 'PEAK_OK', '5': '+3V3'}, 'LMV331', g)
-res('+3V3', 'HS_REF', 39e3, group=g, ref='R70')
-res('HS_REF', 'GND', 1e3, group=g, ref='R71')                                  # 82.5 mV
+res('+3V3', 'HS_REF', 49.9e3, group=g, ref='R70')
+res('HS_REF', 'GND', 1e3, group=g, ref='R71')                                  # 64.7 mV = 65 A
 capacitor('HS_REF', 'GND', '100n', group=g, ref='C55')
 capacitor('+3V3', 'GND', '100n', group=g, ref='C56')
 capacitor('+3V3', 'GND', '100n', group=g)
@@ -187,9 +188,9 @@ add('J3', 'XT60F', {XT['XT60F'][0]: 'VOUT', XT['XT60F'][1]: 'DRONE_NEG', '1': NC
 add('J4', 'XT30F', {XT['XT30F'][0]: 'VOUT', XT['XT30F'][1]: 'DRONE_NEG', '3': NC, '4': NC}, 'XT30 female', g)
 capacitor('VOUT', 'DRONE_NEG', '100n', '100V', '0603', g)
 # output snubber (sim cases 3, 5): damps the drone-side ring after a cut and on plug-in
-res('VOUT', 'VOUT_SNUB', 0.47, '1206', group=g, ref='R68')
-capacitor('VOUT_SNUB', 'DRONE_NEG', '4u7', '100V', '1210', g, ref='C52')
-capacitor('VOUT_SNUB', 'DRONE_NEG', '4u7', '100V', '1210', g, ref='C53')
+res('VOUT', 'VOUT_SNUB', 0.22, '1206', group=g, ref='R68')                     # 12 uF effective + 0.22 Ohm
+for ref in ('C52', 'C53', 'C62', 'C63', 'C64', 'C65'):
+    capacitor('VOUT_SNUB', 'DRONE_NEG', '4u7', '100V', '1210', g, ref=ref)
 # probe: 3.3 V through 1 k or 100 Ohm, then a 100 V Schottky into VOUT.
 # 150 V PNPs: a reversed pack on the drone side puts -60 V on them
 add('Q6', 'MMBT5401', {'1': 'PROBE_BB1', '2': '+3V3', '3': 'PROBE_A'}, 'MMBT5401', g)

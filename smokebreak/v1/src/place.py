@@ -207,12 +207,15 @@ at('R65', 55.8, 24.4, 90)
 at('C49', 47.6, 8.4, 90)
 
 # ---------------------------------------------------------------- from the simulations
-at('R67', 21.6, 25.2, 0)                # input damper: 0.33 Ohm + 2 x 4.7 uF next to the TVS
-at('C50', 24.8, 18.2, 0)
-at('C51', 24.8, 21.8, 0)
-at('C52', 84.2, 46.6, 90)               # output snubber across the drone side
-at('C53', 81.0, 35.0, 90)
-at('R68', 86.6, 46.4, 90)
+# input damper: 0.33 Ohm + 8 x 4.7 uF in two rows of four, beside the battery gate
+at('R67', 16.0, 26.6, 0)
+for k, ref in enumerate(['C2', 'C50', 'C51', 'C57', 'C58', 'C59', 'C60', 'C61']):
+    at(ref, 16.2 + 5.0 * (k % 4) - 2.0 * (k // 4 == 0) * 0, 30.0 + 4.0 * (k // 4), 0)
+# output snubber: 0.22 Ohm + 6 x 4.7 uF, between Q2 and the drone connectors
+for ref, (x, y, r) in {'C52': (84.2, 44.4, 90), 'C53': (84.2, 48.6, 90), 'C62': (76.6, 24.0, 90),
+                       'C63': (76.6, 28.0, 90), 'C64': (76.6, 32.0, 90), 'C65': (80.6, 50.2, 0)}.items():
+    at(ref, x, y, r)
+at('R68', 80.6, 42.4, 0)
 at('R69', 72.4, 39.6, 0)                # Cdvdt beside the TPS48000
 at('C54', 70.4, 39.6, 0)
 at('D18', 76.2, 50.6, 0)                # gate clamp across Q1/Q2

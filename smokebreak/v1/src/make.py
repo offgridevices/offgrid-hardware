@@ -260,6 +260,12 @@ def build():
     B.netclass(b, 'Pulse', ['PRE_D', 'PRE_K'], 0.8, B.HV_CLEAR)          # pre-charge: 7.5 A for ~0.1 s
     power_copper(b)
     moved = legalise(fps, b)
+    import fanout
+    cl = {n: B.HV_CLEAR for n in HV_NETS + ['PRE_D', 'PRE_K']}
+    done, left = fanout.fanout_gnd(b, classes=cl)
+    print(f'  ground fan-out: {done} pads, {left} left to the router')
+    for t in b.GetTracks():
+        t.SetLocked(True)
     return b, fps, moved
 
 

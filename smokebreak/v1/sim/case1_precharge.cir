@@ -1,7 +1,7 @@
 * SmokeBreak v1 - Case 1: pre-charge through RPRE, then main switch close
 * Board per src/circuit.py (TPS48000, low-side shunt). Battery -> board ->
 * 10 cm leads -> drone: ESC bulk + constant-power VTX (UVLO 6 V) + FC/RX 1 W.
-* t=0: QP on (PRE_ON high, guard open).  t=tmain: INP high.  t=tpoff: QP off.
+* t=0..0.5 ms: pack EMF ramps up (soft start). t=1 ms: QP on (PRE_ON high).  t=tmain: INP high.  t=tpoff: QP off.
 * Gate network: PU resistor rpu, optional Cdvdt c1 (gate->GND via 10 Ohm).
 * Run from sim/:  ngspice -b case1_precharge.cir
 .include lib/smokebreak.lib
@@ -11,14 +11,14 @@
 .param tmain=2 tpoff=2 rpu=47 c1=1p qp_rd=0.15 qp_kp=6 tstop=1.0 tmax=200u
 .param vb={ncell*vcell}
 
-XB vin gnd BATT ncell={ncell} vcell={vcell} rcell=3m lser=250n rlead=3m
+XB vin gnd BATTR ncell={ncell} vcell={vcell} rcell=3m lser=250n rlead=3m tramp=0.5m
 Rg0 gnd 0 1u
 V33 v33 gnd 3.3
 XPP vin src gate vout gnd dneg inp scp PPATH rpu={rpu} c1={c1}
 XPR vin vout gnd preon guard PRECH rpre={rpre} qp_rd={qp_rd} qp_kp={qp_kp}
 XAX vin vout gnd aux v33 vlo AUXSENSE
 Vguard guard gnd 3.3
-Vpre preon gnd PWL(0 0 10u 3.3 {tpoff} 3.3 {tpoff+10u} 0)
+Vpre preon gnd PWL(0 0 1m 0 1.01m 3.3 {tpoff} 3.3 {tpoff+10u} 0)
 Vinp inp gnd PWL(0 0 {tmain} 0 {tmain+1u} 3.3)
 
 * drone: leads (2 x 10 cm) + bulk + VTX + FC, returning to DRONE_NEG
@@ -31,7 +31,7 @@ XVTX drn drnn CPLOAD pw={pvtx} vuv=6
 XFC drn drnn CPLOAD pw=1 vuv=3.2
 
 .options method=gear reltol=1e-3 abstol=1e-6 vntol=1e-4 chgtol=1e-12 itl4=300
-.ic v(vout)=0 v(drn)=0 v(src)=0 v(gate)=0 v(xpp.bst)=11
+
 .tran 10u {tstop} 0 {tmax} uic
 .control
 set wr_singlescale

@@ -39,6 +39,7 @@
 * zeners: BZT52C10 (pre-charge gate), BZT52C15 (recommended Q1/Q2 gate-source)
 .model DZ10 D(Is=1e-12 N=1.0 Rs=10 Bv=10 Ibv=5m Cjo=50p)
 .model DZ15 D(Is=1e-12 N=1.0 Rs=6 Bv=15 Ibv=5m Cjo=50p)
+.model DZ12 D(Is=1e-12 N=1.0 Rs=8 Bv=12 Ibv=5m Cjo=50p)
 * MCU pin ESD structure
 .model DESD D(Is=1e-14 N=1.0 Rs=20 Cjo=2p)
 * drone ESC FET body diode (reversed lead, reversed supply)
@@ -133,32 +134,59 @@ Rsrc src gnd 20Meg
 .ends TPS48000
 
 * ---------------------------------------------------------------------
-* INA240A2 (50 V/V, 400 kHz, 2 V/us, out 0..3.25 V) with the board's
-* 10 Ohm/10 Ohm/1 nF input filter, TLV7011 comparator (260 ns) against PEAK_REF,
-* optional second TLV7011 straight on the shunt Kelvin pads with a fixed
-* threshold hsv (V across the 1 mOhm shunt; hsv=10 = not fitted), wired into
-* the SN74LVC1G74 latch (PEAK_OK low clears) and the 74LVC1G11 AND -> INP.
+* Peak path per src/circuit.py: INA181A2 (50 V/V, 210 kHz, 2 V/us, out
+* 0..3.28 V) behind the board's 10 Ohm/10 Ohm/1 nF filter -> LMV331 (U8,
+* open drain, 10 k pull-up R66) against PEAK_REF -> PEAK_OK -> CLR of the
+* SN74LVC1G74 latch -> 74LVC1G11 AND -> INP.  Optional second LMV331 straight
+* on the shunt Kelvin pads at a fixed threshold hsv (V across the 1 mOhm shunt;
+* hsv=10 = not fitted), its open drain wired onto the same PEAK_OK node.
+* LMV331 delay depends on overdrive (SLCS136V 5.6/5.8, typ only): modelled as
+* t = t0 + q/Vod with an overdrive integrator; defaults fit the 2.7 V table
+* (10 mV -> 1000 ns, 100 mV -> 350 ns): q = 7.2 mV.us, t0 = 0.28 us; the 3.3 V
+* rail is faster (5 V: 600/200 ns).  tlog = latch CLR->Q + AND (~10 ns).
+* VICR is -0.1 .. VCC-0.7 V: with I_SENSE above ~2.6 V the LMV331 output goes
+* low (trips) whatever PEAK_REF is -> effective ceiling ~52 A, fail-safe.
+* vio1/vio2: comparator offsets (max 7 mV), positive = trips later.
 *   pins: shp shm (shunt sense), thr (PEAK_REF, V), en (MCU_EN AND guard, 0/1)
 *         isense (INA out), pkok (0/1), inpdrv (0/3.3 V)
 * ---------------------------------------------------------------------
-.subckt PEAKPATH shp shm thr en isense pkok inpdrv params: gain=50 tcmp=0.27u latch=1 slew=2e6
-+ wp=2.513e6 hsv=10
+.subckt PEAKPATH shp shm thr en isense pkok inpdrv params: gain=50 latch=1 slew=2e6
++ wp=1.319e6 hsv=10 q1=7.2e-9 t01=0.28u q2=7.2e-9 t02=0.28u vio1=0 vio2=0 tlog=10n vicr=2.6
 Rf1 shp fp 10
 Rf2 shm fm 10
 Cf fp fm 1n
-Btgt tgt 0 V = max(0, min(3.25, {gain}*V(fp,fm)))
+Btgt tgt 0 V = max(0, min(3.28, {gain}*V(fp,fm)))
 Bsl 0 isense I = 1n*max(-{slew}, min({slew}, (V(tgt)-V(isense))*{wp}))
 Cout isense 0 1n
 Rout isense 0 1G
-Bc cmp 0 V = 0.5*(1+tanh((V(thr)-V(isense))/1m))
+* comparator 1 (INA out vs PEAK_REF); above VICR it trips regardless of REF
+Bod1 od1 0 V = max(V(isense)-V(thr)-{vio1}, (V(isense)-{vicr})*10)
+Bx1 0 x1 I = 0.1*max(V(od1),0)*0.5*(1-tanh((V(x1)-1.5)/0.05)) - 1e-2*V(x1)*0.5*(1-tanh(V(od1)/1m))
+Cx1 x1 0 1n
+Rx1 x1 0 1G
+Bc cmp 0 V = 0.5*(1+tanh(({q1}*1e8-V(x1))/0.02))
 Rcd cmp pk1 1k
-Ccd pk1 0 {tcmp/0.693/1k}
-Bc2 cmp2 0 V = 0.5*(1+tanh(({hsv}-V(fp,fm))/0.3m))
+Ccd pk1 0 {(t01+tlog)/0.693/1k}
+* comparator 2 (shunt Kelvin pads vs fixed hsv)
+Bod2 od2 0 V = V(fp,fm)-{hsv}-{vio2}
+Bx2 0 x2 I = 0.1*max(V(od2),0)*0.5*(1-tanh((V(x2)-1.5)/0.05)) - 1e-2*V(x2)*0.5*(1-tanh(V(od2)/1m))
+Cx2 x2 0 1n
+Rx2 x2 0 1G
+Bc2 cmp2 0 V = 0.5*(1+tanh(({q2}*1e8-V(x2))/0.02))
 Rcd2 cmp2 pk2 1k
-Ccd2 pk2 0 {tcmp/0.693/1k}
+Ccd2 pk2 0 {(t02+tlog)/0.693/1k}
+* wired open drains: PEAK_OK low if either pulls low
 Bpk pkok 0 V = V(pk1)*V(pk2)
 Blat 0 lat I = 10m*0.5*(1+tanh((0.5-V(pkok))/0.02))*0.5*(1+tanh((0.95-V(lat))/0.02))
 Clat lat 0 100p
 Rlat lat 0 1G
 Band inpdrv 0 V = 3.3*min(1,max(0,V(en)))*({latch}*(1-min(1,max(0,V(lat)))) + (1-{latch})*V(pkok))
 .ends PEAKPATH
+
+* battery whose EMF ramps up over tramp from t=0 (soft start for long transients
+* that are started with uic from an all-zero state)
+.subckt BATTR p n params: ncell=6 vcell=4.2 rcell=3m lser=250n rlead=3m tramp=0.5m
+V1 x n PWL(0 0 {tramp} {ncell*vcell})
+R1 x y {ncell*rcell + rlead}
+L1 y p {lser}
+.ends BATTR

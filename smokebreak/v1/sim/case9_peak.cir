@@ -1,23 +1,26 @@
 * SmokeBreak v1 - Case 9: peak comparator timing
-* Board per src/circuit.py: 1 mOhm low-side shunt -> 10R/10R/1n -> INA240A2
-* (50 V/V, 400 kHz, 2 V/us) -> TLV7011 (260 ns) vs PEAK_REF -> SN74LVC1G74
-* latch -> 74LVC1G11 AND -> TPS48000 INP (INP->PD tpd_inp: 0.36 us typ,
-* 1.05 us max). Optional fixed hard-short comparator on the shunt (hsv).
-* TPS48000 SCP (50 A, 4 us) active too. 6S, board ON (DC op). Fault rfault
+* Board per src/circuit.py: 1 mOhm low-side shunt -> 10R/10R/1n -> INA181A2
+* (50 V/V, 210 kHz, 2 V/us) -> LMV331 (open drain, overdrive-dependent delay)
+* vs PEAK_REF -> SN74LVC1G74 CLR -> 74LVC1G11 AND -> TPS48000 INP (INP->PD
+* tpd_inp: 0.36 us typ, 1.05 us max). Optional second LMV331 on the shunt at a
+* fixed threshold hsv (+ offset vio2), wired onto PEAK_OK.
+* TPS48000 SCP (vscp, 4 us) active too. 6S, board ON (DC op). Fault rfault
 * closes at t=10 us at the drone end of the leads, where cbulk sits.
 * Run from sim/:  ngspice -b case9_peak.cir
 .include lib/smokebreak.lib
 .include lib/board.lib
 
-.param ncell=6 vcell=4.2 thr_a=20 rfault=10m cbulk=2200u tpd_inp=1.05u tstop=60u tmax=5n hsv=10
+.param ncell=6 vcell=4.2 thr_a=20 rfault=10m cbulk=2200u tpd_inp=1.05u tstop=60u tmax=5n hsv=10 vio2=0
+.param vscp=49.8m cin=1u cd=16u rd=0.33 csn=12u rsn=0.22
 .param vb={ncell*vcell}
 
 XB vin gnd BATT ncell={ncell} vcell={vcell} rcell=3m lser=250n rlead=3m
 V33 v33 gnd 3.3
-XPP vin src gate vout gnd dneg inp scp PPATH cd=4u rd=0.33 csn=4u rsn=0.47 tpd_inp={tpd_inp}
+XPP vin src gate vout gnd dneg inp scp PPATH cin={cin} cd={cd} rd={rd} csn={csn} rsn={rsn} vscp={vscp}
++ tpd_inp={tpd_inp}
 Ven en 0 1
 Vthr thr 0 {thr_a*0.05}
-XPK dneg gnd thr en isense pkok inpdrv PEAKPATH hsv={hsv}
+XPK dneg gnd thr en isense pkok inpdrv PEAKPATH hsv={hsv} vio2={vio2}
 Rinp inpdrv inp 100
 Lol vout d1 75n
 Rol d1 drn 1m
@@ -31,7 +34,8 @@ Rfl shn dnn {rfault}
 Vctl ctl 0 PWL(0 0 10u 0 10.001u 1)
 
 .nodeset v(vin)={vb} v(vout)={vb} v(drn)={vb} v(d1)={vb} v(src)={vb} v(gate)={vb+11}
-+ v(xpp.bst)={vb+11}
++ v(xpp.bst)={vb+11} v(xpp.xu1.enok)=1
+.ic v(xpk.lat)=0 v(xpp.xu1.lat)=0
 .options method=gear reltol=1e-3 abstol=1e-6 vntol=1e-4 chgtol=1e-12 itl4=300
 .tran 1n {tstop} 0 {tmax}
 .control

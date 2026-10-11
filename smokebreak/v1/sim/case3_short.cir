@@ -1,8 +1,8 @@
 * SmokeBreak v1 - Case 3: dead short (10 mOhm) at the drone while ON
 * Board per src/circuit.py: TPS48000 SCP (CS+/CS- on the low-side shunt,
-* vscp = 2 uA x RISCP + 19 mV, tSC <= 4 us), peak path INA240A2 -> TLV7011 ->
+* vscp = 2 uA x RISCP + 19 mV, tSC <= 4 us), peak path INA181A2 -> LMV331 ->
 * latch -> AND -> INP with threshold thr_a (A); thr_a=1e3 disables it; optional
-* fixed hard-short comparator on the shunt at hsv volts (hsv=10: not fitted).
+* fixed hard-short LMV331 on the shunt at hsv volts (hsv=10: not fitted).
 * Short closes at t=10 us at the drone end of 10 cm leads (150 nH + 150 nH
 * round trip), drone 2200 uF bulk at the same point.
 * Run from sim/:  ngspice -b case3_short.cir
@@ -11,7 +11,7 @@
 
 .param ncell=14 vcell=4.35 rcell=3m cin=2u cd=1p rd=1 c1=1p rz=1G csn=1p rsn=1
 .param vscp=49.8m tsc=4u tpd_inp=0.36u thr_a=60 lout=150n rshort=10m tstop=40u
-.param tvs_vbr=71.2 slew=2e6 wp=2.513e6 gain=50 hsv=10 pbv=33
+.param tvs_vbr=71.2 tvs_vrwm=58 tvs_vc=93.6 tvs_ipp=6.4 slew=2e6 wp=1.319e6 gain=50 hsv=10 pbv=33 vio2=0 vio1=0
 .param vb={ncell*vcell}
 
 XB vin gnd BATT ncell={ncell} vcell={vcell} rcell={rcell} lser=250n rlead=3m
@@ -19,6 +19,7 @@ Rg0 gnd 0 1u
 V33 v33 gnd 3.3
 XPP vin src gate vout gnd dneg inp scp PPATH cin={cin} cd={cd} rd={rd} c1={c1} rz={rz}
 + csn={csn} rsn={rsn} vscp={vscp} tsc={tsc} tpd_inp={tpd_inp} tvs_vbr={tvs_vbr}
++ tvs_vrwm={tvs_vrwm} tvs_vc={tvs_vc} tvs_ipp={tvs_ipp}
 XPR vin vout gnd preon guard PRECH
 XAX vin vout gnd aux v33 vlo AUXSENSE
 XPRB vout gnd v33 p0 p0 PROBE pbv={pbv}
@@ -27,7 +28,7 @@ Vpre preon gnd 0
 Vguard guard gnd 3.3
 Ven en 0 1
 Vthr thr 0 {thr_a*0.001*gain}
-XPK dneg gnd thr en isense pkok inpdrv PEAKPATH slew={slew} wp={wp} gain={gain} hsv={hsv}
+XPK dneg gnd thr en isense pkok inpdrv PEAKPATH slew={slew} wp={wp} gain={gain} hsv={hsv} vio1={vio1} vio2={vio2}
 Rinp inpdrv inp 100
 
 * drone: + lead, - lead, bulk and the short at the far end
@@ -43,7 +44,8 @@ Rsh shn drnn {rshort}
 Vctl ctl 0 PWL(0 0 10u 0 10.001u 1)
 
 .nodeset v(vin)={vb} v(vout)={vb} v(drn)={vb} v(d1)={vb} v(src)={vb} v(gate)={vb+11}
-+ v(xpp.bst)={vb+11}
++ v(xpp.bst)={vb+11} v(xpp.xu1.enok)=1
+.ic v(xpk.lat)=0 v(xpp.xu1.lat)=0
 .options method=gear reltol=1e-3 abstol=1e-6 vntol=1e-4 chgtol=1e-12 itl4=300
 .tran 1n {tstop} 0 5n
 .control

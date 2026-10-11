@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """SmokeBreak v1 - run every simulation case against the board in src/circuit.py
-(TPS48000, low-side shunt, INA240A2), check pass/fail, write plots and SIM.md.
+(TPS48000, low-side shunt, INA181A2 + LMV331 peak path), check pass/fail, write plots and SIM.md.
 
 Usage:  python3 run_all.py [case numbers...]      (default: all; SIM.md only on a full run)
 Exit status is non-zero if any check FAILs (or a simulation does not converge).
@@ -127,23 +127,31 @@ def pf(ok):
 # Networks under comparison (all-ceramic; effective values at 60 V DC bias)
 # ===========================================================================
 NET_ASBUILT = dict(cin="2u", cd="1p", rd=1, csn="1p", rsn=1)                 # circuit.py today
-NET_REC = dict(cin="2u", cd="4u", rd=0.33, csn="4u", rsn=0.47)               # recommended
-NET_NOQ3 = dict(cin="0.1u", cd="8u", rd=0.47, csn="4u", rsn=0.47)            # best without Q3
-HSV_REC = 0.080        # hard-short comparator threshold on the 1 mOhm shunt (80 A)
-NETS = {"as built (2 x 2.2 uF, no snubber)": NET_ASBUILT,
-        "recommended (2.2 uF x2 + 4 uF/0.33 Ohm damper, 4 uF/0.47 Ohm snubber)": NET_REC,
-        "no-Q3 variant (0.1 uF + 8 uF/0.47 Ohm damper, 4 uF/0.47 Ohm snubber)": NET_NOQ3}
-COST = {"as built (2 x 2.2 uF, no snubber)": "$0 (reference)",
-        "recommended (2.2 uF x2 + 4 uF/0.33 Ohm damper, 4 uF/0.47 Ohm snubber)":
-            "≈ $0.36: 4 × 4.7 µF/100 V X7S 1210 (~$0.08) + 2 × 1206 R",
-        "no-Q3 variant (0.1 uF + 8 uF/0.47 Ohm damper, 4 uF/0.47 Ohm snubber)":
-            "≈ $0.42: 6 × 4.7 µF/100 V X7S 1210 replacing the 2 × 2.2 µF + 2 R"}
+NET_REC = dict(cin="1u", cd="16u", rd=0.33, csn="12u", rsn=0.22)             # recommended, no Q11
+NET_Q11 = dict(cin="2u", cd="4u", rd=0.33, csn="4u", rsn=0.47)               # previous rec, needs Q11 >= 11S
+NET_NOQ3 = dict(cin="0.1u", cd="8u", rd=0.47, csn="4u", rsn=0.47)            # first no-Q11 try (fails case 3)
+HSV_REC = 0.065        # hard-short LMV331 threshold on the 1 mOhm shunt (65 A, 58-72 A with 7 mV offset)
+HSV_ALT = 0.080        # the coordinator's 80 mV
+VIO_WORST = "7m"       # LMV331 max offset, applied so the hard-short trips late
+PEAK_MAX = 50          # firmware cap on the programmable peak setting (LMV331 VICR ceiling ~52 A)
+RISCP_REC = 40.2e3     # TPS48000 SCP: V = 2 uA x RISCP + 19 mV -> 99.4 mV = 99 A on 1 mOhm
+VSCP_REC = "%.4f" % (2e-6 * RISCP_REC + 0.019)
+K_REC = "recommended, no Q11 (1 µF + 16 µF/0.33 Ω damper, 12 µF/0.22 Ω snubber)"
+K_Q11 = "Q11 alternative network (2 × 2.2 µF + 4 µF/0.33 Ω damper, 4 µF/0.47 Ω snubber)"
+K_NOQ3 = "first no-Q11 try (0.1 µF + 8 µF/0.47 Ω damper, 4 µF/0.47 Ω snubber)"
+NETS = {"as built (2 × 2.2 µF, no snubber)": NET_ASBUILT, K_REC: NET_REC, K_Q11: NET_Q11, K_NOQ3: NET_NOQ3}
+COST = {"as built (2 × 2.2 µF, no snubber)": "$0 (reference)",
+        K_REC: "≈ $1.10: 14 × 4.7 µF/100 V X7S 1210 (~$0.08) + 0.33 Ω and 0.22 Ω 1206; "
+               "one of the two existing 2.2 µF removed; no Q11",
+        K_Q11: "≈ $0.36 for the caps + Q11 (≈ $1, 4 mΩ-class 100 V FET, plus its I²R loss) ≈ $1.40",
+        K_NOQ3: "≈ $0.42 (fails the 10S/14S short, case 3)"}
 
 
 # ===========================================================================
 # Case 1 - pre-charge (RPRE = 2 x 3.9 Ohm AC05), main close, part stress
 # ===========================================================================
 RPRE_ASKED = 7.8
+GAP_MAX = 12.0        # firmware: never close the main switch across more than this (BSC040N10NS5 SOA)
 
 
 def c1_run(tag, ncell, vcell, rpre, cload, pvtx, tmain=2.0, tpoff=2.0, c1="1p", rpu=47,
@@ -156,7 +164,8 @@ def c1_run(tag, ncell, vcell, rpre, cload, pvtx, tmain=2.0, tpoff=2.0, c1="1p", 
 def pc_metrics(d):
     t, vin, vout = d["time"], d["vvin"], d["vvout"]
     r = vout / np.maximum(vin, 1e-3)
-    t75 = first_cross(t, r, 0.75)
+    t75 = first_cross(t, r, 0.75, t0=1e-3)
+    t75 = (t75 - 1e-3) if t75 is not None else None      # pre-charge starts at 1 ms
     vfin = vout[-1]
     far = np.nonzero(np.abs(vout - vfin) > 0.01 * vfin + 0.05)[0]
     tset = float(t[far[-1]]) if len(far) else 0.0
@@ -273,24 +282,33 @@ def case1():
                 bj[(f"{n}S @ {vc}", "3.9 Ω tap")] = POOL.submit(c1_seq, f"c1t_{n}_{vc}", n, vc, 3.9, 2200e-6, 10, gv)
     bres = {k: f.result() for k, f in bj.items()}
     rows, ok78, oktap = [], True, True
+    refused = []
     for (pk, var), r in bres.items():
         good = r["closed"] and r["soa"] <= 1
+        if not good and r["gap"] > GAP_MAX:
+            refused.append(f"{pk} ({var}, gap {r['gap']:.1f} V)")
+            good = None
         if var == "7.8 Ω":
-            ok78 &= good
+            ok78 &= good is not False
         else:
-            oktap &= good
+            oktap &= good is not False
         st = ("75 %% at %.0f ms" % (r["m"]["t75"] * 1e3)) if r["m"]["t75"] else "stall %.1f V" % r["m"]["vfin"]
         rows.append([pk, var, st, "%.1f V" % r["gap"], ("%.0f ms" % (r["tclose"] * 1e3)) if r["closed"] else "no",
-                     "%.0f W" % r["pq1"], "%.2f J" % r["eq1"], "%.0f %%" % (100 * r["soa"]), pf(good)])
-    REP.check(1, "(b) 2S-7S, 2200 µF + 10 W VTX: pre-charge with 2 × 3.9 Ω then close within SOA", ok78,
-              "VTX trapped at its 6 V UVLO leaves a gap the BSC040N10NS5 cannot close inside its SOA" if not ok78 else "")
+                     "%.0f W" % r["pq1"], "%.2f J" % r["eq1"], "%.0f %%" % (100 * r["soa"]),
+                     "refused (gap > %g V)" % GAP_MAX if good is None else pf(good)])
+    REP.check(1, f"(b) 2S-7S, 2200 µF + 10 W VTX, 2 × 3.9 Ω: every close within SOA, or refused by firmware when the "
+                 f"gap > {GAP_MAX:g} V", ok78)
+    r78 = [x for x in refused if "7.8" in x]
+    REP.note(1, "(b) every 2S-7S drone with a 10 W VTX can be powered with 2 × 3.9 Ω", not r78,
+             "refused: " + "; ".join(r78) if r78 else "")
+    DESIGN["refused"] = r78
     REP.note(1, "(b) 2S-7S with a 3.9 Ω tap (second pre-charge switch at the AC05 mid-point)", oktap, "")
     L.append("\n2S-7S with 2200 µF + 10 W VTX (+1 W FC), chosen gate network; '3.9 Ω tap' = a second "
              "pre-charge P-FET feeding the mid-point of the two AC05s for ≤ 7S:\n")
     L.append(table(["pack", "RPRE", "pre-charge", "gap at close", "closed", "Q1 peak P", "E(Q1)",
                     "% of derated SOA", "result"], rows))
 
-    # ---------------- (c) energy per resistor, Q3, D3 ----------------
+    # ---------------- (c) energy per resistor, Q3 (pre-charge FET), D3 ----------------
     cj = {"14S LiHV, 2200 µF, 15 W": (14, 4.35, 2200e-6, 15), "6S LiHV, 5000 µF, 10 W": (6, 4.35, 5000e-6, 10),
           "14S LiHV, 5000 µF, 15 W (worst)": (14, 4.35, 5000e-6, 15)}
     qpalt = dict(qp_rd=0.03, qp_kp=25)
@@ -335,8 +353,10 @@ def case1():
              f"D3 SS2H10: ∫I²dt ≤ {d3i2t:.2f} A²s against ≈ 10 A²s for its 50 A/8.3 ms IFSM — adequate.\n")
     REP.check(1, "(c) normal attempt ≤ 12 J (6 J per AC05 3.9 Ω, ~55 % of its pulse rating)", emax <= 12.0,
               "max %.1f J" % emax)
-    REP.check(1, "(c) Q3 DMP10H400SE within 50 % of its SOA during pre-charge", qpw <= 1,
-              "%.0f %% of derated SOA" % (100 * qpw))
+    REP.note(1, "(c) Q3 DMP10H400SE (as built) within 50 % of its SOA during pre-charge", qpw <= 1,
+             "%.0f %% of derated SOA" % (100 * qpw))
+    REP.check(1, "(c) pre-charge FET, recommended ≤ 50 mΩ class (DMP10H400SE SOA limits applied), within 50 %",
+              qalt <= 1, "%.0f %%" % (100 * qalt))
     DESIGN["qp_ok"] = qpw <= 1
     DESIGN["qp_pct"] = qpw
     DESIGN["qp_alt_pct"] = qalt
@@ -388,54 +408,59 @@ def case2():
          "< 90 V. Reversed: the TPS48000 tolerates −65 V on VS, SRC, CS± and PU/PD/BST (datasheet "
          "SLUSEZ1B §5.1, verified), and SRC follows VIN through Q1's body diode and *holds* the most "
          "negative value (body diode = peak detector). Static reversed 14S LiHV puts SRC at −60.2 V "
-         "(4.8 V margin); the plug-in ring must stay inside that. TVS SMBJ58CA modelled at its max "
-         "breakdown (71.2 V) for clamping.\n"]
-    variants = {}
-    for nk, nv in NETS.items():
-        variants[nk] = dict(nv)
-    variants["recommended + Q3 (B− reverse FET)"] = dict(NET_REC, q3byp="1G")
+         "(4.8 V margin); the plug-in ring must stay inside that. The recommended network is also run "
+         "with its damper capacitance −20 % and the direct capacitance +20 % (X7S bias/tolerance). "
+         "TVS SMBJ58CA modelled at its max breakdown (71.2 V) for clamping.\n"]
+    variants = {k: dict(v) for k, v in NETS.items()}
+    variants[K_REC + ", tolerance: damper C −20 %, direct C +20 %"] = dict(NET_REC, cin="1.2u", cd="12.8u")
+    variants[K_Q11 + " + Q11"] = dict(NET_Q11, q3byp="1G")
     jobs = {}
     for vk, vv in variants.items():
-        p = {k: v for k, v in vv.items()}
-        jobs[(vk, "+")] = POOL.submit(run, "case2_hotplug.cir", f"c2p_{len(jobs)}", dict(p, vcell=4.35))
-        jobs[(vk, "-")] = POOL.submit(run, "case2_hotplug.cir", f"c2n_{len(jobs)}", dict(p, vcell=-4.35))
-    res = {k: c2m(f.result()) for k, f in jobs.items()}
+        jobs[(vk, "+")] = POOL.submit(run, "case2_hotplug.cir", f"c2p_{len(jobs)}", dict(vv, vcell=4.35))
+        jobs[(vk, "-")] = POOL.submit(run, "case2_hotplug.cir", f"c2n_{len(jobs)}", dict(vv, vcell=-4.35))
     dat = {k: f.result() for k, f in jobs.items()}
-    rows = []
+    res = {k: c2m(d) for k, d in dat.items()}
+    rows, recok = [], True
     for vk in variants:
         a, b = res[(vk, "+")], res[(vk, "-")]
         q3 = "q3byp" in variants[vk]
         okf = a["vin"] < 90 and a["vs"] < 90
         okr = (b["srcm"] >= -65 and b["vsm"] >= -65) and (not q3 or b["iq3"] < BSC_IAS)
-        rows.append([vk, "%.1f V" % a["vin"], "%.1f V" % a["vs"], pf(okf), "%.1f V" % b["vinm"], "%.1f V" % b["srcm"],
-                     "%.1f V" % b["vsm"], ("Q3 %.0f V / %.0f A" % (b["q3"], b["iq3"])) if q3 else "-", pf(okr)])
+        rows.append([vk, COST.get(vk, ""), "%.1f V" % a["vin"], "%.1f V" % a["vs"], pf(okf), "%.1f V" % b["vinm"],
+                     "%.1f V" % b["srcm"], "%.1f V" % b["vsm"],
+                     ("Q11 %.0f V / %.0f A" % (b["q3"], b["iq3"])) if q3 else "-", pf(okr)])
         if vk.startswith("as built"):
             REP.note(2, "as built: forward hot plug < 90 V", okf, "%.0f V" % a["vin"])
             REP.note(2, "as built: reversed hot plug keeps SRC/VS ≥ −65 V", okr, "SRC %.0f V" % b["srcm"])
-        if vk.startswith("recommended +"):
-            REP.check(2, "recommended + Q3: forward hot plug < 90 V", okf, "%.1f V" % a["vin"])
-            REP.check(2, "recommended + Q3: reversed hot plug harmless (SRC/VS ≥ −65 V, Q3 avalanche < IAS 50 A)",
-                      okr, "Q3 %.0f A" % b["iq3"])
-        if vk.startswith("no-Q3"):
-            REP.note(2, "no-Q3 variant: forward and reversed hot plug", okf and okr, "SRC %.1f V" % b["srcm"])
-    L.append(table(["input network", "fwd VIN peak", "fwd VS peak", "fwd", "rev VIN min", "rev SRC min",
-                    "rev VS min", "Q3 stress", "rev"], rows))
-    # without Q3: highest reversed cell count the recommended network survives
+        elif vk.startswith("recommended"):
+            recok &= okf and okr
+        elif vk.endswith("+ Q11"):
+            REP.note(2, "Q11 alternative: forward and reversed hot plug", okf and okr, "Q11 %.0f A" % b["iq3"])
+        elif vk == K_NOQ3:
+            REP.note(2, "first no-Q11 try: forward and reversed hot plug", okf and okr, "SRC %.1f V" % b["srcm"])
+    rr = res[(K_REC, "-")]
+    rt = res[(K_REC + ", tolerance: damper C −20 %, direct C +20 %", "-")]
+    REP.check(2, "recommended (no Q11): forward 14S LiHV hot plug < 90 V, reversed keeps SRC/VS ≥ −65 V, "
+                 "also at −20 %/+20 % capacitance", recok, "SRC %.1f V (tol. %.1f V)" % (rr["srcm"], rt["srcm"]))
+    DESIGN["rev_rec"] = (rr["srcm"], rt["srcm"])
+    L.append(table(["input network", "cost", "fwd VIN peak", "fwd VS peak", "fwd", "rev VIN min", "rev SRC min",
+                    "rev VS min", "Q11 stress", "rev"], rows))
     nmax = {}
-    for nk in ("recommended (2.2 uF x2 + 4 uF/0.33 Ohm damper, 4 uF/0.47 Ohm snubber)",
-               "as built (2 x 2.2 uF, no snubber)"):
-        fs = {n: POOL.submit(run, "case2_hotplug.cir", f"c2r_{nk[:3]}_{n}", dict(NETS[nk], ncell=n, vcell=-4.35))
+    for ni, nk in enumerate((K_Q11, "as built (2 × 2.2 µF, no snubber)")):
+        fs = {n: POOL.submit(run, "case2_hotplug.cir", f"c2r_{ni}_{n}", dict(NETS[nk], ncell=n, vcell=-4.35))
               for n in range(6, 15)}
         okn = [n for n, f in fs.items() if c2m(f.result())["srcm"] >= -65]
         nmax[nk] = max(okn) if okn else 0
-    L.append("\nWithout Q3, the reversed hot plug stays inside −65 V up to "
-             + ", ".join(f"**{v}S LiHV** ({k.split(' (')[0]})" for k, v in nmax.items()) + ".\n")
+    L.append("\nWithout Q11, a reversed hot plug stays inside −65 V up to "
+             + ", ".join(f"**{v}S LiHV** ({k.split(' (')[0]})" for k, v in nmax.items())
+             + "; the recommended network covers 14S.\n")
     DESIGN["rev_nmax_noq3"] = nmax
-    L.append("Only a heavily damped input (≤ 0.1 µF directly on VIN, the rest behind ≈ 0.5 Ω) keeps a "
-             "reversed 14S LiHV plug-in inside −65 V without Q3 — and that network cannot absorb the "
-             "short-circuit turn-off energy (case 3). The two needs conflict; Q3 resolves it: a reversed "
-             "pack then never reaches the board (Q3 body diode blocks; the plug-in ring avalanches Q3 "
-             "briefly at < 30 A, inside its 50 A IAS — a 120-150 V part removes even that).\n")
+    L.append("The reversed plug wants little capacitance directly on VIN and the rest behind a resistor; the "
+             "short (case 3) wants low-impedance capacitance to absorb the battery lead's current at turn-off. "
+             "The first no-Q11 try (0.1 µF direct, 8 µF/0.47 Ω) met the first need and failed the second. "
+             "The recommended network meets both by making the damper big (16 µF, so its R can be 0.33 Ω), "
+             "keeping 1 µF direct, and moving the rest of the short-circuit absorption to a stronger output "
+             "snubber (12 µF/0.22 Ω), which the reversed input plug never sees. Q11 is therefore not needed.\n")
     fig, ax = plt.subplots(1, 2, figsize=(12, 3.8))
     for j, vk in enumerate(variants):
         d = dat[(vk, "+")]
@@ -446,8 +471,8 @@ def case2():
     ax[1].axhline(-65, color=C[7], ls="--", lw=1)
     ax[0].set(title="Forward 14S LiHV plug-in: VIN (Q1 drain)", xlabel="µs", ylabel="V", xlim=(-0.5, 20))
     ax[1].set(title="Reversed 14S LiHV plug-in: TPS48000 SRC", xlabel="µs", ylabel="V", xlim=(-0.5, 20))
-    ax[0].legend(fontsize=7, loc="lower right")
-    ax[1].legend(fontsize=7, loc="upper right")
+    ax[0].legend(fontsize=6, loc="lower right")
+    ax[1].legend(fontsize=6, loc="upper right")
     fig.tight_layout()
     savefig(fig, "case2_hotplug.png")
     return "\n".join(L)
@@ -476,48 +501,59 @@ def c3ok(m, prb_rating):
 
 
 def case3():
-    rec = dict(NET_REC, hsv=HSV_REC, pbv=160, c1=GATES[DESIGN.get("gate", "R1 100 kΩ + C1 47 nF")]["c1"], rz="1m")
+    rec = dict(NET_REC, hsv=HSV_REC, vio2=VIO_WORST, pbv=160, rz="1m", vscp=VSCP_REC,
+               c1=GATES[DESIGN.get("gate", "R1 100 kΩ + C1 22 nF")]["c1"])
     variants = {"as built": dict(NET_ASBUILT, hsv=10, pbv=33),
                 "recommended": rec,
-                "recommended without the hard-short comparator": dict(rec, hsv=10),
-                "recommended network, no Q3 variant input": dict(rec, cin="0.1u", cd="8u", rd=0.47)}
+                "recommended, hard-short at 80 mV": dict(rec, hsv=HSV_ALT),
+                "first no-Q11 try (0.1 µF + 8 µF/0.47 Ω, 4 µF/0.47 Ω), hard-short 80 mV": dict(rec, hsv=HSV_ALT, **NET_NOQ3),
+                "Q11 alternative network, hard-short 80 mV": dict(rec, hsv=HSV_ALT, **NET_Q11)}
     jobs = {}
     for vk, vv in variants.items():
         for n in (1, 6, 10, 14):
             for tp in ("0.36u", "1.05u"):
                 jobs[(vk, n, tp)] = POOL.submit(run, "case3_short.cir", f"c3_{len(jobs)}",
-                                                dict(vv, ncell=n, tpd_inp=tp, thr_a=60))
-    jobs[("recommended, SCP only (comparators dead)", 14, "1.05u")] = POOL.submit(
-        run, "case3_short.cir", "c3_scponly", dict(rec, hsv=10, thr_a=1e3, ncell=14, tpd_inp="1.05u"))
-    jobs[("recommended, 15 mΩ/cell pack", 14, "1.05u")] = POOL.submit(
-        run, "case3_short.cir", "c3_worn", dict(rec, rcell="15m", ncell=14, tpd_inp="1.05u", thr_a=60))
-    jobs[("recommended, 300 nH drone leads", 14, "1.05u")] = POOL.submit(
-        run, "case3_short.cir", "c3_long", dict(rec, lout="300n", ncell=14, tpd_inp="1.05u", thr_a=60))
+                                                dict(vv, ncell=n, tpd_inp=tp, thr_a=PEAK_MAX))
+    extra = {"recommended, SCP only (comparators dead)": dict(rec, hsv=10, thr_a=1e3),
+             "recommended without the hard-short comparator": dict(rec, hsv=10, thr_a=PEAK_MAX),
+             "recommended, 15 mΩ/cell pack": dict(rec, rcell="15m", thr_a=PEAK_MAX),
+             "recommended, 300 nH drone leads": dict(rec, lout="300n", thr_a=PEAK_MAX),
+             "recommended, 300 nH drone leads, hard-short at 80 mV": dict(rec, lout="300n", hsv=HSV_ALT, thr_a=PEAK_MAX)}
+    for i, (k, v) in enumerate(extra.items()):
+        jobs[(k, 14, "1.05u")] = POOL.submit(run, "case3_short.cir", f"c3x_{i}", dict(v, ncell=14, tpd_inp="1.05u"))
     res = {k: f.result() for k, f in jobs.items()}
-    rows, recok = [], True
+    rows, recok, okv = [], True, {}
     for (vk, n, tp), d in res.items():
         m = c3m(d)
         rating = 30 if vk == "as built" else 150
         ok = c3ok(m, rating)
-        if vk == "recommended" or vk.startswith("recommended,") and "SCP only" not in vk:
+        okv.setdefault(vk, []).append(ok)
+        if vk.startswith("recommended") and "SCP only" not in vk and "without the hard-short" not in vk:
             recok &= ok
         rows.append([vk, f"{n}S", tp.replace("u", " µs"), "%.0f A" % m["ipk"],
                      "%.2f µs" % (m["tcut"] * 1e6) if m["tcut"] else "-", "%.1f V" % m["vds1"],
                      ("%.0f A" % m["aval"]) if m["aval"] else "-", "%.1f V" % m["vin"], "%.1f V" % m["src"],
                      "%.1f V" % m["vgs"], "%.1f V (%d V part)" % (m["prb"], rating), "%.1f mJ" % (1e3 * m["eq1"]), pf(ok)])
-    REP.check(3, "recommended: 1S/6S/10S/14S short, INP delay typ and max: no avalanche, SRC ≥ −65 V, "
-                 "Vgs < 19 V, probe switch inside rating", recok)
-    asb = [c3ok(c3m(d), 30) for (vk, n, tp), d in res.items() if vk == "as built"]
-    REP.note(3, "as built survives the short at 1S-14S", all(asb), "%d of %d cases fail" % (asb.count(False), len(asb)))
-    so = c3m(res[("recommended, SCP only (comparators dead)", 14, "1.05u")])
-    REP.note(3, "SCP alone (both comparators failed) at 14S", c3ok(so, 150),
-             "peak %.0f A, Q1 avalanche %.0f A" % (so["ipk"], so["aval"]))
+    REP.check(3, "recommended (no Q11, hard-short LMV331 at 65 mV and at 80 mV, 7 mV late offset): 1S/6S/10S/14S "
+                 "short, INP delay typ and max, worn pack, 300 nH leads: no avalanche, SRC ≥ −65 V, Vgs < 19 V, "
+                 "probe switch inside rating", recok)
+    for vk in variants:
+        if vk not in ("recommended", "recommended, hard-short at 80 mV"):
+            REP.note(3, f"{vk} survives the short at 1S-14S", all(okv[vk]),
+                     "%d of %d cases fail" % (okv[vk].count(False), len(okv[vk])))
+    for k in ("recommended without the hard-short comparator", "recommended, SCP only (comparators dead)"):
+        m = c3m(res[(k, 14, "1.05u")])
+        REP.note(3, f"{k}, 14S", c3ok(m, 150), "peak %.0f A, Q1 avalanche %.0f A" % (m["ipk"], m["aval"]))
     L = ["Board ON (gate 11 V above source). At t = 0 a 10 mΩ short closes at the drone end of 10 cm "
          "leads (150 nH round trip; drone 2200 µF/30 mΩ bulk at the same point); battery lead 250 nH. "
-         "Trip paths: TPS48000 SCP at 49.8 mV on the low-side shunt (RISCP 15.4 kΩ → 50 A; tSC ≤ 4 µs "
-         "with TMR open), the programmable peak path (INA240A2 → TLV7011 → latch → AND → INP) at its "
-         "highest setting (60 A; the INA240A2 saturates at ≈ 64 A), and — recommended — a second "
-         "TLV7011 straight on the shunt's Kelvin pads at a fixed 80 mV (no INA240 slew in the path). "
+         "Trip paths: TPS48000 SCP (as built RISCP 15.4 kΩ → 49.8 mV = 50 A; recommended 40.2 kΩ → "
+         "99 mV = 99 A, ≥ 78 A at the datasheet's ±22 %, so it never pre-empts the peak setting; tSC "
+         "≤ 4 µs with TMR open); the programmable peak path (INA181A2 → LMV331 → PEAK_OK → latch CLR → "
+         f"AND → INP) at its highest setting ({PEAK_MAX} A); and, recommended, a second LMV331 straight on "
+         "the shunt's Kelvin pads at a fixed threshold, its open drain wired onto PEAK_OK. Both LMV331s "
+         "use the overdrive-dependent delay of the datasheet's 2.7 V table (10 mV → 1000 ns, 100 mV → "
+         "350 ns; 5 V is faster), + 10 ns for the latch and AND, and the hard-short one gets its maximum "
+         "7 mV offset in the late direction (65 mV → trips at 72 A, 80 mV → 87 A). "
          "INP → PD 0.36 µs typ / 1.05 µs max.\n",
          "Pass: Q1/Q2 never reach their 100 V breakdown (the BSC040N10NS5's avalanche current rating is "
          "only 50 A, so avalanche at hundreds of amps is not allowed), VS < 100 V, SRC ≥ −65 V, Vgs "
@@ -525,27 +561,40 @@ def case3():
          "as built; 150 V recommended).\n",
          table(["variant", "pack", "INP→PD", "peak I", "cut-off", "Q1 Vds peak", "avalanche I", "VIN peak",
                 "SRC min", "Vgs peak", "probe switch Vds", "E(Q1)", "result"], rows),
-         "\n**Why the hard-short comparator:** the TPS48000's own SCP needs up to 4 µs; the programmable "
-         "path waits for the INA240 to slew to its threshold (2 V/µs → 1.5 µs at 60 A). At 14S the current "
-         "rises at ≈ 150 A/µs through 400 nH, so every µs costs ≈ 150 A and the inductive energy grows "
-         "with I². A fixed 80 mV comparator on the shunt (≈ $0.15) cuts the 14S peak from ≈ 290 A to "
-         "≈ 180 A, which the small damper and snubber can absorb; without it the same network lets Q1 "
-         "avalanche at 14S.\n",
+         "\n**The first no-Q11 try fails.** With 0.1 µF direct and the damper behind 0.47 Ω, the battery "
+         "lead's ≈ 200 A has nowhere low-impedance to go at turn-off: VIN rises to ≈ 90 V while the drone "
+         "side pulls SRC to −30…−40 V, and Q1 avalanches at 10S and 14S at the maximum INP delay "
+         "(≈ 80-130 A, IAS is 50 A).\n",
+         "**What fixes it without Q11:** 1 µF directly on VIN (the most the reversed plug tolerates "
+         "with tolerance margin), a 16 µF damper (big enough that 0.33 Ω still damps the hot plug), and "
+         "a stronger output snubber, 12 µF/0.22 Ω. The snubber holds VOUT, and with it SRC, up during the "
+         "cut (SRC ≈ −15 V instead of −35…−55 V), which takes 15-20 V off Q1's Vds. A swept set of "
+         "≈ 150 networks is summarised in SIM.md finding 2.\n",
+         "**Hard-short comparator:** the TPS48000's own SCP needs up to 4 µs; the programmable path "
+         "waits for the INA181A2 to slew (2 V/µs) and the LMV331 is slow at small overdrive. At 14S the "
+         "current rises at ≈ 150 A/µs, so every µs costs ≈ 150 A. 65 mV is the lowest threshold that "
+         f"stays above the {PEAK_MAX} A peak cap with the LMV331's 7 mV offset; 80 mV also passes with the "
+         "recommended network (less margin, see the 300 nH lead row).\n",
          "**Output snubber:** still needed even though SRC may now go to −65 V. Without it the drone side "
          "swings to −70…−100 V after the cut, which drags SRC below −65 V and puts VIN − VOUT across Q1 "
          "(avalanche). It also damps the drone-side hot plug (case 5). The probe's AO3401A (30 V) sees "
-         "the negative VOUT through D4 and breaks down in every case — replace with a 150 V PNP "
+         "the negative VOUT through D4 and breaks down — replace it with a 150 V PNP "
          "(MMBT5401) or a ≥ 100 V P-FET.\n"]
-    DESIGN["snub"] = "4 µF effective (2 × 4.7 µF/100 V X7S 1210) + 0.47 Ω, VOUT → DRONE_NEG"
-    DESIGN["damper"] = "keep 2 × 2.2 µF direct; add 4 µF effective (2 × 4.7 µF/100 V X7S 1210) + 0.33 Ω to GND"
+    DESIGN["snub"] = "12 µF effective (6 × 4.7 µF/100 V X7S 1210) + 0.22 Ω, VOUT → DRONE_NEG"
+    DESIGN["damper"] = ("1 µF effective direct on VIN (one 2.2 µF/100 V; remove the second); "
+                        "16 µF effective (8 × 4.7 µF/100 V X7S 1210) + 0.33 Ω to GND")
     d = res[("recommended", 14, "1.05u")]
     d0 = res[("as built", 14, "1.05u")]
     tt, t0 = (d["time"] - 10e-6) * 1e6, (d0["time"] - 10e-6) * 1e6
     fig, ax = plt.subplots(1, 3, figsize=(14, 3.8))
     ax[0].plot(t0, d0["iq1"], color=C[1], label="as built")
     ax[0].plot(tt, d["iq1"], color=C[0], label="recommended")
+    d1 = res[("first no-Q11 try (0.1 µF + 8 µF/0.47 Ω, 4 µF/0.47 Ω), hard-short 80 mV", 14, "1.05u")]
+    t1 = (d1["time"] - 10e-6) * 1e6
+    ax[0].plot(t1, d1["iq1"], color=C[2], label="first no-Q11 try")
     ax[1].plot(t0, d0["vds1"], color=C[1], label="as built")
     ax[1].plot(tt, d["vds1"], color=C[0], label="recommended")
+    ax[1].plot(t1, d1["vds1"], color=C[2], label="first no-Q11 try")
     ax[1].axhline(100, color=C[7], ls="--", lw=1)
     for j, (nm, lab) in enumerate([("vvin", "VIN"), ("vvout", "VOUT"), ("vsrc", "SRC"), ("vgs", "Vgs")]):
         ax[2].plot(tt, d[nm], color=C[j], label=lab)
@@ -565,7 +614,7 @@ def case3():
 # ===========================================================================
 VARIANTS = {"as built": dict(q3byp="1m", dbyp="1m", pbv=33),
             "+Dser (1N4148WS in the 47k leg), 150 V probe switch": dict(q3byp="1m", dbyp="1G", pbv=160),
-            "+Q3 (B− reverse FET)": dict(q3byp="1G", dbyp="1G", pbv=160)}
+            "+Q11 (new B− reverse FET)": dict(q3byp="1G", dbyp="1G", pbv=160)}
 REC_VAR = "+Dser (1N4148WS in the 47k leg), 150 V probe switch"
 PATHS = [("i_bat_in", "input pack, total"), ("i_bat_out", "drone-side pack, total"), ("i_q1", "Q1"),
          ("i_q2", "Q2"), ("i_tvs", "TVS D1"), ("i_pre", "RPRE"), ("i_q4c", "Q4 (BC817) collector leg"),
@@ -589,7 +638,7 @@ def fmt_i(x):
 
 def miswire(scen, params, case, exclude=(), extra=None, variants=VARIANTS):
     sid = "".join(ch for ch in scen if ch.isalnum())[:24]
-    fut = {v: POOL.submit(run, "case4_miswire.cir", f"c{case}_{sid}_{i}", dict(params, **vp))
+    fut = {v: POOL.submit(S.run_last, "case4_miswire.cir", f"c{case}_{sid}_{i}", dict(params, **vp))
            for i, (v, vp) in enumerate(variants.items())}
     res = {v: {k: float(a[0]) for k, a in f.result().items()} for v, f in fut.items()}
     rows, oks = [], {}
@@ -617,7 +666,7 @@ def case4():
     L = ["Reversed pack on the input, everything off (rails dead; MCU and hall pins modelled as ESD "
          "diodes). DC steady state. TPS48000 limits verified in its datasheet (SLUSEZ1B §5.1): VS, CS±, "
          "SRC to GND −65 V; PU/PD/BST to GND −65 V; EN/UVLO, OV, INP, CS_SEL between V(VS) and V(VS) + "
-         "70 V when VS < 0; I(REV) 22 µA typ. INA240 now sits on the low-side shunt (common mode ≈ 0 V). "
+         "70 V when VS < 0; I(REV) 22 µA typ. The INA181A2 (abs max −0.3…26 V common mode) sits on the low-side shunt, so its inputs stay ≈ 0 V. "
          "Pass: every path < 1 mA, SRC/VS ≥ −65 V.\n"]
     allrec = True
     pdata = []
@@ -630,7 +679,7 @@ def case4():
         allrec &= oks[REC_VAR]
         REP.note(4, f"{scen}: as built", oks["as built"],
                  "Q4 leg %s, PRE_ON pin %s" % (fmt_i(res["as built"]["i_q4c"]), fmt_i(res["as built"]["i_pin_pre"])))
-    REP.check(4, "reversed input (static): all paths < 1 mA, TPS48000 inside −65 V, with Dser (no Q3 needed)", allrec)
+    REP.check(4, "reversed input (static): all paths < 1 mA, TPS48000 inside −65 V, with Dser (no B− FET needed)", allrec)
     # normal idle stress on BC817
     tb, oks, res = miswire("14S LiHV, correct polarity, board idle", dict(nin=14, vin_c=4.35, pon=1), 4,
                            exclude=("i_bat_in", "i_auxin", "i_pin_guard", "i_q4c"),
@@ -645,7 +694,7 @@ def case4():
              "1N4148WS in series with the 47 kΩ leg (anode at R47, cathode at Q4's collector) blocks it. "
              f"In normal use Q4 holds the full pack voltage: **{vce:.1f} V across a 45 V BC817** at 14S — "
              "use a ≥ 100 V NPN (MMBTA42 300 V or MMBT5551 160 V) for Q4. Static reverse polarity is then "
-             "fine without Q3; the dynamic case (plug-in ring) is case 2.\n")
+             "fine without a B− FET; the dynamic case (plug-in ring) is case 2.\n")
     DESIGN["q4"] = "Q4 → MMBTA42 / MMBT5551 (≥ 160 V) + 1N4148WS in series with the 47 kΩ leg"
     plot_miswire(4, pdata, "Case 4: reversed pack on the input")
     return "\n".join(L)
@@ -658,7 +707,7 @@ def plot_miswire(case, data, title):
     for i, (scen, res, excl) in enumerate(data):
         for j, v in enumerate(vars_):
             r = res[v]
-            worst = max(abs(r[k]) for k, _ in PATHS if k not in excl)
+            worst = max([abs(r[k]) for k, _ in PATHS if k not in excl], default=1e-9)
             y = i + (j - (len(vars_) - 1) / 2) * h
             ax[0].barh(y, max(worst, 1e-9), h * 0.9, color=C[j], label=v if i == 0 else None)
             ax[1].barh(y, r["v_src"], h * 0.9, color=C[j])
@@ -699,10 +748,10 @@ def case5():
     plot_miswire(5, pdata, "Case 5: pack on the drone side (static)")
     # transient: plug-in at the drone connector
     rows, tok = [], True
-    for nk, nv in (("as built", dict(csn="1p", pbv=33)), ("recommended snubber 4 µF/0.47 Ω, 150 V probe",
-                                                          dict(csn="4u", rsn=0.47, pbv=160))):
+    for nk, nv in (("as built", dict(csn="1p", pbv=33)), ("recommended snubber 12 µF/0.22 Ω, 150 V probe",
+                                                          dict(NET_REC, pbv=160))):
         for pol, vc in (("correct", 4.35), ("reversed", -4.35)):
-            d = run("case5_droneplug.cir", f"c5t_{nk[:3]}_{pol}", dict(nv, vcell=vc))
+            d = run("case5_droneplug.cir", f"c5t_{len(rows)}_{pol}", dict(nv, vcell=vc))
             vmax, vmin, srcm, prb = d["vvoutdneg"].max(), d["vvoutdneg"].min(), d["vsrc"].min(), d["vprobe"].max()
             rating = 30 if nv["pbv"] == 33 else 150
             ok = vmax < 90 and srcm >= -65 and prb < rating
@@ -713,7 +762,7 @@ def case5():
     L += ["\n**Plug-in transient at the drone connector (14S LiHV, 150 nH lead, input open)**\n",
           table(["network", "polarity", "VOUT peak", "VOUT min", "SRC min", "probe switch Vds", "result"], rows),
           "\nAs built (100 nF only on VOUT) the plug-in rings to ≈ ±100 V: Q2 and the aux OR diode see "
-          "> 100 V for a correct pack, SRC is dragged far below −65 V for a reversed one. The 4 µF/0.47 Ω "
+          "> 100 V for a correct pack, SRC is dragged far below −65 V for a reversed one. The 12 µF/0.22 Ω "
           "snubber damps it. A reversed pack still drives the probe switches' drains to −60 V through D4: "
           "the 30 V AO3401A breaks down and passes ≈ 0.25 A through the 100 Ω — use a 150 V part.\n"]
     return "\n".join(L)
@@ -762,7 +811,7 @@ EXPECT = {"open (nothing connected)": "open / no bulk C", "470 µF ESC bulk": "c
           "5000 µF ESC bulk": "capacitor", "dead short 0.3 Ω": "short", "half-short 18 Ω": "half-short",
           "half-short 120 Ω": "half-short", "reversed ESC, 470 µF": "reversed", "reversed ESC, 2200 µF": "reversed",
           "1S whoop FC (30 mA at 3 V), on 1S": "1S electronics (pass)"}
-C_BOARD = 4.1e-6
+C_BOARD = 12.1e-6
 VSRC, VD1, VD2 = 3.3, 0.30, 0.42
 TH = dict(short_v=0.05, open_v=2.6, settle=0.15, rev_lo=0.9, rev_hi=1.6, rev_ratio=1.35, ohm_tol=0.35, hs_max=150.0, hs_1s_max=10.0)
 
@@ -806,7 +855,8 @@ def classify(f):
 
 
 def case7():
-    fut = {k: POOL.submit(run, "case7_probe.cir", f"c7_{i}", p) for i, (k, p) in enumerate(PROBE_LOADS.items())}
+    fut = {k: POOL.submit(run, "case7_probe.cir", f"c7_{i}", dict(p, csn=NET_REC["csn"], rsn=NET_REC["rsn"]))
+           for i, (k, p) in enumerate(PROBE_LOADS.items())}
     res = {k: f.result() for k, f in fut.items()}
     rows, ok_all, feats = [], True, {}
     for k, d in res.items():
@@ -825,7 +875,7 @@ def case7():
     REP.check(7, "probe classifies all ten loads; C within ±15 %", ok_all)
     L = ["Probe per circuit.py: +3V3 → Q6 + 1 kΩ (0-100 ms) or Q7 + 100 Ω (100-400 ms) → BAT46WJ → VOUT; "
          "the ADC reads VOUT_LO (100 kΩ, BAT54S, 1 nF) at 1 kHz. Board capacitance on VOUT: 100 nF + the "
-         "4 µF snubber (subtracted). Firmware constants: source 3.3 V, Schottky 0.30 V / 0.42 V at the two "
+         "12 µF snubber (subtracted). Firmware constants: source 3.3 V, Schottky 0.30 V / 0.42 V at the two "
          "currents.\n",
          "Decision tree: V2 < 50 mV → short · V1 > 2.6 V → open / no bulk C · not settled (|dV/dt| > "
          "0.15 V/s over 350-400 ms) or V2 > 2.4 V → capacitor (C = ∫I dt / V to 1.5 V) · both phases "
@@ -883,7 +933,7 @@ def case8():
                      "%.2f V/cell" % (f["v1"] / 6), "%.0f mΩ" % (1e3 * est.mean()), "%+.1f %%" % (100 * worst),
                      pf(ok) if "bad" in k else "(info)"])
     L = ["6S pack, ohmic + polarisation (τ 2 s), 3 mΩ lead; board ON; 25 A motor-test step at 100 ms with "
-         "±1.5 A ripple. Current from the low-side shunt via INA240A2 (12-bit, +10 mA offset, +1 % gain "
+         "±1.5 A ripple. Current from the low-side shunt via INA181A2 (12-bit, +10 mA offset, +1 % gain "
          "error), VIN from its divider (+0.2 %), 10 kHz, ±½ LSB noise; IR = ΔV/ΔI between 80-100 ms and "
          "130-180 ms; 20 noise seeds. Pass: bad pack within 15 %.\n",
          table(["pack", "true IR", "VIN idle → load", "current", "sag to", "estimate", "worst error", "result"], rows),
@@ -898,7 +948,7 @@ def case8():
         a.axvspan(80, 100, color=C[2], alpha=0.15)
         a.axvspan(130, 180, color=C[1], alpha=0.15)
     ax[0].set(title=f"{k}: VIN as sampled", xlabel="ms", ylabel="V", ylim=(0, 27))
-    ax[1].set(title="current as sampled (INA240A2, low-side)", xlabel="ms", ylabel="A")
+    ax[1].set(title="current as sampled (INA181A2, low-side)", xlabel="ms", ylabel="A")
     fig.tight_layout()
     savefig(fig, "case8_ir.png")
     return "\n".join(L)
@@ -908,12 +958,15 @@ def case8():
 # Case 9 - peak comparator timing
 # ===========================================================================
 def case9():
+    hs = dict(hsv=HSV_REC, vio2=VIO_WORST)
+    kmax = f"hard short 10 mΩ, trip {PEAK_MAX} A (max setting)"
     sc = {"hard short 10 mΩ, trip 20 A (setting 5 A)": dict(rfault="10m", thr_a=20),
-          "hard short 10 mΩ, trip 60 A (max setting)": dict(rfault="10m", thr_a=60),
-          "hard short 10 mΩ, trip 60 A + 80 mV hard-short comparator": dict(rfault="10m", thr_a=60, hsv=0.08),
+          kmax: dict(rfault="10m", thr_a=PEAK_MAX),
+          f"hard short 10 mΩ, trip {PEAK_MAX} A + 65 mV hard-short LMV331": dict(rfault="10m", thr_a=PEAK_MAX, **hs),
           "1 Ω fault behind 2200 µF, trip 8 A (setting 2 A)": dict(rfault=1, thr_a=8, tstop="400u", tmax="20n"),
-          "0.35 Ω fault, trip 60 A": dict(rfault=0.35, thr_a=60, tstop="3m", tmax="20n")}
-    jobs = {(k, tp): POOL.submit(run, "case9_peak.cir", f"c9_{i}_{tp}", dict(v, tpd_inp=tp))
+          "0.35 Ω fault, trip 40 A (setting 10 A)": dict(rfault=0.35, thr_a=40, tstop="3m", tmax="20n"),
+          "0.5 Ω fault, trip 30 A (slow ramp, small overdrive)": dict(rfault=0.5, thr_a=30, tstop="3m", tmax="20n")}
+    jobs = {(k, tp): POOL.submit(run, "case9_peak.cir", f"c9_{i}_{tp}", dict(v, tpd_inp=tp, vscp=VSCP_REC))
             for i, (k, v) in enumerate(sc.items()) for tp in ("0.36u", "1.05u")}
     res = {k: f.result() for k, f in jobs.items()}
     rows, ok_all = [], True
@@ -921,7 +974,7 @@ def case9():
     us = lambda x: "%.2f µs" % (x * 1e6) if x is not None else "-"
     for (k, tp), d in res.items():
         t = d["time"]
-        thr = sc[k]["thr_a"] if "hsv" not in sc[k] else min(sc[k]["thr_a"], 80)
+        thr = sc[k]["thr_a"] if "hsv" not in sc[k] else min(sc[k]["thr_a"], 72)
         tc = first_cross(t, d["iq1"], thr, t0=t0)
         ti = first_cross(t, d["vinp"], 0.8, rising=False, t0=t0)
         tg = first_cross(t, d["vvgs"] if "vvgs" in d else d["vgs"], 3.0, rising=False, t0=t0)
@@ -934,22 +987,27 @@ def case9():
         rows.append([k, tp.replace("u", " µs"), us(tc - t0 if tc else None), us(ti - t0 if ti else None),
                      us(dt) if dt is None or dt >= 0 else "≤ 0", us(tg - t0 if tg else None), "%.0f A" % pk,
                      "yes" if d["vscp"].max() > 0.5 else "no", pf(ok)])
-    REP.check(9, "peak path: trip level → INP low < 5 µs; hard short onset → INP low < 5 µs", ok_all)
-    L = ["Path per circuit.py: shunt → 10 Ω/10 Ω/1 nF → INA240A2 (50 V/V, 400 kHz, 2 V/µs) → TLV7011 "
-         "(260 ns) → SN74LVC1G74 (CLR) → 74LVC1G11 → INP → TPS48000 PD (0.36 µs typ / 1.05 µs max). 6S, "
-         "board ON, fault at the drone end of the leads.\n",
+    REP.check(9, "peak path (INA181A2 + LMV331): trip level → INP low < 5 µs; hard short onset → INP low < 5 µs", ok_all)
+    L = ["Path per circuit.py: shunt → 10 Ω/10 Ω/1 nF → INA181A2 (50 V/V, 210 kHz, 2 V/µs) → LMV331 "
+         "(U8, open drain, 10 kΩ R66; overdrive-dependent delay from the 2.7 V table, 350 ns at 100 mV, "
+         "1 µs at 10 mV) → PEAK_OK → SN74LVC1G74 CLR → 74LVC1G11 → INP → TPS48000 PD (0.36 µs typ / "
+         "1.05 µs max). 6S, board ON, recommended networks, RISCP 40.2 kΩ, fault at the drone end of the leads.\n",
          table(["scenario", "INP→PD", "onset → I > trip", "onset → INP low", "trip → INP low", "onset → Vgs < 3 V",
                 "peak I", "SCP fired", "result"], rows),
-         "\nThe INA240's 2 V/µs slew sets the delay at high trip levels (1.5 µs to reach 3 V at 60 A). "
-         "The latch is already there (U9). Peak setting must be capped at 60 A (INA240A2 saturates at "
-         "≈ 64 A). The fixed 80 mV comparator on the shunt bypasses the slew for hard shorts.\n"]
-    d = res[("hard short 10 mΩ, trip 60 A (max setting)", "1.05u")]
+         "\nThe INA181A2's 2 V/µs slew and the LMV331's slow response at small overdrive set the delay. "
+         "LMV331 limits: its input common-mode range is −0.1 V to VCC − 0.7 V (≈ 2.6 V on 3.3 V). Above "
+         "that it pulls PEAK_OK low whatever PEAK_REF is (datasheet §7.2.2.1, cases 2 and 4), so the "
+         "programmable trip has a fail-safe ceiling of ≈ 52 A. Cap the firmware setting at "
+         f"{PEAK_MAX} A. The fixed 65 mV LMV331 on the shunt bypasses the INA181's slew for hard shorts. "
+         "Both LMV331s are acceptable in place of the TLV7011 (they are already on the board as U8): "
+         "slower (≈ 0.35-1 µs vs 0.26 µs), but every check passes with that delay.\n"]
+    d = res[(kmax, "1.05u")]
     tt = (d["time"] - t0) * 1e6
     fig, ax = plt.subplots(1, 2, figsize=(11, 3.6))
     ax[0].plot(tt, d["iq1"], color=C[0], label="Q1 current")
-    ax[0].plot(tt, d["visense"] * 20, color=C[1], label="INA240 out × 20 (A)")
-    ax[0].axhline(60, color=C[7], ls="--", lw=1)
-    ax[0].set(title="Hard short, 6S, trip 60 A: current and INA240", xlabel="µs", ylabel="A", xlim=(-0.5, 5))
+    ax[0].plot(tt, d["visense"] * 20, color=C[1], label="INA181A2 out × 20 (A)")
+    ax[0].axhline(PEAK_MAX, color=C[7], ls="--", lw=1)
+    ax[0].set(title=f"Hard short, 6S, trip {PEAK_MAX} A: current and INA181A2", xlabel="µs", ylabel="A", xlim=(-0.5, 5))
     ax[0].legend(fontsize=7)
     ax[1].plot(tt, d["vpkok"] * 3.3, color=C[2], label="PEAK_OK")
     ax[1].plot(tt, d["vinp"], color=C[3], label="INP")

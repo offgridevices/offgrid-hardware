@@ -13,13 +13,13 @@
 *   cin       effective input ceramic (2 x 2.2 uF 100 V 1210 ~ 2 uF at 60 V)
 *   cd, rd    input RC damper (cd=1p: not fitted)
 *   rpu       PU series resistor (47 Ohm on the board)
-*   c1, r2    Cdvdt: gate -> GND through r2 (c1=1p: not fitted)
+*   c1, r2    Cdvdt: gate -> GND through r2 = 1 kOhm (c1=1p: not fitted)
 *   rz        series R of a 15 V gate-source zener (1G: not fitted)
 *   csn, rsn  output RC snubber VOUT -> DRONE_NEG (csn=1p: not fitted)
 *   tvs_*     TVS corner
 * ---------------------------------------------------------------------
 .subckt PPATH vin src gate vout gnd dneg inp scp params: cin=2u cd=1p rd=1 rpu=47
-+ c1=1p r2=10 rz=1G csn=1p rsn=1 vscp=49.8m tsc=4u tpd_inp=0.36u
++ c1=1p r2=1k rz=1G csn=1p rsn=1 vscp=49.8m tsc=4u tpd_inp=0.36u
 + tvs_vrwm=58 tvs_vbr=71.2 tvs_vc=93.6 tvs_ipp=6.4
 * input capacitors
 Cin vin ci {cin}
@@ -75,7 +75,7 @@ Rsn snx dneg {rsn}
 .subckt PRECH vin vout gnd preon guard params: rpre=7.8 qp_rd=0.15 qp_kp=6 dbyp=1m
 .model QPX VDMOS(pchan Vto=-2.2 Kp={qp_kp} Rd={qp_rd} Rs=0.03 Rg=6 lambda=0.01 mtriode=1.0
 + Cgdmax=200p Cgdmin=25p a=0.5 Cgs=1.2n Cjo=400p Vj=0.8 m=0.5 Is=2e-12 N=1.1 Rb=0.03
-+ Bv=108 Ibv=100u tt=25n ksubthres=0.1)
++ Bv=108 Ibv=100u tt=25n)
 Vqp vin qs 0
 MQ3 qd gp qs QPX
 Dz2 gp vin DZ10

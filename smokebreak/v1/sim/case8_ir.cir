@@ -23,7 +23,8 @@ Im drn dnn PWL(0 0 100m 0 110m {imot})
 Irip drn dnn SIN(0 1.5 24k 100m)
 
 .nodeset v(vin)={vb} v(vout)={vb} v(drn)={vb} v(d1)={vb} v(src)={vb} v(gate)={vb+11}
-+ v(xpp.bst)={vb+11}
++ v(xpp.bst)={vb+11} v(xpp.xu1.enok)=1
+.ic v(xpp.xu1.lat)=0
 .options method=gear reltol=1e-3 abstol=1e-6 vntol=1e-4 itl4=200
 .tran 5u 400m 0 5u
 .control

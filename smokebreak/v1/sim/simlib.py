@@ -81,6 +81,12 @@ def run(cir, tag, params=None, repl=None, timeout=60):
     return {n: np.atleast_1d(a[n]) for n in a.dtype.names}
 
 
+def run_last(cir, tag, params=None, **kw):
+    """Run a slow-start deck and return the last sample of every vector (steady state)."""
+    d = run(cir, tag, params, **kw)
+    return {k: v[-1:] for k, v in d.items()}
+
+
 def at(t, y, tt):
     return float(np.interp(tt, t, y))
 
