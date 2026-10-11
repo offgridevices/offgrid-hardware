@@ -27,7 +27,7 @@ HOLES = [(3.6, 3.6), (W - 3.6, 3.6), (3.6, H - 3.6), (W - 3.6, H - 3.6)]
 
 # PCBWay standard 4-layer capability is 0.1 mm / 0.1 mm and 0.2 mm holes;
 # this board keeps comfortable margins over it.
-TRACK, CLEAR = 0.15, 0.15
+TRACK, CLEAR = 0.125, 0.125       # 5 mil: inside PCBWay's standard 4 / 4 mil
 VIA_D, VIA_DRILL = 0.6, 0.3
 HV_CLEAR = 0.2       # nets that can carry up to 61 V: IPC-2221B 51-100 V asks 0.13 mm (B4 coated, A6 leads)
 CU_ALL = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
