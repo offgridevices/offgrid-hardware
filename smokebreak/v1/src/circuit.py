@@ -50,18 +50,25 @@ NC = None   # an unused pin
 XT = {'XT60M': ('2', '1'), 'XT30M': ('2', '1'), 'XT60F': ('3', '4'), 'XT30F': ('1', '2')}   # (+, -)
 
 g = 'battery in'
-add('J1', 'XT60M', {XT['XT60M'][0]: 'VIN', XT['XT60M'][1]: 'GND', '3': NC, '4': NC}, 'XT60 male', g)
-add('J2', 'XT30M', {XT['XT30M'][0]: 'VIN', XT['XT30M'][1]: 'GND', '3': NC, '4': NC}, 'XT30 male', g)
+add('J1', 'XT60M', {XT['XT60M'][0]: 'VIN', XT['XT60M'][1]: 'BATT_NEG', '3': NC, '4': NC}, 'XT60 male', g)
+add('J2', 'XT30M', {XT['XT30M'][0]: 'VIN', XT['XT30M'][1]: 'BATT_NEG', '3': NC, '4': NC}, 'XT30 male', g)
+# reverse-battery switch in the battery's return (sim case 2-4: a reversed 11S-14S
+# plug-in would ring the TPS48000's SRC past -65 V without it).  Body diode
+# GND -> BATT_NEG carries the first ~10 ms until the gate is up; a reversed pack
+# finds the diode and the gate both off.
+add('Q11', 'BSC070L', {'1': 'GND', '2': 'GND', '3': 'GND', '4': 'Q11_G',
+                       '5': 'BATT_NEG', '6': 'BATT_NEG', '7': 'BATT_NEG', '8': 'BATT_NEG'}, 'BSC070N10LS5', g)
+res('VIN', 'Q11_G', 4.7e6, '0603', group=g, ref='R74')                           # ~10 uA from a 14S pack
+add('D20', 'BZT52C12', {'1': 'Q11_G', '2': 'GND'}, '12 V', g)
 add('D1', 'TVS64', {'1': 'VIN', '2': 'GND'}, 'SMBJ64CA', g)
-capacitor('VIN', 'GND', '2u2', '100V', '1210', g)                               # ~1 uF at 60 V direct (sim)
-capacitor('VIN', 'GND', '100n', '100V', '0603', g, ref='C3')
+capacitor('VIN', 'GND', '2u2', '100V', '1210', g)
+capacitor('VIN', 'GND', '2u2', '100V', '1210', g)
+capacitor('VIN', 'GND', '100n', '100V', '0603', g)
 # damper (sim case 2): an RC across the input that eats the ring of a
 # hot plug and of a short's turn-off; ceramic, so a reversed pack is fine
-# 16 uF effective at 60 V + 0.33 Ohm: holds a reversed 14S plug-in above the
-# TPS48000's -65 V without a reverse FET (sim cases 2-4)
 res('VIN', 'VIN_DAMP', 0.33, '1206', group=g, ref='R67')
-for ref in ('C2', 'C50', 'C51', 'C57', 'C58', 'C59', 'C60', 'C61'):
-    capacitor('VIN_DAMP', 'GND', '4u7', '100V', '1210', g, ref=ref)
+capacitor('VIN_DAMP', 'GND', '4u7', '100V', '1210', g, ref='C50')
+capacitor('VIN_DAMP', 'GND', '4u7', '100V', '1210', g, ref='C51')
 
 # ======================================================================
 # 2. The switch: TPS48000 + back-to-back BSC040N10NS5, low-side shunt
@@ -188,9 +195,9 @@ add('J3', 'XT60F', {XT['XT60F'][0]: 'VOUT', XT['XT60F'][1]: 'DRONE_NEG', '1': NC
 add('J4', 'XT30F', {XT['XT30F'][0]: 'VOUT', XT['XT30F'][1]: 'DRONE_NEG', '3': NC, '4': NC}, 'XT30 female', g)
 capacitor('VOUT', 'DRONE_NEG', '100n', '100V', '0603', g)
 # output snubber (sim cases 3, 5): damps the drone-side ring after a cut and on plug-in
-res('VOUT', 'VOUT_SNUB', 0.22, '1206', group=g, ref='R68')                     # 12 uF effective + 0.22 Ohm
-for ref in ('C52', 'C53', 'C62', 'C63', 'C64', 'C65'):
-    capacitor('VOUT_SNUB', 'DRONE_NEG', '4u7', '100V', '1210', g, ref=ref)
+res('VOUT', 'VOUT_SNUB', 0.47, '1206', group=g, ref='R68')                     # 0.47: 0.22 lets a reversed drone-side 14S pull SRC to -70 V
+capacitor('VOUT_SNUB', 'DRONE_NEG', '4u7', '100V', '1210', g, ref='C52')
+capacitor('VOUT_SNUB', 'DRONE_NEG', '4u7', '100V', '1210', g, ref='C53')
 # probe: 3.3 V through 1 k or 100 Ohm, then a 100 V Schottky into VOUT.
 # 150 V PNPs: a reversed pack on the drone side puts -60 V on them
 add('Q6', 'MMBT5401', {'1': 'PROBE_BB1', '2': '+3V3', '3': 'PROBE_A'}, 'MMBT5401', g)
@@ -221,7 +228,10 @@ res('+3V3', 'NTC_FET', 10e3, group=g)
 # ======================================================================
 g = 'balance'
 BAL = {}
-add('J5', 'XH9', {'1': 'GND', **{str(k): f'BAL{k}' for k in range(2, 10)}}, 'JST-XH 9', g)
+add('J5', 'XH9', {'1': 'BAL1', **{str(k): f'BAL{k}' for k in range(2, 10)}}, 'JST-XH 9', g)
+# the black wire meets ground through 10 Ohm: with the main lead plugged in too,
+# the balance lead's thin wire then carries a few mA of the return, not amps
+res('BAL1', 'GND', 10, '1206', group=g, ref='R75')
 TOPS = {2: 47e3, 3: 200e3, 4: 357e3, 5: 499e3, 6: 649e3, 7: 787e3, 8: 953e3, 9: 1.1e6}
 for k in range(2, 10):
     res(f'BAL{k}', f'BAL{k}_ADC', TOPS[k], '0603', '0.1%', g)

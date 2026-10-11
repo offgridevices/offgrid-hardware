@@ -96,6 +96,14 @@ def write_simmd(out, wall, REP, DESIGN, CASES):
           "65 mV and 80 mV, with 300 nH drone leads included. Leaner networks that pass nominally (0.47 µF + "
           "12 µF damper) leave < 1 V reversed-plug margin at tolerance or < 5 V Vds margin, so they were "
           "rejected." % DESIGN.get("rev_rec", (0, 0)),
+          "2a. **Q11 alternative (smaller board area), also passes the full suite:** Q11 in the battery B− lead "
+          "(gate VIN → 47 kΩ, 12 V zener) + **2 × 2.2 µF direct (keep both)** + 2 × 4.7 µF/0.33 Ω damper + "
+          "2 × 4.7 µF/**0.47 Ω** snubber, 65 mV hard-short, RISCP 40.2 kΩ. 14S short at max INP delay: Q1 Vds "
+          "≤ 90 V including 300 nH leads; reversed plug-in: Q11 avalanches ≈ 28 A for < 1 µs (BSC034N10LS5 "
+          "EAS 301 mJ @ 50 A). With only **one** 2.2 µF direct it passes the standard cases but Q1 avalanches "
+          "(9 A) with 300 nH drone leads, so keep both. A 0.22 Ω snubber fails the reversed drone-side plug-in "
+          "(SRC −70 V), so 0.47 Ω. **The 47 kΩ gate resistor draws 1.04 mA from a plugged-in 14S pack** "
+          "(SPEC: < 30 µA off): use 4.7 MΩ (10 µA, gate up in ≈ 10 ms; the body diode carries meanwhile).",
           "3. **Dead short as built:** Q1 reaches its 100 V breakdown at 6S-14S and avalanches far above its "
           "50 A IAS; SRC goes below −65 V; the AO3401A probe switches (30 V) break down whenever VOUT swings "
           "negative. Causes: the TPS48000's 4 µs SCP, the INA181's slew and the LMV331's delay in the peak path, "
@@ -152,9 +160,14 @@ def write_simmd(out, wall, REP, DESIGN, CASES):
               ["Hard-short comparator", "**second LMV331 on the shunt Kelvin pads, fixed 65 mV** (58-72 A with offset), "
                                         "open drain onto PEAK_OK (clears the latch). 80 mV also passes, with less margin", "≈ $0.10", "3, 9"],
               ["TVS", "SMBJ64CA instead of SMBJ58CA (stand-off ≥ 60.9 V; no simulated peak depends on it)", "same price", "2, 3, 4"],
-              ["B− reverse FET (Q11)", "**not fitted**: the network above survives a reversed 14S LiHV plug-in. "
-                                       "Alternative if board area is short: the earlier 2 × 2.2 µF + 4 µF/0.33 Ω + "
-                                       "4 µF/0.47 Ω network plus Q11", "saves Q11 (≈ $1 + I²R loss)", "2, 3"],
+              ["B− reverse FET (Q11)", "**not fitted** in the recommended design. Space-saving alternative (full suite "
+                                       "passes): Q11 **Infineon BSC034N10LS5** (LCSC C534326; 100 V, 3.4 mΩ @ 10 V, "
+                                       "4.6 mΩ max / 3.5 typ @ 4.5 V, Vth 1.1-2.3 V, EAS 301 mJ, SuperSO8 = BSC040N10NS5 "
+                                       "footprint; ≈ $2.28 @ 100, only 224 in stock) in the B− lead, gate VIN → **4.7 MΩ** "
+                                       "(not 47 kΩ: 1 mA standby) + 12 V zener; 2 × 2.2 µF direct + 2 × 4.7 µF/0.33 Ω "
+                                       "damper + 2 × 4.7 µF/0.47 Ω snubber. No ≤ 4 mΩ-max @ 4.5 V 100 V 5×6 part found "
+                                       "at LCSC; fallback BSC070N10LS5 (C3278731, 8.5 mΩ @ 4.5 V, ≈ $1.15, 2742 stock)",
+               "≈ $2.70 vs ≈ $1.10 for the no-Q11 network", "2-7"],
               ["Pre-charge FET", "DMP10H400SE is at 112 % of derated SOA → ≤ 50 mΩ 100 V P-FET in DPAK/PowerPAK "
                                  "(e.g. Vishay SUD50P10-43L class; check LCSC stock), uses ≈ 40 %; D3 SS2H10 adequate",
                "≈ +$0.3", "1(c)"],
@@ -175,6 +188,8 @@ def write_simmd(out, wall, REP, DESIGN, CASES):
         "SCP only), Q1 avalanches briefly at ≈ 35 A, inside IAS 50 A but with no margin.",
         "**Reversed 14S plug-in margin is small:** SRC −61.9 V nominal, −64.5 V with −20 % damper C (limit −65 V). "
         "The damper capacitance must be ≥ 16 µF *effective at 60 V*; check the chosen capacitor's DC-bias curve.",
+        "**Q11 alternative only:** Q11 is modelled with the BSC040N10NS5 VDMOS (same footprint class); at 1S its "
+        "gate sees only the pack voltage (3-4.35 V), so its Rds(on) is above the 4.5 V figure there.",
         "**LMV331 delay is a typical-only datasheet figure** (no max); the model uses the slower 2.7 V table on "
         "the 3.3 V rail.",
         f"**6S at 3.5 V/cell with a 10 W VTX** (VTX stuck at its 6 V UVLO, gap 15 V) cannot be powered with 7.8 Ω "

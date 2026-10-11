@@ -128,6 +128,7 @@ for k in range(2, 10):
     at(top, x, 16.55, 90)
     at(bot, x, 19.7, 90)
     at(cap, x, 22.25, 90)
+at('R75', 48.0, 13.4, 90)               # balance black wire -> ground, under pin 1's column
 at('Q8', 25.6, 19.6, 0)
 at('R52', 25.6, 22.6, 90)
 
@@ -204,17 +205,19 @@ at('R62', 62.4, 8.4, 0)
 at('R63', 51.0, 7.0, 0)
 at('R64', 55.8, 21.8, 90)
 at('R65', 55.8, 24.4, 90)
-at('C49', 47.6, 8.4, 90)
+at('C49', 30.0, 24.6, 0)
 
 # ---------------------------------------------------------------- from the simulations
-# input damper: 0.33 Ohm + 8 x 4.7 uF in two rows of four, beside the battery gate
-at('R67', 16.0, 26.6, 0)
-for k, ref in enumerate(['C2', 'C50', 'C51', 'C57', 'C58', 'C59', 'C60', 'C61']):
-    at(ref, 16.2 + 5.0 * (k % 4) - 2.0 * (k // 4 == 0) * 0, 30.0 + 4.0 * (k // 4), 0)
-# output snubber: 0.22 Ohm + 6 x 4.7 uF, between Q2 and the drone connectors
-for ref, (x, y, r) in {'C52': (84.2, 44.4, 90), 'C53': (84.2, 48.6, 90), 'C62': (76.6, 24.0, 90),
-                       'C63': (76.6, 28.0, 90), 'C64': (76.6, 32.0, 90), 'C65': (80.6, 50.2, 0)}.items():
-    at(ref, x, y, r)
+# battery return: Q11 between the two battery minus pads and the ground plane
+fix('Q11', 17.6, 30.2, 90)              # drain (BATT_NEG) west to the connectors, sources east
+at('R74', 21.8, 34.6, 90)
+at('D20', 21.8, 37.8, 90)
+# input damper and output snubber: 0.33 / 0.47 Ohm + 2 x 4.7 uF each
+at('C50', 25.0, 28.8, 90)
+at('C51', 25.0, 33.2, 90)
+at('R67', 25.0, 37.0, 90)
+at('C52', 84.2, 46.6, 90)
+at('C53', 81.0, 35.0, 90)
 at('R68', 80.6, 42.4, 0)
 at('R69', 72.4, 39.6, 0)                # Cdvdt beside the TPS48000
 at('C54', 70.4, 39.6, 0)

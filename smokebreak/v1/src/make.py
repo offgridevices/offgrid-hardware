@@ -91,6 +91,8 @@ VIN_BAND = [(0.4, 0.4), (51.8, 0.4), (51.8, 7.6), (17.0, 7.6), (17.0, 41.0), (SP
             (SPLIT - 0.4, B.H - 0.4), (0.4, B.H - 0.4)]      # + a strip along the back to the pre-charge FET
 VOUT_BAND = [(77.4, 0.4), (B.W - 0.4, 0.4), (B.W - 0.4, B.H - 0.4), (SPLIT + 0.4, B.H - 0.4),
              (SPLIT + 0.4, 41.0), (77.4, 41.0)]
+BATT_NEG = [(9.6, 21.6), (15.4, 21.6), (15.4, 26.8), (18.0, 26.8), (18.0, 33.6), (15.4, 33.6),
+            (15.4, 38.4), (9.6, 38.4)]
 # drone negative strip between J3 and J4 (both layers), notched round the
 # shunt's sense pad on that end
 NEG = [(79.6, 21.4), (82.95, 21.4), (82.95, 29.45), (81.4, 29.45), (81.4, 32.3), (82.95, 32.3),
@@ -115,6 +117,10 @@ def power_copper(b):
            clearance=0.3, priority=2, thermal=False, name='Q2 drain')
     for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
         B.zone(b, 'DRONE_NEG', layer, NEG, clearance=0.3, priority=2, thermal=False, name='drone negative')
+    # battery minus: both connectors' minus pads to Q11's drain, both outer layers;
+    # Q11's sources into the ground plane
+    for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
+        B.zone(b, 'BATT_NEG', layer, BATT_NEG, clearance=0.3, priority=3, thermal=False, name='battery minus')
     # the shunt's GND end: surface copper and vias into the GND plane
     B.zone(b, 'GND', pcbnew.F_Cu, B.rect(83.8, 23.6, 85.6, 28.9), clearance=0.3, priority=2, thermal=False,
            name='shunt GND')
@@ -126,6 +132,10 @@ def power_copper(b):
     for x, y in ((79.0, 50.75), (80.25, 50.75), (81.5, 50.75), (82.75, 50.75), (84.0, 50.75), (85.25, 50.75),
                  ):
         B.via(b, x, y, 'VOUT', **pv)
+    B.zone(b, 'GND', pcbnew.F_Cu, B.rect(19.7, 27.0, 22.4, 33.4), clearance=0.3, priority=2, thermal=False,
+           name='Q11 sources')
+    for y in (27.6, 28.9, 30.2, 31.5, 32.8):           # Q11's sources (x 20.5) into the plane
+        B.via(b, 21.6, y, 'GND', **pv)
     # the pre-charge FET's source into the VIN strip
     B.track(b, [(50.1, 9.4), (50.1, 7.2)], 1.0, pcbnew.F_Cu, 'VIN')
     for x in (49.5, 50.7):

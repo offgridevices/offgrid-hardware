@@ -138,12 +138,15 @@ RISCP_REC = 40.2e3     # TPS48000 SCP: V = 2 uA x RISCP + 19 mV -> 99.4 mV = 99 
 VSCP_REC = "%.4f" % (2e-6 * RISCP_REC + 0.019)
 K_REC = "recommended, no Q11 (1 µF + 16 µF/0.33 Ω damper, 12 µF/0.22 Ω snubber)"
 K_Q11 = "Q11 alternative network (2 × 2.2 µF + 4 µF/0.33 Ω damper, 4 µF/0.47 Ω snubber)"
+NET_Q11C = dict(cin="1u", cd="4u", rd=0.33, csn="4u", rsn=0.47)              # coordinator's: one 2.2 uF direct
+Q11_GATE = "47 kΩ from VIN + 12 V zener"
+Q11_PART = "Infineon BSC034N10LS5 (LCSC C534326)"
 K_NOQ3 = "first no-Q11 try (0.1 µF + 8 µF/0.47 Ω damper, 4 µF/0.47 Ω snubber)"
 NETS = {"as built (2 × 2.2 µF, no snubber)": NET_ASBUILT, K_REC: NET_REC, K_Q11: NET_Q11, K_NOQ3: NET_NOQ3}
 COST = {"as built (2 × 2.2 µF, no snubber)": "$0 (reference)",
         K_REC: "≈ $1.10: 14 × 4.7 µF/100 V X7S 1210 (~$0.08) + 0.33 Ω and 0.22 Ω 1206; "
                "one of the two existing 2.2 µF removed; no Q11",
-        K_Q11: "≈ $0.36 for the caps + Q11 (≈ $1, 4 mΩ-class 100 V FET, plus its I²R loss) ≈ $1.40",
+        K_Q11: "≈ $0.40 for the caps + Q11 BSC034N10LS5 ≈ $2.28 (LCSC, 100 pcs) ≈ $2.70",
         K_NOQ3: "≈ $0.42 (fails the 10S/14S short, case 3)"}
 
 
@@ -435,9 +438,14 @@ def case2():
         elif vk.startswith("recommended"):
             recok &= okf and okr
         elif vk.endswith("+ Q11"):
-            REP.note(2, "Q11 alternative: forward and reversed hot plug", okf and okr, "Q11 %.0f A" % b["iq3"])
+            REP.check(2, f"Q11 alternative + Q11 ({Q11_GATE}): forward hot plug < 90 V, reversed harmless "
+                         "(SRC/VS ≥ −65 V, Q11 avalanche < 50 A)", okf and okr,
+                      "VIN %.1f V, Q11 %.0f A" % (a["vin"], b["iq3"]))
         elif vk == K_NOQ3:
             REP.note(2, "first no-Q11 try: forward and reversed hot plug", okf and okr, "SRC %.1f V" % b["srcm"])
+    istb = (60.9 - 12.0) / 47e3
+    REP.note(2, "Q11 gate network standby current at 14S LiHV (SPEC: < 30 µA off)", istb < 30e-6,
+             "%.2f mA through the 47 kΩ; 4.7 MΩ gives 10 µA" % (istb * 1e3))
     rr = res[(K_REC, "-")]
     rt = res[(K_REC + ", tolerance: damper C −20 %, direct C +20 %", "-")]
     REP.check(2, "recommended (no Q11): forward 14S LiHV hot plug < 90 V, reversed keeps SRC/VS ≥ −65 V, "
@@ -507,7 +515,8 @@ def case3():
                 "recommended": rec,
                 "recommended, hard-short at 80 mV": dict(rec, hsv=HSV_ALT),
                 "first no-Q11 try (0.1 µF + 8 µF/0.47 Ω, 4 µF/0.47 Ω), hard-short 80 mV": dict(rec, hsv=HSV_ALT, **NET_NOQ3),
-                "Q11 alternative network, hard-short 80 mV": dict(rec, hsv=HSV_ALT, **NET_Q11)}
+                "Q11 alternative network": dict(rec, **NET_Q11),
+                "Q11 network with one 2.2 µF direct (1 µF + 4 µF/0.33 Ω, 4 µF/0.47 Ω)": dict(rec, **NET_Q11C)}
     jobs = {}
     for vk, vv in variants.items():
         for n in (1, 6, 10, 14):
@@ -518,11 +527,14 @@ def case3():
              "recommended without the hard-short comparator": dict(rec, hsv=10, thr_a=PEAK_MAX),
              "recommended, 15 mΩ/cell pack": dict(rec, rcell="15m", thr_a=PEAK_MAX),
              "recommended, 300 nH drone leads": dict(rec, lout="300n", thr_a=PEAK_MAX),
-             "recommended, 300 nH drone leads, hard-short at 80 mV": dict(rec, lout="300n", hsv=HSV_ALT, thr_a=PEAK_MAX)}
+             "recommended, 300 nH drone leads, hard-short at 80 mV": dict(rec, lout="300n", hsv=HSV_ALT, thr_a=PEAK_MAX),
+             "Q11 alternative network, 300 nH drone leads": dict(rec, lout="300n", thr_a=PEAK_MAX, **NET_Q11),
+             "Q11 alternative network, 15 mΩ/cell pack": dict(rec, rcell="15m", thr_a=PEAK_MAX, **NET_Q11),
+             "Q11 network with one 2.2 µF direct, 300 nH drone leads": dict(rec, lout="300n", thr_a=PEAK_MAX, **NET_Q11C)}
     for i, (k, v) in enumerate(extra.items()):
         jobs[(k, 14, "1.05u")] = POOL.submit(run, "case3_short.cir", f"c3x_{i}", dict(v, ncell=14, tpd_inp="1.05u"))
     res = {k: f.result() for k, f in jobs.items()}
-    rows, recok, okv = [], True, {}
+    rows, recok, q11ok, okv = [], True, True, {}
     for (vk, n, tp), d in res.items():
         m = c3m(d)
         rating = 30 if vk == "as built" else 150
@@ -530,6 +542,8 @@ def case3():
         okv.setdefault(vk, []).append(ok)
         if vk.startswith("recommended") and "SCP only" not in vk and "without the hard-short" not in vk:
             recok &= ok
+        if vk.startswith("Q11 alternative"):
+            q11ok &= ok
         rows.append([vk, f"{n}S", tp.replace("u", " µs"), "%.0f A" % m["ipk"],
                      "%.2f µs" % (m["tcut"] * 1e6) if m["tcut"] else "-", "%.1f V" % m["vds1"],
                      ("%.0f A" % m["aval"]) if m["aval"] else "-", "%.1f V" % m["vin"], "%.1f V" % m["src"],
@@ -537,10 +551,15 @@ def case3():
     REP.check(3, "recommended (no Q11, hard-short LMV331 at 65 mV and at 80 mV, 7 mV late offset): 1S/6S/10S/14S "
                  "short, INP delay typ and max, worn pack, 300 nH leads: no avalanche, SRC ≥ −65 V, Vgs < 19 V, "
                  "probe switch inside rating", recok)
+    REP.check(3, "Q11 alternative network (65 mV hard-short, RISCP 40.2 kΩ): 1S/6S/10S/14S short, INP delay typ "
+                 "and max, worn pack, 300 nH leads: no avalanche, SRC ≥ −65 V, Vgs < 19 V", q11ok)
     for vk in variants:
-        if vk not in ("recommended", "recommended, hard-short at 80 mV"):
+        if vk not in ("recommended", "recommended, hard-short at 80 mV", "Q11 alternative network"):
             REP.note(3, f"{vk} survives the short at 1S-14S", all(okv[vk]),
                      "%d of %d cases fail" % (okv[vk].count(False), len(okv[vk])))
+    m = c3m(res[("Q11 network with one 2.2 µF direct, 300 nH drone leads", 14, "1.05u")])
+    REP.note(3, "Q11 network with one 2.2 µF direct, 14S, 300 nH drone leads", c3ok(m, 150),
+             "Q1 Vds %.1f V, avalanche %.0f A" % (m["vds1"], m["aval"]))
     for k in ("recommended without the hard-short comparator", "recommended, SCP only (comparators dead)"):
         m = c3m(res[(k, 14, "1.05u")])
         REP.note(3, f"{k}, 14S", c3ok(m, 150), "peak %.0f A, Q1 avalanche %.0f A" % (m["ipk"], m["aval"]))
@@ -616,6 +635,7 @@ VARIANTS = {"as built": dict(q3byp="1m", dbyp="1m", pbv=33),
             "+Dser (1N4148WS in the 47k leg), 150 V probe switch": dict(q3byp="1m", dbyp="1G", pbv=160),
             "+Q11 (new B− reverse FET)": dict(q3byp="1G", dbyp="1G", pbv=160)}
 REC_VAR = "+Dser (1N4148WS in the 47k leg), 150 V probe switch"
+Q11_VAR = "+Q11 (new B− reverse FET)"
 PATHS = [("i_bat_in", "input pack, total"), ("i_bat_out", "drone-side pack, total"), ("i_q1", "Q1"),
          ("i_q2", "Q2"), ("i_tvs", "TVS D1"), ("i_pre", "RPRE"), ("i_q4c", "Q4 (BC817) collector leg"),
          ("i_pin_pre", "MCU PRE_ON pin"), ("i_pin_guard", "hall GUARD_OPEN pin"),
@@ -668,7 +688,7 @@ def case4():
          "SRC to GND −65 V; PU/PD/BST to GND −65 V; EN/UVLO, OV, INP, CS_SEL between V(VS) and V(VS) + "
          "70 V when VS < 0; I(REV) 22 µA typ. The INA181A2 (abs max −0.3…26 V common mode) sits on the low-side shunt, so its inputs stay ≈ 0 V. "
          "Pass: every path < 1 mA, SRC/VS ≥ −65 V.\n"]
-    allrec = True
+    allrec, q11s4 = True, True
     pdata = []
     for scen, p in (("14S LiHV reversed, drone side open", dict(nin=14, vin_c=-4.35)),
                     ("14S LiHV reversed, drone attached", dict(nin=14, vin_c=-4.35, rdr="1m")),
@@ -677,9 +697,11 @@ def case4():
         pdata.append((scen, res, ()))
         L += [f"\n**{scen}**\n", tb]
         allrec &= oks[REC_VAR]
+        q11s4 &= oks[Q11_VAR]
         REP.note(4, f"{scen}: as built", oks["as built"],
                  "Q4 leg %s, PRE_ON pin %s" % (fmt_i(res["as built"]["i_q4c"]), fmt_i(res["as built"]["i_pin_pre"])))
     REP.check(4, "reversed input (static): all paths < 1 mA, TPS48000 inside −65 V, with Dser (no B− FET needed)", allrec)
+    REP.check(4, f"reversed input (static), Q11 alternative ({Q11_GATE}): all paths < 1 mA, TPS48000 inside −65 V", q11s4)
     # normal idle stress on BC817
     tb, oks, res = miswire("14S LiHV, correct polarity, board idle", dict(nin=14, vin_c=4.35, pon=1), 4,
                            exclude=("i_bat_in", "i_auxin", "i_pin_guard", "i_q4c"),
@@ -730,7 +752,7 @@ def case5():
     L = ["Nothing on the input. (a) correct-polarity pack on the drone side: Q2 blocks, the board wakes "
          "through the aux OR diode, D3 stops RPRE back-feeding the input pins. (b-d) reversed pack: the "
          "common source sits at VOUT + 0.7 V. Static first (DC), then the plug-in transient.\n"]
-    allrec = True
+    allrec, q11s5 = True, True
     pdata = []
     scen = [("(a) 14S LiHV on the drone side, correct polarity", dict(rin="1G", rbo="1m", nout=14, vout_c=4.35),
              ("i_bat_out", "i_auxout", "i_shunt"), lambda r, v: r["v_aux"] > 4.5 and abs(r["v_vin"]) < 1.0),
@@ -741,24 +763,31 @@ def case5():
         pdata.append((s, res, ex))
         L += [f"\n**{s}**\n", tb]
         allrec &= oks[REC_VAR]
+        q11s5 &= oks[Q11_VAR]
         REP.note(5, f"{s}: as built", oks["as built"],
                  "probe Q7 %s, Vds %.0f V" % (fmt_i(res["as built"]["i_probe2"]), res["as built"]["v_prbds"]))
     REP.check(5, "drone-side pack, static (normal and reversed 7S/14S): paths < 1 mA, SRC ≥ −65 V, probe switch "
                  "in rating", allrec)
     plot_miswire(5, pdata, "Case 5: pack on the drone side (static)")
     # transient: plug-in at the drone connector
-    rows, tok = [], True
+    REP.check(5, "drone-side pack, static, Q11 alternative: paths < 1 mA, SRC ≥ −65 V", q11s5)
+    rows, tok, tq = [], True, True
     for nk, nv in (("as built", dict(csn="1p", pbv=33)), ("recommended snubber 12 µF/0.22 Ω, 150 V probe",
-                                                          dict(NET_REC, pbv=160))):
+                                                          dict(NET_REC, pbv=160)),
+                   ("Q11 alternative, snubber 4 µF/0.47 Ω", dict(NET_Q11, pbv=160)),
+                   ("Q11 alternative with 4 µF/0.22 Ω snubber (not chosen)", dict(NET_Q11, rsn=0.22, pbv=160))):
         for pol, vc in (("correct", 4.35), ("reversed", -4.35)):
             d = run("case5_droneplug.cir", f"c5t_{len(rows)}_{pol}", dict(nv, vcell=vc))
             vmax, vmin, srcm, prb = d["vvoutdneg"].max(), d["vvoutdneg"].min(), d["vsrc"].min(), d["vprobe"].max()
             rating = 30 if nv["pbv"] == 33 else 150
             ok = vmax < 90 and srcm >= -65 and prb < rating
-            if nk != "as built":
+            if nk.startswith("recommended"):
                 tok &= ok
+            elif nk.startswith("Q11 alternative,"):
+                tq &= ok
             rows.append([nk, pol, "%.1f V" % vmax, "%.1f V" % vmin, "%.1f V" % srcm, "%.1f V (%d V)" % (prb, rating), pf(ok)])
     REP.check(5, "14S LiHV plugged into the drone side (both polarities) with the snubber: VOUT < 90 V, SRC ≥ −65 V", tok)
+    REP.check(5, "Q11 alternative: drone-side plug-in with the 4 µF/0.47 Ω snubber: VOUT < 90 V, SRC ≥ −65 V", tq)
     L += ["\n**Plug-in transient at the drone connector (14S LiHV, 150 nH lead, input open)**\n",
           table(["network", "polarity", "VOUT peak", "VOUT min", "SRC min", "probe switch Vds", "result"], rows),
           "\nAs built (100 nF only on VOUT) the plug-in rings to ≈ ±100 V: Q2 and the aux OR diode see "
@@ -771,7 +800,7 @@ def case5():
 def case6():
     L = ["Packs on both connectors, everything off; then the pre-charge switched on by mistake. Pass "
          "(off): power-path branches < 1 mA; each pack supplies at most the board's own consumption.\n"]
-    allrec = True
+    allrec, q11s6 = True, True
     pdata = []
     wrong = None
     for s, p, chk in (("(a) 6S on input, 4S on drone side, all off", dict(nin=6, vin_c=4.2, rbo="1m", nout=4, vout_c=4.2, pon=1), True),
@@ -786,9 +815,11 @@ def case6():
         L += [f"\n**{s}**\n", tb]
         if chk:
             allrec &= oks[REC_VAR]
+            q11s6 &= oks[Q11_VAR]
         else:
             wrong = res[REC_VAR]
     REP.check(6, "both sides powered, off: nothing conducts", allrec)
+    REP.check(6, "both sides powered, off, Q11 alternative: nothing conducts", q11s6)
     ip = abs(wrong["i_pre"])
     L.append(f"\nWith the pre-charge on by mistake {ip:.2f} A flows from the 6S into the 4S pack ({ip**2*7.8:.1f} W "
              f"in RPRE, continuous — the 12 J budget is gone in {12/(ip**2*7.8):.1f} s). The probe stage "
@@ -816,7 +847,8 @@ VSRC, VD1, VD2 = 3.3, 0.30, 0.42
 TH = dict(short_v=0.05, open_v=2.6, settle=0.15, rev_lo=0.9, rev_hi=1.6, rev_ratio=1.35, ohm_tol=0.35, hs_max=150.0, hs_1s_max=10.0)
 
 
-def probe_features(d, ncell):
+def probe_features(d, ncell, cb=None):
+    cb = C_BOARD if cb is None else cb
     t, v = d["time"], d["vvlo"]
     ts = np.arange(0, 0.4, 1e-3) + 1e-3
     vs = np.interp(ts, t, v)
@@ -831,7 +863,7 @@ def probe_features(d, ncell):
     q = np.cumsum(np.maximum(VSRC - vd - vs, 0) / r) * 1e-3
     k = np.nonzero(vs >= 1.5)[0]
     k = k[0] if len(k) else len(vs) - 1
-    return dict(V1=V1, V2=V2, s1=s1, s2=s2, R1=V1 / I1, R2=V2 / I2, C=q[k] / max(vs[k], 1e-3) - C_BOARD, ncell=ncell)
+    return dict(V1=V1, V2=V2, s1=s1, s2=s2, R1=V1 / I1, R2=V2 / I2, C=q[k] / max(vs[k], 1e-3) - cb, ncell=ncell)
 
 
 def classify(f):
@@ -855,9 +887,19 @@ def classify(f):
 
 
 def case7():
+    fq = {k: POOL.submit(run, "case7_probe.cir", f"c7q_{i}", dict(p, csn=NET_Q11["csn"], rsn=NET_Q11["rsn"]))
+          for i, (k, p) in enumerate(PROBE_LOADS.items())}
     fut = {k: POOL.submit(run, "case7_probe.cir", f"c7_{i}", dict(p, csn=NET_REC["csn"], rsn=NET_REC["rsn"]))
            for i, (k, p) in enumerate(PROBE_LOADS.items())}
     res = {k: f.result() for k, f in fut.items()}
+    okq = True
+    for k, f in fq.items():
+        fe = probe_features(f.result(), PROBE_LOADS[k].get("ncell", 6), cb=4.1e-6)
+        v, _ = classify(fe)
+        okq &= v == EXPECT[k]
+        if "ESC bulk" in k:
+            okq &= abs(fe["C"] / (float(PROBE_LOADS[k]["cbulk"].rstrip("u")) * 1e-6) - 1) < 0.15
+    REP.check(7, "Q11 alternative (4 µF snubber, firmware board C 4.1 µF): probe classifies all ten loads; C within ±15 %", okq)
     rows, ok_all, feats = [], True, {}
     for k, d in res.items():
         f = probe_features(d, PROBE_LOADS[k].get("ncell", 6))
