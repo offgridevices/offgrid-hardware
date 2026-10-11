@@ -31,6 +31,59 @@ def ground_fill(b):
         z.SetPadConnection(pcbnew.ZONE_CONNECTION_THT_THERMAL)      # SMD pads solid, hand-soldered pins relieved
 
 
+def pad_xy(b, ref, num):
+    p = [p for p in b.FindFootprintByReference(ref).Pads() if p.GetNumber() == num][0].GetPosition()
+    return pcbnew.ToMM(p.x) - B.OX, pcbnew.ToMM(p.y) - B.OY
+
+
+def hand_routes(b):
+    """The few joins the routers cannot see: the controller's source-sense pin
+    straight down into the FETs' source copper (past Q1's gate pad with the
+    HV gap), and C14's minus pad into the drone-negative strip."""
+    cx, cy = pad_xy(b, 'C14', '2')
+    if cx < 79.6:
+        B.track(b, [(cx, cy), (79.9, cy)], 0.4, pcbnew.F_Cu, 'DRONE_NEG')
+
+
+def stitch(b, pitch=3.0, margin=0.45):
+    """Ground stitching vias wherever every ground fill has room for one."""
+    from shapely.geometry import Point, Polygon
+    from shapely.ops import unary_union
+    fills = {}
+    for z in b.Zones():
+        if z.GetZoneName() == 'GND fill':
+            for l in (pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu):
+                if z.IsOnLayer(l):
+                    ps = z.GetFilledPolysList(l)
+                    polys = []
+                    for k in range(ps.OutlineCount()):
+                        o = ps.Outline(k)
+                        holes = [[(pcbnew.ToMM(ps.CHole(k, h).CPoint(i).x), pcbnew.ToMM(ps.CHole(k, h).CPoint(i).y))
+                                  for i in range(ps.CHole(k, h).PointCount())] for h in range(ps.HoleCount(k))]
+                        polys.append(Polygon([(pcbnew.ToMM(o.CPoint(i).x), pcbnew.ToMM(o.CPoint(i).y))
+                                              for i in range(o.PointCount())], [h for h in holes if len(h) > 2]))
+                    fills[l] = unary_union(polys).buffer(-margin)
+    if len(fills) < 4:
+        return 0
+    holes = [t.GetPosition() for t in b.GetTracks() if t.GetClass() == 'PCB_VIA']
+    holes += [p.GetPosition() for fp in b.GetFootprints() for p in fp.Pads() if p.GetDrillSize().x > 0]
+    holes = [(pcbnew.ToMM(q.x), pcbnew.ToMM(q.y)) for q in holes]
+    n = 0
+    y = 2.0
+    while y < B.H - 2:
+        x = 2.0
+        while x < B.W - 2:
+            P = Point(B.OX + x, B.OY + y)
+            if all(f.contains(P) for f in fills.values()) and all(
+                    (hx - P.x) ** 2 + (hy - P.y) ** 2 > 1.2 ** 2 for hx, hy in holes):
+                B.via(b, x, y, 'GND', d=0.5, drill=0.25)
+                holes.append((P.x, P.y))
+                n += 1
+            x += pitch
+        y += pitch
+    return n
+
+
 def widen(b):
     n = 0
     for t in b.GetTracks():
@@ -64,13 +117,28 @@ if __name__ == '__main__':
             t = pcbnew.PCB_TRACK(b)
             t.SetStart(a_); t.SetEnd(c_); t.SetWidth(pcbnew.FromMM(0.6)); t.SetLayer(pcbnew.F_Cu)
             t.SetNet(b.FindNet('SRC')); b.Add(t)
+    hand_routes(b)
+    # every join is routed before the ground fills exist (to the maze
+    # router a fill is solid copper): the gate side again on its own, then the
+    # exact pairs KiCad still finds open
     import finish, finish_run
-    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
-    widths, clmap = finish_run.rules()
-    for net in ('SRC', 'GND', 'VIN', 'VOUT'):
-        left = finish.route_net(b, net, track_w=widths.get(net, B.TRACK), clmap=clmap)
-        print('  joined', net, '- islands left', left)
+    finish.ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
+    finish.VIA_D, finish.VIA_DRILL, finish.RES = 0.45, 0.2, 0.025
+    import gate_side
+    gate_side.reroute(b)
+    tmp = os.path.join(B.HERE, 'out', 'prefill.kicad_pcb')
+    b.Save(tmp)
+    finish_run.copy_project(make.OUT, tmp)
+    w, c = finish_run.rules()
+    left = finish.finish_board(tmp, tmp, os.path.join(B.HERE, 'out', 'finish-final.json'), rules=w, clmap=c)
+    print('exact-pair finishing left', left)
+    b = pcbnew.LoadBoard(tmp)
     ground_fill(b)
+    for z in b.Zones():
+        if z.GetZoneName() == 'Q1 drain':
+            ol = z.Outline(); ol.RemoveAllContours(); ol.NewOutline()
+            for x, y in B.rect(64.8, 44.6, 71.35, 51.2):
+                ol.Append(pcbnew.FromMM(B.OX + x), pcbnew.FromMM(B.OY + y))
     # the routing keep-outs become DRC rules (a rule area would bar the power
     # nets' own tracks too)
     for z in list(b.Zones()):
@@ -79,6 +147,8 @@ if __name__ == '__main__':
     placed = make.add_art(b, os.path.join(B.HERE, 'out'))
     for p in placed:
         print('  art', p)
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    print('stitching vias', stitch(b))
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     pcbnew.SaveBoard(make.OUT, b)
     B.set_stackup(make.OUT)
@@ -93,6 +163,7 @@ if __name__ == '__main__':
               '  (constraint disallow track))\n')
     B.write_rules(make.OUT, extra)
     errs, warns, unc = drc(make.OUT)
+
     import collections
     print('DRC errors', len(errs), collections.Counter(v['type'] for v in errs))
     print('DRC warnings', len(warns), collections.Counter(v['type'] for v in warns))
