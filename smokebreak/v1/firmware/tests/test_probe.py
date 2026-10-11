@@ -45,7 +45,24 @@ def test_reversed_signature_barely_moves_between_sources():
 
 
 def test_nothing_attached_is_open():
-    assert run_probe(None).verdict == Verdict.OPEN
+    r = run_probe(None)
+    assert r.verdict == Verdict.OPEN and r.cap_uf == 0
+
+
+def test_board_capacitance_is_measured_and_subtracted():
+    # 0.1 uF + 2 x 4.7 uF / 0.47 Ohm snubber, as SIM.md case 7 gives it: 4.1 uF
+    assert probe.BOARD_CAP_NF == 4100
+    hi, lo, _ = probe_samples(None)
+    total = probe.capacitance_nf(hi, lo)
+    assert abs(total - probe.BOARD_CAP_NF - 200) <= 600   # board + 0.2 uF of lead
+    assert probe.drone_cap_nf(hi, lo) < probe.OPEN_MAX_NF
+    r = run_probe(Drone(cap_uf=10))
+    assert r.verdict == Verdict.OK and 9 <= r.cap_uf <= 11  # not 14: the board is not the drone
+
+
+def test_small_drone_capacitor_is_not_open():
+    r = run_probe(Drone(cap_uf=4, leak_ohm=50000, idle_a=0))
+    assert r.verdict == Verdict.OK and 3 <= r.cap_uf <= 5
 
 
 @pytest.mark.parametrize('cap', [20, 100, 470, 1000, 2000, 5000, 10000])

@@ -23,8 +23,8 @@ the 25 A confirm is pending, S13 for 2 s after the limit changes.
 
 Rules
   1. Guard closed => every switch off this tick (the hall switch also gates
-     INP in hardware; the pre-charge FET relies on this rule), ABORT cleared,
-     motor test ended.
+     INP and, through Q5 in series with Q4, the pre-charge FET in hardware),
+     ABORT cleared, motor test ended.
   2. A fault latches ABORT until the guard is closed.
   3. ON (or BIND) is acted on only after the toggle has been seen at OFF while
      ARMED since the last arming / run / fault.  So a toggle held on while the

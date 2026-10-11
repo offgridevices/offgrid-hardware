@@ -141,7 +141,7 @@ def test_energy_budget_per_attempt_is_12j():
             break
     assert sup.reason == pc.Reason.ENERGY
     assert pc.ATTEMPT_BUDGET_UJ < sup.energy_uj < pc.ATTEMPT_BUDGET_UJ + 500_000
-    # 14.9 J (the old 15 J budget) would have run on
+    # the previous, larger per-attempt budget would have let it run on
     assert t < 45
 
 

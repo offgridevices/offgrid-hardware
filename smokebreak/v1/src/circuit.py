@@ -142,7 +142,7 @@ res('PEAK_DAC', 'PEAK_REF', 1e3, group=g)
 capacitor('PEAK_REF', 'GND', '10n', '50V', '0402', g)
 add('U8', 'LMV331', {'1': 'PEAK_REF', '2': 'GND', '3': 'I_SENSE', '4': 'PEAK_OK', '5': '+3V3'}, 'LMV331', g)
 res('PEAK_OK', '+3V3', 10e3, group=g, ref='R66')    # open-drain output (late ref: keeps the others)
-# hard-short comparator straight on the shunt: 80 mV = 80 A, no amplifier
+# hard-short comparator straight on the shunt: 65 mV = 65 A, no amplifier
 # slew in the way (sim case 3); wired onto the same latch-clear node
 add('U12', 'LMV331', {'1': 'HS_REF', '2': 'GND', '3': 'SNS_DRN', '4': 'PEAK_OK', '5': '+3V3'}, 'LMV331', g)
 res('+3V3', 'HS_REF', 49.9e3, group=g, ref='R70')

@@ -11,12 +11,21 @@ Balance lead decoding, from the tap pattern alone:
               their divider.
 
 * leading taps at ~0 V: the plug is shifted (black wire not on pin 1).  With
-  the main lead in, the black wire is at GND wherever it lands, so readings
-  stay correct.  With the balance lead alone a shifted plug gives the board
-  no ground: it stays dark (safe), so the model never sees that case awake.
+  the main lead in, the black wire is at GND (via Q11) wherever it lands, so
+  readings stay correct at idle.  With the balance lead alone a shifted plug
+  gives the board no ground: it stays dark (safe), so the model never sees
+  that case awake.
 * a ~0 V tap with higher taps above it: a broken balance wire (that tap's
   divider pulls it down).
 * the run ends where taps drop back to ~0 V: the pins above the plug.
+
+Idle only: the taps are read against board GND.  The pack's B- reaches GND
+through the reverse-battery FET Q11 in the battery return, and the balance
+lead's black wire (XH pin 1) through 10 Ohm (R75, so the thin wire never
+shares the main return).  With current flowing every tap therefore reads
+high by I x (Q11 + lead) on top of each cell's own I x IR sag, so per-cell
+numbers are only valid when `resting`; the machine keeps the last resting
+analysis (`Machine.batt_idle`) for its decisions.
 
 Limit: a cell sitting at ~0 V on tap 1 is indistinguishable from a one-pin
 shift; it is reported as a shift (the pack is scrap either way, and the

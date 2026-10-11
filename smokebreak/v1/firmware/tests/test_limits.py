@@ -15,10 +15,20 @@ def test_auto_limit(idle, cells, expect):
     assert L.auto_limit_ma(idle, cells) == expect
 
 
-def test_peak_threshold_is_4x_clamped_to_amp_range():
+def test_peak_threshold_is_4x_capped_at_50a():
     assert L.peak_threshold_ma(2000) == 8000
     assert L.peak_threshold_ma(10000) == 40000
-    assert L.peak_threshold_ma(25000) == L.PEAK_MAX_MA
+    assert L.peak_threshold_ma(12500) == 50000
+    assert L.peak_threshold_ma(25000) == L.PEAK_MAX_MA == 50000
+
+
+def test_no_setting_programs_the_comparator_above_its_common_mode_ceiling():
+    # LMV331 input range ends ~2.6 V on 3.3 V = 52 A on the INA181A2 (50 mV/A):
+    # SIM.md finding 3a / case 9, "cap the firmware setting at 50 A"
+    for idx in range(len(L.SETTINGS_MA)):
+        lim = L.LimitSelector(idx=idx).active_ma(4000, 6)
+        assert L.peak_threshold_ma(lim) <= 50000
+    assert L.peak_threshold_ma(10 ** 6) == 50000
 
 
 def test_average_over_200ms_passes_esc_tones():

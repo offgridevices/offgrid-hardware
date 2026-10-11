@@ -29,7 +29,7 @@ def test_happy_path_screens_leds_and_beeps_in_order():
     assert r.out.led == Led.GREEN and r.out.main_on and not r.out.precharge_on
     assert r.out.probe_src == ProbeSrc.OFF
     assert 'engage' in r.beeps and 'tick' in r.beeps
-    assert abs(r.screen.data['ma'] - 350) < 20      # INA290 auto-zeroed (sim offset 12 mA)
+    assert abs(r.screen.data['ma'] - 350) < 20      # INA181A2 auto-zeroed (sim offset 12 mA)
 
 
 def test_check_takes_about_a_third_of_a_second_and_nothing_powered_meanwhile():

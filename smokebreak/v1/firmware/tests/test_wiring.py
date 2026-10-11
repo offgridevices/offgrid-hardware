@@ -146,6 +146,25 @@ def test_healthy_pack_step_does_not_warn():
     assert r.state == State.LIVE and r.m.ir is not None and r.m.ir[0] < 40
 
 
+# --- cells are read at idle: under load the taps sit on Q11's drop --------------
+def test_cell_voltages_come_from_idle_readings_not_under_load():
+    w = World(pack=Pack([3.90, 3.92, 3.91, 3.93]), drone=Drone.quad(), balance=Balance())
+    r = Rig(w).boot()
+    for _ in range(4):
+        r.plus()                          # 10 A
+    r.run(2100)
+    resting = list(r.m.batt.bal.cells_mv)
+    assert resting == [3900, 3920, 3910, 3930]
+    r.go_live()
+    r.run(700)
+    r.w.drone.demand_a = 8.0
+    r.run(100)
+    assert r.state == State.LIVE
+    raw = r.m.batt.bal.cells_mv           # B- lifted by I x (Q11 + lead), cells sagging
+    assert not r.m.batt.resting and abs(raw[0] - resting[0]) > 30
+    assert r.m.batt_idle.resting and r.m.batt_idle.bal.cells_mv == resting
+
+
 # --- row 12: pack collapsing under load ------------------------------------------
 def test_pack_collapsing_under_load():
     w = World(pack=Pack.of(4, 4.0, ir=150.0), drone=Drone.quad())
