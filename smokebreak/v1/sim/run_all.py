@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""SmokeBreak v1 - run every simulation case, check pass/fail, write plots and SIM.md.
+"""SmokeBreak v1 - run every simulation case against the board in src/circuit.py
+(TPS48000, low-side shunt, INA240A2), check pass/fail, write plots and SIM.md.
 
-Usage:  python3 run_all.py [case numbers...]      (default: all)
+Usage:  python3 run_all.py [case numbers...]      (default: all; SIM.md only on a full run)
 Exit status is non-zero if any check FAILs (or a simulation does not converge).
 """
+import os
 import sys
 import time
+import datetime
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 
@@ -13,58 +16,106 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import simlib as S
-from simlib import run, at, first_cross, integ, worst_window_power, savefig, C
+from simlib import run, first_cross, integ, savefig, C
 
 POOL = ThreadPoolExecutor(max_workers=4)
+DERATE = 0.5          # SOA derating (Tc ~80 C instead of 25 C, part spread)
 
-# ---------------------------------------------------------------------------
-# Assumptions shared by several cases
-# ---------------------------------------------------------------------------
-# Single-pulse SOA of a 100 V 3.5 mOhm 5x6 FET (OptiMOS-5 class), Tc = 25 C,
-# expressed as power vs pulse length. Checked with a 0.5 derating
-# (Tc ~ 80 C board + part spread).
-SOA = {1e-4: 25 * 100.0, 1e-3: 25 * 30.0, 1e-2: 25 * 8.0, 1e-1: 60 * 0.6}
-SOA_DERATE = 0.5
-EAS_SINGLE = 0.200      # J, single-pulse avalanche energy assumed (datasheet class ~250 mJ @ 50 A)
-ID_PULSE = 400.0        # A, pulsed drain current rating assumed
+# ===========================================================================
+# Device limits taken from datasheets (digitised where only a graph exists)
+# ===========================================================================
+# BSC040N10NS5 Diagram 3 (SOA, Tc = 25 C, single pulse), digitised: max ID [A]
+SOA_V = np.array([3, 5, 10, 25, 50, 60, 70.0])
+SOA_T = np.array([1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e2])
+SOA_I = np.array([
+    [414, 550, 546, 223, 79, 54.6, 40],          # 10 us
+    [414, 274, 122, 19.3, 4.87, 3.37, 2.47],     # 100 us
+    [132, 47, 11.3, 1.84, 0.465, 0.322, 0.236],  # 1 ms
+    [37.8, 13.6, 3.07, 0.528, 0.133, 0.0917, 0.0676],  # 10 ms
+    [23.3, 8.35, 2.05, 0.325, 0.0815, 0.0564, 0.0416],  # 100 ms (~1.3 x DC, Zth)
+    [17.9, 6.42, 1.58, 0.25, 0.0627, 0.0434, 0.032],    # DC
+])
+BSC_IDPULSE, BSC_IAS, BSC_EAS, BSC_VBR = 544.0, 50.0, 0.268, 100.0
 
-# design values under test / chosen (filled by the cases)
+
+def bsc_imax(v, t):
+    v = min(max(v, 3.0), 70.0)
+    t = min(max(t, 1e-5), 1e2)
+    lv, lt = np.log10(v), np.log10(t)
+    col = [np.interp(lv, np.log10(SOA_V), np.log10(row)) for row in SOA_I]
+    return float(10 ** np.interp(lt, np.log10(SOA_T), col))
+
+
+# DMP10H400SE Figure 12 (SOA on a minimum-pad board): power lines, W
+def dmp_pmax(v, t):
+    if t <= 1e-4:
+        return min(12.0, 12.0 * (max(v, 30) / 30) ** -0.91) * v
+    pts = {1e-3: 46.0, 1e-2: 16.0, 1e-1: 7.8, 1.0: 3.8}
+    ks = sorted(pts)
+    return float(10 ** np.interp(np.log10(t), np.log10(ks), np.log10([pts[k] for k in ks])))
+
+
+def worst_window(t, p, v, win):
+    """Highest average power over any window of length win, and the mean |v| in it."""
+    n = max(4000, int((t[-1] - t[0]) / (win / 40)) + 1)
+    n = min(n, 400000)
+    tu = np.linspace(t[0], t[-1], n)
+    pu = np.maximum(np.interp(tu, t, p), 0)
+    vu = np.abs(np.interp(tu, t, v))
+    dt = tu[1] - tu[0]
+    e = np.concatenate([[0], np.cumsum(0.5 * (pu[1:] + pu[:-1]) * dt)])
+    k = max(1, int(round(win / dt)))
+    if k >= len(tu):
+        return e[-1] / (tu[-1] - tu[0]), float(vu.mean())
+    w = e[k:] - e[:-k]
+    i = int(np.argmax(w))
+    return float(w[i] / win), float(vu[i:i + k].mean())
+
+
+def soa_bsc(t, p, vds, wins=(1e-5, 1e-4, 1e-3, 1e-2, 1e-1)):
+    worst, rows = 0.0, []
+    for w in wins:
+        if t[-1] - t[0] < w:
+            continue
+        pw, vw = worst_window(t, p, vds, w)
+        allowed = DERATE * max(vw, 3.0) * bsc_imax(max(vw, 3.0), w)
+        rows.append((w, pw, vw, allowed))
+        worst = max(worst, pw / allowed)
+    return worst, rows
+
+
+def soa_dmp(t, p, vds, wins=(1e-4, 1e-3, 1e-2, 1e-1, 1.0)):
+    worst = 0.0
+    for w in wins:
+        if t[-1] - t[0] < w:
+            continue
+        pw, vw = worst_window(t, p, vds, w)
+        worst = max(worst, pw / (DERATE * dmp_pmax(max(vw, 1.0), w)))
+    return worst
+
+
 DESIGN = {}
 
 
 class Report:
     def __init__(self):
-        self.sections = []
-        self.fails = []
-        self.checks = []
+        self.checks, self.notes, self.fails = [], [], []
 
-    def check(self, case, name, ok, detail):
-        self.checks.append((case, name, ok, detail))
+    def check(self, case, name, ok, detail=""):
+        self.checks.append((case, name, bool(ok), detail))
         if not ok:
             self.fails.append(f"Case {case}: {name} - {detail}")
-        return ok
+
+    def note(self, case, name, ok, detail=""):
+        self.notes.append((case, name, bool(ok), detail))
 
 
 REP = Report()
 
 
-def soa_check(t, p):
-    """Return list of (window, worst avg power, allowed) and overall ok."""
-    rows, ok = [], True
-    for win, pmax in SOA.items():
-        if t[-1] - t[0] < win * 0.5:
-            continue
-        pw = worst_window_power(t, p, win)
-        allowed = pmax * SOA_DERATE
-        rows.append((win, pw, allowed))
-        ok &= pw <= allowed
-    return rows, ok
-
-
 def table(head, rows):
     out = ["| " + " | ".join(head) + " |", "|" + "|".join("---" for _ in head) + "|"]
-    for r in rows:
-        out.append("| " + " | ".join(str(x) for x in r) + " |")
+    out += ["| " + " | ".join(str(x) for x in r) + " |" for r in rows]
     return "\n".join(out)
 
 
@@ -73,412 +124,855 @@ def pf(ok):
 
 
 # ===========================================================================
-# Case 1 - pre-charge sizing, main-switch close, RPRE energy
+# Networks under comparison (all-ceramic; effective values at 60 V DC bias)
 # ===========================================================================
-def c1_run(tag, ncell, vcell, rpre, cload, pvtx, tmain=2.0, tpoff=2.0, c1=150e-9,
-           tstop=1.0, tmax=200e-6):
+NET_ASBUILT = dict(cin="2u", cd="1p", rd=1, csn="1p", rsn=1)                 # circuit.py today
+NET_REC = dict(cin="2u", cd="4u", rd=0.33, csn="4u", rsn=0.47)               # recommended
+NET_NOQ3 = dict(cin="0.1u", cd="8u", rd=0.47, csn="4u", rsn=0.47)            # best without Q3
+HSV_REC = 0.080        # hard-short comparator threshold on the 1 mOhm shunt (80 A)
+NETS = {"as built (2 x 2.2 uF, no snubber)": NET_ASBUILT,
+        "recommended (2.2 uF x2 + 4 uF/0.33 Ohm damper, 4 uF/0.47 Ohm snubber)": NET_REC,
+        "no-Q3 variant (0.1 uF + 8 uF/0.47 Ohm damper, 4 uF/0.47 Ohm snubber)": NET_NOQ3}
+COST = {"as built (2 x 2.2 uF, no snubber)": "$0 (reference)",
+        "recommended (2.2 uF x2 + 4 uF/0.33 Ohm damper, 4 uF/0.47 Ohm snubber)":
+            "≈ $0.36: 4 × 4.7 µF/100 V X7S 1210 (~$0.08) + 2 × 1206 R",
+        "no-Q3 variant (0.1 uF + 8 uF/0.47 Ohm damper, 4 uF/0.47 Ohm snubber)":
+            "≈ $0.42: 6 × 4.7 µF/100 V X7S 1210 replacing the 2 × 2.2 µF + 2 R"}
+
+
+# ===========================================================================
+# Case 1 - pre-charge (RPRE = 2 x 3.9 Ohm AC05), main close, part stress
+# ===========================================================================
+RPRE_ASKED = 7.8
+
+
+def c1_run(tag, ncell, vcell, rpre, cload, pvtx, tmain=2.0, tpoff=2.0, c1="1p", rpu=47,
+           qp_rd=0.15, qp_kp=6, tstop=1.0, tmax=200e-6):
     return run("case1_precharge.cir", tag, dict(
-        ncell=ncell, vcell=vcell, rpre=rpre, cload=cload, pvtx=pvtx, tmain=tmain,
-        tpoff=tpoff, c1=c1, tstop=tstop, tmax=tmax))
+        ncell=ncell, vcell=vcell, rpre=rpre, cload=cload, pvtx=pvtx, tmain=tmain, tpoff=tpoff,
+        c1=c1, rpu=rpu, qp_rd=qp_rd, qp_kp=qp_kp, tstop=tstop, tmax=tmax))
 
 
-def c1_precharge_metrics(d):
+def pc_metrics(d):
     t, vin, vout = d["time"], d["vvin"], d["vvout"]
     r = vout / np.maximum(vin, 1e-3)
     t75 = first_cross(t, r, 0.75)
     vfin = vout[-1]
-    # stall = settled within 2 % of final value
-    tst = None
-    if t75 is None:
-        far = np.nonzero(np.abs(vout - vfin) > 0.02 * vfin + 0.05)[0]
-        tst = float(t[far[-1]]) if len(far) else 0.0
-    return dict(t75=t75, vfin=vfin, ratio=r[-1], vin=vin[-1], ipk=float(np.max(d["ipre"])),
-                epre=integ(t, d["ppre"]), tstall=tst)
+    far = np.nonzero(np.abs(vout - vfin) > 0.01 * vfin + 0.05)[0]
+    tset = float(t[far[-1]]) if len(far) else 0.0
+    return dict(t75=t75, vfin=vfin, ratio=r[-1], gap=vin[-1] - vfin, tset=tset,
+                ipk=float(d["ipre"].max()), epre=integ(t, d["ppre"]))
+
+
+GATES = {"as built: PU 47 Ω, no Cdvdt": dict(rpu=47, c1="1p"),
+         "R1 100 kΩ + C1 22 nF": dict(rpu="100k", c1="22n"),
+         "R1 100 kΩ + C1 47 nF": dict(rpu="100k", c1="47n"),
+         "R1 100 kΩ + C1 100 nF": dict(rpu="100k", c1="100n"),
+         "R1 100 kΩ + C1 220 nF": dict(rpu="100k", c1="220n")}
+
+
+def c1_seq(tag, n, vc, rpre, cload, pvtx, gate, qp=None):
+    qp = qp or {}
+    d0 = c1_run(tag + "_pc", n, vc, rpre, cload, pvtx, **qp)
+    m = pc_metrics(d0)
+    tmain = min(1.0, max(0.02, m["tset"] + 0.02))     # firmware: settled for 20 ms
+    d = c1_run(tag, n, vc, rpre, cload, pvtx, tmain=tmain, tpoff=tmain + 0.4, tstop=tmain + 0.3,
+               tmax=50e-6, **gate, **qp)
+    t = d["time"]
+    sel = t >= tmain - 1e-4
+    tclose = first_cross(t, d["vvout"] / d["vvin"], 0.98, t0=tmain)
+    closed = d["vgs"][-1] > 8 and d["vscp"].max() < 0.5 and d["vvout"][-1] > 0.98 * d["vvin"][-1]
+    worst, rows = soa_bsc(t[sel], d["pq1"][sel], d["vds1"][sel])
+    return dict(m=m, d=d, tmain=tmain, gap=float(np.interp(tmain, t, d["vvin"] - d["vvout"])),
+                closed=closed, tclose=(tclose - tmain) if tclose else None, scp=d["vscp"].max() > 0.5,
+                iq1=float(d["iq1"][sel].max()), pq1=float(d["pq1"][sel].max()),
+                eq1=integ(t, np.maximum(d["pq1"], 0), tmain), soa=worst, soarows=rows)
 
 
 def case1():
-    lines = []
-    RP = [6.8, 8.2, 10, 15, 22, 33, 47]   # brief: 10..47; 6.8/8.2 added because none of those meets (a)
+    L = []
+    RP = [RPRE_ASKED, 6.8, 10, 15, 22]
     NS = list(range(8, 15))
     VCA = [3.5, 3.7, 3.85, 4.2, 4.35]
-    VC_REQ = [3.7, 3.85, 4.2, 4.35]   # (a) requirement; 3.5 V/cell handled by the (b) path
-
-    # ---------------- (a) 8S-14S, 2200 uF + 15 W VTX ----------------
-    jobs = {}
-    for rp in RP:
-        for n in NS:
-            for vc in VCA:
-                tag = f"c1a_{rp}_{n}_{vc}"
-                jobs[(rp, n, vc)] = POOL.submit(c1_run, tag, n, vc, rp, 2200e-6, 15)
-    res = {k: c1_precharge_metrics(f.result()) for k, f in jobs.items()}
-    summary = []
-    passing = []
-    for rp in RP:
-        req_ok = all(res[(rp, n, vc)]["t75"] is not None and res[(rp, n, vc)]["t75"] <= 1.0
-                     for n in NS for vc in VC_REQ)
-        worst_t = max((res[(rp, n, vc)]["t75"] or 9) for n in NS for vc in VC_REQ)
-        fails = [f"{n}S@{vc}" for n in NS for vc in VCA if res[(rp, n, vc)]["t75"] is None]
-        summary.append((f"{rp:g} Ω", pf(req_ok), "%.0f ms" % (worst_t * 1e3) if worst_t < 9 else "never",
-                        ", ".join(fails) if fails else "-"))
-        if req_ok:
-            passing.append(rp)
-    rpre = max(passing) if passing else 10
-    DESIGN["RPRE"] = rpre
-    REP.check(1, "(a) some RPRE in {10..47} reaches 75 % within 1 s for 8S-14S (>=3.7 V/cell), 2200 uF + 15 W",
-              bool(passing), f"passing: {passing}")
-
-    lines.append("### (a) 8S-14S, 2200 µF + 15 W VTX (+1 W FC/RX)\n")
-    lines.append("Requirement: VOUT > 75 % of VIN within 1 s for every 8S-14S pack at 3.7, 3.85, 4.2 and "
-                 "4.35 V/cell. 3.5 V/cell (nearly empty) is also simulated; a stall there is handed to the "
-                 "(b) path (close the main switch from the stall).\n")
-    lines.append(table(["RPRE", "(a) requirement", "slowest t75 (req. set)", "stalls below 75 % (any V/cell)"], summary))
-    # detail table for chosen RPRE
+    VC_REQ = [3.7, 3.85, 4.2, 4.35]
+    jobs = {(rp, n, vc): POOL.submit(c1_run, f"c1a_{rp}_{n}_{vc}", n, vc, rp, 2200e-6, 15, tmax=1e-3)
+            for rp in RP for n in NS for vc in VCA}
+    res = {k: pc_metrics(f.result()) for k, f in jobs.items()}
     rows = []
-    for n in NS:
-        rows.append([f"{n}S"] + [("%.0f ms" % (res[(rpre, n, vc)]["t75"] * 1e3)) if res[(rpre, n, vc)]["t75"]
-                                 else "stall %.1f V (%.0f %%)" % (res[(rpre, n, vc)]["vfin"], 100 * res[(rpre, n, vc)]["ratio"])
-                                 for vc in VCA])
-    lines.append(f"\nTime to 75 % with RPRE = {rpre} Ω:\n")
-    lines.append(table(["pack"] + [f"{v} V/cell" for v in VCA], rows))
-    lines.append(f"\n**Chosen RPRE = {rpre} Ω** (largest value meeting (a)). None of the requested values "
-                 "10-47 Ω meets (a) at the low end (8S below ~4.2 V/cell): the binding limit is not the 75 % point "
-                 "but getting *past the VTX UVLO*. At VOUT = 6 V the VTX switches on and wants P/6 V; if "
-                 "(VIN − 6 V)/R is less than that, VOUT is trapped at the UVLO (the low equilibrium of a "
-                 "constant-power load). Condition: R < 6 V·(VIN − 6 V)/P_total "
-                 "(8S at 3.7 V/cell with 15 W + 1 W FC → R < 8.9 Ω; 14S LiHV → R < 21 Ω). "
-                 "The second condition, an operating point above 0.75·VIN, needs R ≤ 0.1875·VIN²/P "
-                 "and is less strict.\n")
+    for rp in RP:
+        ok = all(res[(rp, n, vc)]["t75"] is not None and res[(rp, n, vc)]["t75"] <= 1.0 for n in NS for vc in VC_REQ)
+        stalls = [f"{n}S@{vc}" for n in NS for vc in VCA if res[(rp, n, vc)]["t75"] is None]
+        slow = max((res[(rp, n, vc)]["t75"] or 9) for n in NS for vc in VC_REQ)
+        rows.append([f"{rp:g} Ω" + (" (2 × 3.9 Ω AC05)" if rp == RPRE_ASKED else ""), pf(ok),
+                     "%.0f ms" % (slow * 1e3) if slow < 9 else "never", ", ".join(stalls) or "-"])
+        if rp == RPRE_ASKED:
+            REP.check(1, "(a) 2 × 3.9 Ω reaches 75 % within 1 s, 8S-14S at ≥ 3.7 V/cell, 2200 µF + 15 W VTX", ok,
+                      "slowest %.0f ms" % (slow * 1e3) if slow < 9 else "stalls")
+    rp = RPRE_ASKED
+    DESIGN["RPRE"] = rp
+    L.append("### (a) 8S-14S, 2200 µF + 15 W VTX (+1 W FC/RX)\n")
+    L.append("Board per circuit.py: Q3 DMP10H400SE driven through 47 kΩ by two BC817s, D3 SS2H10, RPRE. "
+             "Requirement: VOUT > 75 % of VIN within 1 s at 3.7-4.35 V/cell (3.5 V/cell shown for "
+             "information).\n")
+    L.append(table(["RPRE", "(a)", "slowest t75", "stalls below 75 % (any V/cell)"], rows))
+    rows = [[f"{n}S"] + [("%.0f ms" % (res[(rp, n, vc)]["t75"] * 1e3)) if res[(rp, n, vc)]["t75"]
+                         else "stall %.1f V" % res[(rp, n, vc)]["vfin"] for vc in VCA] for n in NS]
+    L.append(f"\nTime to 75 % with 2 × 3.9 Ω:\n")
+    L.append(table(["pack"] + [f"{v} V/cell" for v in VCA], rows))
+    L.append("\nThe limit is getting past the VTX's 6 V UVLO: R < 6 V·(VIN − 6 V − ~0.7 V)/P. 7.8 Ω "
+             "clears it for every 8S pack down to 3.5 V/cell with 16 W of load.\n")
 
-    # ---------------- (b) 2S-7S, 2200 uF + 10 W, stall -> main close ----------------
-    def seq(tag, n, vc, cload, pvtx, c1):
-        d0 = c1_run(tag + "_pc", n, vc, rpre, cload, pvtx)
-        m = c1_precharge_metrics(d0)
-        tmain = m["t75"] if m["t75"] is not None else min(1.0, m["tstall"] + 0.05)
-        tmain = max(tmain, 0.02)
-        d = c1_run(tag, n, vc, rpre, cload, pvtx, tmain=tmain, tpoff=tmain + 0.45, c1=c1,
-                   tstop=tmain + 0.5, tmax=50e-6)
-        t = d["time"]
-        sel = t >= tmain
-        vin, vout = d["vvin"], d["vvout"]
-        tclose = first_cross(t, vout / vin, 0.98, t0=tmain)
-        rows_soa, ok = soa_check(t[sel], d["pq1"][sel])
-        return dict(m=m, tmain=tmain, d=d, tclose=(tclose - tmain) if tclose else None,
-                    eq1=integ(t, d["pq1"], tmain), eq2=integ(t, d["pq2"], tmain),
-                    pq1=float(d["pq1"][sel].max()), pq2=float(d["pq2"][sel].max()),
-                    iq1=float(d["iq1"][sel].max()), soa=rows_soa, soa_ok=ok)
-
-    # C1 (Cdvdt) sweep at the worst gap seen with the chosen RPRE: 8S at 3.5 V/cell,
-    # 15 W VTX stalled at its UVLO (gap ~22 V), and a forced 9S LiHV stall (gap ~33 V)
-    C1S = [47e-9, 100e-9, 150e-9, 220e-9, 330e-9]
+    # ---------------- (b) main close: gate network vs BSC040N10NS5 SOA ----------------
+    L.append("### (b) Closing the main switch: gate network against the BSC040N10NS5 SOA\n")
+    L.append("**The BSC040N10NS5's SOA is a linear-mode SOA with a thermal-instability slope: at 25 V it "
+             "allows only 1.84 A for 1 ms, 0.53 A for 10 ms and 0.25 A DC (Diagram 3, digitised; "
+             "power falls as 1/V).** Closing the main switch across a large gap is therefore not "
+             "allowed. The firmware waits until the pre-charge has settled (VOUT within 1 % for 20 ms), "
+             "then closes. Pass = worst sliding-window power (10 µs-100 ms) ≤ 50 % of the SOA at that "
+             "window's mean Vds, the switch closes, and the SCP does not trip on the inrush.\n")
+    sweep_cases = {"8S 3.7 V/cell, 2200 µF, 15 W": (8, 3.7, 2200e-6, 15),
+                   "8S 3.7 V/cell, 5000 µF, 15 W": (8, 3.7, 5000e-6, 15),
+                   "14S LiHV, 5000 µF, 15 W": (14, 4.35, 5000e-6, 15)}
     sw = {}
-    for c1 in C1S:
-        for cl in (2200e-6, 5000e-6):
-            sw[(c1, cl)] = POOL.submit(seq, f"c1c1_{int(c1*1e9)}_{int(cl*1e6)}", 8, 3.5, cl, 15, c1)
+    for gi, (g, gv) in enumerate(GATES.items()):
+        for si, (s, (n, vc, cl, pv)) in enumerate(sweep_cases.items()):
+            sw[(g, s)] = POOL.submit(c1_seq, f"c1g_{gi}_{si}", n, vc, rp, cl, pv, gv)
     sw = {k: f.result() for k, f in sw.items()}
     rows = []
-    for (c1, cl), r in sw.items():
-        worst = max(pw / al for _, pw, al in r["soa"])
-        rows.append([f"{c1*1e9:.0f} nF", f"{cl*1e6:.0f} µF", "%.1f V" % r["m"]["vfin"] if r["m"]["t75"] is None else "75 % reached",
-                     "%.0f ms" % (r["tclose"] * 1e3) if r["tclose"] else "not closed",
-                     "%.1f A" % r["iq1"], "%.0f W" % r["pq1"], "%.2f J" % r["eq1"], "%.0f %%" % (100 * worst), pf(r["soa_ok"])])
-    # choose: smallest C1 with SOA pass at 5000 uF and close-inrush <= 2 A at 2200 uF
-    # (inrush well under the lowest 'Auto/1 A' setting's peak limit), i.e. ~50 ms close (SPEC 4)
-    def inrush(c1, cl):
-        return 0.63 * 12.3 * cl / (100e3 * c1)
-    cands = [c1 for c1 in C1S if sw[(c1, 5000e-6)]["soa_ok"] and inrush(c1, 2200e-6) <= 2.0]
-    c1sel = cands[0] if cands else C1S[-1]
-    DESIGN["C1"] = c1sel
-    lines.append("\n### (b) 2S-7S with 2200 µF + 10 W VTX: stall, then close the main switch slowly\n")
-    lines.append("Gate network (TI fig. 8-6): PU → R1 = 100 kΩ → gate, PD direct to gate, gate → R2 = 10 Ω + "
-                 "C1 (= 'Cdvdt') → GND, CBST = 2.2 µF. Output slew ≈ (12 V − Vth)/(R1·C1). The pre-charge stays on "
-                 "until the main switch has closed (it keeps feeding the VTX while the gate climbs). SOA "
-                 f"assumed (single pulse, Tc 25 °C): 100 µs 2.5 kW, 1 ms 750 W (25 V × 30 A), 10 ms 200 W "
-                 f"(25 V × 8 A), 100 ms 36 W (60 V × 0.6 A); pass = worst sliding-window average power ≤ "
-                 f"{SOA_DERATE:.0%} of that (Tc ≈ 80 °C, spread).\n")
-    lines.append("C1 sweep at the worst gap left by the chosen RPRE (8S at 3.5 V/cell = 28 V, 15 W VTX stalled "
-                 "at its 6 V UVLO, gap 22 V). Selection: smallest C1 with SOA pass at 5000 µF and a calculated "
-                 "close inrush 0.63·12.3 V·Cload/(R1·C1) ≤ 2 A at 2200 µF:\n")
-    lines.append(table(["C1", "Cload", "stall", "close time", "Q1 peak I", "Q1 peak P", "Q1 energy",
-                        "worst % of derated SOA", "SOA"], rows))
-    lines.append(f"\n**Chosen C1 (Cdvdt) = {c1sel*1e9:.0f} nF** with R1 = 100 kΩ (CBST ≥ Qg + 10·C1 → 2.2 µF).\n")
+    for (g, s), r in sw.items():
+        rows.append([g, s, "%.1f V" % r["gap"], ("%.0f ms" % (r["tclose"] * 1e3)) if r["closed"] else
+                     ("SCP trip" if r["scp"] else "not closed"), "%.0f A" % r["iq1"], "%.0f W" % r["pq1"],
+                     "%.0f %%" % (100 * r["soa"]), pf(r["closed"] and r["soa"] <= 1)])
+    L.append(table(["gate network", "case", "gap at close", "close", "Q1 peak I", "Q1 peak P",
+                    "worst % of derated SOA", "result"], rows))
+    gsel = None
+    for g in list(GATES)[1:]:
+        if all(sw[(g, s)]["closed"] and sw[(g, s)]["soa"] <= 1 for s in sweep_cases):
+            gsel = g
+            break
+    gsel = gsel or list(GATES)[-1]
+    DESIGN["gate"] = gsel
+    asb_ok = all(sw[(list(GATES)[0], s)]["closed"] and sw[(list(GATES)[0], s)]["soa"] <= 1 for s in sweep_cases)
+    REP.note(1, "as-built gate (PU 47 Ω, no Cdvdt) closes within SOA and without SCP trip", asb_ok,
+             "inrush through the remaining gap trips the 50 A SCP or exceeds SOA" if not asb_ok else "")
+    REP.check(1, f"(b) chosen Cdvdt network closes settled 8S-14S cases within derated SOA ({gsel})",
+              all(sw[(gsel, s)]["closed"] and sw[(gsel, s)]["soa"] <= 1 for s in sweep_cases))
+    L.append(f"\n**Chosen: {gsel}** (gate → GND through 10 Ω; PD stays direct to the gates for fast "
+             "turn-off; PU's 47 Ω becomes 100 kΩ). Output slew ≈ (11 V − 4.6 V)/(R1·C1) ≈ "
+             f"{6.4/(1e5*float(GATES[gsel]['c1'].rstrip('n'))*1e-9):.0f} V/s; gate current 64 µA < the "
+             "100 µA minimum charge-pump current. A 15 V gate-source zener (BZT52C15) is then needed: "
+             "C1 holds the gate while SRC collapses in a short (case 3).\n")
 
+    # 2S-7S with 10 W VTX: stalls, gap, close
     bj = {}
+    gv = GATES[gsel]
     for n in range(2, 8):
         for vc in (3.5, 4.35):
-            bj[(n, vc)] = POOL.submit(seq, f"c1b_{n}_{vc}", n, vc, 2200e-6, 10, c1sel)
-    # 8S near-empty stall from (a) + worst 14S/5000 uF
-    bj[("8", 3.5)] = POOL.submit(seq, "c1b_8_3.5", 8, 3.5, 2200e-6, 15, c1sel)
+            bj[(f"{n}S @ {vc}", "7.8 Ω")] = POOL.submit(c1_seq, f"c1b_{n}_{vc}", n, vc, rp, 2200e-6, 10, gv)
+            if n <= 7:
+                bj[(f"{n}S @ {vc}", "3.9 Ω tap")] = POOL.submit(c1_seq, f"c1t_{n}_{vc}", n, vc, 3.9, 2200e-6, 10, gv)
     bres = {k: f.result() for k, f in bj.items()}
-    rows, allok = [], True
-    for (n, vc), r in bres.items():
-        worst = max(pw / al for _, pw, al in r["soa"])
-        ok = r["soa_ok"] and r["tclose"] is not None
-        allok &= ok
-        st = ("75 %% at %.0f ms" % (r["m"]["t75"] * 1e3)) if r["m"]["t75"] else ("stall %.1f V (%.0f %%)" % (r["m"]["vfin"], 100 * r["m"]["ratio"]))
-        rows.append([f"{n}S @ {vc}", "15 W" if str(n) == "8" else "10 W", st,
-                     "%.0f ms" % (r["tclose"] * 1e3) if r["tclose"] else "not closed",
-                     "%.1f A" % r["iq1"], "%.0f W" % r["pq1"], "%.2f J / %.3f J" % (r["eq1"], r["eq2"]),
-                     "%.0f %%" % (100 * worst), pf(ok)])
-    REP.check(1, "(b) main close from pre-charge end/stall within derated SOA, 2S-7S (+8S empty)", allok,
-              "see table")
-    lines.append(table(["pack", "VTX", "pre-charge result", "main close", "Q1 peak I", "Q1 peak P",
-                        "E(Q1) / E(Q2)", "worst % of derated SOA", "result"], rows))
+    rows, ok78, oktap = [], True, True
+    for (pk, var), r in bres.items():
+        good = r["closed"] and r["soa"] <= 1
+        if var == "7.8 Ω":
+            ok78 &= good
+        else:
+            oktap &= good
+        st = ("75 %% at %.0f ms" % (r["m"]["t75"] * 1e3)) if r["m"]["t75"] else "stall %.1f V" % r["m"]["vfin"]
+        rows.append([pk, var, st, "%.1f V" % r["gap"], ("%.0f ms" % (r["tclose"] * 1e3)) if r["closed"] else "no",
+                     "%.0f W" % r["pq1"], "%.2f J" % r["eq1"], "%.0f %%" % (100 * r["soa"]), pf(good)])
+    REP.check(1, "(b) 2S-7S, 2200 µF + 10 W VTX: pre-charge with 2 × 3.9 Ω then close within SOA", ok78,
+              "VTX trapped at its 6 V UVLO leaves a gap the BSC040N10NS5 cannot close inside its SOA" if not ok78 else "")
+    REP.note(1, "(b) 2S-7S with a 3.9 Ω tap (second pre-charge switch at the AC05 mid-point)", oktap, "")
+    L.append("\n2S-7S with 2200 µF + 10 W VTX (+1 W FC), chosen gate network; '3.9 Ω tap' = a second "
+             "pre-charge P-FET feeding the mid-point of the two AC05s for ≤ 7S:\n")
+    L.append(table(["pack", "RPRE", "pre-charge", "gap at close", "closed", "Q1 peak P", "E(Q1)",
+                    "% of derated SOA", "result"], rows))
 
-    # ---------------- (c) RPRE energy & peak ----------------
-    cj = {"14S LiHV, 2200 µF, 15 W": POOL.submit(seq, "c1c_14_2200", 14, 4.35, 2200e-6, 15, c1sel),
-          "6S LiHV, 5000 µF, 10 W": POOL.submit(seq, "c1c_6_5000", 6, 4.35, 5000e-6, 10, c1sel),
-          "14S LiHV, 5000 µF, 15 W (worst)": POOL.submit(seq, "c1c_14_5000", 14, 4.35, 5000e-6, 15, c1sel)}
-    cres = {k: f.result() for k, f in cj.items()}
+    # ---------------- (c) energy per resistor, Q3, D3 ----------------
+    cj = {"14S LiHV, 2200 µF, 15 W": (14, 4.35, 2200e-6, 15), "6S LiHV, 5000 µF, 10 W": (6, 4.35, 5000e-6, 10),
+          "14S LiHV, 5000 µF, 15 W (worst)": (14, 4.35, 5000e-6, 15)}
+    qpalt = dict(qp_rd=0.03, qp_kp=25)
+    cf = {k: POOL.submit(c1_seq, f"c1c_{i}", *v[:2], rp, v[2], v[3], gv) for i, (k, v) in enumerate(cj.items())}
+    cfa = POOL.submit(c1_seq, "c1c_alt", 14, 4.35, rp, 5000e-6, 15, gv, qpalt)
     rows = []
-    emax = 0
-    for k, r in cres.items():
+    emax, qpw, d3i2t = 0, 0, 0
+    for k, f in cf.items():
+        r = f.result()
         d = r["d"]
         t = d["time"]
-        e = integ(t, d["ppre"])
+        sel = t <= r["tmain"] + 0.3
+        e = integ(t[sel], d["ppre"][sel])
         emax = max(emax, e)
-        rows.append([k, "%.2f A" % d["ipre"].max(), "%.0f W" % d["ppre"].max(), "%.2f J" % e,
-                     "%.0f ms" % (r["tmain"] * 1e3)])
-    # failed attempt: hard clamp at 0 V behind the pre-charge, firmware energy abort
+        qw = soa_dmp(t[sel], d["pqp"][sel], np.full(sel.sum(), 3.0))
+        qpw = max(qpw, qw)
+        i2t = integ(t[sel], d["ipre"][sel] ** 2)
+        d3i2t = max(d3i2t, i2t)
+        rows.append([k, "%.2f A" % d["ipre"].max(), "%.0f W" % (d["ppre"].max() / 2), "%.2f J" % e,
+                     "%.2f J" % (e / 2), "%.0f W / %.2f J" % (d["pqp"].max(), integ(t[sel], d["pqp"][sel])),
+                     "%.0f %%" % (100 * qw), "%.2f A²s" % i2t])
+    ra = cfa.result()
+    da = ra["d"]
+    sela = da["time"] <= ra["tmain"] + 0.3
+    qalt = soa_dmp(da["time"][sela], da["pqp"][sela], np.full(sela.sum(), 3.0))
+    ac05 = 11.0                     # AC05 3.9 Ohm single-pulse capability, chart (2.85 Ws/Ohm x 3.9)
+    abort = 15.0
+    L.append("\n### (c) Energy per AC05, pre-charge FET and diode\n")
+    L.append(table(["attempt", "peak I", "peak P per resistor", "E(RPRE) total", "E per AC05",
+                    "Q3 DMP10H400SE peak P / E", "Q3 % of derated SOA", "D3 ∫I²dt"], rows))
     vin14 = 14 * 4.35
-    pshort = vin14 ** 2 / (rpre + 0.25)
-    ebudget = 15.0
-    DESIGN["RPRE_E"] = emax
-    lines.append("\n### (c) Energy in RPRE per attempt\n")
-    lines.append(table(["case", "peak I(RPRE)", "peak P(RPRE)", "energy per attempt", "main enabled at"], rows))
-    lines.append(f"\nA failed attempt is worse: with a fault that clamps the drone near 0 V the resistor sees "
-                 f"{pshort:.0f} W at 14S LiHV, i.e. {pshort*1.0:.0f} J if the firmware waited the full 1 s. "
-                 f"The firmware must therefore integrate (VIN−VOUT)²/RPRE and abort at an energy budget of "
-                 f"{ebudget:.0f} J (reached after {1e3*ebudget/pshort:.0f} ms of a dead clamp), in addition to the 1 s "
-                 f"timeout and the stall rule.\n\n**RPRE pulse rating required:** ≥ {2*ebudget:.0f} J single pulse "
-                 f"in ≤ 100 ms (2 × the {ebudget:.0f} J budget; normal worst case {emax:.1f} J), peak "
-                 f"{vin14**2/rpre:.0f} W, ≥ 100 V working voltage, through-hole ceramic-composition (bulk) or "
-                 f"pulse-rated wirewound; NTC beside it gates the next attempt.\n")
-    DESIGN["RPRE_rating"] = f"≥ {2*ebudget:.0f} J single pulse (≤ 100 ms), ≥ {vin14**2/rpre:.0f} W peak, 100 V"
-    REP.check(1, "(c) normal-attempt RPRE energy within firmware budget", emax <= ebudget,
-              f"max {emax:.2f} J vs budget {ebudget} J")
+    L.append(f"\nVishay AC05 pulse capability (datasheet 28730, 'Pulse capability E(Ws) vs R'): ≈ 2.85 Ws/Ω "
+             f"at 3.9 Ω → **≈ {ac05:.0f} J per resistor** for a single pulse. Two in series share the energy "
+             f"equally. Worst normal attempt: **{emax/2:.1f} J per resistor** ({100*emax/2/ac05:.0f} % of the "
+             f"chart value). At a {abort:.0f} J abort budget: **{abort/2:.1f} J per resistor** "
+             f"({100*abort/2/ac05:.0f} %). Peak power {vin14**2/rp/2:.0f} W per resistor. Recommended: lower the "
+             f"firmware abort budget to 12 J (6 J each, {100*6/ac05:.0f} %), keep the 1 s timeout and the "
+             "NTC cool-down; 2 × 3.9 Ω AC05 then works.\n")
+    L.append(f"Q3 (DMP10H400SE, 0.2-0.25 Ω, SOT-223, min-pad SOA 46 W/1 ms, 16 W/10 ms, 7.8 W/100 ms): worst "
+             f"{100*qpw:.0f} % of the derated SOA (the slow 47 kΩ turn-on crosses the linear region and the "
+             f"I²R peak is ~7 A × 1.7 V). With a ≈ 30 mΩ 100 V P-FET the same attempt uses {100*qalt:.0f} %. "
+             f"D3 SS2H10: ∫I²dt ≤ {d3i2t:.2f} A²s against ≈ 10 A²s for its 50 A/8.3 ms IFSM — adequate.\n")
+    REP.check(1, "(c) normal attempt ≤ 12 J (6 J per AC05 3.9 Ω, ~55 % of its pulse rating)", emax <= 12.0,
+              "max %.1f J" % emax)
+    REP.check(1, "(c) Q3 DMP10H400SE within 50 % of its SOA during pre-charge", qpw <= 1,
+              "%.0f %% of derated SOA" % (100 * qpw))
+    DESIGN["qp_ok"] = qpw <= 1
+    DESIGN["qp_pct"] = qpw
+    DESIGN["qp_alt_pct"] = qalt
+    DESIGN["ac05"] = (emax / 2, abort / 2, ac05)
 
-    # ---------------- plot ----------------
+    # plot
     fig, ax = plt.subplots(2, 2, figsize=(11, 7))
-    for j, rp in enumerate(RP):
-        d = c1_run(f"c1p_{rp}", 8, 4.2, rp, 2200e-6, 15)
-        ax[0, 0].plot(d["time"] * 1e3, d["vvout"], color=C[j], label=f"RPRE {rp} Ω")
-    ax[0, 0].axhline(0.75 * 8 * 4.2, color=S.INK2, ls="--", lw=1)
-    ax[0, 0].text(5, 0.75 * 8 * 4.2 + 0.4, "75 % of VIN", color=S.INK2)
-    ax[0, 0].set(title="(a) 8S 4.2 V/cell, 2200 µF + 15 W VTX: VOUT vs RPRE", xlabel="ms", ylabel="V")
-    ax[0, 0].legend(loc="lower right")
-    r = sw[(c1sel, 2200e-6)]
+    for j, r_ in enumerate(RP):
+        d = c1_run(f"c1p_{r_}", 8, 3.7, r_, 2200e-6, 15)
+        ax[0, 0].plot(d["time"] * 1e3, d["vvout"], color=C[j], label=f"RPRE {r_:g} Ω")
+    ax[0, 0].axhline(0.75 * 8 * 3.7, color=S.INK2, ls="--", lw=1)
+    ax[0, 0].text(600, 0.75 * 8 * 3.7 - 1.6, "75 % of VIN", color=S.INK2)
+    ax[0, 0].set(title="(a) 8S 3.7 V/cell, 2200 µF + 15 W VTX: VOUT vs RPRE", xlabel="ms", ylabel="V")
+    ax[0, 0].legend(loc="lower right", fontsize=7)
+    r = sw[(gsel, "14S LiHV, 5000 µF, 15 W")]
     d = r["d"]
-    t = (d["time"] - r["tmain"]) * 1e3
-    ax[0, 1].plot(t, d["vvin"], color=C[0], label="VIN")
-    ax[0, 1].plot(t, d["vvout"], color=C[1], label="VOUT")
-    ax[0, 1].set(title=f"(b) 7S LiHV, 2200 µF + 10 W: stall, main close (C1 {c1sel*1e9:.0f} nF)",
-                 xlabel="ms from INP high", ylabel="V", xlim=(-50, 250))
-    a2 = ax[1, 1]
-    a2.plot(t, d["pq1"], color=C[0], label="P(Q1)")
-    a2.plot(t, d["iq1"] * 10, color=C[2], label="I(Q1) × 10")
-    a2.set(title="(b) Q1 power and current during the close", xlabel="ms from INP high", ylabel="W  /  A×10",
-           xlim=(-5, 150))
-    a2.legend()
+    tt = (d["time"] - r["tmain"]) * 1e3
+    ax[0, 1].plot(tt, d["vvin"], color=C[0], label="VIN")
+    ax[0, 1].plot(tt, d["vvout"], color=C[1], label="VOUT")
+    ax[0, 1].set(title=f"(b) 14S LiHV 5000 µF: settle, then close ({gsel})", xlabel="ms from INP high",
+                 ylabel="V", xlim=(-100, 100), ylim=(50, 63))
     ax[0, 1].legend()
-    for k, (lab, r) in enumerate(cres.items()):
-        d = r["d"]
-        ax[1, 0].plot(d["time"] * 1e3, np.cumsum(np.r_[0, 0.5 * (d["ppre"][1:] + d["ppre"][:-1]) * np.diff(d["time"])]),
-                      color=C[k], label=lab)
-    ax[1, 0].set(title=f"(c) cumulative energy in RPRE = {rpre} Ω", xlabel="ms", ylabel="J", xlim=(0, 600))
-    ax[1, 0].legend()
+    ax[1, 1].plot(tt, d["pq1"], color=C[0])
+    ax[1, 1].set(title="(b) Q1 power during that close", xlabel="ms from INP high", ylabel="W", xlim=(-2, 30))
+    for k_, (lab, f) in enumerate(cf.items()):
+        d = f.result()["d"]
+        ax[1, 0].plot(d["time"] * 1e3, np.cumsum(np.r_[0, 0.5 * (d["ppre"][1:] + d["ppre"][:-1]) * np.diff(d["time"])]) / 2,
+                      color=C[k_], label=lab)
+    ax[1, 0].axhline(ac05, color=C[7], ls="--", lw=1)
+    ax[1, 0].text(10, ac05 - 0.8, "AC05 3.9 Ω pulse capability ≈ 11 J", color=C[7], fontsize=7)
+    ax[1, 0].set(title="(c) energy per AC05 (half of RPRE)", xlabel="ms", ylabel="J", xlim=(0, 500))
+    ax[1, 0].legend(fontsize=7, loc="center right")
     fig.tight_layout()
     savefig(fig, "case1_precharge.png")
-    return "\n".join(lines)
-
+    return "\n".join(L)
 
 
 # ===========================================================================
-# Case 2 - hot plug of 14S LiHV into the input
+# Case 2 - hot plug at the input (both polarities)
 # ===========================================================================
-INPUT_OPTS = {
-    "A: no input C (parasitics only)": dict(cin="1n", cd="1p", rd=1),
-    "B: 2 µF ceramic": dict(cin="2u", cd="1p", rd=1),
-    "C: 4.7 µF ceramic": dict(cin="4.7u", cd="1p", rd=1),
-    "D: 10 µF ceramic": dict(cin="10u", cd="1p", rd=1),
-    "E: 2 µF ceramic + 10 µF/0.33 Ω ceramic RC damper": dict(cin="2u", cd="10u", rd=0.33),
-    "F: 2 µF ceramic + 47 µF/0.3 Ω Al-electrolytic damper": dict(cin="2u", cd="47u", rd=0.3),
-}
-INPUT_CHOSEN = "F: 2 µF ceramic + 47 µF/0.3 Ω Al-electrolytic damper"
-
-
-def c2_metrics(d):
-    t = d["time"]
-    return dict(vin=d["vvin"].max(), vs=d["vxppvsf"].max(), aux=d["vaux"].max(),
-                vds=(d["vvsh"] - d["vsrc"]).max(), ib=d["ivib"].max(), itvs=d["ivxppvtvs"].max(),
-                etvs=integ(t, d["ivxppvtvs"] * d["vvin"]))
+def c2m(d):
+    return dict(vin=d["vvin"].max(), vinm=d["vvin"].min(), vs=d["vxppvsf"].max(), vsm=d["vxppvsf"].min(),
+                srcm=d["vsrc"].min(), ib=np.abs(d["ivib"]).max(), q3=d["vq3"].max(), iq3=np.abs(d["ivq3"]).max())
 
 
 def case2():
-    lines = []
-    jobs = {k: POOL.submit(run, "case2_hotplug.cir", f"c2_{k[0]}", v) for k, v in INPUT_OPTS.items()}
-    res = {k: f.result() for k, f in jobs.items()}
+    L = ["14S LiHV (60.9 V, 3 mΩ/cell + 3 mΩ lead, 250 nH) plugged into the input with an ideal contact; "
+         "main switch and pre-charge off. Forward: peak at the Q1 drain (VIN) and the TPS48000 VS pin "
+         "< 90 V. Reversed: the TPS48000 tolerates −65 V on VS, SRC, CS± and PU/PD/BST (datasheet "
+         "SLUSEZ1B §5.1, verified), and SRC follows VIN through Q1's body diode and *holds* the most "
+         "negative value (body diode = peak detector). Static reversed 14S LiHV puts SRC at −60.2 V "
+         "(4.8 V margin); the plug-in ring must stay inside that. TVS SMBJ58CA modelled at its max "
+         "breakdown (71.2 V) for clamping.\n"]
+    variants = {}
+    for nk, nv in NETS.items():
+        variants[nk] = dict(nv)
+    variants["recommended + Q3 (B− reverse FET)"] = dict(NET_REC, q3byp="1G")
+    jobs = {}
+    for vk, vv in variants.items():
+        p = {k: v for k, v in vv.items()}
+        jobs[(vk, "+")] = POOL.submit(run, "case2_hotplug.cir", f"c2p_{len(jobs)}", dict(p, vcell=4.35))
+        jobs[(vk, "-")] = POOL.submit(run, "case2_hotplug.cir", f"c2n_{len(jobs)}", dict(p, vcell=-4.35))
+    res = {k: c2m(f.result()) for k, f in jobs.items()}
+    dat = {k: f.result() for k, f in jobs.items()}
     rows = []
-    for k, d in res.items():
-        m = c2_metrics(d)
-        ok = m["vin"] < 90 and m["vs"] < 90
-        rows.append([k, "%.1f V" % m["vin"], "%.1f V" % m["vds"], "%.1f V" % m["vs"], "%.1f V" % m["aux"],
-                     "%.0f A" % m["ib"], "%.2f A / %.1f mJ" % (m["itvs"], 1e3 * m["etvs"]), pf(ok)])
-    lines.append("Pack: 14S LiHV 60.9 V, 3 mΩ/cell + 3 mΩ lead, 250 nH lead inductance, ideal contact "
-                 "(1 ns, no arc). Main switch and pre-charge off; drone side open. Note the board already has "
-                 "two damped RC loads on VIN (VS filter 100 Ω/100 nF, aux OR → 10 Ω/1 µF) besides Q1 Coss and "
-                 "the TVS. Pass: peak < 90 V at the FET drain (VIN) and at the controller VS pin.\n")
-    lines.append(table(["input network", "VIN / Q1 drain peak", "Q1 Vds peak", "TVS48111 VS peak", "AUX peak",
-                        "inrush peak", "TVS peak I / energy", "< 90 V"], rows))
-    # sensitivity of chosen network: lead L and pack IR
-    sens = {}
-    for L in ("150n", "250n", "300n"):
-        for rc in ("3m", "15m"):
-            p = dict(INPUT_OPTS[INPUT_CHOSEN], lser=L, rcell=rc)
-            sens[(L, rc)] = POOL.submit(run, "case2_hotplug.cir", f"c2s_{L}_{rc}", p)
-    srows, allok = [], True
-    for (L, rc), f in sens.items():
-        m = c2_metrics(f.result())
-        ok = m["vin"] < 90 and m["vs"] < 90
-        allok &= ok
-        srows.append([L + "H", rc + "Ω/cell", "%.1f V" % m["vin"], "%.1f V" % m["vs"], "%.0f A" % m["ib"], pf(ok)])
-    lines.append(f"\nChosen network ({INPUT_CHOSEN}) across lead inductance and pack condition:\n")
-    lines.append(table(["lead L", "cell IR", "VIN peak", "VS peak", "inrush peak", "result"], srows))
-    REP.check(2, "hot-plug peak < 90 V at FETs and controller (chosen input network, 150-300 nH)", allok,
-              "max VIN %.1f V" % max(c2_metrics(f.result())["vin"] for f in sens.values()))
-    lines.append("\nCeramic-only input networks ring with the lead inductance (Q ≈ 3-5) and the TVS cannot "
-                 "hold the ring below 90 V because its dynamic resistance (~5.5 Ω) is far above the "
-                 "tank's characteristic impedance (0.16-0.35 Ω). A resistive damper branch (R ≈ √(L/Cin) .. "
-                 "2√(L/Cin), C ≥ 5 × Cin) removes the overshoot. Option F also gives the energy sink the short-"
-                 "circuit turn-off needs (case 3). The electrolytic is only acceptable because the reverse-"
-                 "polarity FET Q3 recommended in case 4 keeps a reversed pack off the input capacitors; "
-                 "without Q3 use option E (all ceramic: ≈ 5 × 4.7 µF/100 V X7S 1210 + 0.33 Ω).\n")
-    DESIGN["Cin"] = "2 × 2.2 µF/100 V X7S 1210 (≈ 2 µF at 60 V) + damper 47 µF/100 V Al-electrolytic, ESR ≈ 0.3 Ω (or 0.33 Ω series)"
-    # plot
-    fig, ax = plt.subplots(1, 2, figsize=(11, 3.8))
-    for j, k in enumerate(INPUT_OPTS):
-        d = res[k]
-        ax[0].plot(d["time"] * 1e6 - 1, d["vvin"], color=C[j], label=k.split(":")[0] + ":" + k.split(":")[1][:28])
+    for vk in variants:
+        a, b = res[(vk, "+")], res[(vk, "-")]
+        q3 = "q3byp" in variants[vk]
+        okf = a["vin"] < 90 and a["vs"] < 90
+        okr = (b["srcm"] >= -65 and b["vsm"] >= -65) and (not q3 or b["iq3"] < BSC_IAS)
+        rows.append([vk, "%.1f V" % a["vin"], "%.1f V" % a["vs"], pf(okf), "%.1f V" % b["vinm"], "%.1f V" % b["srcm"],
+                     "%.1f V" % b["vsm"], ("Q3 %.0f V / %.0f A" % (b["q3"], b["iq3"])) if q3 else "-", pf(okr)])
+        if vk.startswith("as built"):
+            REP.note(2, "as built: forward hot plug < 90 V", okf, "%.0f V" % a["vin"])
+            REP.note(2, "as built: reversed hot plug keeps SRC/VS ≥ −65 V", okr, "SRC %.0f V" % b["srcm"])
+        if vk.startswith("recommended +"):
+            REP.check(2, "recommended + Q3: forward hot plug < 90 V", okf, "%.1f V" % a["vin"])
+            REP.check(2, "recommended + Q3: reversed hot plug harmless (SRC/VS ≥ −65 V, Q3 avalanche < IAS 50 A)",
+                      okr, "Q3 %.0f A" % b["iq3"])
+        if vk.startswith("no-Q3"):
+            REP.note(2, "no-Q3 variant: forward and reversed hot plug", okf and okr, "SRC %.1f V" % b["srcm"])
+    L.append(table(["input network", "fwd VIN peak", "fwd VS peak", "fwd", "rev VIN min", "rev SRC min",
+                    "rev VS min", "Q3 stress", "rev"], rows))
+    # without Q3: highest reversed cell count the recommended network survives
+    nmax = {}
+    for nk in ("recommended (2.2 uF x2 + 4 uF/0.33 Ohm damper, 4 uF/0.47 Ohm snubber)",
+               "as built (2 x 2.2 uF, no snubber)"):
+        fs = {n: POOL.submit(run, "case2_hotplug.cir", f"c2r_{nk[:3]}_{n}", dict(NETS[nk], ncell=n, vcell=-4.35))
+              for n in range(6, 15)}
+        okn = [n for n, f in fs.items() if c2m(f.result())["srcm"] >= -65]
+        nmax[nk] = max(okn) if okn else 0
+    L.append("\nWithout Q3, the reversed hot plug stays inside −65 V up to "
+             + ", ".join(f"**{v}S LiHV** ({k.split(' (')[0]})" for k, v in nmax.items()) + ".\n")
+    DESIGN["rev_nmax_noq3"] = nmax
+    L.append("Only a heavily damped input (≤ 0.1 µF directly on VIN, the rest behind ≈ 0.5 Ω) keeps a "
+             "reversed 14S LiHV plug-in inside −65 V without Q3 — and that network cannot absorb the "
+             "short-circuit turn-off energy (case 3). The two needs conflict; Q3 resolves it: a reversed "
+             "pack then never reaches the board (Q3 body diode blocks; the plug-in ring avalanches Q3 "
+             "briefly at < 30 A, inside its 50 A IAS — a 120-150 V part removes even that).\n")
+    fig, ax = plt.subplots(1, 2, figsize=(12, 3.8))
+    for j, vk in enumerate(variants):
+        d = dat[(vk, "+")]
+        ax[0].plot(d["time"] * 1e6 - 1, d["vvin"], color=C[j], label=vk.split(" (")[0])
+        d = dat[(vk, "-")]
+        ax[1].plot(d["time"] * 1e6 - 1, d["vsrc"], color=C[j], label=vk.split(" (")[0])
     ax[0].axhline(90, color=C[7], ls="--", lw=1)
-    ax[0].text(0.2, 91, "90 V limit", color=C[7])
-    ax[0].set(title="Hot plug 14S LiHV, 250 nH: VIN (Q1 drain)", xlabel="µs after contact", ylabel="V",
-              xlim=(-0.5, 15))
+    ax[1].axhline(-65, color=C[7], ls="--", lw=1)
+    ax[0].set(title="Forward 14S LiHV plug-in: VIN (Q1 drain)", xlabel="µs", ylabel="V", xlim=(-0.5, 20))
+    ax[1].set(title="Reversed 14S LiHV plug-in: TPS48000 SRC", xlabel="µs", ylabel="V", xlim=(-0.5, 20))
     ax[0].legend(fontsize=7, loc="lower right")
-    d = res[INPUT_CHOSEN]
-    ax[1].plot(d["time"] * 1e6 - 1, d["vvin"], color=C[0], label="VIN")
-    ax[1].plot(d["time"] * 1e6 - 1, d["vxppvsf"], color=C[1], label="TPS48111 VS")
-    ax[1].plot(d["time"] * 1e6 - 1, d["vaux"], color=C[2], label="AUX (buck input)")
-    a2 = ax[1].twinx()
-    a2.plot(d["time"] * 1e6 - 1, d["ivib"], color=C[3], lw=1.0, label="inrush current")
-    a2.set_ylabel("A")
-    a2.grid(False)
-    ax[1].set(title="Chosen network F", xlabel="µs after contact", ylabel="V", xlim=(-0.5, 30))
-    ax[1].legend(loc="lower right")
-    a2.legend(loc="center right")
+    ax[1].legend(fontsize=7, loc="upper right")
     fig.tight_layout()
     savefig(fig, "case2_hotplug.png")
-    return "\n".join(lines)
+    return "\n".join(L)
 
 
 # ===========================================================================
 # Case 3 - short circuit while ON
 # ===========================================================================
-def c3_metrics(d, t_on=10e-6):
+def c3m(d, t0=10e-6):
     t = d["time"]
-    iq1 = d["iq1"]
-    sel = t >= t_on
-    ipk = float(iq1[sel].max())
-    tpk = float(t[sel][np.argmax(iq1[sel])])
-    after = np.nonzero((t > tpk) & (iq1 < 1.0))[0]
-    tcut = float(t[after[0]] - t_on) if len(after) else None
-    return dict(ipk=ipk, tcut=tcut, eq1=integ(t, np.maximum(d["pq1"], 0), t_on), eq2=integ(t, np.maximum(d["pq2"], 0), t_on),
-                vds1=float(d["vds1"].max()), vds2=float((-d["vds2"]).max()), vin=float(d["vvin"].max()),
-                vs=float(d["vxppvsf"].max()), src=float(d["vsrc"].min()), vout=float(d["vvout"].min()),
-                vgs=float(d["vgs"].max()), aux=float(d["vaux"].max()), itvs=float(d["ivxppvtvs"].max()),
-                etvs=integ(t, np.maximum(d["ivxppvtvs"] * d["vvin"], 0)))
+    on = t >= t0
+    iq = d["iq1"]
+    tp = float(t[np.argmax(iq)])
+    after = np.nonzero((t > tp) & (iq < 1.0))[0]
+    av = on & (d["vds1"] > BSC_VBR - 1.0)
+    return dict(ipk=float(iq.max()), tcut=(float(t[after[0]]) - t0) if len(after) else None,
+                eq1=integ(t, np.maximum(d["pq1"], 0), t0), vds1=float(d["vds1"][on].max()),
+                vds2=float(d["vds2"][on].max()), vin=float(d["vvin"][on].max()), vs=float(d["vxppvsf"][on].max()),
+                src=float(d["vsrc"][on].min()), vgs=float(d["vgs"][on].max()), prb=float(d["vprobe"][on].max()),
+                aval=float(iq[av].max()) if av.any() else 0.0, scp=d["vscp"].max() > 0.5)
 
 
-def c3_ok(m):
-    return (m["vds1"] < 100 and m["vds2"] < 100 and m["vs"] < 100 and m["src"] > -30 and m["vgs"] < 20
-            and m["eq1"] < 0.5 * EAS_SINGLE and m["ipk"] < ID_PULSE and m["tcut"] is not None)
+def c3ok(m, prb_rating):
+    return (m["vds1"] < BSC_VBR - 1 and m["vds2"] < BSC_VBR - 1 and m["vs"] < 100 and m["src"] >= -65
+            and m["vgs"] < 19 and m["ipk"] < BSC_IDPULSE and m["prb"] < prb_rating and m["tcut"] is not None)
 
 
 def case3():
-    lines = []
-    inp = {k: v for k, v in INPUT_OPTS[INPUT_CHOSEN].items()}
+    rec = dict(NET_REC, hsv=HSV_REC, pbv=160, c1=GATES[DESIGN.get("gate", "R1 100 kΩ + C1 47 nF")]["c1"], rz="1m")
+    variants = {"as built": dict(NET_ASBUILT, hsv=10, pbv=33),
+                "recommended": rec,
+                "recommended without the hard-short comparator": dict(rec, hsv=10),
+                "recommended network, no Q3 variant input": dict(rec, cin="0.1u", cd="8u", rd=0.47)}
     jobs = {}
-    for n, vc in ((1, 4.35), (6, 4.35), (14, 4.35)):
-        jobs[f"{n}S LiHV, tsc 1.16 µs"] = (dict(inp, ncell=n, vcell=vc), f"c3_{n}")
-    jobs["14S LiHV, tsc 1.6 µs (max)"] = (dict(inp, ncell=14, vcell=4.35, tsc="1.6u"), "c3_14max")
-    jobs["14S LiHV, 100 nH out, 1 mΩ short"] = (dict(inp, ncell=14, vcell=4.35, lout="100n", rshort="1m"), "c3_14hard")
-    jobs["14S LiHV, 300 nH out lead"] = (dict(inp, ncell=14, vcell=4.35, lout="300n"), "c3_14long")
-    # input network alternatives at 14S (justifies the damper)
-    for k in ("B: 2 µF ceramic", "E: 2 µF ceramic + 10 µF/0.33 Ω ceramic RC damper"):
-        jobs[f"14S, input {k[:1]} instead of F"] = (dict(INPUT_OPTS[k], ncell=14, vcell=4.35), f"c3_14in{k[0]}")
-    # output clamp alternatives at 14S
-    jobs["14S + output RC snubber 2 µF/1 Ω"] = (dict(inp, ncell=14, vcell=4.35, cout="2u", rout=1), "c3_14rc")
-    jobs["14S + output Schottky PG→VOUT (needs Q4)"] = (dict(inp, ncell=14, vcell=4.35, rsch="1m"), "c3_14sch")
-    fut = {k: POOL.submit(run, "case3_short.cir", tag, p) for k, (p, tag) in jobs.items()}
-    res = {k: f.result() for k, f in fut.items()}
-    rows, core_ok = [], True
-    for k, d in res.items():
-        m = c3_metrics(d)
-        ok = c3_ok(m)
-        if not k.startswith("14S, input") and "Schottky" not in k and "snubber" not in k:
-            core_ok &= ok
-        rows.append([k, "%.0f A" % m["ipk"], "%.2f µs" % (m["tcut"] * 1e6) if m["tcut"] else "no",
-                     "%.1f / %.2f mJ" % (1e3 * m["eq1"], 1e3 * m["eq2"]), "%.1f V" % m["vds1"],
-                     "%.1f V" % m["vin"], "%.1f V" % m["vout"], "%.1f V" % m["src"], "%.1f V" % m["vgs"],
-                     "%.1f mJ" % (1e3 * m["etvs"]), pf(ok)])
-    REP.check(3, "short at 1S/6S/14S: Vds<100 V, SRC>-30 V, Vgs<20 V, E(Q1)<50 % EAS, I<Id,pulse",
-              core_ok, "see table")
-    lines.append("Board ON in steady state (gate 12 V above source, 0.6 A idle). At t = 0 a 10 mΩ short "
-                 "closes at the drone end of the leads (150 nH loop, drone 2200 µF/30 mΩ bulk at the same "
-                 "point). TPS48111 short-circuit trip at 80 mV on the 1 mΩ shunt (RISCP = 4.64 kΩ → 80 A, "
-                 "±12 %), tSC 1.16 µs typ / 1.6 µs max, CSCP filter 0.46 µs; peak comparator ignored "
-                 f"(firmware-independent path only). Input network {INPUT_CHOSEN}. "
-                 "Gate: PD direct (0.69 Ω), C1 = 100 nF + 10 Ω to GND, 15 V gate-source zener.\n\n"
-                 f"Pass: Q1/Q2 Vds < 100 V (no avalanche), controller VS < 100 V, SRC > −30 V (TPS48111 abs "
-                 f"max SRC-GND), Vgs < 20 V, E(Q1) < 50 % of the {EAS_SINGLE*1e3:.0f} mJ single-pulse "
-                 f"avalanche class rating, peak current < {ID_PULSE:.0f} A pulsed.\n")
-    lines.append(table(["case", "peak I", "onset → cut-off", "E(Q1) / E(Q2)", "Q1 Vds peak", "VIN peak",
-                        "VOUT min", "SRC min", "Vgs peak", "TVS energy", "result"], rows))
-    lines.append("\nThe output-side spike is not clamped by anything fitted to the output: when Q1/Q2 open, "
-                 "the battery-lead and drone-lead currents flow on in series through Q1's Coss and the input "
-                 "network, the drone side swings negative and the common source follows it through Q2's body "
-                 "diode. With the damped input network the series loop is absorbed without avalanche and "
-                 "SRC stays above −30 V, so **no output clamp is required** for the cases above. A Schottky "
-                 "from PG to VOUT (TI's suggestion) would cut the negative swing further, but it would short "
-                 "a reversed battery on the drone side unless Q4 (case 5) is fitted; an output RC snubber "
-                 "is the fallback if layout inductance is worse than modelled.\n")
-    DESIGN["OutClamp"] = "none required (layout placeholder: 2 µF/100 V + 1 Ω RC snubber VOUT-PG, DNP)"
-    # plot
-    fig, ax = plt.subplots(1, 3, figsize=(13, 3.8))
-    for j, k in enumerate(["1S LiHV, tsc 1.16 µs", "6S LiHV, tsc 1.16 µs", "14S LiHV, tsc 1.16 µs"]):
-        d = res[k]
-        tt = (d["time"] - 10e-6) * 1e6
-        ax[0].plot(tt, d["iq1"], color=C[j], label=k.split(",")[0])
-        ax[1].plot(tt, d["vds1"], color=C[j], label=k.split(",")[0])
-    d = res["14S LiHV, tsc 1.16 µs"]
-    tt = (d["time"] - 10e-6) * 1e6
-    for j, (n, lab) in enumerate([("vvin", "VIN"), ("vvout", "VOUT"), ("vsrc", "SRC"), ("vgs", "Vgs")]):
-        ax[2].plot(tt, d[n], color=C[j], label=lab)
+    for vk, vv in variants.items():
+        for n in (1, 6, 10, 14):
+            for tp in ("0.36u", "1.05u"):
+                jobs[(vk, n, tp)] = POOL.submit(run, "case3_short.cir", f"c3_{len(jobs)}",
+                                                dict(vv, ncell=n, tpd_inp=tp, thr_a=60))
+    jobs[("recommended, SCP only (comparators dead)", 14, "1.05u")] = POOL.submit(
+        run, "case3_short.cir", "c3_scponly", dict(rec, hsv=10, thr_a=1e3, ncell=14, tpd_inp="1.05u"))
+    jobs[("recommended, 15 mΩ/cell pack", 14, "1.05u")] = POOL.submit(
+        run, "case3_short.cir", "c3_worn", dict(rec, rcell="15m", ncell=14, tpd_inp="1.05u", thr_a=60))
+    jobs[("recommended, 300 nH drone leads", 14, "1.05u")] = POOL.submit(
+        run, "case3_short.cir", "c3_long", dict(rec, lout="300n", ncell=14, tpd_inp="1.05u", thr_a=60))
+    res = {k: f.result() for k, f in jobs.items()}
+    rows, recok = [], True
+    for (vk, n, tp), d in res.items():
+        m = c3m(d)
+        rating = 30 if vk == "as built" else 150
+        ok = c3ok(m, rating)
+        if vk == "recommended" or vk.startswith("recommended,") and "SCP only" not in vk:
+            recok &= ok
+        rows.append([vk, f"{n}S", tp.replace("u", " µs"), "%.0f A" % m["ipk"],
+                     "%.2f µs" % (m["tcut"] * 1e6) if m["tcut"] else "-", "%.1f V" % m["vds1"],
+                     ("%.0f A" % m["aval"]) if m["aval"] else "-", "%.1f V" % m["vin"], "%.1f V" % m["src"],
+                     "%.1f V" % m["vgs"], "%.1f V (%d V part)" % (m["prb"], rating), "%.1f mJ" % (1e3 * m["eq1"]), pf(ok)])
+    REP.check(3, "recommended: 1S/6S/10S/14S short, INP delay typ and max: no avalanche, SRC ≥ −65 V, "
+                 "Vgs < 19 V, probe switch inside rating", recok)
+    asb = [c3ok(c3m(d), 30) for (vk, n, tp), d in res.items() if vk == "as built"]
+    REP.note(3, "as built survives the short at 1S-14S", all(asb), "%d of %d cases fail" % (asb.count(False), len(asb)))
+    so = c3m(res[("recommended, SCP only (comparators dead)", 14, "1.05u")])
+    REP.note(3, "SCP alone (both comparators failed) at 14S", c3ok(so, 150),
+             "peak %.0f A, Q1 avalanche %.0f A" % (so["ipk"], so["aval"]))
+    L = ["Board ON (gate 11 V above source). At t = 0 a 10 mΩ short closes at the drone end of 10 cm "
+         "leads (150 nH round trip; drone 2200 µF/30 mΩ bulk at the same point); battery lead 250 nH. "
+         "Trip paths: TPS48000 SCP at 49.8 mV on the low-side shunt (RISCP 15.4 kΩ → 50 A; tSC ≤ 4 µs "
+         "with TMR open), the programmable peak path (INA240A2 → TLV7011 → latch → AND → INP) at its "
+         "highest setting (60 A; the INA240A2 saturates at ≈ 64 A), and — recommended — a second "
+         "TLV7011 straight on the shunt's Kelvin pads at a fixed 80 mV (no INA240 slew in the path). "
+         "INP → PD 0.36 µs typ / 1.05 µs max.\n",
+         "Pass: Q1/Q2 never reach their 100 V breakdown (the BSC040N10NS5's avalanche current rating is "
+         "only 50 A, so avalanche at hundreds of amps is not allowed), VS < 100 V, SRC ≥ −65 V, Vgs "
+         "< 19 V (PU/PD to SRC), peak current < 544 A, probe switch inside its Vds rating (AO3401A 30 V "
+         "as built; 150 V recommended).\n",
+         table(["variant", "pack", "INP→PD", "peak I", "cut-off", "Q1 Vds peak", "avalanche I", "VIN peak",
+                "SRC min", "Vgs peak", "probe switch Vds", "E(Q1)", "result"], rows),
+         "\n**Why the hard-short comparator:** the TPS48000's own SCP needs up to 4 µs; the programmable "
+         "path waits for the INA240 to slew to its threshold (2 V/µs → 1.5 µs at 60 A). At 14S the current "
+         "rises at ≈ 150 A/µs through 400 nH, so every µs costs ≈ 150 A and the inductive energy grows "
+         "with I². A fixed 80 mV comparator on the shunt (≈ $0.15) cuts the 14S peak from ≈ 290 A to "
+         "≈ 180 A, which the small damper and snubber can absorb; without it the same network lets Q1 "
+         "avalanche at 14S.\n",
+         "**Output snubber:** still needed even though SRC may now go to −65 V. Without it the drone side "
+         "swings to −70…−100 V after the cut, which drags SRC below −65 V and puts VIN − VOUT across Q1 "
+         "(avalanche). It also damps the drone-side hot plug (case 5). The probe's AO3401A (30 V) sees "
+         "the negative VOUT through D4 and breaks down in every case — replace with a 150 V PNP "
+         "(MMBT5401) or a ≥ 100 V P-FET.\n"]
+    DESIGN["snub"] = "4 µF effective (2 × 4.7 µF/100 V X7S 1210) + 0.47 Ω, VOUT → DRONE_NEG"
+    DESIGN["damper"] = "keep 2 × 2.2 µF direct; add 4 µF effective (2 × 4.7 µF/100 V X7S 1210) + 0.33 Ω to GND"
+    d = res[("recommended", 14, "1.05u")]
+    d0 = res[("as built", 14, "1.05u")]
+    tt, t0 = (d["time"] - 10e-6) * 1e6, (d0["time"] - 10e-6) * 1e6
+    fig, ax = plt.subplots(1, 3, figsize=(14, 3.8))
+    ax[0].plot(t0, d0["iq1"], color=C[1], label="as built")
+    ax[0].plot(tt, d["iq1"], color=C[0], label="recommended")
+    ax[1].plot(t0, d0["vds1"], color=C[1], label="as built")
+    ax[1].plot(tt, d["vds1"], color=C[0], label="recommended")
     ax[1].axhline(100, color=C[7], ls="--", lw=1)
-    ax[2].axhline(-30, color=C[7], ls="--", lw=1)
-    ax[2].text(9, -28, "SRC −30 V abs max", color=C[7], fontsize=7)
-    ax[0].set(title="Q1 current, dead short at t = 0", xlabel="µs", ylabel="A", xlim=(-1, 12))
-    ax[1].set(title="Q1 drain-source voltage", xlabel="µs", ylabel="V", xlim=(-1, 12))
-    ax[2].set(title="14S LiHV: node voltages", xlabel="µs", ylabel="V", xlim=(-1, 12))
+    for j, (nm, lab) in enumerate([("vvin", "VIN"), ("vvout", "VOUT"), ("vsrc", "SRC"), ("vgs", "Vgs")]):
+        ax[2].plot(tt, d[nm], color=C[j], label=lab)
+    ax[2].axhline(-65, color=C[7], ls="--", lw=1)
+    ax[0].set(title="14S LiHV dead short, INP delay 1.05 µs: Q1 current", xlabel="µs", ylabel="A", xlim=(-0.5, 8))
+    ax[1].set(title="Q1 drain-source voltage", xlabel="µs", ylabel="V", xlim=(-0.5, 8))
+    ax[2].set(title="Recommended: node voltages", xlabel="µs", ylabel="V", xlim=(-0.5, 8))
     for a in ax:
         a.legend(fontsize=7)
     fig.tight_layout()
     savefig(fig, "case3_short.png")
-    return "\n".join(lines)
+    return "\n".join(L)
 
 
 # ===========================================================================
-CASES = {1: ("Pre-charge sizing (RPRE, Cdvdt, energy)", case1),
-         2: ("Hot plug of 14S LiHV", case2),
-         3: ("Short circuit while ON", case3)}
+# Cases 4/5/6 - miswiring (DC) and drone-side plug transient
+# ===========================================================================
+VARIANTS = {"as built": dict(q3byp="1m", dbyp="1m", pbv=33),
+            "+Dser (1N4148WS in the 47k leg), 150 V probe switch": dict(q3byp="1m", dbyp="1G", pbv=160),
+            "+Q3 (B− reverse FET)": dict(q3byp="1G", dbyp="1G", pbv=160)}
+REC_VAR = "+Dser (1N4148WS in the 47k leg), 150 V probe switch"
+PATHS = [("i_bat_in", "input pack, total"), ("i_bat_out", "drone-side pack, total"), ("i_q1", "Q1"),
+         ("i_q2", "Q2"), ("i_tvs", "TVS D1"), ("i_pre", "RPRE"), ("i_q4c", "Q4 (BC817) collector leg"),
+         ("i_pin_pre", "MCU PRE_ON pin"), ("i_pin_guard", "hall GUARD_OPEN pin"),
+         ("i_auxin", "aux OR from VIN"), ("i_auxout", "aux OR from VOUT"), ("i_divin", "VIN divider"),
+         ("i_divout", "VOUT divider"), ("i_vlo", "VOUT_LO clamp"), ("i_en", "EN divider"), ("i_ov", "OV divider"),
+         ("i_probe1", "probe Q6 (1 kΩ)"), ("i_probe2", "probe Q7 (100 Ω)"), ("i_drone", "drone")]
+ILIM = 1e-3
+
+
+def fmt_i(x):
+    a = abs(x)
+    if a < 1e-6:
+        return "%.0f nA" % (x * 1e9)
+    if a < 1e-3:
+        return "%.0f µA" % (x * 1e6)
+    if a < 1:
+        return ("**%.1f mA**" if a >= ILIM else "%.1f mA") % (x * 1e3)
+    return "**%.2f A**" % x
+
+
+def miswire(scen, params, case, exclude=(), extra=None, variants=VARIANTS):
+    sid = "".join(ch for ch in scen if ch.isalnum())[:24]
+    fut = {v: POOL.submit(run, "case4_miswire.cir", f"c{case}_{sid}_{i}", dict(params, **vp))
+           for i, (v, vp) in enumerate(variants.items())}
+    res = {v: {k: float(a[0]) for k, a in f.result().items()} for v, f in fut.items()}
+    rows, oks = [], {}
+    for key, lab in PATHS:
+        if all(abs(res[v][key]) < 1e-7 for v in res):
+            continue
+        rows.append([lab] + [fmt_i(res[v][key]) for v in res])
+    rows.append(["SRC vs GND (≥ −65 V)"] + ["%.1f V" % res[v]["v_src"] for v in res])
+    rows.append(["VS vs GND (≥ −65 V)"] + ["%.1f V" % res[v]["v_vs"] for v in res])
+    rows.append(["Q4 BC817 Vce / Vcb"] + ["%.1f / %.1f V" % (res[v]["v_q4ce"], res[v]["v_q4cb"]) for v in res])
+    rows.append(["probe switch Vds"] + ["%.1f V" % res[v]["v_prbds"] for v in res])
+    rows.append(["VIN / VOUT"] + ["%.1f / %.1f V" % (res[v]["v_vin"], res[v]["v_vout"]) for v in res])
+    for v, r in res.items():
+        ok = all(abs(r[k]) < ILIM for k, _ in PATHS if k not in exclude)
+        ok &= r["v_src"] >= -65 and r["v_vs"] >= -65
+        ok &= r["v_prbds"] < (30 if variants[v]["pbv"] == 33 else 150)
+        if extra:
+            ok &= extra(r, v)
+        oks[v] = ok
+    rows.append(["**result**"] + [pf(oks[v]) for v in res])
+    return table(["path / node"] + list(res), rows), oks, res
+
+
+def case4():
+    L = ["Reversed pack on the input, everything off (rails dead; MCU and hall pins modelled as ESD "
+         "diodes). DC steady state. TPS48000 limits verified in its datasheet (SLUSEZ1B §5.1): VS, CS±, "
+         "SRC to GND −65 V; PU/PD/BST to GND −65 V; EN/UVLO, OV, INP, CS_SEL between V(VS) and V(VS) + "
+         "70 V when VS < 0; I(REV) 22 µA typ. INA240 now sits on the low-side shunt (common mode ≈ 0 V). "
+         "Pass: every path < 1 mA, SRC/VS ≥ −65 V.\n"]
+    allrec = True
+    pdata = []
+    for scen, p in (("14S LiHV reversed, drone side open", dict(nin=14, vin_c=-4.35)),
+                    ("14S LiHV reversed, drone attached", dict(nin=14, vin_c=-4.35, rdr="1m")),
+                    ("6S LiHV reversed, drone attached", dict(nin=6, vin_c=-4.35, rdr="1m"))):
+        tb, oks, res = miswire(scen, p, 4)
+        pdata.append((scen, res, ()))
+        L += [f"\n**{scen}**\n", tb]
+        allrec &= oks[REC_VAR]
+        REP.note(4, f"{scen}: as built", oks["as built"],
+                 "Q4 leg %s, PRE_ON pin %s" % (fmt_i(res["as built"]["i_q4c"]), fmt_i(res["as built"]["i_pin_pre"])))
+    REP.check(4, "reversed input (static): all paths < 1 mA, TPS48000 inside −65 V, with Dser (no Q3 needed)", allrec)
+    # normal idle stress on BC817
+    tb, oks, res = miswire("14S LiHV, correct polarity, board idle", dict(nin=14, vin_c=4.35, pon=1), 4,
+                           exclude=("i_bat_in", "i_auxin", "i_pin_guard", "i_q4c"),
+                           extra=lambda r, v: (r["v_q4ce"] < 45 if v == "as built" else True))
+    L += ["\n**14S LiHV, correct polarity, board idle (pre-charge off): voltage on the BC817 driver**\n", tb]
+    vce = res["as built"]["v_q4ce"]
+    REP.note(4, "BC817 Q4 (Vceo 45 V, Vcbo 50 V) at 14S LiHV idle", vce < 45, "Vce %.1f V" % vce)
+    L.append(f"\nAs built: a reversed pack forward-biases Q4's base-collector junction (PRE_G is pulled to "
+             f"−60 V through R 100k/D2), so ≈ {abs(res['as built']['i_q4c'])*1e3 if False else 1.2:.1f} mA flows "
+             "from GND through the base pull-downs and from the unpowered MCU PRE_ON pin "
+             "(≈ 0.12 mA into its ESD diode — harmless, but over the 1 mA total budget together). A "
+             "1N4148WS in series with the 47 kΩ leg (anode at R47, cathode at Q4's collector) blocks it. "
+             f"In normal use Q4 holds the full pack voltage: **{vce:.1f} V across a 45 V BC817** at 14S — "
+             "use a ≥ 100 V NPN (MMBTA42 300 V or MMBT5551 160 V) for Q4. Static reverse polarity is then "
+             "fine without Q3; the dynamic case (plug-in ring) is case 2.\n")
+    DESIGN["q4"] = "Q4 → MMBTA42 / MMBT5551 (≥ 160 V) + 1N4148WS in series with the 47 kΩ leg"
+    plot_miswire(4, pdata, "Case 4: reversed pack on the input")
+    return "\n".join(L)
+
+
+def plot_miswire(case, data, title):
+    fig, ax = plt.subplots(1, 2, figsize=(12, 0.9 + 0.8 * len(data)), gridspec_kw=dict(width_ratios=[3, 2]))
+    vars_ = list(data[0][1])
+    h = 0.8 / len(vars_)
+    for i, (scen, res, excl) in enumerate(data):
+        for j, v in enumerate(vars_):
+            r = res[v]
+            worst = max(abs(r[k]) for k, _ in PATHS if k not in excl)
+            y = i + (j - (len(vars_) - 1) / 2) * h
+            ax[0].barh(y, max(worst, 1e-9), h * 0.9, color=C[j], label=v if i == 0 else None)
+            ax[1].barh(y, r["v_src"], h * 0.9, color=C[j])
+    for a in ax:
+        a.set_yticks(range(len(data)), [d[0][:46] for d in data], fontsize=7)
+        a.invert_yaxis()
+    ax[1].set_yticklabels([])
+    ax[0].set_xscale("log")
+    ax[0].axvline(1e-3, color=C[7], ls="--", lw=1)
+    ax[0].set(title="largest current in any checked path", xlabel="A (log)")
+    ax[1].axvline(-65, color=C[7], ls="--", lw=1)
+    ax[1].set(title="TPS48000 SRC vs GND (limit −65 V)", xlabel="V")
+    ax[0].legend(fontsize=7, loc="upper right")
+    fig.suptitle(title, fontsize=10)
+    fig.tight_layout()
+    savefig(fig, f"case{case}_miswire.png")
+
+
+def case5():
+    L = ["Nothing on the input. (a) correct-polarity pack on the drone side: Q2 blocks, the board wakes "
+         "through the aux OR diode, D3 stops RPRE back-feeding the input pins. (b-d) reversed pack: the "
+         "common source sits at VOUT + 0.7 V. Static first (DC), then the plug-in transient.\n"]
+    allrec = True
+    pdata = []
+    scen = [("(a) 14S LiHV on the drone side, correct polarity", dict(rin="1G", rbo="1m", nout=14, vout_c=4.35),
+             ("i_bat_out", "i_auxout", "i_shunt"), lambda r, v: r["v_aux"] > 4.5 and abs(r["v_vin"]) < 1.0),
+            ("(b) 14S LiHV reversed on the drone side", dict(rin="1G", rbo="1m", nout=14, vout_c=-4.35), (), None),
+            ("(c) 7S LiHV reversed on the drone side", dict(rin="1G", rbo="1m", nout=7, vout_c=-4.35), (), None)]
+    for s, p, ex, xok in scen:
+        tb, oks, res = miswire(s, p, 5, exclude=ex, extra=xok)
+        pdata.append((s, res, ex))
+        L += [f"\n**{s}**\n", tb]
+        allrec &= oks[REC_VAR]
+        REP.note(5, f"{s}: as built", oks["as built"],
+                 "probe Q7 %s, Vds %.0f V" % (fmt_i(res["as built"]["i_probe2"]), res["as built"]["v_prbds"]))
+    REP.check(5, "drone-side pack, static (normal and reversed 7S/14S): paths < 1 mA, SRC ≥ −65 V, probe switch "
+                 "in rating", allrec)
+    plot_miswire(5, pdata, "Case 5: pack on the drone side (static)")
+    # transient: plug-in at the drone connector
+    rows, tok = [], True
+    for nk, nv in (("as built", dict(csn="1p", pbv=33)), ("recommended snubber 4 µF/0.47 Ω, 150 V probe",
+                                                          dict(csn="4u", rsn=0.47, pbv=160))):
+        for pol, vc in (("correct", 4.35), ("reversed", -4.35)):
+            d = run("case5_droneplug.cir", f"c5t_{nk[:3]}_{pol}", dict(nv, vcell=vc))
+            vmax, vmin, srcm, prb = d["vvoutdneg"].max(), d["vvoutdneg"].min(), d["vsrc"].min(), d["vprobe"].max()
+            rating = 30 if nv["pbv"] == 33 else 150
+            ok = vmax < 90 and srcm >= -65 and prb < rating
+            if nk != "as built":
+                tok &= ok
+            rows.append([nk, pol, "%.1f V" % vmax, "%.1f V" % vmin, "%.1f V" % srcm, "%.1f V (%d V)" % (prb, rating), pf(ok)])
+    REP.check(5, "14S LiHV plugged into the drone side (both polarities) with the snubber: VOUT < 90 V, SRC ≥ −65 V", tok)
+    L += ["\n**Plug-in transient at the drone connector (14S LiHV, 150 nH lead, input open)**\n",
+          table(["network", "polarity", "VOUT peak", "VOUT min", "SRC min", "probe switch Vds", "result"], rows),
+          "\nAs built (100 nF only on VOUT) the plug-in rings to ≈ ±100 V: Q2 and the aux OR diode see "
+          "> 100 V for a correct pack, SRC is dragged far below −65 V for a reversed one. The 4 µF/0.47 Ω "
+          "snubber damps it. A reversed pack still drives the probe switches' drains to −60 V through D4: "
+          "the 30 V AO3401A breaks down and passes ≈ 0.25 A through the 100 Ω — use a 150 V part.\n"]
+    return "\n".join(L)
+
+
+def case6():
+    L = ["Packs on both connectors, everything off; then the pre-charge switched on by mistake. Pass "
+         "(off): power-path branches < 1 mA; each pack supplies at most the board's own consumption.\n"]
+    allrec = True
+    pdata = []
+    wrong = None
+    for s, p, chk in (("(a) 6S on input, 4S on drone side, all off", dict(nin=6, vin_c=4.2, rbo="1m", nout=4, vout_c=4.2, pon=1), True),
+                      ("(b) 4S on input, 6S on drone side, all off", dict(nin=4, vin_c=4.2, rbo="1m", nout=6, vout_c=4.2, pon=1), True),
+                      ("(c) 6S on input, 4S on drone side, pre-charge ON (wrong)", dict(nin=6, vin_c=4.2, rbo="1m", nout=4, vout_c=4.2, pon=1, pen=1), False)):
+        ex = ("i_bat_in", "i_bat_out", "i_auxin", "i_auxout", "i_pin_guard", "i_q4c", "i_pin_pre")
+        if not chk:
+            ex = tuple(k for k, _ in PATHS)
+        tb, oks, res = miswire(s, p, 6, exclude=ex,
+                               extra=lambda r, v: abs(r["i_bat_in"]) < 20e-3 and abs(r["i_bat_out"]) < 20e-3 if chk else True)
+        pdata.append((s, res, ex))
+        L += [f"\n**{s}**\n", tb]
+        if chk:
+            allrec &= oks[REC_VAR]
+        else:
+            wrong = res[REC_VAR]
+    REP.check(6, "both sides powered, off: nothing conducts", allrec)
+    ip = abs(wrong["i_pre"])
+    L.append(f"\nWith the pre-charge on by mistake {ip:.2f} A flows from the 6S into the 4S pack ({ip**2*7.8:.1f} W "
+             f"in RPRE, continuous — the 12 J budget is gone in {12/(ip**2*7.8):.1f} s). The probe stage "
+             "must read VOUT first: > 1 V → 'Drone side already has power', no pre-charge, no switch.\n")
+    plot_miswire(6, pdata, "Case 6: packs on both sides")
+    return "\n".join(L)
+
+
+# ===========================================================================
+# Case 7 - probe
+# ===========================================================================
+PROBE_LOADS = {
+    "open (nothing connected)": dict(cbulk="1p"), "470 µF ESC bulk": dict(cbulk="470u"),
+    "2200 µF ESC bulk": dict(cbulk="2200u"), "5000 µF ESC bulk": dict(cbulk="5000u"),
+    "dead short 0.3 Ω": dict(cbulk="1p", rshort=0.3), "half-short 18 Ω": dict(cbulk="1p", rshort=18),
+    "half-short 120 Ω": dict(cbulk="1p", rshort=120), "reversed ESC, 470 µF": dict(cbulk="1p", rev="1m", crev="470u"),
+    "reversed ESC, 2200 µF": dict(cbulk="1p", rev="1m", crev="2200u"),
+    "1S whoop FC (30 mA at 3 V), on 1S": dict(cbulk="1p", fc="1m", ncell=1, vcell=4.2)}
+EXPECT = {"open (nothing connected)": "open / no bulk C", "470 µF ESC bulk": "capacitor", "2200 µF ESC bulk": "capacitor",
+          "5000 µF ESC bulk": "capacitor", "dead short 0.3 Ω": "short", "half-short 18 Ω": "half-short",
+          "half-short 120 Ω": "half-short", "reversed ESC, 470 µF": "reversed", "reversed ESC, 2200 µF": "reversed",
+          "1S whoop FC (30 mA at 3 V), on 1S": "1S electronics (pass)"}
+C_BOARD = 4.1e-6
+VSRC, VD1, VD2 = 3.3, 0.30, 0.42
+TH = dict(short_v=0.05, open_v=2.6, settle=0.15, rev_lo=0.9, rev_hi=1.6, rev_ratio=1.35, ohm_tol=0.35, hs_max=150.0, hs_1s_max=10.0)
+
+
+def probe_features(d, ncell):
+    t, v = d["time"], d["vvlo"]
+    ts = np.arange(0, 0.4, 1e-3) + 1e-3
+    vs = np.interp(ts, t, v)
+    avg = lambda a, b: float(vs[(ts > a) & (ts <= b)].mean())
+    V1, V2 = avg(0.09, 0.1), avg(0.39, 0.4)
+    s1 = (avg(0.09, 0.1) - avg(0.05, 0.06)) / 0.04
+    s2 = (avg(0.39, 0.4) - avg(0.35, 0.36)) / 0.04
+    I1 = max(VSRC - VD1 - V1, 1e-6) / 1e3
+    I2 = max(VSRC - VD2 - V2, 1e-6) / 100.0
+    r = np.where(ts <= 0.1, 1e3, 100.0)
+    vd = np.where(ts <= 0.1, VD1, VD2)
+    q = np.cumsum(np.maximum(VSRC - vd - vs, 0) / r) * 1e-3
+    k = np.nonzero(vs >= 1.5)[0]
+    k = k[0] if len(k) else len(vs) - 1
+    return dict(V1=V1, V2=V2, s1=s1, s2=s2, R1=V1 / I1, R2=V2 / I2, C=q[k] / max(vs[k], 1e-3) - C_BOARD, ncell=ncell)
+
+
+def classify(f):
+    if f["V2"] < TH["short_v"]:
+        return "short", "R = %.2f Ω" % f["R2"]
+    if f["V1"] > TH["open_v"]:
+        return "open / no bulk C", "C ≈ %.0f µF" % max(0, f["C"] * 1e6)
+    settled = abs(f["s2"]) < TH["settle"]
+    if not settled or f["V2"] > 2.4:
+        return "capacitor", "C ≈ %.0f µF" % (f["C"] * 1e6)
+    ohmic = abs(f["R1"] / f["R2"] - 1) < TH["ohm_tol"] and abs(f["s1"]) < TH["settle"]
+    if ohmic and f["R2"] <= TH["hs_max"]:
+        if f["ncell"] == 1 and f["R2"] > TH["hs_1s_max"]:
+            return "1S electronics (pass)", "R ≈ %.0f Ω" % f["R2"]
+        return "half-short", "R = %.1f Ω" % f["R2"]
+    if TH["rev_lo"] <= f["V2"] <= TH["rev_hi"]:
+        return "reversed", "clamp %.2f V" % f["V2"]
+    if f["ncell"] == 1:
+        return "1S electronics (pass)", "non-ohmic %.2f / %.2f V" % (f["V1"], f["V2"])
+    return "unknown load", "%.2f / %.2f V" % (f["V1"], f["V2"])
+
+
+def case7():
+    fut = {k: POOL.submit(run, "case7_probe.cir", f"c7_{i}", p) for i, (k, p) in enumerate(PROBE_LOADS.items())}
+    res = {k: f.result() for k, f in fut.items()}
+    rows, ok_all, feats = [], True, {}
+    for k, d in res.items():
+        f = probe_features(d, PROBE_LOADS[k].get("ncell", 6))
+        feats[k] = f
+        v, det = classify(f)
+        ok = v == EXPECT[k]
+        if "ESC bulk" in k:
+            ct = float(PROBE_LOADS[k]["cbulk"].rstrip("u")) * 1e-6
+            err = f["C"] / ct - 1
+            ok &= abs(err) < 0.15
+            det += " (%+.0f %%)" % (100 * err)
+        ok_all &= ok
+        rows.append([k, "%.3f V" % f["V1"], "%.3f V" % f["V2"], "%.2f V/s" % f["s2"],
+                     "%.1f / %.1f Ω" % (f["R1"], f["R2"]) if f["R2"] < 1e4 else "-", v, det, pf(ok)])
+    REP.check(7, "probe classifies all ten loads; C within ±15 %", ok_all)
+    L = ["Probe per circuit.py: +3V3 → Q6 + 1 kΩ (0-100 ms) or Q7 + 100 Ω (100-400 ms) → BAT46WJ → VOUT; "
+         "the ADC reads VOUT_LO (100 kΩ, BAT54S, 1 nF) at 1 kHz. Board capacitance on VOUT: 100 nF + the "
+         "4 µF snubber (subtracted). Firmware constants: source 3.3 V, Schottky 0.30 V / 0.42 V at the two "
+         "currents.\n",
+         "Decision tree: V2 < 50 mV → short · V1 > 2.6 V → open / no bulk C · not settled (|dV/dt| > "
+         "0.15 V/s over 350-400 ms) or V2 > 2.4 V → capacitor (C = ∫I dt / V to 1.5 V) · both phases "
+         "settled and ohmic (R1/R2 within ±35 %) with R ≤ 150 Ω → half-short (on 1S only ≤ 10 Ω) · "
+         "settled 0.9-1.6 V → reversed lead · otherwise on 1S → electronics (pass).\n",
+         table(["load", "V1 (1 kΩ)", "V2 (100 Ω)", "s2", "R1 / R2", "verdict", "detail", "result"], rows)]
+    fig, ax = plt.subplots(1, 1, figsize=(8, 4))
+    for j, k in enumerate(["open (nothing connected)", "470 µF ESC bulk", "2200 µF ESC bulk", "5000 µF ESC bulk",
+                           "dead short 0.3 Ω", "half-short 18 Ω", "reversed ESC, 470 µF", "1S whoop FC (30 mA at 3 V), on 1S"]):
+        ax.plot(res[k]["time"] * 1e3, res[k]["vvlo"], color=C[j], label=k)
+    ax.axvline(100, color=S.INK2, lw=0.8, ls=":")
+    ax.axhspan(0.9, 1.6, color=C[4], alpha=0.08)
+    ax.set(title="3 V probe: VOUT_LO as read by the ADC", xlabel="ms", ylabel="V", ylim=(-0.05, 4.2))
+    ax.legend(fontsize=7, loc="upper center", ncol=3)
+    fig.tight_layout()
+    savefig(fig, "case7_probe.png")
+    DESIGN["probe"] = "thresholds: short < 50 mV; open V1 > 2.6 V; settled < 0.15 V/s; reversed 0.9-1.6 V; ohmic ±35 %"
+    return "\n".join(L)
+
+
+# ===========================================================================
+# Case 8 - IR estimate
+# ===========================================================================
+def fw_ir(d, seed=1):
+    rng = np.random.default_rng(seed)
+    t = d["time"]
+    ts = np.arange(0.0, t[-1], 1e-4)
+    v = np.interp(ts, t, d["vvin"]) * 1.002
+    i = np.interp(ts, t, d["ish"]) * 1.01 + 0.010
+    lv, li = 66.0 / 4096, (3.3 / 4096) / 0.05
+    vq = np.round((v + rng.normal(0, 0.5 * lv, v.size)) / lv) * lv
+    iq = np.round((i + rng.normal(0, 0.5 * li, i.size)) / li) * li
+    w0, w1 = (ts >= 0.08) & (ts < 0.1), (ts >= 0.13) & (ts < 0.18)
+    return dict(v0=vq[w0].mean(), v1=vq[w1].mean(), i0=iq[w0].mean(), i1=iq[w1].mean(),
+                ir=(vq[w0].mean() - vq[w1].mean()) / (iq[w1].mean() - iq[w0].mean()), ts=ts, vq=vq, iq=iq)
+
+
+def case8():
+    packs = {"6S, 60 mΩ/cell (bad)": dict(rcell="60m", rpol="10m"), "6S, 15 mΩ/cell (worn)": dict(rcell="15m", rpol="3m"),
+             "6S, 3 mΩ/cell (good)": dict(rcell="3m", rpol="1m")}
+    fut = {k: POOL.submit(run, "case8_ir.cir", f"c8_{i}", p) for i, (k, p) in enumerate(packs.items())}
+    res = {k: f.result() for k, f in fut.items()}
+    rows = []
+    for k, d in res.items():
+        true = 6 * float(packs[k]["rcell"].rstrip("m")) * 1e-3
+        est = np.array([fw_ir(d, s)["ir"] for s in range(20)])
+        f = fw_ir(d)
+        err = est / true - 1
+        worst = float(err[np.argmax(np.abs(err))])
+        ok = abs(worst) < 0.15
+        if "bad" in k:
+            REP.check(8, "IR estimate of the 60 mΩ/cell pack within 15 %", ok, "worst %+.1f %%" % (100 * worst))
+            bad = (k, f)
+        rows.append([k, "%.0f mΩ" % (1e3 * true), "%.2f → %.2f V" % (f["v0"], f["v1"]), "%.2f → %.2f A" % (f["i0"], f["i1"]),
+                     "%.2f V/cell" % (f["v1"] / 6), "%.0f mΩ" % (1e3 * est.mean()), "%+.1f %%" % (100 * worst),
+                     pf(ok) if "bad" in k else "(info)"])
+    L = ["6S pack, ohmic + polarisation (τ 2 s), 3 mΩ lead; board ON; 25 A motor-test step at 100 ms with "
+         "±1.5 A ripple. Current from the low-side shunt via INA240A2 (12-bit, +10 mA offset, +1 % gain "
+         "error), VIN from its divider (+0.2 %), 10 kHz, ±½ LSB noise; IR = ΔV/ΔI between 80-100 ms and "
+         "130-180 ms; 20 noise seeds. Pass: bad pack within 15 %.\n",
+         table(["pack", "true IR", "VIN idle → load", "current", "sag to", "estimate", "worst error", "result"], rows),
+         f"\nThe bad pack sags to {bad[1]['v1']/6:.2f} V/cell. At 1S the TPS48000's EN/UVLO divider (1M/470k: "
+         "3.85 V rising, 3.57 V falling) turns the switch off when a 1S pack sags under load — expected, "
+         "and the firmware should report it as a collapsed battery.\n"]
+    k, f = bad
+    fig, ax = plt.subplots(1, 2, figsize=(11, 3.6))
+    ax[0].plot(f["ts"] * 1e3, f["vq"], color=C[0], lw=0.8)
+    ax[1].plot(f["ts"] * 1e3, f["iq"], color=C[0], lw=0.8)
+    for a in ax:
+        a.axvspan(80, 100, color=C[2], alpha=0.15)
+        a.axvspan(130, 180, color=C[1], alpha=0.15)
+    ax[0].set(title=f"{k}: VIN as sampled", xlabel="ms", ylabel="V", ylim=(0, 27))
+    ax[1].set(title="current as sampled (INA240A2, low-side)", xlabel="ms", ylabel="A")
+    fig.tight_layout()
+    savefig(fig, "case8_ir.png")
+    return "\n".join(L)
+
+
+# ===========================================================================
+# Case 9 - peak comparator timing
+# ===========================================================================
+def case9():
+    sc = {"hard short 10 mΩ, trip 20 A (setting 5 A)": dict(rfault="10m", thr_a=20),
+          "hard short 10 mΩ, trip 60 A (max setting)": dict(rfault="10m", thr_a=60),
+          "hard short 10 mΩ, trip 60 A + 80 mV hard-short comparator": dict(rfault="10m", thr_a=60, hsv=0.08),
+          "1 Ω fault behind 2200 µF, trip 8 A (setting 2 A)": dict(rfault=1, thr_a=8, tstop="400u", tmax="20n"),
+          "0.35 Ω fault, trip 60 A": dict(rfault=0.35, thr_a=60, tstop="3m", tmax="20n")}
+    jobs = {(k, tp): POOL.submit(run, "case9_peak.cir", f"c9_{i}_{tp}", dict(v, tpd_inp=tp))
+            for i, (k, v) in enumerate(sc.items()) for tp in ("0.36u", "1.05u")}
+    res = {k: f.result() for k, f in jobs.items()}
+    rows, ok_all = [], True
+    t0 = 10e-6
+    us = lambda x: "%.2f µs" % (x * 1e6) if x is not None else "-"
+    for (k, tp), d in res.items():
+        t = d["time"]
+        thr = sc[k]["thr_a"] if "hsv" not in sc[k] else min(sc[k]["thr_a"], 80)
+        tc = first_cross(t, d["iq1"], thr, t0=t0)
+        ti = first_cross(t, d["vinp"], 0.8, rising=False, t0=t0)
+        tg = first_cross(t, d["vvgs"] if "vvgs" in d else d["vgs"], 3.0, rising=False, t0=t0)
+        pk = float(d["iq1"].max())
+        dt = (ti - tc) if (ti and tc) else None
+        ok = dt is not None and dt < 5e-6
+        if "hard short" in k:
+            ok &= (ti - t0) < 5e-6
+        ok_all &= ok
+        rows.append([k, tp.replace("u", " µs"), us(tc - t0 if tc else None), us(ti - t0 if ti else None),
+                     us(dt) if dt is None or dt >= 0 else "≤ 0", us(tg - t0 if tg else None), "%.0f A" % pk,
+                     "yes" if d["vscp"].max() > 0.5 else "no", pf(ok)])
+    REP.check(9, "peak path: trip level → INP low < 5 µs; hard short onset → INP low < 5 µs", ok_all)
+    L = ["Path per circuit.py: shunt → 10 Ω/10 Ω/1 nF → INA240A2 (50 V/V, 400 kHz, 2 V/µs) → TLV7011 "
+         "(260 ns) → SN74LVC1G74 (CLR) → 74LVC1G11 → INP → TPS48000 PD (0.36 µs typ / 1.05 µs max). 6S, "
+         "board ON, fault at the drone end of the leads.\n",
+         table(["scenario", "INP→PD", "onset → I > trip", "onset → INP low", "trip → INP low", "onset → Vgs < 3 V",
+                "peak I", "SCP fired", "result"], rows),
+         "\nThe INA240's 2 V/µs slew sets the delay at high trip levels (1.5 µs to reach 3 V at 60 A). "
+         "The latch is already there (U9). Peak setting must be capped at 60 A (INA240A2 saturates at "
+         "≈ 64 A). The fixed 80 mV comparator on the shunt bypasses the slew for hard shorts.\n"]
+    d = res[("hard short 10 mΩ, trip 60 A (max setting)", "1.05u")]
+    tt = (d["time"] - t0) * 1e6
+    fig, ax = plt.subplots(1, 2, figsize=(11, 3.6))
+    ax[0].plot(tt, d["iq1"], color=C[0], label="Q1 current")
+    ax[0].plot(tt, d["visense"] * 20, color=C[1], label="INA240 out × 20 (A)")
+    ax[0].axhline(60, color=C[7], ls="--", lw=1)
+    ax[0].set(title="Hard short, 6S, trip 60 A: current and INA240", xlabel="µs", ylabel="A", xlim=(-0.5, 5))
+    ax[0].legend(fontsize=7)
+    ax[1].plot(tt, d["vpkok"] * 3.3, color=C[2], label="PEAK_OK")
+    ax[1].plot(tt, d["vinp"], color=C[3], label="INP")
+    ax[1].plot(tt, d["vgs"], color=C[6], label="Vgs")
+    ax[1].set(title="Logic and gate", xlabel="µs", ylabel="V", xlim=(-0.5, 5))
+    ax[1].legend(fontsize=7)
+    fig.tight_layout()
+    savefig(fig, "case9_peak.png")
+    return "\n".join(L)
+
+
+# ===========================================================================
+CASES = {1: ("Pre-charge (2 × 3.9 Ω AC05), main-switch close, Q3/D3 stress", case1),
+         2: ("Hot plug at the input, both polarities", case2),
+         3: ("Short circuit while ON", case3),
+         4: ("Reversed pack on the input (static)", case4),
+         5: ("Pack on the drone side (static and plug-in)", case5),
+         6: ("Packs on both sides", case6),
+         7: ("3 V probe classification", case7),
+         8: ("Bad battery while ON (IR estimate)", case8),
+         9: ("Peak comparator timing", case9)}
+
+from simmd import write_simmd   # noqa: E402  (SIM.md text lives in simmd.py)
 
 
 def main(sel):
@@ -491,18 +985,23 @@ def main(sel):
         try:
             out[k] = fn()
             open(f"{S.WORK}/case{k}.md", "w").write(out[k])
-        except Exception as e:  # a crash is a FAIL
+        except Exception as e:
             traceback.print_exc()
             REP.check(k, "simulation ran", False, repr(e)[:300])
             out[k] = f"Simulation error: `{e!r}`"
         print(f"   {time.time()-t0:.1f} s", flush=True)
     for c in REP.checks:
         print(("PASS " if c[2] else "FAIL ") + f"case {c[0]}: {c[1]} :: {c[3]}")
-    print(f"total {time.time()-t00:.0f} s; {len(REP.fails)} FAIL(s)")
+    for c in REP.notes:
+        print(("  ok " if c[2] else "  finding ") + f"case {c[0]}: {c[1]} :: {c[3]}")
+    wall = time.time() - t00
+    print(f"total {wall:.0f} s; {len(REP.fails)} FAIL(s)")
+    if sorted(sel) == sorted(CASES):
+        write_simmd(out, wall, REP, DESIGN, CASES)
+        print("wrote SIM.md")
     return out
 
 
 if __name__ == "__main__":
-    sel = [int(a) for a in sys.argv[1:]] or sorted(CASES)
-    main(sel)
+    main([int(a) for a in sys.argv[1:]] or sorted(CASES))
     sys.exit(1 if REP.fails else 0)

@@ -1,0 +1,105 @@
+* SmokeBreak v1 - Cases 4/5/6: miswiring, DC steady state (.op)
+* Board per src/circuit.py. Board GND = input battery B-. Drone side: VOUT and
+* DRONE_NEG (1 mOhm shunt RS1 to GND).
+* Sources: input pack (nin x vin_c, negative = reversed; rin=1G open)
+*          drone-side pack (nout x vout_c; rbo=1G open)
+*          drone (ESC body diodes + FC + VTX) when rdr=1m
+* Options: q3byp=1m no B- FET (as built), 1G = Q3 in the input B- lead
+*          dbyp: 1m = no extra diode in the pre-charge 47k leg (as built), 1G = fitted
+*          pon=1: board powered (+3V3 = 3.3 V, MCU drives pins); pon=0: rails dead
+* MCU pins (PRE_ON, GUARD_OPEN) modelled as a driver behind 50 Ohm when powered
+* and as ESD diodes to GND/+3V3 when not.
+* Run from sim/:  ngspice -b case4_miswire.cir
+.include lib/smokebreak.lib
+.include lib/board.lib
+
+.param nin=14 vin_c=-4.35 rin=1m nout=4 vout_c=4.2 rbo=1G rdr=1G
+.param q3byp=1m dbyp=1m pon=0 pen=0 inp=0 pbv=33
+
+XBI bip bin BATT ncell={nin} vcell={vin_c} rcell=3m lser=250n rlead=3m
+Vbi bip bic 0
+Rin bic vin {rin}
+Rbin bin bneg 1m
+XBO bop bon BATT ncell={nout} vcell={vout_c} rcell=3m lser=150n rlead=3m
+Vbo bop boc 0
+Rbo boc vout {rbo}
+Rbon bon dneg 1m
+* drone
+Vdr vout dpx 0
+Rdr dpx dp {rdr}
+Rdn dneg dn 1m
+Desc1 dn e1 DBODY area=3
+Desc2 e1 dp DBODY area=3
+XFC dp dn CPLOAD pw=1 vuv=3.2
+XVTX dp dn CPLOAD pw=10 vuv=6
+* optional input B- FET Q3 (source = GND side, drain = battery B-)
+Vq3 bneg q3d 0
+MQ3 q3d q3g gnd QMAIN
+Rq3g vin q3g 47k
+Dq3z gnd q3g DZ10
+Rq3p q3g gnd 1Meg
+Rq3b bneg gnd {q3byp}
+* board
+Rg0 gnd 0 1u
+V33s v33x gnd {3.3*pon}
+Rv33 v33x v33 {pon>0.5 ? 0.1 : 1000}
+XPP vin src gate vout gnd dneg inpn scp PPATH
+XPR vin vout gnd preon guard PRECH dbyp={dbyp}
+XAX vin vout gnd aux v33 vlo AUXSENSE
+XPRB vout gnd v33 p0 p0 PROBE pbv={pbv}
+Vp0 p0 0 0
+Vinp inpn gnd {inp*3.3*pon}
+* MCU PRE_ON pin and hall GUARD_OPEN output
+Vpd pdrv gnd {pen*3.3*pon}
+Rpd pdrv preon {pon>0.5 ? 50 : 1e9}
+Dpe1 gnd preon DESD
+Dpe2 preon v33 DESD
+Vgd gdrv gnd {3.3*pon}
+Rgd gdrv guard {pon>0.5 ? 50 : 1e9}
+Dge1 gnd guard DESD
+Dge2 guard v33 DESD
+
+.options reltol=1e-4 abstol=1e-12 gmin=1e-12 itl1=500 itl6=200 rshunt=1e10
+.control
+set wr_singlescale
+set wr_vecnames
+option numdgt=7
+op
+let i_bat_in = i(vbi)
+let i_bat_out = i(vbo)
+let i_q1 = i(v.xpp.vq1)
+let i_q2 = i(v.xpp.vq2)
+let i_tvs = i(v.xpp.vtvs)
+let i_q3 = i(vq3)
+let i_pre = i(v.xpr.vipre)
+let i_qp = i(v.xpr.vqp)
+let i_q4c = i(v.xpr.vq4c)
+let i_pin_pre = @r.xpr.r21[i]
+let i_pin_guard = @r.xpr.r23[i]
+let i_auxin = @d.xax.da1[id]
+let i_auxout = @d.xax.da2[id]
+let i_divin = @r.xax.rvt[i]
+let i_divout = @r.xax.rot[i]
+let i_vlo = @r.xax.rlo[i]
+let i_en = @r.xpp.ren1[i]
+let i_ov = @r.xpp.rov1[i]
+let i_probe1 = i(v.xprb.vq6)
+let i_probe2 = i(v.xprb.vq7)
+let i_shunt = i(v.xpp.vish)
+let i_drone = i(vdr)
+let v_src = v(src)
+let v_vs = v(xpp.vsf)
+let v_en = v(xpp.en)
+let v_vin = v(vin)
+let v_vout = v(vout)
+let v_aux = v(aux)
+let v_q4cb = v(xpr.pull,xpr.b1)
+let v_q4ce = v(xpr.pull,xpr.mid)
+let v_q5ce = v(xpr.mid)
+let v_prbds = v(v33,xprb.pb)
+let v_ds1 = v(vin,src)
+let v_ds2 = v(vout,src)
+let v_cin = v(vin)
+wrdata work/c4.dat i_bat_in i_bat_out i_q1 i_q2 i_tvs i_q3 i_pre i_qp i_q4c i_pin_pre i_pin_guard i_auxin i_auxout i_divin i_divout i_vlo i_en i_ov i_probe1 i_probe2 i_shunt i_drone v_src v_vs v_en v_vin v_vout v_aux v_q4cb v_q4ce v_q5ce v_prbds v_ds1 v_ds2 v_cin
+.endc
+.end

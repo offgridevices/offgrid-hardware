@@ -1,105 +1,144 @@
 * =====================================================================
-* SmokeBreak v1 - board-level blocks built from smokebreak.lib
+* SmokeBreak v1 - board blocks, following ../../src/circuit.py
+* Nets: VIN, GND (= battery B-), SRC, GATE, VOUT, DRONE_NEG (= dneg),
+*       shunt RS1 1 mOhm DRONE_NEG -> GND (low-side current sense)
 * =====================================================================
 
 * ---------------------------------------------------------------------
-* Main power path: input caps + damper + TVS, 1 mOhm shunt, Q1/Q2
-* common-source, TPS48111 with TI gate-slew network (R1 on PU, PD direct,
-* R2+C1 gate->GND), 15 V gate-source zener, CBST 2.2 uF.
-*   pins: vin  (board input, battery +)
-*         vsh  (shunt bottom = Q1 drain)
-*         src  (common source)    gate
-*         vout (drone side +)
-*         pg   (power ground)     lgnd (controller / logic ground)
-*         inp  (TPS48111 INP pin) scp (SCP latch flag, 0/1)
+* Power path: D1 TVS, C input ceramics (+ optional damper), Q1/Q2
+* BSC040N10NS5 common source, U1 TPS48000 (VS 10 Ohm/100 nF, EN 1M/470k,
+* OV 1M/18k, BST 1 uF, PU 47 Ohm, PD direct, GATE-SRC 1M, RISCP -> vscp),
+* RS1 shunt with ESL, 100 nF across the drone connector.
+* Options (params):
+*   cin       effective input ceramic (2 x 2.2 uF 100 V 1210 ~ 2 uF at 60 V)
+*   cd, rd    input RC damper (cd=1p: not fitted)
+*   rpu       PU series resistor (47 Ohm on the board)
+*   c1, r2    Cdvdt: gate -> GND through r2 (c1=1p: not fitted)
+*   rz        series R of a 15 V gate-source zener (1G: not fitted)
+*   csn, rsn  output RC snubber VOUT -> DRONE_NEG (csn=1p: not fitted)
+*   tvs_*     TVS corner
 * ---------------------------------------------------------------------
-.subckt PPATH vin vsh src gate vout pg lgnd inp scp params: cin=4.7u cesr=3m
-+ cd=10u rd=0.33 vscp=80m tsc=1.16u tpd_inp=0.5u r1=100k c1=150n rsh=1m lsh=0.3n
-* input ceramic bank (effective value at 60 V DC bias) and RC damper
+.subckt PPATH vin src gate vout gnd dneg inp scp params: cin=2u cd=1p rd=1 rpu=47
++ c1=1p r2=10 rz=1G csn=1p rsn=1 vscp=49.8m tsc=4u tpd_inp=0.36u
++ tvs_vrwm=58 tvs_vbr=71.2 tvs_vc=93.6 tvs_ipp=6.4
+* input capacitors
 Cin vin ci {cin}
-Rci ci ci2 {cesr}
-Lci ci2 pg 0.5n
+Rci ci ci2 3m
+Lci ci2 gnd 0.5n
+Cin2 vin gnd 100n
 Cdmp vin cdx {cd}
-Rdmp cdx pg {rd}
+Rdmp cdx gnd {rd}
 Vtvs vin tv 0
-XTVS tv pg TVS64CA
-* shunt (Kelvin) with ESL
-Rsh vin shx {rsh}
-Lsh shx vsh {lsh}
-* main switches
-Vq1 vsh q1d 0
+XD1 tv gnd TVSBI vrwm={tvs_vrwm} vbr={tvs_vbr} vc={tvs_vc} ipp={tvs_ipp}
+* switches
+Vq1 vin q1d 0
 M1 q1d gate src QMAIN
 Vq2 vout q2d 0
 M2 q2d gate src QMAIN
 * controller
-Rvs vin vsf 100
-Cvs vsf lgnd 100n
-XC vsf lgnd inp vin vsh src pu pd bst scp TPS48111 vscp={vscp} tsc={tsc} tpd_inp={tpd_inp}
-Cbst bst src 2.2u
-R1 pu gate {r1}
-Rpd pd gate 0.1
-R2 gate c1x 10
-C1 c1x lgnd {c1}
-Dz src gate DZ15
+Rvs vin vsf 10
+Cvs vsf gnd 100n
+Ren1 vin en 1Meg
+Ren2 en gnd 470k
+Rov1 vin ov 1Meg
+Rov2 ov gnd 18k
+XU1 vsf gnd en ov inp csp csm src pu pd bst scp TPS48000 vscp={vscp} tsc={tsc} tpd_inp={tpd_inp}
+Cbst bst src 1u
+Rpu pu gate {rpu}
+Rpd pd gate 0.05
+Rgs gate src 1Meg
+R2 gate c1x {r2}
+C1 c1x gnd {c1}
+Rz gate gz {rz}
+Dz src gz DZ15
+* low-side shunt (Kelvin taps: csp at the drone side, csm at the GND side)
+Vish dneg shx 0
+Rsh shx shy 1m
+Lsh shy gnd 0.3n
+Rlsh shy gnd 0.05
+Rcsp dneg csp 1
+Rcsm gnd csm 1
+* drone connector capacitor and optional snubber
+Cout vout dneg 100n
+Csn vout snx {csn}
+Rsn snx dneg {rsn}
 .ends PPATH
 
 * ---------------------------------------------------------------------
-* Pre-charge: QP (P-FET, source at VIN) -> optional series Schottky
-* (rbyp = 1m removes it, 1G keeps it) -> RPRE -> VOUT.
-* Gate: 100k G-S, 12 V zener, level shifter QSIG + rdrv to LGND.
-*   en: logic level referred to lgnd (3.3 V = on)
+* Pre-charge (circuit.py section 4): Q3 P-FET (source VIN), D2 10 V zener,
+* R 100k G-S, R 47k to two series BC817 (Q4: PRE_ON, Q5: GUARD_OPEN, 10k base
+* resistors, 100k base pull-downs), D3 SS2H10, RPRE to VOUT.
+*   preon / guard: driven nodes (MCU pin, hall output); rpre; qp_rd scales Q3
+*   dser: series R of an optional 100 V diode in the 47k leg (1m = fitted? no:
+*         dbyp=1m bypasses the diode = not fitted)
 * ---------------------------------------------------------------------
-.subckt PRECH vin vout lgnd en params: rpre=10 rbyp=1G rdrv=22k
-MQP qd gp vin QPRE
+.subckt PRECH vin vout gnd preon guard params: rpre=7.8 qp_rd=0.15 qp_kp=6 dbyp=1m
+.model QPX VDMOS(pchan Vto=-2.2 Kp={qp_kp} Rd={qp_rd} Rs=0.03 Rg=6 lambda=0.01 mtriode=1.0
++ Cgdmax=200p Cgdmin=25p a=0.5 Cgs=1.2n Cjo=400p Vj=0.8 m=0.5 Is=2e-12 N=1.1 Rb=0.03
++ Bv=108 Ibv=100u tt=25n ksubthres=0.1)
+Vqp vin qs 0
+MQ3 qd gp qs QPX
+Dz2 gp vin DZ10
 Rgs vin gp 100k
-Dzp gp vin DZ12
-Rdrv gp ld {rdrv}
-MLS ld en lgnd QSIG
-Dpre qd rp DSCH100
-Rbyp qd rp {rbyp}
-Vipre rp rpx 0
-Rpre rpx vout {rpre}
+R47 gp p47 47k
+Dser p47 pull D4148
+Rdser p47 pull {dbyp}
+Vq4c pull q4c 0
+Q4 q4c b1 mid BC817
+Q5 mid b2 gnd BC817
+R21 preon b1 10k
+R22 b1 gnd 100k
+R23 guard b2 10k
+R24 b2 gnd 100k
+D3 qd pk DSS2H10
+Vipre pk pkx 0
+Rpre pkx vout {rpre}
 .ends PRECH
 
 * ---------------------------------------------------------------------
-* Aux OR + buck input, VIN/VOUT sense dividers with MCU pin clamps
-*   aux load: buck drawing 0.25 W, UVLO 3.0 V
+* Aux OR (BAT46WJ from VIN and VOUT) -> 10 Ohm -> 1 uF + 100 nF, buck 0.25 W;
+* VIN and VOUT dividers 1M/52.3k + 100 nF; VOUT_LO 100k + BAT54S + 1 nF.
+*   v33: the 3.3 V rail (a node: driven by the case deck)
 * ---------------------------------------------------------------------
-.subckt AUXSENSE vin vout lgnd aux
-Da1 vin ax D4148
-Da2 vout ax D4148
+.subckt AUXSENSE vin vout gnd aux v33 vlo
+Da1 vin ax DBAT46
+Da2 vout ax DBAT46
 Rax ax aux 10
-Cax aux lgnd 1u
-XAL aux lgnd CPLOAD pw=0.25 vuv=3.0
-* VIN divider 1M / 51k (0..66 V -> 0..3.2 V)
+Cax1 aux gnd 1u
+Cax2 aux gnd 100n
+XAL aux gnd CPLOAD pw=0.25 vuv=3.0
 Rvt vin adcv 1Meg
-Rvb adcv lgnd 51k
-Dv1 lgnd adcv DESD
-* VOUT high divider
+Rvb adcv gnd 52.3k
+Cvb adcv gnd 100n
+Dv1 gnd adcv DESD
+Dv2 adcv v33 DESD
 Rot vout adco 1Meg
-Rob adco lgnd 51k
-Do1 lgnd adco DESD
+Rob adco gnd 52.3k
+Cob adco gnd 100n
+Do1 gnd adco DESD
+Do2 adco v33 DESD
+Rlo vout vlo 100k
+Dlo1 gnd vlo DBAT54
+Dlo2 vlo v33 DBAT54
+Clo vlo gnd 1n
 .ends AUXSENSE
 
 * ---------------------------------------------------------------------
-* 3 V probe: 3.0 V source, 1k path and 100R path (P-FET switches modelled
-* as 2 Ohm switches + body diodes), 100 V Schottky into VOUT.
-*   e1k / e100 : control (1 = on) referred to 0
-*   vlo: VOUT low channel (10k + clamps to lgnd and 3.3 V)
+* 3 V probe (circuit.py section 5): +3V3 -> AO3401A -> 1k (Q6) or 100R (Q7)
+* -> BAT46WJ (D4) -> VOUT.  e1k/e100: 1 = switch on (gate pulled 3.3 V below)
 * ---------------------------------------------------------------------
-.subckt PROBE vout lgnd e1k e100 vlo params: vprobe=3.0
-Vp3 p3 lgnd {vprobe}
-S1 p3 n1 e1k 0 SWP
-Db1 n1 p3 DESD
-R1k n1 pj 1k
-S2 p3 n2 e100 0 SWP
-Db2 n2 p3 DESD
-R100 n2 pj 100
-Dps pj vout DSIG100
-Rlo vout vlo 10k
-Dlo1 lgnd vlo DESD
-V33 v33 lgnd 3.3
-Dlo2 vlo v33 DESD
-Clo vlo lgnd 10n
-.model SWP SW(Ron=2 Roff=1G Vt=0.5 Vh=0.1)
+.subckt PROBE vout gnd v33 e1k e100 params: pbv=33
+* Q6/Q7: AO3401A on the board (30 V, ~50 mOhm); breakdown pbv (33 V as built,
+* 160 V for the recommended 150 V part) so exposure shows up as avalanche current
+.model QPRB VDMOS(pchan Vto=-0.9 Kp=20 Rd=0.03 Rs=0.01 Cgs=600p Cgdmax=100p Cgdmin=60p
++ a=0.5 Cjo=150p Is=1e-12 N=1.05 Bv={pbv} Ibv=10u ksubthres=0.1)
+Bg1 g1 0 V = V(v33) - 3.3*min(1,max(0,V(e1k)))
+Bg2 g2 0 V = V(v33) - 3.3*min(1,max(0,V(e100)))
+Vq6 v33 q6s 0
+MQ6 pa g1 q6s QPRB
+Vq7 v33 q7s 0
+MQ7 pb g2 q7s QPRB
+R1k pa pj 1k
+R100 pb pj 100
+D4 pj vout DBAT46
 .ends PROBE

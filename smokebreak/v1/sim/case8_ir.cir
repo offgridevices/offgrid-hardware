@@ -1,0 +1,38 @@
+* SmokeBreak v1 - Case 8: bad battery while ON, 25 A motor-test step
+* 6S pack, rcell ohmic + rpol polarisation (tau 2 s), 3 mOhm lead. Board ON
+* (DC operating point). Drone: 2200 uF bulk, 10 W VTX, 1 W FC/RX, motor test:
+* 25 A step at 100 ms (10 ms ramp) with +-1.5 A 24 kHz ESC ripple. Current is
+* read on the low-side shunt (INA240A2), VIN on the input divider.
+* Run from sim/:  ngspice -b case8_ir.cir
+.include lib/smokebreak.lib
+.include lib/board.lib
+
+.param ncell=6 vcell=4.2 rcell=60m rpol=10m imot=25
+.param vb={ncell*vcell}
+
+XB vin gnd BATT ncell={ncell} vcell={vcell} rcell={rcell} lser=250n rlead=3m rpol={rpol} cpol=200
+XPP vin src gate vout gnd dneg inp scp PPATH
+Vinp inp gnd 3.3
+Lol vout d1 100n
+Rol d1 drn 2m
+Rdn dneg dnn 2m
+XBK drn dnn BULK c=2200u esr=30m
+XVTX drn dnn CPLOAD pw=10 vuv=6
+XFC drn dnn CPLOAD pw=1 vuv=3.2
+Im drn dnn PWL(0 0 100m 0 110m {imot})
+Irip drn dnn SIN(0 1.5 24k 100m)
+
+.nodeset v(vin)={vb} v(vout)={vb} v(drn)={vb} v(d1)={vb} v(src)={vb} v(gate)={vb+11}
++ v(xpp.bst)={vb+11}
+.options method=gear reltol=1e-3 abstol=1e-6 vntol=1e-4 itl4=200
+.tran 5u 400m 0 5u
+.control
+set wr_singlescale
+set wr_vecnames
+option numdgt=7
+run
+linearize
+let ish = i(v.xpp.vish)
+wrdata work/c8.dat v(vin) v(vout) ish
+.endc
+.end

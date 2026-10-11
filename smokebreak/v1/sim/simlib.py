@@ -38,7 +38,7 @@ class SimError(RuntimeError):
     pass
 
 
-def run(cir, tag, params=None, repl=None, timeout=180):
+def run(cir, tag, params=None, repl=None, timeout=60):
     """Run sim/<cir> with .param overrides; return dict of numpy arrays.
     The deck must write its data with `wrdata work/<something>.dat`."""
     src = open(os.path.join(SIM, cir)).read()
@@ -56,13 +56,26 @@ def run(cir, tag, params=None, repl=None, timeout=180):
         raise SimError(f"{cir}: need exactly one wrdata line")
     deck = os.path.join(WORK, f"{tag}.cir")
     dat = os.path.join(WORK, f"{tag}.dat")
-    open(deck, "w").write(src)
-    if os.path.exists(dat):
-        os.remove(dat)
-    p = subprocess.run([NGSPICE, "-b", deck], cwd=SIM, capture_output=True, text=True, timeout=timeout)
-    log = p.stdout + p.stderr
-    open(os.path.join(WORK, f"{tag}.log"), "w").write(log)
-    if "Timestep too small" in log or "aborted" in log or not os.path.exists(dat):
+    # convergence ladder: as written, then progressively more forgiving options
+    ladder = [src,
+              re.sub(r"(^\.options[^\n]*)", r"\1 rshunt=1e8", src, count=1, flags=re.M),
+              re.sub(r"method=gear", "method=trap", src),
+              re.sub(r"reltol=[0-9e.-]+", "reltol=3e-3", src)]
+    log = ""
+    for attempt, deck_src in enumerate(ladder):
+        open(deck, "w").write(deck_src)
+        if os.path.exists(dat):
+            os.remove(dat)
+        try:
+            p = subprocess.run([NGSPICE, "-b", deck], cwd=SIM, capture_output=True, text=True, timeout=timeout)
+            log = p.stdout + p.stderr
+        except subprocess.TimeoutExpired:
+            log = "timeout"
+        open(os.path.join(WORK, f"{tag}.log"), "w").write(log)
+        bad = ("Timestep too small" in log or "aborted" in log or "timeout" == log or not os.path.exists(dat))
+        if not bad:
+            break
+    if bad:
         raise SimError(f"{tag}: ngspice failed\n" + "\n".join(log.splitlines()[-15:]))
     a = np.genfromtxt(dat, names=True)
     return {n: np.atleast_1d(a[n]) for n in a.dtype.names}

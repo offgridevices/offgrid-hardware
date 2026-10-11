@@ -1,69 +1,66 @@
 * =====================================================================
-* SmokeBreak v1 - shared behavioural / device models for ngspice 47
-* (c) OffGrid Devices. Every parameter here is documented in ../SIM.md
+* SmokeBreak v1 - device and behavioural models for ngspice 47
+* Topology as in ../../src/circuit.py (TPS48000, low-side shunt, INA240A2)
+* Every parameter is documented in ../SIM.md (Models and assumptions)
 * =====================================================================
-* Conventions
-*   PG   = power ground (battery B- and drone B- tied together on the board)
-*   all subcircuit params are SI units
 
 * ---------------------------------------------------------------------
-* Q1/Q2 main switch: 100 V, 3.5 mOhm (max) OptiMOS-5 class, 5x6 mm
-* (BSC035N10NS5-like).  Calibrated: Rds(on) 3.2 mOhm @ Vgs 10 V,
-* 2.9 mOhm @ 12 V, Id(sat) ~150 A @ Vgs 5 V, Ciss ~4.5 nF, Crss 22 pF
-* @ 50 V (2.2 nF at Vds~0), Coss ~0.7 nF @ 50 V, body diode 0.8 V @ 20 A,
-* avalanche (body-diode breakdown) ~110 V.
+* Q1/Q2: Infineon BSC040N10NS5 (OptiMOS 5, 100 V, SuperSO8)
+* datasheet Rev 2.4: Rds(on) 3.4 typ / 4.0 max @10 V, 4.0 typ @6 V,
+* plateau 4.6 V @50 A, Ciss 4100 pF, Coss 630 pF, Crss 28 pF @50 V, Qg 58 nC,
+* Rg 1.3 Ohm, VSD 0.86 V @50 A, V(BR)DSS >= 100 V.
+* Calibrated: 3.2 mOhm @10 V, 4.2 mOhm @6 V, 45 A @Vgs 4.5 V (sat); body-diode
+* breakdown 100 V (V(BR)DSS ~100 V at 25 C, Diagram 15); IAS only 50 A.
 * ---------------------------------------------------------------------
-.model QMAIN VDMOS(nchan Vto=3.0 Kp=75 Rd=0.8m Rs=0.4m Rg=1.2 lambda=0.002 mtriode=1.0
-+ Cgdmax=2.2n Cgdmin=22p a=0.5 Cgs=4.4n Cjo=4.2n Vj=0.8 m=0.5 Is=2e-11 N=1.05 Rb=2m
-+ Bv=110 Ibv=250u tt=40n ksubthres=0.1)
+.model QMAIN VDMOS(nchan Vto=3.0 Kp=40 Rd=2.1m Rs=0.6m Rg=1.3 lambda=0.001 mtriode=5.0
++ Cgdmax=1.5n Cgdmin=28p a=0.6 Cgs=4.0n Cjo=4.8n Vj=0.8 m=0.5 Is=1e-11 N=1.05 Rb=2m
++ Bv=100 Ibv=250u tt=40n ksubthres=0.1)
 
-* Pre-charge switch QP: 100 V P-FET, ~0.25 Ohm class (SOT-23/SOT-223)
-.model QPRE VDMOS(pchan Vto=-2.2 Kp=4 Rd=0.12 Rs=0.05 Rg=3 lambda=0.01 mtriode=1.0
-+ Cgdmax=150p Cgdmin=10p a=0.5 Cgs=500p Cjo=250p Vj=0.8 m=0.5 Is=1e-12 N=1.05 Rb=0.05
-+ Bv=110 Ibv=100u tt=30n ksubthres=0.1)
+* Pre-charge P-FET Q3: Diodes DMP10H400SE (100 V, 203 mOhm typ @-10 V, 241 @-4.5 V)
+.model QPRE VDMOS(pchan Vto=-2.2 Kp=6 Rd=0.15 Rs=0.03 Rg=6 lambda=0.01 mtriode=1.0
++ Cgdmax=200p Cgdmin=25p a=0.5 Cgs=1.2n Cjo=400p Vj=0.8 m=0.5 Is=2e-12 N=1.1 Rb=0.03
++ Bv=108 Ibv=100u tt=25n ksubthres=0.1)
 
-* Small 100 V N-FET (level shifter / reverse-polarity logic)
-.model QSIG VDMOS(nchan Vto=1.8 Kp=0.5 Rd=0.5 Rs=0.2 Cgs=40p Cgdmax=10p Cgdmin=2p a=0.5
-+ Cjo=15p Is=1e-13 Bv=110 Ibv=10u ksubthres=0.1)
 
-* Low-side reverse-polarity FET Q3/Q4 (same class as Q1/Q2)
-.model QREV VDMOS(nchan Vto=3.0 Kp=75 Rd=0.8m Rs=0.4m Rg=1.2 lambda=0.002 mtriode=1.0
-+ Cgdmax=2.2n Cgdmin=22p a=0.5 Cgs=4.4n Cjo=4.2n Vj=0.8 m=0.5 Is=2e-11 N=1.05 Rb=2m
-+ Bv=110 Ibv=250u tt=40n ksubthres=0.1)
+* BC817 (45 V NPN) - Gummel-Poon, no breakdown model (Vcb stress is reported)
+.model BC817 NPN(Is=2e-14 Bf=300 Br=8 Vaf=100 Rb=10 Rc=0.5 Re=0.2 Cje=20p Cjc=8p Tf=0.5n Tr=50n)
 
 * ---------------------------------------------------------------------
 * Diodes
 * ---------------------------------------------------------------------
-* 100 V Schottky, 3 A class (SS3H10-like): 0.55 V @ 0.1 A, 0.75 V @ 3 A
-.model DSCH100 D(Is=2e-7 N=1.25 Rs=40m Cjo=150p M=0.45 Bv=110 Ibv=50u Tt=0)
-* 100 V small Schottky / switching diode for aux OR and probe (BAT46-ish/100 V)
-.model DSIG100 D(Is=5e-9 N=1.1 Rs=1.5 Cjo=10p Bv=110 Ibv=5u)
-* 1N4148-like 100 V small-signal diode
+* SS2H10 (D3): 100 V 2 A Schottky, 0.68 V @2 A, IFSM 50 A
+.model DSS2H10 D(Is=5e-8 N=1.2 Rs=60m Cjo=120p M=0.45 Bv=110 Ibv=50u)
+* BAT46WJ: 100 V 150 mA small Schottky (aux OR, probe)
+.model DBAT46 D(Is=2e-8 N=1.1 Rs=1.5 Cjo=10p Bv=105 Ibv=5u)
+* BAT54S: 30 V small Schottky (VOUT_LO clamp)
+.model DBAT54 D(Is=2e-7 N=1.05 Rs=2 Cjo=10p Bv=32 Ibv=10u)
+* 1N4148WS
 .model D4148 D(Is=2.5n N=1.75 Rs=0.6 Cjo=2p Bv=100 Ibv=100u Tt=4n)
-* 12 V zener (gate clamps)
-.model DZ12 D(Is=1e-12 N=1.0 Rs=5 Bv=12 Ibv=1m Cjo=50p)
-* 15 V zener gate-source clamp on Q1/Q2 (TI fig 9-18 "D3")
-.model DZ15 D(Is=1e-12 N=1.0 Rs=1 Bv=15 Ibv=5m Cjo=200p)
-* MCU pin ESD clamp
+* zeners: BZT52C10 (pre-charge gate), BZT52C15 (recommended Q1/Q2 gate-source)
+.model DZ10 D(Is=1e-12 N=1.0 Rs=10 Bv=10 Ibv=5m Cjo=50p)
+.model DZ15 D(Is=1e-12 N=1.0 Rs=6 Bv=15 Ibv=5m Cjo=50p)
+* MCU pin ESD structure
 .model DESD D(Is=1e-14 N=1.0 Rs=20 Cjo=2p)
-* ESC power-FET body diode (drone ESC, reversed-lead signature)
+* drone ESC FET body diode (reversed lead, reversed supply)
 .model DBODY D(Is=1e-10 N=1.35 Rs=0.15 Cjo=1n Bv=60)
 
 * ---------------------------------------------------------------------
-* TVS: bidirectional 64 V stand-off, SMBJ64CA-like
-*   Vrwm 64 V (<1 uA), Vbr 71.1 V min @ 1 mA, Vc 103 V @ Ipp 5.8 A (10/1000)
-*   two anti-series junctions, each Bv=70.3, Rs=2.75 Ohm  -> Rd ~5.5 Ohm
+* Bidirectional TVS, behavioural (two anti-series avalanche junctions)
+*   vrwm: stand-off (1 uA), vbr: breakdown at 1 mA, vc @ ipp: clamping
+*   soft knee: 1 uA at vrwm -> 1 mA at vbr (exponential), then Rd
+*   SMBJ58CA: vrwm 58, vbr 64.4 (min) - 71.2 (max), vc 93.6 V @ 6.4 A
+*   SMBJ64CA: vrwm 64, vbr 71.1 (min) - 78.6 (max), vc 103 V @ 5.8 A
 * ---------------------------------------------------------------------
-.model DTVSH D(Is=1e-12 N=1.0 Rs=2.75 Bv=70.4 Ibv=1m Nbv=2 Cjo=500p M=0.33 Vj=0.8)
-.subckt TVS64CA a b
-D1 m a DTVSH
-D2 m b DTVSH
-Rlk a b 200Meg
-.ends TVS64CA
+.subckt TVSBI a b params: vrwm=58 vbr=64.4 vc=93.6 ipp=6.4
+.param nbvt = {(vbr-vrwm)/6.908}
+.param rdyn = {max(0.2, (vc - vbr - nbvt*ln(ipp/1m))/ipp)}
+D1 m a DTV
+D2 m b DTV
+.model DTV D(Is=1e-12 N=1.0 Rs={rdyn/2} Bv={vbr-0.6} Ibv=1m Nbv={nbvt/0.025852} Cjo=500p M=0.33 Vj=0.8)
+.ends TVSBI
 
 * ---------------------------------------------------------------------
-* Battery pack: N cells, Ri per cell, lead R and L, optional dead cell
-* (vdead = volts missing), optional polarisation RC per cell
+* Battery pack: N cells, Ri per cell, lead R and L, polarisation RC
 * ---------------------------------------------------------------------
 .subckt BATT p n params: ncell=6 vcell=4.2 rcell=3m lser=250n rlead=3m vdead=0
 + rpol=1u cpol=1
@@ -74,16 +71,13 @@ Cp y y2 {cpol/ncell}
 L1 y2 p {lser}
 .ends BATT
 
-* ---------------------------------------------------------------------
-* Constant-power load with input UVLO (digital VTX, FC+RX):
-*   I = P/V above vuv (smooth 0.15 V edge), 0 below.
-* ---------------------------------------------------------------------
+* constant-power load with UVLO (digital VTX, FC/RX)
 .subckt CPLOAD p n params: pw=10 vuv=6
 B1 p n I = {pw}/max(V(p,n),{vuv}-0.3) * 0.5*(1+tanh((V(p,n)-{vuv})/0.05))
 Rlk p n 100k
 .ends CPLOAD
 
-* ESC bulk capacitance with ESR (+ESL)
+* ESC bulk capacitance with ESR and ESL
 .subckt BULK p n params: c=2200u esr=30m esl=5n
 C1 p x {c}
 R1 x y {esr}
@@ -91,68 +85,80 @@ L1 y n {esl}
 .ends BULK
 
 * ---------------------------------------------------------------------
-* TPS48111-Q1 behavioural model (gate driver section only)
-*   pins: VS GND INP CSP CSM SRC PU PD BST
-*   - charge pump BST-SRC regulated 12.3 V, 100 uA capacity (datasheet 6.5)
-*   - PU: switch BST->PU, 2 Ohm (datasheet: 3.75 A peak source)
-*   - PD: switch PD->SRC, 0.69 Ohm (datasheet R(PD) typ, 4 A peak sink)
-*   - INP: 1.4 V threshold, turn-off propagation tpd_inp (<= 1 us max)
-*   - SCP: (CSP-CSM) > vscp (after RISCP*CSCP filter) -> PD latched
-*     after tsc (1.16 us typ / 1.6 us max), modelled as RC deglitch
-*   - POR: VS > 3.0 V, otherwise PU off and PD held on (passive)
+* TPS48000-Q1 behavioural model (gate driver + SCP), datasheet SLUSEZ1B
+*   pins: VS GND EN OV INP CSP CSM SRC PU PD BST SCP(flag 0/1)
+*   - POR VS > 2.5 V; EN/UVLO 1.18 V (4.8 us delay); OV < 1.23 V (4.5 us delay)
+*   - charge pump BST-SRC regulated 11 V, 345 uA typ from VS
+*   - PU: BST->PU switch 6.5 Ohm (1.69 A peak at 11 V)
+*   - PD: PD->SRC switch 5.5 Ohm (2 A peak at 11 V)
+*   - INP threshold 1.4 V (0.8/2 V), delay tpd_inp (0.36 us typ, 1.05 max)
+*   - SCP: (CS+ - CS-) > vscp for tsc (datasheet tSC <= 4 us, TMR open),
+*     latched. Low-side sense (CS_SEL high).
+*   - reverse VS: 22 uA (I(REV)); VS/CS/SRC/PU/PD/BST rated to -65 V
 * ---------------------------------------------------------------------
-.subckt TPS48111 vs gnd inp csp csm src pu pd bst scpflag params: vscp=80m tsc=1.16u
-+ tpd_inp=0.5u tscpf=0.46u
-* POR (smooth)
-Bpor por 0 V = 0.5*(1+tanh((V(vs,gnd)-3.0)/0.1))
-* charge pump from VS into BST
-Bcp vs bst I = 100u*V(por)*max(0,min(1,(12.3-V(bst,src))/0.4))
-Rcpl bst src 10Meg
-* INP input buffer + turn-off/on propagation delay (RC deglitch)
+.subckt TPS48000 vs gnd en ov inp csp csm src pu pd bst scpflag params: vscp=49.8m tsc=4u
++ tpd_inp=0.36u
+Bpor por 0 V = 0.5*(1+tanh((V(vs,gnd)-2.5)/0.1))
+* EN/UVLO 1.23 V rising / 1.14 V falling (mid 1.18 V used), 4.8 us turn-off delay
+Benc enc 0 V = 0.5*(1+tanh((V(en,gnd)-1.18)/0.01))
+Rend enc enok 1k
+Cend enok 0 {4.8u/0.693/1k}
+Bov ovc 0 V = 0.5*(1+tanh((V(ov,gnd)-1.23)/0.01))
+Rovd ovc ovd 1k
+Covd ovd 0 {4.5u/0.693/1k}
+Bcp vs bst I = 345u*V(por)*V(enok)*max(0,min(1,(11.0-V(bst,src))/0.3))
+Rcpl bst src 20Meg
 Binp inpc 0 V = 0.5*(1+tanh((V(inp,gnd)-1.4)/0.05))
 Rinpd inpc inpd 1k
 Cinpd inpd 0 {tpd_inp/0.693/1k}
-* SCP comparator: sense filtered by RISCP*CSCP (tscpf)
-Bsns sns 0 V = V(csp,csm)
-Rsnsf sns snsf 1k
-Csnsf snsf 0 {tscpf/1k}
-Bscmp scmp 0 V = 0.5*(1+tanh((V(snsf)-{vscp})/0.5m))
+Bscmp scmp 0 V = 0.5*(1+tanh((V(csp,csm)-{vscp})/0.5m))
 Rscd scmp scd 1k
 Cscd scd 0 {tsc/0.693/1k}
-* latch (set only - auto-retry not modelled, it is ms later)
 Blat 0 lat I = 10m*0.5*(1+tanh((V(scd)-0.5)/0.02))*0.5*(1+tanh((0.95-V(lat))/0.02))
 Clat lat 0 100p
 Rlat lat 0 1G
 Bflag scpflag 0 V = V(lat)
-* gate drive state
-Bon on 0 V = V(por)*0.5*(1+tanh((V(inpd)-0.5)/0.02))*(1-min(1,max(0,V(lat))))
-* PU / PD as switches (peak-current limiting of the real driver not modelled:
-* 2 Ohm / 0.69 Ohm small-signal resistances are used throughout)
+Bon on 0 V = V(por)*V(enok)*(1-0.5*(1+tanh((V(ovd)-0.5)/0.02)))*0.5*(1+tanh((V(inpd)-0.5)/0.02))*(1-min(1,max(0,V(lat))))
 Boff off 0 V = 1-V(on)
-Spu bst pu on 0 SWDRV
+Spu bst pu on 0 SWPU
+Spd pd src off 0 SWPD
 Rpul pu src 1G
-Spd pd src off 0 SWDRVPD
-.model SWDRV SW(Ron=2 Roff=1G Vt=0.5 Vh=0.05)
-.model SWDRVPD SW(Ron=0.69 Roff=1G Vt=0.5 Vh=0.05)
-* bias/leakage of VS and SRC pins to GND (quiescent ~0.6 mA at 48 V)
-Bvsq vs gnd I = 0.6m*V(por)
-Rsrc src gnd 500k
-.ends TPS48111
+.model SWPU SW(Ron=6.5 Roff=1G Vt=0.5 Vh=0.05)
+.model SWPD SW(Ron=5.5 Roff=1G Vt=0.5 Vh=0.05)
+* quiescent / reverse leakage of VS
+Bvsq vs gnd I = 46u*V(por)
+Drev gnd vrv DESD
+Rrev vrv vs 2.7Meg
+Rsrc src gnd 20Meg
+.ends TPS48000
 
 * ---------------------------------------------------------------------
-* INA290A2 (gain 50 V/V) + push-pull comparator + AND3 -> PEAK_OK
-*   INA290: 1.1 MHz single pole, 2 V/us slew, output 0..3.2 V
-*   comparator (TLV3201 class) 40 ns, AND3 (74LVC1G11) 4 ns: modelled as
-*   one 45 ns RC deglitch
-*   pins: shp shm (shunt), thr (threshold voltage at comparator, V),
-*   peakok (1 = OK, 0 = trip), out (INA output)
+* INA240A2 (50 V/V, 400 kHz, 2 V/us, out 0..3.25 V) with the board's
+* 10 Ohm/10 Ohm/1 nF input filter, TLV7011 comparator (260 ns) against PEAK_REF,
+* optional second TLV7011 straight on the shunt Kelvin pads with a fixed
+* threshold hsv (V across the 1 mOhm shunt; hsv=10 = not fitted), wired into
+* the SN74LVC1G74 latch (PEAK_OK low clears) and the 74LVC1G11 AND -> INP.
+*   pins: shp shm (shunt sense), thr (PEAK_REF, V), en (MCU_EN AND guard, 0/1)
+*         isense (INA out), pkok (0/1), inpdrv (0/3.3 V)
 * ---------------------------------------------------------------------
-.subckt INAPEAK shp shm thr peakok out params: gain=50 tcmp=45n
-Btgt tgt 0 V = max(0, min(3.2, {gain}*V(shp,shm)))
-Bsl 0 out I = 1n*max(-2e6, min(2e6, (V(tgt)-V(out))*6.9115e6))
-Cout out 0 1n
-Rout out 0 1G
-Bc cmp 0 V = 0.5*(1+tanh((V(thr)-V(out))/5m))
-Rcd cmp peakok 1k
-Ccd peakok 0 {tcmp/0.693/1k}
-.ends INAPEAK
+.subckt PEAKPATH shp shm thr en isense pkok inpdrv params: gain=50 tcmp=0.27u latch=1 slew=2e6
++ wp=2.513e6 hsv=10
+Rf1 shp fp 10
+Rf2 shm fm 10
+Cf fp fm 1n
+Btgt tgt 0 V = max(0, min(3.25, {gain}*V(fp,fm)))
+Bsl 0 isense I = 1n*max(-{slew}, min({slew}, (V(tgt)-V(isense))*{wp}))
+Cout isense 0 1n
+Rout isense 0 1G
+Bc cmp 0 V = 0.5*(1+tanh((V(thr)-V(isense))/1m))
+Rcd cmp pk1 1k
+Ccd pk1 0 {tcmp/0.693/1k}
+Bc2 cmp2 0 V = 0.5*(1+tanh(({hsv}-V(fp,fm))/0.3m))
+Rcd2 cmp2 pk2 1k
+Ccd2 pk2 0 {tcmp/0.693/1k}
+Bpk pkok 0 V = V(pk1)*V(pk2)
+Blat 0 lat I = 10m*0.5*(1+tanh((0.5-V(pkok))/0.02))*0.5*(1+tanh((0.95-V(lat))/0.02))
+Clat lat 0 100p
+Rlat lat 0 1G
+Band inpdrv 0 V = 3.3*min(1,max(0,V(en)))*({latch}*(1-min(1,max(0,V(lat)))) + (1-{latch})*V(pkok))
+.ends PEAKPATH
