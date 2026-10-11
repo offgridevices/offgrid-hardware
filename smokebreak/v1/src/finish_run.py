@@ -58,6 +58,12 @@ def run(src, out, log=print):
                                 clmap=clmap, max_victims=8, max_rounds=80, log=log)
         b.Save(out)
         log('after rip-up and re-route:', len(left), 'nets open', left)
+        if left and os.environ.get('FINISH_DEEP'):
+            left = finish.repair_orders(b, [x for x in left if x not in protect], protect=protect, widths=widths,
+                                        clmap=clmap, tries=int(os.environ.get('FINISH_DEEP')), max_victims=12,
+                                        log=log)
+            b.Save(out)
+            log('after random-order repairs:', len(left), 'nets open', left)
     return out
 
 
