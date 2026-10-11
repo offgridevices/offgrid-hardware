@@ -15,7 +15,7 @@ import place
 
 OUT = os.path.join(B.V1, 'smokebreak.kicad_pcb')
 
-HV_NETS = ['VIN', 'VOUT', 'SRC', 'GATE', 'TPS_VS', 'TPS_BST', 'TPS_PU', 'PRE_G', 'PRE_D', 'PRE_K',
+HV_NETS = ['VIN', 'VOUT', 'SRC', 'GATE', 'TPS_VS', 'TPS_BST', 'TPS_PU', 'PRE_G', 'PRE_R',
            'PRE_PULL', 'AUX', 'AUX_F', 'BUCK_SW', 'BUCK_BOOT', 'PROBE'] + [f'BAL{k}' for k in range(2, 10)]
 
 GRID = 0.25
@@ -56,10 +56,10 @@ def inside(bs, dx, dy, inset=0.5):
 
 def legalise(fps, b):
     settled = []
-    for t in b.GetTracks():                 # fixed vias of the power copper
-        q, r = t.GetPosition(), pcbnew.ToMM(t.GetWidth(pcbnew.F_Cu)) / 2
-        x, y = pcbnew.ToMM(q.x) - B.OX, pcbnew.ToMM(q.y) - B.OY
-        settled.append((x - r, y - r, x + r, y + r, 0.2))
+    for t in b.GetTracks():                 # fixed vias and tracks of the power copper
+        bb = t.GetBoundingBox()
+        settled.append((pcbnew.ToMM(bb.GetLeft()) - B.OX, pcbnew.ToMM(bb.GetTop()) - B.OY,
+                        pcbnew.ToMM(bb.GetRight()) - B.OX, pcbnew.ToMM(bb.GetBottom()) - B.OY, 0.2))
     moved = []
     for ref, (x, y, rot, side, fixed) in place.PL.items():
         if ref in fps and fixed:
@@ -87,8 +87,8 @@ def legalise(fps, b):
 # Layers: F.Cu parts + signals + power pours; In1 solid GND; In2 the power
 # planes (VIN west, VOUT east); B.Cu signals + GND fill + DRONE_NEG strip.
 SPLIT = 76.0            # In2: VIN west of this line, VOUT east of it (Q1 | Q2)
-VIN_BAND = [(0.4, 11.0), (17.0, 11.0), (17.0, 41.0), (SPLIT - 0.4, 41.0), (SPLIT - 0.4, B.H - 0.4),
-            (0.4, B.H - 0.4)]
+VIN_BAND = [(0.4, 0.4), (51.8, 0.4), (51.8, 7.6), (17.0, 7.6), (17.0, 41.0), (SPLIT - 0.4, 41.0),
+            (SPLIT - 0.4, B.H - 0.4), (0.4, B.H - 0.4)]      # + a strip along the back to the pre-charge FET
 VOUT_BAND = [(77.4, 0.4), (B.W - 0.4, 0.4), (B.W - 0.4, B.H - 0.4), (SPLIT + 0.4, B.H - 0.4),
              (SPLIT + 0.4, 41.0), (77.4, 41.0)]
 # drone negative strip between J3 and J4 (both layers), notched round the
@@ -124,9 +124,12 @@ def power_copper(b):
         for y in (45.2, 46.45, 47.7, 48.95, 50.2):
             B.via(b, x, y, 'VIN', **pv)
     for x, y in ((79.0, 50.75), (80.25, 50.75), (81.5, 50.75), (82.75, 50.75), (84.0, 50.75), (85.25, 50.75),
-                 (82.6, 44.6), (83.85, 43.6), (85.1, 42.6), (85.6, 44.6), (85.6, 45.85), (85.6, 47.1),
-                 (85.6, 48.35), (84.35, 48.35), (83.1, 48.35)):
+                 ):
         B.via(b, x, y, 'VOUT', **pv)
+    # the pre-charge FET's source into the VIN strip
+    B.track(b, [(50.1, 9.4), (50.1, 7.2)], 1.0, pcbnew.F_Cu, 'VIN')
+    for x in (49.5, 50.7):
+        B.via(b, x, 7.0, 'VIN', **pv)
     for x in (84.25, 85.35):
         for y in (24.1, 25.2, 26.3):
             B.via(b, x, y, 'GND', **pv)
@@ -254,6 +257,7 @@ def build():
     fps = B.place_components(b, place.PL)
     B.netclass(b, 'HV', HV_NETS, 0.2, B.HV_CLEAR)
     B.netclass(b, 'Supply', ['+5V', '+3V3'], 0.3, B.CLEAR)
+    B.netclass(b, 'Pulse', ['PRE_D', 'PRE_K'], 0.8, B.HV_CLEAR)          # pre-charge: 7.5 A for ~0.1 s
     power_copper(b)
     moved = legalise(fps, b)
     return b, fps, moved

@@ -5,6 +5,7 @@ and the case's clearance check, not for tooling.
 
     python3 tools/models3d.py      writes lib/smokebreak.3dshapes/*.wrl
 """
+import math
 import os
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib', 'smokebreak.3dshapes')
@@ -17,33 +18,42 @@ COL = {
 }
 
 
-def mat(c):
+def shape(c, pts, faces):
+    """One mesh Shape: pts in mm, faces as vertex-index lists (counter-clockwise from outside)."""
     r, g, b, sh = COL[c]
-    return ('appearance Appearance { material Material { diffuseColor %.3f %.3f %.3f '
-            'specularColor %.2f %.2f %.2f shininess %.2f } }' % (r, g, b, sh, sh, sh, sh))
+    P = ', '.join('%.4f %.4f %.4f' % (x * U, y * U, z * U) for x, y, z in pts)
+    F = ', '.join(', '.join(str(i) for i in f) + ', -1' for f in faces)
+    return ('Shape { appearance Appearance { material Material { diffuseColor %.3f %.3f %.3f '
+            'specularColor %.2f %.2f %.2f shininess %.2f } } geometry IndexedFaceSet { solid FALSE '
+            'coord Coordinate { point [ %s ] } coordIndex [ %s ] } }' % (r, g, b, sh, sh, sh, sh, P, F))
 
 
 def box(c, x, y, z, sx, sy, sz):
     """Box centred at (x, y) with its base at z (mm)."""
-    return ('Transform { translation %.4f %.4f %.4f children [ Shape { %s geometry Box { size %.4f %.4f %.4f } } ] }'
-            % (x * U, y * U, (z + sz / 2) * U, mat(c), sx * U, sy * U, sz * U))
+    x0, x1, y0, y1, z0, z1 = x - sx / 2, x + sx / 2, y - sy / 2, y + sy / 2, z, z + sz
+    pts = [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0), (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)]
+    faces = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+    return shape(c, pts, faces)
 
 
-def cyl(c, x, y, z, r, h, axis='z'):
-    """Cylinder: axis z with its base at z; axis x or y centred on (x, y, z)."""
-    if axis == 'z':
-        rot, t = '1 0 0 1.5708', (x, y, z + h / 2)
-    elif axis == 'x':
-        rot, t = '0 0 1 1.5708', (x, y, z)
-    else:
-        rot, t = '0 0 1 0', (x, y, z)
-    return ('Transform { translation %.4f %.4f %.4f rotation %s children [ Shape { %s geometry Cylinder { radius %.4f height %.4f } } ] }'
-            % (t[0] * U, t[1] * U, t[2] * U, rot, mat(c), r * U, h * U))
+def cyl(c, x, y, z, r, h, axis='z', n=32):
+    """Cylinder: axis z with its base at z; axis x centred on (x, y, z)."""
+    pts = []
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        u, v = r * math.cos(a), r * math.sin(a)
+        if axis == 'z':
+            pts += [(x + u, y + v, z), (x + u, y + v, z + h)]
+        else:
+            pts += [(x - h / 2, y + u, z + v), (x + h / 2, y + u, z + v)]
+    faces = [[2 * k, 2 * ((k + 1) % n), 2 * ((k + 1) % n) + 1, 2 * k + 1] for k in range(n)]
+    faces += [[2 * k for k in range(n)][::-1], [2 * k + 1 for k in range(n)]]
+    return shape(c, pts, faces)
 
 
 def write(name, shapes):
     with open(os.path.join(OUT, name + '.wrl'), 'w') as f:
-        f.write('#VRML V2.0 utf8\n' + '\n'.join(shapes) + '\n')
+        f.write('#VRML V2.0 utf8\nTransform { children [\n' + '\n'.join(shapes) + '\n] }\n')
 
 
 def toggle():

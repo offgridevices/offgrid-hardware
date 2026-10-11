@@ -39,6 +39,16 @@ PARTS = {
                    'Current-sense amplifier, gain 50, -0.2..26 V CM (low side: CM ~0 V)'),
     'TVS64':     P('SMB_L4.6-W3.6-LS5.3-BI', 'Littelfuse', 'SMBJ64CA', 'C151269',
                    'TVS bidirectional 58 V stand-off, 600 W, SMB'),
+    'SUD50P10':  P('TO-252-3_L6.5-W5.8-P4.58-BR', 'Vishay Siliconix', 'SUD50P10-43L-E3', 'C913430',
+                   'P-MOSFET 100 V 43 mOhm DPAK (pre-charge switch: ~7.5 A peak through RPRE)'),
+    'MMBTA42':   P('SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR', 'onsemi', 'MMBTA42LT1G', 'C94389',
+                   'NPN 300 V (pre-charge gate pull-down: sees VIN)'),
+    'MMBT5401':  P('SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR', 'onsemi', 'MMBT5401LT1G', 'C21488',
+                   'PNP 150 V (probe switch: a reversed drone-side pack puts -60 V on it)'),
+    'AC05R15':   P('RES-TH_BD7.5-L18.0-P22.00-D1.0', 'Vishay', 'AC05000001509JAC00', 'C1364893',
+                   'Pre-charge resistor 15 Ohm 5 W cemented wirewound, pulse rated (two in parallel)', fit='tht'),
+    'BZT52C15':  P('SOD-123_L2.7-W1.6-LS3.7-RD', 'Diodes Incorporated', 'BZT52C15-7-F', 'C177014',
+                   'Zener 15 V (Q1/Q2 gate-source clamp)'),
     'DMP10H':    P('SOT-223_L6.5-W3.5-P2.30-LS7.0-BR', 'Diodes Incorporated', 'DMP10H400SE-13', 'C156277',
                    'P-MOSFET -100 V 250 mOhm, SOT-223 (pre-charge switch)'),
     'RPRE22':    P('RES-TH_BD7.5-L18.0-P22.00-D1.0', 'Vishay', 'AC05000002209JAC00', 'C1364873',
@@ -135,7 +145,8 @@ def yageo_value(ohms):
 def resistor(ohms, size='0402', tol='1%'):
     key = f'R{size}-{ohms:g}-{tol}'
     if key not in PARTS:
-        mpn = RES_SERIES[tol].format(size=size, val=yageo_value(ohms))
+        series = 'RL{size}FR-07{val}L' if ohms < 1 else RES_SERIES[tol]     # Yageo RL: low-ohm thick film
+        mpn = series.format(size=size, val=yageo_value(ohms))
         PARTS[key] = P(STD_R[size], 'Yageo', mpn, None, f'Resistor {fmt_ohms(ohms)} {tol} {size}')
     return key
 
@@ -151,6 +162,8 @@ CAPS = {
     ('100n', '100V', '0603'): 'CL10B104KC8NNNC',
     ('1u', '100V', '1206'): 'CL31B105KCHNNNE',
     ('2u2', '100V', '1210'): 'CL32B225KCJSNNE',
+    ('4u7', '100V', '1210'): 'CL32B475KCJSNNE',
+    ('22n', '50V', '0402'): 'CL05B223KB5NNNC',
 }
 
 

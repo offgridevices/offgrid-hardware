@@ -50,10 +50,10 @@ TOG = (67.0, 28.0)
 RING_R = 9.5
 fix('SW1', *TOG, 0)
 for i in range(12):
-    a = math.radians(-90 + 30 * i)                       # LED1 at 12 o'clock, clockwise
+    a = math.radians(120 + 30 * i)                       # LED1 at 7 o'clock (its driver sits there), clockwise
     # pads square to the board (the router and the paste stencil like that);
     # the light pipe evens out each LED's own turn
-    fix(f'LED{i + 1}', TOG[0] + RING_R * math.cos(a), TOG[1] + RING_R * math.sin(a), -90 * round(i / 3))
+    fix(f'LED{i + 1}', TOG[0] + RING_R * math.cos(a), TOG[1] + RING_R * math.sin(a), -90 * round((i + 7) / 3))
 fix('U6', 65.6, 42.6, 0)                                 # hall switch under the guard's tip magnet
 
 # gates: connector faces flush with the 3 mm walls (outer faces at x -3 and x 97)
@@ -63,7 +63,8 @@ fix('J3', 84.4, 19.0, 270)            # XT60 female
 fix('J4', 85.3, 39.0, 90)             # XT30 female
 fix('J8', 57.0, 4.3, 180)             # USB-C through the back wall
 fix('J5', 38.0, 8.4, 0)               # JST-XH 9 balance, through the back wall
-fix('R_PRE', 75.0, 4.6, 0)            # 5 W pre-charge resistor along the back
+fix('R_PRE', 75.0, 4.4, 0)            # the two 5 W pre-charge resistors, in rows along the back,
+fix('R_PRE2', 67.5, 12.6, 0)          # FET side (PRE_K) west, drone side (VOUT) east
 
 # controls under the Limit rocker's ends, the beeper between them
 fix('SW2', 15.5, 42.5, 0)
@@ -72,7 +73,9 @@ fix('BZ1', 25.5, 46.3, 0)
 
 # downtown and the power district
 fix('U5', 38.0, 31.5, 90)             # MCU: ADC pins north, control pins south, toggle pins east
-fix('J7', 52.5, 21.0, 90)             # display FPC, entered from the screen side (west)
+fix('J7', 52.5, 27.6, 90)             # display FPC, entered from the screen side (west)
+fix('Q3', 52.4, 12.8, 90)             # pre-charge FET: source (VIN) north, drain tab south
+at('D3', 57.4, 17.6, 90)
 fix('Q1', 71.25, 47.2, 90)             # back to back, sources facing
 fix('Q2', 78.75, 47.2, 270)
 fix('RS1', 83.4, 29.5, 90)            # shunt between the drone connectors' negatives, force pads west->east
@@ -83,8 +86,8 @@ fix('U2', 89.4, 29.5, 90)             # its amplifier right beside it
 for k in range(6):
     a = math.radians(-90 + 60 * k + 15)
     at(f'C{43 + k}', TOG[0] + 12.0 * math.cos(a), TOG[1] + 12.0 * math.sin(a), -(60 * k + 15) + 90)
-at('U10', 58.2, 18.8, 0)
-at('C42', 58.2, 21.8, 0)
+at('U10', 58.6, 39.4, 0)
+at('C42', 58.6, 42.0, 0)
 at('C13', 64.6, 43.6, 90)
 
 # battery gate
@@ -163,18 +166,17 @@ for ref, (x, y, r) in {
     at(ref, x, y, r)
 
 # pre-charge, along the back next to its resistor
-at('Q3', 74.5, 12.2, 90)
-at('D3', 66.4, 11.2, 0)
-at('D2', 75.4, 15.8, 0)
-at('R19', 75.4, 17.8, 0)
-at('R20', 61.4, 14.0, 90)
-at('Q4', 63.4, 15.8, 0)
-at('Q5', 63.4, 19.6, 0)
-for ref, (x, y, r) in {'R21': (61.4, 17.6, 90), 'R22': (61.4, 21.2, 90), 'R23': (65.2, 15.0, 90),
-                       'R24': (65.2, 21.2, 90)}.items():
+at('D2', 48.2, 13.0, 90)                # Q3's gate clamp and pull-up beside it
+at('R19', 48.2, 16.0, 90)
+at('R20', 48.2, 19.2, 90)
+at('D19', 48.2, 22.4, 90)
+at('Q4', 45.4, 41.0, 0)                 # the AND of MCU and guard, south of the MCU
+at('Q5', 45.4, 44.2, 0)
+for ref, (x, y, r) in {'R21': (47.6, 41.0, 90), 'R22': (47.6, 44.2, 90), 'R23': (43.4, 41.0, 90),
+                       'R24': (43.4, 44.2, 90)}.items():
     at(ref, x, y, r)
-at('RT2', 70.2, 7.4, 0)                 # thermistor against the resistor body
-at('R25', 72.2, 7.4, 0)
+at('RT2', 82.0, 9.0, 0)                 # thermistor on the resistors' drone-side leads
+at('R25', 84.2, 9.0, 0)
 
 # drone side: probe, VOUT and VIN sensing, south of the MCU
 at('C14', 80.6, 33.6, 0)
@@ -197,9 +199,27 @@ at('C40', 49.6, 38.6, 0)
 at('Q10', 31.2, 40.4, 0)
 at('R61', 33.6, 40.4, 90)
 at('D17', 31.2, 43.0, 90)
-at('U11', 57.0, 10.2, 0)
-at('R62', 54.2, 10.2, 90)
-at('R63', 59.8, 10.2, 90)
-at('R64', 54.4, 13.6, 90)
-at('R65', 55.8, 13.6, 90)
-at('C49', 57.4, 13.6, 90)
+at('U11', 47.0, 26.0, 90)
+at('R62', 62.4, 8.4, 0)
+at('R63', 51.0, 7.0, 0)
+at('R64', 55.8, 21.8, 90)
+at('R65', 55.8, 24.4, 90)
+at('C49', 47.6, 8.4, 90)
+
+# ---------------------------------------------------------------- from the simulations
+at('R67', 21.6, 25.2, 0)                # input damper: 0.33 Ohm + 2 x 4.7 uF next to the TVS
+at('C50', 24.8, 18.2, 0)
+at('C51', 24.8, 21.8, 0)
+at('C52', 84.2, 46.6, 90)               # output snubber across the drone side
+at('C53', 81.0, 35.0, 90)
+at('R68', 86.6, 46.4, 90)
+at('R69', 72.4, 39.6, 0)                # Cdvdt beside the TPS48000
+at('C54', 70.4, 39.6, 0)
+at('D18', 76.2, 50.6, 0)                # gate clamp across Q1/Q2
+at('U12', 86.4, 25.0, 0)                # hard-short comparator on the shunt's sense pad
+at('R70', 89.4, 24.4, 0)
+at('R71', 91.6, 24.4, 0)
+at('C55', 89.4, 25.8, 0)
+at('C56', 91.6, 25.8, 0)
+at('R72', 37.8, 41.0, 90)               # probe base resistors
+at('R73', 39.0, 41.0, 90)

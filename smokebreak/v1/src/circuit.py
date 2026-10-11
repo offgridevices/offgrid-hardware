@@ -56,6 +56,11 @@ add('D1', 'TVS64', {'1': 'VIN', '2': 'GND'}, 'SMBJ64CA', g)
 capacitor('VIN', 'GND', '2u2', '100V', '1210', g)
 capacitor('VIN', 'GND', '2u2', '100V', '1210', g)
 capacitor('VIN', 'GND', '100n', '100V', '0603', g)
+# damper (sim case 2): an RC across the input that eats the ring of a
+# hot plug and of a short's turn-off; ceramic, so a reversed pack is fine
+res('VIN', 'VIN_DAMP', 0.33, '1206', group=g, ref='R67')
+capacitor('VIN_DAMP', 'GND', '4u7', '100V', '1210', g, ref='C50')
+capacitor('VIN_DAMP', 'GND', '4u7', '100V', '1210', g, ref='C51')
 
 # ======================================================================
 # 2. The switch: TPS48000 + back-to-back BSC040N10NS5, low-side shunt
@@ -93,10 +98,14 @@ res('TPS_EN', 'GND', 470e3, group=g)
 res('VIN', 'TPS_OV', 1e6, '0603', group=g)
 res('TPS_OV', 'GND', 18e3, group=g)            # see docs/DESIGN_NOTES.md: OV threshold
 capacitor('TPS_BST', 'SRC', '1u', '25V', '0603', g)
-res('TPS_PU', 'GATE', 47, group=g)
+res('TPS_PU', 'GATE', 100e3, group=g)         # slow turn-on with Cdvdt (sim case 1b)
 res('GATE', 'SRC', 1e6, group=g)               # gates held off if the driver is unpowered
 res('+3V3', 'TPS_CSSEL', 10e3, group=g)
-res('TPS_ISCP', 'GND', 15.4e3, group=g)       # (50 A x 1 mOhm - 19 mV) / 2 uA
+res('TPS_ISCP', 'GND', 40.2e3, group=g)       # (99 A x 1 mOhm - 19 mV) / 2 uA: the last line of defence
+# Cdvdt: gate to ground through 1 k (sim case 1b), and a 15 V gate clamp
+res('GATE', 'CDVDT', 1e3, group=g, ref='R69')
+capacitor('CDVDT', 'GND', '22n', '50V', '0402', g, ref='C54')
+add('D18', 'BZT52C15', {'1': 'GATE', '2': 'SRC'}, '15 V', g)
 res('TPS_SCPTEST', 'GND', 100e3, group=g)
 res('TPS_FLT', '+3V3', 10e3, group=g)
 res('TPS_FLTGD', '+3V3', 10e3, group=g)
@@ -125,6 +134,13 @@ res('PEAK_DAC', 'PEAK_REF', 1e3, group=g)
 capacitor('PEAK_REF', 'GND', '10n', '50V', '0402', g)
 add('U8', 'LMV331', {'1': 'PEAK_REF', '2': 'GND', '3': 'I_SENSE', '4': 'PEAK_OK', '5': '+3V3'}, 'LMV331', g)
 res('PEAK_OK', '+3V3', 10e3, group=g, ref='R66')    # open-drain output (late ref: keeps the others)
+# hard-short comparator straight on the shunt: 80 mV = 80 A, no amplifier
+# slew in the way (sim case 3); wired onto the same latch-clear node
+add('U12', 'LMV331', {'1': 'HS_REF', '2': 'GND', '3': 'SNS_DRN', '4': 'PEAK_OK', '5': '+3V3'}, 'LMV331', g)
+res('+3V3', 'HS_REF', 39e3, group=g, ref='R70')
+res('HS_REF', 'GND', 1e3, group=g, ref='R71')                                  # 82.5 mV
+capacitor('HS_REF', 'GND', '100n', group=g, ref='C55')
+capacitor('+3V3', 'GND', '100n', group=g, ref='C56')
 capacitor('+3V3', 'GND', '100n', group=g)
 # latch: PEAK_OK low clears Q; the MCU re-arms with a clock edge
 add('U9', 'LVC1G74', {'1': 'ARM_CLK', '2': '+3V3', '3': NC, '4': 'GND', '5': 'LATCH_OK', '6': 'PEAK_OK',
@@ -140,22 +156,26 @@ add('U6', 'DRV5032', {'1': '+3V3', '2': 'GUARD_OPEN', '3': 'GND'}, 'DRV5032FA', 
 capacitor('+3V3', 'GND', '100n', group=g)
 
 # ======================================================================
-# 4. Pre-charge: P-FET + Schottky + 22 Ohm 5 W, cut by the guard too
+# 4. Pre-charge: P-FET + Schottky + 2 x 15 Ohm 5 W in parallel, cut by the guard too
 # ======================================================================
 g = 'pre-charge'
-add('Q3', 'DMP10H', {'1': 'PRE_G', '2': 'PRE_D', '4': 'PRE_D', '3': 'VIN'}, 'DMP10H400SE', g)
+add('Q3', 'SUD50P10', {'1': 'PRE_G', '2': 'PRE_D', '3': 'VIN'}, 'SUD50P10-43L', g)
 add('D2', 'BZT52C10', {'1': 'VIN', '2': 'PRE_G'}, '10 V', g)                    # Vgs clamp: K at source
 res('VIN', 'PRE_G', 100e3, '0603', group=g)
-res('PRE_G', 'PRE_PULL', 47e3, '1206', group=g)                               # ~1.2 mA at 60 V
+res('PRE_G', 'PRE_R', 47e3, '1206', group=g)                                  # ~1.2 mA at 60 V
+add('D19', '1N4148WS', {'1': 'PRE_PULL', '2': 'PRE_R'}, '1N4148WS', g)           # a reversed pack cannot pull PRE_ON
 # two NPNs in series: the MCU AND the guard must both say go
-add('Q4', 'BC817', {'1': 'PRE_B1', '3': 'PRE_PULL', '2': 'PRE_MID'}, 'BC817', g)
+add('Q4', 'MMBTA42', {'1': 'PRE_B1', '3': 'PRE_PULL', '2': 'PRE_MID'}, 'MMBTA42', g)
 add('Q5', 'BC817', {'1': 'PRE_B2', '3': 'PRE_MID', '2': 'GND'}, 'BC817', g)
 res('PRE_ON', 'PRE_B1', 10e3, group=g)
 res('GUARD_OPEN', 'PRE_B2', 10e3, group=g)
 res('PRE_B1', 'GND', 100e3, group=g)
 res('PRE_B2', 'GND', 100e3, group=g)
 add('D3', 'SS2H10', {'1': 'PRE_K', '2': 'PRE_D'}, 'SS2H10', g)                # A at the FET, K to the resistor
-add('R_PRE', 'RPRE22', {'1': 'PRE_K', '2': 'VOUT'}, '22 Ohm 5 W', g)
+# two 15 Ohm 5 W in parallel = 7.5 Ohm (sim case 1: 6.8-8.2 Ohm passes); each
+# takes half the energy, and both lie in rows from the FET side to the drone side
+add('R_PRE', 'AC05R15', {'1': 'PRE_K', '2': 'VOUT'}, '15 Ohm 5 W', g)
+add('R_PRE2', 'AC05R15', {'1': 'PRE_K', '2': 'VOUT'}, '15 Ohm 5 W', g)
 add('RT2', 'NTC10K', {'1': 'NTC_PRE', '2': 'GND'}, '10 k NTC', g)
 res('+3V3', 'NTC_PRE', 10e3, group=g)
 
@@ -166,11 +186,18 @@ g = 'drone out'
 add('J3', 'XT60F', {XT['XT60F'][0]: 'VOUT', XT['XT60F'][1]: 'DRONE_NEG', '1': NC, '2': NC}, 'XT60 female', g)
 add('J4', 'XT30F', {XT['XT30F'][0]: 'VOUT', XT['XT30F'][1]: 'DRONE_NEG', '3': NC, '4': NC}, 'XT30 female', g)
 capacitor('VOUT', 'DRONE_NEG', '100n', '100V', '0603', g)
-# probe: 3.3 V through 1 k or 100 Ohm, then a 100 V Schottky into VOUT
-add('Q6', 'AO3401A', {'1': 'PROBE_1K_N', '2': '+3V3', '3': 'PROBE_A'}, 'AO3401A', g)
-add('Q7', 'AO3401A', {'1': 'PROBE_100_N', '2': '+3V3', '3': 'PROBE_B'}, 'AO3401A', g)
-res('PROBE_1K_N', '+3V3', 100e3, group=g)
-res('PROBE_100_N', '+3V3', 100e3, group=g)
+# output snubber (sim cases 3, 5): damps the drone-side ring after a cut and on plug-in
+res('VOUT', 'VOUT_SNUB', 0.47, '1206', group=g, ref='R68')
+capacitor('VOUT_SNUB', 'DRONE_NEG', '4u7', '100V', '1210', g, ref='C52')
+capacitor('VOUT_SNUB', 'DRONE_NEG', '4u7', '100V', '1210', g, ref='C53')
+# probe: 3.3 V through 1 k or 100 Ohm, then a 100 V Schottky into VOUT.
+# 150 V PNPs: a reversed pack on the drone side puts -60 V on them
+add('Q6', 'MMBT5401', {'1': 'PROBE_BB1', '2': '+3V3', '3': 'PROBE_A'}, 'MMBT5401', g)
+add('Q7', 'MMBT5401', {'1': 'PROBE_BB2', '2': '+3V3', '3': 'PROBE_B'}, 'MMBT5401', g)
+res('PROBE_BB1', '+3V3', 100e3, group=g)
+res('PROBE_BB2', '+3V3', 100e3, group=g)
+res('PROBE_1K_N', 'PROBE_BB1', 4.7e3, group=g, ref='R72')                      # 0.5 mA base for 3 mA
+res('PROBE_100_N', 'PROBE_BB2', 820, group=g, ref='R73')                       # 3 mA base for 30 mA
 res('PROBE_A', 'PROBE', 1e3, '0603', group=g)
 res('PROBE_B', 'PROBE', 100, '0805', group=g)
 add('D4', 'BAT46WJ', {'1': 'VOUT', '2': 'PROBE'}, 'BAT46WJ', g)
