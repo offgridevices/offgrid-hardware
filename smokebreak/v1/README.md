@@ -21,7 +21,7 @@ metal toggle and a status-light ring.
 | `fab/smokebreak-netlist.csv` | every pad and its net (checked against `src/circuit.py`) |
 | `fab/smokebreak.step` | the assembled board in 3D, for the case (the toggle, the LEDs, the AC05s and U1 are mesh models KiCad leaves out of STEP: take their sizes from `lib/` until real STEP models replace them) |
 | `images/board-*.png` | renders |
-| `src/` | the board as code: `circuit.py` (netlist), `parts.py` (every part, MPN, LCSC), `place.py` (placement), `make.py` → `route_run.py` → `finish_run.py` / `repair_run.py` → `final.py` → `fab.py` (`pipeline.sh` runs the lot) |
+| `src/` | the board as code: `circuit.py` (netlist), `parts.py` (every part, MPN, LCSC), `place.py` (placement), `make.py` → `route_run.py` → `finish_run.py` / `repair_run.py` → `final.py` → `polish.py` (clean-up pass) → `fab.py` (`pipeline.sh` runs up to `final.py`) |
 | `sim/` | power-path simulations and the design values they set |
 | `firmware/` | reference model of every firmware decision, with tests |
 | `tools/cost.py` | landed-cost tally |

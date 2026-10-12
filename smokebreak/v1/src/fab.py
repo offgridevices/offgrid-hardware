@@ -130,7 +130,13 @@ def renders():
 
 
 def step():
-    run(['kicad-cli', 'pcb', 'export', 'step', '--subst-models', '--force', '-o', os.path.join(OUT, f'{NAME}.step'), BOARD])
+    # kicad-cli exits non-zero when a part has no STEP model (it writes the
+    # board without that part); the file is still good for the case design
+    out = os.path.join(OUT, f'{NAME}.step')
+    r = subprocess.run(['kicad-cli', 'pcb', 'export', 'step', '--subst-models', '--force', '-o', out, BOARD],
+                       capture_output=True, text=True)
+    if not os.path.exists(out):
+        raise SystemExit('STEP export failed\n' + r.stdout + r.stderr)
 
 
 if __name__ == '__main__':

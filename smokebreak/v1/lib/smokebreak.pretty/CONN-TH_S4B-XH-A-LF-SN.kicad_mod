@@ -38,9 +38,9 @@
 	(fp_line (start 6.38 -9.33) (end 6.38 2.43) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 6.38 2.43) (end -6.38 2.43) (layer F.CrtYd) (width 0.05))
 	(fp_line (start -6.38 2.43) (end -6.38 -9.33) (layer F.CrtYd) (width 0.05))
-	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/CONN-TH_S4B-XH-A-LF-SN.wrl"
-		(offset (xyz 0.000 0.000 0.000))
+	(model "${KICAD10_3DMODEL_DIR}/Connector_JST.3dshapes/JST_XH_S4B-XH-A_1x04_P2.50mm_Horizontal.step"
+		(offset (xyz 3.75 0 0))
 		(scale (xyz 1 1 1))
-		(rotate (xyz 0 0 0))
+		(rotate (xyz 0 0 180))
 	)
 )
