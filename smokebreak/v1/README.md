@@ -8,7 +8,7 @@ metal toggle and a status-light ring.
 |---|---|
 | Board | 94 × 52 mm, 6 layers, 1.6 mm, black mask, white silk, ENIG |
 | Assembly | every SMD part on the top (PCBWay, one side); connectors, toggle and the two pre-charge resistors hand-soldered from the bottom |
-| Checks | KiCad 10 DRC: 0 errors, 0 warnings, 0 unconnected; netlist matches `src/circuit.py` pad for pad; power-path simulations (`sim/SIM.md`, ngspice 47, 22/22 pass); firmware logic model (`firmware/`, 239 tests) |
+| Checks | KiCad 10 DRC: 0 errors, 0 warnings, 0 unconnected; netlist matches `src/circuit.py` pad for pad; power-path simulations (`sim/SIM.md`, ngspice 47, 22/22 pass); firmware logic model (`firmware/`, 236 tests) |
 
 ## Files
 
@@ -36,16 +36,19 @@ metal toggle and a status-light ring.
 2. **Assembly** → turnkey, top side only. Upload `fab/smokebreak-bom-pcbway.csv`
    and `fab/smokebreak-cpl.csv`. Lines marked THT ("supplied loose") are not
    fitted: ask PCBWay to ship them loose with the boards, or buy them
-   separately: XT60PW-M, XT30PW-M, XT60PW-F, XT30PW-F, JST S9B-XH-A, the
-   toggle, 2 × Vishay AC05 15 Ω.
+   separately: XT60PW-M, XT30PW-M, XT60PW-F, XT30PW-F, JST S3B/S4B/S5B/S6B/S7B-XH-A
+   (one each), the toggle, 2 × Vishay AC05 3.9 Ω.
 3. The display (1.9" 170 × 320 ST7789, 30-pin 0.5 mm FPC) is bought separately
    and plugs into J7.
 
 ## Hand assembly (from the bottom; the bottom silkscreen says what goes where)
 
-1. Pre-charge resistors R_PRE, R_PRE2: lie them flat on the top, bend the
-   leads, solder, trim to 1.5 mm.
-2. Balance header J5 (pin 1 = black wire, by the arrow), USB-C is already on.
+1. Pre-charge resistors R_PRE, R_PRE2 (end to end behind the sockets): lie
+   them flat on the top, bend the leads, solder, trim to 1.5 mm.
+2. Balance sockets J12 (2S), J11 (3S), J10 (4S), J9 (5S), J5 (6S) along the
+   back edge, mouths 3 mm past the board edge (flush with the case's outer
+   wall). The bottom silkscreen names each one and points at pin 1 (black
+   wire). USB-C (front) is already on.
 3. XT60/XT30 male on the left (battery), female on the right (drone): seat
    fully, solder with a big iron (the pads are on the power planes), trim to
    1.5 mm (the case floor is 1.9 mm below the board).
@@ -55,7 +58,11 @@ metal toggle and a status-light ring.
 
 - Board top face 11.5 mm under the top panel's underside: the XT connectors'
   axes sit at the body's mid-height. Under the screen (x 2.5–48.5, y 5–31)
-  nothing is taller than 8.1 mm.
+  nothing is taller than 8.1 mm (the pre-charge resistors are 7.5 mm).
+- Back wall: five balance openings, 2S–6S left to right seen from behind,
+  1 mm ribs between them; each socket's mouth is flush with the outer face.
+  A plug only fits its own socket, so it cannot sit a pin off.
+- Front wall: USB-C at the battery end, well clear of the centred mark.
 - The toggle's shoulder seats on a 2.6 mm printed boss under the panel.
 - The guard's magnet (6 × 3 mm N52) sits in the guard tip over the hall
   sensor U6.
@@ -76,8 +83,9 @@ metal toggle and a status-light ring.
 
 ## Open items to confirm
 
-- Vishay AC05 15 Ω pulse rating for 6 J per resistor (12 J abort, two in
-  parallel) from the vendor's pulse curve.
+- Vishay AC05 3.9 Ω pulse rating: the datasheet chart gives about 11 J per
+  resistor for a single pulse; the 12 J abort puts 6 J on each (two in
+  series, about 55 %). Confirm with Vishay for repeated attempts.
 - The toggle: sample C&K 7107, E-Switch 100SP5T1B1M2QE and NKK M2000
   side by side; all fit the footprint.
 - The 6-layer price from PCBWay (the cost tally uses an estimate).

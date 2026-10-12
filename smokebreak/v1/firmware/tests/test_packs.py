@@ -41,7 +41,7 @@ def test_6s_at_3v5_with_10w_vtx_is_refused_not_closed_across_15v():
 
 @pytest.mark.parametrize('cells', range(1, 15))
 def test_full_pack_goes_live(cells):
-    w = World(pack=Pack.of(cells, 4.2), drone=drone_for(cells), balance=Balance() if cells <= 8 else None)
+    w = World(pack=Pack.of(cells, 4.2), drone=drone_for(cells), balance=Balance() if cells <= 6 else None)
     r = Rig(w).boot()
     assert r.go_live() == State.LIVE, (r.m.fault, r.m.fault_data)
     assert r.m.cells == cells

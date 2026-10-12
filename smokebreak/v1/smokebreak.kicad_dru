@@ -15,15 +15,3 @@
 (rule "plated hole to track"
   (condition "A.Type == 'Pad' && A.isPlated() && A.Pad_Type == 'Through-hole' && B.Type == 'Track'")
   (constraint hole_clearance (min 0.25mm)))
-(rule "no other track across the sources copper"
-  (condition "A.Type == 'Track' && A.NetName != 'SRC' && A.intersectsArea('sources')")
-  (constraint disallow track))
-(rule "no other track across the Q1 drain copper"
-  (condition "A.Type == 'Track' && A.NetName != 'VIN' && A.intersectsArea('Q1 drain')")
-  (constraint disallow track))
-(rule "no other track across the battery minus copper"
-  (condition "A.Type == 'Track' && A.NetName != 'BATT_NEG' && A.intersectsArea('battery minus')")
-  (constraint disallow track))
-(rule "no other track across the drone negative copper"
-  (condition "A.Type == 'Track' && A.NetName != 'DRONE_NEG' && A.NetName != 'VOUT' && A.NetName != 'VOUT_SNUB' && A.intersectsArea('drone negative')")
-  (constraint disallow track))

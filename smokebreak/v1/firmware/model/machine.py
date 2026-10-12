@@ -9,7 +9,7 @@ States
     SAFE       guard closed.  S01 / battery screens S14-S18
     ARMED      guard open, nothing powered.  S02
     CHECKING   3 V probe.  S03
-    PRECHARGE  through RPRE (one 7.5 Ohm bank) until VOUT settles.  S04
+    PRECHARGE  through RPRE (one 7.8 Ohm bank) until VOUT settles.  S04
     ENGAGING   main switch closing on its slow gate, pre-charge still on.  Entered
                only when the pre-charge has settled with VIN - VOUT <= 12 V
                (SIM.md case 1(b)); otherwise PRECHARGE_STALL, nothing closes.  S05

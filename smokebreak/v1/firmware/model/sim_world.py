@@ -13,7 +13,7 @@ world for every decision in the firmware model to be exercised:
   idle current above a voltage, a digital VTX drawing constant power, a
   fault that appears only above some voltage, and a motor demand
 * the board: probe source (3.0 V through 1 kOhm / 100 Ohm and a Schottky),
-  the board's own 4.1 uF on VOUT, pre-charge (D3 + 7.5 Ohm), back-to-back
+  the board's own 4.1 uF on VOUT, pre-charge (D3 + 7.8 Ohm), back-to-back
   switch with a slow gate, the low-side shunt + INA181A2 (sees pre-charge
   current too), the INP AND gate (MCU_EN, guard, peak latch cleared by the
   programmable LMV331 - which also trips above its ~52 A common-mode

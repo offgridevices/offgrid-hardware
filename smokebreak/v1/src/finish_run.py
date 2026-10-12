@@ -26,9 +26,9 @@ def rules():
     clmap = {n: B.CLEAR for n in nets}
     for n in make.HV_NETS:
         widths[n], clmap[n] = 0.2, B.HV_CLEAR
-    for n in ('PRE_D', 'PRE_K'):
+    for n in make.PULSE_NETS:
         widths[n], clmap[n] = 0.8, B.HV_CLEAR
-    for n in ('+5V', '+3V3'):
+    for n in make.SUPPLY_NETS:
         widths[n], clmap[n] = 0.3, B.CLEAR
     return widths, clmap
 

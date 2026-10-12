@@ -1,6 +1,6 @@
 """Battery checker (ARCHITECTURE §2.4, §3, §4).
 
-Inputs: VIN from the main lead and the eight balance taps (XH pins 2..9,
+Inputs: VIN from the main lead and the six balance taps (pins 2..7 of the 2S-6S XH sockets,
 measured against board GND).  Output: one `BatteryInfo` the screens read.
 
 Balance lead decoding, from the tap pattern alone:

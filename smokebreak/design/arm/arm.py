@@ -202,7 +202,8 @@ def build(still_frame=None):
                   m=s.mat('gloss pitch', '#0E0C09', 0.08, coat=1.0), name='mark-front')
     s.lockup(30.0, (0, 4, -0.03), rot=(180, 0, 0), m=s.mat('deboss', '#141210', 0.5), name='lockup-under')
 
-    # connectors: male XT60 + XT30 in, female leads out, USB-C at the back
+    # connectors: male XT60 + XT30 in, female leads out, USB-C in the front wall
+    # at the battery end, the five balance sockets (2S-6S) along the back wall
     x, y = F(0, 20.75)
     s.xt60((x - 2, y, 9), male=True, name='in60')
     x, y = F(0, 42)
@@ -213,7 +214,11 @@ def build(still_frame=None):
     x, y = F(W, 44)
     s.leads((x - 3, y, 7), (x + 32, y - 12, 2.8), sep=3.6, radius=1.4, sag=3, name='out30-lead')
     s.xt30((x + 37, y - 12, 2.6), rot=(0, 0, 180), male=False, name='out30')
-    s.usb_c((F(40, 0)[0], D / 2 + 0.1, 9), rot=(0, 0, 90))
+    s.usb_c((F(15.0, D)[0], -D / 2 - 0.1, 6.1), rot=(0, 0, 90))      # board (12, 52): PCB top at z 4.5
+    for x_board, pins in ((16.93, 7), (37.03, 6), (54.53, 5), (69.61, 4), (82.19, 3)):
+        w = (pins - 1) * 2.5 + 5.2                                       # JST-XH side-entry mouth + 0.3
+        s.box((w, 1.0, 6.4), (F(x_board + 3.0, 0)[0], D / 2 + 0.02, 7.55), m='screen', bevel=0.5,
+              name=f'balance-{pins - 1}s')
     return dict(guard=guard, lever=lever, ring=rmat)
 
 

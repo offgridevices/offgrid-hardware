@@ -11,12 +11,15 @@ import sys
 import pcbnew
 
 import board as B
+import circuit
 import place
 
 OUT = os.path.join(B.V1, 'smokebreak.kicad_pcb')
 
+PULSE_NETS = ['PRE_D', 'PRE_K', 'PRE_M']
+SUPPLY_NETS = ['+5V', '+3V3', 'VBUS']
 HV_NETS = ['VIN', 'VOUT', 'SRC', 'GATE', 'TPS_VS', 'TPS_BST', 'TPS_PU', 'PRE_G', 'PRE_R',
-           'PRE_PULL', 'AUX', 'AUX_F', 'BUCK_SW', 'BUCK_BOOT', 'PROBE'] + [f'BAL{k}' for k in range(2, 10)]
+           'PRE_PULL', 'AUX', 'AUX_F', 'BUCK_SW', 'BUCK_BOOT', 'PROBE'] + [f'BAL{k}' for k in range(2, 8)]
 
 GRID = 0.25
 GAP = 0.25          # extra space between neighbours' pads
@@ -64,9 +67,7 @@ def legalise(fps, b):
     for ref, (x, y, rot, side, fixed) in place.PL.items():
         if ref in fps and fixed:
             settled += boxes(fps[ref])
-    for name, poly, layers in POWER_KEEPOUTS:
-        xs, ys = [p[0] for p in poly], [p[1] for p in poly]
-        settled.append((min(xs), min(ys), max(xs), max(ys), 0.1))
+    keep = [(name, box) for name, poly, layers in POWER_KEEPOUTS for box in _rect_boxes(poly)]
     cands = sorted(((i * GRID, j * GRID) for i in range(-40, 41) for j in range(-40, 41)),
                    key=lambda d: (math.hypot(*d), abs(d[1]), d))
     for ref, (x, y, rot, side, fixed) in place.PL.items():
@@ -75,7 +76,7 @@ def legalise(fps, b):
         fp = fps[ref]
         bs = boxes(fp)
         allowed = [k for k in KEEPOUT_GUESTS if ref in KEEPOUT_GUESTS[k]]
-        obst = [s for s in settled if not any(_is_keepout(s, k) for k in allowed)]
+        obst = settled + [box for name, box in keep if name not in allowed]
         for dx, dy in cands:
             if inside(bs, dx, dy) and not hit(bs, obst, dx, dy):
                 break
@@ -140,10 +141,13 @@ def power_copper(b):
            name='Q11 sources')
     for y in (27.6, 28.9, 30.2, 31.5, 32.8):           # Q11's sources (x 20.5) into the plane
         B.via(b, 21.6, y, 'GND', **pv)
-    # the pre-charge FET's source into the VIN strip
-    B.track(b, [(50.1, 9.4), (50.1, 7.2)], 1.0, pcbnew.F_Cu, 'VIN')
-    for x in (49.5, 50.7):
-        B.via(b, x, 7.0, 'VIN', **pv)
+    # the pre-charge FET's source pin east into the VIN plane (its gate side,
+    # west, and the damper below keep the rest)
+    q3 = {p.GetNumber(): p.GetPosition() for p in b.FindFootprintByReference('Q3').Pads()}
+    sx, sy = pcbnew.ToMM(q3['3'].x) - B.OX, pcbnew.ToMM(q3['3'].y) - B.OY
+    B.track(b, [(sx, sy), (sx + 1.5, sy)], 1.0, pcbnew.F_Cu, 'VIN')
+    for k in (-0.6, 0.6):
+        B.via(b, sx + 1.9, sy + k, 'VIN', **pv)
     for x in (84.25, 85.35):
         for y in (24.1, 25.2, 26.3):
             B.via(b, x, y, 'GND', **pv)
@@ -198,15 +202,19 @@ def art_items():
     T, Bs = 'F.SilkS', 'B.SilkS'
     t = lambda s, x, y, cap, layer, anchor='middle', **k: dict(kind='text', text=s, x=x, y=y, cap=cap,
                                                                anchor=anchor, layer=layer, **k)
-    top = [t('Supply', 16.0, 1.9, 1.2, T), t('Cells', 38.0, 24.6, 1.2, T), t('Brain', 38.0, 38.9, 1.2, T),
-           t('Power', 75.0, 51.2, 1.2, T), t('Sense', 89.4, 33.6, 1.2, T), t('Light', 67.0, 16.4, 1.2, T),
-           t('SmokeBreak v1', 47.0, 51.4, 1.2, T)]
+    # the top is full: only the districts with room for their name get one
+    top = [t('Brain', 38.0, 39.6, 1.2, T), t('Power', 75.0, 51.2, 1.2, T), t('Sense', 89.4, 33.6, 1.2, T)]
     bottom = [
         t('Drone', 8.0, 30.6, 1.8, Bs), t('Battery', 86.0, 30.6, 1.8, Bs),
-        dict(kind='arrow', x0=46.0, y0=16.0, x1=46.0, y1=10.2, layer=Bs, fixed=True),   # to pin 1
-        t('Black wire', 47.0, 15.6, 1.3, Bs, 'start', fixed=True), t('Balance', 56.0, 5.4, 1.3, Bs, fixed=True),
-        t('USB-C', 37.0, 9.8, 1.3, Bs), t('Pre-charge', 19.0, 10.4, 1.3, Bs), t('Toggle', 27.0, 37.6, 1.3, Bs),
+        t('USB-C', B.W - 12.0, 43.6, 1.3, Bs), t('Pre-charge', B.W - 55.0, 17.6, 1.3, Bs),
+        t('Toggle', 27.0, 37.6, 1.3, Bs), t('SmokeBreak v1  2026', 47.0, 49.6, 1.1, Bs),
     ]
+    # each balance socket: its size under it, an arrow up to pin 1 (the black wire)
+    for ref, x, rot in place.SOCKETS:
+        n = len([k for k in circuit.COMPONENTS[ref]['pins']])
+        pin1 = x + (n - 1) * 1.25
+        bottom += [t(f'{n - 1}S', B.W - x, 10.1, 1.3, Bs, fixed=True),
+                   dict(kind='arrow', x0=B.W - pin1, y0=11.0, x1=B.W - pin1, y1=7.9, layer=Bs, fixed=True)]
     return top, bottom
 
 
@@ -275,10 +283,20 @@ def dsn_keepouts(b):
 KEEPOUT_GUESTS = {'drone negative': ('C14', 'C52', 'C53', 'RS1')}
 
 
-def _is_keepout(box, name):
-    poly = [p for n, p, l in POWER_KEEPOUTS if n == name][0]
-    xs, ys = [p[0] for p in poly], [p[1] for p in poly]
-    return box[:4] == (min(xs), min(ys), max(xs), max(ys))
+def _rect_boxes(poly, gap=0.1):
+    """A rectilinear power-copper outline as legaliser boxes: one per band
+    between its corners' y values (its bounding box would block the notches)."""
+    ys = sorted({p[1] for p in poly})
+    out = []
+    for y0, y1 in zip(ys, ys[1:]):
+        ym = (y0 + y1) / 2
+        xs = []
+        for (ax, ay), (bx, by) in zip(poly, poly[1:] + poly[:1]):
+            if (ay - ym) * (by - ym) < 0:
+                xs.append(ax + (bx - ax) * (ym - ay) / (by - ay))
+        xs.sort()
+        out += [(xs[i], y0, xs[i + 1], y1, gap) for i in range(0, len(xs) - 1, 2)]
+    return out
 
 
 # (name, polygon, layers): power copper no other track may cut
@@ -304,12 +322,12 @@ def build():
     b.SetLayerType(pcbnew.In4_Cu, pcbnew.LT_POWER)
     fps = B.place_components(b, place.PL)
     B.netclass(b, 'HV', HV_NETS, 0.2, B.HV_CLEAR)
-    B.netclass(b, 'Supply', ['+5V', '+3V3'], 0.3, B.CLEAR)
-    B.netclass(b, 'Pulse', ['PRE_D', 'PRE_K'], 0.8, B.HV_CLEAR)          # pre-charge: 7.5 A for ~0.1 s
+    B.netclass(b, 'Supply', SUPPLY_NETS, 0.3, B.CLEAR)
+    B.netclass(b, 'Pulse', PULSE_NETS, 0.8, B.HV_CLEAR)                  # pre-charge: 7.8 A for ~0.1 s
     power_copper(b)
     moved = legalise(fps, b)
     import fanout
-    cl = {n: B.HV_CLEAR for n in HV_NETS + ['PRE_D', 'PRE_K']}
+    cl = {n: B.HV_CLEAR for n in HV_NETS + PULSE_NETS}
     done, left = fanout.fanout_gnd(b, classes=cl)
     print(f'  ground fan-out: {done} pads, {left} left to the router')
     done, left = fanout.fanout_gnd(b, nets=('VIN',), classes=cl, region=(0.0, SPLIT - 1.0))

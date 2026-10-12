@@ -45,8 +45,8 @@ def test_storage_charge_9s_up_is_flagged_ambiguous_without_balance(n):
     assert g.ambiguous and n in g.candidates
 
 
-@pytest.mark.parametrize('n', range(1, 9))
-def test_balance_lead_settles_cell_count_1s_to_8s(n):
+@pytest.mark.parametrize('n', range(1, 7))
+def test_balance_lead_settles_cell_count_1s_to_6s(n):
     info = check([3.85] * n)
     assert info.cells == n and info.cells_certain and info.balance == BalanceState.OK
 
@@ -73,7 +73,9 @@ def test_overcharged_for_lipo_only_vs_overcharged():
     assert info.warnings[0][:2] == (Warn.OVERCHARGED, 0)
 
 
-@pytest.mark.parametrize('cells,shift', [(4, 1), (4, 2), (4, 3), (6, 1), (6, 2), (2, 3), (1, 3)])
+# the 2S-6S sockets are keyed, so a plug cannot sit a pin off; the check stays
+# as a guard (a lead plugged into a bigger pack's socket through an adapter)
+@pytest.mark.parametrize('cells,shift', [(4, 1), (4, 2), (5, 1), (3, 3), (2, 3), (1, 3)])
 def test_balance_plug_shifted_reads_correctly(cells, shift):
     cv = [3.80 + 0.01 * i for i in range(cells)]
     info = check(cv, shift=shift)

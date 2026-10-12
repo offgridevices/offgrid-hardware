@@ -1,8 +1,8 @@
 """Pre-charge supervisor (SPEC §4 stage 2, §5, §14.1; sim/SIM.md case 1).
 
 The pre-charge P-FET Q3 connects VIN to the drone through the Schottky D3
-and RPRE.  RPRE is ONE bank for 1S-14S: R_PRE + R_PRE2, 2 x 15 Ohm 5 W
-(Vishay AC05) in parallel = 7.5 Ohm (src/circuit.py §4; SIM.md case 1(a):
+and RPRE.  RPRE is ONE bank for 1S-14S: R_PRE + R_PRE2, 2 x 3.9 Ohm 5 W
+(Vishay AC05) in series = 7.8 Ohm (src/circuit.py §4; SIM.md case 1(a):
 6.8-8.2 Ohm gets every 8S-14S drone with a 15 W VTX past 75 % in < 1 s,
 10 Ohm and up stall at 8S).  There is no bank switch any more.
 
@@ -17,7 +17,7 @@ the pre-charge has SETTLED (VOUT rose less than 1 % of VIN over the last
 20 ms) AND the gap still across it, VIN - VOUT, is at most 12 V (SIM.md
 "Design values chosen", main-switch close rule; case 1(b)).  "Settled" is a
 net rise, not a peak-to-peak band, so a drone whose regulator hiccups at its
-UVLO (a 1S whoop on 7.5 Ohm) still counts as settled; the gap is then taken
+UVLO (a 1S whoop on 7.8 Ohm) still counts as settled; the gap is then taken
 from the LOWEST VOUT in the window, the worst case the switch could close
 across.  So:
 
@@ -44,7 +44,7 @@ from enum import IntEnum
 
 from .inputs import idiv
 
-RPRE_MOHM = 7500                   # 2 x 15 Ohm 5 W AC05 in parallel (circuit.py R_PRE, R_PRE2)
+RPRE_MOHM = 7800                   # 2 x 3.9 Ohm 5 W AC05 in series (circuit.py R_PRE, R_PRE2)
 
 CLOSE_GAP_MAX_MV = 12000           # SIM.md case 1(b): close the main switch across <= 12 V only
 SETTLE_WINDOW_MS = 20              # SIM.md case 1(b): "VOUT within 1 % for 20 ms"

@@ -21,8 +21,8 @@ def ramp(pack_cells, drone, v=4.2, ms=1200, ledger=None):
 
 
 def test_one_resistor_bank_for_every_pack():
-    # circuit.py: R_PRE || R_PRE2, 2 x 15 Ohm 5 W = 7.5 Ohm, 1S-14S; no bank select
-    assert pc.RPRE_MOHM == 7500
+    # circuit.py: R_PRE + R_PRE2, 2 x 3.9 Ohm 5 W in series = 7.8 Ohm, 1S-14S; no bank select
+    assert pc.RPRE_MOHM == 7800
     assert not hasattr(pc, 'rpre_for') and not hasattr(pc, 'RPRE_HIGH_MOHM')
     for vin in (4200, 16800, 30450, 33600, 60900):
         assert pc.Supervisor(0, vin, pc.EnergyLedger()).rpre == pc.RPRE_MOHM
@@ -116,7 +116,7 @@ def test_fault_at_higher_voltage_on_4s_is_left_to_the_live_limiter():
 
 def test_current_is_computed_from_resistor_drop():
     sup = pc.Supervisor(0, 16800, pc.EnergyLedger())
-    assert sup.current_ma(16800, 8800) == 1066          # 8 V across 7.5 Ohm
+    assert sup.current_ma(16800, 8800) == 1025          # 8 V across 7.8 Ohm
 
 
 def test_timeout_after_1s_on_a_slow_climb():

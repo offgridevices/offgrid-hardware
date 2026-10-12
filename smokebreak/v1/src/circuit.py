@@ -164,13 +164,13 @@ add('U6', 'DRV5032', {'1': '+3V3', '2': 'GUARD_OPEN', '3': 'GND'}, 'DRV5032FA', 
 capacitor('+3V3', 'GND', '100n', group=g)
 
 # ======================================================================
-# 4. Pre-charge: P-FET + Schottky + 2 x 15 Ohm 5 W in parallel, cut by the guard too
+# 4. Pre-charge: P-FET + Schottky + 2 x 3.9 Ohm 5 W in series, cut by the guard too
 # ======================================================================
 g = 'pre-charge'
 add('Q3', 'SUD50P10', {'1': 'PRE_G', '2': 'PRE_D', '3': 'VIN'}, 'SUD50P10-43L', g)
 add('D2', 'BZT52C10', {'1': 'VIN', '2': 'PRE_G'}, '10 V', g)                    # Vgs clamp: K at source
 res('VIN', 'PRE_G', 100e3, '0603', group=g)
-res('PRE_G', 'PRE_R', 47e3, '1206', group=g)                                  # ~1.2 mA at 60 V
+res('PRE_G', 'PRE_R', 47e3, '0805', group=g)                                  # ~1.2 mA at 60 V, 75 mW
 add('D19', '1N4148WS', {'1': 'PRE_PULL', '2': 'PRE_R'}, '1N4148WS', g)           # a reversed pack cannot pull PRE_ON
 # two NPNs in series: the MCU AND the guard must both say go
 add('Q4', 'MMBTA42', {'1': 'PRE_B1', '3': 'PRE_PULL', '2': 'PRE_MID'}, 'MMBTA42', g)
@@ -180,10 +180,12 @@ res('GUARD_OPEN', 'PRE_B2', 10e3, group=g)
 res('PRE_B1', 'GND', 100e3, group=g)
 res('PRE_B2', 'GND', 100e3, group=g)
 add('D3', 'SS2H10', {'1': 'PRE_K', '2': 'PRE_D'}, 'SS2H10', g)                # A at the FET, K to the resistor
-# two 15 Ohm 5 W in parallel = 7.5 Ohm (sim case 1: 6.8-8.2 Ohm passes); each
-# takes half the energy, and both lie in rows from the FET side to the drone side
-add('R_PRE', 'AC05R15', {'1': 'PRE_K', '2': 'VOUT'}, '15 Ohm 5 W', g)
-add('R_PRE2', 'AC05R15', {'1': 'PRE_K', '2': 'VOUT'}, '15 Ohm 5 W', g)
+# two 3.9 Ohm 5 W in series = 7.8 Ohm (sim case 1: 6.8-8.2 Ohm passes); each
+# takes half the energy (6 J of the 12 J abort, about 55 % of the AC05's
+# 3.9 Ohm pulse rating), and they lie end to end in one row behind the
+# balance sockets, from the FET side (west) to the drone side (east)
+add('R_PRE', 'AC05R3R9', {'1': 'PRE_K', '2': 'PRE_M'}, '3.9 Ohm 5 W', g)
+add('R_PRE2', 'AC05R3R9', {'1': 'PRE_M', '2': 'VOUT'}, '3.9 Ohm 5 W', g)
 add('RT2', 'NTC10K', {'1': 'NTC_PRE', '2': 'GND'}, '10 k NTC', g)
 res('+3V3', 'NTC_PRE', 10e3, group=g)
 
@@ -224,20 +226,30 @@ add('RT1', 'NTC10K', {'1': 'NTC_FET', '2': 'GND'}, '10 k NTC', g)
 res('+3V3', 'NTC_FET', 10e3, group=g)
 
 # ======================================================================
-# 6. Balance lead: JST-XH 9, 0.1 % dividers, switched ground, OR into AUX
+# 6. Balance lead: one JST-XH socket per size, 2S-6S, 0.1 % dividers,
+#    switched ground, OR into AUX
 # ======================================================================
 g = 'balance'
 BAL = {}
-add('J5', 'XH9', {'1': 'BAL1', **{str(k): f'BAL{k}' for k in range(2, 10)}}, 'JST-XH 9', g)
+# a plug only fits its own socket, so it cannot sit a pin off; pin k of every
+# socket is tap k (pin 1 the black wire)
+for ref, cells in (('J5', 6), ('J9', 5), ('J10', 4), ('J11', 3), ('J12', 2)):
+    add(ref, f'XH{cells + 1}', {str(k): f'BAL{k}' for k in range(1, cells + 2)}, f'JST-XH {cells}S', g)
+BALANCE_MAX = 6
 # the black wire meets ground through 10 Ohm: with the main lead plugged in too,
 # the balance lead's thin wire then carries a few mA of the return, not amps
 res('BAL1', 'GND', 10, '1206', group=g, ref='R75')
-TOPS = {2: 47e3, 3: 200e3, 4: 357e3, 5: 499e3, 6: 649e3, 7: 787e3, 8: 953e3, 9: 1.1e6}
-for k in range(2, 10):
+TOPS = {2: 47e3, 3: 200e3, 4: 357e3, 5: 499e3, 6: 649e3, 7: 787e3}
+for k in range(2, BALANCE_MAX + 2):
     res(f'BAL{k}', f'BAL{k}_ADC', TOPS[k], '0603', '0.1%', g)
     res(f'BAL{k}_ADC', 'DIV_GND', 100e3, '0603', '0.1%', g)
     capacitor(f'BAL{k}_ADC', 'DIV_GND', '100n', group=g)
     add(nxt('D'), '1N4148WS', {'1': 'AUX', '2': f'BAL{k}'}, '1N4148WS', g)
+# the 7S and 8S taps of the old 9-pin socket are gone: their designators stay
+# unused so every later part keeps its name
+for prefix, n in (('R', 4), ('C', 2), ('D', 2)):
+    for _ in range(n):
+        nxt(prefix)
 add('Q8', '2N7002', {'1': 'DIV_EN', '2': 'GND', '3': 'DIV_GND'}, '2N7002', g)
 res('DIV_EN', 'GND', 100e3, group=g)
 
@@ -275,7 +287,7 @@ MCU = {
     '17': 'VIN_SENSE', '18': 'VOUT_SENSE', '19': 'VOUT_LO', '20': 'I_ADC', '21': 'PEAK_DAC',
     '22': 'NTC_FET', '23': 'NTC_PRE',
     '24': 'BAL2_ADC', '27': 'BAL3_ADC', '28': 'BAL4_ADC', '29': 'BAL5_ADC', '30': 'BAL6_ADC',
-    '31': 'BAL7_ADC', '32': 'BAL8_ADC', '25': 'BAL9_ADC', '26': 'VBUS_SENSE',
+    '31': 'BAL7_ADC', '26': 'VBUS_SENSE',
     # inputs
     '13': 'TOG_ON', '14': 'TOG_BIND', '15': 'BTN_MINUS', '16': 'BTN_PLUS', '3': 'GUARD_OPEN',
     '64': 'TPS_FLT', '1': 'TPS_FLTGD', '61': 'PEAK_OK',

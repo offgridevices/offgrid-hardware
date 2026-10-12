@@ -26,7 +26,7 @@ def clamp(v, lo, hi):
 
 # ---------------------------------------------------------------- inputs
 
-N_TAPS = 8                 # JST-XH pins 2..9 (pin 1 is GND / B-)
+N_TAPS = 6                 # taps 2..7 of the 2S-6S JST-XH sockets (pin 1 is GND / B-)
 ADC_VIN_MAX_MV = 66000     # VIN and VOUT-high dividers
 ADC_VOUT_LOW_MAX_MV = 3300  # clamped low-range channel for the 3 V probe
 ADC_TAP_MAX_MV = 36000
@@ -55,7 +55,7 @@ class Inputs:
                                        # LMV331, same latch): INP pulled low, latched until MCU_EN drops
     short_trip: bool = False           # TPS48000 FLT: its own short-circuit protection (~99 A) fired
 
-    # balance lead: voltage of XH pins 2..9 versus board GND, mV (index 0 = pin 2 = "tap 1").
+    # balance lead: voltage of the XH sockets' pins 2..7 versus board GND, mV (index 0 = pin 2 = "tap 1").
     # Pin 1 (black wire) meets GND through 10 Ohm (R75) and the pack's B- meets GND through the
     # reverse-battery FET Q11, so under main current every tap reads high by I x (Q11 + lead):
     # cell voltages are only trusted at idle (see Machine.batt_idle).

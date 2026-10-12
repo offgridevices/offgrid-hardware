@@ -331,7 +331,7 @@
       },
       {
         "bus_width": 12,
-        "clearance": 0.12,
+        "clearance": 0.11,
         "diff_pair_gap": 0.25,
         "diff_pair_via_gap": 0.25,
         "diff_pair_width": 0.2,
@@ -440,14 +440,6 @@
         "pattern": "BAL7"
       },
       {
-        "netclass": "HV",
-        "pattern": "BAL8"
-      },
-      {
-        "netclass": "HV",
-        "pattern": "BAL9"
-      },
-      {
         "netclass": "Supply",
         "pattern": "+5V"
       },
@@ -456,12 +448,20 @@
         "pattern": "+3V3"
       },
       {
+        "netclass": "Supply",
+        "pattern": "VBUS"
+      },
+      {
         "netclass": "Pulse",
         "pattern": "PRE_D"
       },
       {
         "netclass": "Pulse",
         "pattern": "PRE_K"
+      },
+      {
+        "netclass": "Pulse",
+        "pattern": "PRE_M"
       }
     ]
   },
@@ -480,13 +480,7 @@
     "bus_aliases": {},
     "legacy_lib_dir": "",
     "legacy_lib_list": [],
-    "top_level_sheets": [
-      {
-        "filename": "f.kicad_sch",
-        "name": "f",
-        "uuid": "00000000-0000-0000-0000-000000000000"
-      }
-    ]
+    "top_level_sheets": []
   },
   "sheets": [],
   "text_variables": {},

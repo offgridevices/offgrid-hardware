@@ -17,7 +17,7 @@ manufacturer part numbers, pick-and-place, Gerbers.
 | Function | How |
 |---|---|
 | Smoke stopper, 1S–14S (3.5–60.9 V) | High-side back-to-back N-FETs under a smart controller, 3 V probe, pre-charge, two-tier current limit |
-| Battery checker | Pack voltage from the main lead; **per-cell voltages 1S–8S** from a JST-XH balance lead; cell delta, lowest/highest cell, state of charge, storage hint, internal-resistance estimate under load, mismatch between balance and main |
+| Battery checker | Pack voltage from the main lead; **per-cell voltages 2S–6S** from a JST-XH balance lead (one keyed socket per size); cell delta, lowest/highest cell, state of charge, storage hint, internal-resistance estimate under load, mismatch between balance and main |
 | Arm UX | Guard magnet sensed by a hall switch (hardware power cut), ON-OFF-(ON) metal toggle, Limit rocker (two tact switches), 1.9" 320×170 colour IPS, plain status-ring light (12 RGB LEDs), beeper |
 | Wrong connections | Survives and explains every miswiring in §4 |
 | USB-C | Firmware update, drone-memory export, powers the screen alone |
@@ -40,7 +40,7 @@ manufacturer part numbers, pick-and-place, Gerbers.
 
  AUX = diode-OR (VIN, VOUT, balance taps, USB 5 V) ─► LMR36506 buck 5 V ─► LEDs, beeper, backlight ─► TLV75533 3.3 V
 
- JST-XH 9-pin balance ── pin 1 = GND (B−), pins 2–9 ── 0.1 % dividers ── switched ground (2N7002) ── ADC ×8
+ JST-XH 2S–6S sockets (pin k of each = tap k) ── pin 1 = GND (B−), pins 2–7 ── 0.1 % dividers ── switched ground (2N7002) ── ADC ×6
 ```
 
 ### 2.1 Power path
@@ -95,17 +95,17 @@ wrong side or only the balance lead is plugged in.
 
 ### 2.4 Balance lead
 
-- 9-pin JST-XH, **pin 1 = GND (B−)** marked with the brand arrow and
-  "Black wire here".
-- Each of pins 2–9 has its own 0.1 % divider to an ADC pin; all divider
+- Five JST-XH side-entry sockets, one per size (2S 3-pin … 6S 7-pin), along
+  the back wall; pin k of every socket is tap k, **pin 1 = GND (B−)**, marked
+  under each socket with an arrow. A plug only fits its own socket.
+- Each of taps 2–7 has its own 0.1 % divider to an ADC pin; all divider
   bottoms return through one N-FET so nothing drains the cells when the
   board is off.
 - Cells = differences of adjacent taps, oversampled; accuracy target
   ±10 mV per cell after factory calibration (±20 mV uncalibrated).
-- Cell count from the pattern; a plug shifted along the header still reads
-  correctly when the main lead is connected (black wire = 0 V wherever it
-  lands); with the balance lead alone, a shifted plug leaves the board
-  unpowered (safe) and the arrow on the case shows where black goes.
+- Cell count from the pattern. The keyed sockets make a shifted plug
+  impossible; the firmware still recognises one (a lead through an
+  adapter) and reads it correctly when the main lead is connected.
 
 ## 3. Battery information on screen
 
@@ -150,8 +150,8 @@ wrong side or only the balance lead is plugged in.
   bottom silkscreen carries the words for that).
 - Left wall: XT60PW-M + XT30PW-M (battery in). Right wall: XT60PW-F +
   XT30PW-F (drone out), panel-mounted on the board like the inputs (no
-  leads to rip out). Back wall: JST-XH 9 balance (pin 1, the black wire,
-  next to USB) and USB-C.
+  leads to rip out). Back wall: the five balance sockets, 2S–6S, mouths
+  flush with the outer face. Front wall: USB-C at the battery end.
 - Layers: F.Cu parts, signals and the power pours under the FETs; In1 a
   solid ground plane; In2 VIN (west side and south band) and VOUT (east
   side) planes with signals in between; B.Cu signals, ground fill and the
