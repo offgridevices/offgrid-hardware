@@ -452,9 +452,9 @@ covers the run):
   `...=1189-35PZK470M10X11-ND`.
 * Octopart search pages, `octopart.com/search?q=<MPN>`: distributor offers
   (DigiKey, Mouser, Arrow, Avnet, Future, Newark, TME, Rutronik, TTI).
-  Parsed by `out/op.py`.
+  Parsed by `tools/sourcing/op.py`.
 * Findchips, `findchips.com/search/<MPN>`: Avnet lead times. Parsed by
-  `out/fc.py`.
+  `tools/sourcing/fc.py`.
 * TI direct inventory: `ti.com/storeservices/cart/opninventory?opn=<OPN>`.
 * Toshiba TPN2R304PL product page and stock-check link:
   https://toshiba.semicon-storage.com/us/semiconductor/product/mosfets/12v-300v-mosfets/detail.TPN2R304PL.html
