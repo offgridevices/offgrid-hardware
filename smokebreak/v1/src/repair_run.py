@@ -23,7 +23,8 @@ def clean(src, dst):
     r = drc(src, dst + '.json')
     bad = set()
     for v in r['violations']:
-        if v['type'] in ('shorting_items', 'clearance'):
+        if v['type'] in ('shorting_items', 'clearance', 'tracks_crossing', 'copper_edge_clearance',
+                         'items_not_allowed'):
             for it in v['items']:
                 if it['description'].startswith(('Via', 'Track')):
                     bad.add(it['uuid'])

@@ -64,7 +64,7 @@ fix('J1', 10.2, 20.0, 0)              # XT60 male
 fix('J2', 6.5, 38.5, 270)             # XT30 male
 fix('J3', 84.4, 19.0, 270)            # XT60 female
 fix('J4', 85.3, 39.0, 90)             # XT30 female
-fix('J8', 12.0, 48.9, 0)              # USB-C through the front wall, battery end (far from the mark)
+fix('J8', 18.4, 47.7, 0)              # USB-C through the front wall, battery end (far from the mark)
 # balance: one JST-XH per size along the back wall, mouths flush with its
 # outer face (the housings stand 3 mm proud of the board edge), 1 mm ribs
 # between them; pin 1 (black wire) at each socket's east end
@@ -80,7 +80,7 @@ fix('R_PRE2', 67.2, 13.0, 0)
 # controls under the Limit rocker's ends, the beeper between them
 fix('SW2', 15.5, 42.5, 0)
 fix('SW3', 35.5, 42.5, 0)
-fix('BZ1', 27.3, 46.3, 0)
+fix('BZ1', 28.4, 46.3, 0)
 
 # downtown and the power district
 fix('U5', 38.0, 32.6, 90)             # MCU: ADC pins north, control pins south, toggle pins east
@@ -112,18 +112,18 @@ at('C26', 16.85, 11.6, 90)
 at('C27', 19.08, 12.45, 90)
 at('U3', 21.5, 12.1, 0)
 at('C28', 21.4, 9.72, 0)
-at('C29', 21.5, 14.15, 0)
-at('L1', 25.3, 11.4, 0)
-at('C30', 28.75, 10.7, 90)
-at('C31', 28.75, 14.5, 90)
+at('C29', 22.35, 14.15, 180)
+at('L1', 25.75, 11.4, 0)
+at('C30', 29.2, 10.7, 90)
+at('C31', 29.2, 14.5, 90)
 at('U4', 6.2, 29.8, 0)
 at('C32', 3.1, 29.8, 90)
 at('C33', 1.3, 29.8, 90)
 
 # battery gate (after the supply block, which has the tighter spot)
 at('D1', 17.4, 17.65, 90)
-at('C1', 21.3, 17.3, 90)
-at('C2', 21.3, 22.25, 90)
+at('C1', 21.3, 17.35, 90)
+at('C2', 21.3, 22.3, 90)
 at('C3', 16.8, 39.7, 0)
 
 # balance row-houses south of the resistors, one column per tap facing the
@@ -216,12 +216,12 @@ at('Q10', 31.2, 40.4, 0)
 at('R61', 33.6, 40.4, 90)
 at('D17', 31.2, 43.0, 90)
 # USB-C at the front: ESD, CC pull-downs, VBUS sense beside it
-at('U11', 19.4, 46.6, 90)
-at('R62', 17.7, 49.4, 90)
-at('R63', 18.98, 49.4, 90)
-at('R64', 20.26, 49.4, 90)
-at('R65', 21.54, 49.4, 90)
-at('C49', 19.8, 42.1, 0)
+at('U11', 9.5, 47.2, 90)
+at('R62', 7.4, 50.3, 90)
+at('R63', 8.65, 50.3, 90)
+at('R64', 9.9, 50.3, 90)
+at('R65', 11.15, 50.3, 90)
+at('C49', 12.4, 47.5, 90)
 
 # ---------------------------------------------------------------- from the simulations
 # battery return: Q11 between the two battery minus pads and the ground plane

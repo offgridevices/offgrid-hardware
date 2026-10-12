@@ -5,7 +5,8 @@ import pcbnew
 import board as B
 import finish, finish_run
 
-NETS = ('TPS_BST', 'TPS_PU', 'SRC', 'GATE', 'CDVDT')     # the inner pins first
+NETS = ('TPS_BST', 'TPS_PU', 'SRC', 'GATE', 'CDVDT', 'SNS_DRN')     # the inner pins first; the shunt's
+# drain-side sense last (it must go round the power copper, not across it)
 
 
 def reroute(b):

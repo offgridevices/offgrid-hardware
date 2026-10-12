@@ -48,8 +48,9 @@ def hand_routes(b):
 def vin_bridge(b):
     """R1 and R2 (the controller's VS filter and the battery divider) sit
     just east of the In4 split, over the VOUT plane: a via west of the split
-    drops their VIN to the VIN plane."""
-    import finish
+    drops their VIN to the VIN plane.  The via goes on the nearest spot the
+    maze router's grid says is free on every layer."""
+    import finish, finish_run
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     east = {}
     for fp in b.GetFootprints():
@@ -57,9 +58,30 @@ def vin_bridge(b):
             if p.GetNetname() == 'VIN' and fp.GetReference() in ('R1', 'R2'):
                 for l, g in finish._geom_of(p).items():
                     east.setdefault(l, []).extend(g)
-    v = B.via(b, 75.0, 37.3, 'VIN', d=0.45, drill=0.2)
-    import finish_run
-    return finish.route_connection(b, 'VIN', east, finish._geom_of(v), track_w=0.2, clmap=finish_run.rules()[1])
+    if len(finish.islands(b, 'VIN')) <= 1:
+        return 'not needed'
+    cl = finish_run.rules()[1]
+    g = finish.Grid(b, finish.ROUTE_LAYERS, 0.2, 0.2, 0.45, clmap=cl,
+                    window=(B.OX + 64, B.OY + 28, B.OX + 82, B.OY + 46))
+    g.build('VIN')
+    free = []
+    for i in range(int((SPLIT_WEST - 66.0) / 0.1) + 1):
+        for j in range(121):
+            x, y = 66.0 + 0.1 * i, 30.0 + 0.1 * j
+            ci, cj = g.cell(B.OX + x, B.OY + y)
+            if not g.vblock[cj, ci]:
+                free.append((x, y))
+    free.sort(key=lambda p: (p[0] - 77.6) ** 2 + (p[1] - 36.5) ** 2)
+    for x, y in free[:40]:
+        v = B.via(b, x, y, 'VIN', d=0.45, drill=0.2)
+        res = finish.route_connection(b, 'VIN', east, finish._geom_of(v), track_w=0.2, clmap=cl)
+        if res:
+            return (round(x, 2), round(y, 2)) + tuple(res)
+        B.remove(b, v)
+    return None
+
+
+SPLIT_WEST = 75.2          # last x a VIN via may sit at (the In4 split is at 76)
 
 
 def stitch(b, pitch=3.0, margin=0.45):
