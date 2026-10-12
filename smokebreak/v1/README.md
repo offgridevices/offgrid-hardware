@@ -8,7 +8,7 @@ metal toggle and a status-light ring.
 |---|---|
 | Board | 94 × 52 mm, 6 layers, 1.6 mm, black mask, white silk, ENIG |
 | Assembly | every SMD part on the top (PCBWay, one side); connectors, toggle and the two pre-charge resistors hand-soldered from the bottom |
-| Checks | KiCad 10 DRC; power-path simulations (`sim/SIM.md`, ngspice 47, 22/22 pass); firmware logic model (`firmware/`, 239 tests) |
+| Checks | KiCad 10 DRC: 0 errors, 0 warnings, 0 unconnected; netlist matches `src/circuit.py` pad for pad; power-path simulations (`sim/SIM.md`, ngspice 47, 22/22 pass); firmware logic model (`firmware/`, 239 tests) |
 
 ## Files
 
@@ -19,7 +19,7 @@ metal toggle and a status-light ring.
 | `fab/smokebreak-bom-pcbway.csv` | assembly BOM: manufacturer part numbers, LCSC numbers, SMD/THT, notes |
 | `fab/smokebreak-cpl.csv` | pick and place (top, SMD only) |
 | `fab/smokebreak-netlist.csv` | every pad and its net (checked against `src/circuit.py`) |
-| `fab/smokebreak.step` | the assembled board in 3D, for the case |
+| `fab/smokebreak.step` | the assembled board in 3D, for the case (the toggle, the LEDs, the AC05s and U1 are mesh models KiCad leaves out of STEP: take their sizes from `lib/` until real STEP models replace them) |
 | `images/board-*.png` | renders |
 | `src/` | the board as code: `circuit.py` (netlist), `parts.py` (every part, MPN, LCSC), `place.py` (placement), `make.py` → `route_run.py` → `finish_run.py` / `repair_run.py` → `final.py` → `fab.py` (`pipeline.sh` runs the lot) |
 | `sim/` | power-path simulations and the design values they set |

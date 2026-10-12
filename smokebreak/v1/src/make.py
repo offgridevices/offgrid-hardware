@@ -219,11 +219,18 @@ def add_art(b, work):
     # nearest the middle of the front half
     lw, lh = 24.0, 6.0
     pads_b = [o for o in _obstacles(b, 'B', vias=False)]
+    # the labels pinned to their parts (the black-wire arrow, Balance) keep
+    # their places: the lockup never touches them
+    pinned = [it for it in bottom if it.get('fixed')]
+    pinned_boxes = []
+    for r in B.art(pinned, work):
+        x0, y0, x1, y1 = r['bounds']
+        pinned_boxes.append((B.W - x1 - 1.0, y0 - 1.0, B.W - x0 + 1.0, y1 + 1.0))
     best = None
     for yy in [y * 0.5 for y in range(int(2 * (lh / 2 + 2)), int(2 * (B.H - lh / 2 - 4)))]:
         for xx in [x * 0.5 for x in range(int(2 * (lw / 2 + 2)), int(2 * (B.W - lw / 2 - 2)))]:
             bx = (xx - lw / 2 - 1, yy - lh / 2 - 1, xx + lw / 2 + 1, yy + lh / 2 + 4)   # + the name below
-            n = _count(bx, obs['B']) + 100 * _count(bx, pads_b)
+            n = _count(bx, obs['B']) + 100 * _count(bx, pads_b) + 10000 * _count(bx, pinned_boxes)
             score = (n, abs(xx - B.W / 2) + abs(yy - 0.62 * B.H))
             if best is None or score < best[0]:
                 best = (score, xx, yy)
