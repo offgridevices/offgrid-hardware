@@ -2,6 +2,7 @@
 demo animation.
 
     <bpy venv>/bin/python arm.py still      # hero.png and top.png
+    <bpy venv>/bin/python arm.py showcase   # showcase-*.png: armed, back, closed
     <bpy venv>/bin/python arm.py video      # arm-demo.mp4 (3D + the real screen + sound)
 
 The screen in the animation plays ../../ui/frames24 (made by ui/screens.py
@@ -219,6 +220,8 @@ def build(still_frame=None):
         w = (pins - 1) * 2.5 + 5.2                                       # JST-XH side-entry mouth + 0.3
         s.box((w, 1.0, 6.4), (F(x_board + 3.0, 0)[0], D / 2 + 0.02, 7.55), m='screen', bevel=0.5,
               name=f'balance-{pins - 1}s')
+        s.text(f'{pins - 1}S', 1.6, (F(x_board + 3.0, 0)[0], D / 2 + 0.06, 13.2), rot=(90, 0, 180),
+               name=f'balance-{pins - 1}s-label')
     return dict(guard=guard, lever=lever, ring=rmat)
 
 
@@ -370,9 +373,35 @@ def render_video(quick=False):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def render_showcase():
+    """Three finished stills of the product as it ships (showcase-*.png):
+    armed with the guard open, the back with its five balance sockets, and
+    closed on the bench with the USB-C port in the front wall."""
+    shots = [
+        ('showcase-armed', OPEN, LEVER_ON, (s.GREEN, 8.0), int((T0 + 9.5) * FPS), 26, -30),
+        ('showcase-back', 0.0, LEVER_OFF, (s.EMBER, 0.6), int((T0 + 0.8) * FPS), 22, 148),
+        ('showcase-closed', 0.0, LEVER_OFF, (s.EMBER, 0.6), int((T0 + 0.8) * FPS), 18, -12),
+    ]
+    for name, guard, lever, ring, frame, el, az in shots:
+        sc = s.reset()
+        sc.render.resolution_x, sc.render.resolution_y = 1920, 1200
+        sc.cycles.samples = 64
+        h = build(still_frame=frame)
+        key_guard(h['guard'], 0, guard)
+        key_lever(h['lever'], 0, lever)
+        key_ring(h['ring'], 0, *ring)
+        cam, pivot = s.stage(elevation=el, azimuth=az)
+        cam.data.shift_x, cam.data.shift_y = 0.0, 0.0
+        sc.render.filepath = os.path.join(HERE, name + '.png')
+        bpy.ops.render.render(write_still=True)
+        print(sc.render.filepath)
+
+
 if __name__ == '__main__':
     what = sys.argv[1] if len(sys.argv) > 1 else 'still'
-    if what == 'still':
+    if what == 'showcase':
+        render_showcase()
+    elif what == 'still':
         render_still()
     else:
         render_video(quick='--quick' in sys.argv)
