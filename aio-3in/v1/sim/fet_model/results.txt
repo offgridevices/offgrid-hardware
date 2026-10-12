@@ -1,0 +1,18 @@
+Fitted capacitance parameters
+  cgs     2.571e-09
+  cgdmax  1.058e-09
+  cgdmin  1e-11
+  a       0.2593
+  cjo     2.353e-09
+  m       0.5751
+  vj      2.251
+
+Checks (model vs datasheet)
+  Qg at 10 V    39.6 nC  (41 typ)
+  Qgd           5.0 nC  (6.2 typ)
+  Qgs (to 90%)  9.6 nC  (Qgs1 9.6)
+  plateau       3.49 V
+  Qoss 0-20 V   25.0 nC  (27 typ)
+  Vth @0.3 mA   1.90 V 25 C, 1.26 V 150 C
+                (1.4-2.4 V spec; 1.95/1.25 typ curve)
+  RDS 10 V      1.80 / 2.43 / 3.06 mOhm @25/100/150 C
