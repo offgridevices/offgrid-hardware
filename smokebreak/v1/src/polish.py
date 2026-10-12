@@ -24,6 +24,7 @@ import make
 ALLOWED = {'sources': {'SRC'}, 'Q1 drain': {'VIN'}, 'battery minus': {'BATT_NEG'},
            'drone negative': {'DRONE_NEG', 'VOUT', 'VOUT_SNUB'}}
 REMOVE = ('shorting_items', 'clearance', 'tracks_crossing', 'copper_edge_clearance')
+not_allowed = set()
 
 
 def flagged(path):
@@ -40,6 +41,7 @@ def flagged(path):
             bad.update(i['uuid'] for i in items)
         if v['type'] == 'items_not_allowed':
             bad.update(i['uuid'] for i in items)
+            not_allowed.update(i['uuid'] for i in items)
     return bad
 
 
@@ -61,11 +63,9 @@ def main():
         if t.m_Uuid.AsString() in bad and not t.IsLocked():
             # a power net's own track over its own copper is fine (the keep-out
             # only stands in for the DRC rule while routing)
-            if t.GetClass() == 'PCB_TRACK':
-                inside = [k for k, nets in ALLOWED.items() if t.GetNetname() in nets]
-                if inside and t.GetNetname() in ('SRC', 'VIN', 'BATT_NEG', 'DRONE_NEG', 'VOUT', 'VOUT_SNUB') and \
-                        t.GetWidth() >= pcbnew.FromMM(0.5):
-                    continue
+            if t.GetClass() == 'PCB_TRACK' and any(t.GetNetname() in nets for nets in ALLOWED.values()) \
+                    and t.m_Uuid.AsString() in not_allowed:
+                continue
             B.remove(b, t)
             n += 1
     print('removed', n, 'flagged items')
@@ -76,6 +76,7 @@ def main():
     out = os.path.join(work, 'b.kicad_pcb')
     finish_run.run(tmp, out)
     b = pcbnew.LoadBoard(out)
+    final.hand_routes(b)
     for z in list(b.Zones()):
         if z.GetIsRuleArea() and z.GetZoneName().startswith('keepout '):
             B.remove(b, z)
