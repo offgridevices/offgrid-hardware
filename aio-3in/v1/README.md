@@ -28,7 +28,7 @@ pin for pin.
 | ESCs | 4 × STM32G071 + TI DRV8300D + 6 × Toshiba TPN2R304PL (40 V, 2.3 mΩ), AM32 |
 | Power | 5 V 0.6 A BEC (TI LMR36506, 70 V input), 3.3 V for the FC and the ESCs, 11 V gate drive |
 | Sensing | battery voltage and current to Betaflight; per-motor current and voltage to each ESC |
-| PCB | 8 layers, about 1.5 mm, 1 oz copper on every layer, 0.09 mm track and gap, 0.37 / 0.15 mm vias, every via filled and capped |
+| PCB | 8 layers, 1.6 mm, 1 oz copper on every layer, 0.09 mm track and gap, vias down to 0.37 / 0.15 mm, every via filled and capped |
 
 ---
 
@@ -71,10 +71,10 @@ pin for pin.
 
 JLCPCB or PCBWay, from `production/`:
 
-- **8 layers, 1 oz copper on every layer.** Layers: F (parts, power) / In1
+- **8 layers, 1.6 mm, 1 oz copper on every layer.** Layers: F (parts, power) / In1
   ground plane / In2-In4 signals / In5 the channels' return pours / In6 battery plane / B
   (parts, power).
-- **0.09 mm (3.5 mil) track and gap, 0.37 / 0.15 mm vias.** Both are inside
+- **0.09 mm (3.5 mil) track and gap, vias down to 0.37 / 0.15 mm** (also 0.4 / 0.2 and 0.5 / 0.25 mm). Both are inside
   JLCPCB's multilayer capability, but they are its fine-line and small-via
   price tiers: expect them on the quote. The board needs them: 260 parts on
   38 mm leave no room for 0.1 mm rules. Going to 40 mm would not help (the

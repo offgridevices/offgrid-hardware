@@ -5,6 +5,7 @@
     python3 make.py --reroute    place and route the board from scratch first
     python3 make.py --artwork    lay the silkscreen out again (copper untouched)
     python3 make.py --no-panel   skip the production panel
+    python3 make.py --fab-only   fab files only: no renders, STEP or panel (CI)
 
 Gates (any failure stops the build):
   * circuit.py: every part has a footprint, no single-pin net, every pin on
@@ -69,7 +70,7 @@ def artwork(path):
     b.Save(path)
 
 
-def build(reroute=False, art=False, pan=True):
+def build(reroute=False, art=False, pan=True, pictures=True):
     print('== Ridge 3 Lite')
     check_circuit()
     if reroute:
@@ -88,7 +89,7 @@ def build(reroute=False, art=False, pan=True):
     gate(not e and not w and not u, 'KiCad DRC: %d errors, %d warnings, %d unconnected' % (len(e), len(w), len(u)))
     bad = fab.check_netlist(BOARD, None)
     gate(not bad, 'copper nets match circuit.py pad for pad %s' % (bad[:5] or ''))
-    out = fab.produce(BOARD, None, NAME, V1)
+    out = fab.produce(BOARD, None, NAME, V1, pictures=pictures)
     print('  wrote %s (%d files), %d parts in %d BOM lines (%d on the bottom), %d pads in the netlist'
           % (os.path.relpath(out['zip'], V1), len(out['gerber_files']), out['parts'], out['bom_lines'],
              out['bottom_parts'], out['pads']))
@@ -100,5 +101,6 @@ def build(reroute=False, art=False, pan=True):
 
 
 if __name__ == '__main__':
-    build('--reroute' in sys.argv, '--artwork' in sys.argv, '--no-panel' not in sys.argv)
+    fab_only = '--fab-only' in sys.argv          # CI: fab files only, no pictures, STEP or panel
+    build('--reroute' in sys.argv, '--artwork' in sys.argv, '--no-panel' not in sys.argv and not fab_only, not fab_only)
     print('all gates passed')

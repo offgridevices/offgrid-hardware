@@ -429,7 +429,8 @@ def dedupe_vias(path):
     return len(gone)
 
 RULES = """(version 1)
-# JLCPCB 4-layer limits the board-setup numbers cannot express on their own.
+# JLCPCB limits the board-setup numbers cannot express on their own (the same
+# for every layer count: PTH to track 0.28 mm minimum).
 (rule "plated component hole to track"
   (condition "A.Type == 'Pad' && A.isPlated() && A.Pad_Type == 'Through-hole' && B.Type == 'Track'")
   (constraint hole_clearance (min 0.28mm)))

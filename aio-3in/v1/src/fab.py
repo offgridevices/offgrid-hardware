@@ -304,8 +304,10 @@ def install(src_pcb, dest_dir, name):
     return dst
 
 
-def produce(board, board_name, name, v1_dir):
-    """All outputs for one installed board.  Returns a summary dict."""
+def produce(board, board_name, name, v1_dir, pictures=True):
+    """All outputs for one installed board.  Returns a summary dict.
+    pictures=False leaves out the renders, the silkscreen preview and the
+    STEP (slow, and not what the fab is sent): CI's fab-file check."""
     d = os.path.dirname(board)
     prod = os.path.join(d, 'production')
     img = os.path.join(d, 'images')
@@ -314,10 +316,12 @@ def produce(board, board_name, name, v1_dir):
     n_parts, n_lines, n_bottom = bom_cpl(board, prod, name, board_name)
     n_pads = netlist(board, prod, name)
     pdf = assembly_pdf(board, prod, name)
-    pics = renders(board, img, name)
-    silk = silk_from_gerbers(os.path.join(prod, 'gerbers'), os.path.join(img, name + '-silkscreen-from-gerbers.png'), name)
-    if silk:
-        pics.append(silk)
-    stp = step(board, os.path.join(v1_dir, 'mechanical', name + '.step'))
+    pics, stp = [], None
+    if pictures:
+        pics = renders(board, img, name)
+        silk = silk_from_gerbers(os.path.join(prod, 'gerbers'), os.path.join(img, name + '-silkscreen-from-gerbers.png'), name)
+        if silk:
+            pics.append(silk)
+        stp = step(board, os.path.join(v1_dir, 'mechanical', name + '.step'))
     return dict(zip=zp, gerber_files=files, parts=n_parts, bom_lines=n_lines, bottom_parts=n_bottom,
                 pads=n_pads, pdf=pdf, images=pics, step=stp)
