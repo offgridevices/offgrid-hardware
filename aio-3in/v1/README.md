@@ -12,12 +12,12 @@ pin for pin.
 > **Status: design complete, not yet built.** The board is fully routed
 > (`ridge3-lite.kicad_pcb`): KiCad 10 DRC 0 errors, 0 warnings, 0
 > unconnected, every fab gate and all 100 checks in `VERIFICATION.md` pass,
-> and Gerbers, BOM, CPL and renders are in `production/` and `renders/`.
+> and Gerbers, BOM, CPL and renders are in `production/` and `images/`.
 > Nothing has been measured on hardware: build a few and go through
 > bring-up before a volume order.
 
-![top](renders/ridge3-lite-top.png)
-![bottom](renders/ridge3-lite-bottom.png)
+![top](images/ridge3-lite-top.png)
+![bottom](images/ridge3-lite-bottom.png)
 
 | | |
 |---|---|

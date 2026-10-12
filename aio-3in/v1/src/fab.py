@@ -170,16 +170,26 @@ def assembly_pdf(board, out_dir, name):
     return out
 
 
+def _compact_png(path):
+    """Re-save a render as a 256-colour PNG (alpha kept): a third of the size,
+    no visible change at this resolution.  The images are committed."""
+    from PIL import Image
+    im = Image.open(path).convert('RGBA')
+    im.quantize(256, method=Image.Quantize.FASTOCTREE).save(path, optimize=True)
+
+
 def renders(board, out_dir, name):
     outs = []
     for side in ('top', 'bottom'):
         o = os.path.join(out_dir, '%s-%s.png' % (name, side))
         run(['kicad-cli', 'pcb', 'render', '--side', side, '--width', '1600', '--height', '1600',
              '--quality', 'high', '--use-board-stackup-colors', '--output', o, board])
+        _compact_png(o)
         outs.append(o)
     o = os.path.join(out_dir, '%s-iso.png' % name)
     run(['kicad-cli', 'pcb', 'render', '--width', '1600', '--height', '1200', '--quality', 'high',
          '--use-board-stackup-colors', '--rotate', '-45,0,-30', '--zoom', '0.9', '--output', o, board])
+    _compact_png(o)
     outs.append(o)
     return outs
 
