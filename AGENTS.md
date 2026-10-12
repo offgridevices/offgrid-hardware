@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## Remote ID module project (branch `claude/remote-id-research`)
 
