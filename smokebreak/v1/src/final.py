@@ -45,6 +45,23 @@ def hand_routes(b):
         B.track(b, [(cx, cy), (79.9, cy)], 0.4, pcbnew.F_Cu, 'DRONE_NEG')
 
 
+def vin_bridge(b):
+    """R1 and R2 (the controller's VS filter and the battery divider) sit
+    just east of the In4 split, over the VOUT plane: a via west of the split
+    drops their VIN to the VIN plane."""
+    import finish
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    east = {}
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname() == 'VIN' and fp.GetReference() in ('R1', 'R2'):
+                for l, g in finish._geom_of(p).items():
+                    east.setdefault(l, []).extend(g)
+    v = B.via(b, 75.0, 37.3, 'VIN', d=0.45, drill=0.2)
+    import finish_run
+    return finish.route_connection(b, 'VIN', east, finish._geom_of(v), track_w=0.2, clmap=finish_run.rules()[1])
+
+
 def stitch(b, pitch=3.0, margin=0.45):
     """Ground stitching vias wherever every ground fill has room for one."""
     from shapely.geometry import Point, Polygon
@@ -133,6 +150,7 @@ if __name__ == '__main__':
     left = finish.finish_board(tmp, tmp, os.path.join(B.HERE, 'out', 'finish-final.json'), rules=w, clmap=c)
     print('exact-pair finishing left', left)
     b = pcbnew.LoadBoard(tmp)
+    print('VIN bridge', vin_bridge(b))
     ground_fill(b)
     for z in b.Zones():
         if z.GetZoneName() == 'Q1 drain':
