@@ -29,6 +29,11 @@ def ground_fill(b):
     for layer in (pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu):
         z = B.zone(b, 'GND', layer, full, clearance=0.25, min_width=0.25, priority=0, name='GND fill')
         z.SetPadConnection(pcbnew.ZONE_CONNECTION_THT_THERMAL)      # SMD pads solid, hand-soldered pins relieved
+    # the USB-C shell pegs sit by the edge, too hemmed in for thermal spokes:
+    # solid to ground (PCBWay solders them in the reflow, not by hand)
+    for p in b.FindFootprintByReference('J8').Pads():
+        if p.GetNetname() == 'GND':
+            p.SetLocalZoneConnection(pcbnew.ZONE_CONNECTION_FULL)
 
 
 def pad_xy(b, ref, num):
@@ -143,6 +148,31 @@ def drc(path):
     return errs, warns, r['unconnected_items']
 
 
+def seal(b):
+    """Fill, stitch, save, stackup, DRC rules, DRC report."""
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    print('stitching vias', stitch(b))
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    pcbnew.SaveBoard(make.OUT, b)
+    B.set_stackup(make.OUT)
+    extra = ''.join('(rule "no other track across the %s copper"\n'
+                    '  (condition "A.Type == \'Track\' && A.NetName != \'%s\' && A.intersectsArea(\'%s\')")\n'
+                    '  (constraint disallow track))\n' % (zn, net, zn)
+                    for zn, net in (('sources', 'SRC'), ('Q1 drain', 'VIN'), ('battery minus', 'BATT_NEG')))
+    # the drone-negative strip also hosts C14's and the snubber's short VOUT stubs
+    extra += ('(rule "no other track across the drone negative copper"\n'
+              '  (condition "A.Type == \'Track\' && A.NetName != \'DRONE_NEG\' && A.NetName != \'VOUT\' '
+              '&& A.NetName != \'VOUT_SNUB\' && A.intersectsArea(\'drone negative\')")\n'
+              '  (constraint disallow track))\n')
+    B.write_rules(make.OUT, extra)
+    errs, warns, unc = drc(make.OUT)
+
+    import collections
+    print('DRC errors', len(errs), collections.Counter(v['type'] for v in errs))
+    print('DRC warnings', len(warns), collections.Counter(v['type'] for v in warns))
+    print('unconnected', len(unc))
+
+
 if __name__ == '__main__':
     src = sys.argv[1]
     b = pcbnew.LoadBoard(src)
@@ -187,24 +217,4 @@ if __name__ == '__main__':
     placed = make.add_art(b, os.path.join(B.HERE, 'out'))
     for p in placed:
         print('  art', p)
-    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
-    print('stitching vias', stitch(b))
-    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
-    pcbnew.SaveBoard(make.OUT, b)
-    B.set_stackup(make.OUT)
-    extra = ''.join('(rule "no other track across the %s copper"\n'
-                    '  (condition "A.Type == \'Track\' && A.NetName != \'%s\' && A.intersectsArea(\'%s\')")\n'
-                    '  (constraint disallow track))\n' % (zn, net, zn)
-                    for zn, net in (('sources', 'SRC'), ('Q1 drain', 'VIN'), ('battery minus', 'BATT_NEG')))
-    # the drone-negative strip also hosts C14's and the snubber's short VOUT stubs
-    extra += ('(rule "no other track across the drone negative copper"\n'
-              '  (condition "A.Type == \'Track\' && A.NetName != \'DRONE_NEG\' && A.NetName != \'VOUT\' '
-              '&& A.NetName != \'VOUT_SNUB\' && A.intersectsArea(\'drone negative\')")\n'
-              '  (constraint disallow track))\n')
-    B.write_rules(make.OUT, extra)
-    errs, warns, unc = drc(make.OUT)
-
-    import collections
-    print('DRC errors', len(errs), collections.Counter(v['type'] for v in errs))
-    print('DRC warnings', len(warns), collections.Counter(v['type'] for v in warns))
-    print('unconnected', len(unc))
+    seal(b)
