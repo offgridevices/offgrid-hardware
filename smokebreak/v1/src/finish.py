@@ -99,7 +99,8 @@ class Grid:
                                 same[l].append(g)
                             else:
                                 other[l].append((g, self.netcl(pad.GetNetname())))
-                if pad.GetDrillSize().x > 0:
+                if pad.GetDrillSize().x > 0 and not (pad.GetNetname() == net_exclude and pad.GetNetname()):
+                    # (a pad's own net may enter it: its hole is inside its own copper)
                     p = pad.GetPosition()
                     holes.append(Point(mm(p.x), mm(p.y)).buffer(mm(pad.GetDrillSize().x) / 2))
         for t in b.GetTracks():
