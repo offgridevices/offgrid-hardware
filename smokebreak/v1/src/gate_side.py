@@ -5,7 +5,7 @@ import pcbnew
 import board as B
 import finish, finish_run
 
-NETS = ('SRC', 'GATE', 'TPS_PU', 'TPS_BST', 'CDVDT')
+NETS = ('TPS_BST', 'TPS_PU', 'SRC', 'GATE', 'CDVDT')     # the inner pins first
 
 
 def reroute(b):
