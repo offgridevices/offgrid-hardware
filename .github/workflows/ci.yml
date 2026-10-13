@@ -87,8 +87,10 @@ jobs:
     # Ridge 3 Lite (ridge3-lite/v1).  make.py needs KiCad's pcbnew module and
     # kicad-cli, so the job runs in the same official KiCad image the board's
     # toolchain pins (ridge3-lite/v1/tools/Dockerfile), by digest.  The routed
-    # board is committed; this checks every gate and that the fab files are
-    # what make.py produces from it.
+    # copper is the design of record (the last connection was finished by
+    # hand), so routing is not re-run.  Everything after it is: the artwork
+    # (silkscreen, logo, flag) from src/, then every gate and the fab files,
+    # which must equal the committed ones.
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 30
     container:
@@ -113,9 +115,10 @@ jobs:
             uharfbuzz fonttools pymupdf scipy
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      # Circuit gates, KiCad DRC (0 / 0 / 0), net check, Gerbers, BOM, CPL.
-      - name: Build fab files (make.py)
-        run: python3 src/make.py --fab-only
+      # Artwork from src/ (brand.py, silk.py), circuit gates, KiCad DRC
+      # (0 / 0 / 0), net check, Gerbers, BOM, CPL.
+      - name: Build artwork and fab files (make.py)
+        run: python3 src/make.py --artwork --fab-only
 
       - name: Committed fab files match the build
         run: python3 tools/check_outputs.py

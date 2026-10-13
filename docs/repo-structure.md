@@ -30,7 +30,8 @@ folder beside the old one.
 - **Outputs, once each:** the board file, the Gerber **zip** (not also the
   unzipped Gerbers), BOM, CPL, netlist, assembly drawing, compact renders,
   zipped STEP. Committed outputs must equal what the scripts produce; CI
-  checks this.
+  checks this. If the routing was finished by hand, the routed board file is
+  the design of record and CI rebuilds from it (artwork, then fab files).
 - **Not committed:** scratch and intermediate files (keep them in `out/`,
   which git ignores), downloaded datasheets, raw simulation data, duplicate
   or full-resolution images, anything a build regenerates that is not an
@@ -54,4 +55,5 @@ folder beside the old one.
 
 Each board has a job in `.github/workflows/ci.yml` that runs its build in its
 pinned toolchain, every gate included, and fails if the committed fab files
-differ from the build. A new board adds its job in the same PR.
+differ from the build. The build includes the artwork, so a brand change that
+was not applied to the board fails CI. A new board adds its job in the same PR.

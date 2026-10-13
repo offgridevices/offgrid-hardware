@@ -36,7 +36,10 @@ everything (some boards run it inside a pinned KiCad container).
 Generated outputs are committed alongside the scripts that produce them, so a
 stranger can order a board without a toolchain. They are expected to agree:
 a script change without regenerated outputs is a defect, not untidiness. CI
-rebuilds every board and checks exactly that.
+rebuilds every board and checks that. Where routing was finished by hand,
+the routed board file is the design of record: CI rebuilds everything after
+the routing (artwork and fab files) and checks those, and the board's README
+says so.
 
 A revision folder is never edited once its board has been ordered. A change
 that alters copper becomes the next revision beside it.

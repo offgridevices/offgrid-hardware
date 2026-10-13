@@ -112,7 +112,8 @@ through it. In short:
 ## What was checked
 
 The first five rows are gates: `src/make.py` stops if one fails, and CI
-(`ci / ridge3-lite-v1`) runs them on every push.
+(`ci / ridge3-lite-v1`) runs them on every push, after rebuilding the
+artwork from `src/` on the committed routed board.
 
 | Check | Result |
 |---|---|
