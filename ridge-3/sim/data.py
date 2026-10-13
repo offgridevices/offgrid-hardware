@@ -60,7 +60,36 @@ ISZ023N06LM6 = dict(
           'included)',
 )
 ISZ023N06LM6['vth_hot_drop'] = 1.72 - 1.00
-for _f in (TPN2R304PL, ISZ023N06LM6):
+
+# The in-stock alternate on the same land (data.VARIANTS): Infineon
+# BSZ040N06LS5 (OptiMOS 5), datasheet rev. 2.3 (2021-02-11).  Diagrams read
+# from the PDF's vector paths, each checked against its table.  Rated 150 C,
+# not 175: its curves stop there.
+BSZ040N06LS5 = dict(
+    part='Infineon BSZ040N06LS5', src='BSZ040N06LS5 datasheet rev. 2.3 (2021-02-11)', spice='BSZ040N06LS5',
+    vdss=60.0,                          # V(BR)DSS min 60 V (table 4)
+    tch_max=150.0,                      # Tj max (table 2)
+    rth_ch_c=1.8,                       # RthJC max (table 3; typ 1.1)
+    # ZthJC single pulse, K/W vs pulse width s (diagram 4, max)
+    zth=((1e-5, 0.056), (1e-4, 0.194), (1e-3, 0.672), (1e-2, 1.35), (1e-1, 1.80)),
+    rds25_typ=3.3e-3, rds25_max=4.0e-3,       # VGS 10 V, 20 A (table 4)
+    # diagram 9 to 150 C; 175 C extrapolated (past Tj max, only so a hot run has a value)
+    rds_ratio=((25, 1.0), (50, 1.11), (75, 1.24), (100, 1.38), (125, 1.54), (150, 1.72), (175, 1.90)),
+    vth_min=1.1, vth_max=2.3,           # VDS = VGS, 36 uA (table 4)
+    vth_typ_T=((25, 1.58), (75, 1.36), (100, 1.23), (125, 1.09), (150, 0.93)),   # diagram 10, 36 uA
+    ciss=2400e-12, crss=25e-12, coss=500e-12,      # typ, 30 V, 1 MHz (table 5)
+    qg=35.1e-9, qgd=5.3e-9, qoss=32e-9,            # typ: 0-10 V at 30 V, 20 A (diagram 14); table 6
+    qrr=11e-9, trr=24e-9,               # IF 20 A, 100 A/us, VR 30 V (table 7)
+    vsd_hot=0.72,                       # V: diagram 12, 20 A: 0.80 V at 25 C, 0.65 V at 150 C
+    eas=117e-3, ias=20.0,               # single pulse, ID 20 A (table 2)
+    c_th=0.0125,                        # J/K, ASSUMPTION: the same 3.3 x 3.3 x 1.0 mm package
+    body_diode=None,                    # Infineon's model's own diode
+    tests=dict(id_r=20.0, vds_c=30.0, vdd_g=30.0, id_g=20.0, vr=30.0),
+    model='Infineon publishes a SPICE model of the BSZ040N06LS5 (its OptiMOS 5 60 V library, body '
+          'diode included)',
+)
+BSZ040N06LS5['vth_hot_drop'] = 1.58 - 0.93
+for _f in (TPN2R304PL, ISZ023N06LM6, BSZ040N06LS5):
     _f['qg_11v'] = _f['qg'] * 11.33 / 10        # gate charge to the 11.3 V drive (above the plateau Qg ~ linear in V)
     _f['vth_min_hot'] = _f['vth_min'] - _f['vth_hot_drop']
 BODY_DIODE = FET['body_diode']
@@ -368,6 +397,7 @@ def use(name):
 #            set by one resistor on the IDRIVE pin
 #   fet      another ESC FET (a dict above, by its spice name)
 #   vfull    the pack's full voltage (V)
+#   am32_temp  AM32's temperature limit (C at the FET thermistor)
 #   rho      the air's density against the sea-level air the model assumes:
 #            convection (thermal.air, stack.fin_h) and the prop's load
 #            (losses.motor, losses.hover) follow it
@@ -378,17 +408,27 @@ VARIANTS = {
     'lihv': dict(desc='a 6S LiHV pack: 4.35 V per cell, 26.1 V full', vfull=26.1),
     'alt2250': dict(desc='2,250 m up (Mexico City): air at 0.77 of sea-level pressure, so 0.77 of its density',
                     rho=0.77),
+    'bsz040': dict(desc='ESC FETs Infineon BSZ040N06LS5 (OptiMOS 5, in stock at JLC) instead of ISZ023N06LM6',
+                   fet='BSZ040N06LS5'),
+    'bsz040-idrive30': dict(desc='ESC FETs BSZ040N06LS5 and IDRIVE 30 mA / 60 mA', fet='BSZ040N06LS5',
+                            idrive=0.03),
+    'temp120': dict(desc='AM32\'s temperature limit at 120 C instead of 110 C (a configurator setting)',
+                    am32_temp=120.0),
 }
-FETS_BY_NAME = {'ISZ023N06LM6': ISZ023N06LM6}
+FETS_BY_NAME = {'ISZ023N06LM6': ISZ023N06LM6, 'BSZ040N06LS5': BSZ040N06LS5}
+
+
+_BASE = dict(BATTERY=BATTERY, AIR=AIR)
 
 
 def variant(name):
-    """Rev 2 with one variant's change (VARIANTS) on top of use('rev2').  Run
-    one variant per process: it replaces BATTERY and AIR and updates BRIDGE
-    and BUS in place."""
+    """Rev 2 with one variant's change (VARIANTS) on top of use('rev2'); each
+    call starts again from the committed design's pack and air."""
     v = VARIANTS[name]
-    use('rev2')
     g = globals()
+    g.update(_BASE)
+    BRIDGE['V'] = BUS['Vpack'] = BATTERY['vfull']
+    use('rev2')
     if 'fet' in v:
         g['FET'] = FETS_BY_NAME[v['fet']]
         g['BODY_DIODE'] = FET['body_diode']
@@ -397,6 +437,8 @@ def variant(name):
         BRIDGE['V'] = BUS['Vpack'] = v['vfull']
     if 'rho' in v:
         g['AIR'] = dict(AIR, rho=v['rho'])
+    if 'am32_temp' in v:
+        g['AM32'] = dict(AM32, temp_limit=v['am32_temp'])
     i_src = v.get('idrive', DRIVER['i_src'])
     g['DRIVER'] = dict(DRIVER, i_src=i_src)
     BRIDGE.update(**idrive(i_src))         # after the FET: its gate charge sets the dead time
