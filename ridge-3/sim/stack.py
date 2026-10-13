@@ -74,7 +74,8 @@ def heatsink(c, g, hs, air):
     fin = th['fins']
     area, h = 1.0, air['h_out']
     if air.get('v', 0) > 0:
-        h = fin_h(air['v'] * th['bypass'], fin['gap'], fin['t'], th['length'])
+        h = fin_h(air['v'] * th['bypass'], fin['gap'], fin['t'], th['length'],
+                  nu=1.79e-5 / data.AIR.get('rho', 1.0))
         mm = np.sqrt(2 * h / (th['k'] * fin['t'] * 1e-3))
         mH = mm * fin['h'] * 1e-3
         area = 1 + np.tanh(mH) / mH * 2 * fin['h'] / th['pitch']

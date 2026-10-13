@@ -126,6 +126,8 @@ def motor(throttle, V=None):
         # the prop's torque, so the motor current, goes as speed squared, and
         # speed as the applied voltage D V: at the same throttle, current ~ V^2
         I_b *= (V / data.MOTOR['vtest']) ** 2
+    # thinner air loads the prop less: its torque, so the current, goes as density
+    I_b *= data.AIR.get('rho', 1.0)
     return I_b, D, I_b / D
 
 
@@ -136,7 +138,7 @@ def hover(V):
     rpm as the applied voltage, so at V the same thrust needs 24/V of the
     throttle; below the first row thrust goes as throttle squared."""
     th, g = [r[0] for r in data.MOTOR['load']], [r[2] for r in data.MOTOR['load']]
-    need = data.MOTOR['auw'] / 4
+    need = data.MOTOR['auw'] / 4 / data.AIR.get('rho', 1.0)     # thrust goes as the air's density
     t24 = th[0] * (need / g[0]) ** 0.5 if need < g[0] else float(np.interp(need, g, th))
     return t24 * data.MOTOR['vtest'] / V
 

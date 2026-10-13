@@ -360,4 +360,47 @@ def use(name):
     return name
 
 
+
+# ------------------------------------------------------------------ variants of rev 2
+# One change each against the committed design (stress.py --variant NAME),
+# so a trade is judged on exactly the simulations the design was:
+#   idrive   the DRV8320H's IDRIVE source current (A; sink is twice it),
+#            set by one resistor on the IDRIVE pin
+#   fet      another ESC FET (a dict above, by its spice name)
+#   vfull    the pack's full voltage (V)
+#   rho      the air's density against the sea-level air the model assumes:
+#            convection (thermal.air, stack.fin_h) and the prop's load
+#            (losses.motor, losses.hover) follow it
+VARIANTS = {
+    'rev2': dict(desc='the design as committed'),
+    'idrive30': dict(desc='IDRIVE 30 mA source / 60 mA sink (the IDRIVE resistor 18k instead of 75k)',
+                     idrive=0.03),
+    'lihv': dict(desc='a 6S LiHV pack: 4.35 V per cell, 26.1 V full', vfull=26.1),
+    'alt2250': dict(desc='2,250 m up (Mexico City): air at 0.77 of sea-level pressure, so 0.77 of its density',
+                    rho=0.77),
+}
+FETS_BY_NAME = {'ISZ023N06LM6': ISZ023N06LM6}
+
+
+def variant(name):
+    """Rev 2 with one variant's change (VARIANTS) on top of use('rev2').  Run
+    one variant per process: it replaces BATTERY and AIR and updates BRIDGE
+    and BUS in place."""
+    v = VARIANTS[name]
+    use('rev2')
+    g = globals()
+    if 'fet' in v:
+        g['FET'] = FETS_BY_NAME[v['fet']]
+        g['BODY_DIODE'] = FET['body_diode']
+    if 'vfull' in v:
+        g['BATTERY'] = dict(BATTERY, vfull=v['vfull'])
+        BRIDGE['V'] = BUS['Vpack'] = v['vfull']
+    if 'rho' in v:
+        g['AIR'] = dict(AIR, rho=v['rho'])
+    i_src = v.get('idrive', DRIVER['i_src'])
+    g['DRIVER'] = dict(DRIVER, i_src=i_src)
+    BRIDGE.update(**idrive(i_src))         # after the FET: its gate charge sets the dead time
+    return name
+
+
 use('rev2')

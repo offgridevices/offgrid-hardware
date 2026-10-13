@@ -15,6 +15,10 @@ simulation, not for passing on, so they are not in this repository:
     on infineon.com (the part's page, "Simulation models").  Point
     OPTIMOS6_60V_LIB at it or put it in sim/out/spice/.  Written in PSpice's
     dialect: ngspice runs it with ngbehavior=ps.
+  * the alternate, Infineon BSZ040N06LS5 (data.VARIANTS): its level-1 model
+    (BSZ040N06LS5_L1) in Infineon's "OptiMOS / OptiMOS 5 60 V" library,
+    OptiMOS_OptiMOS5_60V_Spice.lib, from the same zip.  Point
+    OPTIMOS5_60V_LIB at it or put it in sim/out/spice/.
 
 Everything else is built here from datasheet figures (data.py): the DRV8300
 gate driver as its output resistance up to its peak current behind the gate
@@ -50,12 +54,20 @@ def _infineon_lib():
     return path
 
 
+def _infineon5_lib():
+    path = os.environ.get('OPTIMOS5_60V_LIB') or os.path.join(OUT, 'OptiMOS_OptiMOS5_60V_Spice.lib')
+    if not os.path.exists(path):
+        raise SystemExit('Infineon\'s OptiMOS 5 60 V model library is needed: see the note at the top of sim/spice.py')
+    return path
+
+
 # per FET (data.FET['spice']): the model's file, its subcircuit, the node
 # inside it that is the gate after the package's own gate resistance, and
 # whether ngspice must read it as PSpice
 FETS = {
     'TPN2R304PL': dict(lib=_toshiba_lib, subckt='TPN2R304PL_G0_00', gate='22', ps=False),
     'ISZ023N06LM6': dict(lib=_infineon_lib, subckt='ISZ023N06LM6_L1', gate='g', ps=True),
+    'BSZ040N06LS5': dict(lib=_infineon5_lib, subckt='BSZ040N06LS5_L1', gate='g', ps=True),
 }
 
 

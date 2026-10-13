@@ -43,11 +43,13 @@ def air(v, T=50.0):
     The gap between the boards sees half the speed.  Still: natural
     convection, and the gap conducts through its air."""
     import data
-    k, nu, pr, L = 0.0279, 1.79e-5, 0.71, 0.036       # air near 50 C
+    rho = data.AIR.get('rho', 1.0)                     # thinner air (altitude): nu = mu / rho
+    k, nu, pr, L = 0.0279, 1.79e-5 / rho, 0.71, 0.036  # air near 50 C
     def forced(u):
         return data.AIR['enhance'] * 0.664 * k / L * (u * L / nu) ** 0.5 * pr ** (1 / 3)
     if v <= 0:
-        return dict(h_out=data.AIR['h_still'], h_gap=0.0, eps=data.AIR['eps'], still_gap=1.0, v=0.0)
+        # natural convection, h ~ Ra^0.25 ~ nu^-0.5 at the same temperatures
+        return dict(h_out=data.AIR['h_still'] * rho ** 0.5, h_gap=0.0, eps=data.AIR['eps'], still_gap=1.0, v=0.0)
     return dict(h_out=forced(v), h_gap=forced(v / 2), eps=data.AIR['eps'], still_gap=1.0, v=v)
 
 
