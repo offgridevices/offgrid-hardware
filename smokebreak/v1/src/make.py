@@ -12,6 +12,7 @@ import pcbnew
 
 import board as B
 import circuit
+import parts
 import place
 
 OUT = os.path.join(B.V1, 'smokebreak.kicad_pcb')
@@ -184,7 +185,7 @@ def art_fields(b):
 # (x_view = W - x) and mirrored onto the board.  The lockup goes where the
 # bottom is cleanest, with clear space far beyond a quarter of its width.
 
-def _obstacles(b, side, vias=True):
+def _obstacles(b, side, vias=True, courtyards=True):
     """Boxes (board mm) silk must not touch on one side."""
     mm = lambda v: pcbnew.ToMM(v)
     box = lambda bb, g: (mm(bb.GetLeft()) - B.OX - g, mm(bb.GetTop()) - B.OY - g,
@@ -195,7 +196,7 @@ def _obstacles(b, side, vias=True):
         for p in fp.Pads():
             if p.IsOnLayer(cu) or p.GetAttribute() in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH):
                 out.append(box(p.GetBoundingBox(), 0.2))
-        if side == 'T':
+        if side == 'T' and courtyards:
             fp.BuildCourtyardCaches()
             cy = fp.GetCourtyard(pcbnew.F_CrtYd)
             if cy.OutlineCount():
@@ -218,67 +219,87 @@ def _count(bx, obs):
     return sum(1 for a, b_, c, d in obs if x0 < c and a < x1 and y0 < d and b_ < y1)
 
 
+def _pad(ref, num):
+    """A pad's position (board mm) from the placement, without a board."""
+    import math
+    x, y, rot = place.PL[ref][:3]
+    fp = B.load_fp(parts.PARTS[circuit.COMPONENTS[ref]['part']]['fp'])
+    fp.SetPosition(B.P(50, 30)); fp.SetOrientationDegrees(rot)
+    p = [p for p in fp.Pads() if p.GetNumber() == num][0].GetPosition()
+    return x + pcbnew.ToMM(p.x) - B.OX - 50, y + pcbnew.ToMM(p.y) - B.OY - 30
+
+
 def art_items():
-    """(top items, bottom items) at their intended spots (bottom ones in bottom view)."""
+    """(top items, bottom items), every one fixed where it is drawn.  Bottom
+    items are in bottom view (x_view = W - x): the underside reads as a page
+    seen from below.
+
+    Underside, on the board's centre line: the product's name along the back,
+    the OffGrid lockup at the exact centre.  The flag at the drone end's
+    front corner.  The balance sockets each get their size and an arrow at
+    pin 1 (the black wire), all on pin 1's line; the plugs and the drone pads
+    their polarity.  Two small notes for whoever opens it up."""
     T, Bs = 'F.SilkS', 'B.SilkS'
-    t = lambda s, x, y, cap, layer, anchor='middle', **k: dict(kind='text', text=s, x=x, y=y, cap=cap,
-                                                               anchor=anchor, layer=layer, **k)
-    # the top is full: only the districts with room for their name get one
-    top = [t('Brain', 38.0, 39.6, 1.2, T), t('Power', 75.0, 51.2, 1.2, T), t('Sense', 89.4, 33.6, 1.2, T)]
+    W = B.W
+
+    def t(s, x, y, cap, layer, anchor='middle', **k):
+        return dict(kind='text', text=s, x=x, y=y, cap=cap, anchor=anchor, layer=layer, fixed=True, **k)
+
+    def v(x):                    # board x -> bottom view
+        return W - x
+
     bottom = [
-        t('Drone', 8.0, 30.6, 1.8, Bs), t('Battery', 86.0, 30.6, 1.8, Bs),
-        t('USB-C', B.W - 12.0, 43.6, 1.3, Bs), t('Pre-charge', B.W - 55.0, 17.6, 1.3, Bs),
-        t('Toggle', 27.0, 37.6, 1.3, Bs), t('SmokeBreak v1  2026', 47.0, 49.6, 1.1, Bs),
+        dict(kind='lockup', x=W / 2, y=B.H / 2, width=LOCKUP_W, layer=Bs, fixed=True),
+        t('SmokeBreak', W / 2, 5.3, 2.0, Bs, weight=600),
+        t('v1.0', W / 2, 7.55, 0.8, Bs, font='mono'),
+        dict(kind='flag', x=v(70.0), y=48.6 - 5.26 / 2, hoist=5.26, layer=Bs, fixed=True),   # foot on the socket labels' baseline
+        t('The magic smoke stays in.', v(22.4), 5.05, 0.9, Bs),
     ]
-    # each balance socket: its size under it, an arrow up to pin 1 (the black wire)
-    for ref, x, rot in place.SOCKETS:
-        n = len([k for k in circuit.COMPONENTS[ref]['pins']])
-        pin1 = x + (n - 1) * 1.25
-        bottom += [t(f'{n - 1}S', B.W - x, 10.1, 1.3, Bs, fixed=True),
-                   dict(kind='arrow', x0=B.W - pin1, y0=11.0, x1=B.W - pin1, y1=7.9, layer=Bs, fixed=True)]
+    # balance sockets: "4S ->" left of each pin 1, on pin 1's line
+    for ref, x in place.SOCKETS:
+        n = len(circuit.COMPONENTS[ref]['pins'])
+        px, py = _pad(ref, '1')
+        bottom += [t(f'{n - 1}S', v(px) - 2.75, py + 0.6, 1.2, Bs, anchor='end'),
+                   dict(kind='arrow', x0=v(px) - 2.5, y0=py, x1=v(px) - 1.3, y1=py, head=0.7, layer=Bs, fixed=True)]
+    # the battery plugs: name between the pins, polarity beside them
+    for ref, name, cap, side in (('J1', 'XT60', 1.2, 3.0), ('J2', 'XT30', 1.0, 2.6)):
+        (x1, y1), (x2, y2) = _pad(ref, '1'), _pad(ref, '2')     # 1 = minus, 2 = plus
+        bottom += [t(name, v(x1), (y1 + y2) / 2 + cap / 2, cap, Bs),
+                   t('\u2212', v(x1) + side, y1 + 0.6, 1.2, Bs), t('+', v(x2) + side, y2 + 0.6, 1.2, Bs)]
+    # the drone leads' pads, both sides (the wires may go in from either)
+    top = []
+    for ref, name, cap in (('J3', 'XT60', 1.0), ('J4', 'XT30', 0.9)):
+        (x1, y1), (x2, y2) = _pad(ref, '1'), _pad(ref, '2')     # 1 = plus, 2 = minus
+        for layer, f in ((T, lambda x: x), (Bs, v)):
+            lst = top if layer == T else bottom
+            mx = f(90.1)                                   # between the pads and the zip-tie slots
+            lst += [t(name, f(x1), (y1 + y2) / 2 + cap / 2, cap, layer),
+                    t('+', mx, y1 + 0.6, 1.2, layer), t('\u2212', mx, y2 + 0.6, 1.2, layer)]
+    top += [dict(t('SmokeBreak v1.0', 56.0, 51.2, 0.8, T), fixed=False)]
     return top, bottom
 
 
 def add_art(b, work):
-    import json
+    """Draw the art.  Fixed items stay exactly where they are drawn (a clash
+    with a pad or a via is reported, not moved); the rest are nudged to the
+    nearest free spot."""
     top, bottom = art_items()
     obs = {'T': _obstacles(b, 'T'), 'B': _obstacles(b, 'B')}
-    placed = []
-    # the lockup: the cleanest 26 x 9 mm of the bottom (fewest vias and pads),
-    # nearest the middle of the front half
-    lw, lh = 24.0, 6.0
-    pads_b = [o for o in _obstacles(b, 'B', vias=False)]
-    # the labels pinned to their parts (the black-wire arrow, Balance) keep
-    # their places: the lockup never touches them
-    pinned = [it for it in bottom if it.get('fixed')]
-    pinned_boxes = []
-    for r in B.art(pinned, work):
-        x0, y0, x1, y1 = r['bounds']
-        pinned_boxes.append((B.W - x1 - 1.0, y0 - 1.0, B.W - x0 + 1.0, y1 + 1.0))
-    best = None
-    for yy in [y * 0.5 for y in range(int(2 * (lh / 2 + 2)), int(2 * (B.H - lh / 2 - 4)))]:
-        for xx in [x * 0.5 for x in range(int(2 * (lw / 2 + 2)), int(2 * (B.W - lw / 2 - 2)))]:
-            bx = (xx - lw / 2 - 1, yy - lh / 2 - 1, xx + lw / 2 + 1, yy + lh / 2 + 4)   # + the name below
-            n = _count(bx, obs['B']) + 100 * _count(bx, pads_b) + 10000 * _count(bx, pinned_boxes)
-            score = (n, abs(xx - B.W / 2) + abs(yy - 0.62 * B.H))
-            if best is None or score < best[0]:
-                best = (score, xx, yy)
-    _, lx, ly = best                                   # board coordinates
-    vx = B.W - lx                                      # bottom view
-    bottom = [dict(kind='lockup', x=vx, y=ly, width=lw, layer='B.SilkS'),
-              dict(kind='text', text='SmokeBreak', x=vx, y=ly + lh / 2 + 2.6, cap=1.3, anchor='middle',
-                   layer='B.SilkS')] + bottom
-    # measure every item, then nudge each to the nearest free spot
+    copper = {'T': _obstacles(b, 'T', courtyards=False), 'B': obs['B']}
     res = B.art(top + bottom, work)
     out = []
+    placed = []
     for it, r in zip(top + bottom, res):
         side = 'B' if it['layer'].startswith('B.') else 'T'
         x0, y0, x1, y1 = r['bounds']
         if side == 'B':                                # to board coordinates
             x0, x1 = B.W - x1, B.W - x0
-        fixed = it.get('fixed') or it['kind'] == 'lockup' or it.get('text') == 'SmokeBreak' and side == 'B'
         dx = dy = 0.0
-        if not fixed:
+        if it.get('fixed'):
+            hits = _count((x0, y0, x1, y1), copper[side])
+            if hits:
+                print('  clash:', it.get('text', it['kind']), side, hits)
+        else:
             for dx, dy in sorted(((i * 0.25, j * 0.25) for i in range(-24, 25) for j in range(-16, 17)),
                                  key=lambda d: (d[0] ** 2 + d[1] ** 2, abs(d[1]))):
                 if _free((x0 + dx, y0 + dy, x1 + dx, y1 + dy), obs[side] + placed):

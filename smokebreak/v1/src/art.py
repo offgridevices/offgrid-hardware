@@ -15,6 +15,9 @@ Item kinds (all positions in board mm, y towards the user):
   {"kind": "mark", "x":, "y":, "R":, "layer":}         ring centre at (x, y)
   {"kind": "arrow", "x0":, "y0":, "x1":, "y1":, "shaft": 0.25, "head": 0.9, "layer":}
   {"kind": "rect", "x0":, "y0":, "x1":, "y1":, "layer":}
+  {"kind": "flag", "x":, "y":, "hoist":, "layer":}       US flag centred on (x, y), Flag Code
+     proportions (EO 10834); ink is the red stripes and the union, the
+     stars and the white stripes are the board showing through
 """
 import json
 import math
@@ -83,6 +86,36 @@ def arrow(it):
     return affinity.translate(g, x0, y0)
 
 
+def star(cx, cy, d):
+    """Five-pointed star, point up, circumscribed diameter d (y down)."""
+    R, r = d / 2, d / 2 * 0.381966
+    pts = []
+    for i in range(10):
+        ang = math.radians(-90 + 36 * i)
+        rr = R if i % 2 == 0 else r
+        pts.append((cx + rr * math.cos(ang), cy + rr * math.sin(ang)))
+    return Polygon(pts)
+
+
+def flag(it):
+    """US flag per the Flag Code / EO 10834: hoist A = 1, fly B = 1.9, union
+    C = 7/13 by D = 0.76, star spacing E = F = 0.054, G = H = 0.063, star
+    diameter K = 0.0616, stripes L = 1/13."""
+    A = it['hoist']
+    B_, C, D, E, G, K, L = 1.9 * A, 7 / 13 * A, 0.76 * A, 0.054 * A, 0.063 * A, 0.0616 * A, A / 13
+    x0, y0 = it['x'] - B_ / 2, it['y'] - A / 2
+    red = [Polygon([(x0, y0 + 2 * i * L), (x0 + B_, y0 + 2 * i * L), (x0 + B_, y0 + (2 * i + 1) * L),
+                    (x0, y0 + (2 * i + 1) * L)]) for i in range(7)]
+    union = Polygon([(x0, y0), (x0 + D, y0), (x0 + D, y0 + C), (x0, y0 + C)])
+    stars = []
+    for row in range(9):
+        cols = range(6) if row % 2 == 0 else range(5)
+        for k in cols:
+            sx = x0 + G * (2 * k + 1) if row % 2 == 0 else x0 + G * (2 * k + 2)
+            stars.append(star(sx, y0 + E * (row + 1), K))
+    return unary_union(red + [union]).difference(unary_union(stars))
+
+
 def build(items):
     out = []
     for it in items:
@@ -97,6 +130,8 @@ def build(items):
             g = M.by_ring_radius(it['R'], (it['x'], it['y']))
         elif k == 'arrow':
             g = arrow(it)
+        elif k == 'flag':
+            g = flag(it)
         elif k == 'rect':
             g = Polygon([(it['x0'], it['y0']), (it['x1'], it['y0']), (it['x1'], it['y1']), (it['x0'], it['y1'])])
         else:
