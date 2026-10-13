@@ -30,20 +30,45 @@ UI_VIDEO = os.path.join(SB, 'ui', 'arm-sequence.mp4')
 
 # ---------------------------------------------------------------- geometry
 W, D, H, R = 100.0, 58.0, 18.0, 9.0       # body
-TX, TY = 70.0, 31.0                        # toggle, face coords (x from left, y from back) = PCB (67, 28) + 3 mm wall
-HY = 12.0                                  # guard hinge line, face y
-GL, GW, GH = 36.0, 30.0, 17.0              # guard length, width, wall height
+WALL = 3.0                                 # the PCB (94 x 52) sits 3 mm in from every outside face
+PCB_Z = 4.5                                # its top face (11.5 mm under the panel's underside)
+TX, TY = 76.2, 22.5                        # toggle, face coords (x from left, y from back) = PCB (73.2, 19.5) + wall
+HY = 10.5                                  # guard hinge line, face y
+GL, GW, GH = 29.0, 30.0, 17.0              # guard length (its tip over the hall switch at PCB y 36.6), width, height
 RING = 10.0                                # status light round the toggle (a plain ring, not the mark)
 MARK_R = 3.4                               # the mark on the front wall: ring radius (8.1 mm wide)
 OPEN = 108.0                               # open angle, degrees
 LEVER_ON, LEVER_OFF, LEVER_BIND = 24.0, 0.0, -24.0
-SCR = (28.5, 21.0, 46.0, 26.0)             # screen window centre x, y, width, height (face coords)
+SCR = (29.0, 17.0, 46.0, 26.0)             # screen window centre x, y, width, height (face coords)
 ACTIVE = (42.7, 22.7)                      # 1.9" 320 x 170 IPS active area
 
 
 def F(x, y):
     """Face coordinates (x from the left edge, y from the back edge) to world."""
     return (x - W / 2, D / 2 - y)
+
+
+def P(x, y):
+    """PCB coordinates (v1/src/place.py) to world."""
+    return F(x + WALL, y + WALL)
+
+
+def cut(target, size, loc, bevel=0.8):
+    """Boolean a rounded box out of target."""
+    c = s.box(size, loc, m='pitch', bevel=bevel, name='cutter')
+    mod = target.modifiers.new('cut', 'BOOLEAN')
+    mod.operation, mod.object, mod.solver = 'DIFFERENCE', c, 'EXACT'
+    with bpy.context.temp_override(object=target, active_object=target):
+        bpy.ops.object.modifier_move_to_index(modifier='cut', index=0)   # before the edge bevel
+        bpy.ops.object.modifier_apply(modifier='cut')
+    bpy.data.objects.remove(c, do_unlink=True)
+    return target
+
+
+# the balance well: top-entry JST-XH sockets (PCB x, pins), pin 1 (the black
+# wire) on one line at PCB y 48, pins running back 2.5 mm apart
+SOCKETS = ((16.0, 3), (23.1, 4), (30.2, 5), (37.3, 6), (44.4, 7))
+PIN1_Y, XH_D, XH_H = 48.0, 5.75, 7.0
 
 
 def rbox(w, d, h, r, loc, m, edge=1.4, name='rbox'):
@@ -125,9 +150,30 @@ def screen_plane(m):
 def build(still_frame=None):
     """The product. Returns the handles the animation drives."""
     top = H
-    rbox(W, D, H, R, (0, 0, H / 2), 'pitch_soft', name='body')
+    body = rbox(W, D, H, R, (0, 0, H / 2), 'pitch_soft', name='body')
     # a thin anodised band where the face meets the body
-    rbox(W - 2.4, D - 2.4, 1.0, R - 1.2, (0, 0, H + 0.1), 'anodised', edge=0.4, name='face-plate')
+    plate = rbox(W - 2.4, D - 2.4, 1.0, R - 1.2, (0, 0, H + 0.1), 'anodised', edge=0.4, name='face-plate')
+    # the balance well: one recess over the five sockets, down to their tops
+    floor = PCB_Z + XH_H
+    x0, x1 = SOCKETS[0][0] - XH_D / 2 - 1.2, SOCKETS[-1][0] + XH_D / 2 + 1.2
+    y0, y1 = PIN1_Y - 2.5 * (SOCKETS[-1][1] - 1) - 2.45 - 1.2, PIN1_Y + 2.45 + 1.6
+    (wx0, wy0), (wx1, wy1) = P(x0, y0), P(x1, y1)
+    wsize = (wx1 - wx0, wy0 - wy1, top + 2 - floor)
+    wloc = ((wx0 + wx1) / 2, (wy0 + wy1) / 2, floor + wsize[2] / 2)
+    for o in (body, plate):
+        cut(o, wsize, wloc)
+    s.box((wsize[0], wsize[1], 0.4), (wloc[0], wloc[1], floor - 0.2), m=s.mat('well', '#0B0A08', 0.7),
+          bevel=0.3, name='well-floor')
+    white = s.mat('jst nylon', '#EDEAE2', 0.55)
+    for x, pins in SOCKETS:
+        L = 2.5 * (pins - 1) + 4.9
+        cx, cy = P(x, PIN1_Y - 1.25 * (pins - 1))
+        s.box((XH_D, L, 1.0), (cx, cy, floor + 0.1), m=white, bevel=0.3, name=f'xh{pins - 1}s')
+        s.box((XH_D - 1.6, L - 1.8, 1.1), (cx, cy, floor + 0.15), m='screen', bevel=0.2, name=f'xh{pins - 1}s-mouth')
+        # its size on the face's front lip, an arrow at pin 1 (the black wire)
+        lx, ly = P(x, y1 + 0.2)
+        s.text(f'{pins - 1}S', 1.4, (lx + 0.9, ly - 1.4, top + 0.62), align='LEFT')
+        s.arrow(1.6, (lx - 0.2, ly - 2.1, top + 0.62), rot_z=90, shaft=0.3, head=0.9)
 
     # screen: black glass window with the live panel under it
     x, y = F(SCR[0], SCR[1])
@@ -138,15 +184,16 @@ def build(still_frame=None):
         tex.image = bpy.data.images.load(os.path.join(UI_FRAMES, f'f{still_frame:05d}.png'))
     screen_plane(smat)
 
-    # Limit rocker: an aluminium paddle over two switches, with the steps printed beneath
-    x, y = F(SCR[0], 45.5)
-    s.box((40, 9, 2.4), (x, y, top + 1.4), m='brushed', bevel=1.0, name='rocker')
-    s.box((0.5, 6, 0.1), (x, y, top + 2.62), m='screen', bevel=0, name='rocker-split')
-    s.text('–', 3.0, (x - 10, y, top + 2.62), m='pitch', mono=True)
-    s.text('+', 3.0, (x + 10, y, top + 2.62), m='pitch', mono=True)
-    x, y = F(8.5, 53.0)
-    s.text('Limit', 1.9, (x, y, top + 0.62), align='LEFT')
-    s.text('AUTO 1 2 5 10 25 A', 1.3, (x + 8, y, top + 0.62), mono=True, align='LEFT')
+    # Limit rocker: an aluminium paddle over its two switches (PCB x 60 and 80),
+    # the beeper between them; the steps printed in front
+    x, y = P(70.0, 45.5)
+    s.box((28, 8, 2.4), (x, y, top + 1.4), m='brushed', bevel=1.0, name='rocker')
+    s.box((0.5, 5.5, 0.1), (x, y, top + 2.62), m='screen', bevel=0, name='rocker-split')
+    s.text('–', 3.0, (x - 7, y, top + 2.62), m='pitch', mono=True)
+    s.text('+', 3.0, (x + 7, y, top + 2.62), m='pitch', mono=True)
+    x, y = F(59.5, 55.2)
+    s.text('Limit', 1.6, (x, y, top + 0.62), align='LEFT')
+    s.text('AUTO 1 2 5 10 25 A', 1.2, (x + 7, y, top + 0.62), mono=True, align='LEFT')
 
     # toggle with its status light round the bushing
     rmat = ring_material()
@@ -162,8 +209,8 @@ def build(still_frame=None):
               s.sphere(1.7, (0, 0, L), m='aluminium', name='lever-tip')):
         p.parent = lever
     for lab, dy in (('On', -7.0), ('Off', 0.0), ('Bind', 7.0)):
-        x, y = F(TX + 17.0, TY + dy)
-        s.text(lab, 1.8, (x, y, top + 0.62), align='LEFT')
+        x, y = F(TX - GW / 2 - 1.6, TY + dy)
+        s.text(lab, 1.8, (x, y, top + 0.62), align='RIGHT')
 
     # guard: translucent Ember polycarbonate, pivoting on a steel pin at its
     # base at the back; closed, its walls stand on the face and its top
@@ -183,17 +230,17 @@ def build(still_frame=None):
               s.box((GW, 1.8, GH), (0, -GL - 0.1, GH / 2), m=gm, bevel=0.6, name='guard-lip')):
         p.parent = guard
     # an arrow on the face, beside the guard: lift
-    x, y = F(TX - 18.5, TY + 9)
-    s.arrow(7, (x, y, top + 0.62), rot_z=90, shaft=0.35, head=0.9)
-    s.text('Lift', 1.8, (x, y + 5.6, top + 0.62))
+    x, y = F(TX - GW / 2 - 4.0, TY + 20.0)
+    s.arrow(5, (x, y, top + 0.62), rot_z=90, shaft=0.35, head=0.9)
+    s.text('Lift', 1.8, (x, y - 2.6, top + 0.62))
 
     # face printing: in and out
-    x, y = F(4.0, 4.8)
+    x, y = F(4.0, 32.6)
     s.text('Battery', 1.9, (x, y, top + 0.62), align='LEFT')
-    s.arrow(8, (x + 4, y - 2.6, top + 0.62), shaft=0.35, head=0.9)
-    x, y = F(W - 4.0, D - 4.8)
+    s.arrow(8, (x + 1, y - 2.6, top + 0.62), shaft=0.35, head=0.9)
+    x, y = F(W - 4.0, 45.0)
     s.text('Drone', 1.9, (x, y, top + 0.62), align='RIGHT')
-    s.arrow(8, (x - 4, y + 2.6, top + 0.62), shaft=0.35, head=0.9)
+    s.arrow(8, (x - 8, y - 2.6, top + 0.62), shaft=0.35, head=0.9)
     # the brand, placed like Apple places its mark: never on the working
     # face, never round a control.  The mark alone, centred on the front
     # wall that faces the user, tone on tone (gloss black on soft-touch
@@ -203,25 +250,20 @@ def build(still_frame=None):
                   m=s.mat('gloss pitch', '#0E0C09', 0.08, coat=1.0), name='mark-front')
     s.lockup(30.0, (0, 4, -0.03), rot=(180, 0, 0), m=s.mat('deboss', '#141210', 0.5), name='lockup-under')
 
-    # connectors: male XT60 + XT30 in, female leads out, USB-C in the front wall
-    # at the battery end, the five balance sockets (2S-6S) along the back wall
-    x, y = F(0, 20.75)
-    s.xt60((x - 2, y, 9), male=True, name='in60')
-    x, y = F(0, 42)
-    s.xt30((x - 1.5, y, 8), male=True, name='in30')
-    x, y = F(W, 22)
-    s.leads((x - 3, y, 8), (x + 52, y - 2, 4.4), sep=5.5, radius=2.0, sag=4, name='out60-lead')
+    # connectors: male XT60 + XT30 through the battery end wall (PCB J1, J2);
+    # the drone's leads (soldered to the PCB's pads J3, J4) out of the far
+    # end, female plugs on them; USB-C through the back wall (PCB J8)
+    x, y = P(-WALL, 20.0)
+    s.xt60((x - 2, y, PCB_Z + 4.1), male=True, name='in60')
+    x, y = P(-WALL, 34.8)
+    s.xt30((x - 1.5, y, PCB_Z + 2.55), male=True, name='in30')
+    x, y = P(94 + WALL, 18.2)                    # + at PCB y 15.2 (red), - at 21.2
+    s.leads((x - 3, y, 7.5), (x + 52, y - 2, 4.4), sep=-6.0, radius=2.0, sag=4, name='out60-lead')
     s.xt60((x + 60, y - 2, 4.1), rot=(0, 0, 180), male=False, name='out60')
-    x, y = F(W, 44)
-    s.leads((x - 3, y, 7), (x + 32, y - 12, 2.8), sep=3.6, radius=1.4, sag=3, name='out30-lead')
-    s.xt30((x + 37, y - 12, 2.6), rot=(0, 0, 180), male=False, name='out30')
-    s.usb_c((F(15.0, D)[0], -D / 2 - 0.1, 6.1), rot=(0, 0, 90))      # board (12, 52): PCB top at z 4.5
-    for x_board, pins in ((16.93, 7), (37.03, 6), (54.53, 5), (69.61, 4), (82.19, 3)):
-        w = (pins - 1) * 2.5 + 5.2                                       # JST-XH side-entry mouth + 0.3
-        s.box((w, 1.0, 6.4), (F(x_board + 3.0, 0)[0], D / 2 + 0.02, 7.55), m='screen', bevel=0.5,
-              name=f'balance-{pins - 1}s')
-        s.text(f'{pins - 1}S', 1.6, (F(x_board + 3.0, 0)[0], D / 2 + 0.06, 13.2), rot=(90, 0, 180),
-               name=f'balance-{pins - 1}s-label')
+    x, y = P(94 + WALL, 33.7)                    # + at PCB y 36.0 (red), - at 31.4
+    s.leads((x - 3, y, 6.5), (x + 32, y - 10, 2.8), sep=4.6, radius=1.4, sag=3, name='out30-lead')
+    s.xt30((x + 37, y - 10, 2.6), rot=(0, 0, 180), male=False, name='out30')
+    s.usb_c((P(66.0, 0)[0], D / 2 + 0.1, PCB_Z + 1.6), rot=(0, 0, -90))
     return dict(guard=guard, lever=lever, ring=rmat)
 
 

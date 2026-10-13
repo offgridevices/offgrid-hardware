@@ -36,37 +36,58 @@ metal toggle and a status-light ring.
 2. **Assembly** → turnkey, top side only. Upload `fab/smokebreak-bom-pcbway.csv`
    and `fab/smokebreak-cpl.csv`. Lines marked THT ("supplied loose") are not
    fitted: ask PCBWay to ship them loose with the boards, or buy them
-   separately: XT60PW-M, XT30PW-M, XT60PW-F, XT30PW-F, JST S3B/S4B/S5B/S6B/S7B-XH-A
-   (one each), the toggle, 2 × Vishay AC05 3.9 Ω.
+   separately: XT60PW-M, XT30PW-M, JST B3B/B4B/B5B/B6B/B7B-XH-A (top entry, one
+   each), the toggle, 2 × Vishay AC05 3.9 Ω, and the drone leads: an XT60H
+   female on 12 AWG and an XT30U female on 16 AWG silicone, 50–75 mm each.
 3. The display (1.9" 170 × 320 ST7789, 30-pin 0.5 mm FPC) is bought separately
    and plugs into J7.
 
 ## Hand assembly (from the bottom; the bottom silkscreen says what goes where)
 
-1. Pre-charge resistors R_PRE, R_PRE2 (end to end behind the sockets): lie
-   them flat on the top, bend the leads, solder, trim to 1.5 mm.
-2. Balance sockets J12 (2S), J11 (3S), J10 (4S), J9 (5S), J5 (6S) along the
-   back edge, mouths 3 mm past the board edge (flush with the case's outer
-   wall). The bottom silkscreen names each one and points at pin 1 (black
-   wire). USB-C (front) is already on.
-3. XT60/XT30 male on the left (battery), female on the right (drone): seat
-   fully, solder with a big iron (the pads are on the power planes), trim to
-   1.5 mm (the case floor is 1.9 mm below the board).
-4. Toggle SW1 last, with the lever upright; check it sits 8.9 mm proud.
+The battery end carries everything a pack plugs into: XT60 and XT30 male
+through the end wall, and right behind them the balance well, five top-entry
+sockets with pin 1 (the black wire) of every one on the same line at the
+front. The drone end has no connector on the board: two short leads with
+female plugs are soldered to pads.
+
+1. Pre-charge resistors R_PRE, R_PRE2 (end to end along the back): lie them
+   flat on the top, bend the leads, solder, trim to 1.5 mm.
+2. Balance sockets J12 (2S), J11 (3S), J10 (4S), J9 (5S), J5 (6S), mouths up,
+   latch side as the silkscreen outline shows. The bottom silkscreen names
+   each one, with an arrow at pin 1 (black wire). USB-C (back wall) is
+   already on.
+3. XT60 (J1) and XT30 (J2) male at the battery end, mating face past the
+   edge: seat fully, solder with a big iron (the pads are on the power
+   planes), trim to 1.5 mm.
+4. Drone leads: strip 5 mm, tin, push through J3 (XT60 lead, 12 AWG) and J4
+   (XT30 lead, 16 AWG) from the top, red to the square pad (+, marked on
+   both sides), solder from the bottom; a 2.5 mm zip tie through each
+   pair's slots is the strain relief. The minus pads face each other, by
+   the shunt.
+5. Toggle SW1 last, with the lever upright; check it sits 8.9 mm proud.
+6. Four M3 × 6 screws with DIN 125 washers into the case bosses (2 to
+   3 kgf·cm is plenty; the plated rings take the washers, nothing else is
+   within 4.7 mm of a hole).
 
 ## Mechanical
 
 - Board top face 11.5 mm under the top panel's underside: the XT connectors'
-  axes sit at the body's mid-height. Under the screen (x 2.5–48.5, y 5–31)
-  nothing is taller than 8.1 mm (the pre-charge resistors are 7.5 mm).
-- Back wall: five balance openings, 2S–6S left to right seen from behind,
-  1 mm ribs between them; each socket's mouth is flush with the outer face.
-  A plug only fits its own socket, so it cannot sit a pin off.
-- Front wall: USB-C at the battery end, well clear of the centred mark.
+  axes sit at the body's mid-height. Under the screen (x 3–49, y 1–27)
+  nothing is taller than 8.5 mm (XT60 8.2, the pre-charge resistors 7.5).
+- The balance well: one recess in the face over x 12–48.6, y 29–52 (board),
+  floored at the sockets' tops (7 mm); 2S–6S on the face's front lip, an
+  arrow at each pin 1. Every plug's black wire lands at the front, 8–40 mm
+  from its pack's power plug, so short-lead packs reach.
+- Back wall: USB-C (J8). Drone end: the two leads through a grommeted slot.
 - The toggle's shoulder seats on a 2.6 mm printed boss under the panel.
 - The guard's magnet (6 × 3 mm N52) sits in the guard tip over the hall
-  sensor U6.
-- Mounting: 4 × M2.5 at 3.6 mm from each corner.
+  sensor U6 (board 73.2, 36.6).
+- Mounting: 4 × M3, 5 mm in from each edge; plated 7.4 mm rings for DIN 125
+  washers (7.0 mm), a 9.4 mm keep-out round each with no track or via on
+  any layer, so a tight screw cannot crack anything.
+- Underside art: the OffGrid lockup at the exact centre, SmokeBreak along
+  the back on the same centre line, the US flag (Flag Code proportions) at
+  the drone end's front corner; all four sit in via-free fields.
 
 ## Bring-up (first boards)
 
