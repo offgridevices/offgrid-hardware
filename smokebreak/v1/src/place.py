@@ -75,8 +75,8 @@ fix('SW3', TOG[0] + 7.5, SW_Y, 0)                        # Limit +
 fix('BZ1', TOG[0], SW_Y + 2.2, 0)                        # beeper under the paddle, between its switches
 fix('J3', *G.J3_AT, 0)                                   # XT60 lead pads
 fix('J4', *G.J4_AT, 0)                                   # XT30 lead pads
-fix('J8', 61.4, 4.3, 180)                                # USB-C through the back wall
-fix('J7', 52.4, 10.5, 90)                                # display FPC, opening toward the module's FPC end
+fix('J8', 62.1, 4.3, 180)                                # USB-C through the back wall
+fix('J7', 51.9, 10.5, 90)                                # display FPC, opening toward the module's FPC end
 fix('U5', 18.6, 12.9, 90)                                # MCU under the screen
 fix('R_PRE', 31.2, 8.69, 90)                             # pre-charge resistors, flat, under the screen
 fix('R_PRE2', 42.7, 8.69, 90)
@@ -91,18 +91,21 @@ row(['C1', 'C2'], 2.95, 6.9, 4.9, 0)
 row(['C50', 'C51'], 2.95, 10.4, 4.9, 0)
 
 # ================================================================ MCU's north side (under the screen)
-row(['D14', 'D15', 'D16'], 14.0, 1.6, 3.6, 0)           # aux OR: VIN, VOUT, (USB into 5 V)
+row(['D14', 'D15', 'D16'], 14.0, 2.2, 3.6, 0)           # aux OR: VIN, VOUT, (USB into 5 V)
 at('R53', 23.9, 2.5, 90)
 row(['C34', 'C35', 'C36', 'C38'], 13.6, 4.6, 2.1, 0)    # MCU decaps
 at('C37', 23.0, 4.6, 0)
 
 # ================================================================ the stair behind the short sockets
-at('Q11', 16.6, 32.6, 90)                                # battery-minus FET, drain toward the minus pins
-at('R74', 13.9, 22.0, 90)
-at('D20', 14.0, 26.6, 90)
-at('Q3', 22.5, 24.9, 90)                                 # pre-charge P-FET
-at('D3', 28.0, 22.6, 90)
-for i, k in enumerate(range(2, C.BALANCE_MAX + 2)):      # divider row-houses, one column per tap
+# battery minus FET by the plugs' minus pins, drain west; the pre-charge FET
+# and its diode on the way to R_PRE's pin 1; the divider row-houses (one
+# column per tap) behind the 4S socket; the OR diodes between
+fix('Q11', 16.65, 32.1, 90)
+fix('Q3', 19.25, 22.95, 0)
+fix('D3', 26.0, 22.75, 90)
+at('R74', 20.6, 27.0, 0)
+at('D20', 21.2, 30.6, 90)
+for i, k in enumerate(range(2, C.BALANCE_MAX + 2)):
     parts_k = [r for r, c in C.COMPONENTS.items() if c['group'] == 'balance' and not r.startswith('J')
                and any(n in (f'BAL{k}', f'BAL{k}_ADC') for n in c['pins'].values())]
     d = [r for r in parts_k if r.startswith('D')][0]
@@ -110,16 +113,16 @@ for i, k in enumerate(range(2, C.BALANCE_MAX + 2)):      # divider row-houses, o
     rs = [r for r in parts_k if r.startswith('R')]
     top = [r for r in rs if f'BAL{k}' in C.COMPONENTS[r]['pins'].values()][0]
     bot = [r for r in rs if r != top][0]
-    x = 32.0 + 1.7 * i
-    at(top, x, 21.0, 90)
-    at(bot, x, 24.1, 90)
-    at(cap, x, 26.6, 90)
-    at(d, 22.0 + 1.6 * i, 31.6, 90)
-at('R75', 44.0, 21.4, 0)
-at('Q8', 44.4, 24.0, 0)
-at('R52', 47.3, 22.0, 90)
-at('RT2', 46.6, 19.9, 0)                                 # the drone-side pre-charge resistor's NTC
-at('R25', 42.6, 19.9, 0)
+    x = 28.9 + 1.1 * i
+    at(top, x, 20.2, 90)
+    at(bot, x, 22.3, 90)
+    at(cap, x, 24.4, 90)
+    at(d, 23.2 + 1.8 * (i % 3), 27.8 + 3.4 * (i // 3), 90)
+at('R75', 31.5, 27.6, 0)
+at('Q8', 37.2, 22.0, 0)
+at('R52', 39.6, 22.0, 90)
+at('RT2', 37.0, 19.6, 0)                                 # the pre-charge resistors' NTC, between them
+at('R25', 35.4, 24.8, 0)
 
 # ================================================================ power district (centre column)
 fix('Q1', 52.0, 28.0, 90)
@@ -134,11 +137,11 @@ for ref, (x, y, r) in {
     'D18': (54.0, 37.0, 0), 'RT1': (49.2, 31.6, 90), 'R35': (49.2, 37.2, 90),
 }.items():
     at(ref, x, y, r)
-# pre-charge drive
+# pre-charge drive, below the FET district's resistor row
 for ref, (x, y, r) in {
-    'D2': (50.6, 40.0, 0), 'R19': (50.6, 42.0, 0), 'R20': (50.6, 44.2, 0), 'D19': (61.0, 37.2, 0),
-    'Q4': (61.4, 40.8, 0), 'Q5': (61.4, 44.2, 0), 'R21': (58.4, 40.0, 90), 'R22': (58.4, 42.0, 90),
-    'R23': (58.4, 44.0, 90), 'R24': (61.4, 47.6, 0),
+    'D2': (50.4, 37.4, 0), 'R19': (50.0, 39.4, 0), 'R20': (50.4, 41.2, 0), 'D19': (54.0, 39.4, 0),
+    'Q4': (53.8, 41.6, 0), 'Q5': (57.0, 41.6, 0), 'R21': (52.6, 39.4, 90), 'R22': (55.6, 39.4, 90),
+    'R23': (56.6, 39.4, 90), 'R24': (58.6, 39.4, 90),
 }.items():
     at(ref, x, y, r)
 
@@ -150,12 +153,12 @@ for ref, (x, y, r) in {
 }.items():
     at(ref, x, y, r)
 
-# ================================================================ aux supply: drone end, under the guard's front
+# ================================================================ aux supply: bottom centre, between the well and the rocker
 for ref, (x, y, r) in {
-    'U3': (67.4, 44.6, 90), 'L1': (66.0, 37.6, 0), 'C26': (64.4, 46.6, 90), 'C27': (70.0, 47.8, 0),
-    'C28': (70.0, 44.0, 90), 'C29': (71.0, 41.6, 0), 'R76': (65.0, 42.6, 90), 'R77': (69.6, 40.6, 0),
-    'R78': (64.0, 42.6, 90), 'R79': (68.2, 41.4, 0), 'C57': (64.6, 40.2, 0),
-    'C30': (66.0, 32.4, 90), 'C31': (68.2, 32.4, 90),
+    'U3': (60.4, 47.2, 0), 'L1': (61.0, 37.4, 0), 'C26': (64.6, 47.4, 90), 'C27': (57.0, 46.0, 90),
+    'C28': (63.2, 43.6, 0), 'C29': (63.4, 45.0, 0), 'R76': (57.0, 48.6, 90), 'R77': (63.4, 42.0, 0),
+    'R78': (57.0, 44.0, 0), 'R79': (63.6, 41.2, 0), 'C57': (59.6, 43.4, 0),
+    'C30': (65.4, 37.0, 90), 'C31': (65.4, 33.8, 90),
 }.items():
     at(ref, x, y, r)
 
@@ -193,3 +196,16 @@ col(['C48', 'C43', 'C44'], TOG[0] - 5.7, TOG[1] - 3.5, 3.5, 90)
 col(['C47', 'C46', 'C45'], TOG[0] + 5.7, TOG[1] - 3.5, 3.5, 90)
 at('U10', 66.8, 22.2, 0)
 at('C42', 64.6, 20.2, 90)
+
+# ================================================================ settle
+# The anchors above are the intent; spread.py settles them into a legal
+# placement (place_legal.py).  An entry whose anchor has since moved is stale
+# and ignored, so the part falls back to its anchor until spread.py runs.
+ANCHORS = dict(PL)
+try:
+    from place_legal import LEGAL
+except ImportError:
+    LEGAL = {}
+for _ref, (_x, _y, _rot, _anchor) in LEGAL.items():
+    if _ref in PL and not PL[_ref][4] and tuple(PL[_ref][:3]) == tuple(_anchor):
+        PL[_ref] = (_x, _y, _rot, PL[_ref][3], False)

@@ -247,8 +247,8 @@ BALANCE_MAX = 6
 res('BAL1', 'GND', 10, '1206', group=g, ref='R75')
 TOPS = {2: 47e3, 3: 200e3, 4: 357e3, 5: 499e3, 6: 649e3, 7: 787e3}
 for k in range(2, BALANCE_MAX + 2):
-    res(f'BAL{k}', f'BAL{k}_ADC', TOPS[k], '0603', '0.1%', g)
-    res(f'BAL{k}_ADC', 'DIV_GND', 100e3, '0603', '0.1%', g)
+    res(f'BAL{k}', f'BAL{k}_ADC', TOPS[k], '0402', '0.1%', g)       # 25 V at most: 0402 is rated 50 V
+    res(f'BAL{k}_ADC', 'DIV_GND', 100e3, '0402', '0.1%', g)
     capacitor(f'BAL{k}_ADC', 'DIV_GND', '100n', group=g)
     add(nxt('D'), '1N4148WS', {'1': 'AUX', '2': f'BAL{k}'}, '1N4148WS', g)
 # the 7S and 8S taps of the old 9-pin socket are gone: their designators stay

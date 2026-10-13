@@ -1,0 +1,148 @@
+"""Spread the placement anchors into a legal placement and write
+place_legal.py (python3 spread.py).
+
+place.py holds the design intent: fixed parts where the case puts them, and
+an anchor for every other part.  This settles the anchors largest part
+first, each at the free spot nearest its anchor (0.25 mm grid, either
+orientation for two-pad parts), on a 0.05 mm occupancy raster: courtyards
+may touch, pads keep 0.25 mm from everything else.  place.py applies the result."""
+import math
+import sys
+
+import numpy as np
+import pcbnew
+
+import board as B
+import circuit as C
+import geometry as G
+import place
+
+RES = 0.05
+GRID = 0.25
+PAD_GAP = 0.25
+INSET = 0.5
+R_MAX = 12.0
+NX, NY = int(round(B.W / RES)), int(round(B.H / RES))
+
+
+def local_boxes(fp, rot):
+    """Courtyard + pad boxes relative to the footprint origin at rotation rot."""
+    fp.SetOrientationDegrees(rot)
+    fp.BuildCourtyardCaches()
+    o = fp.GetPosition()
+    mm = pcbnew.ToMM
+    cy = []
+    lay = pcbnew.B_CrtYd if fp.IsFlipped() else pcbnew.F_CrtYd
+    c = fp.GetCourtyard(lay)
+    if c.OutlineCount():
+        bb = c.BBox()
+        cy.append((mm(bb.GetLeft() - o.x), mm(bb.GetTop() - o.y), mm(bb.GetRight() - o.x), mm(bb.GetBottom() - o.y)))
+    pads = []
+    for p in fp.Pads():
+        if fp.IsFlipped() and not p.GetDrillSize().x:
+            continue
+        bb = p.GetBoundingBox()
+        pads.append((mm(bb.GetLeft() - o.x), mm(bb.GetTop() - o.y), mm(bb.GetRight() - o.x), mm(bb.GetBottom() - o.y)))
+    if not cy:
+        cy = [(min(p[0] for p in pads), min(p[1] for p in pads), max(p[2] for p in pads), max(p[3] for p in pads))]
+    return cy, pads
+
+
+def cells(box, x, y, grow=0.0):
+    """Raster index slices of a box: every cell it reaches into (conservative,
+    so two boxes that share a cell are called a clash)."""
+    a, b, c, d = box
+    e = 1e-4
+    i0 = math.floor((a + x - grow + e) / RES); i1 = math.ceil((c + x + grow - e) / RES)
+    j0 = math.floor((b + y - grow + e) / RES); j1 = math.ceil((d + y + grow - e) / RES)
+    return max(i0, 0), min(i1, NX), max(j0, 0), min(j1, NY)
+
+
+def free(occ_raw, occ_grown, shape, x, y):
+    """Courtyards may touch; a pad keeps PAD_GAP from any other part's
+    courtyard or pads (the rule make.legalise and DRC use)."""
+    cy, pads = shape
+    for bx in cy:
+        a, b_, c, d = bx
+        if a + x < INSET or b_ + y < INSET or c + x > B.W - INSET or d + y > B.H - INSET:
+            return False
+        i0, i1, j0, j1 = cells(bx, x, y)
+        if occ_raw[j0:j1, i0:i1].any() or occ_grown[j0:j1, i0:i1].any():
+            return False
+    for bx in pads:
+        i0, i1, j0, j1 = cells(bx, x, y, PAD_GAP)
+        if occ_raw[j0:j1, i0:i1].any():
+            return False
+    return True
+
+
+def mark(occ_raw, occ_grown, shape, x, y):
+    cy, pads = shape
+    for bx in cy + pads:
+        i0, i1, j0, j1 = cells(bx, x, y)
+        occ_raw[j0:j1, i0:i1] = True
+    for bx in pads:
+        i0, i1, j0, j1 = cells(bx, x, y, PAD_GAP)
+        occ_grown[j0:j1, i0:i1] = True
+
+
+def main(out='place_legal.py'):
+    b = B.new_board('/tmp/spread.kicad_pcb')
+    fps = B.place_components(b, {r: v for r, v in place.ANCHORS.items()})
+    occ_cy = np.zeros((NY, NX), bool)
+    occ_pad = np.zeros((NY, NX), bool)
+    # fixed parts and the underside parts' through-holes first
+    todo = []
+    for ref, (x, y, rot, side, fixed) in place.ANCHORS.items():
+        if ref not in fps:
+            continue
+        fp = fps[ref]
+        if fixed or side == 'B':
+            if side == 'B':
+                continue
+            mark(occ_cy, occ_pad, local_boxes(fp, rot), x, y)
+        else:
+            todo.append(ref)
+    shapes = {}
+    for ref in todo:
+        rot = place.ANCHORS[ref][2]
+        fp = fps[ref]
+        opts = [rot]
+        if len(fp.Pads()) == 2:
+            opts.append((rot + 90) % 360)
+        shapes[ref] = [(r, local_boxes(fp, r)) for r in opts]
+    area = lambda r: max((c[2] - c[0]) * (c[3] - c[1]) for c in shapes[r][0][1][0])
+    todo.sort(key=lambda r: -area(r))
+    n = int(R_MAX / GRID)
+    cands = sorted(((i * GRID, j * GRID) for i in range(-n, n + 1) for j in range(-n, n + 1)),
+                   key=lambda d: (round(math.hypot(*d), 3), abs(d[1]), d))
+    res, far = {}, []
+    for ref in todo:
+        x, y, rot, side, fixed = place.ANCHORS[ref]
+        best = None
+        for dx, dy in cands:
+            for k, (r, sh) in enumerate(shapes[ref]):
+                if free(occ_cy, occ_pad, sh, x + dx, y + dy):
+                    best = (dx, dy, r, sh)
+                    break
+            if best:
+                break
+        if not best:
+            raise RuntimeError(f'no room for {ref} near ({x}, {y})')
+        dx, dy, r, sh = best
+        mark(occ_cy, occ_pad, sh, x + dx, y + dy)
+        res[ref] = (round(x + dx, 3), round(y + dy, 3), r, (x, y, rot))
+        d = math.hypot(dx, dy)
+        if d > 3:
+            far.append((ref, round(d, 1)))
+    with open(out, 'w') as f:
+        f.write('"""Generated by spread.py from place.py\'s anchors: do not edit."""\n')
+        f.write('LEGAL = {\n')
+        for ref in sorted(res, key=lambda r: (C.COMPONENTS[r]['group'], r)):
+            f.write(f'    {ref!r}: {res[ref]},\n')
+        f.write('}\n')
+    print(len(res), 'parts settled;', 'moved > 3 mm:', far)
+
+
+if __name__ == '__main__':
+    main(*sys.argv[1:])

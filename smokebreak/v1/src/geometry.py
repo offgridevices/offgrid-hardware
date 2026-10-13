@@ -26,7 +26,7 @@ M = 6.0                           # the one margin
 
 # ---------------------------------------------------------------- board
 BOARD_W = CASE_W - 2 * BOARD_AT   # 91.6
-BOARD_H = CASE_D - 2 * BOARD_AT   # 48.6
+BOARD_H = CASE_D - 2 * BOARD_AT   # 50.6
 BOARD_R = 5.0
 PCB_T = 1.6
 PCB_TOP_Z = 4.3                   # floor 1.4 + 1.3 lead clearance + 1.6 board
@@ -92,4 +92,4 @@ J3_AT = (88.4, 24.5)          # XT60 lead, 12 AWG pads (board)
 J4_AT = (88.4, 34.2)          # XT30 lead, 16 AWG pads (board)
 
 # ---------------------------------------------------------------- mounting: M3 into heat-set inserts
-HOLES = [(87.0, 4.6), (87.2, 46.2), (56.4, 46.2)]      # board coords
+HOLES = [(87.0, 4.6), (87.2, 46.2), (52.0, 46.2)]      # board coords
