@@ -142,8 +142,10 @@ simulations in [`STRESS.md`](STRESS.md) give the numbers at 25, 50 and 60 °C
 air.  The firmware keeps the board from cooking itself: AM32's per-motor
 current limit (20 A, read from this board's shunts), its temperature limit
 (110 °C, read by a thermistor at each motor's FETs) and stuck-rotor
-protection, and the gate drivers' own overcurrent shutdown.  See
-[`firmware/README.md`](firmware/README.md).
+protection, and the gate drivers' own overcurrent trip (all six FETs off
+for 4 ms, then a retry).  See [`firmware/README.md`](firmware/README.md);
+[`docs/RELIABILITY.md`](docs/RELIABILITY.md) runs a crash and a
+full-throttle punch through them.
 
 **Heat on the flight controller.**  The FC's own losses are its supplies,
 and the video supply is the big one.  It runs from its own battery pads,
@@ -192,8 +194,9 @@ on surviving a hot day:
   $35.76 of the ESC's $53 (rev 1's 40 V Toshiba parts: $10.37).  Two
   cheaper 60 V parts fit the same land, both rated 150 °C instead of 175 °C
   and with more on-resistance (more heat): Vishay SiSS22LDN (3.65 mΩ) and
-  Infineon BSZ040N06LS5 (4.0 mΩ, JLC stock).  Neither has been through the
-  simulations.
+  Infineon BSZ040N06LS5 (4.0 mΩ, JLC stock).  The BSZ040 has been through
+  the simulations and is not a substitute ([`docs/RELIABILITY.md`](docs/RELIABILITY.md));
+  the SiSS22LDN has no SPICE model.
 - **The rest** (per set at 1,000): the gyro ($11.06), the four gate drivers
   ($7.76), the FC MCU ($5.19), the flash ($4.56), the four current
   amplifiers ($2.34), the four ESC MCUs ($1.86).
@@ -535,6 +538,8 @@ ridge-3/
                           bootloader and firmware, the AM32 target patch,
                           flashing script, CLI setup
   docs/REV2.md            every change from revision 1, and why
+  docs/RELIABILITY.md     variants, a crash, a punch: the trade-offs and
+                          what to decide, and what only the bench can settle
   docs/research/          the research behind the rev 1 part choices: ESC
                           power stage, FC video, sourcing and market
   aio.pretty/ aio.3dshapes/   footprints and 3D models (from JLCPCB/EasyEDA's
