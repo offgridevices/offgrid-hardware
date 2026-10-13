@@ -68,8 +68,20 @@ def _infineon5_lib():
 FETS = {
     'TPN2R304PL': dict(lib=_toshiba_lib, subckt='TPN2R304PL_G0_00', gate='22', ps=False),
     'ISZ023N06LM6': dict(lib=_infineon_lib, subckt='ISZ023N06LM6_L1', gate='g', ps=True),
-    'BSZ040N06LS5': dict(lib=_infineon5_lib, subckt='BSZ040N06LS5_L1', gate='g', ps=True),
+    # OptiMOS 5's core overflows at the DC operating point under ngspice's
+    # default gmin (1e-12 S); 1e-10 S solves it and leaves its capacitances
+    # at the datasheet's (Ciss 2.44 nF at 30 V, 1 MHz; 2.4 nF typ)
+    'BSZ040N06LS5': dict(lib=_infineon5_lib, subckt='BSZ040N06LS5_L1', gate='g', ps=True, options='gmin=1e-10'),
 }
+
+
+def _options(netlist):
+    """The netlist with the FET model's own ngspice options (FETS[..]['options'])
+    on its .options line."""
+    extra = _fet().get('options')
+    if not extra:
+        return netlist
+    return re.sub(r'(?m)^(\.options\b.*)$', r'\1 ' + extra, netlist, count=1)
 
 
 def _fet():
@@ -97,6 +109,7 @@ def run(name, netlist, vectors):
     against amps) that stall it; nothing else in the netlist changes.  One
     that stalls under Gear's as well gets gmin 1e-11 S (GMIN)."""
     os.makedirs(WORK, exist_ok=True)
+    netlist = _options(netlist)
     cir = os.path.join(WORK, name + '.cir')
     dat = os.path.join(WORK, name + '.dat')
     ctl = '.control\nset wr_singlescale\nset wr_vecnames\nrun\nwrdata %s %s\n.endc\n.end\n' % (
@@ -366,7 +379,7 @@ Vg3 g3 0 0
 """ % ((fet_lib(), T) + (_fet()['subckt'], VDS) * 3)
     os.makedirs(WORK, exist_ok=True)
     cir = os.path.join(WORK, 'caps.cir')
-    open(cir, 'w').write(n + '.control\nrun\nprint mag(i(vg1)) mag(i(vg2)) mag(i(vd3))\n.endc\n.end\n')
+    open(cir, 'w').write(_options(n) + '.control\nrun\nprint mag(i(vg1)) mag(i(vg2)) mag(i(vd3))\n.endc\n.end\n')
     out = subprocess.run(['ngspice'] + (['-D', 'ngbehavior=ps'] if _fet()['ps'] else []) + ['-b', cir],
                          capture_output=True, text=True).stdout
     vals = [float(re.search(r'mag\(i\(%s\)\)\s*=\s*([0-9.eE+-]+)' % v, out).group(1)) for v in ('vg1', 'vg2', 'vd3')]
@@ -384,7 +397,7 @@ Id 0 d %g
 .op
 """ % (fet_lib(), T, _fet()['subckt'], VGS, ID)
     cir = os.path.join(WORK, 'rds.cir')
-    open(cir, 'w').write(n + '.control\nrun\nprint v(d)\n.endc\n.end\n')
+    open(cir, 'w').write(_options(n) + '.control\nrun\nprint v(d)\n.endc\n.end\n')
     out = subprocess.run(['ngspice'] + (['-D', 'ngbehavior=ps'] if _fet()['ps'] else []) + ['-b', cir],
                          capture_output=True, text=True).stdout
     return float(re.search(r'v\(d\)\s*=\s*([0-9.eE+-]+)', out).group(1)) / ID
