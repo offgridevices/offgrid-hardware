@@ -19,7 +19,8 @@ target's commit, read for this):
     2 MHz) forces a commutation and drops to the startup clamp (minimum duty
     + 400 of 2000, about 21 %), which the duty ramps down to at 2 % per ms;
   * the stuck-rotor cut after 11 such timeouts (about 248 ms) at high
-    throttle.
+    throttle (bemf_timeout 10 in main.c, a variable, not a setting); runs
+    with the cut after 3 (a change to the target) stand beside them.
 The jam is taken as instant and the forced commutations as leaving the
 current in the same low-side FET: both on the hot side.
 
@@ -84,7 +85,9 @@ T_BEMF = 22.5e-3                     # s without a zero-cross before it forces a
 RAMP = 0.02 / 1e-3                   # duty per second toward the startup clamp (2 %/ms)
 D_STARTUP = 0.21                     # the startup clamp: minimum duty + 400 of 2000
 D_MIN = D_STARTUP - 0.20             # its minimum duty, below which the current loop cannot go
-T_CUT = 11 * T_BEMF                  # stuck-rotor cut at high throttle
+N_CUT = 11                           # back-EMF timeouts to the stuck-rotor cut at high throttle
+                                     # (bemf_timeout 10, a variable in main.c, not a setting)
+N_CUT_SHORT = 3                      # the same with bemf_timeout 2: a change to the target
 T_PID, N_AVG = 1e-3, 50              # the current loop's period and the readings it averages
 PID_KP, PID_KD, PID_MAX = 400, 1000, 10 / 2000.0
 
@@ -269,15 +272,17 @@ def funnel(c, s):
     return hi, share, nodes, np.isin(a, nodes) & np.isin(b, nodes)
 
 
-def crash(c, src, ph, fet, sense, T0, vth, share_scale=1.0):
+def crash(c, src, ph, fet, sense, T0, vth, share_scale=1.0, n_cut=N_CUT):
     """One jammed-rotor run from start temperature T0 with the VDS monitor
     at vth volts (None: never trips).  src, ph: unit solutions of the low-side
     FET's source net (to the shunt) and phase net (motor pad to its drain).
     share_scale < 1 spreads the funnel via's share as if more vias stood
     beside it (its edges carry that fraction of their current; the rest is
-    taken to find paths as short)."""
+    taken to find paths as short).  n_cut: back-EMF timeouts before AM32's
+    stuck-rotor cut."""
+    t_cut = n_cut * T_BEMF
     V, r_pack, limit = data.BATTERY['vfull'], data.BATTERY['r'], data.AM32['current_limit']
-    times = np.arange(0, T_CUT + 2e-3, DT)
+    times = np.arange(0, t_cut + 2e-3, DT)
     N = len(times)
     Z = zth(np.arange(N) * DT + 1e-7)
     _, share, via_nodes, in_via = funnel(c, src)
@@ -307,7 +312,7 @@ def crash(c, src, ph, fet, sense, T0, vth, share_scale=1.0):
         if t >= T_BEMF:
             d_bemf = D if d_bemf is None else d_bemf
             D = min(D, max(D_STARTUP, d_bemf - RAMP * (t - T_BEMF)))
-        i = 0.0 if t >= T_CUT else D * V / (
+        i = 0.0 if t >= t_cut else D * V / (
             R_MOTOR + rds_max(tj_ls) + rds_max(tj_hs) + R_SHUNT + R_COPPER + D * D * r_pack)
         # the driver's monitor
         if k < off_until:
@@ -346,7 +351,7 @@ def crash(c, src, ph, fet, sense, T0, vth, share_scale=1.0):
     on = I > 0
     return dict(peak, i_max=float(I.max()), i_via=float(I.max() * share * share_scale), trips=trips,
                 first=first, on_first_ms=float(on[times < T_BEMF].mean()),
-                i_held=float(np.median(I[(times > T_CUT - 50e-3) & (times < T_CUT)])),
+                i_held=float(np.median(I[(times > t_cut - 20e-3) & (times < t_cut)])),
                 over_rating=float(np.sum(TJ > data.FET['tch_max']) * DT))
 
 
@@ -405,25 +410,30 @@ def run():
             T, trip_current(0.6, T, sense[0]), trip_current(0.6, T, sense[0], rds_typ),
             trip_current(0.26, T, sense[0]), trip_current(0.26, T, sense[0], rds_typ)))
     lines += ['', '## The crash', '',
-              '| Start | DRV8320H VDS pin | Via share | Trips | Peak phase current | Current held until the '
-              'stuck-rotor cut | Hottest via copper | Time above 288 C | Low-side FET case (drain copper) | '
+              'AM32 as it ships cuts a stalled motor after %d back-EMF timeouts (%.0f ms); the rows marked %d '
+              'are the same with its `bemf_timeout` at %d, a change to the target (%.0f ms).' % (
+                  N_CUT, N_CUT * T_BEMF * 1e3, N_CUT_SHORT, N_CUT_SHORT - 1, N_CUT_SHORT * T_BEMF * 1e3), '',
+              '| Start | DRV8320H VDS pin | AM32 cuts after | Via share | Trips | Peak phase current | Current '
+              'held until the cut | Hottest via copper | Time above 288 C | Low-side FET case (drain copper) | '
               'Hottest FET junction, low / high side | Low side above its rating |',
-              '|---|---|---|---|---|---|---|---|---|---|---|']
+              '|---|---|---|---|---|---|---|---|---|---|---|---|']
     runs = {}
+    cases = [(name, vth, scale, label, n_cut) for name, vth in OCP.items()
+             for scale, label in ((1.0, 'as built'), (0.5, 'half (about twice the vias)'))
+             for n_cut in (N_CUT, N_CUT_SHORT)
+             if (vth is None and n_cut == N_CUT) or (vth is not None and scale == 1.0)]
     for start, T0 in (('cold board (25 C)', 25.0), ('hot board (%.0f C)' % T_hot, T_hot)):
-        for ocp_name, vth in OCP.items():
-            for scale, label in ((1.0, 'as built'), (0.5, 'half (about twice the vias)')):
-                if vth is not None and scale < 1:
-                    continue
-                r = crash(c, src, ph, fet, sense, T0, vth, scale)
-                runs[(T0, ocp_name, scale)] = r
-                trips = ('none' if not r['trips'] else '%d, first at %.2f ms (%s side, %.0f A)' % (
-                    r['trips'], r['first'][0] * 1e3, r['first'][2], r['first'][1]))
-                lines.append('| ' + ' | '.join([
-                    start, ocp_name, label, trips, '%.0f A' % r['i_max'], '%.0f A' % r['i_held'],
-                    deg(r['via']), '%.1f ms' % (r['over'] * 1e3), deg(r['case']),
-                    '%s / %s' % (deg(r['ls']), deg(r['hs'])), '%.0f ms' % (r['over_rating'] * 1e3)]) + ' |')
-                print(lines[-1], flush=True)
+        for ocp_name, vth, scale, label, n_cut in cases:
+            r = crash(c, src, ph, fet, sense, T0, vth, scale, n_cut)
+            runs[(T0, ocp_name, scale, n_cut)] = r
+            trips = ('none' if not r['trips'] else '%d, first at %.2f ms (%s side, %.0f A)' % (
+                r['trips'], r['first'][0] * 1e3, r['first'][2], r['first'][1]))
+            lines.append('| ' + ' | '.join([
+                start, ocp_name, '%d (%.0f ms)' % (n_cut, n_cut * T_BEMF * 1e3), label, trips,
+                '%.0f A' % r['i_max'], '%.0f A' % r['i_held'],
+                deg(r['via']), '%.1f ms' % (r['over'] * 1e3), deg(r['case']),
+                '%s / %s' % (deg(r['ls']), deg(r['hs'])), '%.0f ms' % (r['over_rating'] * 1e3)]) + ' |')
+            print(lines[-1], flush=True)
     lines += ['', 'A trip lets the current flow for one 20 us step (the 4 us deglitch, rounded up), then '
               'holds every FET off for 4 ms.  The copper gives heat to the FR-4 against it and to nothing '
               'else (not the planes of other nets, not the heatsink): real temperatures are lower.  The '
@@ -433,7 +443,7 @@ def run():
               'junction is rated %.0f C.'
               % data.FET['tch_max'], '', '---', 'Run time %.0f s.' % (time.time() - t0)]
     open(os.path.join(OUT, 'CRASH.md'), 'w').write('\n'.join(lines) + '\n')
-    json.dump({'%s|%s|%s' % k: v for k, v in runs.items()}, open(os.path.join(OUT, 'crash.json'), 'w'),
+    json.dump({'%s|%s|%s|%s' % k: v for k, v in runs.items()}, open(os.path.join(OUT, 'crash.json'), 'w'),
               indent=1, default=str)
     print('\n'.join(lines))
 
