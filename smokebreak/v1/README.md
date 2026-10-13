@@ -71,7 +71,7 @@ metal toggle and a status-light ring.
 ## Bring-up (first boards)
 
 1. Bare board: no shorts VIN–GND, VOUT–DRONE_NEG, +5V–GND, +3V3–GND.
-2. USB-C only: +5V ≈ 4.4 V, +3V3 = 3.3 V; flash over the Tag-Connect (J6).
+2. USB-C only: +5V ≈ 4.4 V, +3V3 = 3.3 V; flash over the SWD pogo pads (J6, underside) or USB DFU.
 3. Bench supply 12 V, 100 mA limit, on the battery XT60 (guard closed): the
    screen wakes, nothing on the drone side.
 4. Reverse the bench supply: nothing happens, nothing warms.

@@ -114,18 +114,22 @@ PARTS = {
     # ---------------------------------------------------------- connectors
     'XT60M':     P('CONN-TH_XT60PW-M', 'Amass', 'XT60PW-M', 'C98732', 'XT60 male, PCB horizontal (battery)', fit='tht'),
     'XT30M':     P('CONN-TH_XT30PW-M', 'Amass', 'XT30PW-M30.G.Y', 'C431092', 'XT30 male, PCB horizontal (battery)', fit='tht'),
-    'XT60F':     P('TH_2P-XT60PW-F', 'Amass', 'XT60PW-F', 'C428722', 'XT60 female, PCB horizontal (drone)', fit='tht'),
-    'XT30F':     P('CONN-TH_XT30PW-F30.G.Y', 'Amass', 'XT30PW-F30.G.Y', 'C30170176', 'XT30 female, PCB horizontal (drone)', fit='tht'),
-    'XH3':       P('CONN-TH_S3B-XH-A-LF-SN', 'JST', 'S3B-XH-A(LF)(SN)', 'C157928', 'JST-XH 3 pin side entry (2S balance)', fit='tht'),
-    'XH4':       P('CONN-TH_S4B-XH-A-LF-SN', 'JST', 'S4B-XH-A(LF)(SN)', 'C157925', 'JST-XH 4 pin side entry (3S balance)', fit='tht'),
-    'XH5':       P('CONN-TH_5P-P2.50_S5B-XH-A-LF-SN', 'JST', 'S5B-XH-A(LF)(SN)', 'C263757', 'JST-XH 5 pin side entry (4S balance)', fit='tht'),
-    'XH6':       P('CONN-TH_S6B-XH-A-LF-SN', 'JST', 'S6B-XH-A(LF)(SN)', 'C157919', 'JST-XH 6 pin side entry (5S balance)', fit='tht'),
-    'XH7':       P('CONN-TH_S7B-XH-A-LF-SN', 'JST', 'S7B-XH-A(LF)(SN)', 'C157916', 'JST-XH 7 pin side entry (6S balance)', fit='tht'),
+    # drone side: female plugs on short pigtails (length set at assembly), soldered to pads
+    'XT60F_LEAD': P('WirePads_12AWG', 'Amass', 'XT60H-F.G.Y', 'C30170202',
+                    'XT60 female plug on a 12 AWG silicone pigtail, 50-75 mm, soldered to the J3 pads (drone side)', fit='tht'),
+    'XT30F_LEAD': P('WirePads_16AWG', 'Amass', 'XT30U-F', 'C99102',
+                    'XT30 female plug on a 16 AWG silicone pigtail, 50-75 mm, soldered to the J4 pads (drone side)', fit='tht'),
+    # balance: one top-entry JST-XH per size, in the well behind the battery plugs
+    'XHT3':      P('Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical', 'JST', 'B3B-XH-A(LF)(SN)', 'C144394', 'JST-XH 3 pin top entry (2S balance)', fit='tht'),
+    'XHT4':      P('Connector_JST:JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical', 'JST', 'B4B-XH-A(LF)(SN)', 'C144395', 'JST-XH 4 pin top entry (3S balance)', fit='tht'),
+    'XHT5':      P('Connector_JST:JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical', 'JST', 'B5B-XH-A(LF)(SN)', 'C157991', 'JST-XH 5 pin top entry (4S balance)', fit='tht'),
+    'XHT6':      P('Connector_JST:JST_XH_B6B-XH-A_1x06_P2.50mm_Vertical', 'JST', 'B6B-XH-A(LF)(SN)', 'C144397', 'JST-XH 6 pin top entry (5S balance)', fit='tht'),
+    'XHT7':      P('Connector_JST:JST_XH_B7B-XH-A_1x07_P2.50mm_Vertical', 'JST', 'B7B-XH-A(LF)(SN)', 'C144398', 'JST-XH 7 pin top entry (6S balance)', fit='tht'),
     'USBC':      P('USB-C_SMD-TYPE-C-31-M-12_1', 'Korean Hroparts', 'TYPE-C-31-M-12', 'C165948', 'USB-C receptacle 16 pin'),
     'USBLC6':    P('SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL', 'STMicroelectronics', 'USBLC6-2SC6', 'C7519', 'USB ESD protection'),
-    'TC2030':    P('Connector:Tag-Connect_TC2030-IDC-NL_2x03_P1.27mm_Vertical', None, None, None,
-                   'SWD programming pads (Tag-Connect TC2030-IDC-NL), no part', fit='none'),
-    'HOLE':      P('MountingHole:MountingHole_2.7mm_M2.5', None, None, None, 'M2.5 mounting hole', fit='none'),
+    'SWDPADS':   P('SWD_Pads_1x5_P2.54', None, None, None,
+                   'SWD pogo pads on the underside (3V3, SWDIO, NRST, SWCLK, GND), no part', fit='none'),
+    'HOLE':      P('MountingHole_M3_Washer', None, None, None, 'M3 mounting hole, plated, washer ring', fit='none'),
 }
 
 # ---------------------------------------------------------------- passives

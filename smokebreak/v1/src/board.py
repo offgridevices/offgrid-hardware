@@ -23,7 +23,8 @@ OX, OY = 100.0, 100.0
 # The board inside the Arm (100 x 58 x 18 mm body, 3 mm walls)
 W, H = 94.0, 52.0
 CORNER_R = 3.0
-HOLES = [(3.6, 3.6), (W - 3.6, 3.6), (3.6, H - 3.6), (W - 3.6, H - 3.6)]
+HOLE_IN = 5.0          # M3 hole centres from both edges: the 7.4 mm ring stays 1.3 mm off the edge
+HOLES = [(HOLE_IN, HOLE_IN), (W - HOLE_IN, HOLE_IN), (HOLE_IN, H - HOLE_IN), (W - HOLE_IN, H - HOLE_IN)]
 
 # PCBWay standard 4-layer capability is 0.1 mm / 0.1 mm and 0.2 mm holes;
 # this board keeps comfortable margins over it.

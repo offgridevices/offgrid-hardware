@@ -31,7 +31,12 @@ def _clear(net, classes):
 
 
 def fanout_gnd(b, nets=('GND',), via=(0.5, 0.25), track=0.25, classes=None, edge=0.5, region=None):
-    """region: (x0, x1) board mm: only pads (and vias) in that x range (a split plane's half)."""
+    """region: a polygon (board mm): only pads, and vias, inside it (one
+    plane of a split layer)."""
+    reg = None
+    if region:
+        from shapely.geometry import Polygon as _P
+        reg = _P([(x + B.OX, y + B.OY) for x, y in region])
     classes = classes or {}
     vd, vdr = via
     # obstacles: every copper item on F.Cu (pads, tracks, zones of other nets),
@@ -79,7 +84,7 @@ def fanout_gnd(b, nets=('GND',), via=(0.5, 0.25), track=0.25, classes=None, edge
                 continue
             q = p.GetPosition()
             px, py = mm(q.x), mm(q.y)
-            if region and not (region[0] + B.OX < px < region[1] + B.OX):
+            if reg is not None and not reg.contains(Point(px, py)):
                 continue
             pad_g = unary_union(_poly(p.GetEffectivePolygon(pcbnew.F_Cu)))
             # outward first (away from the part's centre), then all round
@@ -91,7 +96,7 @@ def fanout_gnd(b, nets=('GND',), via=(0.5, 0.25), track=0.25, classes=None, edge
                     vx, vy = px + r * math.cos(a), py + r * math.sin(a)
                     if not (x0 < vx < x1 and y0 < vy < y1):
                         continue
-                    if region and not (region[0] + B.OX + 0.5 < vx < region[1] + B.OX - 0.5):
+                    if reg is not None and not reg.buffer(-0.5).contains(Point(vx, vy)):
                         continue
                     vg = Point(vx, vy).buffer(vd / 2)
                     tg = LineString([(px, py), (vx, vy)]).buffer(track / 2)

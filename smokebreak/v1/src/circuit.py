@@ -193,8 +193,9 @@ res('+3V3', 'NTC_PRE', 10e3, group=g)
 # 5. Drone out: XT60 + XT30 female, 3 V probe, sensing
 # ======================================================================
 g = 'drone out'
-add('J3', 'XT60F', {XT['XT60F'][0]: 'VOUT', XT['XT60F'][1]: 'DRONE_NEG', '1': NC, '2': NC}, 'XT60 female', g)
-add('J4', 'XT30F', {XT['XT30F'][0]: 'VOUT', XT['XT30F'][1]: 'DRONE_NEG', '3': NC, '4': NC}, 'XT30 female', g)
+# the drone leads: female XT60 and XT30 on short pigtails, soldered to pads
+add('J3', 'XT60F_LEAD', {'1': 'VOUT', '2': 'DRONE_NEG'}, 'XT60 female lead', g)
+add('J4', 'XT30F_LEAD', {'1': 'VOUT', '2': 'DRONE_NEG'}, 'XT30 female lead', g)
 capacitor('VOUT', 'DRONE_NEG', '100n', '100V', '0603', g)
 # output snubber (sim cases 3, 5): damps the drone-side ring after a cut and on plug-in
 res('VOUT', 'VOUT_SNUB', 0.47, '0805', group=g, ref='R68')                     # 0.47: 0.22 lets a reversed drone-side 14S pull SRC to -70 V
@@ -234,7 +235,7 @@ BAL = {}
 # a plug only fits its own socket, so it cannot sit a pin off; pin k of every
 # socket is tap k (pin 1 the black wire)
 for ref, cells in (('J5', 6), ('J9', 5), ('J10', 4), ('J11', 3), ('J12', 2)):
-    add(ref, f'XH{cells + 1}', {str(k): f'BAL{k}' for k in range(1, cells + 2)}, f'JST-XH {cells}S', g)
+    add(ref, f'XHT{cells + 1}', {str(k): f'BAL{k}' for k in range(1, cells + 2)}, f'JST-XH {cells}S', g)
 BALANCE_MAX = 6
 # the black wire meets ground through 10 Ohm: with the main lead plugged in too,
 # the balance lead's thin wire then carries a few mA of the return, not amps
@@ -307,7 +308,7 @@ for _ in range(3):
     capacitor('+3V3', 'GND', '100n', group=g)
 capacitor('+3V3', 'GND', '4u7', '10V', '0603', g)
 capacitor('NRST', 'GND', '100n', group=g)
-add('J6', 'TC2030', {'1': '+3V3', '2': 'SWDIO', '3': 'NRST', '4': 'SWCLK', '5': 'GND', '6': NC}, 'SWD', g)
+add('J6', 'SWDPADS', {'1': '+3V3', '2': 'SWDIO', '3': 'NRST', '4': 'SWCLK', '5': 'GND'}, 'SWD', g)
 
 # ======================================================================
 # 9. User interface: toggle, rocker, display, LEDs, buzzer, USB
@@ -369,7 +370,7 @@ capacitor('VBUS', 'GND', '1u', '25V', '0603', g)
 
 # mounting holes
 for i in range(1, 5):
-    add(f'H{i}', 'HOLE', {}, 'M2.5', 'mechanical')
+    add(f'H{i}', 'HOLE', {'1': NC}, 'M3', 'mechanical')
 
 
 # ======================================================================
