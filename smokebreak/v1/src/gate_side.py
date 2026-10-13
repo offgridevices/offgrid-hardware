@@ -10,7 +10,7 @@ NETS = ('TPS_BST', 'TPS_PU', 'SRC', 'GATE', 'CDVDT', 'SNS_DRN')     # the inner 
 
 
 def reroute(b):
-    x0, y0, x1, y1 = 66.0 + B.OX, 37.0 + B.OY, 87.0 + B.OX, 51.8 + B.OY
+    x0, y0, x1, y1 = 44.0 + B.OX, 11.0 + B.OY, 64.0 + B.OX, 32.0 + B.OY      # the controller and the FETs
     n = 0
     for t in list(b.GetTracks()):
         if t.GetNetname() in NETS:

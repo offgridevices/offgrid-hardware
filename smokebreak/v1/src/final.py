@@ -46,37 +46,49 @@ def hand_routes(b):
     straight down into the FETs' source copper (past Q1's gate pad with the
     HV gap), and C14's minus pad into the drone-negative strip."""
     cx, cy = pad_xy(b, 'C14', '2')
-    if cx < 79.6:
-        B.track(b, [(cx, cy), (79.9, cy)], 0.4, pcbnew.F_Cu, 'DRONE_NEG')
+    if cx < make.NEG[0][0]:
+        B.track(b, [(cx, cy), (make.NEG[0][0] + 0.3, cy)], 0.4, pcbnew.F_Cu, 'DRONE_NEG')
+
+
+def _in_vin_plane(x, y, m=0.65):
+    return x < make.SPLIT - m or y < make.BACK - m
 
 
 def vin_bridge(b):
-    """R1 and R2 (the controller's VS filter and the battery divider) sit
-    just east of the In4 split, over the VOUT plane: a via west of the split
-    drops their VIN to the VIN plane.  The via goes on the nearest spot the
-    maze router's grid says is free on every layer."""
+    """VIN pads east of the In4 split (over the VOUT plane: R1, the
+    controller's VS filter) get a via down into the VIN plane on the nearest
+    spot the maze router's grid says is free on every layer."""
     import finish, finish_run
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
-    east = {}
-    for fp in b.GetFootprints():
-        for p in fp.Pads():
-            if p.GetNetname() == 'VIN' and fp.GetReference() in ('R1', 'R2'):
-                for l, g in finish._geom_of(p).items():
-                    east.setdefault(l, []).extend(g)
     if len(finish.islands(b, 'VIN')) <= 1:
         return 'not needed'
+    east, pts = {}, []
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            q = p.GetPosition()
+            x, y = pcbnew.ToMM(q.x) - B.OX, pcbnew.ToMM(q.y) - B.OY
+            if p.GetNetname() == 'VIN' and p.GetDrillSize().x == 0 and not _in_vin_plane(x, y, 0):
+                pts.append((x, y))
+                for l, g in finish._geom_of(p).items():
+                    east.setdefault(l, []).extend(g)
+    if not pts:
+        return 'no VIN pad east of the split'
+    px, py = pts[0]
     cl = finish_run.rules()[1]
+    x0, y0 = max(0.5, px - 9), max(0.5, py - 9)
     g = finish.Grid(b, finish.ROUTE_LAYERS, 0.2, 0.2, 0.45, clmap=cl,
-                    window=(B.OX + 64, B.OY + 28, B.OX + 82, B.OY + 46))
+                    window=(B.OX + x0, B.OY + y0, B.OX + px + 9, B.OY + py + 9))
     g.build('VIN')
     free = []
-    for i in range(int((SPLIT_WEST - 66.0) / 0.1) + 1):
-        for j in range(121):
-            x, y = 66.0 + 0.1 * i, 30.0 + 0.1 * j
+    for i in range(180):
+        for j in range(180):
+            x, y = x0 + 0.1 * i, y0 + 0.1 * j
+            if not _in_vin_plane(x, y):
+                continue
             ci, cj = g.cell(B.OX + x, B.OY + y)
-            if not g.vblock[cj, ci]:
+            if 0 <= cj < g.vblock.shape[0] and 0 <= ci < g.vblock.shape[1] and not g.vblock[cj, ci]:
                 free.append((x, y))
-    free.sort(key=lambda p: (p[0] - 77.6) ** 2 + (p[1] - 36.5) ** 2)
+    free.sort(key=lambda p: (p[0] - px) ** 2 + (p[1] - py) ** 2)
     for x, y in free[:40]:
         v = B.via(b, x, y, 'VIN', d=0.45, drill=0.2)
         res = finish.route_connection(b, 'VIN', east, finish._geom_of(v), track_w=0.2, clmap=cl)
@@ -84,9 +96,6 @@ def vin_bridge(b):
             return (round(x, 2), round(y, 2)) + tuple(res)
         B.remove(b, v)
     return None
-
-
-SPLIT_WEST = 75.2          # last x a VIN via may sit at (the In4 split is at 76)
 
 
 def stitch(b, pitch=3.0, margin=0.45):
@@ -204,11 +213,6 @@ if __name__ == '__main__':
     b = pcbnew.LoadBoard(tmp)
     print('VIN bridge', vin_bridge(b))
     ground_fill(b)
-    for z in b.Zones():
-        if z.GetZoneName() == 'Q1 drain':
-            ol = z.Outline(); ol.RemoveAllContours(); ol.NewOutline()
-            for x, y in B.rect(64.8, 44.6, 71.35, 51.2):
-                ol.Append(pcbnew.FromMM(B.OX + x), pcbnew.FromMM(B.OY + y))
     # the routing keep-outs become DRC rules (a rule area would bar the power
     # nets' own tracks too)
     for z in list(b.Zones()):

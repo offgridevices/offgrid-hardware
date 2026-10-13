@@ -103,7 +103,17 @@ BATT_NEG = [(11.0, 21.8), (15.4, 21.8), (15.4, 24.4), (17.9, 24.4), (17.9, 30.5)
 # drone minus: the two leads' minus pads side by side, and the shunt's drone end
 NEG = [(84.9, 19.0), (89.6, 19.0), (89.6, 33.4), (85.3, 33.4), (85.3, 36.4), (82.8, 36.4), (82.8, 33.9),
        (84.9, 33.9)]
-Q1_DRAIN = B.rect(45.0, 20.4, 48.9, 29.7)
+# Q1's drain: west of its pads, and a strip south under the 6S socket's body
+# where its plane vias go (the board's centre, under the lockup, stays via-free)
+Q1_DRAIN = [(45.0, 20.4), (48.9, 20.4), (48.9, 31.3), (42.6, 31.3), (42.6, 29.7), (45.0, 29.7)]
+# the underside art's fields: no vias (tracks and the ground fill may pass)
+LOCKUP_W = 22.0
+ART_FIELDS = [
+    ('brand field', B.rect(B.W / 2 - LOCKUP_W / 2 - 0.5, 22.0, B.W / 2 + LOCKUP_W / 2 + 0.5, 29.95)),
+    ('name field', B.rect(37.5, 1.2, 56.5, 8.2)),
+    ('flag field', B.rect(65.0, 43.0, 75.0, 49.5)),
+    ('smoke field', B.rect(13.0, 3.4, 32.0, 6.2)),
+]
 SOURCES = B.rect(52.35, 22.6, 55.15, 27.4)
 Q2_DRAIN = B.rect(59.85, 19.2, 62.2, 30.6)
 
@@ -128,11 +138,12 @@ def power_copper(b):
            name='shunt GND')
     # vias from the surface copper into the planes (0.8 / 0.4 mm, ~2 A each)
     pv = dict(d=0.8, drill=0.4)
-    for y in (21.0, 22.3, 23.6, 24.9, 26.2, 27.5, 28.8):           # Q1's drain, west of its pads
-        B.via(b, 45.6, y, 'VIN', **pv)
-    for x in (46.9, 48.2):
-        for y in (21.0, 29.1):
-            B.via(b, x, y, 'VIN', **pv)
+    # Q1's drain: a row of 1.0 / 0.6 mm vias at each end of its copper (as much
+    # barrel as twelve 0.4 mm ones), the middle left to the lockup underneath
+    for x in (45.55, 46.8, 48.05):
+        B.via(b, x, 20.9, 'VIN', d=1.0, drill=0.6)
+    for x in (43.05, 44.3, 45.55, 46.8, 48.05):
+        B.via(b, x, 30.55, 'VIN', d=1.0, drill=0.6)
     for y in (19.8, 21.1, 22.4, 23.7, 25.0, 26.3, 27.6, 28.9, 30.0):  # Q2's drain, east of its pads
         B.via(b, 61.6, y, 'VOUT', **pv)
     for y in (25.5, 26.8, 28.1, 29.4):                                 # Q11's sources into the plane
@@ -157,6 +168,12 @@ def screw_keepouts(b):
     for i, (x, y) in enumerate(B.HOLES, 1):
         circle = [(x + 4.7 * math.cos(math.radians(a)), y + 4.7 * math.sin(math.radians(a))) for a in range(0, 360, 15)]
         B.rule_area(b, circle, B.CU_ALL, tracks=True, vias=True, pads=False, pours=False, name=f'screw keep-out {i}')
+
+
+def art_fields(b):
+    """The underside art's fields: no vias through them on any layer."""
+    for name, poly in ART_FIELDS:
+        B.rule_area(b, poly, B.CU_ALL, tracks=False, vias=True, pads=False, pours=False, name=name)
 
 
 # ---------------------------------------------------------------- artwork
@@ -331,6 +348,8 @@ def build():
     B.netclass(b, 'Pulse', PULSE_NETS, 0.8, B.HV_CLEAR)                  # pre-charge: 7.8 A for ~0.1 s
     power_copper(b)
     moved = legalise(fps, b)
+    screw_keepouts(b)
+    art_fields(b)
     import fanout
     cl = {n: B.HV_CLEAR for n in HV_NETS + PULSE_NETS}
     done, left = fanout.fanout_gnd(b, classes=cl)
@@ -342,7 +361,6 @@ def build():
     for t in b.GetTracks():
         t.SetLocked(True)
     power_keepouts(b)
-    screw_keepouts(b)
     return b, fps, moved
 
 

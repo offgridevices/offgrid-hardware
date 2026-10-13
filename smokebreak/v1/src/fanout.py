@@ -61,8 +61,12 @@ def fanout_gnd(b, nets=('GND',), via=(0.5, 0.25), track=0.25, classes=None, edge
             fcu.append((LineString([(mm(s.x), mm(s.y)), (mm(e.x), mm(e.y))]).buffer(mm(t.GetWidth()) / 2),
                         t.GetNetname()))
     zones = []           # other-net zone outlines on F.Cu and on In2 (a via must not land in them)
+    novia = []           # rule areas that bar vias (screw keep-outs, the art's fields)
     for z in b.Zones():
         if z.GetIsRuleArea():
+            if z.GetDoNotAllowVias():
+                o = z.Outline().Outline(0)
+                novia.append(Polygon([(mm(o.CPoint(i).x), mm(o.CPoint(i).y)) for i in range(o.PointCount())]))
             continue
         ol = z.Outline()
         for k in range(ol.OutlineCount()):
@@ -111,6 +115,8 @@ def fanout_gnd(b, nets=('GND',), via=(0.5, 0.25), track=0.25, classes=None, edge
                     if ok and any(h.distance(Point(vx, vy)) < vdr / 2 + 0.25 + 0.0 for h in holes):
                         ok = False
                     if ok and any(g.buffer(0.2).contains(Point(vx, vy)) for g, n in zones if n != net):
+                        ok = False
+                    if ok and any(g.distance(Point(vx, vy)) < vd / 2 + 0.05 for g in novia):
                         ok = False
                     if ok and pad_g.contains(Point(vx, vy)):
                         ok = False                      # no via in the pad

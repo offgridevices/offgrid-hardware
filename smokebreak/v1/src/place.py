@@ -154,7 +154,7 @@ at('R52', 39.9, 28.0, 90)
 col(['C34', 'C38', 'C36'], 26.75, 9.6, 2.0, 90)     # west of the MCU, beside D3
 at('C35', 40.0, 23.0, 90)
 at('C37', 25.6, 21.4, 0)
-fix('J6', 22.6, 21.6, 0, 'B')           # SWD pogo pads on the underside (factory programming)
+fix('J6', 34.0, 15.2, 0, 'B')           # SWD pogo pads on the underside, under the MCU (factory jig)
 
 # display: the backlight FET and its four LED resistors beside the FPC
 at('Q9', 47.0, 10.4, 0)
