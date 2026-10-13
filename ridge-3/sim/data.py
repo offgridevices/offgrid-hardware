@@ -414,6 +414,8 @@ VARIANTS = {
                             idrive=0.03),
     'temp120': dict(desc='AM32\'s temperature limit at 120 C instead of 110 C (a configurator setting)',
                     am32_temp=120.0),
+    'idrive30-temp120': dict(desc='IDRIVE 30 mA / 60 mA and AM32\'s temperature limit at 120 C',
+                             idrive=0.03, am32_temp=120.0),
 }
 FETS_BY_NAME = {'ISZ023N06LM6': ISZ023N06LM6, 'BSZ040N06LS5': BSZ040N06LS5}
 
