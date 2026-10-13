@@ -14,7 +14,7 @@ the front.  place.py and the enclosure both import this file.
 """
 
 # ---------------------------------------------------------------- case
-CASE_W, CASE_D, CASE_H = 97.0, 54.0, 15.0
+CASE_W, CASE_D, CASE_H = 97.0, 56.0, 15.0
 CASE_R = 8.0                      # outer corner radius (G2: superellipse, n = 5)
 G2_N = 5.0
 WALL = 2.4                        # side walls
@@ -75,7 +75,7 @@ RING_SLOT = (RING_R - 0.9, RING_R + 0.9)       # the light ring cut in the face
 TOG_BUSHING_D = 6.35                           # 1/4-40 thread
 TOG_SHOULDER = 8.89                            # PCB to shoulder (C&K 7000 series)
 ROCK_W, ROCK_H = 24.0, 8.0
-ROCK_Y0 = M + GUARD_L + 4.0
+ROCK_Y0 = CASE_D - M - ROCK_H                  # its front edge M from the front
 ROCK = (TOG[0] - ROCK_W / 2, ROCK_Y0, ROCK_W, ROCK_H)
 ROCK_SW_DX = 6.5                               # its two switches, either side of the centre
 ROCK_SW_FY = ROCK_Y0 + 2.7
@@ -83,8 +83,8 @@ ROCK_SW_FY = ROCK_Y0 + 2.7
 # ---------------------------------------------------------------- plugs: XT60, XT30 male through the battery end
 # both mouths 2.5 mm proud of the end wall (the XT60's body must stop short of the well)
 PLUG_PROUD = 2.47
-J1_AT = (-BOARD_AT - PLUG_PROUD + 13.17, 27.25)    # board coords of the XT60 footprint origin
-J2_AT = (-BOARD_AT - PLUG_PROUD + 1.59, 41.75)     # XT30, rotated 270
+J1_AT = (-BOARD_AT - PLUG_PROUD + 13.17, 27.4)     # board coords of the XT60 footprint origin
+J2_AT = (6.3, 43.75)                              # XT30, rotated 270: its pegs must stay on the board, so its mouth sits 0.9 inside the wall
 USB_FX = 30.0                                      # USB-C in the back wall (case x)
 
 # ---------------------------------------------------------------- drone leads, out of the drone end
@@ -92,4 +92,4 @@ J3_AT = (88.4, 24.5)          # XT60 lead, 12 AWG pads (board)
 J4_AT = (88.4, 34.2)          # XT30 lead, 16 AWG pads (board)
 
 # ---------------------------------------------------------------- mounting: M3 into heat-set inserts
-HOLES = [(87.0, 4.6), (87.0, 44.4), (56.4, 44.4)]      # board coords
+HOLES = [(87.0, 4.6), (87.2, 46.2), (56.4, 46.2)]      # board coords
