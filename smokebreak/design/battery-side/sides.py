@@ -46,6 +46,7 @@ class Layout:
         self.key, self.name, self.L, self.D, self.H, self.R = key, name, L, D, H, R
         self.xt60 = self.xt30 = None
         self.sockets = {}          # cells -> (x, y, z, kind, rot)
+        self.labels = {}
         self.top = {}
 
     # ------------------------------------------------------------ building
@@ -89,7 +90,8 @@ class Layout:
             tz = z + SIDE_H / 2 + 1.6
             if tz > self.H - 1.2:
                 tz = z - SIDE_H / 2 - 1.6
-            s.text(f'{cells}S', 1.5, (x + dx * 1.05, y + dy * 1.05, tz), rot=(90, 0, rot - 90), name=f'xh{cells}-label')
+            label = self.labels.get(cells, f'{cells}S')
+            s.text(label, 1.5, (x + dx * 1.05, y + dy * 1.05, tz), rot=(90, 0, rot - 90), name=f'xh{cells}-label')
         else:                       # top entry: mouth up, in the well
             o = s.box((TOP_D, w, 1.2), (x, y, z), m=white, bevel=0.3, rot=(0, 0, rot), name=f'xh{cells}')
             s.box((TOP_D - 1.6, w - 1.8, 1.3), (x, y, z + 0.05), m='screen', bevel=0.2, rot=(0, 0, rot),
@@ -169,12 +171,13 @@ def layouts():
     # B. split level: plugs and sockets in two tiers on the battery end wall
     c = Layout('split', 'B. Split-level end wall', 86, 66, 20.5, R=5.0)
     c.xt60 = (-43, 20.0, 5.6)
-    c.xt30 = (-43, 21.2, 13.9)
-    c.sockets[6] = (-43, -1.0, 5.1, 'side', 0)
-    c.sockets[5] = (-43, -21.4, 5.1, 'side', 0)
-    c.sockets[4] = (-43, 6.6, 14.4, 'side', 0)
-    c.sockets[3] = (-43, -8.7, 14.4, 'side', 0)
-    c.sockets[2] = (-43, -21.5, 14.4, 'side', 0)
+    c.xt30 = (-43, 4.6, 13.9)
+    # lower tier (on the board's underside): XT60, 5S, 6S; upper tier: 4S, XT30, 3S, 2S
+    c.sockets[5] = (-43, 2.1, 5.1, 'side', 0)
+    c.sockets[6] = (-43, -18.25, 5.1, 'side', 0)
+    c.sockets[4] = (-43, 18.3, 14.4, 'side', 0)
+    c.sockets[3] = (-43, -7.9, 14.4, 'side', 0)
+    c.sockets[2] = (-43, -20.7, 14.4, 'side', 0)
     c.top = dict(screen=(-8.0, 13.0), rocker=(-8.0, -15.5), toggle=(24.0, -1.0))
     out.append(c)
 
@@ -183,6 +186,7 @@ def layouts():
     d.xt60 = (-46, 14.0, 9.0)
     d.xt30 = (-46, -1.4, 8.0)
     d.sockets[6] = (-46, -17.0, 7.55, 'side', 0)
+    d.labels[6] = '2S-6S  black wire this end >'
     d.top = dict(screen=(-14.0, 10.0), rocker=(-14.0, -18.0), toggle=(26.0, -2.0))
     out.append(d)
 
@@ -203,8 +207,10 @@ def render(lay, frame):
     sc.render.resolution_x, sc.render.resolution_y = 1600, 1000
     sc.cycles.samples = 48
     lay.build(frame)
-    cam, pivot = s.stage(elevation=24, azimuth=-128, lens=70)
+    cam, pivot = s.stage(elevation=22, azimuth=-118, lens=120)
     cam.data.shift_x, cam.data.shift_y = 0.0, 0.0
+    pivot.location.x -= lay.L * 0.18          # aim at the battery end
+    pivot.location.z = lay.H * 0.55
     sc.render.filepath = os.path.join(OUT, f'{lay.key}.png')
     bpy.ops.render.render(write_still=True)
 
