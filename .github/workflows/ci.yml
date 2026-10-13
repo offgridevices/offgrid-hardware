@@ -84,9 +84,9 @@ jobs:
           echo "Gerbers and drill files are byte-identical to the generator's output."
 
   ridge3-lite-v1:
-    # Ridge 3 Lite (aio-3in/v1).  make.py needs KiCad's pcbnew module and
+    # Ridge 3 Lite (ridge3-lite/v1).  make.py needs KiCad's pcbnew module and
     # kicad-cli, so the job runs in the same official KiCad image the board's
-    # toolchain pins (aio-3in/v1/tools/Dockerfile), by digest.  The routed
+    # toolchain pins (ridge3-lite/v1/tools/Dockerfile), by digest.  The routed
     # board is committed; this checks every gate and that the fab files are
     # what make.py produces from it.
     runs-on: blacksmith-2vcpu-ubuntu-2404
@@ -96,7 +96,7 @@ jobs:
       options: --user root
     defaults:
       run:
-        working-directory: aio-3in/v1
+        working-directory: ridge3-lite/v1
     env:
       HOME: /tmp
       PYTHONHASHSEED: '0'
