@@ -97,7 +97,9 @@ def safe_mask():
     A square erosion, so it is a little stricter than SAFE at the corners."""
     m = opening_mask().point(lambda v: 255 if v >= 250 else 0)
     k = 2 * SAFE * SCALE + 1
-    return m.filter(ImageFilter.MinFilter(k))
+    pad = Image.new('L', (m.size[0] + 2 * k, m.size[1] + 2 * k), 0)     # outside the panel is outside
+    pad.paste(m, (k, k))
+    return pad.filter(ImageFilter.MinFilter(k)).crop((k, k, k + m.size[0], k + m.size[1]))
 
 
 def masked(im):
@@ -366,7 +368,8 @@ def s04_precharge(t):
     x0 = 26 + width('Pre-charge', 15) + 12
     x1 = R - width('00.0 V', 14, 'mono') - 12
     c.rect(x0, ym - 3, x1, ym + 3, BAR_BG, r=3)
-    c.rect(x0, ym - 3, x0 + (x1 - x0) * ease(t), ym + 3, EMBER, r=3)
+    if ease(t) > 0.03:
+        c.rect(x0, ym - 3, x0 + (x1 - x0) * ease(t), ym + 3, EMBER, r=3)
     c.text(R, RC, f'{v:4.1f} V', 14, EMBER, 'mono', 'rs')
     c.tag('S04')
     return c
@@ -415,7 +418,7 @@ def s07_warning(t):
     c.rect(0, 0, PW, 3, EMBER, decor=True)
     c.dot_for(17, RA, 15, EMBER)
     c.text(27, RA, 'LIVE · LOOK', 15, EMBER, 'sans', 'ls', 600)
-    c.text(R, RA, 'Draws more than last time', 13, BONE, anchor='rs')
+    c.text(R, RA, 'More than last time', 13, BONE, anchor='rs')
     c.run(L, 47, [('0.42', 22, DIM, 'mono'), (' ', 10, DIM, 'mono'), ('→', 22, EMBER, 'mono'), (' ', 10, DIM, 'mono'),
                   ('0.71', 22, EMBER, 'mono'), (' ', 10, DIM, 'mono'), ('A', 22, EMBER, 'mono')])
     c.text(R, 47, 'Close the guard', 13, BONE, anchor='rs')
@@ -465,9 +468,9 @@ def s11_motor(t):
     c.stripes(0, 6, EMBER, t * 6)
     c.text(L, 25, '25 A MOTOR TEST', 15, EMBER, 'sans', 'ls', 600)
     c.text(L, RC, 'Props off?', 24, BONE, 'sans', 'ls', 600)
-    c.text(R, 43, 'Press + again to confirm', 13, BONE, anchor='rs')
+    c.text(R, 41, 'Press + again to confirm', 13, BONE, anchor='rs')
     tx = R - width('3 s', 13, 'mono')
-    x0, x1 = R - width('Press + again to confirm', 13), tx - 10
+    x0, x1 = L + width('Props off?', 24, 'sans', 600) + 16, tx - 10
     ym = RC - cap(13, 'mono') / 2
     c.rect(x0, ym - 2.5, x0 + (x1 - x0) * (1 - t), ym + 2.5, EMBER, r=2.5)
     c.text(R, RC, '3 s', 13, DIM, 'mono', 'rs')
@@ -597,7 +600,7 @@ def s17_wrong_side(t):
     c.text(46, RA, 'Battery on the drone side', 15, BONE, 'sans', 'ls', 600)
     c.text(46, RB, '← Move it to the Battery end', 13, BONE, anchor='ls')
     c.text(46, RC, 'Nothing was powered.', 13, DIM, anchor='ls')
-    c.text(R, RC, '16.4 V', 20, EMBER, 'mono', 'rs')
+    c.text(R, RC, '16.4 V', 16, EMBER, 'mono', 'rs')
     c.tag('S17')
     return c
 
@@ -631,7 +634,7 @@ def s18_shifted(t):
 
 def pack_view(c, dot, name):
     """The pack's number, big, with a status dot in the gutter."""
-    size = 36
+    size = 30
     c.dot_for(18, RB, size, dot, r=6)
     c.text(30, RB, name, size, BONE, 'sans', 'ls', 600)
 
@@ -640,7 +643,7 @@ def s19_new_pack(t):
     c = Canvas()
     pack_view(c, BLUE, 'Pack 12')
     c.text(R, RA, 'New pack', 13, BLUE, anchor='rs')
-    c.text(R, RB, '4S  16.42 V', 16, BONE, 'mono', 'rs')
+    c.text(R, RB, '16.42 V  4S', 16, BONE, 'mono', 'rs')
     c.text(30, RC, 'Write 12 on it', 13, BONE, anchor='ls')
     rocker(c, R, RC, [('+', 'yes, new'), ('−', 'no, old one')])
     c.tag('S19')
@@ -651,8 +654,8 @@ def s20_pack_guess(t):
     c = Canvas()
     pack_view(c, GREEN, 'Pack 7?')
     c.text(R, RA, 'Used 23 times', 13, DIM, anchor='rs')
-    c.text(R, RB, '4S  16.61 V', 16, BONE, 'mono', 'rs')
-    c.run(30, RC, [('R ', 13, BONE, 'sans'), ('+18 %', 13, EMBER, 'mono'), (' since new', 13, BONE, 'sans')])
+    c.text(R, RB, '16.61 V  4S', 16, BONE, 'mono', 'rs')
+    c.run(30, RC, [('R ', 13, BONE, 'sans'), ('+18 %', 13, EMBER, 'mono'), ('  since new', 13, BONE, 'sans')])
     rocker(c, R, RC, [('+', 'yes'), ('−', 'other')])
     c.tag('S20')
     return c

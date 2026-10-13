@@ -384,7 +384,7 @@ res('VBUS_SENSE', 'GND', 100e3, group=g)
 capacitor('VBUS', 'GND', '1u', '25V', '0603', g)
 
 # mounting holes
-for i in range(1, 5):
+for i in range(1, 4):              # three M3: the screen covers the board's back-left
     add(f'H{i}', 'HOLE', {'1': NC}, 'M3', 'mechanical')
 
 

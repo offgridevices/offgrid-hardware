@@ -130,9 +130,9 @@ PARTS = {
     'XT60M':     P('CONN-TH_XT60PW-M', 'Amass', 'XT60PW-M', 'C98732', 'XT60 male, PCB horizontal (battery)', fit='tht'),
     'XT30M':     P('CONN-TH_XT30PW-M', 'Amass', 'XT30PW-M30.G.Y', 'C431092', 'XT30 male, PCB horizontal (battery)', fit='tht'),
     # drone side: female plugs on short pigtails (length set at assembly), soldered to pads
-    'XT60F_LEAD': P('WirePads_12AWG', 'Amass', 'XT60H-F.G.Y', 'C30170202',
+    'XT60F_LEAD': P('WirePads_12AWG_NS', 'Amass', 'XT60H-F.G.Y', 'C30170202',
                     'XT60 female plug on a 12 AWG silicone pigtail, 50-75 mm, soldered to the J3 pads (drone side)', fit='tht'),
-    'XT30F_LEAD': P('WirePads_16AWG', 'Amass', 'XT30U-F', 'C99102',
+    'XT30F_LEAD': P('WirePads_16AWG_NS', 'Amass', 'XT30U-F', 'C99102',
                     'XT30 female plug on a 16 AWG silicone pigtail, 50-75 mm, soldered to the J4 pads (drone side)', fit='tht'),
     # balance: one top-entry JST-XH per size, in the well behind the battery plugs
     'XHT3':      P('Connector_JST:JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical', 'JST', 'B3B-XH-A(LF)(SN)', 'C144394', 'JST-XH 3 pin top entry (2S balance)', fit='tht'),
