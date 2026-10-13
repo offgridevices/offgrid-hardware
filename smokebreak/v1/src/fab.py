@@ -89,6 +89,9 @@ def bom_and_cpl(b):
         refs = sorted(refs, key=natural)
         note = {'smt': '', 'tht': 'Through-hole: supplied loose, hand-soldered by OffGrid (do not fit)',
                 'off': 'Not on the board: supplied loose (plugs into J7)'}[p['fit']]
+        if 'onsign' in p['desc']:
+            note = ('LCSC has no stock: please source by MPN (Digi-Key / Mouser), or OffGrid consigns it. '
+                    'Do not substitute. ' + note).strip()
         rows.append([i, ','.join(refs), len(refs), p['mfr'], p['mpn'], p['desc'], c['value'] or '',
                      p['fp'].split(':')[1] if p['fp'] else '', 'SMD' if p['fit'] == 'smt' else 'THT' if p['fit'] == 'tht' else '-',
                      p['lcsc'] or '', note])
