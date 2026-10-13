@@ -53,7 +53,7 @@ female plugs are soldered to pads.
 1. Pre-charge resistors R_PRE, R_PRE2 (end to end along the back): lie them
    flat on the top, bend the leads, solder, trim to 1.5 mm.
 2. Balance sockets J12 (2S), J11 (3S), J10 (4S), J9 (5S), J5 (6S), mouths up,
-   latch side as the silkscreen outline shows. The bottom silkscreen names
+   pin 1 in the square pad at the front. The bottom silkscreen names
    each one, with an arrow at pin 1 (black wire). USB-C (back wall) is
    already on.
 3. XT60 (J1) and XT30 (J2) male at the battery end, mating face past the
