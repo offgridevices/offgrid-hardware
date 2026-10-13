@@ -22,6 +22,8 @@ import make
 
 # power copper and the nets whose own tracks may cross it
 ALLOWED = {'sources': {'SRC'}, 'Q1 drain': {'VIN'}, 'battery minus': {'BATT_NEG'},
+           'battery plus': {'VBAT'}, 'fuse load side': {'VIN'}, 'Q2 drain': {'VOUT'},
+           'Q11 sources': {'GND'}, 'shunt GND': {'GND'},
            'drone negative': {'DRONE_NEG', 'VOUT', 'VOUT_SNUB'}}
 REMOVE = ('shorting_items', 'clearance', 'tracks_crossing', 'copper_edge_clearance')
 not_allowed = set()

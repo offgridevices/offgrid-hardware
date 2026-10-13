@@ -42,16 +42,20 @@ def pad_xy(b, ref, num):
 
 
 def hand_routes(b):
-    """The few joins the routers cannot see: the controller's source-sense pin
-    straight down into the FETs' source copper (past Q1's gate pad with the
-    HV gap), and C14's minus pad into the drone-negative strip."""
-    cx, cy = pad_xy(b, 'C14', '2')
-    if cx < make.NEG[0][0]:
-        B.track(b, [(cx, cy), (make.NEG[0][0] + 0.3, cy)], 0.4, pcbnew.F_Cu, 'DRONE_NEG')
+    """The joins the routers cannot see (none on the compact board: every
+    power pad sits inside its own copper)."""
+    return
+
+
+_VIN = None
 
 
 def _in_vin_plane(x, y, m=0.65):
-    return x < make.SPLIT - m or y < make.BACK - m
+    global _VIN
+    from shapely.geometry import Point, Polygon
+    if _VIN is None:
+        _VIN = Polygon(make.VIN_PLANE)
+    return _VIN.buffer(-m).contains(Point(x, y)) if m else _VIN.contains(Point(x, y))
 
 
 def vin_bridge(b):
@@ -163,11 +167,13 @@ def seal(b):
     print('stitching vias', stitch(b))
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     pcbnew.SaveBoard(make.OUT, b)
-    B.set_stackup(make.OUT)
+    B.set_stackup(make.OUT, inner_oz=1.0)
     extra = ''.join('(rule "no other track across the %s copper"\n'
                     '  (condition "A.Type == \'Track\' && A.NetName != \'%s\' && A.intersectsArea(\'%s\')")\n'
                     '  (constraint disallow track))\n' % (zn, net, zn)
-                    for zn, net in (('sources', 'SRC'), ('Q1 drain', 'VIN'), ('battery minus', 'BATT_NEG')))
+                    for zn, net in (('sources', 'SRC'), ('Q1 drain', 'VIN'), ('battery minus', 'BATT_NEG'),
+                                    ('battery plus', 'VBAT'), ('fuse load side', 'VIN'), ('Q2 drain', 'VOUT'),
+                                    ('Q11 sources', 'GND'), ('shunt GND', 'GND')))
     # the drone-negative strip also hosts C14's and the snubber's short VOUT stubs
     extra += ('(rule "no other track across the drone negative copper"\n'
               '  (condition "A.Type == \'Track\' && A.NetName != \'DRONE_NEG\' && A.NetName != \'VOUT\' '

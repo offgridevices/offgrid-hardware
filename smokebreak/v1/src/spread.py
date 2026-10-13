@@ -16,6 +16,7 @@ import board as B
 import circuit as C
 import geometry as G
 import place
+import make
 
 RES = 0.05
 GRID = 0.25
@@ -89,8 +90,16 @@ def mark(occ_raw, occ_grown, shape, x, y):
 def main(out='place_legal.py'):
     b = B.new_board('/tmp/spread.kicad_pcb')
     fps = B.place_components(b, {r: v for r, v in place.ANCHORS.items()})
-    occ_cy = np.zeros((NY, NX), bool)
-    occ_pad = np.zeros((NY, NX), bool)
+    occ_raw = np.zeros((NY, NX), bool)
+    occ_grown = np.zeros((NY, NX), bool)
+    # outside the board's rounded outline (less the inset) is taken
+    r = G.BOARD_R
+    xs = (np.arange(NX) + 0.5) * RES
+    ys = (np.arange(NY) + 0.5) * RES
+    X, Y = np.meshgrid(xs, ys)
+    cx = np.clip(X, r, B.W - r)
+    cy_ = np.clip(Y, r, B.H - r)
+    occ_raw |= np.hypot(X - cx, Y - cy_) > r - INSET
     # fixed parts and the underside parts' through-holes first
     todo = []
     for ref, (x, y, rot, side, fixed) in place.ANCHORS.items():
@@ -100,9 +109,18 @@ def main(out='place_legal.py'):
         if fixed or side == 'B':
             if side == 'B':
                 continue
-            mark(occ_cy, occ_pad, local_boxes(fp, rot), x, y)
+            mark(occ_raw, occ_grown, local_boxes(fp, rot), x, y)
         else:
             todo.append(ref)
+    # the surface power copper: no other part's pads or body on it
+    keep = {}
+    for name, poly, layers in make.POWER_KEEPOUTS:
+        if pcbnew.F_Cu in layers:
+            g = np.zeros((NY, NX), bool)
+            for (a, b_, c, d, _) in make._rect_boxes(poly):
+                i0, i1, j0, j1 = cells((a, b_, c, d), 0, 0)
+                g[j0:j1, i0:i1] = True
+            keep[name] = g
     shapes = {}
     for ref in todo:
         rot = place.ANCHORS[ref][2]
@@ -120,9 +138,14 @@ def main(out='place_legal.py'):
     for ref in todo:
         x, y, rot, side, fixed = place.ANCHORS[ref]
         best = None
+        guest = [n for n, refs in make.KEEPOUT_GUESTS.items() if ref in refs]
+        blocked = occ_raw.copy()
+        for n, g in keep.items():
+            if n not in guest:
+                blocked |= g
         for dx, dy in cands:
             for k, (r, sh) in enumerate(shapes[ref]):
-                if free(occ_cy, occ_pad, sh, x + dx, y + dy):
+                if free(blocked, occ_grown, sh, x + dx, y + dy):
                     best = (dx, dy, r, sh)
                     break
             if best:
@@ -130,7 +153,7 @@ def main(out='place_legal.py'):
         if not best:
             raise RuntimeError(f'no room for {ref} near ({x}, {y})')
         dx, dy, r, sh = best
-        mark(occ_cy, occ_pad, sh, x + dx, y + dy)
+        mark(occ_raw, occ_grown, sh, x + dx, y + dy)
         res[ref] = (round(x + dx, 3), round(y + dy, 3), r, (x, y, rot))
         d = math.hypot(dx, dy)
         if d > 3:

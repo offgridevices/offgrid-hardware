@@ -101,10 +101,10 @@ at('C37', 23.0, 4.6, 0)
 # and its diode on the way to R_PRE's pin 1; the divider row-houses (one
 # column per tap) behind the 4S socket; the OR diodes between
 fix('Q11', 16.65, 32.1, 90)
-fix('Q3', 19.25, 22.95, 0)
+fix('Q3', 18.0, 22.95, 180)                              # tab east, toward its diode
 fix('D3', 26.0, 22.75, 90)
 at('R74', 20.6, 27.0, 0)
-at('D20', 21.2, 30.6, 90)
+at('D20', 23.3, 28.6, 90)
 for i, k in enumerate(range(2, C.BALANCE_MAX + 2)):
     parts_k = [r for r, c in C.COMPONENTS.items() if c['group'] == 'balance' and not r.startswith('J')
                and any(n in (f'BAL{k}', f'BAL{k}_ADC') for n in c['pins'].values())]

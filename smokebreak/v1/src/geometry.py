@@ -27,7 +27,7 @@ M = 6.0                           # the one margin
 # ---------------------------------------------------------------- board
 BOARD_W = CASE_W - 2 * BOARD_AT   # 91.6
 BOARD_H = CASE_D - 2 * BOARD_AT   # 50.6
-BOARD_R = 5.0
+BOARD_R = 2.5                     # small enough for the XT30's peg; still 0.4 inside the G2 wall
 PCB_T = 1.6
 PCB_TOP_Z = 4.3                   # floor 1.4 + 1.3 lead clearance + 1.6 board
 PANEL_UNDER_Z = CASE_H - PANEL    # 13.4
@@ -84,7 +84,7 @@ ROCK_SW_FY = ROCK_Y0 + 2.7
 # both mouths 2.5 mm proud of the end wall (the XT60's body must stop short of the well)
 PLUG_PROUD = 2.47
 J1_AT = (-BOARD_AT - PLUG_PROUD + 13.17, 27.4)     # board coords of the XT60 footprint origin
-J2_AT = (6.3, 43.75)                              # XT30, rotated 270: its pegs must stay on the board, so its mouth sits 0.9 inside the wall
+J2_AT = (6.3, 43.0)                              # XT30, rotated 270: its pegs must stay on the board, so its mouth sits 0.9 inside the wall
 USB_FX = 30.0                                      # USB-C in the back wall (case x)
 
 # ---------------------------------------------------------------- drone leads, out of the drone end

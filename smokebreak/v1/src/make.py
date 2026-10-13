@@ -91,83 +91,90 @@ def legalise(fps, b):
 
 
 # ---------------------------------------------------------------- power copper
-# Layers: F.Cu parts + signals + power pours; In1 solid GND; In2 the power
-# planes (VIN west, VOUT east); B.Cu signals + GND fill + DRONE_NEG strip.
-SPLIT = 53.75           # In4: VIN west of the FETs' sources, VOUT east of them (Q1 | Q2)
-BACK = 9.5              # ... except a VIN strip along the back (y < BACK) for the aux supply
-VOUT_PLANE = [(SPLIT + 0.4, BACK + 0.4), (B.W - 0.4, BACK + 0.4), (B.W - 0.4, B.H - 0.4), (SPLIT + 0.4, B.H - 0.4)]
-VIN_PLANE = [(0.4, 0.4), (B.W - 0.4, 0.4), (B.W - 0.4, BACK - 0.4), (SPLIT - 0.4, BACK - 0.4),
-             (SPLIT - 0.4, B.H - 0.4), (0.4, B.H - 0.4)]
+# Layers: F.Cu parts + signals + power pours; In1 solid GND; In2, In3
+# signals; In4 the power layer (VIN west, VOUT east); B.Cu signals + GND
+# fill.  The battery corner (both plugs and the fuse's line side) is a VBAT
+# island on every layer but In1, so the XT30's plus reaches the fuse.
+# Battery current: plug + -> VBAT -> F1 -> VIN plane -> Q1 drain -> sources ->
+# Q2 drain -> VOUT plane -> lead pads; back: lead minus -> shunt -> GND plane
+# -> Q11 -> plug minus.
+VBAT_AREA = [(0.4, 12.4), (4.3, 12.4), (4.3, 19.3), (13.4, 19.3), (13.4, 27.6), (8.2, 27.6), (8.2, 42.85),
+             (13.4, 42.85), (13.4, 50.2), (0.4, 50.2)]
+VIN_PLANE = [(0.4, 0.4), (44.0, 0.4), (44.0, 19.3), (55.35, 19.3), (55.35, 50.2), (13.8, 50.2), (13.8, 42.45),
+             (8.6, 42.45), (8.6, 28.0), (13.8, 28.0), (13.8, 18.9), (4.7, 18.9), (4.7, 12.0), (0.4, 12.0)]
+VOUT_PLANE = [(44.4, 0.4), (91.2, 0.4), (91.2, 50.2), (55.75, 50.2), (55.75, 18.9), (44.4, 18.9)]
+# the fuse's load side, on the surface, its vias into the VIN plane under
+# the fuse's body (the controller's pins leave no room east of it)
+F1_LOAD = B.rect(4.7, 12.4, 11.6, 18.9)
 # battery minus: J1's and J2's minus pins to Q11's drain (both outer layers)
-BATT_NEG = [(11.0, 21.8), (15.4, 21.8), (15.4, 24.4), (17.9, 24.4), (17.9, 30.5), (14.2, 30.5),
-            (14.2, 34.4), (9.4, 34.4), (9.4, 30.4), (11.0, 30.4)]
-# drone minus: the two leads' minus pads side by side, and the shunt's drone end
-NEG = [(84.9, 19.0), (89.6, 19.0), (89.6, 33.4), (85.3, 33.4), (85.3, 36.4), (82.8, 36.4), (82.8, 33.9),
-       (84.9, 33.9)]
-# Q1's drain: west of its pads, and a strip south under the 6S socket's body
-# where its plane vias go (the board's centre, under the lockup, stays via-free)
-Q1_DRAIN = [(45.0, 20.4), (48.9, 20.4), (48.9, 31.3), (42.6, 31.3), (42.6, 29.7), (45.0, 29.7)]
+BATT_NEG = [(8.6, 28.0), (18.2, 28.0), (18.2, 35.0), (14.4, 35.0), (14.4, 42.45), (8.6, 42.45)]
+Q11_SOURCES = B.rect(19.0, 31.0, 21.4, 36.2)
+# Q1's drain, west of its pads, down to its vias below the lockup's field
+Q1_DRAIN = [(45.8, 24.9), (50.0, 24.9), (50.0, 31.0), (48.6, 31.0), (48.6, 35.4), (45.8, 35.4)]
+SOURCES = [(54.4, 26.75), (55.4, 26.75), (55.4, 25.4), (57.1, 25.4), (57.1, 29.25), (56.1, 29.25),
+           (56.1, 30.6), (54.4, 30.6)]
+Q2_DRAIN = B.rect(61.9, 25.1, 64.8, 30.9)
+# drone minus: the two leads' minus pads and the shunt's drone end
+NEG = [(82.4, 27.6), (85.6, 27.6), (85.6, 24.3), (91.2, 24.3), (91.2, 33.7), (86.6, 33.7), (86.6, 29.5),
+       (82.4, 29.5)]
+SHUNT_GND = B.rect(82.6, 31.0, 86.2, 33.4)
 # the underside art's fields: no vias (tracks and the ground fill may pass)
 LOCKUP_W = 22.0
 ART_FIELDS = [
-    ('brand field', B.rect(B.W / 2 - LOCKUP_W / 2 - 0.5, 22.0, B.W / 2 + LOCKUP_W / 2 + 0.5, 29.95)),
-    ('name field', B.rect(37.5, 1.2, 56.5, 8.2)),
-    ('flag field', B.rect(65.0, 43.0, 75.0, 49.5)),
-    ('smoke field', B.rect(13.0, 3.4, 32.0, 6.2)),
+    ('brand field', B.rect(B.W / 2 - LOCKUP_W / 2 - 0.5, 21.2, B.W / 2 + LOCKUP_W / 2 + 0.5, 29.6)),
+    ('name field', B.rect(B.W / 2 - 9.5, 3.4, B.W / 2 + 9.5, 8.6)),
+    ('flag field', B.rect(69.5, 43.0, 80.5, 49.4)),
+    ('smoke field', B.rect(26.5, 9.9, 45.5, 12.3)),        # under the pre-charge resistors
 ]
-SOURCES = B.rect(52.35, 22.6, 55.15, 27.4)
-Q2_DRAIN = B.rect(59.85, 19.2, 62.2, 30.6)
 
 
 def power_copper(b):
     full = B.board_poly(0.4)
     B.zone(b, 'GND', pcbnew.In1_Cu, full, clearance=0.3, name='GND plane')
-    # In4: the power layer
     B.zone(b, 'VIN', pcbnew.In4_Cu, VIN_PLANE, clearance=0.4, name='VIN plane')
     B.zone(b, 'VOUT', pcbnew.In4_Cu, VOUT_PLANE, clearance=0.4, name='VOUT plane')
-    # surface copper of the power path: Q1's drain, the sources, Q2's drain
+    for layer in (pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu):
+        B.zone(b, 'VBAT', layer, VBAT_AREA, clearance=0.4, priority=3, thermal=False, name='battery plus')
+    B.zone(b, 'VIN', pcbnew.F_Cu, F1_LOAD, clearance=0.3, priority=2, thermal=False, name='fuse load side')
     B.zone(b, 'VIN', pcbnew.F_Cu, Q1_DRAIN, clearance=0.3, priority=2, thermal=False, name='Q1 drain')
     B.zone(b, 'SRC', pcbnew.F_Cu, SOURCES, clearance=0.3, priority=2, thermal=False, name='sources')
     B.zone(b, 'VOUT', pcbnew.F_Cu, Q2_DRAIN, clearance=0.3, priority=2, thermal=False, name='Q2 drain')
     for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
         B.zone(b, 'DRONE_NEG', layer, NEG, clearance=0.3, priority=2, thermal=False, name='drone negative')
         B.zone(b, 'BATT_NEG', layer, BATT_NEG, clearance=0.3, priority=3, thermal=False, name='battery minus')
-    # Q11's sources and the shunt's ground end: surface copper into the GND plane
-    B.zone(b, 'GND', pcbnew.F_Cu, B.rect(21.9, 24.9, 24.2, 30.1), clearance=0.3, priority=2, thermal=False,
-           name='Q11 sources')
-    B.zone(b, 'GND', pcbnew.F_Cu, B.rect(79.9, 34.4, 81.3, 37.2), clearance=0.3, priority=2, thermal=False,
-           name='shunt GND')
-    # vias from the surface copper into the planes (0.8 / 0.4 mm, ~2 A each)
+    B.zone(b, 'GND', pcbnew.F_Cu, Q11_SOURCES, clearance=0.3, priority=2, thermal=False, name='Q11 sources')
+    B.zone(b, 'GND', pcbnew.F_Cu, SHUNT_GND, clearance=0.3, priority=2, thermal=False, name='shunt GND')
+    big = dict(d=1.0, drill=0.6)              # ~3 A each
     pv = dict(d=0.8, drill=0.4)
-    # Q1's drain: a row of 1.0 / 0.6 mm vias at each end of its copper (as much
-    # barrel as twelve 0.4 mm ones), the middle left to the lockup underneath
-    for x in (45.55, 46.8, 48.05):
-        B.via(b, x, 20.9, 'VIN', d=1.0, drill=0.6)
-    for x in (43.05, 44.3, 45.55, 46.8, 48.05):
-        B.via(b, x, 30.55, 'VIN', d=1.0, drill=0.6)
-    for y in (19.8, 21.1, 22.4, 23.7, 25.0, 26.3, 27.6, 28.9, 30.0):  # Q2's drain, east of its pads
-        B.via(b, 61.6, y, 'VOUT', **pv)
-    for y in (25.5, 26.8, 28.1, 29.4):                                 # Q11's sources into the plane
-        B.via(b, 23.6, y, 'GND', **pv)
-    for y in (35.0, 36.4):                                             # the shunt's ground end
-        B.via(b, 80.4, y, 'GND', **pv)
-    # the pre-charge FET's source pin east into the VIN plane
-    q3 = {p.GetNumber(): p.GetPosition() for p in b.FindFootprintByReference('Q3').Pads()}
-    sx, sy = pcbnew.ToMM(q3['3'].x) - B.OX, pcbnew.ToMM(q3['3'].y) - B.OY
-    B.track(b, [(sx, sy), (sx + 1.5, sy)], 1.0, pcbnew.F_Cu, 'VIN')
-    for k in (-0.6, 0.6):
-        B.via(b, sx + 1.9, sy + k, 'VIN', **pv)
+    for x in (5.5, 6.6, 7.7):                 # the fuse's load side into the VIN plane, under its body
+        for y in (13.4, 14.6, 15.8, 17.0, 18.2):
+            B.via(b, x, y, 'VIN', **big)
+    for x, y in ((1.3, 20.0), (2.5, 20.0), (1.3, 21.2), (2.5, 21.2), (1.3, 22.4), (2.5, 22.4),
+                 (7.3, 20.0), (8.5, 20.0), (7.3, 21.2), (7.3, 22.4)):   # the XT30's plus, up to the fuse
+        B.via(b, x, y, 'VBAT', **big)
+    for x in (46.5, 47.8):                    # Q1's drain, below the lockup's field
+        for y in (30.4, 31.6, 32.8, 34.0):
+            B.via(b, x, y, 'VIN', **big)
+    for x in (63.0, 64.2):                    # Q2's drain, east of its pads
+        for y in (25.7, 26.9, 28.1, 29.3, 30.4):
+            B.via(b, x, y, 'VOUT', **big)
+    for y in (31.6, 32.8, 34.0, 35.3):        # Q11's sources into the GND plane
+        B.via(b, 20.6, y, 'GND', **big)
+    for x in (83.2, 84.4, 85.6):              # the shunt's ground end
+        B.via(b, x, 32.6, 'GND', **big)
+    for x, y in ((9.6, 29.0), (9.6, 33.6), (9.6, 38.6), (12.6, 37.0), (13.2, 39.6)):   # battery minus, F <-> B
+        B.via(b, x, y, 'BATT_NEG', **big)
     for v in b.GetTracks():
         v.SetLocked(True)
 
 
 def screw_keepouts(b):
-    """No track or via under an M3 washer or a printed boss: a 9.4 mm circle
+    """No track or via under an M3 washer or a printed boss: an 8 mm circle
     round each hole, every copper layer (pours may fill it; the plated ring
     the washer bears on is the hole's own pad)."""
     import math
     for i, (x, y) in enumerate(B.HOLES, 1):
-        circle = [(x + 4.7 * math.cos(math.radians(a)), y + 4.7 * math.sin(math.radians(a))) for a in range(0, 360, 15)]
+        circle = [(x + 4.0 * math.cos(math.radians(a)), y + 4.0 * math.sin(math.radians(a))) for a in range(0, 360, 15)]
         B.rule_area(b, circle, B.CU_ALL, tracks=True, vias=True, pads=False, pours=False, name=f'screw keep-out {i}')
 
 
@@ -252,8 +259,8 @@ def art_items():
         dict(kind='lockup', x=W / 2, y=B.H / 2, width=LOCKUP_W, layer=Bs, fixed=True),
         t('SmokeBreak', W / 2, 5.3, 2.0, Bs, weight=600),
         t('v1.0', W / 2, 7.55, 0.8, Bs, font='mono'),
-        dict(kind='flag', x=v(70.0), y=48.6 - 5.26 / 2, hoist=5.26, layer=Bs, fixed=True),   # foot on the socket labels' baseline
-        t('The magic smoke stays in.', v(22.4), 5.05, 0.9, Bs),
+        dict(kind='flag', x=v(75.0), y=46.2, hoist=5.26, layer=Bs, fixed=True),     # under the rocker, level with the screws
+        t('The magic smoke stays in.', v(36.0), 11.55, 0.9, Bs),                    # under the pre-charge resistors
     ]
     # balance sockets: "4S ->" left of each pin 1, on pin 1's line
     for ref, x in place.SOCKETS:
@@ -266,16 +273,18 @@ def art_items():
         (x1, y1), (x2, y2) = _pad(ref, '1'), _pad(ref, '2')     # 1 = minus, 2 = plus
         bottom += [t(name, v(x1), (y1 + y2) / 2 + cap / 2, cap, Bs),
                    t('\u2212', v(x1) + side, y1 + 0.6, 1.2, Bs), t('+', v(x2) + side, y2 + 0.6, 1.2, Bs)]
-    # the drone leads' pads, both sides (the wires may go in from either)
+    # the drone leads' pads, both sides (the wires may go in from either):
+    # the name between the pads, polarity on the board side of each
     top = []
     for ref, name, cap in (('J3', 'XT60', 1.0), ('J4', 'XT30', 0.9)):
         (x1, y1), (x2, y2) = _pad(ref, '1'), _pad(ref, '2')     # 1 = plus, 2 = minus
         for layer, f in ((T, lambda x: x), (Bs, v)):
             lst = top if layer == T else bottom
-            mx = f(90.1)                                   # between the pads and the zip-tie slots
-            lst += [t(name, f(x1), (y1 + y2) / 2 + cap / 2, cap, layer),
-                    t('+', mx, y1 + 0.6, 1.2, layer), t('\u2212', mx, y2 + 0.6, 1.2, layer)]
-    top += [dict(t('SmokeBreak v1.0', 56.0, 51.2, 0.8, T), fixed=False)]
+            fx = layer == Bs
+            lst += [dict(t(name, f(x1), (y1 + y2) / 2 + cap / 2, cap, layer), fixed=fx),
+                    dict(t('+', f(x1 - 3.0), y1 + 0.6, 1.2, layer), fixed=fx),
+                    dict(t('\u2212', f(x2 - 3.0), y2 + 0.6, 1.2, layer), fixed=fx)]
+    top += [dict(t('SmokeBreak v1.0', 60.0, 49.6, 0.8, T), fixed=False)]
     return top, bottom
 
 
@@ -321,10 +330,6 @@ def dsn_keepouts(b):
     return
 
 
-# parts that belong inside a power area (their pads are its copper)
-KEEPOUT_GUESTS = {'drone negative': ('RS1',)}
-
-
 def _rect_boxes(poly, gap=0.1):
     """A rectilinear power-copper outline as legaliser boxes: one per band
     between its corners' y values (its bounding box would block the notches)."""
@@ -343,12 +348,20 @@ def _rect_boxes(poly, gap=0.1):
 
 # (name, polygon, layers): power copper no other track may cut
 POWER_KEEPOUTS = [
+    ('battery plus', VBAT_AREA, [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]),
+    ('fuse load side', F1_LOAD, [pcbnew.F_Cu]),
     ('sources', SOURCES, [pcbnew.F_Cu]),
     ('Q1 drain', Q1_DRAIN, [pcbnew.F_Cu]),
     ('Q2 drain', Q2_DRAIN, [pcbnew.F_Cu]),
     ('drone negative', NEG, [pcbnew.F_Cu, pcbnew.B_Cu]),
     ('battery minus', BATT_NEG, [pcbnew.F_Cu, pcbnew.B_Cu]),
+    ('Q11 sources', Q11_SOURCES, [pcbnew.F_Cu]),
+    ('shunt GND', SHUNT_GND, [pcbnew.F_Cu]),
 ]
+# parts that belong inside a power area (their pads are its copper)
+KEEPOUT_GUESTS = {'drone negative': ('RS1', 'J3', 'J4'), 'battery plus': ('F1', 'J1', 'J2'),
+                  'fuse load side': ('F1',), 'battery minus': ('J1', 'J2', 'Q11'), 'Q11 sources': ('Q11',),
+                  'shunt GND': ('RS1',), 'sources': ('Q1', 'Q2'), 'Q1 drain': ('Q1',), 'Q2 drain': ('Q2',)}
 
 
 def power_keepouts(b):
@@ -390,6 +403,6 @@ if __name__ == '__main__':
     for ref, dx, dy in moved:
         print(f'  moved {ref:6s} {dx:+.2f} {dy:+.2f}')
     pcbnew.SaveBoard(OUT, b)
-    B.set_stackup(OUT)
+    B.set_stackup(OUT, inner_oz=1.0)
     B.write_rules(OUT)
     print('placed', len(fps), '->', OUT)
