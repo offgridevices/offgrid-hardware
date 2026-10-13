@@ -107,7 +107,9 @@ def run(name, netlist, vectors):
     whose time step collapses under the default (trapezoidal) integration
     is run once more with Gear's, which damps the stiff loops (a few nH
     against amps) that stall it; nothing else in the netlist changes.  One
-    that stalls under Gear's as well gets gmin 1e-11 S (GMIN)."""
+    that stalls under Gear's as well gets gmin 1e-11 S, then 1e-10 S (GMIN;
+    a 68 A edge at 150 C in an 8 nH loop needs the second, and gives the
+    same edge as 1e-9 S or a looser reltol)."""
     os.makedirs(WORK, exist_ok=True)
     netlist = _options(netlist)
     cir = os.path.join(WORK, name + '.cir')
@@ -130,7 +132,10 @@ def run(name, netlist, vectors):
             p = go(gear)
             GEAR.append(name)
     if stalled(p) and 'gmin=' not in gear:
-        p = go(re.sub(r'(?m)^(\.options\b.*)$', r'\1 gmin=1e-11', gear, count=1))
+        for g in ('1e-11', '1e-10'):
+            p = go(re.sub(r'(?m)^(\.options\b.*)$', r'\1 gmin=' + g, gear, count=1))
+            if not stalled(p):
+                break
         GMIN.append(name)
     if p.returncode != 0 or not os.path.exists(dat):
         raise RuntimeError('ngspice failed on %s:\n%s' % (cir, p.stdout[-3000:] + p.stderr[-3000:]))
