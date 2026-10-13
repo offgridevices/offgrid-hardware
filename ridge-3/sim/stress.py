@@ -38,9 +38,10 @@ AIRS = (25.0, HOT, 60.0)
 OUT = os.path.join(HERE, 'out')
 IMG = os.path.join(OUT, 'quick') if QUICK else os.path.join(RIDGE, 'images', 'stress')
 REPORT = os.path.join(OUT, 'quick', 'STRESS.md') if QUICK else os.path.join(RIDGE, 'STRESS.md')
-if VARIANT:
+if VARIANT:            # its own folder for everything it writes, so variants can run side by side
     IMG = os.path.join(OUT, 'variants', VARIANT)
     REPORT = os.path.join(IMG, 'STRESS.md')
+    spice.WORK = os.path.join(IMG, 'spice')
 CH = (1, 2, 3, 4)
 PH = 'ABC'
 
@@ -1110,7 +1111,7 @@ def flight_section(sw, fcmax):
                            fet=max(tr['ESC FETs (hottest)']), mcu=max(tr['ESC processors (hottest)']),
                            peaks={k: max(v) for k, v in tr.items() if k in groups},
                            first=min(first.items(), key=lambda kv: kv[1][0]) if first else None)
-    np.savez(os.path.join(OUT, 'hot-flight-%s.npz' % data.design_name()), T=T,
+    np.savez(os.path.join(IMG if VARIANT else OUT, 'hot-flight-%s.npz' % data.design_name()), T=T,
              **{k: np.asarray(v) for k, v in tr.items()})
     plot_flight(tr, groups, m)
     plot_maps(m, T, 'hot-flight')

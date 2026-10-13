@@ -30,7 +30,8 @@ import os, re, glob, subprocess
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, 'out', 'spice')
+OUT = os.path.join(HERE, 'out', 'spice')           # the makers' model libraries
+WORK = OUT                                         # netlists and results (a variant run has its own)
 def _toshiba_lib():
     """The TPN2R304PL model as an ngspice include file."""
     os.makedirs(OUT, exist_ok=True)
@@ -90,9 +91,9 @@ def run(name, netlist, vectors):
     whose time step collapses under the default (trapezoidal) integration
     is run once more with Gear's, which damps the stiff loops (a few nH
     against amps) that stall it; nothing else in the netlist changes."""
-    os.makedirs(OUT, exist_ok=True)
-    cir = os.path.join(OUT, name + '.cir')
-    dat = os.path.join(OUT, name + '.dat')
+    os.makedirs(WORK, exist_ok=True)
+    cir = os.path.join(WORK, name + '.cir')
+    dat = os.path.join(WORK, name + '.dat')
     ctl = '.control\nset wr_singlescale\nset wr_vecnames\nrun\nwrdata %s %s\n.endc\n.end\n' % (
         dat, ' '.join(vectors))
 
@@ -353,8 +354,8 @@ Vd3 d3 0 dc %g ac 1
 Vg3 g3 0 0
 .ac lin 1 1e6 1e6
 """ % ((fet_lib(), T) + (_fet()['subckt'], VDS) * 3)
-    os.makedirs(OUT, exist_ok=True)
-    cir = os.path.join(OUT, 'caps.cir')
+    os.makedirs(WORK, exist_ok=True)
+    cir = os.path.join(WORK, 'caps.cir')
     open(cir, 'w').write(n + '.control\nrun\nprint mag(i(vg1)) mag(i(vg2)) mag(i(vd3))\n.endc\n.end\n')
     out = subprocess.run(['ngspice'] + (['-D', 'ngbehavior=ps'] if _fet()['ps'] else []) + ['-b', cir],
                          capture_output=True, text=True).stdout
@@ -372,7 +373,7 @@ Vg g 0 %g
 Id 0 d %g
 .op
 """ % (fet_lib(), T, _fet()['subckt'], VGS, ID)
-    cir = os.path.join(OUT, 'rds.cir')
+    cir = os.path.join(WORK, 'rds.cir')
     open(cir, 'w').write(n + '.control\nrun\nprint v(d)\n.endc\n.end\n')
     out = subprocess.run(['ngspice'] + (['-D', 'ngbehavior=ps'] if _fet()['ps'] else []) + ['-b', cir],
                          capture_output=True, text=True).stdout
