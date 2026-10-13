@@ -119,8 +119,8 @@ Why the board is the way it is: [`docs/decisions.md`](docs/decisions.md).
 JLCPCB or PCBWay, from `production/`:
 
 - **8 layers, 1.6 mm, 1 oz copper on every layer.** Layers: F (parts, power) / In1
-  ground plane / In2-In4 signals / In5 the channels' return pours / In6 battery plane / B
-  (parts, power).
+  ground plane / In2-In4 signals (In3 and In4's leftover copper is battery) / In5 the
+  channels' return pours / In6 battery plane / B (parts, power).
 - **0.09 mm (3.5 mil) track and gap, vias down to 0.37 / 0.15 mm** (also 0.4 / 0.2 and 0.5 / 0.25 mm). Both are inside
   JLCPCB's multilayer capability, but they are its fine-line and small-via
   price tiers: expect them on the quote. The board needs them: 260 parts on

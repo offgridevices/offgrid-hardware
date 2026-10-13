@@ -36,7 +36,8 @@ props (15 A per motor sustained, 25 A stalled), 50 °C air, 1000 W/m² sun.
 | Thermal, desert set | Survives worst-case heat | `sim/thermal/thermal.py ridge3-lite.kicad_pcb --case desert` | hottest FET (rated 175 °C): hover 98, cruise 110, punches 119, 60 s full throttle 165 °C. Stalled motor (179) and weak airflow (225) exceed it: the ESC's 100 °C limit and stuck-rotor cut act first (README *Heat*) | 13 Oct 2026 |
 
 All run with `tools/kd` on this folder's committed files (`sim/run_all.sh`
-for the circuit set). Details and plots: `sim/README.md`,
+for the circuit set). Since then only the top silkscreen changed (the V1
+label); the copper the simulations read is identical. Details and plots: `sim/README.md`,
 `sim/thermal/README.md`.
 
 ## On hardware (not yet run)

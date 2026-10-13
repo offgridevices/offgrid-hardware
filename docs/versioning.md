@@ -6,15 +6,15 @@
   (`ridge3-lite/`). Its `README.md` lists every revision and its status.
 - **Revision:** one folder per revision inside it: `v1/`, `v2/`, ... A
   revision is one orderable design. Its number is the same everywhere: the
-  folder, its README, the PR that adds it, and the revision field on the
-  silkscreen or in the firmware, where the board has one.
+  folder, its README, the PR that adds it, and the silkscreen (Ridge 3 Lite
+  prints it from the folder name, so a copy into `v2/` prints V2).
 
 ## When the number changes
 
 | Change | Revision |
 |---|---|
 | Docs, comments, tests, CI | same |
-| Anything in the fab files **before** the revision is ordered | same, and every test and simulation runs again |
+| Anything in the fab files **before** the revision is ordered | same; every test whose inputs changed runs again (CI re-runs the build gates on every push; a copper change re-runs every simulation, a silkscreen-only change none) |
 | Anything in the fab files **after** the revision has been ordered | **new revision** (`v2/` beside `v1/`; `v1/` stays as ordered) |
 
 Once a revision is ordered its folder is frozen, apart from records of what
@@ -28,9 +28,10 @@ commit it ran on. A result never carries over from another revision; it is
 re-run on the new design, even if nothing near it changed (the routed board
 always differs).
 
-A revision is ready to order only when every row in its `TESTS.md` has a
-result on its final commit (CI covers the build gates on every push; the
-simulations are run by hand and recorded).
+A revision is ready to order only when every build gate and simulation in
+its `TESTS.md` has a result on its final commit (CI covers the build gates
+on every push; the simulations are run by hand and recorded). Hardware rows
+are filled in from the built boards after ordering.
 
 ## Starting a new revision: question the tests first
 

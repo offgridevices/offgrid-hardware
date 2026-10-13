@@ -12,7 +12,7 @@ gold.
   BOTTOM  the ESC programming pads, the OffGrid lockup and the flag of
           the United States (flag.py), made of the board's three colours
 """
-import math
+import math, os
 import pcbnew
 from shapely.geometry import Point, box
 from shapely.ops import unary_union
@@ -20,6 +20,9 @@ from shapely import affinity
 import pcb, brand, flag, layout, artwork
 
 NAME = 'Ridge 3 Lite'
+# the revision, from this revision's folder name (v1 -> V1), so a copy into
+# v2/ prints V2 with no edit; a code, so brand mono, uppercase
+REV = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).upper()
 
 
 def _copper_free(b, side, extra=0.25):
@@ -152,6 +155,10 @@ def draw(b, log=print):
         named = top.text_near(NAME, (0.0, -11.0), size=size, face='sans', radius=radius, rot=rot)
         if named is not None:
             break
+    # the revision beside the name (wherever the name went)
+    revved = None
+    if named is not None:
+        revved = top.text_near(REV, named, size=0.7, face='mono', radius=6.0)
     m, clear = brand.mark_mm(2.6)
     top.geom(m, top.roomiest(need=1.6)[:400], clear=clear, vias=False, hull=True, quiet=True)
     # ------------------------------------------------------------- bottom
@@ -165,8 +172,12 @@ def draw(b, log=print):
     bot.label('TP_GND', 'G', size=0.6, face='mono', smallest=0.45)
     if named is None:
         for size in (0.8, 0.7):
-            if bot.text_near(NAME, (0.0, -11.0), size=size, face='sans', radius=16.0) is not None:
+            named = bot.text_near(NAME, (0.0, -11.0), size=size, face='sans', radius=16.0)
+            if named is not None:
                 break
+    if revved is None:
+        revved = bot.text_near(REV, named or (0.0, -11.0), size=0.6, face='mono', radius=16.0)
+    log('revision: %s %s' % (REV, 'printed' if revved is not None else 'NOT PRINTED'))
     if not flagged:
         # no ground plate took the gold flag: the subdued one, in silk alone.
         # The board has one roomy spot left, mid-bottom: the flag takes it

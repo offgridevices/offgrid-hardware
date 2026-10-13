@@ -47,8 +47,10 @@ A board is not finished, and not merged, until:
 - [ ] **CI builds the board** on every push and checks that the committed
       fab files are what the scripts produce.
 - [ ] **Brand** artwork from the current brand version ([brand.md](brand.md)).
-- [ ] **`TESTS.md`** lists every test and simulation with its result on
-      this revision's final commit ([versioning.md](versioning.md)).
+- [ ] **`TESTS.md`** lists every test and simulation; every build gate and
+      simulation has its result on this revision's final commit (hardware
+      rows follow once boards are built; [versioning.md](versioning.md)).
+- [ ] **The revision is printed on the board** (silkscreen).
 - [ ] **README** has: what it is, requirements and whether each was met,
       status, next steps, how to order, how to bring it up, limits, how to
       build; `docs/decisions.md` has the trade-offs.
