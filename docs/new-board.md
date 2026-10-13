@@ -12,8 +12,12 @@
   before installing.
 - **Latest brand.** Pull `offgridevices/offgrid-brand` and build from its
   `current/` folder ([brand.md](brand.md)).
-- **Requirements in writing.** The board README starts with what the board
-  must do, its size, its environment (heat, current, voltage) and its limits.
+- **Requirements in writing.** The revision README starts with what the
+  board must do: size, environment (heat, current, voltage), parts
+  availability, cost, and how each is checked. Keep the list; at the end it
+  says which requirements were met.
+- **A new revision of an existing product** starts by questioning the last
+  revision's tests ([versioning.md](versioning.md)).
 
 ## Design
 
@@ -43,14 +47,18 @@ A board is not finished, and not merged, until:
 - [ ] **CI builds the board** on every push and checks that the committed
       fab files are what the scripts produce.
 - [ ] **Brand** artwork from the current brand version ([brand.md](brand.md)).
-- [ ] **README** has: what it is, status, how to order, how to bring it up,
-      what was checked and simulated, limits, how to build.
+- [ ] **`TESTS.md`** lists every test and simulation with its result on
+      this revision's final commit ([versioning.md](versioning.md)).
+- [ ] **README** has: what it is, requirements and whether each was met,
+      status, next steps, how to order, how to bring it up, limits, how to
+      build; `docs/decisions.md` has the trade-offs.
 - [ ] **This folder updated** if the board taught us something
       ([lessons.md](lessons.md)).
 
 ## Release
 
-- One PR per board revision, merged with **squash** so the history keeps
-  one copy of each output ([repo-structure.md](repo-structure.md)).
+- One PR per revision, merged with **squash** so the history keeps one copy
+  of each output ([repo-structure.md](repo-structure.md)). The product
+  README's revision table gets the new status.
 - "Designed" is not "proven": the README status says *not yet built* until
   a board has been assembled and brought up.

@@ -4,8 +4,8 @@
 Each entry is one orderable line: the footprint the board uses, the LCSC
 part number JLCPCB assembles from, the manufacturer part number for
 anyone buying elsewhere, and a description.  Stock was read from JLCPCB's
-and LCSC's catalogues on 2 Oct 2026 (tools/lcsc.py); tools/stock.py reads
-it again for the whole BOM.
+and LCSC's catalogues on 2 Oct 2026 (tools/lcsc.py); read it again with
+tools/lcsc.py before any order: stock changes.
 
 Footprints named 'og:*' live in ../og.pretty: the IC, transistor, diode,
 LED, crystal, connector and inductor footprints there are JLCPCB/EasyEDA's

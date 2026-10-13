@@ -19,6 +19,53 @@ pin for pin.
 ![top](images/ridge3-lite-top.png)
 ![bottom](images/ridge3-lite-bottom.png)
 
+## This revision
+
+| | |
+|---|---|
+| Revision | **v1** (product: [`../README.md`](../README.md)) |
+| Status | designed, not yet built |
+| Tests and simulations | [`TESTS.md`](TESTS.md): every one with its v1 result |
+| Trade-offs | [`docs/decisions.md`](docs/decisions.md) |
+| Toolchain | KiCad 10.0.6 (pinned image, `tools/Dockerfile`) |
+| Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../docs/brand.md)) |
+
+## Requirements
+
+What the board was designed to meet, as the owner set them, and where v1
+stands.
+
+| Requirement | v1 |
+|---|---|
+| One board: flight controller + 4-in-1 ESC for the Phase 1 3" quad | ✅ 38 × 38 mm, 25.5 mm mount |
+| No FPV parts | ✅ none |
+| **Parts in production and readily available, for a 10,000-board run** | ✅ every part active, second sources and lead times listed (`docs/lifecycle.md`, `docs/sourcing-10k.md`, checked Oct 2026: re-check before ordering) |
+| Orderable from JLCPCB or PCBWay | ✅ files for both in `production/` |
+| Never burns out under full stress in desert heat | ✅ in simulation: the ESC's 100 °C limit throttles before damage (`TESTS.md`); ⏳ to confirm on hardware |
+| Per-motor current limiting | ✅ a shunt and amplifier per motor, AM32's limit |
+| Flashing firmware is all it takes | ✅ stock Betaflight target; the four ESCs need AM32 flashed once over SWD |
+| Stable flight | ✅ gyro orientation checked against Betaflight's maths; ⏳ to fly |
+| Cheap | ⏳ priced at the first order (8 layers and fine rules cost more: `docs/decisions.md`) |
+| Beautiful: OffGrid logo, American flag, clean layout | ✅ logo and flag; the flag is silkscreen only (no room for the gold one) |
+| KiCad 10 only | ✅ KiCad 10.0.6 |
+| 35 mm if possible, 38 mm accepted | 38 mm (35 could not be routed) |
+
+## Next steps
+
+1. **Order 5–10 prototypes** (see *Ordering*). Re-read stock first
+   (`tools/lcsc.py`): the part audits in `docs/` are dated.
+2. **Bring them up** (see *Bring-up*): flash Betaflight and AM32, motor
+   order and direction, gyro direction.
+3. **Measure against the simulations:** board and FET temperatures at
+   hover and on punches, current-sense readings against a meter, gyro noise.
+   Record the results here and correct the models if they disagree.
+4. **Design the frame** from `mechanical/` (25.5 mm M2 soft mounts), with a
+   canopy or top plate to keep sun off the board.
+5. **Then a volume order.** Changes that need new copper go into `v2/`
+   (`docs/decisions.md` lists the ideas).
+
+Why the board is the way it is: [`docs/decisions.md`](docs/decisions.md).
+
 | | |
 |---|---|
 | Size | 38 × 38 mm, 3 mm corner radius, 25.5 mm M2 holes for soft-mount grommets |
@@ -110,6 +157,8 @@ through it. In short:
      `firmware/gyro-orientation.md`.
 
 ## What was checked
+
+The full record, with dates: [`TESTS.md`](TESTS.md). In short:
 
 The first five rows are gates: `src/make.py` stops if one fails, and CI
 (`ci / ridge3-lite-v1`) runs them on every push, after rebuilding the
@@ -213,6 +262,23 @@ tools/kd sh sim/run_all.sh              # circuit simulations
 tools/kd python3 sim/thermal/thermal.py ridge3-lite.kicad_pcb --case desert
 ```
 
+### Changing this board
+
+Edit the source, rebuild, commit the outputs with it. CI (`ci /
+ridge3-lite-v1`) rebuilds and fails if the committed files do not match.
+
+| To change | Edit | Then run |
+|---|---|---|
+| A part number (same footprint) | `src/parts.py` | `make.py` (BOM and CPL) |
+| Silkscreen labels, logo, flag | `src/silk.py`, `src/brand.py` | `make.py --artwork` |
+| Design rules | `src/pcb.py` (`RULES`) | `make.py` (rewrites `.kicad_dru`, re-runs DRC) |
+| Betaflight / AM32 settings | `firmware/` | `verify.py` |
+| Simulation inputs | `sim/` | `sim/run_all.sh`, `thermal.py` |
+| Connections, placement or copper | `src/circuit.py`, `src/layout.py`, ... | a new revision: copy to `v2/`, `make.py --reroute`, finish and check it |
+
+The net gate stops the build if `src/circuit.py` and the routed board
+disagree, so a circuit change cannot slip into v1's fab files.
+
 The committed `ridge3-lite.kicad_pcb` is the design of record. `make.py
 --reroute` places and routes from scratch, but the last connection (C2 to
 the BEC input) and one ground via were placed by hand, so a reroute is a
@@ -222,13 +288,14 @@ starting point for a new revision, not a rebuild of this one.
 
 ```
 README.md                  this file
+TESTS.md                   every test and simulation with its v1 result
 VERIFICATION.md            every design check and its result (written by src/verify.py)
 ridge3-lite.kicad_pcb      the routed board (design of record), with .kicad_pro / .kicad_dru
 production/                Gerber zip, BOM and CPL (JLCPCB, PCBWay), netlist, assembly PDF
 images/                    renders and the silkscreen read back from the Gerbers
 mechanical/                STEP model of the assembled board (zipped)
 firmware/                  Betaflight and AM32 hex files, settings, flashing scripts
-docs/                      lifecycle, 10k sourcing, bulk capacitor, gyro second source
+docs/                      decisions and trade-offs, part audits (dated), bulk capacitor, gyro second source
 sim/                       circuit simulations (ngspice) and the thermal model
 src/                       the generator: circuit, footprints, placement, power copper, routing, artwork, checks
 og.pretty/, og.3dshapes/   this board's footprints and their 3D models

@@ -6,6 +6,7 @@ repository. Read these before a new board; they are kept small on purpose.
 | File | What it covers |
 |---|---|
 | [new-board.md](new-board.md) | The workflow from idea to merged board, and what "done" means |
+| [versioning.md](versioning.md) | Products and revisions; tests belong to a revision and are questioned before each new one |
 | [repo-structure.md](repo-structure.md) | Folder layout, what to commit, keeping the repository small |
 | [brand.md](brand.md) | How a board carries the OffGrid brand |
 | [lessons.md](lessons.md) | What we learned building boards: physics, fabs and tools |

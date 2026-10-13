@@ -4,7 +4,8 @@
 
 Compares against git HEAD.  The Gerber zip is compared file by file with
 the creation-date stamps KiCad writes left out (they change every run);
-the BOM, CPL and netlist must be byte-identical.  Exits 1 on a difference.
+the BOM, CPL, netlist and design rules (.kicad_dru, written from
+src/pcb.py) must be byte-identical.  Exits 1 on a difference.
 The assembly PDF is not compared: it embeds its creation time and is drawn
 from the same board file as the Gerbers."""
 import io, re, subprocess, sys, zipfile
@@ -29,8 +30,8 @@ if sorted(old.namelist()) != sorted(new.namelist()):
 for n in old.namelist():
     if n in new.namelist() and lines(old.read(n)) != lines(new.read(n)):
         bad.append('%s: %s differs' % (zp, n))
-for f in ('bom-jlcpcb.csv', 'cpl-jlcpcb.csv', 'bom-pcbway.csv', 'netlist.csv'):
-    p = 'production/%s-%s' % (NAME, f)
+for p in ['production/%s-%s' % (NAME, f) for f in ('bom-jlcpcb.csv', 'cpl-jlcpcb.csv', 'bom-pcbway.csv', 'netlist.csv')] \
+        + ['%s.kicad_dru' % NAME]:
     if open(p, 'rb').read() != committed(p):
         bad.append('%s differs' % p)
 for b in bad:
@@ -38,4 +39,4 @@ for b in bad:
 if bad:
     print('Committed fab files do not match what src/make.py produces. Rebuild and commit the outputs.')
     sys.exit(1)
-print('Gerbers, drills, BOM, CPL and netlist match the committed files (date stamps aside).')
+print('Gerbers, drills, BOM, CPL, netlist and design rules match the committed files (date stamps aside).')

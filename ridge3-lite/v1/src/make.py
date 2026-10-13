@@ -82,6 +82,9 @@ def build(reroute=False, art=False, pan=True, pictures=True):
         fab.install(fin, V1, NAME)
     elif art:
         artwork(BOARD)
+    # the design rules come from src/pcb.py: a rule change there reaches the
+    # board's .kicad_dru (and this DRC) on the next build
+    pcb.write_rules(BOARD, pcb.POFV_RULES)
     tmp = tempfile.mkdtemp()
     e, w, u = pcb.drc(BOARD, os.path.join(tmp, 'drc.json'))
     gate(not e and not w and not u, 'KiCad DRC: %d errors, %d warnings, %d unconnected' % (len(e), len(w), len(u)))

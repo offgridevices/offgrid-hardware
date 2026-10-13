@@ -2,12 +2,16 @@
 
 ## Layout
 
-One folder per board, named after the board; one folder per revision inside.
+One folder per product, named after it; one folder per revision inside
+([versioning.md](versioning.md)).
 
 ```
-<board-name>/
-  v1/                       one folder per revision; never edited once ordered
-    README.md               what it is, status, ordering, bring-up, checks, limits, build
+<product>/
+  README.md                 every revision and its status
+  v1/                       one revision; frozen once ordered
+    README.md               what it is, requirements, status, next steps, ordering, bring-up, limits, build
+    TESTS.md                every test and simulation, with this revision's results
+    docs/decisions.md       the trade-offs and why
     <board>.kicad_pcb       the routed board (with .kicad_pro / .kicad_dru)
     production/             Gerber zip, BOM, CPL, netlist (what a fab needs)
     images/                 renders (compact PNG)
@@ -21,8 +25,7 @@ docs/                       how we build boards (this folder)
 
 A board may add folders it needs (`firmware/`, `fonts/`), but keeps these
 names for the ones above. (`packet-logger-carrier/v1` predates this layout
-and stays as it was ordered.) A change that alters copper is a new revision
-folder beside the old one.
+and stays as it was ordered.)
 
 ## What gets committed
 
