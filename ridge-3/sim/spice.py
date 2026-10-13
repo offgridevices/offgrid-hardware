@@ -84,13 +84,18 @@ def fet_lib():
 # runs that stalled under trapezoidal integration and were solved with
 # Gear's instead (name, what the netlist was): the report names them
 GEAR = []
+# runs that stalled under Gear's too and were solved with gmin 1e-11 S
+# (ngspice's default 1e-12: a conductance from every node to ground, still
+# a million million times under the amps here): the report names them
+GMIN = []
 
 
 def run(name, netlist, vectors):
     """Run a transient; return {vector: array} with 'time' included.  A run
     whose time step collapses under the default (trapezoidal) integration
     is run once more with Gear's, which damps the stiff loops (a few nH
-    against amps) that stall it; nothing else in the netlist changes."""
+    against amps) that stall it; nothing else in the netlist changes.  One
+    that stalls under Gear's as well gets gmin 1e-11 S (GMIN)."""
     os.makedirs(WORK, exist_ok=True)
     cir = os.path.join(WORK, name + '.cir')
     dat = os.path.join(WORK, name + '.dat')
@@ -104,12 +109,16 @@ def run(name, netlist, vectors):
         return subprocess.run(['ngspice'] + (['-D', 'ngbehavior=ps'] if _fet()['ps'] else []) + ['-b', cir],
                               capture_output=True, text=True, timeout=1800)
     p = go(netlist)
-    if (p.returncode != 0 or not os.path.exists(dat)) and 'Timestep too small' in p.stdout + p.stderr \
-            and 'method=gear' not in netlist:
+    stalled = lambda p: (p.returncode != 0 or not os.path.exists(dat)) and 'Timestep too small' in p.stdout + p.stderr
+    gear = netlist
+    if stalled(p) and 'method=gear' not in netlist:
         gear = re.sub(r'(?m)^(\.options\b.*)$', r'\1 method=gear', netlist, count=1)
         if gear != netlist:
             p = go(gear)
             GEAR.append(name)
+    if stalled(p) and 'gmin=' not in gear:
+        p = go(re.sub(r'(?m)^(\.options\b.*)$', r'\1 gmin=1e-11', gear, count=1))
+        GMIN.append(name)
     if p.returncode != 0 or not os.path.exists(dat):
         raise RuntimeError('ngspice failed on %s:\n%s' % (cir, p.stdout[-3000:] + p.stderr[-3000:]))
     head = open(dat).readline().split()
@@ -256,9 +265,9 @@ CgHo goH sH 10p
 
 
 def _hb_one(p):
-    n = len(GEAR)
+    n, m = len(GEAR), len(GMIN)
     r = half_bridge(p)
-    r['gear'] = len(GEAR) > n
+    r['gear'], r['gmin'] = len(GEAR) > n, len(GMIN) > m
     return r
 
 
@@ -272,6 +281,7 @@ def half_bridges(ps, procs=None):
     with get_context('fork').Pool(procs or os.cpu_count() or 1) as pool:
         out = pool.map(_hb_one, ps, chunksize=1)
     GEAR.extend('hb_' + p['tag'] for p, r in zip(ps, out) if r['gear'])
+    GMIN.extend('hb_' + p['tag'] for p, r in zip(ps, out) if r['gmin'])
     return out
 
 

@@ -244,10 +244,12 @@ def switching_section():
     fixed = runs[len(main) + len(buses):]
     rows = []
     res = {}
-    gear = []
+    gear, gmin = [], []
     for (diode, T, I, L, lm), r in zip(main, runs):
         if r['gear']:
             gear.append('%s, %d C, %d A, %.0f nH' % (diode, T, I, L * 1e9))
+        if r.get('gmin'):
+            gmin.append('%s, %d C, %d A, %.0f nH' % (diode, T, I, L * 1e9))
         res[(diode, T, I, L)] = r
         rows.append([diode, T, I, '%.0f' % (L * 1e9), '%.1f' % r['vds_hs_peak'],
                      '%.1f' % r['vds_ls_peak'], '%.1f' % r['sh_min'],
@@ -268,6 +270,11 @@ def switching_section():
     if gear:
         say('ngspice\'s default (trapezoidal) integration stalled on %s; %s solved with Gear\'s '
             'integration instead, the same circuit.' % ('; '.join(gear), 'it was' if len(gear) == 1 else 'they were'))
+        say()
+    if gmin:
+        say('Gear\'s stalled too on %s; %s solved with ngspice\'s gmin at 1e-11 S instead of 1e-12 (a '
+            'conductance from every node to ground, a million million times under the currents here).' % (
+                '; '.join(gmin), 'it was' if len(gmin) == 1 else 'they were'))
         say()
     vr = '%.0f V rating' % data.FET['vdss']
     hs = max(v['vds_hs_peak'] for k, v in res.items() if k[0] == MAIN() and k[3] == 5e-9)
