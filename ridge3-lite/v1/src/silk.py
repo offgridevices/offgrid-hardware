@@ -178,6 +178,8 @@ def draw(b, log=print):
     if revved is None:
         revved = bot.text_near(REV, named or (0.0, -11.0), size=0.6, face='mono', radius=16.0)
     log('revision: %s %s' % (REV, 'printed' if revved is not None else 'NOT PRINTED'))
+    if revved is None:
+        raise SystemExit('silk: no room for the revision %r on either side' % REV)
     if not flagged:
         # no ground plate took the gold flag: the subdued one, in silk alone.
         # The board has one roomy spot left, mid-bottom: the flag takes it
