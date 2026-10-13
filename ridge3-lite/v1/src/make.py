@@ -64,8 +64,10 @@ def check_outputs(prod):
 
 
 def artwork(path):
+    """Lay the silkscreen out again on the board at `path` (copper untouched)."""
     import silk
     b = pcbnew.LoadBoard(path)
+    silk.strip(b)
     silk.draw(b)
     b.Save(path)
 
@@ -79,11 +81,7 @@ def build(reroute=False, art=False, pan=True, pictures=True):
         fin = pipeline.run(work)
         fab.install(fin, V1, NAME)
     elif art:
-        import silk
-        b = pcbnew.LoadBoard(BOARD)
-        silk.strip(b)
-        silk.draw(b)
-        b.Save(BOARD)
+        artwork(BOARD)
     tmp = tempfile.mkdtemp()
     e, w, u = pcb.drc(BOARD, os.path.join(tmp, 'drc.json'))
     gate(not e and not w and not u, 'KiCad DRC: %d errors, %d warnings, %d unconnected' % (len(e), len(w), len(u)))
