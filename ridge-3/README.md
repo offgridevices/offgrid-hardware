@@ -649,7 +649,11 @@ as they change.
 | `losses.py` | Heat per part for an operating point: FETs, switching, dead time, shunts, drivers, regulators, the FC's supplies. |
 | `data.py` | Every datasheet figure used, with its source, and each assumption, marked as one; `DESIGNS` maps each revision to its parts. |
 | `design.py` | Where each revision's files come from: rev 2 from the working tree, rev 1 from git. |
-| `stress.py` | The scenarios and the report. |
+| `stress.py` | The scenarios and the report.  `--variant=NAME` runs rev 2 with one change from `data.VARIANTS` (another FET, IDRIVE, AM32's temperature limit, a LiHV pack, thin air) into `sim/out/variants/NAME/`. |
+| `variants.py` | The variants' runs side by side (`sim/out/variants/VARIANTS.md`). |
+| `ground.py` | The stack on the ground, still air, with the video and 5 V loads wired either way, 25-60 °C. |
+| `crash.py` | A motor jammed at full throttle: AM32's reaction, the gate driver's overcurrent monitor with the copper it measures through, the FET junctions and the source copper's hottest via (`sim/out/crash/CRASH.md`). |
+| `punch.py` | A full-throttle punch from hover: the phase current it peaks at, the overcurrent monitor's margin, and the switching edges at that current for two IDRIVE settings (`sim/out/punch/PUNCH.md`). |
 
 - **Setup:** ngspice (`apt install ngspice`), and a venv that sees KiCad's
   `pcbnew`: `python3.12 -m venv --system-site-packages sim/.venv`, then
