@@ -50,8 +50,12 @@ NC = None   # an unused pin
 XT = {'XT60M': ('2', '1'), 'XT30M': ('2', '1'), 'XT60F': ('3', '4'), 'XT30F': ('1', '2')}   # (+, -)
 
 g = 'battery in'
-add('J1', 'XT60M', {XT['XT60M'][0]: 'VIN', XT['XT60M'][1]: 'BATT_NEG', '3': NC, '4': NC}, 'XT60 male', g)
-add('J2', 'XT30M', {XT['XT30M'][0]: 'VIN', XT['XT30M'][1]: 'BATT_NEG', '3': NC, '4': NC}, 'XT30 male', g)
+add('J1', 'XT60M', {XT['XT60M'][0]: 'VBAT', XT['XT60M'][1]: 'BATT_NEG', '3': NC, '4': NC}, 'XT60 male', g)
+add('J2', 'XT30M', {XT['XT30M'][0]: 'VBAT', XT['XT30M'][1]: 'BATT_NEG', '3': NC, '4': NC}, 'XT30 male', g)
+# the fire fuse: only a part inside failing shorted ever blows it (the switch
+# clears every outside fault thousands of times faster); 40 A so 25 A runs
+# at 63 % of its rating, 1000 A interrupting at 80 V DC
+add('F1', 'FUSE40', {'1': 'VBAT', '2': 'VIN'}, '40 A 80 V', g)
 # reverse-battery switch in the battery's return (sim case 2-4: a reversed 11S-14S
 # plug-in would ring the TPS48000's SRC past -65 V without it).  Body diode
 # GND -> BATT_NEG carries the first ~10 ms until the gate is up; a reversed pack
@@ -104,7 +108,7 @@ capacitor('TPS_VS', 'GND', '100n', '100V', '0603', g)
 res('VIN', 'TPS_EN', 1e6, '0603', group=g)
 res('TPS_EN', 'GND', 470e3, group=g)
 res('VIN', 'TPS_OV', 1e6, '0603', group=g)
-res('TPS_OV', 'GND', 18e3, group=g)            # see docs/DESIGN_NOTES.md: OV threshold
+res('TPS_OV', 'GND', 19.6e3, group=g)          # OV = 1.23 V x (1 + 1M / 19.6k) = 64.0 V: just above the firmware's 62.5 V refusal
 capacitor('TPS_BST', 'SRC', '1u', '25V', '0603', g)
 res('TPS_PU', 'GATE', 100e3, group=g)         # slow turn-on with Cdvdt (sim case 1b)
 res('GATE', 'SRC', 1e6, group=g)               # gates held off if the driver is unpowered
@@ -180,12 +184,13 @@ res('GUARD_OPEN', 'PRE_B2', 10e3, group=g)
 res('PRE_B1', 'GND', 100e3, group=g)
 res('PRE_B2', 'GND', 100e3, group=g)
 add('D3', 'SS2H10', {'1': 'PRE_K', '2': 'PRE_D'}, 'SS2H10', g)                # A at the FET, K to the resistor
-# two 3.9 Ohm 5 W in series = 7.8 Ohm (sim case 1: 6.8-8.2 Ohm passes); each
-# takes half the energy (6 J of the 12 J abort, about 55 % of the AC05's
-# 3.9 Ohm pulse rating), and they lie end to end in one row behind the
-# balance sockets, from the FET side (west) to the drone side (east)
-add('R_PRE', 'AC05R3R9', {'1': 'PRE_K', '2': 'PRE_M'}, '3.9 Ohm 5 W', g)
-add('R_PRE2', 'AC05R3R9', {'1': 'PRE_M', '2': 'VOUT'}, '3.9 Ohm 5 W', g)
+# two 3.9 Ohm in series = 7.8 Ohm (sim case 1: 6.8-8.2 Ohm passes); each
+# takes half the energy (6 J of the 12 J abort; the D2TO20's single-pulse
+# curve gives ~10 J at 100 ms).  Flat TO-263 (4.5 mm): they fit under the
+# screen.  Pins 1 and 3 are the element; the tab (2) is isolated, left to
+# its own copper for the heat
+add('R_PRE', 'D2TO20R3R9', {'1': 'PRE_K', '3': 'PRE_M', '2': NC}, '3.9 Ohm 20 W', g)
+add('R_PRE2', 'D2TO20R3R9', {'1': 'PRE_M', '3': 'VOUT', '2': NC}, '3.9 Ohm 20 W', g)
 add('RT2', 'NTC10K', {'1': 'NTC_PRE', '2': 'GND'}, '10 k NTC', g)
 res('+3V3', 'NTC_PRE', 10e3, group=g)
 
@@ -260,16 +265,23 @@ res('DIV_EN', 'GND', 100e3, group=g)
 g = 'supply'
 add(nxt('D'), 'BAT46WJ', {'1': 'AUX', '2': 'VIN'}, 'BAT46WJ', g)      # Schottky: a 1S pack must still reach the buck's 3.6 V
 add(nxt('D'), '1N4148WS', {'1': 'AUX', '2': 'VOUT'}, '1N4148WS', g)
-add(nxt('D'), 'BAT46WJ', {'1': 'AUX', '2': 'VBUS'}, 'BAT46WJ', g)    # Schottky: USB alone must still reach 3.6 V
+add(nxt('D'), 'BAT46WJ', {'1': '+5V', '2': 'VBUS'}, 'BAT46WJ', g)    # USB feeds the 5 V rail directly (the buck needs 6 V)
 res('AUX', 'AUX_F', 10, '0805', group=g)
-capacitor('AUX_F', 'GND', '1u', '100V', '1206', g)
+capacitor('AUX_F', 'GND', '2u2', '100V', '1210', g)
 capacitor('AUX_F', 'GND', '100n', '100V', '0603', g)
-add('U3', 'LMR36506', {'1': 'BUCK_VCC', '2': NC, '3': 'AUX_F', '4': 'AUX_F', '5': 'BUCK_SW',
-                       '6': 'BUCK_BOOT', '7': 'BUCK_VCC', '8': '+5V', '9': 'GND'}, 'LMR36506R5', g)
-# RT (1) to VCC: 1 MHz.  PGOOD (2) unused.  EN (3) to VIN: on whenever powered.
-capacitor('BUCK_VCC', 'GND', '1u', '25V', '0603', g)
-capacitor('BUCK_BOOT', 'BUCK_SW', '100n', group=g)
-add('L1', 'L47U', {'1': 'BUCK_SW', '2': '+5V'}, '47 uH', g)
+# LM5164: 6-100 V in (a 2S pack at 3 V/cell still runs it; a 24S pack plugged
+# in by mistake cannot hurt it).  COT, 400 kHz: RON = 5 V x 2500 / 400 kHz.
+# Type-3 ripple injection (RA, CA from SW, CB into FB): low output ripple.
+add('U3', 'LM5164', {'1': 'GND', '2': 'AUX_F', '3': 'AUX_F', '4': 'BUCK_RON', '5': 'BUCK_FB',
+                     '6': 'GND', '7': 'BUCK_BOOT', '8': 'BUCK_SW', '9': 'GND'}, 'LM5164DDAR', g)
+capacitor('BUCK_RA', '+5V', '3n3', '50V', '0402', g)                             # CA (was the LMR's VCC cap)
+capacitor('BUCK_BOOT', 'BUCK_SW', '2n2', '50V', '0402', g)                       # CBST: 2.2 nF max (datasheet)
+add('L1', 'L47U6045', {'1': 'BUCK_SW', '2': '+5V'}, '47 uH', g)
+res('BUCK_RON', 'GND', 30.9e3, group=g, ref='R76')
+res('+5V', 'BUCK_FB', 453e3, group=g, ref='R77')                                # 1.2 V x (1 + 453/143) = 5.00 V
+res('BUCK_FB', 'GND', 143e3, group=g, ref='R78')
+res('BUCK_SW', 'BUCK_RA', 100e3, group=g, ref='R79')                             # RA: RA x CA = 330 us < 489 us
+capacitor('BUCK_RA', 'BUCK_FB', '56p', '50V', '0402', g, ref='C57')              # CB >= 47 pF
 capacitor('+5V', 'GND', '10u', '10V', '0805', g)
 capacitor('+5V', 'GND', '10u', '10V', '0805', g)
 add('U4', 'TLV75533', {'1': '+5V', '3': '+5V', '2': 'GND', '4': NC, '5': '+3V3'}, 'TLV75533', g)
@@ -324,19 +336,22 @@ add('SW2', 'B3U', {'1': 'BTN_MINUS', '2': 'GND'}, 'Limit -', g)
 add('SW3', 'B3U', {'1': 'BTN_PLUS', '2': 'GND'}, 'Limit +', g)
 
 g = 'display'
-LCD = {'1': 'GND', '2': '+3V3', '3': '+3V3', '4': '+3V3', '5': 'LCD_RST', '6': 'LCD_CS', '7': 'LCD_SCK',
-       '8': 'LCD_DC', '9': 'GND', '10': 'LCD_SDA', '19': NC, '20': '+5V',
-       '21': 'BL_K1', '22': 'BL_K2', '23': 'BL_K3', '24': 'BL_K4', '25': 'GND', '30': 'GND',
-       '26': NC, '27': NC, '28': NC, '29': NC, '31': 'GND', '32': 'GND'}
-for p in range(11, 19):
-    LCD[str(p)] = 'GND'            # D0-D7 fixed low in SPI mode
-add('J7', 'FH34_30', LCD, 'TFT1901 FPC', g)
+# ER-TFT2.25-1 FPC: 1 LEDA, 2 GND, 3 RESET, 4 RS (D/C), 5 SDA, 6 SCL, 7 VDD, 8 CS
+LCD = {'1': 'LCD_LEDA', '2': 'GND', '3': 'LCD_RST', '4': 'LCD_DC', '5': 'LCD_SDA', '6': 'LCD_SCK',
+       '7': '+3V3', '8': 'LCD_CS', 'MP': 'GND'}
+add('J7', 'FH12_8', LCD, 'ER-TFT2.25-1 FPC', g)
 capacitor('+3V3', 'GND', '1u', '25V', '0603', g)
-for k in range(1, 5):              # one current resistor per backlight LED (~18 mA each)
-    res(f'BL_K{k}', 'BL_SW', 100, '0603', group=g)
-add('Q9', 'AO3400A', {'1': 'LCD_BL', '2': 'GND', '3': 'BL_SW'}, 'AO3400A', g)
+# backlight: four LEDs in parallel, cathodes on the panel's GND, ~60 mA total
+# at 3.0 V: a high-side P-FET from 5 V and 33 Ohm, PWM from the MCU through
+# an N-FET level shifter
+res('BL_SW', 'LCD_LEDA', 33, '1206', group=g)                                   # (5 - 3.0) / 33 = 61 mA, 0.12 W
+for _ in range(3):
+    nxt('R')                       # R57-R59 (the old per-LED resistors) stay unused
+add('Q9', 'AO3401A', {'1': 'BL_G', '2': '+5V', '3': 'BL_SW'}, 'AO3401A', g)
 res('LCD_BL', 'GND', 100e3, group=g)
-add('X1', 'TFT1901', {}, 'TFT1901 (plugs into J7)', g)
+res('+5V', 'BL_G', 100e3, group=g, ref='R80')
+add('Q12', '2N7002', {'1': 'LCD_BL', '2': 'GND', '3': 'BL_G'}, '2N7002', g)
+add('X1', 'TFT225', {}, 'ER-TFT2.25-1 (plugs into J7)', g)
 
 g = 'status ring'
 add('U10', 'AHCT1G125', {'1': 'GND', '2': 'LED_DATA', '3': 'GND', '4': 'LED_DIN0', '5': '+5V'}, 'SN74AHCT1G125', g)

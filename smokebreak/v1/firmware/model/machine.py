@@ -18,8 +18,20 @@ States
     ABORT      S08 / S09 / S17, alarm, needs the guard closed
     BIND       ELRS three power cycles, then live.  S10
     POWER_CUT  guard closed from any armed state.  S12, then SAFE
-Overlays (any state but STARTUP / ABORT / POWER_CUT): S11 "Props off?" while
-the 25 A confirm is pending, S13 for 2 s after the limit changes.
+    TOO_HIGH   input above 14S LiHV (VIN_TOO_HIGH_MV) or at the ADC's full
+               scale: refused.  S08 with the measured voltage, alarm.  Nothing
+               ever switches on; only the input going away clears it.
+Overlays (any state but STARTUP / ABORT / POWER_CUT / TOO_HIGH): S11 "Props
+off?" while the 25 A confirm is pending, S13 for 2 s after the limit changes.
+
+Pack memory (packs.py): PROMPT_DELAY_MS after a plug-in, in SAFE only, with
+the rocker idle and no S11/S13/S18 showing, the battery screen asks "Pack 7?"
+(data['pack']['ask']).  While it asks, the rocker belongs to the question
+(+ yes, - next, then "new"), not to the limit; no input for
+PROMPT_TIMEOUT_MS, the guard opening, or any state but SAFE skips it.  The
+arming logic never looks at it and it never drives an output.  IR measured in a run
+is stored on the confirmed pack when the run ends (or kept for this plug-in
+and stored if the pack is confirmed later, where it also ranks candidates).
 
 Rules
   1. Guard closed => every switch off this tick (the hall switch also gates
@@ -34,12 +46,16 @@ Rules
      through OFF, which cancels the check; it does not chain into a bind:
      after a run ends or is cancelled the toggle must rest at OFF for
      REARM_OFF_MS before ON or BIND counts again.
+  5. Input too high (vin_too_high) => TOO_HIGH this tick from any state:
+     every switch off, run cancelled, motor test ended.  The guard does not
+     clear it; VIN below battery.VIN_PRESENT_MV (pack unplugged) does, and
+     then rule 3 applies as after a fault.
 """
 from dataclasses import dataclass, field
 from enum import IntEnum
 
-from . import battery, limits, memory, precharge, probe
-from .inputs import Toggle, idiv
+from . import battery, limits, memory, packs, precharge, probe
+from .inputs import ADC_VIN_MAX_MV, Toggle, idiv
 
 STARTUP_MS = 1500
 POWER_CUT_MS = 1200
@@ -62,6 +78,23 @@ COLLAPSE_CELL_MV = 2700            # ... or under 2.7 V per cell
 COLLAPSE_DEBOUNCE_MS = 20
 IR_SETTLE_MS = 500                 # ignore the first 0.5 s of live for the IR points
 
+# Over-voltage refusal.  The biggest pack SmokeBreak is built for is 14S LiHV
+# full: 14 x 4.35 V = 60.9 V (ARCHITECTURE: 1S-14S, 3.5-60.9 V).  Refuse from
+# 62.5 V, 1.6 V (2.6 %) above it:
+#  * never a genuine pack: the VIN divider (1 M / 52.3 k, 1 % parts) can read
+#    up to ~1.9 % high, plus ~0.5 % ADC gain error after the VREFINT
+#    correction, so a full 14S LiHV pack reads at most ~62.4 V;
+#  * still below the SMBJ64CA's 64 V stand-off (above it the input TVS starts
+#    to conduct and heat), so the box says no before the hardware's own
+#    clamps are reached (the TPS48000 OV divider, 1 M / 18 k, cuts at ~69.6 V);
+#  * a full 15S LiPo (63.0 V) is refused.  A 15S pack below ~4.17 V/cell is
+#    inside the 14S window and cannot be told apart by voltage alone.
+VIN_TOO_HIGH_MV = 62500
+# The VIN ADC saturates at ADC_VIN_MAX_MV (66.4 V real full scale): a reading
+# within 2 LSB of the top means "this much or more", always too high.
+VIN_FULL_SCALE_MV = ADC_VIN_MAX_MV - idiv(ADC_VIN_MAX_MV * 2, 4096)
+LIHV_14S_MV = battery.MAX_CELLS * battery.OCV_LIHV[-1][0]   # 14 x 4.35 V = 60.9 V, for the screen
+
 BIND_CYCLES = 3                    # short power-ups, then a final one that stays on
 BIND_ON_MS = 800                   # on time after the main switch closes (< 2 s with pre-charge)
 BIND_OFF_MS = 800
@@ -79,6 +112,7 @@ class State(IntEnum):
     ABORT = 8
     BIND = 9
     POWER_CUT = 10
+    TOO_HIGH = 11
 
 
 class Fault(IntEnum):
@@ -99,6 +133,7 @@ class Fault(IntEnum):
     SHORT_TRIP = 14
     OVERTEMP = 15
     INPUT_COLLAPSE = 16
+    TOO_HIGH = 17                  # input above 14S LiHV (or ADC full scale): refused until unplugged
 
 
 class Led(IntEnum):
@@ -151,6 +186,12 @@ class Outputs:
     beep_loop: str = None          # pattern repeated while it stays set (the abort alarm)
 
 
+def vin_too_high(vin_mv):
+    """Rule 5.  The full-scale test is what keeps a saturated reading
+    refused should VIN_TOO_HIGH_MV ever be moved above the ADC's range."""
+    return vin_mv >= VIN_TOO_HIGH_MV or vin_mv >= VIN_FULL_SCALE_MV
+
+
 def fmt_v(mv):
     return f'{idiv(mv, 100) / 10:.1f} V' if mv >= 0 else f'-{idiv(-mv, 100) / 10:.1f} V'
 
@@ -164,8 +205,9 @@ def fmt_ohm(mohm):
 
 
 class Machine:
-    def __init__(self, mem=None):
+    def __init__(self, mem=None, pack_mem=None):
         self.memory = mem if mem is not None else memory.DroneMemory()
+        self.packs = pack_mem if pack_mem is not None else packs.PackMemory()   # flash, like memory
         self.ledger = precharge.EnergyLedger()   # kept across MCU resets (conservative)
         self.limiter = limits.AverageLimiter()
         self.reset()
@@ -213,6 +255,18 @@ class Machine:
         self.beep = None
         self.prev = None
         self.limit = limits.LimitSelector()   # RAM: back to AUTO after a power loss
+        self.too_high_mv = 0
+        # pack memory, per plug-in (RAM)
+        self.plug_ms = -1                # when the pack went in (-1 = no pack on the main lead)
+        self.prompt = None               # packs.Prompt while "Pack 7?" is asked
+        self.prompt_done = False         # asked (answered or skipped) for this plug-in
+        self.plug_imbalance_mv = -1
+        self.plug_lo_idx = -1
+        self.pack = None                 # confirmed packs.PackRecord for this plug-in
+        self.plug_ir = None              # (pack mOhm, [cell mOhm] or None) from the last run on this plug-in
+        self.ir_lo_cells = None          # balance cells at the IR points (under load)
+        self.ir_hi_cells = None
+        self.ir_saved = True
 
     def _go(self, state):
         self.state = state
@@ -275,8 +329,17 @@ class Machine:
         else:
             self.shift_since = -1
 
-        rocker_ok = self.state not in (State.STARTUP, State.ABORT, State.POWER_CUT)
-        changed = self.limit.step(now, inp.btn_plus, inp.btn_minus, rocker_ok)
+        self._plug(now)
+        if vin_too_high(inp.vin_mv):
+            self.too_high_mv = inp.vin_mv
+            if self.state != State.TOO_HIGH:
+                self._refuse(inp)
+        elif self.state == State.TOO_HIGH and inp.vin_mv < battery.VIN_PRESENT_MV:
+            self._unrefuse(inp)
+
+        rocker_ok = self.state not in (State.STARTUP, State.ABORT, State.POWER_CUT, State.TOO_HIGH)
+        # while "Pack 7?" is asked the rocker answers it; the limit still runs its timeouts
+        changed = self.limit.step(now, inp.btn_plus, inp.btn_minus, rocker_ok and self.prompt is None)
         if 'confirm' in self.limit.events or 'motor_on' in self.limit.events:
             self.beep = BEEP_WARN
         if changed and 'motor_off' in self.limit.events and self._powered():
@@ -288,13 +351,125 @@ class Machine:
                     self._go(State.SAFE)
                 else:
                     self._to_armed(inp)
+        elif self.state == State.TOO_HIGH:
+            pass                         # rule 5: only the input going away leaves
         elif inp.guard_closed:
             self._guard_closed(inp)
         else:
             self._guard_open(inp, now, dt, current)
 
+        self._pack_prompt(inp, now)
+        self._save_run_ir()
         self.prev = inp
         return self._outputs(inp, now)
+
+    # -------------------------------------------------------------- TOO_HIGH (rule 5)
+    def _refuse(self, inp):
+        if self.pre is not None:
+            self.pre.close()
+            self.pre = None
+        self.fault = Fault.TOO_HIGH
+        self.fault_data = {'vin_mv': inp.vin_mv}
+        self.bind_mode = False
+        self.bind_live = False
+        self.limit.end_motor_test(self.t)
+        self.off_seen = False
+        self.armed_hint = ''
+        self._go(State.TOO_HIGH)
+        self.beep = BEEP_ALARM
+
+    def _unrefuse(self, inp):
+        self.fault = Fault.NONE
+        self.fault_data = {}
+        self.too_high_mv = 0
+        if inp.guard_closed:
+            self._go(State.SAFE)
+        else:
+            self._to_armed(inp)          # ON counts only after OFF is seen (rule 3)
+            self.armed_hint = ''
+
+    # -------------------------------------------------------------- pack memory
+    def _plug(self, now):
+        """Plug-in / unplug of the main lead: per-plug-in pack state."""
+        if self.batt.main_present:
+            if self.plug_ms < 0:
+                self.plug_ms = now
+                self.prompt = None
+                self.prompt_done = False
+                self.pack = None
+                self.plug_ir = None
+        elif self.plug_ms >= 0:
+            self.plug_ms = -1
+            if self.prompt is not None:
+                self.prompt.skip()
+            self.prompt = None
+            self.pack = None
+            self.plug_ir = None
+
+    def _rocker_busy(self, inp, now):
+        return (inp.btn_plus or inp.btn_minus or self.limit.confirm_pending or
+                (self.limit.last_change_ms >= 0 and now - self.limit.last_change_ms < OVERLAY_MS))
+
+    def _pack_prompt(self, inp, now):
+        """Start, feed and finish "Pack 7?".  Never changes self.state or a
+        switch: the arming logic does not see it."""
+        q = self.prompt
+        if q is not None:
+            if self.state != State.SAFE:
+                q.skip()                 # guard opened, run, fault, refusal: the rocker is needed elsewhere
+            else:
+                q.step(now, inp.btn_plus, inp.btn_minus)
+            if q.answer == packs.Answer.CONFIRMED:
+                self.pack = self.packs.confirm(q.chosen, q.cells, inp.clock_s,
+                                               self.plug_imbalance_mv, self.plug_lo_idx)
+                if self.plug_ir is not None:
+                    self.packs.record_ir(self.pack, self.plug_ir[0], self.plug_ir[1])
+                self.beep = BEEP_TICK
+            if q.answer != packs.Answer.PENDING:
+                self.prompt = None
+                self.prompt_done = True
+            return
+        if self.prompt_done or self.plug_ms < 0 or self.state != State.SAFE:
+            return
+        if now - self.plug_ms < packs.PROMPT_DELAY_MS or self._rocker_busy(inp, now):
+            return
+        if self.shift_since >= 0 and now - self.shift_since < SHIFT_NOTICE_MS:
+            return
+        b = self.batt_idle
+        if not b.main_present or b.cells < 1:
+            return
+        if not b.cells_certain and (b.guess.ambiguous or b.guess.out_of_range):
+            return                       # exact cell count is the key: wait for the balance lead
+        usable = b.lo_idx >= 0
+        self.plug_imbalance_mv = b.delta_mv if usable else -1
+        self.plug_lo_idx = b.lo_idx if usable else -1
+        ir_mohm, cell_ir = self.plug_ir if self.plug_ir is not None else (packs.UNKNOWN, None)
+        self.prompt = packs.Prompt(self.packs, b.cells, now, inp.btn_plus, inp.btn_minus, ir_mohm, cell_ir)
+
+    def _load_cells(self):
+        """Balance cells right now, for per-cell IR (only if the resting
+        analysis trusted this lead)."""
+        b = self.batt
+        if self.batt_idle.balance != battery.BalanceState.OK or not b.bal.present or b.bal.broken_pin:
+            return None
+        if len(b.bal.cells_mv) != self.cells:
+            return None
+        return list(b.bal.cells_mv)
+
+    def _save_run_ir(self):
+        """At the end of a run that measured IR: keep it for this plug-in
+        and store it on the confirmed pack."""
+        if self.ir_saved or self.ir is None or self.state in (State.LIVE, State.WARNING):
+            return
+        self.ir_saved = True
+        if self.plug_ms < 0:
+            return                       # unplugged mid-run: not this pack's reading
+        cell_ir = None
+        if self.ir_lo_cells is not None and self.ir_hi_cells is not None:
+            cell_ir = packs.cell_ir_mohm(self.ir_lo_cells, self.ir_lo[0], self.ir_hi_cells, self.ir_hi[0])
+        self.plug_ir = (self.ir[0], cell_ir)
+        if self.pack is not None:
+            self.packs.record_ir(self.pack, self.ir[0], cell_ir)
 
     def _powered(self):
         return self.state in (State.PRECHARGE, State.ENGAGING, State.LIVE, State.WARNING, State.BIND)
@@ -503,7 +678,9 @@ class Machine:
         self.idle_done = False
         self.idle_ma = -1
         self.ir_lo = self.ir_hi = None
+        self.ir_lo_cells = self.ir_hi_cells = None
         self.ir = None
+        self.ir_saved = False
         self.collapse_ms = 0
         self.beep = BEEP_ENGAGE
         w = []
@@ -572,8 +749,10 @@ class Machine:
             pt = (current, inp.vin_mv)
             if self.ir_lo is None or current < self.ir_lo[0]:
                 self.ir_lo = pt
+                self.ir_lo_cells = self._load_cells()
             if self.ir_hi is None or current > self.ir_hi[0]:
                 self.ir_hi = pt
+                self.ir_hi_cells = self._load_cells()
             res = battery.ir_estimate(self.ir_lo[1], self.ir_lo[0], self.ir_hi[1], self.ir_hi[0], self.cells)
             if res is not None:
                 self.ir = res + (self.ir_hi[0],)
@@ -635,7 +814,10 @@ class Machine:
         o.led = self._led(inp, s)
         o.screen = self._screen(inp, s, now)
         o.beep = self.beep
-        o.beep_loop = BEEP_ALARM if s == State.ABORT else None
+        o.beep_loop = BEEP_ALARM if s in (State.ABORT, State.TOO_HIGH) else None
+        if s == State.TOO_HIGH or vin_too_high(inp.vin_mv):
+            o.precharge_on = o.main_on = False          # rule 5, whatever the state says
+            o.probe_src = ProbeSrc.OFF
         return o
 
     def _led(self, inp, s):
@@ -651,7 +833,7 @@ class Machine:
             return Led.GREEN
         if s == State.WARNING:
             return Led.EMBER
-        if s == State.ABORT:
+        if s in (State.ABORT, State.TOO_HIGH):
             return Led.RED_FLASH
         if s == State.BIND:
             return Led.BLUE
@@ -663,14 +845,38 @@ class Machine:
             return Screen('S17', {'vout_mv': inp.vout_mv})
         if b.balance_only:
             return Screen('S16', self._batt_data(b))
+        pk = self._pack_data(now)
         if self.shift_since >= 0 and now - self.shift_since < SHIFT_NOTICE_MS:
-            return Screen('S18', dict(self._batt_data(b), shift=b.bal.shift))
+            return Screen('S18', dict(self._batt_data(b), shift=b.bal.shift, pack=pk))
         if b.warnings:
-            return Screen('S15', dict(self._batt_data(b), warning=b.warnings[0]))
+            return Screen('S15', dict(self._batt_data(b), warning=b.warnings[0], pack=pk))
         if b.bal.present:
-            return Screen('S14', self._batt_data(b))
+            return Screen('S14', dict(self._batt_data(b), pack=pk))
         return Screen('S01', {'vin_mv': b.vin_mv, 'cells': b.cells, 'guess': b.guess.ambiguous,
-                              'battery': b.main_present})
+                              'battery': b.main_present, 'pack': pk})
+
+    def _pack_facts(self, p):
+        return {'uses': p.uses, 'first_time_s': p.first_time_s, 'last_time_s': p.last_time_s,
+                'seen_ago': self.packs.age(p), 'ir_mohm': p.ir_last_mohm, 'ir_known': packs.ir_known(p),
+                'ir_change_pct': packs.ir_change_pct(p), 'wearing': packs.wearing(p),
+                'worst_cell': p.worst_cell, 'imbalance_mv': p.imbalance_mv,
+                'max_imbalance_mv': p.max_imbalance_mv}
+
+    def _pack_data(self, now):
+        """The pack line of the battery screens: the question while it is
+        asked ("Pack 7?" / "New pack 12", + yes, - next), then the pack."""
+        q = self.prompt
+        if q is not None:
+            d = {'ask': True, 'new': q.is_new, 'number': q.new_number if q.is_new else q.option,
+                 'option': q.idx + 1, 'options': len(q.options), 'left_ms': q.left_ms(now)}
+            p = None if q.is_new else self.packs.find(q.option)
+            if p is not None:
+                d.update(self._pack_facts(p))
+            return d
+        if self.pack is not None:
+            return dict(self._pack_facts(self.pack), ask=False, new=self.pack.uses == 1,
+                        number=self.pack.number)
+        return None
 
     @staticmethod
     def _batt_data(b):
@@ -686,6 +892,12 @@ class Machine:
             return Screen('S12')
         if s == State.ABORT:
             return self._abort_screen()
+        if s == State.TOO_HIGH:
+            full = self.too_high_mv >= VIN_FULL_SCALE_MV
+            return Screen('S08', {'fault': Fault.TOO_HIGH, 'title': 'Battery voltage too high',
+                                  'value': ('over ' + fmt_v(ADC_VIN_MAX_MV)) if full else fmt_v(self.too_high_mv),
+                                  'vin_mv': self.too_high_mv, 'full_scale': full, 'max_mv': LIHV_14S_MV,
+                                  'hint': 'Unplug it. Up to 14S LiHV, ' + fmt_v(LIHV_14S_MV)})
         if self.limit.confirm_pending:
             return Screen('S11', {'left_ms': limits.CONFIRM_WINDOW_MS - (now - self.limit.confirm_since_ms)})
         if self.limit.last_change_ms >= 0 and now - self.limit.last_change_ms < OVERLAY_MS:
@@ -697,7 +909,8 @@ class Machine:
         if s == State.ARMED:
             if self._drone_side_battery(inp):
                 return Screen('S17', {'vout_mv': inp.vout_mv})
-            return Screen('S02', {'vin_mv': inp.vin_mv, 'cells': self.batt.cells, 'hint': self.armed_hint})
+            return Screen('S02', {'vin_mv': inp.vin_mv, 'cells': self.batt.cells, 'hint': self.armed_hint,
+                                  'pack': self.pack.number if self.pack else 0})
         if s == State.CHECKING:
             return Screen('S03', {'done': self.check_done})
         if s == State.PRECHARGE:
@@ -717,6 +930,7 @@ class Machine:
             return Screen('S06', {'ma': max(0, inp.current_ma - self.i_zero), 'limit_ma': self._active_limit_ma(),
                                   'auto': self.limit.idx == limits.AUTO,
                                   'drone': self.visit.profile.number if self.visit else 0,
+                                  'pack': self.pack.number if self.pack else 0,
                                   'new': self.visit.new if self.visit else True,
                                   'same': bool(self.visit and not self.visit.new and self.idle_done),
                                   't_s': idiv(now - self.live_since, 1000)})

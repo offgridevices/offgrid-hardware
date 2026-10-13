@@ -28,7 +28,7 @@ open_guard(), on(), off(), bind(), plus(), close_guard(), run(ms).
 import math
 from dataclasses import dataclass, field
 
-from .inputs import Inputs, Toggle, N_TAPS, aux_powered
+from .inputs import ADC_VIN_MAX_MV, Inputs, Toggle, N_TAPS, aux_powered
 from .machine import Machine, ProbeSrc, State
 from .precharge import RPRE_MOHM
 from .probe import BOARD_CAP_NF
@@ -111,6 +111,7 @@ class World:
         self.plus = False
         self.minus = False
         self.cam_works = True          # guard cams the toggle to OFF as it closes
+        self.clock_s = 0               # RTC as the MCU sees it (0 = not set)
         self.ina_offset_ma = 12
         self.t_amb = 25.0
         self.t_fet = 25.0
@@ -182,7 +183,7 @@ class World:
 
     def sense(self):
         out = self.last_out
-        vin_mv = int(round(self.vin() * 1000))
+        vin_mv = min(int(round(self.vin() * 1000)), ADC_VIN_MAX_MV)   # the ADC saturates
         vout_mv = int(round(self.v * 1000))
         i_ma = int(round(min(self.i_shunt, INA_MAX_A) * 1000)) + self.ina_offset_ma
         ntc_fet = self.force_ntc_fet_dc if self.force_ntc_fet_dc is not None else int(self.t_fet * 10)
@@ -193,7 +194,7 @@ class World:
             taps_mv=self.taps(out.divider_en if out else True),
             ntc_fet_dc=ntc_fet, ntc_rpre_dc=int(self.t_rpre * 10),
             guard_closed=self.guard_closed, toggle=self.toggle,
-            btn_minus=self.minus, btn_plus=self.plus, usb_present=self.usb)
+            btn_minus=self.minus, btn_plus=self.plus, usb_present=self.usb, clock_s=self.clock_s)
 
     # ---------------------------------------------------------- physics
     def _drone_loads(self, v):

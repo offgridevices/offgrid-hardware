@@ -27,7 +27,8 @@ def clamp(v, lo, hi):
 # ---------------------------------------------------------------- inputs
 
 N_TAPS = 6                 # taps 2..7 of the 2S-6S JST-XH sockets (pin 1 is GND / B-)
-ADC_VIN_MAX_MV = 66000     # VIN and VOUT-high dividers
+ADC_VIN_MAX_MV = 66000     # VIN and VOUT-high dividers (1 M / 52.3 k into 3.3 V: 66.4 V); a VIN
+                           # reading saturates here, the real input can be anything above
 ADC_VOUT_LOW_MAX_MV = 3300  # clamped low-range channel for the 3 V probe
 ADC_TAP_MAX_MV = 36000
 
@@ -71,6 +72,8 @@ class Inputs:
     btn_minus: bool = False            # Limit rocker, level (pressed = True)
     btn_plus: bool = False
     usb_present: bool = False          # VBUS seen
+    clock_s: int = 0                   # RTC, seconds since 1970; 0 = not set (it is set over USB and
+                                       # lost when the board is unpowered: no backup battery)
 
 
 # Aux supply: the diode-OR wakes the MCU from any of these.  Threshold is the

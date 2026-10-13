@@ -9,7 +9,7 @@ never ported).
 
 ```
 cd smokebreak/v1/firmware
-python -m pytest -q          # 236 tests, ~17 s
+python -m pytest -q          # 328 tests, ~18 s
 ```
 
 Reference documents: `../ARCHITECTURE.md` (the board), `../src/circuit.py`
@@ -42,7 +42,8 @@ values the firmware must honour), `../../SPEC.md` (§4 stages, §5 protection,
 | `limits.py` | AUTO limit, 200 ms average limiter (20 × 10 ms buckets), peak comparator threshold (4 × setting, ≤ 50 A), rocker with 25 A confirm (400 ms dead time, 3 s window, 60 s motor test). | `limits.c`; the bucket accumulator lives in the ADC ISR |
 | `battery.py` | Cell count from VIN (with ambiguity flag), balance-lead decoding (shift, broken wire, other pack, count/sum mismatch), per-cell warnings (valid at idle only), delta verdict, SoC from OCV tables (LiPo, LiHV), storage hint, IR from ΔV/ΔI. | `battery.c`, 10 Hz task |
 | `memory.py` | 32 drone profiles keyed by cell count + capacitance (±15 %), idle at 10 s, idle-up and capacitance-down warnings, LRU replacement. | `memory.c`, one flash page, wear-levelled |
-| `machine.py` | The state machine: STARTUP, SAFE, ARMED, CHECKING, PRECHARGE, ENGAGING, LIVE, WARNING, ABORT, BIND, POWER_CUT; overlays S11/S13. Per tick: switch commands, screen (S-number + data), ring colour, beep. | `machine.c`, the 1 kHz control task |
+| `packs.py` | 32 battery packs remembered by a number the box gives them: fingerprint (exact cell count, pack and per-cell IR within ±25 % / ±30 %, recency), the "Pack 7?" question on the rocker (+ yes, − next, then "new", 5 s timeout = skip), uses, first/last seen (RTC or visit counter), IR at first sight and latest, "wearing" at > +40 %, worst cell, imbalance, LRU, numbers never reused. | `packs.c`, one flash page, wear-levelled |
+| `machine.py` | The state machine: STARTUP, SAFE, ARMED, CHECKING, PRECHARGE, ENGAGING, LIVE, WARNING, ABORT, BIND, POWER_CUT, TOO_HIGH; overlays S11/S13; the pack question on the battery screens. Per tick: switch commands, screen (S-number + data), ring colour, beep. | `machine.c`, the 1 kHz control task |
 | `sim_world.py` | Plant: pack (cells + IR), balance lead (shift, broken wires, other pack), drone (caps, leakage, 1S FC, shorts, reversed diodes, regulators, constant-power VTX, voltage-dependent fault, motor demand, its own battery), board (probe, 4.1 µF on VOUT, D3 + 7.8 Ω pre-charge, slow-gate switch, low-side shunt, INP AND gate, peak latch with the 52 A LMV331 ceiling and the 65 A hard-short comparator, 99 A SCP, Q11 lifting the taps under load, thermal). `Rig` gives tests human verbs. | not ported |
 
 ## Mapping to the C firmware
@@ -114,7 +115,35 @@ resistor-bank output: the pre-charge has one resistor value.
     stage 0 says the screen explains it, which the hardware cannot do (VIN
     reads 0, the aux OR blocks).
 
+12. **Over-voltage refusal (TOO_HIGH).** VIN ≥ 62.5 V (`VIN_TOO_HIGH_MV`:
+    14S LiHV 60.9 V + 2.6 % for the 1 % divider and ADC gain, below the
+    SMBJ64CA's 64 V stand-off), or a reading at the
+    ADC's full scale (≈ 66 V: "over 66.0 V"), refuses the pack from any state
+    on the tick it is seen: nothing switches, S08 shows the voltage, alarm.
+    The guard does not clear it; only the input going away (VIN < 2.5 V, or
+    the box going dark) does, then ON needs OFF first. A 15S pack below
+    ≈ 4.17 V/cell is inside the 14S window and cannot be told apart.
+13. **Pack memory.** 2 s after a plug-in, in SAFE with the rocker idle (no
+    S11/S13/S18), the battery screen asks "Pack 7?" or "New pack 12"
+    (`data['pack']`); the rocker answers it instead of changing the limit.
+    Opening the guard, any other state, or 5 s without input skips it, and a
+    skipped plug-in records nothing. At a plug-in nothing has drawn current,
+    so matching is usually cell count + recency; IR measured in a run before
+    the question was answered (box woken with the guard open) ranks the
+    candidates and is stored on confirmation. A count that is ambiguous
+    without the balance lead is not asked about. Cell 1's IR includes the
+    B− return (corrected by 10 mΩ, `CELL1_RETURN_MOHM`). `Inputs.clock_s`
+    (0 = RTC not set) is the new input for first/last-seen dates. The
+    question rides on S01/S14/S15/S18 as data; `ui/screens.py` does not draw
+    it yet.
+
 ## Findings for the hardware/spec
+
+- **TPS48000 OV is not at ~64 V.** circuit.py says the OV divider "cuts
+  above ~64 V", but 1 MΩ / 18 kΩ with the 1.23 V OV threshold (SIM.md) is
+  ≈ 69.6 V, above the SMBJ64CA's 64 V stand-off. Between 62.5 V and
+  ≈ 69.6 V only the firmware refusal keeps the switch open; the aux buck
+  sees the pack either way (check its input rating against 16S+).
 
 - **Superseded by the final hardware (circuit.py, SIM.md):** the earlier
   findings here (~17 J into the 22 Ω bank, 22 Ω stalling a 15 W VTX at 8S,
@@ -141,7 +170,7 @@ resistor-bank output: the pre-charge has one resistor value.
 - SPEC example "Pack sags 1.9 V at 10 A — 95 mΩ" is inconsistent
   (1.9 V / 10 A = 190 mΩ).
 
-## Tests (236)
+## Tests (328)
 
 | File | Count | Covers |
 |---|---|---|
@@ -153,3 +182,5 @@ resistor-bank output: the pre-charge has one resistor value.
 | `test_flow.py` | 31 | S00→S01, S02→S06 order with LEDs/beeps, nothing powered during check, toggle off, guard close live/mid-precharge/mid-check, flick on with guard closed, toggle held on through guard cycle, bind mid-check, bind cycles (<2 s each, then stays on), bind needs guard, S13/S11 overlays, 25 A live + 60 s, confirm timeout, mashing live, guard ends motor test, rocker ignored in abort, fault latch, start-up with toggle on, battery swap, average/peak/driver trips, over-temp, stall refused (8S, "Drone draws power at …"), fault under a 12 V gap closes then the limit trips (4S), energy budget at 14S |
 | `test_wiring.py` | 23 | every ARCHITECTURE §4 row (reversed input with/without USB, battery on drone side, both sides, reversed on drone side, drone backwards, short, half-short, plug shifted, balance alone shifted = dark, other pack, deeply discharged, over-charged, high IR, collapse, USB while live), USB only, §3 screens S14/S15/S16, cell voltages from idle readings (not under load) |
 | `test_packs.py` | 24 | 1–14S end to end, 1S/new-drone AUTO, 14S 5000 µF + VTX (8–12 J), 8S + 15 W VTX goes live, 6S 3.5 V/cell + 10 W VTX refused, memory: same → draws more, cap broke off, no big cap, residual-charge re-power, unknown charged drone |
+| `test_pack_memory.py` | 65 | new pack 1, match, cell count exact (5 counts), pack IR ±25 % edges and 5 mΩ floor, per-cell ±30 % edges and 2 mΩ floor, same total told apart by the cell pattern, unknown IR on either side, ranking (closest IR, then uncompared, then recency), + / − / wrap through "new", 300 ms dead time, held button, both halves, 5 s timeout and − restarting it, skip records nothing, numbers never reused across 3 table wraps, LRU at 32, 32-bit visit counter wrap, missing clock, IR first/latest, wearing at 40 % edges, per-cell IR rounding and cell 1, worst cell, imbalance, export; machine: asked 2 s after plug-in, + confirms, replug proposes it, timeout hands the rocker back, rocker never reaches the limit while asked, guard open skips (arming unaffected), waits for S13 and a held rocker, asked after waking with the guard open, run IR stored (29 mΩ pack, 4 mΩ cells), wearing on the battery screen, IR from an earlier run ranks and is stored, RTC stored / absent, unplug drops the question, imbalance and weak cell at plug-in, ambiguous count not asked |
+| `test_too_high.py` | 27 | threshold vs 14S LiHV + tolerance, TVS and ADC range, at / just below / just above 62.5 V, full scale, refused from the first tick, "over 66.0 V", cannot arm (guard, ON, BIND, guard cycle), rocker ignored, latched until VIN < 2.5 V (not by a lower reading), ON needs OFF after clearing, 15S end to end (nothing ever on), 16S saturating the ADC, 14S at 4.46 V/cell not refused, clears on unplug (USB) then a good pack goes live, clears by going dark, guard does not clear it, rise while live cuts the same tick, no pack question |

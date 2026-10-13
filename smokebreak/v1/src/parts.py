@@ -45,6 +45,12 @@ PARTS = {
                    'NPN 300 V (pre-charge gate pull-down: sees VIN)'),
     'MMBT5401':  P('SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR', 'onsemi', 'MMBT5401LT1G', 'C21488',
                    'PNP 150 V (probe switch: a reversed drone-side pack puts -60 V on it)'),
+    'D2TO20R3R9': P('Package_TO_SOT_SMD:TO-263-2', 'Vishay', 'D2TO020C3R900FRE3', 'C4267031',
+                   'Pre-charge resistor 3.9 Ohm 20 W thick film, TO-263, element isolated from the tab; '
+                   '~10 J single pulse at 100 ms (datasheet curve). Two in series. Consign / global sourcing'),
+    'FUSE40':    P('Fuse_Eaton_2822HC', 'Eaton Bussmann', '2822HC40-RTR', 'C5493215',
+                   'Fuse 40 A 72/80 V DC, 1000 A interrupting @ 80 V DC, 7.6 x 6.0 x 4.2 mm brick (consign; '
+                   'stocked alternate Littelfuse 0456040.DRSDE C3166225 needs a 12.2 mm footprint)'),
     'AC05R3R9':  P('RES-TH_BD7.5-L18.0-P22.00-D1.0', 'Vishay', 'AC05000003909JAC00', 'C3419184',
                    'Pre-charge resistor 3.9 Ohm 5 W cemented wirewound, pulse rated (two in series)', fit='tht'),
     'BSC070L':   P('PG-TDSON-8_L5.9-W5.1-P1.27-LS6.1-BL', 'Infineon', 'BSC070N10LS5ATMA1', 'C3278731',
@@ -62,6 +68,10 @@ PARTS = {
     # ---------------------------------------------------------- aux supply
     'LMR36506':  P('VQFN-9_L2.1-W2.1-P0.50-TL', 'Texas Instruments', 'LMR36506R5RPER', 'C2866484',
                    'Buck 3.6-65 V in, 5 V fixed, 600 mA (pin-compatible with LMR36503R5)'),
+    'LM5164':    P('Package_SO:SOIC-8-1EP_3.9x4.9mm_P1.27mm_EP2.41x3.3mm', 'Texas Instruments', 'LM5164DDAR', 'C477928',
+                   'Sync buck 6-100 V in, 1 A, COT (aux 5 V)'),
+    'L47U6045':  P('Inductor_SMD:L_Changjiang_FNR6045S', 'Sunlord', 'SWPA6045S470MT', 'C36414',
+                   'Inductor 47 uH 6x6x4.5 mm, 1.2 A rated / 1.4 A'),
     'L47U':      P('IND-SMD_L4.0-W4.0_SLS3DXX', 'Sunlord', 'SWPA4030S470MT', 'C54731',
                    'Inductor 47 uH 4x4x3 mm'),
     'TLV75533':  P('SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR', 'Texas Instruments', 'TLV75533PDBVR', 'C404027',
@@ -107,6 +117,11 @@ PARTS = {
     'TOGGLE':    P('SW_Toggle_SPDT_P4.70mm_THT', 'C&K', '7107SYCQE', None,
                    'Toggle ON-OFF-(ON), 1/4-40, PC pins (alternates: NKK MN19SS1W03, '
                    'E-Switch 100SP5T1B1M2QEH)', fit='tht'),
+    'FH12_8':    P('Connector_FFC-FPC:Hirose_FH12-8S-0.5SH_1x08-1MP_P0.50mm_Horizontal', 'Hirose', 'FH12-8S-0.5SH(55)',
+                   'C597995', 'FPC connector 8 pin 0.5 mm, bottom contact, 2.0 mm high (display)'),
+    'TFT225':    P(None, 'EastRising (BuyDisplay)', 'ER-TFT2.25-1', None,
+                   'Display 2.25" 76x284 ST7789P3 4-wire SPI, 8-pin 0.5 mm FPC (plugs into J7); order the IPS '
+                   'variant, confirm controller and panel type with the vendor', fit='off'),
     'FH34_30':   P('FFC-SMD_30P-P0.50_FH34SRJ-30S-0.5SH', 'Hirose', 'FH34SRJ-30S-0.5SH(50)', 'C324727',
                    'FPC connector 30 pin 0.5 mm, dual contact (display)'),
     'TFT1901':   P(None, 'QDtech', 'TFT1901', None,
@@ -176,6 +191,9 @@ CAPS = {
     ('2u2', '100V', '1210'): 'CL32B225KCJSNNE',
     ('4u7', '100V', '1210'): 'CL32B475KCJSNNE',
     ('22n', '50V', '0402'): 'CL05B223KB5NNNC',
+    ('2n2', '50V', '0402'): 'CL05B222KB5NNNC',
+    ('3n3', '50V', '0402'): 'CL05B332KB5NNNC',
+    ('56p', '50V', '0402'): 'CL05C560JB5NNNC',
 }
 
 

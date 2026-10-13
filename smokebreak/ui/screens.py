@@ -1,20 +1,34 @@
-"""SmokeBreak screen design: the Arm sequence on a 1.9" 320 x 170 colour IPS.
+"""SmokeBreak screen design: the Arm sequence on a 2.25" 284 x 76 IPS bar.
+
+The panel's active area is 55.3 x 14.8 mm.  The case opening over it has G2
+(curvature-continuous) corners: superellipse quadrants, n = 5, r = 2.2 mm,
+about 11 px.  Content stays inside a safe area at least 4 px in from that
+outline (checked by lint() on every screen), and every final frame is masked
+with the same outline, black outside.
 
 Every screen is drawn at the panel's real resolution in logical pixels and
 scaled by SCALE for review, so what is drawn here is what fits the panel.
 
-    python3 screens.py            # storyboard.png + arm-sequence.mp4 (with beeps)
+A bar is wide and short, so each screen is one or two rows (three lines of
+small text at most): the status ring or dot and the state word at the left,
+the big number next, secondary facts at the right.  Words are Instrument
+Sans, numerals JetBrains Mono; no text is under 9 px cap height (13 px).
 
-Screens are numbered S00..S18 so feedback can point at one (S14-S18, the
-battery screens, are in the storyboard but not in the video timeline).
+    python3 screens.py    # storyboard.png, bar-screens.png, arm-sequence.mp4
+                          # (with beeps), frames/ and frames24/
+
+Screens are numbered S00..S21 so feedback can point at one (S14-S21, the
+battery and pack screens, are in the storyboard but not in the video
+timeline).
 """
 import math
 import os
 import shutil
 import subprocess
 import tempfile
+from functools import lru_cache
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 sys_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'brand')
 import sys  # noqa: E402
@@ -22,12 +36,16 @@ sys.path.insert(0, sys_path)
 import mark as brand  # noqa: E402  the one source of the Beacon Ring
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FONTS = os.environ.get('SB_FONTS', '/tmp/claude-0/-home-user-offgrid-hardware/'
-                       'bb4d9657-83a6-5d9a-b4a3-ba3efc9cb84f/scratchpad/ref')
+FONTS = os.environ.get('SB_FONTS', os.path.join(os.path.dirname(HERE), 'brand', 'fonts'))
 
-PW, PH = 320, 170          # panel, pixels
+PW, PH = 284, 76           # panel, pixels (2.25" bar, 55.3 x 14.8 mm active)
 SCALE = 4                  # review scale
 FPS = 30
+
+MM = PW / 55.3             # pixels per mm (5.14)
+CORNER = 2.2 * MM          # the opening's G2 corner radius, px (11.3)
+CORNER_N = 5.0             # its superellipse exponent
+SAFE = 4                   # content keeps this far in from the opening, px
 
 INK = (11, 10, 8)
 BONE = (241, 236, 224)
@@ -37,7 +55,60 @@ GREEN = (76, 175, 80)
 RED = (229, 57, 53)
 BLUE = (61, 139, 255)
 
+FAINT = (60, 56, 50)       # checks not reached yet
+BAR_BG = (40, 36, 30)      # empty part of a bar or chip
 
+# the grid: left and right content edges, and the baselines of the three
+# lines of 13 px text (A top, B middle, C bottom)
+L, R = 12, PW - 12
+RA, RB, RC = 21, 43.5, 66
+MIN_TEXT = 13              # px; 9.4 px cap height in either face
+CAP = {'sans': 0.720, 'mono': 0.730}   # cap height / size (measured)
+
+
+def g2_rect(x0, y0, w, h, r, n=5.0, k=16):
+    """Rounded rectangle whose corners are superellipse quadrants
+    |x|^n + |y|^n = r^n: the curvature runs from zero at the straight edge
+    to a maximum at 45 degrees and back, so every joint is G2.
+    (Copied from design/face/layout.py.)"""
+    pts = []
+    corners = [(x0 + w - r, y0 + r, -90), (x0 + w - r, y0 + h - r, 0), (x0 + r, y0 + h - r, 90), (x0 + r, y0 + r, 180)]
+    for cx, cy, a0 in corners:
+        for i in range(k + 1):
+            t = math.radians(a0 + 90 * i / k)
+            c, s = math.cos(t), math.sin(t)
+            pts.append((cx + r * math.copysign(abs(c) ** (2 / n), c), cy + r * math.copysign(abs(s) ** (2 / n), s)))
+    return pts
+
+
+@lru_cache(maxsize=None)
+def opening_mask(scale=SCALE):
+    """The case opening at `scale`, antialiased: 255 inside, 0 outside."""
+    ss = 4
+    big = Image.new('L', (PW * scale * ss, PH * scale * ss), 0)
+    ImageDraw.Draw(big).polygon(g2_rect(0, 0, PW * scale * ss, PH * scale * ss, CORNER * scale * ss, CORNER_N, 64),
+                                fill=255)
+    return big.resize((PW * scale, PH * scale), Image.LANCZOS)
+
+
+@lru_cache(maxsize=None)
+def safe_mask():
+    """Where content may go (at SCALE): the opening eroded by SAFE px.
+    A square erosion, so it is a little stricter than SAFE at the corners."""
+    m = opening_mask().point(lambda v: 255 if v >= 250 else 0)
+    k = 2 * SAFE * SCALE + 1
+    return m.filter(ImageFilter.MinFilter(k))
+
+
+def masked(im):
+    """A final frame: the screen inside the opening, black outside."""
+    out = Image.new('RGB', im.size, (0, 0, 0))
+    m = opening_mask(im.size[0] // PW)
+    out.paste(im, (0, 0), m)
+    return out
+
+
+@lru_cache(maxsize=None)
 def font(kind, px, weight=500):
     path = os.path.join(FONTS, 'JetBrainsMono-VariableFont.ttf' if kind == 'mono'
                         else 'InstrumentSans-VariableFont.ttf')
@@ -52,23 +123,67 @@ def font(kind, px, weight=500):
     return f
 
 
+def width(s, size, kind='sans', weight=500):
+    """Advance width of `s` in panel pixels."""
+    return font(kind, size, weight).getlength(s) / SCALE
+
+
+def cap(size, kind='sans'):
+    """Cap height in panel pixels."""
+    return int(size * SCALE) * CAP[kind] / SCALE
+
+
 class Canvas:
     def __init__(self, bg=INK):
         self.im = Image.new('RGB', (PW * SCALE, PH * SCALE), bg)
         self.d = ImageDraw.Draw(self.im)
+        # what counts as content (text, numbers, rings, bars) is also drawn
+        # here, so lint() can check it against the safe area; full-bleed
+        # backgrounds, hazard stripes, rules and frames are not content
+        self.ink = Image.new('L', self.im.size, 0)
+        self.di = ImageDraw.Draw(self.ink)
+        self.texts = []        # (box in panel px, string, size) for lint()
+        self.name = ''
 
-    def text(self, x, y, s, size, colour=BONE, kind='sans', anchor='la', weight=500):
-        self.d.text((x * SCALE, y * SCALE), s, font=font(kind, size, weight), fill=colour, anchor=anchor)
+    def _box(self, pts):
+        return [v * SCALE for v in pts]
 
-    def rect(self, x0, y0, x1, y1, colour, width=0, r=0):
-        box = [x0 * SCALE, y0 * SCALE, x1 * SCALE, y1 * SCALE]
-        if width:
-            self.d.rounded_rectangle(box, r * SCALE, outline=colour, width=int(width * SCALE))
-        else:
-            self.d.rounded_rectangle(box, r * SCALE, fill=colour)
+    def text(self, x, y, s, size, colour=BONE, kind='sans', anchor='la', weight=500, record=True):
+        f = font(kind, size, weight)
+        xy = (x * SCALE, y * SCALE)
+        self.d.text(xy, s, font=f, fill=colour, anchor=anchor)
+        self.di.text(xy, s, font=f, fill=255, anchor=anchor)
+        if record:
+            b = self.d.textbbox(xy, s, font=f, anchor=anchor)
+            self.texts.append(([v / SCALE for v in b], s, size))
+
+    def run(self, x, y, parts, align='l'):
+        """Several styled pieces on one baseline: parts are (s, size, colour,
+        kind[, weight]).  align 'l' starts at x, 'r' ends at x."""
+        parts = [p + (500,) if len(p) == 4 else p for p in parts]
+        total = sum(width(s, size, kind, w) for s, size, _, kind, w in parts)
+        x0 = x - total if align == 'r' else x
+        cx = x0
+        for s, size, colour, kind, w in parts:
+            self.text(cx, y, s, size, colour, kind, 'ls', w, record=False)
+            cx += width(s, size, kind, w)
+        top = y - max(cap(size, kind) for _, size, _, kind, _ in parts)
+        self.texts.append(([x0, top, cx, y], ''.join(p[0] for p in parts), min(p[1] for p in parts if p[0].strip())))
+        return cx
+
+    def rect(self, x0, y0, x1, y1, colour, width=0, r=0, decor=False):
+        box = self._box([x0, y0, x1, y1])
+        draws = [(self.d, colour)] + ([] if decor else [(self.di, 255)])
+        for d, col in draws:
+            if width:
+                d.rounded_rectangle(box, r * SCALE, outline=col, width=int(width * SCALE))
+            else:
+                d.rounded_rectangle(box, r * SCALE, fill=col)
 
     def line(self, pts, colour, width=1):
-        self.d.line([(x * SCALE, y * SCALE) for x, y in pts], fill=colour, width=int(width * SCALE))
+        p = [(x * SCALE, y * SCALE) for x, y in pts]
+        self.d.line(p, fill=colour, width=int(width * SCALE))
+        self.di.line(p, fill=255, width=int(width * SCALE))
 
     def mark(self, cx, cy, R, colour=BONE):
         """The OffGrid mark, exactly as the brand draws it (brand/mark.py),
@@ -76,19 +191,23 @@ class Canvas:
         static and alone (the start-up screen): never a status icon, never
         animated, never with anything inside it."""
         for poly in brand.polygons(brand.by_ring_radius(R, centre=(cx, cy))):
-            self.d.polygon([(x * SCALE, y * SCALE) for x, y in poly.exterior.coords], fill=colour)
+            p = [(x * SCALE, y * SCALE) for x, y in poly.exterior.coords]
+            self.d.polygon(p, fill=colour)
+            self.di.polygon(p, fill=255)
 
     def status(self, cx, cy, r, colour, frac=1.0, fill=False):
         """The status light on screen: a plain closed ring (or a dot), the
         same shape as the light round the switch.  Deliberately not the
         mark: no opening, no node."""
         box = [(cx - r) * SCALE, (cy - r) * SCALE, (cx + r) * SCALE, (cy + r) * SCALE]
-        if fill:
-            self.d.ellipse(box, fill=colour)
-        elif frac >= 1:
-            self.d.ellipse(box, outline=colour, width=int(max(1.5, r * 0.18) * SCALE))
-        elif frac > 0:
-            self.d.arc(box, -90, -90 + 360 * frac, fill=colour, width=int(max(1.5, r * 0.18) * SCALE))
+        w = int(max(1.5, r * 0.18) * SCALE)
+        for d, col in ((self.d, colour), (self.di, 255)):
+            if fill:
+                d.ellipse(box, fill=col)
+            elif frac >= 1:
+                d.ellipse(box, outline=col, width=w)
+            elif frac > 0:
+                d.arc(box, -90, -90 + 360 * frac, fill=col, width=w)
 
     def stripes(self, y0, y1, colour, phase=0.0):
         """Hazard chevrons across the panel, scrolling with `phase`."""
@@ -100,9 +219,24 @@ class Canvas:
                             ((x + 7 + (y1 - y0)) * SCALE, y0 * SCALE), ((x + (y1 - y0)) * SCALE, y0 * SCALE)],
                            fill=colour)
 
+    def frame(self, colour, inset=1.5, w=2.5):
+        """A border that follows the opening's own G2 outline."""
+        s = SCALE
+        pts = g2_rect(inset * s, inset * s, (PW - 2 * inset) * s, (PH - 2 * inset) * s,
+                      (CORNER - inset) * s, CORNER_N, 32)
+        self.d.line(pts + pts[:1], fill=colour, width=int(w * s), joint='curve')
+
+    def dot_for(self, x, base, size, colour, r=5, kind='sans'):
+        """A status dot in the gutter left of a line of text, centred on its caps."""
+        self.status(x, base - cap(size, kind) / 2, r, colour, fill=True)
+
     def tag(self, s):
-        """Screen number in the corner (review only, not on the device)."""
-        self.text(PW - 3, PH - 3, s, 7, DIM, 'mono', 'rd')
+        """Screen number, for review only: kept off the panel (it would sit
+        in the opening's corner) and shown in the storyboard's labels."""
+        self.name = s
+
+    def final(self):
+        return masked(self.im)
 
 
 def lerp(a, b, t):
@@ -112,6 +246,16 @@ def lerp(a, b, t):
 def ease(t):
     t = max(0.0, min(1.0, t))
     return t * t * (3 - 2 * t)
+
+
+def rocker(c, x, y, choices, align='r'):
+    """The rocker hint: '+' and '−' in mono Bone, what each means in Dim."""
+    parts = []
+    for i, (key, word) in enumerate(choices):
+        if i:
+            parts.append(('   ', MIN_TEXT, DIM, 'sans'))
+        parts += [(key, MIN_TEXT, BONE, 'mono'), (' ' + word, MIN_TEXT, DIM, 'sans')]
+    return c.run(x, y, parts, align)
 
 
 # ------------------------------------------------------------------ screens
@@ -125,77 +269,105 @@ def s00_startup(t):
     """Start-up: the mark alone, static, centred, Bone on black, with more
     than a quarter of its width clear on every side.  It cuts in and cuts out."""
     c = Canvas()
-    c.mark(PW / 2, PH / 2 + 8, 24)
+    R0 = 14
+    x0, y0, x1, y1 = brand.by_ring_radius(R0).bounds
+    c.mark(PW / 2 - (x0 + x1) / 2, PH / 2 - (y0 + y1) / 2, R0)
     c.tag('S00')
     return c
 
 
 def s01_safe(t):
     c = Canvas()
-    c.status(34, 70, 18, lerp(DIM, EMBER, 0.35 + 0.25 * math.sin(t * math.tau)))
-    c.text(70, 44, 'SAFE', 38, BONE, 'sans', weight=600)
-    c.text(72, 92, 'Drone is off', 12, DIM)
-    c.text(12, 128, BATT, 16, BONE, 'mono')
-    c.text(12, 150, 'Lift the guard to arm', 11, EMBER)
+    c.status(25, 38, 13, lerp(DIM, EMBER, 0.35 + 0.25 * math.sin(t * math.tau)))
+    c.text(46, 36, 'SAFE', 30, BONE, 'sans', 'ls', 600)
+    c.text(46, 60, 'Drone is off', 13, DIM, anchor='ls')
+    c.text(R, 36, BATT, 16, BONE, 'mono', 'rs')
+    c.text(R, 60, 'Lift the guard to arm', 13, EMBER, anchor='rs')
     c.tag('S01')
     return c
 
 
 def s02_armed(t):
     c = Canvas()
-    c.stripes(0, 12, EMBER, t * 6)
-    c.stripes(PH - 12, PH, EMBER, -t * 6)
-    c.rect(0, 12, PW, PH - 12, INK)
+    c.stripes(0, 6, EMBER, t * 6)
+    c.stripes(PH - 6, PH, EMBER, -t * 6)
+    c.rect(0, 6, PW, PH - 6, INK, decor=True)
     pulse = 0.6 + 0.4 * abs(math.sin(t * math.pi * 3))
-    c.text(PW / 2, 26, 'ARMED', 44, lerp(INK, EMBER, pulse), 'sans', 'ma', 600)
-    c.text(PW / 2, 84, 'Flick the switch up', 14, BONE, anchor='ma')
-    c.text(PW / 2, 104, 'to check and power the drone', 11, DIM, anchor='ma')
-    c.text(16, 136, BATT, 11, BONE, 'mono')
-    c.text(PW - 16, 136, DRONE + ' · 0.42 A last', 10, DIM, 'sans', 'ra')
+    c.text(L, 30, 'ARMED', 26, lerp(INK, EMBER, pulse), 'sans', 'ls', 600)
+    c.text(R, 30, 'Flick the switch up', 15, BONE, anchor='rs')
+    c.text(R, 47, 'to check and power the drone', 13, DIM, anchor='rs')
+    c.text(L, 64, BATT, 13, BONE, 'mono', 'ls')
+    c.text(R, 64, DRONE + ' · 0.42 A last', 13, DIM, anchor='rs')
     c.tag('S02')
     return c
 
 
 CHECKS = [('3 V probe', 'OK'), ('Short circuit', 'NONE'), ('Polarity', 'OK'),
           ('Capacitor', '1020 µF'), ('Pre-charge', '')]
+STEP = 11                  # pitch of the progress squares in the header
 
 
-def checklist(c, done, frac_last=0.0, active_colour=EMBER, dots=True):
-    for i, (name, val) in enumerate(CHECKS):
-        y = 30 + i * 22
-        if i < done:
-            c.text(16, y, '■', 9, GREEN, 'mono')
-            c.text(32, y - 2, name, 13, BONE)
-            c.text(PW - 16, y - 2, val, 12, GREEN, 'mono', 'ra')
-        elif i == done:
-            blink = int(frac_last * 8) % 2 == 0
-            c.text(16, y, '■', 9, active_colour if blink else INK, 'mono')
-            c.text(32, y - 2, name, 13, BONE)
-            if dots:
-                c.text(PW - 16, y - 2, '.' * (1 + int(frac_last * 6) % 4), 12, active_colour, 'mono', 'ra')
-        else:
-            c.text(32, y - 2, name, 13, (60, 56, 50))
+def check_header(c, done, frac_last, active_colour=EMBER):
+    """'CHECKING' and one square per check: green done, blinking active."""
+    c.text(L, RA, 'CHECKING', 13, EMBER, 'mono', 'ls', 600)
+    x0 = L + width('CHECKING', 13, 'mono', 600) + 12
+    blink = int(frac_last * 8) % 2 == 0
+    ym = RA - cap(13, 'mono') / 2
+    for i in range(len(CHECKS)):
+        col = GREEN if i < done else (active_colour if blink else BAR_BG) if i == done else FAINT
+        c.rect(x0 + i * STEP, ym - 3.5, x0 + i * STEP + 7, ym + 3.5, col, r=1)
+
+
+def check_row(c, y, i, state, frac=0.0, active_colour=EMBER, dots=True):
+    """One check on a line: square, name, result (or progress dots)."""
+    name, val = CHECKS[i]
+    ym = y - cap(15) / 2
+    if state == 'done':
+        c.rect(L, ym - 3.5, L + 7, ym + 3.5, GREEN, r=1)
+        c.text(26, y, name, 15, BONE, anchor='ls')
+        c.text(R, y, val, 14, GREEN, 'mono', 'rs')
+    elif state == 'active':
+        blink = int(frac * 8) % 2 == 0
+        if blink:
+            c.rect(L, ym - 3.5, L + 7, ym + 3.5, active_colour, r=1)
+        c.text(26, y, name, 15, BONE, anchor='ls')
+        if dots:
+            c.text(R, y, '.' * (1 + int(frac * 6) % 4), 14, active_colour, 'mono', 'rs')
+    else:
+        c.text(26, y, name, 15, FAINT, anchor='ls')
 
 
 def s03_checking(t):
+    """The checklist as a two-line window: the last result and the check
+    running now (or, at the start, the running check and the next one)."""
     c = Canvas()
-    c.text(16, 6, 'CHECKING', 13, EMBER, 'mono', weight=600)
-    c.text(PW - 16, 6, 'Battery held back', 10, DIM, anchor='ra')
     n = len(CHECKS) - 1
     done = min(n, int(t * n))
-    checklist(c, done, (t * n) % 1)
+    frac = (t * n) % 1
+    check_header(c, done, frac)
+    c.text(R, RA, 'Battery held back', 13, DIM, anchor='rs')
+    if done == 0:
+        check_row(c, RB, 0, 'active', frac)
+        check_row(c, RC, 1, 'todo')
+    else:
+        check_row(c, RB, done - 1, 'done')
+        check_row(c, RC, done, 'active', frac)
     c.tag('S03')
     return c
 
 
 def s04_precharge(t):
     c = Canvas()
-    c.text(16, 6, 'CHECKING', 13, EMBER, 'mono', weight=600)
-    checklist(c, 4, t, dots=False)
+    check_header(c, 4, t)
+    check_row(c, RB, 3, 'done')
+    check_row(c, RC, 4, 'active', t, dots=False)
     v = 16.8 * ease(t)
-    c.rect(32, 140, PW - 16, 156, (40, 36, 30), r=3)
-    c.rect(32, 140, 32 + (PW - 48) * ease(t), 156, EMBER, r=3)
-    c.text(PW - 16, 116, f'{v:4.1f} V', 12, EMBER, 'mono', 'ra')
+    ym = RC - cap(15) / 2
+    x0 = 26 + width('Pre-charge', 15) + 12
+    x1 = R - width('00.0 V', 14, 'mono') - 12
+    c.rect(x0, ym - 3, x1, ym + 3, BAR_BG, r=3)
+    c.rect(x0, ym - 3, x0 + (x1 - x0) * ease(t), ym + 3, EMBER, r=3)
+    c.text(R, RC, f'{v:4.1f} V', 14, EMBER, 'mono', 'rs')
     c.tag('S04')
     return c
 
@@ -203,8 +375,11 @@ def s04_precharge(t):
 def s05_engaged(t):
     flash = 1 - ease(t * 1.6)
     c = Canvas(lerp(INK, GREEN, flash))
-    c.status(PW / 2, 60, 6 + 28 * ease(t * 1.4), lerp(GREEN, INK, flash * 0.8))
-    c.text(PW / 2, 116, 'LIVE', 34, lerp(GREEN, INK, flash), 'sans', 'ma', 600)
+    rmax, gap, size = 22, 14, 34
+    w = 2 * rmax + gap + width('LIVE', size, 'sans', 600)
+    x0 = (PW - w) / 2
+    c.status(x0 + rmax, PH / 2, 4 + (rmax - 4) * ease(t * 1.4), lerp(GREEN, INK, flash * 0.8))
+    c.text(x0 + 2 * rmax + gap, PH / 2 + cap(size) / 2, 'LIVE', size, lerp(GREEN, INK, flash), 'sans', 'ls', 600)
     c.tag('S05')
     return c
 
@@ -220,32 +395,32 @@ def spark(c, x0, y0, w, h, t, colour):
 
 def s06_live(t):
     c = Canvas()
-    c.status(26, 26, 9, GREEN, fill=True)
-    c.text(48, 13, 'LIVE', 16, GREEN, 'sans', weight=600)
-    c.text(PW - 16, 16, DRONE, 11, DIM, anchor='ra')
+    c.dot_for(17, RA, 16, GREEN)
+    x = c.run(27, RA, [('LIVE', 16, GREEN, 'sans', 600)])
+    c.text(x + 10, RA, DRONE, 13, DIM, anchor='ls')
+    c.text(R, RA, 'Same as last time', 13, GREEN, anchor='rs')
     amps = 0.42 + 0.01 * math.sin(t * 20)
-    c.text(14, 46, f'{amps:0.2f}', 64, BONE, 'mono')
-    c.text(196, 82, 'A', 26, DIM, 'mono')
-    spark(c, 228, 58, 78, 40, t, GREEN)
-    c.text(14, 132, BATT, 12, BONE, 'mono')
-    c.text(PW - 16, 132, 'Limit AUTO 2.0 A', 11, DIM, anchor='ra')
-    c.text(14, 152, 'Same as last time', 11, GREEN)
-    c.text(PW - 16, 152, f'0:{int(t * 30):02d}', 11, DIM, 'mono', 'ra')
+    x = c.run(L, RC, [(f'{amps:0.2f}', 38, BONE, 'mono'), (' ', 6, BONE, 'mono'), ('A', 18, DIM, 'mono')])
+    sx = x + 10
+    spark(c, sx, 31, 46, 22, t, GREEN)
+    c.text(sx, RC, f'0:{int(t * 30):02d}', 13, DIM, 'mono', 'ls')
+    c.text(R, RB, BATT, 13, BONE, 'mono', 'rs')
+    c.text(R, RC, 'Limit AUTO 2.0 A', 13, DIM, anchor='rs')
     c.tag('S06')
     return c
 
 
 def s07_warning(t):
     c = Canvas()
-    c.rect(0, 0, PW, 4, EMBER)
-    c.status(26, 30, 9, EMBER, fill=True)
-    c.text(48, 17, 'LIVE · LOOK', 16, EMBER, 'sans', weight=600)
-    c.text(14, 52, 'Draws more than last time', 15, BONE)
-    c.text(14, 78, '0.42', 34, DIM, 'mono')
-    c.text(110, 86, '→', 22, EMBER, 'mono')
-    c.text(146, 78, '0.71 A', 34, EMBER, 'mono')
-    c.text(14, 130, 'Often a failing 5 V regulator or VTX.', 11, DIM)
-    c.text(14, 148, 'Close the guard to cut power.', 11, BONE)
+    c.rect(0, 0, PW, 3, EMBER, decor=True)
+    c.dot_for(17, RA, 15, EMBER)
+    c.text(27, RA, 'LIVE · LOOK', 15, EMBER, 'sans', 'ls', 600)
+    c.text(R, RA, 'Draws more than last time', 13, BONE, anchor='rs')
+    c.run(L, 47, [('0.42', 22, DIM, 'mono'), (' ', 10, DIM, 'mono'), ('→', 22, EMBER, 'mono'), (' ', 10, DIM, 'mono'),
+                  ('0.71', 22, EMBER, 'mono'), (' ', 10, DIM, 'mono'), ('A', 22, EMBER, 'mono')])
+    c.text(R, 47, 'Close the guard', 13, BONE, anchor='rs')
+    c.text(R, RC, 'to cut power.', 13, BONE, anchor='rs')
+    c.text(L, RC, 'Often a 5 V regulator or VTX', 13, DIM, anchor='ls')
     c.tag('S07')
     return c
 
@@ -253,48 +428,49 @@ def s07_warning(t):
 def _abort(t, title, value, line1, line2, tagname):
     on = int(t * 6) % 2 == 0
     c = Canvas(RED if t < 0.08 else INK)
-    border = RED if on else (90, 20, 18)
-    c.rect(2, 2, PW - 2, PH - 2, border, width=3, r=6)
-    c.text(PW / 2, 14, 'ABORT', 40, RED, 'sans', 'ma', 600)
-    c.text(PW / 2, 66, title, 18, BONE, 'sans', 'ma', 600)
-    c.text(PW / 2, 92, value, 16, RED, 'mono', 'ma')
-    c.text(PW / 2, 122, line1, 11, BONE, anchor='ma')
-    c.text(PW / 2, 142, line2, 11, DIM, anchor='ma')
+    c.frame(RED if on else (90, 20, 18))
+    x = c.run(14, 28, [('ABORT', 24, RED, 'sans', 600)])
+    c.text(x + 10, 28, title, 16, BONE, 'sans', 'ls', 600)
+    c.text(14, 47, line1, 13, BONE, anchor='ls')
+    c.text(PW - 14, 47, value, 15, RED, 'mono', 'rs')
+    c.text(14, RC, line2, 13, DIM, anchor='ls')
     c.tag(tagname)
     return c
 
 
 def s08_short(t):
-    return _abort(t, 'Short circuit', '0.3 Ω', 'The battery never reached the drone.',
+    return _abort(t, 'Short circuit', '0.3 Ω', 'Battery never reached the drone',
                   'Find the short, then close the guard.', 'S08')
 
 
 def s09_reversed(t):
-    return _abort(t, 'Leads reversed', 'RED ↔ BLACK', 'The drone lead is soldered backwards.',
+    return _abort(t, 'Leads reversed', 'RED ↔ BLACK', 'Drone lead is backwards',
                   'Nothing was powered. Close the guard.', 'S09')
 
 
 def s10_bind(t):
     c = Canvas()
     step = min(3, 1 + int(t * 3))
+    c.text(L, 34, f'BIND  {step}/3', 20, BLUE, 'sans', 'ls', 600)
     for k in range(3):
-        c.status(PW / 2 - 30 + 30 * k, 58, 9, BLUE if k < step else (30, 45, 70), fill=True)
-    c.text(PW / 2, 100, f'BIND  {step}/3', 24, BLUE, 'sans', 'ma', 600)
-    c.text(PW / 2, 136, 'Power-cycling the receiver', 11, BONE, anchor='ma')
-    c.text(PW / 2, 152, 'Then press Bind in your radio', 10, DIM, anchor='ma')
+        c.status(L + 6 + 16 * k, 54, 6, BLUE if k < step else (30, 45, 70), fill=True)
+    c.text(R, 34, 'Power-cycling the receiver', 13, BONE, anchor='rs')
+    c.text(R, 58, 'Then press Bind in your radio', 13, DIM, anchor='rs')
     c.tag('S10')
     return c
 
 
 def s11_motor(t):
     c = Canvas()
-    c.stripes(0, 10, EMBER, t * 6)
-    c.text(PW / 2, 20, '25 A MOTOR TEST', 22, EMBER, 'sans', 'ma', 600)
-    c.text(PW / 2, 60, 'Props off?', 30, BONE, 'sans', 'ma', 600)
-    c.text(PW / 2, 108, 'Press + again to confirm', 13, BONE, anchor='ma')
-    w = (PW - 60) * (1 - t)
-    c.rect(30, 140, 30 + w, 146, EMBER, r=3)
-    c.text(PW / 2, 152, '3 s', 9, DIM, 'mono', 'ma')
+    c.stripes(0, 6, EMBER, t * 6)
+    c.text(L, 25, '25 A MOTOR TEST', 15, EMBER, 'sans', 'ls', 600)
+    c.text(L, RC, 'Props off?', 24, BONE, 'sans', 'ls', 600)
+    c.text(R, 43, 'Press + again to confirm', 13, BONE, anchor='rs')
+    tx = R - width('3 s', 13, 'mono')
+    x0, x1 = R - width('Press + again to confirm', 13), tx - 10
+    ym = RC - cap(13, 'mono') / 2
+    c.rect(x0, ym - 2.5, x0 + (x1 - x0) * (1 - t), ym + 2.5, EMBER, r=2.5)
+    c.text(R, RC, '3 s', 13, DIM, 'mono', 'rs')
     c.tag('S11')
     return c
 
@@ -303,28 +479,31 @@ def s12_closing(t):
     k = ease(t * 2)
     c = Canvas()
     h = int(PH * (1 - k) / 2)
-    c.rect(0, 0, PW, PH, INK)
-    c.text(PW / 2, 60, 'POWER CUT', 30, lerp(EMBER, BONE, k), 'sans', 'ma', 600)
-    c.text(PW / 2, 104, 'Guard closed · drone off', 12, DIM, anchor='ma')
-    c.rect(0, 0, PW, h, (30, 27, 22))
-    c.rect(0, PH - h, PW, PH, (30, 27, 22))
+    c.rect(0, 0, PW, PH, INK, decor=True)
+    c.text(PW / 2, 38, 'POWER CUT', 28, lerp(EMBER, BONE, k), 'sans', 'ms', 600)
+    c.text(PW / 2, 59, 'Guard closed · drone off', 13, DIM, anchor='ms')
+    c.rect(0, 0, PW, h, (30, 27, 22), decor=True)
+    c.rect(0, PH - h, PW, PH, (30, 27, 22), decor=True)
     c.tag('S12')
     return c
 
 
 def s13_limit(t):
     c = Canvas()
-    c.text(16, 10, 'LIMIT', 14, DIM, 'mono', weight=600)
+    c.text(L, RA, 'LIMIT', 13, DIM, 'mono', 'ls', 600)
+    c.text(R, RA, '2 A average · 8 A peak cut-off', 13, BONE, anchor='rs')
     opts = ['AUTO', '1', '2', '5', '10', '25']
     sel = 2
+    gap = 6
+    w = (R - L - gap * (len(opts) - 1)) / len(opts)
+    y0, y1 = 28, 49
     for i, o in enumerate(opts):
-        x = 16 + i * 50
+        x = L + i * (w + gap)
         on = i == sel
-        c.rect(x, 50, x + 44, 96, EMBER if on else (40, 36, 30), r=6)
-        c.text(x + 22, 62, o, 18 if o != 'AUTO' else 11, INK if on else BONE, 'mono', 'ma', 600)
-    c.text(16, 112, '2 A average · 8 A peak cut-off', 12, BONE)
-    c.text(16, 136, 'Auto learns each drone. 25 A is for', 11, DIM)
-    c.text(16, 152, 'spinning motors with props off.', 11, DIM)
+        c.rect(x, y0, x + w, y1, EMBER if on else BAR_BG, r=4)
+        c.text(x + w / 2, (y0 + y1) / 2 + cap(13, 'mono') / 2, o, 13, INK if on else BONE, 'mono', 'ms', 600)
+    c.text(L, RC, 'Auto learns each drone.', 13, DIM, anchor='ls')
+    c.text(R, RC, '25 A: props off only', 13, DIM, anchor='rs')
     c.tag('S13')
     return c
 
@@ -333,17 +512,15 @@ def s13_limit(t):
 # Shown with the guard closed (S14-S16, S18) or whenever the drone side has a
 # battery (S17).  Numbers come from firmware/model/battery.py.
 
-BAR_BG = (40, 36, 30)
 BAR_V0, BAR_V1 = 3.30, 4.35        # bar scale: empty LiPo .. full LiHV
 
 
-def cell_bars(c, cells, x0, y0, x1, y1, labels=True):
-    """One bar per cell, lowest in Ember, highest in Bone, the rest Dim.
-    Voltage under each bar in mono; 'low' / 'high' under those two."""
+def cell_bars(c, cells, x0, y0, x1, y1):
+    """One bar per cell, lowest in Ember, highest in Bone, the rest Dim."""
     n = len(cells)
     lo = min(range(n), key=lambda i: cells[i])
     hi = max(range(n), key=lambda i: cells[i])
-    gap = 6 if n <= 6 else 4
+    gap = 6 if n <= 3 else 4
     w = (x1 - x0 - gap * (n - 1)) / n
     for i, v in enumerate(cells):
         x = x0 + i * (w + gap)
@@ -351,10 +528,6 @@ def cell_bars(c, cells, x0, y0, x1, y1, labels=True):
         col = EMBER if i == lo else BONE if i == hi else DIM
         c.rect(x, y0, x + w, y1, BAR_BG, r=2)
         c.rect(x, y1 - (y1 - y0) * f, x + w, y1, col, r=2)
-        if labels:
-            c.text(x + w / 2, y1 + 4, f'{v:.2f}', 9, BONE if i in (lo, hi) else DIM, 'mono', 'ma')
-            if i in (lo, hi) and lo != hi:
-                c.text(x + w / 2, y1 + 16, 'low' if i == lo else 'high', 8, col, anchor='ma')
 
 
 DELTA_WORDS = [(20, 'Balanced', GREEN), (50, 'Drifting', EMBER), (10 ** 6, 'Out of balance', RED)]
@@ -363,8 +536,22 @@ DELTA_WORDS = [(20, 'Balanced', GREEN), (50, 'Drifting', EMBER), (10 ** 6, 'Out 
 def delta_line(c, x, y, cells):
     d = round((max(cells) - min(cells)) * 1000)
     word, col = next((w, k) for lim, w, k in DELTA_WORDS if d <= lim)
-    c.text(x, y, f'Δ {d} mV', 12, col, 'mono')
-    c.text(x + 86, y, word, 12, col)
+    return c.run(x, y, [(f'Δ {d} mV', 13, col, 'mono'), ('  ' + word, 13, col, 'sans')])
+
+
+BARS_X0 = R - 84                   # cell bars sit at the right, over the cell range
+
+
+def battery_view(c, header, kind, context, cells, pct, pct_colour):
+    """S14 / S16: header and context on top, total and charge in the
+    middle with the cell bars to the right, the balance verdict under."""
+    x = c.run(L, RA, [(header, 13, DIM, 'mono', 600)])
+    c.text(x + 10, RA, kind, 13, DIM, anchor='ls')
+    c.text(R, RA, context, 13, DIM, anchor='rs')
+    x = c.run(L, 47, [(f'{sum(cells):.2f}', 26, BONE, 'mono'), (' ', 6, BONE, 'mono'), ('V', 16, DIM, 'mono')])
+    c.text(x + 14, 47, f'{pct} %', 20, pct_colour, 'mono', 'ls')
+    cell_bars(c, cells, BARS_X0, 28, R, 47)
+    delta_line(c, L, RC, cells)
 
 
 PACK = [4.11, 4.12, 4.09, 4.13, 4.12, 4.11]
@@ -372,29 +559,23 @@ PACK = [4.11, 4.12, 4.09, 4.13, 4.12, 4.11]
 
 def s14_battery(t):
     c = Canvas()
-    c.text(16, 8, 'BATTERY', 13, DIM, 'mono', weight=600)
-    c.text(PW - 16, 10, '6S · LiPo', 11, DIM, anchor='ra')
-    c.text(14, 28, f'{sum(PACK):.2f}', 34, BONE, 'mono')
-    c.text(124, 44, 'V', 18, DIM, 'mono')
-    c.text(PW - 16, 30, '91 %', 26, GREEN, 'mono', 'ra')
-    cell_bars(c, PACK, 16, 78, PW - 16, 118)
-    delta_line(c, 16, 150, PACK)
-    c.text(PW - 16, 151, 'Above storage', 11, DIM, anchor='ra')
+    battery_view(c, 'BATTERY', '6S · LiPo', 'Above storage', PACK, 91, GREEN)
+    lo, hi = min(PACK), max(PACK)
+    c.run(R, RC, [(f'{lo:.2f}', 13, EMBER, 'mono'), ('–', 13, DIM, 'mono'), (f'{hi:.2f}', 13, BONE, 'mono')], 'r')
     c.tag('S14')
     return c
 
 
 def s15_battery_warning(t):
     c = Canvas()
-    c.rect(0, 0, PW, 4, EMBER)
-    c.status(26, 30, 9, EMBER, fill=True)
-    c.text(48, 17, 'CHECK BATTERY', 16, EMBER, 'sans', weight=600)
-    c.text(14, 50, 'Cell 3 is over-discharged', 15, BONE)
-    c.text(14, 74, '2.71 V', 34, EMBER, 'mono')
-    c.text(PW - 16, 80, 'others 3.30 V', 11, DIM, 'sans', 'ra')
-    c.text(PW - 16, 96, 'damage under 3.0 V', 11, DIM, 'sans', 'ra')
-    c.text(14, 130, 'Charge it slowly, 1C or less, and watch it.', 11, DIM)
-    c.text(14, 148, 'If it will not hold charge, retire the pack.', 11, BONE)
+    c.rect(0, 0, PW, 3, EMBER, decor=True)
+    c.dot_for(17, RA, 14, EMBER)
+    c.text(27, RA, 'CHECK BATTERY', 14, EMBER, 'sans', 'ls', 600)
+    c.text(R, RA, 'others 3.30 V', 13, DIM, anchor='rs')
+    c.text(L, 47, '2.71 V', 24, EMBER, 'mono', 'ls')
+    c.text(R, 47, 'Cell 3 is over-discharged', 13, BONE, anchor='rs')
+    c.text(L, RC, 'Charge at 1C or less', 13, DIM, anchor='ls')
+    c.text(R, RC, "Retire it if it won't hold", 13, BONE, anchor='rs')
     c.tag('S15')
     return c
 
@@ -404,59 +585,100 @@ STORE = [3.85, 3.84, 3.86]
 
 def s16_balance_only(t):
     c = Canvas()
-    c.text(16, 8, 'BALANCE CHECK', 13, DIM, 'mono', weight=600)
-    c.text(PW - 16, 10, 'No drone attached', 11, DIM, anchor='ra')
-    c.text(14, 30, f'{sum(STORE):.2f} V  3S', 16, BONE, 'mono')
-    c.text(PW - 16, 30, '55 %', 16, BONE, 'mono', 'ra')
-    cell_bars(c, STORE, 16, 60, PW - 16, 104)
-    delta_line(c, 16, 134, STORE)
-    c.text(16, 152, 'At storage voltage: ready to put away', 11, GREEN)
+    battery_view(c, 'BALANCE CHECK', '3S', 'No drone attached', STORE, 55, BONE)
+    c.text(R, RC, 'At storage: put away', 13, GREEN, anchor='rs')
     c.tag('S16')
     return c
 
 
 def s17_wrong_side(t):
     c = Canvas()
-    c.status(PW / 2, 30, 14, EMBER)
-    c.text(PW / 2, 54, 'Battery on the drone side', 18, BONE, 'sans', 'ma', 600)
-    c.text(PW / 2, 78, '16.4 V', 18, EMBER, 'mono', 'ma')
-    c.text(PW / 2, 114, '← Move it to the Battery end', 13, BONE, anchor='ma')
-    c.text(PW / 2, 138, 'Nothing was powered.', 11, DIM, anchor='ma')
+    c.status(25, 38, 13, EMBER)
+    c.text(46, RA, 'Battery on the drone side', 15, BONE, 'sans', 'ls', 600)
+    c.text(46, RB, '← Move it to the Battery end', 13, BONE, anchor='ls')
+    c.text(46, RC, 'Nothing was powered.', 13, DIM, anchor='ls')
+    c.text(R, RC, '16.4 V', 20, EMBER, 'mono', 'rs')
     c.tag('S17')
     return c
 
 
 def s18_shifted(t):
     c = Canvas()
-    c.text(16, 8, 'Balance plug shifted', 17, BONE, 'sans', weight=600)
-    c.text(PW - 16, 12, 'Reading OK', 12, GREEN, anchor='ra')
-    # the 9-pin header, pin 1 on the left; a 4S plug sitting 2 pins along
+    c.text(L, RA, 'Balance plug shifted', 15, BONE, 'sans', 'ls', 600)
+    c.text(R, RA, 'Reading OK', 13, GREEN, anchor='rs')
+    # the 9-pin header, pin 1 on the left; a 4S plug sitting 2 pins along.
+    # The plug's black wire (Dim) is on pin 3.
     shift, wires = 2, 5
-    x0, pitch, y = 34, 28, 62
-    c.text(x0 + 8, 34, '↓', 12, EMBER, 'mono', 'ma')
-    c.text(x0 + 22, 38, 'Black wire here', 10, EMBER)
+    x0, pitch, y, s = L, 13, 31, 10
     for p in range(9):
         x = x0 + p * pitch
-        c.rect(x, y, x + 16, y + 16, (60, 56, 50), width=1.2, r=2)
+        c.rect(x, y, x + s, y + s, FAINT, width=1, r=1.5)
         if shift <= p < shift + wires:
             black = p == shift
-            c.rect(x + 3, y + 3, x + 13, y + 13, DIM if black else BONE, r=1)
-        c.text(x + 8, y + 22, str(p + 1), 8, DIM, 'mono', 'ma')
-    c.rect(x0 + shift * pitch - 4, y - 5, x0 + (shift + wires - 1) * pitch + 20, y + 21, EMBER, width=1, r=3)
-    c.text(16, 114, 'Readings are right with the main lead in.', 11, BONE)
-    c.text(16, 132, 'On its own, a shifted balance lead', 11, DIM)
-    c.text(16, 148, 'cannot be read. Black wire to pin 1.', 11, DIM)
+            c.rect(x + 2.5, y + 2.5, x + s - 2.5, y + s - 2.5, DIM if black else BONE, r=1)
+        c.text(x + s / 2, RC, str(p + 1), 13, EMBER if p == shift else DIM, 'mono', 'ms')
+    c.rect(x0 + shift * pitch - 3, y - 3, x0 + (shift + wires - 1) * pitch + s + 3, y + s + 3, EMBER,
+           width=1, r=2.5)
+    c.text(R, RB, 'Black wire to pin 1', 13, EMBER, anchor='rs')
+    c.text(R, RC, "Alone, it can't be read", 13, DIM, anchor='rs')
     c.tag('S18')
+    return c
+
+
+# --------------------------------------------------------------- pack memory
+# The box numbers each new pack; the owner writes the number on it.  Next
+# time it guesses which pack it is and the owner confirms on the rocker.
+
+def pack_view(c, dot, name):
+    """The pack's number, big, with a status dot in the gutter."""
+    size = 36
+    c.dot_for(18, RB, size, dot, r=6)
+    c.text(30, RB, name, size, BONE, 'sans', 'ls', 600)
+
+
+def s19_new_pack(t):
+    c = Canvas()
+    pack_view(c, BLUE, 'Pack 12')
+    c.text(R, RA, 'New pack', 13, BLUE, anchor='rs')
+    c.text(R, RB, '4S  16.42 V', 16, BONE, 'mono', 'rs')
+    c.text(30, RC, 'Write 12 on it', 13, BONE, anchor='ls')
+    rocker(c, R, RC, [('+', 'yes, new'), ('−', 'no, old one')])
+    c.tag('S19')
+    return c
+
+
+def s20_pack_guess(t):
+    c = Canvas()
+    pack_view(c, GREEN, 'Pack 7?')
+    c.text(R, RA, 'Used 23 times', 13, DIM, anchor='rs')
+    c.text(R, RB, '4S  16.61 V', 16, BONE, 'mono', 'rs')
+    c.run(30, RC, [('R ', 13, BONE, 'sans'), ('+18 %', 13, EMBER, 'mono'), (' since new', 13, BONE, 'sans')])
+    rocker(c, R, RC, [('+', 'yes'), ('−', 'other')])
+    c.tag('S20')
+    return c
+
+
+def s21_too_high(t):
+    """A pack above 14S: refused before anything happens; nothing arms."""
+    c = Canvas()
+    c.status(25, 38, 13, RED)
+    c.text(46, RA, 'Too high', 15, BONE, 'sans', 'ls', 600)
+    x = c.run(46, 47, [('61.9 V', 22, RED, 'mono')])
+    c.text(x + 8, 47, 'is above 14S.', 15, RED, anchor='ls')
+    c.text(46, RC, 'Unplug it.', 15, RED, anchor='ls')
+    c.text(R, RC, 'Nothing will arm', 13, DIM, anchor='rs')
+    c.tag('S21')
     return c
 
 
 SCREENS = [s00_startup, s01_safe, s02_armed, s03_checking, s04_precharge, s05_engaged, s06_live, s07_warning,
            s08_short, s09_reversed, s10_bind, s11_motor, s12_closing, s13_limit,
-           s14_battery, s15_battery_warning, s16_balance_only, s17_wrong_side, s18_shifted]
+           s14_battery, s15_battery_warning, s16_balance_only, s17_wrong_side, s18_shifted,
+           s19_new_pack, s20_pack_guess, s21_too_high]
 TITLES = ['Start-up', 'Guard closed', 'Guard lifted', 'Switch up: checks', 'Pre-charge', 'Engaged', 'Live',
           'Changed since last time', 'Fault: short', 'Fault: reversed', 'Bind', 'Motor test confirm',
           'Guard closed again', 'Limit', 'Battery', 'Battery warning', 'Balance check only',
-          'Battery on the drone side', 'Balance plug shifted']
+          'Battery on the drone side', 'Balance plug shifted', 'New pack', 'Pack 7?', 'Too high']
 
 # the story told by the video: (screen, seconds, sound)
 TIMELINE = [(s00_startup, 1.5, None), (s01_safe, 2.0, None), (s02_armed, 2.2, 'arm'), (s03_checking, 2.4, 'tick'),
@@ -467,20 +689,73 @@ TIMELINE = [(s00_startup, 1.5, None), (s01_safe, 2.0, None), (s02_armed, 2.2, 'a
             (s13_limit, 1.8, None)]
 
 
-def storyboard(out):
-    cols, pad = 4, 24
-    tw, th = PW * 2, PH * 2
+# ------------------------------------------------------------------- checks
+
+def lint(ts=(0.0, 0.3, 0.55, 0.8, 1.0)):
+    """Every screen at several moments: content inside the safe area, no
+    text under MIN_TEXT, no two pieces of text closer than 4 px."""
+    import numpy as np
+    safe = np.asarray(safe_mask()) > 0
+    problems = []
+    for i, fn in enumerate(SCREENS):
+        for t in ts:
+            c = fn(t)
+            ink = np.asarray(c.ink) > 96
+            out = ink & ~safe
+            if out.any():
+                ys, xs = np.nonzero(out)
+                problems.append(f'S{i:02d} t={t}: {out.sum()} px outside the safe area, '
+                                f'x {xs.min() / SCALE:.0f}-{xs.max() / SCALE:.0f}, '
+                                f'y {ys.min() / SCALE:.0f}-{ys.max() / SCALE:.0f}')
+            for box, s, size in c.texts:
+                if size < MIN_TEXT:
+                    problems.append(f'S{i:02d}: "{s}" is {size} px (min {MIN_TEXT})')
+            bx = c.texts
+            for a in range(len(bx)):
+                for b in range(a + 1, len(bx)):
+                    (ax0, ay0, ax1, ay1), sa, _ = bx[a]
+                    (bx0, by0, bx1, by1), sb, _ = bx[b]
+                    gx = max(bx0 - ax1, ax0 - bx1)
+                    gy = max(by0 - ay1, ay0 - by1)
+                    if gx < 4 and gy < 4:
+                        problems.append(f'S{i:02d} t={t}: "{sa}" and "{sb}" {max(gx, gy):.1f} px apart')
+    return sorted(set(problems))
+
+
+# ------------------------------------------------------------------ outputs
+
+PAPER = (233, 228, 216)
+FACE = (42, 38, 33)                # the case face round the opening
+LABEL = (27, 24, 19)
+
+
+def sheet(out, k, cols, t=0.55):
+    """Every screen at k x, masked to the opening, set in a strip of case
+    face, labelled with its number."""
+    pad, bez, lab_h = 28, 8 * k // 2, 40
+    tw, th = PW * k, PH * k
+    cw, ch = tw + 2 * bez, th + 2 * bez
     rows = (len(SCREENS) + cols - 1) // cols
-    sheet = Image.new('RGB', (cols * (tw + pad) + pad, rows * (th + 56) + pad), (233, 228, 216))
-    d = ImageDraw.Draw(sheet)
-    lab = ImageFont.truetype(os.path.join(FONTS, 'InstrumentSans-VariableFont.ttf'), 22)
+    im = Image.new('RGB', (cols * (cw + pad) + pad, rows * (ch + lab_h + pad) + pad), PAPER)
+    d = ImageDraw.Draw(im)
+    lab = ImageFont.truetype(os.path.join(FONTS, 'InstrumentSans-VariableFont.ttf'), 13 + 3 * k)
     for i, (fn, title) in enumerate(zip(SCREENS, TITLES)):
-        im = fn(0.55).im.resize((tw, th), Image.LANCZOS)
-        x = pad + (i % cols) * (tw + pad)
-        y = pad + (i // cols) * (th + 56)
-        sheet.paste(im, (x, y + 34))
-        d.text((x, y + 4), f'S{i:02d}  {title}', font=lab, fill=(27, 24, 19))
-    sheet.save(out)
+        x = pad + (i % cols) * (cw + pad)
+        y = pad + (i // cols) * (ch + lab_h + pad)
+        d.text((x, y + lab_h - 10), f'S{i:02d}  {title}', font=lab, fill=LABEL, anchor='ls')
+        d.rounded_rectangle([x, y + lab_h, x + cw, y + lab_h + ch], radius=bez + CORNER * k / 2, fill=FACE)
+        scr = fn(t).final().resize((tw, th), Image.LANCZOS)
+        m = opening_mask(k)
+        im.paste(scr, (x + bez, y + lab_h + bez), m)
+    im.save(out)
+
+
+def storyboard(out):
+    sheet(out, 2, 3)
+
+
+def contact_sheet(out):
+    sheet(out, 3, 2)
 
 
 def sound(kind, dur):
@@ -505,7 +780,7 @@ def video(out):
         for fn, secs, snd in TIMELINE:
             frames = int(secs * FPS)
             for k in range(frames):
-                fn(k / max(frames - 1, 1)).im.save(os.path.join(tmp, f'f{n:05d}.png'))
+                fn(k / max(frames - 1, 1)).final().save(os.path.join(tmp, f'f{n:05d}.png'))
                 n += 1
             a = os.path.join(tmp, f'a{len(audio):02d}.wav')
             subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'lavfi', '-i',
@@ -520,19 +795,30 @@ def video(out):
         subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-framerate', str(FPS), '-i',
                         os.path.join(tmp, 'f%05d.png'), '-i', wav, '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
                         '-crf', '18', '-c:a', 'aac', '-b:a', '128k', '-shortest', out], check=True)
-        # the frames, kept for the Blender screen texture
+        # the frames, kept for the Blender screen texture: frames/ at 30 fps
+        # from f00000, frames24/ resampled to 24 fps from f00001 (an image
+        # sequence in Blender starts at 1)
         seq = os.path.join(HERE, 'frames')
-        shutil.rmtree(seq, ignore_errors=True)
-        os.makedirs(seq)
+        seq24 = os.path.join(HERE, 'frames24')
+        for p in (seq, seq24):
+            shutil.rmtree(p, ignore_errors=True)
+            os.makedirs(p)
         for i in range(n):
-            if i % 1 == 0:
-                Image.open(os.path.join(tmp, f'f{i:05d}.png')).resize((PW * 2, PH * 2), Image.LANCZOS) \
-                    .save(os.path.join(seq, f'f{i:05d}.png'))
+            Image.open(os.path.join(tmp, f'f{i:05d}.png')).resize((PW * 2, PH * 2), Image.LANCZOS) \
+                .save(os.path.join(seq, f'f{i:05d}.png'))
+        n24 = round(n * 24 / FPS)
+        for j in range(n24):
+            src = os.path.join(seq, f'f{min(n - 1, round(j * FPS / 24)):05d}.png')
+            shutil.copyfile(src, os.path.join(seq24, f'f{j + 1:05d}.png'))
         return n
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == '__main__':
+    issues = lint()
+    print('\n'.join(issues) if issues else 'lint: clean')
     storyboard(os.path.join(HERE, 'storyboard.png'))
-    print('frames', video(os.path.join(HERE, 'arm-sequence.mp4')))
+    contact_sheet(os.path.join(HERE, 'bar-screens.png'))
+    if '--no-video' not in sys.argv:
+        print('frames', video(os.path.join(HERE, 'arm-sequence.mp4')))
