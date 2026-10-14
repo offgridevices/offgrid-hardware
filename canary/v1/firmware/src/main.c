@@ -357,9 +357,9 @@ int main(void)
         }
         last_state = det.state;
 
-        printf("t=%lu st=%u tp=%d tb=%d tpr=%d ta=%d rh=%u sraw=%u gdev=%u co2=%u rate=%d ex=%d dtdt=%d e=%u%u%u f=%02x snd=%u hush=%u\n",
+        printf("t=%lu st=%u tp=%d tb=%d tpr=%d ta=%d rh=%u sraw=%u gdev=%u co2=%u cn=%u rate=%d ex=%d dtdt=%d e=%u%u%u f=%02x snd=%u hush=%u\n",
                (unsigned long)det.t, det.state, in.t_pack_c10, tb, tp == INT16_MIN ? -9999 : tp,
-               amb_c10, rh_pct, in.sraw, det.gas_dev, co2, det.co2_rate, det.co2_excess,
+               amb_c10, rh_pct, in.sraw, det.gas_dev, co2, in.co2_new, det.co2_rate, det.co2_excess,
                det.dtdt_c10, det.e_gas, det.e_co2, det.e_heat, in.faults, detect_sound(&det),
                det.hushed);
     }

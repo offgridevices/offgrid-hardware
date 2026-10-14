@@ -154,7 +154,7 @@ jobs:
         run: |
           apt-get update -qq
           DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git gcc make pkg-config \
-            gcc-avr avr-libc libelf-dev ngspice > /dev/null
+            gcc-avr avr-libc libelf-dev ngspice nodejs > /dev/null
           pip3 install --break-system-packages -q numpy matplotlib
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 

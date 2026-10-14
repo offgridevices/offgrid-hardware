@@ -37,6 +37,8 @@ mkdir -p /opt/simavr-inc && ln -sfn /opt/simavr/simavr/sim /opt/simavr-inc/simav
 gcc -O2 -I/opt/simavr-inc -I/opt/simavr/simavr/obj-x86_64-linux-gnu -o sim/hil/harness sim/hil/harness.c \
   /opt/simavr/simavr/obj-x86_64-linux-gnu/libsimavr.a -lelf -lm
 python3 sim/hil/scenarios.py
+echo "== web bench: the page's JS detector = the firmware's, second by second"
+(cd sim/hil/out && node ../../../web/test/port_vs_firmware.js *_uart.log)
 python3 sim/spice/run.py
 python3 sim/analysis/analysis.py > /dev/null
 echo "== all Canary v1 gates passed"
