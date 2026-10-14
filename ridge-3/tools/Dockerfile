@@ -1,6 +1,7 @@
 # The build toolchain for Ridge 3 (ridge-3/), pinned: KiCad 10.0.6 (the
 # pcbnew Python module and kicad-cli), the Python packages src/ and sim/ use,
-# ngspice, poppler's pdftotext (verify.py's datasheets), Freerouting 1.9.0
+# ngspice (Debian 13's, 44.2, not pinned: the simulations ran on Ubuntu's
+# 42), poppler's pdftotext (verify.py's datasheets), Freerouting 1.9.0
 # for make.py --reroute, and the 3D models from KiCad's own library that the
 # boards use, for the renders and the STEP.  CI (.github/workflows/ci.yml,
 # job ridge-3) runs make.py --fab-only in the same KiCad image with the same

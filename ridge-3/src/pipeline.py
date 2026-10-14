@@ -123,7 +123,7 @@ def board_stage(board_name, placed, src, work, passes, log=print):
         pcb.tidy_tracks(fin)             # the maze router's near-duplicate ends and segments
         protect = planes + list(widths)
     else:
-        protect = planes + ['+3V3', 'BUCK_LX', 'GVDD']
+        protect = list(planes)          # (rev 1 also kept its +3V3, BUCK_LX and GVDD; rev 2's ESC has none)
     # rip-up and re-route for anything the routers left, then the
     # order-varying repair for the last few.  Both are transactions: an
     # attempt that leaves any net with more islands than before is undone.

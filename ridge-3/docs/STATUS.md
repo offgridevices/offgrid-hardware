@@ -216,8 +216,8 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
 ## Before volume
 
 - [ ] **Factory programming:** one image per ESC MCU (bootloader, firmware,
-      settings: 110 °C, 20 A, stuck-rotor protection on, 3D and car-reverse
-      off, a fixed 24 kHz PWM with variable PWM off), written and read back
+      settings: 110 °C, 20 A, stuck-rotor protection on, stall protection,
+      3D and car-reverse off, a fixed 24 kHz PWM with variable PWM off), written and read back
       over SWD on a pogo fixture; no manual configurator step.  Make the
       target fall back to 110 °C / 20 A when a stored limit reads as
       disabled.

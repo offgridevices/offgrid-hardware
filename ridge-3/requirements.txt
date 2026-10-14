@@ -2,7 +2,8 @@
 # versions that built the committed outputs.  KiCad 10.0.6 provides the
 # pcbnew module and kicad-cli (ppa:kicad/kicad-10.0-releases,
 # 10.0.6~ubuntu24.04.1); sim/ also needs ngspice 42 (apt).  tools/Dockerfile
-# has all of it.
+# has all of it, except that its ngspice is Debian 13's 44.2, which no
+# simulation has been run on.
 #
 # From Ubuntu 24.04's apt, not pip: matplotlib 3.6.3 has no pip wheel for
 # Python 3.12, and the six are built against each other (numpy 1.26; a

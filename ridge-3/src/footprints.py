@@ -20,9 +20,11 @@ Two kinds of footprint go in:
    - FIXUPS below renames pads to the datasheet / circuit.py names and
      resizes the few exposed pads where the maker's land pattern is larger
      than EasyEDA's.  The raw files stay verbatim.
-2. Footprints generated here: battery, motor and signal solder pads, test
-   points and the M2 mounting hole (copper only),
-   plus the Stackpole HCS1206 shunt land (no EasyEDA entry exists for it).
+2. Footprints generated here: battery, motor, signal and stack-lead solder
+   pads, test points and the M2 mounting hole (copper only), plus two lands
+   drawn from the makers' drawings: the Stackpole HCS1206 shunt (no EasyEDA
+   entry exists for it) and the Infineon PG-TSDSON-8 FL of the ESC's FETs
+   (tsdson8fl_fp).
 
 Run with KiCad's Python (python3.12 on Ubuntu): it uses pcbnew to read and
 write footprints so the output is exactly KiCad's own format.
@@ -416,10 +418,9 @@ def tsdson8fl_fp():
     return fp
 
 
-# EasyEDA's 3D models of these connectors sit off their pads (the JST SH
-# models' origin is at pin 1, 2.5 / 3.5 mm along the row; the USB-C's is
-# 2.75 mm back), so renders drew the connector bodies over their
-# neighbours' pads.  Their land patterns are KiCad's own footprints for the
+# EasyEDA's 3D models of these parts sit off their pads (the USB-C's
+# 2.75 mm back, the KMR2 switch's 1.27 mm off its terminals), so renders
+# drew the bodies over their neighbours' pads.  Their land patterns are KiCad's own footprints for the
 # same parts, pad for pad, so they take KiCad's models instead, placed by
 # that match (official_model).  EasyEDA's other models sit on their body
 # outlines to 0.01 mm.

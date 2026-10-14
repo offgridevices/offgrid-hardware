@@ -23,14 +23,16 @@ The power stage of each phase is a vertical half-bridge:
 The low-side sources of a channel return to ground through its current
 shunt: they, the bridge capacitors' return pads and the shunt meet on the
 bottom and on a pour on In5 under the channel ("M<n>_SRC").  The shunt
-stands in the channel's corner slot (+u end, bottom), between the FET row
-and the mounting hole; its amplifier sits inside it.
+stands in the channel's corner slot (the -u end, beside phase C:
+SHUNT_PHASE; bottom), between the FET row and the mounting hole; its
+amplifier sits over it on the top.
 
 Behind the power stage, on the bottom: the gate driver and the MCU side by
 side (each channel's pair turned like a pinwheel, so the four pairs clear
 each other at the centre), with their small parts round them.  The top
-carries the high-side FETs, the motor and battery pads, the stack
-connector in the middle and the small parts that fit round it.
+carries the high-side FETs, the motor and battery pads, the stack lead's
+wire pads in the middle (its ground pad by the battery minus pad) and the
+small parts that fit round them.
 
 Stackup (8 layers): F signals + power | In1 GND | In2 signals | In3 VBAT
 (signals under each channel's chips) | In4 GND | In5 signals + channel
@@ -347,12 +349,10 @@ def pack_anchor(c):
 
 # An IC's exposed pad on a plane net can take its ground vias inside the
 # pad; the packer then keeps the far side under it free (legalize.pack's
-# `through`).  None of this board's movable ICs needs it: the gate-drive
-# LDO (TPS7A1601, VSON-8) dissipates at most about 0.3 W ((25.2 - 11.3) V
-# x 22 mA: four drivers' gate charge at 48 kHz plus their quiescent
-# current), which its pad soldered to the top ground copper, with its
-# ground vias beside it, carries.  EP_AREA sets the size above which an
-# exposed pad would count.
+# `through`).  None of this board's ICs needs it: the ones with an exposed
+# pad (DRV8320H, AT32F421) and the INA186 are placed by the channel
+# template (FIXED_ROLES), not moved by the packer.  EP_AREA sets the size
+# above which an exposed pad would count.
 EP_AREA = 1e9
 _via_pads = {}
 
@@ -895,14 +895,15 @@ def net_groups(comps):
     return nets, gate, boot, drv
 
 
-# Gate drive (driver to gate resistor to gate) and the driver's switch-node
-# sense lines.  Every one of them crosses the FET row in the via corridors
-# (SRC_VIA), and the channel has no track to spare there: gate drive
-# 0.1 mm, sense 0.12 mm.  The DRV8300 drives 0.75 A / 1.5 A peaks, for tens
-# of nanoseconds, through its 10 ohm gate resistors (41 nC a switch: a few
-# mA on average): 10 mm of 0.1 mm 1 oz track adds 0.05 ohm, 0.5 % of the
-# gate loop.  The bootstrap lines keep 0.2 mm: they are short stubs, and
-# they carry the capacitor's recharge.
+# Gate drive (the driver's pin straight to the FET's gate: the DRV8320H
+# needs no gate resistors) and the driver's switch-node sense lines.  Every
+# one of them crosses the FET row in the via corridors (SRC_VIA), and the
+# channel has no track to spare there: gate drive 0.1 mm, sense 0.12 mm.
+# The DRV8320H sources and sinks its IDRIVE current (circuit.IDRIVE: 60 /
+# 120 mA) and holds the other gate off with 2 A (ISTRONG): 10 mm of 0.1 mm
+# 1 oz track is 0.05 ohm, 0.1 V at 2 A.  BOOT_W (with GATE_CELL and
+# bootstrap_stubs) is rev 1's: the DRV8320H runs its high side from a
+# charge pump, not bootstrap capacitors, so no rev 2 net takes it.
 GATE_W = 0.1
 SENSE_W = 0.12
 BOOT_W = 0.2
@@ -1340,7 +1341,7 @@ def route_local(b, comps):
         current filter, the enable clamp): short loops in the crowded
         middle; and the lead's ground pad to the battery pad's tap;
       * a channel's own line to a shared part (each MCU's signal input from
-        the stack connector): its pin sits in the ring of escape vias round
+        the stack lead's pad): its pin sits in the ring of escape vias round
         the MCU, facing the driver, and the channel's routing, stamped the
         same in every channel (stamp.py), walls it in;
       * a bus from one pin in every channel to shared parts (each MCU's
@@ -1972,8 +1973,8 @@ REVISION = '2.0'
 def artwork(b, comps):
     """OffGrid silkscreen.  Top (it faces the flight controller): the
     OffGrid mark, the motor number by every motor's pads, battery polarity,
-    the pack range, pin 1 of the stack connector, the SWD pad names, the
-    board's name and firmware.  Bottom: battery polarity (and the firmware,
+    the pack range, what each stack-lead wire pad carries (+, G, C, 3V3,
+    1-4), the SWD pad names, the board's name and firmware.  Bottom: battery polarity (and the firmware,
     when the top has no room; with no room on either side it is left off,
     and firmware/README.md names the build).  On each side the front arrow
     (the same everywhere) with the side's name, "Top" or "Bottom"; the

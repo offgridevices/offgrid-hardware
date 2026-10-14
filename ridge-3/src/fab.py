@@ -22,10 +22,14 @@ changed.  Pictures are saved as 256-colour PNG (stable.save_png).
 
 Pick-and-place coordinates are the Gerbers' own (KiCad absolute, y up), so
 the two line up without any origin setting.  Rotation: 0 degrees is the
-footprint's native orientation; every footprint either comes from JLCPCB's
-own library entry for its part or is a standard two-terminal chip part, so
-no per-part correction is needed.  Bottom parts are given as seen from the
-bottom, which is 180 - (angle seen from the top).
+footprint's native orientation.  Footprints converted from JLCPCB's own
+library entries, and standard two-terminal chip parts, need no per-part
+correction (a part's 'jlc_rot' in parts.py adds one; no part sets it now).
+Two lands are drawn in footprints.py from the makers' drawings, with no
+JLCPCB library entry behind them: the ESC FETs' PG-TSDSON-8 FL (Infineon)
+and the HCS1206 shunt (Stackpole); check those in JLCPCB's placement
+preview.  Bottom parts are given as seen from the bottom, which is
+180 - (angle seen from the top).
 """
 import csv, inspect, os, re, shutil, subprocess, collections
 import pcbnew

@@ -13,7 +13,7 @@ committed.  None of it has run on this hardware yet: see "Bring-up" in
 | `am32/ntc_table.py` | Prints the FET thermistor's `NTC_table` (in the patch) | Murata's R-T curve |
 
 ```
-1de5aae29180c3d3ac26d998e678f2c5b2eb2b228632fc935901acc217ecd626  betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex
+d6719a43e79c4eaf4362e9d4f0dda466f4551805f98c0ffabf6bcc2997a352be  betaflight/betaflight_2025.12.5_STM32G47X_RIDGE3.hex
 5265b0c388e604d380f7bb1b00cc2a2d96f47b65393e38532cca0b72dd8d3b6e  betaflight/patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch
 c6ce4d235f18b0c3d6067ac1ec4c57ee7616ece91efe47e8495c0704731161df  am32/AM32_F421_BOOTLOADER_PB4_V19.hex
 c26d092cd1d2306588e06c9459935c29134ed220c506dc296f5a34a049f7ea29  am32/AM32_RIDGE3_F421_2.21.hex
@@ -95,7 +95,8 @@ The config also sets these defaults for this board (see the top of
 
 The 16 MB blackbox flash is an Infineon S25FL128L (JEDEC `01 60 18`,
 -40..+125 °C), which Betaflight's `m25p16` driver lists.  The board runs
-without it: Betaflight then finds no flash, and `blackbox_device = NONE`.
+without it: Betaflight then finds no flash and logs nothing; set
+`blackbox_device = NONE` on such a board (`betaflight/cli-setup.txt`).
 
 The processor is the STM32G473CEU6 (suffix 6: 105 °C junction).  The
 suffix-3 part (STM32G473CEU3, 130 °C junction) fits the same pads and runs
@@ -217,7 +218,7 @@ has the simulated ones.
 
 ### The target: `RIDGE3_F421`
 
-The ESC schematic (`src/circuit.py`, `esc()`) is wired to AM32's hardware
+The ESC schematic (`../src/circuit.py`, `esc()`) is wired to AM32's hardware
 groups `AT_B` + `AT_045`, the pin map of stock AT32F421 targets such as
 `SKYSTARS_F80_F421`.  Pin numbers are the AT32F421's QFN-28 (datasheet
 figure 5, table 5):

@@ -41,7 +41,9 @@
 #define USE_ACC
 #define USE_GYRO
 #define USE_ACCGYRO_IIM42652                // fitted
-#define USE_GYRO_SPI_ICM42688P              // second source, same pads
+#define USE_GYRO_SPI_ICM42688P              // second source, same pads; also what builds in
+                                            // icm426xxSpiDetect (accgyro_mpu.c), which finds
+                                            // the fitted IIM-42652: keep it
 #define USE_ACC_SPI_ICM42688P
 #define USE_FLASH
 #define USE_FLASH_M25P16                    // Infineon S25FL128L (JEDEC 01 60 18); the board runs without it

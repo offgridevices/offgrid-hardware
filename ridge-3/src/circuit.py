@@ -187,7 +187,7 @@ def fc_power():
         #     the VTX off.  PB5 is pulled low at boot: the VTX is on unless
         #     the pilot switches it;
         #   * a thermostat: TI TMP390 (its own die, at the supply) trips at
-        #     96 C (SETA 121k, table 8-2) and resets at 76 C (SETB grounded:
+        #     96 C (SETA 121k, table 7-1) and resets at 76 C (SETB grounded:
         #     20 C hysteresis, 7.3.3).  Its output is open-drain, active low,
         #     and may not rise above its 3.3 V supply, so it drives a small
         #     inverter: cool, OUTA (pulled up to 3.3 V) holds the second FET's

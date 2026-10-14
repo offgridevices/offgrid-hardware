@@ -60,7 +60,7 @@ PARAMS = dict(
     boss_d=5.0,                 # bosses the ESC sits on: inside the board's 2.6 mm copper keep-out
     foot_d=6.0,                 # feet under the holes, as long as the fins
     pad_keepout=3.0,            # radius round each hole the pad leaves bare (boss + 0.5 mm)
-    notch_w=4.5,                # battery-lead notch width (12-14 AWG silicone lead, 2.9-3.6 mm)
+    notch_w=4.5,                # battery-lead notch width (the pads take 14-16 AWG silicone lead: footprints PAD_BAT)
     fins=dict(h=8.0, t=1.0, gap=2.0),   # mm: height, thickness, slot between fins
     bypass=0.5,                 # share of the free stream that gets between the fins (ASSUMPTION)
     pad=dict(maker='T-Global Technology', mpn='TG-A6200-40-40-1.5', dk='1168-TG-A6200-40-40-1.5-ND',

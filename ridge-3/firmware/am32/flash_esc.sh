@@ -10,9 +10,11 @@
 #
 # Needs: Artery's OpenOCD (github.com/ArteryTek/openocd: upstream OpenOCD has
 # no AT32F421 flash driver; this is the target/at32f421xx.cfg AM32's own
-# tools/openocd-at32f421.cfg uses) and an ST-Link V2 or clone, or Artery's
-# AT-Link.  Artery's ISP Programmer (Windows) with an AT-Link does the same
-# from a GUI: erase all, then write the two .hex files below.
+# tools/openocd-at32f421.cfg uses) and an ST-Link V2 or clone (the default,
+# interface/stlink.cfg), or Artery's AT-Link: then run it as
+# OPENOCD_INTERFACE=interface/atlink.cfg ./flash_esc.sh (Artery's OpenOCD's
+# config for it).  Artery's ISP Programmer (Windows) with an AT-Link does
+# the same from a GUI: erase all, then write the two .hex files below.
 #
 # Power: the four MCUs run from the flight controller's 3.3 V, which comes
 # down the stack lead's pin 4 (the ESC has no 3.3 V regulator of its own).
@@ -22,7 +24,7 @@
 # gate drivers' inputs have pull-downs: the FETs stay off while an MCU is
 # blank or halted.
 #
-# Wiring: one ST-Link, moved from MCU to MCU.  Pads on the ESC board's top
+# Wiring: one probe (ST-Link or AT-Link), moved from MCU to MCU.  Pads on the ESC board's top
 # (the side that faces the flight controller):
 #   ST-Link GND   -> the battery pad marked "-"
 #   ST-Link SWCLK -> "Cn"    of the MCU being flashed (n = 1..4)
@@ -48,7 +50,7 @@ BL=AM32_F421_BOOTLOADER_PB4_V19.hex
 FW=AM32_RIDGE3_F421_2.21.hex
 
 flash_one() {
-    openocd -f interface/stlink.cfg -f target/at32f421xx.cfg \
+    openocd -f "${OPENOCD_INTERFACE:-interface/stlink.cfg}" -f target/at32f421xx.cfg \
         -c "init" -c "reset halt" \
         -c "flash erase_sector 0 0 last" \
         -c "flash write_image $BL" -c "verify_image $BL" \

@@ -13,7 +13,10 @@ elsewhere, and a description.  Entries added for Ridge 3 also carry
   maker   manufacturer and the country of its headquarters
 
 Sourcing rules (owner): key chips from non-Chinese makers, stocked at both
-LCSC/JLCPCB and DigiKey; the one exception is the AT7456E analog OSD chip.
+LCSC/JLCPCB and DigiKey.  The exceptions (README, Sourcing): by maker, the
+AT7456E analog OSD chip and the ESC's Artery AT32F421 MCUs; by stock, the
+ESC's ISZ023N06LM6 FETs, which LCSC does not stock, and the S25FL128L
+flash, which it lists at 0 (both through JLCPCB's global sourcing).
 Voltage use <= 60 % of rating at 6S (25.2 V), every part (rev 1's 40 V FETs
 at 63 % were the one exception; rev 2's 60 V FETs run at 42 %).
 
@@ -26,13 +29,16 @@ How the numbers in the comments were checked, all on 2026-09-27:
         commodity lines as 0 in stock both ways; every part where it said 0
         was re-checked on digikey.com.
 
-Footprints named 'aio:*' live in ../aio.pretty.  The IC, transistor, diode,
-LED, crystal, connector and inductor footprints there were converted from
-JLCPCB/EasyEDA's own library entries for these exact LCSC parts, so pad
-geometry and 0-degree orientation match what the assembly line expects
-(footprints.py lists the few pads it renames or resizes).  Plain two-terminal
-R/C/ferrite parts use KiCad's standard footprints, whose 0-degree orientation
-already matches.  Pad numbers are datasheet pin numbers; an exposed pad is
+Footprints named 'aio:*' live in ../aio.pretty.  The IC, diode, LED,
+crystal, connector and inductor footprints there, and the FC's small FETs',
+were converted from JLCPCB/EasyEDA's own library entries for these exact
+LCSC parts, so pad geometry and 0-degree orientation match what the
+assembly line expects (footprints.py lists the few pads it renames or
+resizes).  Two are drawn in footprints.py from the maker's land instead,
+with no JLCPCB entry behind them: the ESC FETs' PG-TSDSON-8 FL
+(tsdson8fl_fp) and the HCS1206 shunt (shunt_hcs1206_fp).  Other plain
+two-terminal R/C/ferrite parts use KiCad's standard footprints, whose
+0-degree orientation already matches.  Pad numbers are datasheet pin numbers; an exposed pad is
 pin count + 1.
 """
 

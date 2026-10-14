@@ -73,8 +73,8 @@ Date: 2026-09-27. Owner of this list: the parts library (`src/parts.py`,
   Samsung's sites refused scripted access, so bias figures for non-Murata
   capacitors are for the equivalent Murata part.
 - The lookup tools are in (a working file, not kept): `look.py`, `final.py`,
-  `final.json`, `murata_dc.py`, `mdc.py`. They reuse
-  `research/tools/src.py`.
+  `final.json`, `murata_dc.py`, `mdc.py`. They reused a `src.py` helper,
+  also a working file, not kept.
 
 ## 3. Pin-map fixes needed in circuit.py (not edited by me)
 

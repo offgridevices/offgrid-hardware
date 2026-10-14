@@ -348,10 +348,12 @@ crystal come through JLCPCB's global sourcing (or PCBWay's turnkey), and a
 few parts have only prototype-sized stock: see [Sourcing](#sourcing-lcscjlcpcb-global-sourcing-digikey).
 
 - **Placement preview:** in JLCPCB's placement preview, check pin 1 of the
-  QFN parts, the LEDs (the two colours' pads are numbered the opposite way)
-  and the orientation of the connectors before paying.
-  Rotations follow each part's JLCPCB library footprint, so they should need
-  no changes.
+  QFN parts and of the ESC's FETs, the LEDs (the two colours' pads are
+  numbered the opposite way) and the orientation of the connectors before
+  paying.  Rotations follow each part's JLCPCB library footprint, so they
+  should need no changes, except where a land is drawn from the maker's
+  drawing with no JLCPCB footprint behind it: the ESC's FETs and its
+  shunts.
 - **PCBWay:** use `*-bom-pcbway.csv`. It lists the manufacturer part
   numbers and the LCSC numbers, with the same CPL.
 - **Not assembled:** the battery lead, motor wires, the stack lead, the

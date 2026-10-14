@@ -62,6 +62,7 @@ def configure(quick=False, variant=None):
     elif quick:
         IMG = base
         REPORT = os.path.join(base, 'STRESS.md')
+        spice.WORK = os.path.join(base, 'spice')     # clear of a full run's
     else:
         IMG = os.path.join(RIDGE, 'images', 'stress')
         REPORT = os.path.join(RIDGE, 'STRESS.md')

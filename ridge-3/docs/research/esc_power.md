@@ -6,7 +6,9 @@
 > BSZ040N06LS5 recommended below was simulated and rejected, `../RELIABILITY.md`), TI DRV8320H
 > drivers, Artery AT32F421 MCUs, and no ESC buck.
 >
-> Later changes, made while laying the ESC out (the code has them):
+> Later changes, made while laying out revision 1's ESC (revision 1's code had them; the G071 and
+> its 3.3 V buck, the 10 ohm gate resistors, the gate-drive LDO and the In3 return pour are gone
+> in revision 2, `../REV2.md`):
 > - **No TVS on the ESC.** The bulk and bridge capacitors across the battery pads absorb
 >   the lead-inductance spike, and the flight controller's SMF33A sits on the same battery
 >   line through the stack lead.

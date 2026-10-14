@@ -2,10 +2,12 @@
 """JLCPCB via-in-pad (POFV) hole spacing for a routed board.
 
 JLCPCB fills and caps via-in-pad holes free on 6-20 layer boards
-(jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv) and asks that each
-such via sit more than 0.45 mm from any other hole.  esc_layout.DRU_EXTRA
-makes KiCad's DRC check it (every 0.3 mm-drill via is treated as filled);
-Freerouting does not know the rule, so its vias can land too close.
+(jlcpcb.com/news/free-via-in-pad-6-20-layer-pcbs-pofv).  Every via here is
+ordered filled, and holes drilled after the fill (plated pads, the mounting
+holes) keep 0.45 mm from a via.  pcb.POFV_RULES (each layout's DRU_EXTRA)
+makes KiCad's DRC check that for every via against every pad hole; via to
+via is the board's normal hole-to-hole rule.  Freerouting does not know
+the rule, so its vias can land too close.
 
 nudge_vias() moves each routed via named in a DRC hole_to_hole violation
 to the nearest spot where the via, its hole and the track ends dragged
@@ -16,9 +18,8 @@ import pcbnew
 from shapely.geometry import Point, LineString
 import fanout, pcb
 
-GAP_FILLED = 0.46      # hole to hole, mm, when either hole is a filled 0.3 mm via
-GAP_PLAIN = 0.26       # otherwise (board rule 0.25)
-FILLED_R = 0.145       # a hole radius at or above this is a filled via
+GAP_FILLED = 0.46      # a via's hole to a pad's hole, mm (POFV_RULES: 0.45)
+GAP_PLAIN = 0.26       # a via's hole to another via's (board rule 0.25)
 
 
 def _mm(v):

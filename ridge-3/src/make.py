@@ -27,7 +27,9 @@ board's folder for a look; git ignores them.
 Gates (any failure stops the build):
   * KiCad DRC: 0 errors, 0 warnings, 0 unconnected items
   * every pad's net on the board equals circuit.py
-  * every assembled part appears in the BOM and CPL with an LCSC number
+  * every assembled part appears in the BOM and CPL, with an LCSC number or,
+    for JLCPCB's global sourcing, a maker part number and a DigiKey number
+    (the ESC's FETs)
   * circuit.py itself: no part without a footprint, no single-pin net
   * the ESC's heatsink: made from this board (heatsink.current)
   * the 3 x 2 production panel (panel.py): DRC equal to six boards', every

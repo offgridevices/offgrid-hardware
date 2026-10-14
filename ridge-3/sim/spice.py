@@ -28,8 +28,8 @@ DC-bias capacitance with ESR and ESL, the battery as a source behind its
 internal resistance and lead inductance, the SMF33A TVS as a breakdown
 diode with its clamping resistance.
 
-The netlists and ngspice's results go in WORK (sim/out/spice/; a variant
-run, or punch.py, sets its own folder under sim/out/).
+The netlists and ngspice's results go in WORK (sim/out/spice/; a quick or
+variant run, or punch.py, sets its own folder under sim/out/).
 """
 import os, re, glob, subprocess
 import numpy as np

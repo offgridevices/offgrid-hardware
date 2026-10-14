@@ -24,7 +24,9 @@ the time, the low leg a third and floats a third.  So per phase:
                   channels take 3.3 V from the FC's buck)
 
 On-resistance is the datasheet maximum at 25 C times the datasheet's own
-temperature curve (Fig. 8.9), at each FET's junction temperature.
+temperature curve (data.FET['rds_ratio']: Toshiba's Fig. 8.9 for rev 1,
+Infineon's diagram 9 for rev 2 and its FET variants), at each FET's junction
+temperature.
 """
 import numpy as np
 import data

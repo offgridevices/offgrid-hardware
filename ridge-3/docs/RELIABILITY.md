@@ -18,7 +18,7 @@ throttle, 4 s at 60 % and 14 s at 40 % (7.3 A per motor on average).
 | | As built | IDRIVE 30/60 mA | AM32 limit 120 °C | LiHV 26.1 V | 2,250 m | BSZ040 FETs | BSZ040 + IDRIVE 30/60 |
 |---|---|---|---|---|---|---|---|
 | SHx at 30 A, 5 nH (3-8 nH) | -10.3 V (-14.2) | -6.2 V (-8.5) | -10.3 V | -10.3 V | -10.3 V | -11.8 V (-15.9) | -6.7 V (-9.0) |
-| FET peaks, high / low side (60 V parts) | 39.6 / 42.5 V | 32.3 / 26.8 V | same | 40.5 / 43.8 V | same | 42.1 / 57.4 V | 33.4 / 27.4 V |
+| FET peaks (60 V parts): high side at 30 A, 5 nH / low side, worst of the 3-8 nH runs | 39.6 / 42.5 V | 32.3 / 26.8 V | same | 40.5 / 43.8 V | same | 42.1 / 57.4 V | 33.4 / 27.4 V |
 | Held all day before AM32 cuts, 50 °C, 5 m/s | 52 % (7.5 A) | 48 % (6.3 A) | 54 % (8.4 A) | 50 % (7.3 A) | 58 % (7.9 A) | 48 % (6.3 A) | 44 % (5.3 A) |
 | The same, 60 °C, 2 m/s | 40 % (4.4 A) | 30 % (2.9 A) | 44 % (5.3 A) | 35 % (3.9 A) | 47 % (4.7 A) | 32 % (3.2 A) | 28 % (2.5 A) |
 | Hard flight at 50 °C: AM32 cuts a motor | 10 % of it, from 62 s | 18 %, from 26 s | 2.5 %, from 106 s | 15 %, from 42 s | never | 19 %, from 25 s | 24 %, from 22 s |
@@ -33,7 +33,8 @@ What they say:
 - **IDRIVE (the gate drivers' speed).**  As built (60 / 120 mA, 75 kΩ) the
   high side's turn-off pulls SHx to -10.3 V at 30 A in the 5 nH loop, past
   the DRV8320H's -7 V for 200 ns.  At 30 / 60 mA (18 kΩ) it is -6.2 V, and
-  the FETs' own peaks fall from 39.6 / 42.5 V to 32.3 / 26.8 V.  The cost
+  the FETs' own peaks (the high side at 5 nH / the low side's worst case, at
+  8 nH) fall from 39.6 / 42.5 V to 32.3 / 26.8 V.  The cost
   is heat: on a 50 °C day the throttle AM32 lets a motor hold falls from
   52 to 48 % (7.5 to 6.3 A), and in the hard flight AM32 cuts a motor for
   18 % of it instead of 10 %.  At a punch's current the dip is deeper for
@@ -182,7 +183,8 @@ In order.  None of them needs a part ordered today.
    the ESCs for destructive tests (locked rotor at reduced voltage first).
 2. **Program every ESC at the factory from one image** (bootloader,
    firmware and the settings page: 110 °C, 20 A, stuck-rotor protection
-   on, 3D and car-reverse off, a fixed 24 kHz PWM with variable PWM off)
+   on, stall protection, 3D and car-reverse off, a fixed 24 kHz PWM with
+   variable PWM off)
    and read it back over SWD on a pogo fixture.  An erased settings page
    reads as car-reverse mode with both limits off; a forgotten "Send
    default config" is the most likely way to ship an unprotected ESC.  Make the target fall back to 110 °C / 20 A

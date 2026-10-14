@@ -31,7 +31,8 @@ TPN2R304PL = FET = dict(
           'to the on-state curves)',
 )
 # Toshiba's G0 model's body diode replaced by a charge-control diode fitted to
-# the datasheet recovery test (spice.fit): lifetime, transit time (s)
+# the datasheet recovery test (spice.recovery_charge, with the diode put in
+# by spice._fet_variant): lifetime, transit time (s)
 TPN2R304PL['body_diode'] = (10e-9, 5e-9)
 TPN2R304PL['vth_hot_drop'] = 1.90 - 1.22        # the typical curve's drop from 25 to 150 C
 
@@ -116,7 +117,7 @@ INA186 = dict(part='TI INA186A3', ta_max=125.0, p=3.3 * 65e-6, vin_abs=(-0.3, 42
 SHUNT = dict(part='Stackpole HCS1206FTL500', r=0.5e-3,
              p_rated=2.0, t_full=100.0, t_zero=170.0)   # 2 W to a 100 C terminal, 0 W at 170 C (p.3)
 AM32 = dict(dead=625e-9,                # rev 1: DEAD_TIME 40 at 64 MHz (rev 1's target; rev 2: DESIGNS)
-            f_min=24e3, f_max=48e3,     # rev 1: variable PWM, 24 kHz low rpm to 48 kHz high (esc_power.md)
+            f_min=24e3, f_max=48e3,     # rev 1: variable PWM, 24 kHz low rpm to 48 kHz high (docs/research/esc_power.md)
             current_limit=20.0,         # A per motor, battery side, 50 ms average (firmware/README.md)
             temp_limit=110.0)           # C; rev 1 read each MCU's own die sensor (rev 2: the FET thermistor)
 ESC_3V3_LOAD_REV1 = 4 * 11e-3 + 4 * 65e-6 + 1.3e-3   # A: four MCUs, four INA186, the power LED
@@ -218,10 +219,10 @@ BRIDGE = dict(
 BUS = dict(
     Vpack=BATTERY['vfull'], Rbat=BATTERY['r'], Llead=BATTERY['l_lead'], Rcontact=1e-3, Rplane=1.0e-3,
     Cbridge=12 * C_BRIDGE['c_bias'], ESRbridge=C_BRIDGE['esr'] / 12, ESLbridge=C_BRIDGE['esl'] / 12,
-    Cmisc=2 * 0.5e-6,                   # the two 1 uF 100 V X7R 0805 (buck and LDO inputs) at 25 V: ASSUMPTION half
-    Rstack=2 * STACK_LEAD['length'] * STACK_LEAD['r_wire'] + 4 * JST_SH['r_contact'],
+    Cmisc=2 * 0.5e-6,                   # rev 1 at import; use() sets each design's (BUS_CAPS)
+    Rstack=2 * STACK_LEAD['length'] * STACK_LEAD['r_wire'] + 4 * JST_SH['r_contact'],     # rev 1 too (use())
     Lstack=STACK_LEAD['l'],
-    Cfc=3 * 2.5e-6 + 2 * 0.1e-6, ESRfc=5e-3,     # 3 x UMK325AB7106KM at 25 V (~2.5 uF each) + 2 x 100 nF
+    Cfc=3 * 2.5e-6 + 2 * 0.1e-6, ESRfc=5e-3,     # rev 1 at import; use() sets each design's (BUS_CAPS)
     tvs_bv=38.6, tvs_rs=(SMF33A['vc'] - SMF33A['vbr'][1]) / SMF33A['ipp'], tvs_c=SMF33A['c'],
     Ifc=0.0, step=1e-9, maxstep=2e-9, tend=20e-6)
 FC_LOAD_MAX = dict(i5=2.0, i9=2.0)      # both rails at their rating (circuit.py)
@@ -321,6 +322,11 @@ DESIGNS = {
         # the FC's video supply runs from the lead (split=False); the lead's GND
         # pin is the ESC's plane at the connector (kelvin=False)
         LEAD=dict(split=False, kelvin=False, soldered=False),
+        # the battery line's other capacitance (spice.bus): on the FC's VBAT,
+        # 3 x UMK325AB7106KM 10 uF 50 V 1210 (~2.5 uF each at 25 V) and
+        # 2 x 100 nF; on the ESC, the buck's and the gate-drive LDO's 1 uF
+        # 100 V X7R 0805 inputs, at 25 V: ASSUMPTION half
+        BUS_CAPS=dict(Cfc=3 * 2.5e-6 + 2 * 0.1e-6, Cmisc=2 * 0.5e-6),
     ),
     'rev2': dict(
         FET=ISZ023N06LM6,
@@ -342,6 +348,12 @@ DESIGNS = {
         INDUCTORS=dict(INDUCTORS_REV2), THERMOSTAT=TMP390,
         HEATSINK='src/heatsink.py',        # the ESC's heatsink (stack.heatsink)
         LEAD=dict(split=True, kelvin=True, soldered=True),
+        # on the FC's VBAT, the 5 V buck's 1 x UMK325AB7106KM and 1 x 100 nF
+        # (the 9 V buck's pair is on VBAT_VTX, wired to the ESC's battery
+        # pads on its own, and left out: less capacitance, a higher plug-in
+        # peak); on the ESC, the four drivers' 100 nF 50 V X7R 0402 VM
+        # capacitors, at 25 V: ASSUMPTION half
+        BUS_CAPS=dict(Cfc=2.5e-6 + 0.1e-6, Cmisc=4 * 0.05e-6),
     ),
 }
 _derived = ('BRIDGE', 'BUS', 'BODY_DIODE')
@@ -385,7 +397,12 @@ def use(name):
     g['BUS'].update(Cbridge=12 * C_BRIDGE['c_bias'], ESRbridge=C_BRIDGE['esr'] / 12,
                     ESLbridge=C_BRIDGE['esl'] / 12,
                     tvs_bv=sum(FC_TVS['vbr']) / 2, tvs_rs=(FC_TVS['vc'] - FC_TVS['vbr'][1]) / FC_TVS['ipp'],
-                    tvs_c=FC_TVS['c'])
+                    tvs_c=FC_TVS['c'],
+                    # the lead's VBAT and GND wires, with a contact at each
+                    # plugged end (rev 2's lead is soldered at the ESC)
+                    Rstack=2 * STACK_LEAD['length'] * STACK_LEAD['r_wire']
+                    + (2 if LEAD['soldered'] else 4) * STACK_CONN['r_contact'],
+                    **BUS_CAPS)
     return name
 
 

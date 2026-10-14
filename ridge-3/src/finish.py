@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Complete the last few connections Freerouting leaves unrouted.
 
-A plain grid maze router: 0.05 mm cells on the two outer copper layers, a
-via allowed wherever a via fits.  Every other net's copper is inflated by
+A plain grid maze router: RES mm cells (0.05 mm; the ESC's FINISH_RES,
+0.025 mm) on ROUTE_LAYERS, which pipeline.setup_routers sets from the
+board's layout module (the FC's F.Cu, In2, In3 and B.Cu; the ESC's F.Cu,
+In2, In3, In5 and B.Cu), a via allowed wherever a via fits.  Every other net's copper is inflated by
 (clearance + half the track width) and drawn as an obstacle; the route
 must stay clear of it.  One connection at a time, cheapest path by A*,
 bends and vias cost extra so paths come out short and tidy.  KiCad's own
