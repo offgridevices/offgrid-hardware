@@ -238,6 +238,7 @@ if __name__ == '__main__' and sys.argv[1] == '--fix':
     # a routed, finished board (before the fills): the gate-side vias, the
     # exact-pair finishing again, then the tail
     import finish, finish_run
+    finish_run.copy_project(make.OUT, sys.argv[2])      # the net classes live in the project file
     b = pcbnew.LoadBoard(sys.argv[2])
     gate_side_vias(b)
     finish.ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
