@@ -14,6 +14,15 @@
                                          --reroute
     python3.12 src/make.py fc            one board only (fc or esc)
     python3.12 src/make.py --no-panel    skip the production panel (it takes ~3 min)
+    python3.12 src/make.py --fab-only    every gate and every order file, but no
+                                         renders (boards, panels, the stack sheet)
+                                         and no STEP: what CI runs, without KiCad's
+                                         3D models (~5 min for both boards)
+    python3.12 src/make.py --help        this text
+
+Flags combine (make.py --fab-only esc).  The unzipped Gerbers (production/
+gerbers/) and the panel's board and work files (out/panel/) are left in each
+board's folder for a look; git ignores them.
 
 Gates (any failure stops the build):
   * KiCad DRC: 0 errors, 0 warnings, 0 unconnected items
@@ -25,13 +34,48 @@ Gates (any failure stops the build):
     copy's Gerbers, BOM and CPL identical to the single board's, fiducial
     keep-out measured on the Gerbers
 
-Needs KiCad 10 (pcbnew Python module + kicad-cli) and, for --reroute only,
-Freerouting 1.9 (FREEROUTING_JAR=path/to/freerouting-1.9.0.jar) with java
-and xvfb-run.  The ESC's heatsink (heatsink.py) is made again only when the
-ESC or its parameters change; that needs CadQuery 2.x
-(CADQUERY_PYTHON=path/to/python if this python does not have it).
+Needs KiCad 10.0.6 (pcbnew Python module + kicad-cli) and the packages in
+requirements.txt; for --reroute only, Freerouting 1.9.0
+(FREEROUTING_JAR=path/to/freerouting-1.9.0.jar) with java and xvfb-run.
+tools/Dockerfile has all of it.  The ESC's heatsink (heatsink.py) is made
+again only when the ESC or its parameters change; that needs CadQuery
+(requirements-cadquery.txt; CADQUERY_PYTHON=path/to/python if this python
+does not have it).
 """
 import os, sys, csv, json, shutil, tempfile
+
+BOARDS = {'fc': 'ridge3-fc', 'esc': 'ridge3-esc'}
+
+
+def parse(argv):
+    """The command line, read before KiCad loads: -h or --help prints the
+    docstring, anything it does not know stops with a short message (exit
+    status 2)."""
+    import argparse
+    ap = argparse.ArgumentParser(prog='make.py', add_help=False, allow_abbrev=False,
+                                 usage='%(prog)s [--reroute | --artwork | --finish=DIR] [--no-panel] [--fab-only] '
+                                       '[fc | esc ...]   (--help: what each does)')
+    ap.add_argument('-h', '--help', action='store_true')
+    ap.add_argument('--reroute', action='store_true')
+    ap.add_argument('--artwork', action='store_true')
+    ap.add_argument('--finish', metavar='DIR')
+    ap.add_argument('--no-panel', action='store_true')
+    ap.add_argument('--fab-only', action='store_true')
+    ap.add_argument('boards', nargs='*')
+    a = ap.parse_args(argv)
+    if a.help:
+        print(__doc__)
+        sys.exit(0)
+    bad = [b for b in a.boards if b not in BOARDS]
+    if bad:
+        ap.error('no board %s: fc or esc' % ', '.join(bad))
+    if a.finish and len(a.boards) != 1:
+        ap.error('--finish takes one board: make.py --finish=DIR fc|esc')
+    return a
+
+
+if __name__ == '__main__':
+    ARGS = parse(sys.argv[1:])
 # one fixed hash seed: set and dict iteration over strings then runs in the
 # same order every time, and with the seeded item IDs (pipeline.SEEDS) a
 # reroute gives the same board, byte for byte in its copper
@@ -43,8 +87,6 @@ V1 = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import pcbnew
 import pcb, parts, circuit, fab
-
-BOARDS = {'fc': 'ridge3-fc', 'esc': 'ridge3-esc'}
 
 
 def gate(ok, what):
@@ -104,33 +146,38 @@ def artwork(dst, board):
     pcb.set_stackup(dst, getattr(L, 'INNER_OZ', 0.5))
 
 
-def make_panel(board, name, dst):
+def make_panel(board, name, dst, render=True):
     """3 x 2 panel for bulk assembly: order files into production/panel/,
-    renders into images/.  panel.make_panel stops on any failed check."""
+    renders into images/ (render=False: none).  panel.make_panel stops on
+    any failed check.  It works in <board>/out/panel/, a fixed folder: the
+    panel board's paths to the 3D models are then the same in every
+    checkout, and so is its renders' inputs key."""
     import panel, stable
     prod = os.path.join(V1, board, 'production', 'panel')
     img = os.path.join(V1, board, 'images')
-    pngs = ['%s-panel-%s.png' % (name, side) for side in ('top', 'bottom')]
-    with tempfile.TemporaryDirectory(prefix='ridge3-%s-panel-' % board) as tmp:
-        for p in pngs:                   # stable.render redraws only if the panel changed
-            if os.path.exists(os.path.join(img, p)):
-                shutil.copy(os.path.join(img, p), tmp)
-        out = panel.make_panel(dst, tmp, name, board_name=board)
-        old = stable.snapshot(prod)
-        shutil.rmtree(prod, ignore_errors=True)
-        os.makedirs(prod)
-        for k in ('gerbers_zip', 'bom', 'bom_pcbway', 'cpl'):
-            shutil.copy(out[k], prod)
-        for f in os.listdir(prod):       # the same panel but for KiCad's time stamps: keep the committed file
-            stable.keep_if_same(os.path.join(prod, f), old.get(f))
-        for p in pngs:
-            shutil.copy(os.path.join(tmp, p), img)
+    work = os.path.join(V1, board, 'out', 'panel')
+    shutil.rmtree(work, ignore_errors=True)
+    os.makedirs(work)
+    pngs = ['%s-panel-%s.png' % (name, side) for side in ('top', 'bottom')] if render else []
+    for p in pngs:                       # stable.render redraws only if the panel changed
+        if os.path.exists(os.path.join(img, p)):
+            shutil.copy(os.path.join(img, p), work)
+    out = panel.make_panel(dst, work, name, board_name=board, render=render)
+    old = stable.snapshot(prod)
+    shutil.rmtree(prod, ignore_errors=True)
+    os.makedirs(prod)
+    for k in ('gerbers_zip', 'bom', 'bom_pcbway', 'cpl'):
+        shutil.copy(out[k], prod)
+    for f in os.listdir(prod):           # the same panel but for KiCad's stamps: keep the committed file
+        stable.keep_if_same(os.path.join(prod, f), old.get(f))
+    for p in pngs:
+        shutil.copy(os.path.join(work, p), img)
     gate(True, '%s: panel %s, %d copies, %s mm; DRC = %d x the board\'s own; Gerbers, BOM and CPL of '
                'every copy equal the board\'s' % (board, out['grid'], out['copies'],
                                                   out['geometry'].get('size_mm'), out['copies'], ))
 
 
-def build(board, reroute, art=False, pan=True, finish_dir=None):
+def build(board, reroute, art=False, pan=True, finish_dir=None, fab_only=False):
     name = BOARDS[board]
     print('== %s' % name)
     check_circuit(board)
@@ -161,7 +208,7 @@ def build(board, reroute, art=False, pan=True, finish_dir=None):
     gate(not e and not w and not u, '%s: DRC %d errors, %d warnings, %d unconnected' % (board, len(e), len(w), len(u)))
     bad = fab.check_netlist(dst, board)
     gate(not bad, '%s: copper nets match circuit.py pad for pad %s' % (board, bad[:5] or ''))
-    out = fab.produce(dst, board, name, V1)
+    out = fab.produce(dst, board, name, V1, visual=not fab_only)
     print('  wrote %s (%d files), %d parts in %d BOM lines (%d on the bottom), %d pads in the netlist'
           % (os.path.relpath(out['zip'], V1), len(out['gerber_files']), out['parts'], out['bom_lines'],
              out['bottom_parts'], out['pads']))
@@ -169,7 +216,7 @@ def build(board, reroute, art=False, pan=True, finish_dir=None):
     if board == 'esc':
         heatsink_outputs(dst)
     if pan:
-        make_panel(board, name, dst)
+        make_panel(board, name, dst, render=not fab_only)
 
 
 def heatsink_outputs(dst):
@@ -192,16 +239,13 @@ def stack_sheet():
     out = fab.stack_sheet(V1, os.path.join(V1, 'images', 'ridge3-stack.png'),
                           [('fc', BOARDS['fc'], 'Flight controller'), ('esc', BOARDS['esc'], '4-in-1 ESC')],
                           'Ridge 3', '36 × 36 mm · 2-6S · 25.5 mm mount')
-    print('  wrote %s' % os.path.relpath(out, V1))
+    print('  stack sheet %s' % os.path.relpath(out, V1))
 
 
 if __name__ == '__main__':
-    args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    fin_dir = next((a.split('=', 1)[1] for a in sys.argv[1:] if a.startswith('--finish=')), None)
-    if fin_dir and len(args) != 1:
-        raise SystemExit('--finish takes one board: make.py --finish=DIR fc|esc')
-    for bd in (args or ['fc', 'esc']):
-        build(bd, '--reroute' in sys.argv, '--artwork' in sys.argv, '--no-panel' not in sys.argv, fin_dir)
-    if not args:
+    a = ARGS
+    for bd in (a.boards or ['fc', 'esc']):
+        build(bd, a.reroute, a.artwork, not a.no_panel, a.finish, a.fab_only)
+    if not a.boards and not a.fab_only:
         stack_sheet()
     print('all gates passed')

@@ -768,7 +768,7 @@ def fiducial_keepout(panel_gdir, panel_name, fids, discs):
     """Distance (mm) from each fiducial centre to the nearest copper and
     silkscreen on its side of the panel, read from the panel Gerbers
     (the fiducial itself and the other panel features left out)."""
-    from shapely.geometry import Point, Polygon, LineString
+    from shapely.geometry import Point, Polygon
     from shapely.ops import unary_union
 
     def shapes(path):

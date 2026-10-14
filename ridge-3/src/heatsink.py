@@ -34,7 +34,7 @@ rear, i.e. down the page); z = 0 at the ESC's bottom face, negative below.
 The STEP is in the same place as the board's own STEP once that is moved to
 the board's centre; its y axis is KiCad's flipped (CAD convention, y up).
 """
-import json, math, os, sys
+import json, os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BOARD = os.path.join(os.path.dirname(HERE), 'esc', 'ridge3-esc.kicad_pcb')
@@ -333,7 +333,6 @@ def solid(f):
     """The plate as a CadQuery solid: CAD axes (y = -KiCad y), z = 0 at the
     ESC's bottom face."""
     import cadquery as cq
-    P = PARAMS
     half, gap, base = f['half'], f['gap'], f['base']
     fin = f['fins']
     z_top, z_bot = -gap, -gap - base
@@ -597,7 +596,9 @@ def build(board=BOARD, out=OUT):
     """Everything into out: the STEP, zipped (CadQuery writes it at ~7 MB,
     every facet of the pockets' rounding a face), an STL (for a viewer or a
     printed test fit), the 3D views, the pad's DXF, the drawing, and the
-    JSON that current() checks."""
+    JSON that current() checks.  The two pictures are saved as 256-colour
+    PNG (stable.save_png), here rather than in CadQuery's interpreter,
+    which need not have Pillow."""
     import stable
     f = features(board)
     vol, area = _cad(f, out)
@@ -606,12 +607,40 @@ def build(board=BOARD, out=OUT):
     with open(os.path.join(out, NAME + '.json'), 'w') as fh:
         json.dump(s, fh, indent=1, sort_keys=True)
     drawing(f, out, s)
+    stable.compact(os.path.join(out, NAME + '-views.png'))
+    stable.compact(os.path.join(out, NAME + '.png'))
     return s
+
+
+# Two outlines this close are the same plate: Shapely's GEOS library segments
+# the rounded corners differently from one version to the next (up to 0.013
+# mm apart here: GEOS 3.11 and 3.13 against the 3.12 that made the committed
+# files).  The drawing's tolerance is ISO 2768-m, +/-0.1 mm.
+SAME_SHAPE = 0.05       # mm, Hausdorff distance
+
+
+def same_features(old, new):
+    """old == new (JSON features), but each outline compared as a shape:
+    within SAME_SHAPE of the other.  Everything that places a pocket (the
+    parts' pads, heights and depths), the holes, the notches and the fins'
+    positions must be equal."""
+    try:
+        geo = lambda f: ([f['plate'], f['pad'], f['pocketed'], f['fins']['polys']]
+                         + [l_['polys'] for l_ in f['levels']])
+        rest = lambda f: dict(f, plate=None, pad=None, pocketed=None, fins=dict(f['fins'], polys=None),
+                              levels=[dict(l_, polys=None) for l_ in f['levels']])
+        if rest(old) != rest(new):
+            return False
+        return all(a == b or (a and b and _shape(a).hausdorff_distance(_shape(b)) <= SAME_SHAPE)
+                   for a, b in zip(geo(old), geo(new)))
+    except (KeyError, TypeError, AttributeError):
+        return False
 
 
 def current(out=OUT, board=BOARD):
     """True if the committed outputs were made from this board and these
-    parameters (their JSON has the same features and PARAMS)."""
+    parameters (their JSON has the same features, same_features, and
+    PARAMS)."""
     p = os.path.join(out, NAME + '.json')
     if not all(os.path.exists(os.path.join(out, x)) for x in
                (NAME + '.json', NAME + '-step.zip', NAME + '.stl', NAME + '-views.png', NAME + '.pdf',
@@ -619,7 +648,7 @@ def current(out=OUT, board=BOARD):
         return False
     s = json.load(open(p))
     f = json.loads(json.dumps(features(board)))
-    return s.get('features') == f and s.get('params') == json.loads(json.dumps(PARAMS))
+    return same_features(s.get('features'), f) and s.get('params') == json.loads(json.dumps(PARAMS))
 
 
 if __name__ == '__main__':

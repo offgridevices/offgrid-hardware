@@ -3,18 +3,22 @@
 
   <name>-gerbers.zip      copper, mask, paste, silk, outline + Excellon drills
                           (upload this for the bare board, JLCPCB or PCBWay)
+  gerbers/                the same files unzipped: the build's working copy,
+                          not committed (ridge-3/.gitignore)
   <name>-bom-jlcpcb.csv   Comment, Designator, Footprint, LCSC Part #
   <name>-cpl-jlcpcb.csv   Designator, Mid X, Mid Y, Layer, Rotation
   <name>-bom-pcbway.csv   PCBWay's assembly BOM columns (MPN + LCSC number)
   <name>-netlist.csv      every pad and its net, for checking against circuit.py
   <name>-assembly.pdf     parts outlines and references, top then bottom
   ../images/<name>-top.png, -bottom.png, -iso.png   rendered views
+  ../images/<name>-silkscreen-from-gerbers.png      the silkscreen as the fab will print it
   ../../mechanical/<name>-step.zip                  3D model of the assembled board
 
 A rebuild of an unchanged board leaves every file as committed (stable.py):
-Gerbers and drill files keep their bytes when only KiCad's time stamp
-differs, and the renders and the STEP are made again only when the board,
-a 3D model or KiCad changed.
+the Gerber zip keeps its bytes when only KiCad's stamps (time, build)
+differ, the renders and the STEP are made again only when the board, a 3D
+model or KiCad changed, and the silkscreen picture only when its Gerbers
+changed.  Pictures are saved as 256-colour PNG (stable.save_png).
 
 Pick-and-place coordinates are the Gerbers' own (KiCad absolute, y up), so
 the two line up without any origin setting.  Rotation: 0 degrees is the
@@ -23,7 +27,7 @@ own library entry for its part or is a standard two-terminal chip part, so
 no per-part correction is needed.  Bottom parts are given as seen from the
 bottom, which is 180 - (angle seen from the top).
 """
-import csv, os, subprocess, collections
+import csv, inspect, os, re, shutil, subprocess, collections
 import pcbnew
 import parts, circuit, stable
 
@@ -43,21 +47,21 @@ def run(cmd):
 
 
 def gerbers(board, out_dir, name):
+    """Gerbers and drill files into out_dir/gerbers/ (exported afresh each
+    time), zipped into out_dir/<name>-gerbers.zip."""
     gdir = os.path.join(out_dir, 'gerbers')
-    os.makedirs(gdir, exist_ok=True)
-    old = stable.snapshot(gdir)
-    for f in old:
-        os.remove(os.path.join(gdir, f))
+    zp = os.path.join(out_dir, '%s-gerbers.zip' % name)
+    old_zip = stable.read(zp)
+    shutil.rmtree(gdir, ignore_errors=True)
+    os.makedirs(gdir)
     run(['kicad-cli', 'pcb', 'export', 'gerbers', '--layers', ','.join(copper_layers(board) + LAYERS),
          '--subtract-soldermask',
          '--output', gdir + '/', board])
     run(['kicad-cli', 'pcb', 'export', 'drill', '--format', 'excellon', '--excellon-units', 'mm',
          '--excellon-separate-th', '--generate-map', '--map-format', 'gerberx2', '--output', gdir + '/', board])
     files = sorted(os.listdir(gdir))
-    for f in files:                     # unchanged but for KiCad's time stamps: keep the committed file
-        stable.keep_if_same(os.path.join(gdir, f), old.get(f))
-    zp = os.path.join(out_dir, '%s-gerbers.zip' % name)
     stable.zip_files(zp, [(os.path.join(gdir, f), f) for f in files])
+    stable.keep_if_same(zp, old_zip)    # the same Gerbers but for KiCad's stamps: keep the committed zip
     return zp, files
 
 
@@ -231,7 +235,13 @@ def renders(board, out_dir, name):
 def silk_from_gerbers(gdir, out_png, name):
     """Both silkscreen layers read back from the Gerbers (not from KiCad):
     what the fab will print, the bottom mirrored to read as seen from
-    below.  Needs gerbonara; skipped without it."""
+    below.  Drawn again only when those Gerbers (but for their stamps) or
+    this function changed: the key is kept in the PNG.  Needs gerbonara;
+    skipped without it."""
+    layers = [os.path.join(gdir, '%s-%s' % (name, s)) for s in ('F_Silkscreen.gto', 'B_Silkscreen.gbo')]
+    key = stable.files_key(layers, inspect.getsource(silk_from_gerbers))
+    if stable.png_key(out_png) == key:
+        return out_png
     try:
         import warnings
         from gerbonara import GerberFile
@@ -242,8 +252,8 @@ def silk_from_gerbers(gdir, out_png, name):
     ims = []
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
-        for suffix in ('F_Silkscreen.gto', 'B_Silkscreen.gbo'):
-            g = GerberFile.open(os.path.join(gdir, '%s-%s' % (name, suffix)))
+        for layer in layers:
+            g = GerberFile.open(layer)
             svg = str(g.to_svg(fg='black', bg='white', margin=1))
             pdf = pymupdf.open('pdf', pymupdf.open(stream=svg.encode(), filetype='svg').convert_to_pdf())
             pix = pdf[0].get_pixmap(dpi=1200)
@@ -251,7 +261,7 @@ def silk_from_gerbers(gdir, out_png, name):
     top, bot = ims[0], ims[1].transpose(Image.FLIP_LEFT_RIGHT)
     im = Image.new('RGB', (top.width + bot.width + 60, max(top.height, bot.height)), 'white')
     im.paste(top, (0, 0)); im.paste(bot, (top.width + 60, 0))
-    im.save(out_png)
+    stable.save_png(im, out_png, {stable.KEY: key})
     return out_png
 
 
@@ -263,9 +273,15 @@ def stack_sheet(v1_dir, out_png, boards, title, subtitle, tile=900):
     """Both sides of every board on one sheet: a column per board (its
     kicad-cli top and bottom renders), on the brand's Pitch ground with
     Bone and Dim type in Instrument Sans.  boards: [(folder, name,
-    heading)]."""
+    heading)].  Drawn again only when a render, the font, the text or this
+    function changed: the key is kept in the PNG."""
     from PIL import Image, ImageDraw, ImageFont
     font = os.path.join(v1_dir, 'fonts', 'InstrumentSans-VariableFont.ttf')
+    renders = [os.path.join(v1_dir, folder, 'images', '%s-%s.png' % (name, s))
+               for folder, name, _ in boards for s in ('top', 'bottom')]
+    key = stable.files_key(renders + [font], (inspect.getsource(stack_sheet), boards, title, subtitle, tile))
+    if stable.png_key(out_png) == key:
+        return out_png
 
     def face(px, weight):
         f = ImageFont.truetype(font, px)
@@ -297,7 +313,7 @@ def stack_sheet(v1_dir, out_png, boards, title, subtitle, tile=900):
         f = face(40, 500)
         d.text((pad, head + j * (tile + pad) + tile // 2 - 20), s, font=f, fill=DIM)
     os.makedirs(os.path.dirname(out_png), exist_ok=True)
-    sheet.save(out_png, optimize=True)
+    stable.save_png(sheet, out_png, {stable.KEY: key})
     return out_png
 
 
@@ -319,11 +335,18 @@ FP_LIB_TABLE = """(fp_lib_table
 """
 
 
+def project_named(text, name):
+    """A project file's text under its own name: the pipeline's work name
+    (<board>_fin) out of its meta, and no schematic sheet, since there is
+    none (circuit.py is the schematic).  KiCad then opens it as name."""
+    text = re.sub(r'("meta": \{\s*"filename": ")[^"]*"', lambda m: m.group(1) + name + '.kicad_pro"', text)
+    return re.sub(r'"top_level_sheets": \[[^\]]*\]', '"top_level_sheets": []', text)
+
+
 def install(src_pcb, dest_dir, name):
-    """Copy a finished board into its folder in the repo, with its project,
-    rules and a footprint table that finds ../aio.pretty, and point its 3D
-    models at ../aio.3dshapes."""
-    import shutil
+    """Copy a finished board into its folder in the repo, with its project
+    (project_named), rules and a footprint table that finds ../aio.pretty,
+    and point its 3D models at ../aio.3dshapes."""
     os.makedirs(dest_dir, exist_ok=True)
     base = os.path.splitext(src_pcb)[0]
     dst = os.path.join(dest_dir, name + '.kicad_pcb')
@@ -332,12 +355,18 @@ def install(src_pcb, dest_dir, name):
     for ext in ('.kicad_pro', '.kicad_dru'):
         if os.path.exists(base + ext):
             shutil.copy(base + ext, os.path.join(dest_dir, name + ext))
+    pro = os.path.join(dest_dir, name + '.kicad_pro')
+    if os.path.exists(pro):
+        txt = open(pro).read()
+        open(pro, 'w').write(project_named(txt, name))
     open(os.path.join(dest_dir, 'fp-lib-table'), 'w').write(FP_LIB_TABLE)
     return dst
 
 
-def produce(board, board_name, name, v1_dir):
-    """All outputs for one installed board.  Returns a summary dict."""
+def produce(board, board_name, name, v1_dir, visual=True):
+    """All outputs for one installed board.  Returns a summary dict.
+    visual=False (make.py --fab-only): no renders and no STEP, which need
+    KiCad's 3D models."""
     d = os.path.dirname(board)
     prod = os.path.join(d, 'production')
     img = os.path.join(d, 'images')
@@ -352,10 +381,10 @@ def produce(board, board_name, name, v1_dir):
                 variants[bld] = bom_cpl(board, prod, '%s-%s' % (name, bld), board_name, bld)
     n_pads = netlist(board, prod, name)
     pdf = assembly_pdf(board, prod, name)
-    pics = renders(board, img, name)
+    pics = renders(board, img, name) if visual else []
     silk = silk_from_gerbers(os.path.join(prod, 'gerbers'), os.path.join(img, name + '-silkscreen-from-gerbers.png'), name)
     if silk:
         pics.append(silk)
-    stp = step(board, os.path.join(v1_dir, 'mechanical', name + '.step'))
+    stp = step(board, os.path.join(v1_dir, 'mechanical', name + '.step')) if visual else None
     return dict(zip=zp, gerber_files=files, parts=n_parts, bom_lines=n_lines, bottom_parts=n_bottom,
                 pads=n_pads, pdf=pdf, images=pics, step=stp, variants=variants)

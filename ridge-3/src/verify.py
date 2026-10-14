@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Design verification: every check that can be made without hardware.
 
-    python3 verify.py        writes ../VERIFICATION.md, exits 1 on any FAIL
+    python3.12 src/verify.py     writes VERIFICATION.md, exits 1 on any FAIL
 
 Nothing here replaces a bench test.  What it does is check the design
 against sources other than the design itself:
@@ -29,10 +29,20 @@ against sources other than the design itself:
 
 Pin tables and figures copied from datasheets into this file are checked
 against the datasheets' own text (pdftotext output, or the PDF itself) when
-the datasheets are at hand: RIDGE3_DATASHEETS names their folder.  The
-firmware sources: AM32_SRC (AM32 at the commit the target patch is for),
-AM32_BL_SRC (AM32-bootloader) and BF_SRC (Betaflight 2025.12.5).  Checks
-that need a source that is not at hand SKIP.
+the datasheets are at hand.  The sources outside this repository, each
+named by an environment variable:
+
+  AM32_SRC            an AM32 checkout at the commit the target patch is
+                      for (AM32_COMMIT)
+  AM32_BL_SRC         an AM32-bootloader checkout (AM32_BL_COMMIT)
+  BF_SRC              a Betaflight 2025.12.5 checkout (BF_COMMIT)
+  RIDGE3_DATASHEETS   the folder of datasheet text files (docs/DATASHEETS.md)
+  OFFGRID_BRAND       a checkout of the brand repository (private), for the
+                      mark against the brand's own art
+
+A check that needs a source that is not set SKIPs, as do the pin maps when
+KiCad's symbol libraries (SYMBOLS) are not installed.  VERIFICATION.md names
+each source by its variable and commit, never by its path.
 """
 import math, os, re, sys, hashlib, glob, zipfile, collections, subprocess, struct
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -42,8 +52,8 @@ import pcbnew
 import pcb, circuit, parts, fab
 
 SYMBOLS = '/usr/share/kicad/symbols'
-BRAND_PNG = os.environ.get('OFFGRID_BRAND', '/home/user/offgrid-brand') + \
-    '/current/handoff/logo/png/offgrid-wordmark-horizontal-1600.png'
+BRAND = os.environ.get('OFFGRID_BRAND', '')
+BRAND_PNG = 'current/handoff/logo/png/offgrid-wordmark-horizontal-1600.png'     # in BRAND
 
 rows = []            # (section, check, result, detail)
 
@@ -135,6 +145,15 @@ def git_head(root):
         return subprocess.run(['git', '-C', root, 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
     except Exception:
         return ''
+
+
+def source(name, var, path, commit=True):
+    """How VERIFICATION.md names a source: by the variable that named it and
+    its commit, not by its path (which is only the reader's machine's)."""
+    if not path:
+        return '%s not set (%s)' % (name, var)
+    head = git_head(path) if commit else ''
+    return '%s at %s (%s)' % (name, head[:7], var) if head else '%s (%s)' % (name, var)
 
 
 # ------------------------------------------------------------------ firmware sources
@@ -966,7 +985,7 @@ def check_esc_pins():
               % AM32_COMMIT)
         return
     head = git_head(AM32)
-    check(S, 'AM32 checkout %s at commit %s (the patch and the images are for %s)' % (AM32, head[:7] or '?', AM32_COMMIT),
+    check(S, 'AM32 checkout (AM32_SRC) at commit %s (the patch and the images are for %s)' % (head[:7] or '?', AM32_COMMIT),
           head.startswith(AM32_COMMIT) if head else 'INFO', '' if head else 'not a git checkout')
     tgt, how = am32_targets()
     check(S, 'firmware/%s applies to Inc/targets.h' % AM32_PATCH, tgt is not None, how)
@@ -1232,8 +1251,8 @@ def check_fw_scales():
         check(S, 'Betaflight IIM-42652 scales and anti-alias filter', 'SKIP', 'set BF_SRC to a Betaflight 2025.12.5 checkout')
     else:
         head = git_head(BF)
-        check(S, 'Betaflight checkout %s at commit %s (2025.12.5, the build firmware/betaflight is for)'
-              % (BF, head[:7] or '?'), head.startswith(BF_COMMIT) if head else 'INFO', '' if head else 'not a git checkout')
+        check(S, 'Betaflight checkout (BF_SRC) at commit %s (2025.12.5, the build firmware/betaflight is for)'
+              % (head[:7] or '?'), head.startswith(BF_COMMIT) if head else 'INFO', '' if head else 'not a git checkout')
         src, how = bf_source('src/main/drivers/accgyro/accgyro_spi_icm426xx.c')
         check(S, 'firmware/%s applies to the Betaflight source' % BF_PATCH, src is not None, how)
         if src is not None:
@@ -2079,7 +2098,6 @@ def check_silk(board, name):
 def check_brand():
     S = 'Brand'
     import brand
-    from shapely import affinity
     m, w = brand.lockup()
     check(S, 'mark geometry from offgrid-mark-bone.svg: ring r 58, stroke 22, gap at the top, node r 17',
           abs(m.bounds[2] - m.bounds[0] - 138) < 0.1)
@@ -2088,12 +2106,15 @@ def check_brand():
     off = (o.bounds[1] + o.bounds[3]) / 2 - (brand.MARK_AT[1] + brand.ring_centre()[1])
     check(S, 'lockup: "OffGrid" on one line with the mark, its capitals centred on the ring (%.1f units off, of '
              'the lockup\'s 200)' % abs(off), abs(off) < 1.5)
+    if not BRAND:
+        check(S, 'mark against the brand PNG', 'SKIP', 'set OFFGRID_BRAND to a checkout of the brand repository')
+        return
     try:
         import numpy as np
         from PIL import Image, ImageDraw
-        ref = np.array(Image.open(BRAND_PNG).convert('RGB')).astype(int)
-    except Exception as ex:
-        check(S, 'mark against the brand PNG', 'SKIP', 'brand repo not found (%s)' % BRAND_PNG)
+        ref = np.array(Image.open(os.path.join(BRAND, BRAND_PNG)).convert('RGB')).astype(int)
+    except Exception:
+        check(S, 'mark against the brand PNG', 'SKIP', 'no %s in OFFGRID_BRAND' % BRAND_PNG)
         return
     ember = (abs(ref[..., 0] - 255) < 60) & (abs(ref[..., 1] - 106) < 60) & (ref[..., 2] < 80)
     im = Image.new('L', (1600, 400), 0); d = ImageDraw.Draw(im)
@@ -2178,8 +2199,8 @@ def check_firmware():
     else:
         mem = read_ihex(bl[0])
         head = git_head(AM32_BL)
-        check(S, 'AM32-bootloader checkout %s at commit %s (the image is built from %s)'
-              % (AM32_BL, head[:7] or '?', AM32_BL_COMMIT), head.startswith(AM32_BL_COMMIT) if head else 'INFO')
+        check(S, 'AM32-bootloader checkout (AM32_BL_SRC) at commit %s (the image is built from %s)'
+              % (head[:7] or '?', AM32_BL_COMMIT), head.startswith(AM32_BL_COMMIT) if head else 'INFO')
         src = lambda rel: open(os.path.join(AM32_BL, rel)).read()
         main_c, ld = src('bootloader/main.c'), src('bootloader/ldscript_bl.ld')
         blutil, ver_h = src('Mcu/f421/Inc/blutil.h'), src('Inc/version.h')
@@ -2274,23 +2295,16 @@ def check_options():
                   '; '.join('%s %d parts' % (n, len(v)) for n, v in src.items()))
 
 
-def find_source(name, test):
-    """A checkout or folder this session left in a scratchpad (when no
-    environment variable names it)."""
-    for pat in ('/tmp/claude-*/*/*/scratchpad/%s' % name, '/tmp/claude-*/**/%s' % name):
-        for guess in glob.glob(pat, recursive=True):
-            if os.path.exists(os.path.join(guess, test)):
-                return guess
-    return ''
-
-
 def main():
-    global AM32, AM32_BL, BF, DATASHEETS
-    AM32 = AM32 or find_source('am32', 'Inc/targets.h')
-    AM32_BL = AM32_BL or find_source('am32-bootloader', 'bootloader/main.c')
-    BF = BF or find_source('bf', 'src/main/drivers/accgyro/accgyro_spi_icm426xx.c')
-    DATASHEETS = DATASHEETS or find_source('parts2/ds', 'ti_drv8320.txt')
-    check_fc_pins()
+    for var, path in (('AM32_SRC', AM32), ('AM32_BL_SRC', AM32_BL), ('BF_SRC', BF), ('RIDGE3_DATASHEETS', DATASHEETS),
+                      ('OFFGRID_BRAND', BRAND)):
+        if path and not os.path.isdir(path):
+            raise SystemExit('%s=%s: no such folder (unset it to skip the checks that need it)' % (var, path))
+    if os.path.isdir(SYMBOLS):
+        check_fc_pins()
+    else:
+        check('FC pin map', 'the STM32G473, IIM-42652 and AO3400A pins against KiCad\'s symbols', 'SKIP',
+              'KiCad\'s symbol libraries are not installed (%s)' % SYMBOLS)
     check_esc_pins()
     check_fw_scales()
     check_power()
@@ -2312,8 +2326,10 @@ def main():
            'libraries, the parts\' datasheets, the Betaflight and AM32 sources, the brand files) '
            'and run the fab outputs through KiCad\'s DRC. Bring-up on the bench, in the order in '
            'the README, is still the test.', '',
-           'Sources read: AM32 %s; AM32-bootloader %s; Betaflight %s; datasheets %s.' % (
-               AM32 or 'not found', AM32_BL or 'not found', BF or 'not found', DATASHEETS or 'not found'), '']
+           'Sources read: %s; %s; %s; %s; %s.' % (
+               source('AM32', 'AM32_SRC', AM32), source('AM32-bootloader', 'AM32_BL_SRC', AM32_BL),
+               source('Betaflight', 'BF_SRC', BF), source('datasheets', 'RIDGE3_DATASHEETS', DATASHEETS, commit=False),
+               source('brand art', 'OFFGRID_BRAND', BRAND)), '']
     sec = None
     for s, name, res, detail in rows:
         if s != sec:

@@ -2,15 +2,15 @@
 """Outputs that change only when what they hold changes.
 
 KiCad stamps every Gerber, drill file, job file and STEP with the time it
-ran, numbers a STEP's entities differently each run, and its raytracer
-never draws the same noise twice; a zip entry keeps its file's time.  Left
-alone, every rebuild rewrites every output and git cannot tell a changed
-board from a re-run.  So:
+ran and the build of KiCad that ran it, numbers a STEP's entities
+differently each run, and its raytracer never draws the same noise twice;
+a zip entry keeps its file's time.  Left alone, every rebuild rewrites
+every output and git cannot tell a changed board from a re-run.  So:
 
   keep_if_same(path, old)   after an export: if the new file (or each file
                             in a new zip) differs from the committed one
-                            only in its time stamps, put the committed
-                            bytes back (Gerbers, drill and job files)
+                            only in its stamps, put the committed bytes
+                            back (the Gerber zips, the panel's files)
   zip_files(zp, files)      a zip whose bytes depend only on its contents
   zip_one(raw, zp)          zip one file, keeping the committed zip if it
                             holds the same file but for its stamps
@@ -19,16 +19,24 @@ board from a re-run.  So:
                             board, a 3D model it uses, KiCad or the options
                             changed: the hash of those (inputs_key) is kept
                             in the PNG, or in the zip's comment
+  files_key(paths, opts)    the same for a picture made in Python from files
+                            (the silkscreen read back from the Gerbers, the
+                            stack sheet): kept in the PNG by save_png
+  save_png(im, png, text)   a picture as a 256-colour PNG, with its key
 """
 import functools, hashlib, io, os, re, subprocess, zipfile
 
-# Lines that carry only the time a tool ran: Gerber X2 (and Excellon's copy
-# of it) and the G04 comment, Excellon's header, the Gerber job file, the
-# STEP header.
+# Lines that carry only when a tool ran and which build of it: Gerber X2
+# (and Excellon's copy of it) and the G04 comment, Excellon's header, the
+# Gerber job file, the STEP header.  The build string ("10.0.6-10.0.6~
+# ubuntu24.04.1" from Ubuntu's package) differs between packagings of the
+# same KiCad release, e.g. the CI image's.
 STAMPS = re.compile(rb'^(?:.*TF\.CreationDate,.*'
+                    rb'|.*TF\.GenerationSoftware,.*'
                     rb'|G04 Created by .* date .*'
                     rb'|; DRILL file .* date .*'
                     rb'|\s*"CreationDate":.*'
+                    rb'|\s*"Version":.*'
                     rb"|FILE_NAME\('.*)\r?$", re.M)
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)      # the earliest a zip can hold
 KEY = 'ridge3-inputs'                 # PNG text chunk / zip comment prefix
@@ -133,13 +141,53 @@ def inputs_key(board, opts):
     return '%s %s' % (KEY, h.hexdigest()[:16])
 
 
-def _png_key(png):
+def files_key(paths, opts):
+    """Hash of what a picture made in Python is made from: the files
+    (without KiCad's stamps) and opts (the code that draws it and its
+    options)."""
+    h = hashlib.sha256()
+    for p in paths:
+        h.update(os.path.basename(p).encode() + unstamped(read(p) or b''))
+    h.update(repr(opts).encode())
+    return '%s %s' % (KEY, h.hexdigest()[:16])
+
+
+def png_key(png):
+    """The inputs key a PNG carries, or None."""
     try:
         from PIL import Image
         with Image.open(png) as im:
             return im.text.get(KEY)
     except (FileNotFoundError, OSError):
         return None
+
+
+def save_png(im, png, text=None):
+    """A picture (PIL image) as a 256-colour PNG: a fifth to half the size.
+    An opaque picture by median cut refined by one k-means pass (a heat
+    map's colour bar keeps its steps small); one with transparency (the
+    renders) by fast octree, the way Pillow keeps alpha.  text: the PNG's
+    text chunks (the inputs key)."""
+    from PIL import Image, PngImagePlugin
+    info = PngImagePlugin.PngInfo()
+    for k, v in (text or {}).items():
+        info.add_text(k, v)
+    src = im.convert('RGBA')
+    if src.getchannel('A').getextrema() == (255, 255):
+        src = src.convert('RGB')
+    q = (src.quantize(256, method=Image.Quantize.MEDIANCUT, kmeans=1) if src.mode == 'RGB'
+         else src.quantize(256, method=Image.Quantize.FASTOCTREE))
+    extra = {'dpi': im.info['dpi']} if 'dpi' in im.info else {}
+    q.save(png, pnginfo=info, optimize=True, **extra)
+
+
+def compact(png):
+    """Save a full-colour PNG file again as 256 colours (save_png), its text
+    chunks kept."""
+    from PIL import Image
+    with Image.open(png) as im:
+        im.load()
+        save_png(im, png, dict(im.text))
 
 
 def _zip_key(zp):
@@ -155,15 +203,13 @@ def render(cmd, png, board, run):
     carries this key; then store the key in it.  run: the caller's
     subprocess wrapper.  True if it rendered."""
     key = inputs_key(board, [c for c in cmd if c not in (png, board)])
-    if _png_key(png) == key:
+    if png_key(png) == key:
         return False
     run(cmd)
-    from PIL import Image, PngImagePlugin
-    info = PngImagePlugin.PngInfo()
-    info.add_text(KEY, key)
+    from PIL import Image
     with Image.open(png) as im:
         im.load()
-        im.save(png, pnginfo=info, optimize=True)
+        save_png(im, png, {KEY: key})
     return True
 
 
