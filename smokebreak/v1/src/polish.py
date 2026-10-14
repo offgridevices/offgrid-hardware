@@ -53,6 +53,10 @@ def main():
         if z.GetZoneName() == 'GND fill':
             B.remove(b, z)
     make.power_keepouts(b)
+    for z in list(b.Zones()):                            # the art fields as make.py has them now
+        if z.GetIsRuleArea() and z.GetZoneName() in [n for n, _ in make.ART_FIELDS]:
+            B.remove(b, z)
+    make.art_fields(b)
     work = os.path.join(B.HERE, 'out', 'polish')
     os.makedirs(work, exist_ok=True)
     tmp = os.path.join(work, 'a.kicad_pcb')

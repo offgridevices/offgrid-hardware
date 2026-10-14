@@ -156,13 +156,20 @@ def stitch(b, pitch=3.0, margin=0.45):
     holes = [t.GetPosition() for t in b.GetTracks() if t.GetClass() == 'PCB_VIA']
     holes += [p.GetPosition() for fp in b.GetFootprints() for p in fp.Pads() if p.GetDrillSize().x > 0]
     holes = [(pcbnew.ToMM(q.x), pcbnew.ToMM(q.y)) for q in holes]
+    silk = []                                           # no via through the art
+    for d in b.Drawings():
+        if d.GetLayer() in (pcbnew.F_SilkS, pcbnew.B_SilkS):
+            bb = d.GetBoundingBox()
+            silk.append((pcbnew.ToMM(bb.GetLeft()) - 0.5, pcbnew.ToMM(bb.GetTop()) - 0.5,
+                         pcbnew.ToMM(bb.GetRight()) + 0.5, pcbnew.ToMM(bb.GetBottom()) + 0.5))
     n = 0
     y = 2.0
     while y < B.H - 2:
         x = 2.0
         while x < B.W - 2:
             P = Point(B.OX + x, B.OY + y)
-            if stitch_ok(x, y) and all(f.contains(P) for f in fills.values()) and all(
+            if stitch_ok(x, y) and not any(a < P.x < c and t < P.y < d for a, t, c, d in silk) and \
+                    all(f.contains(P) for f in fills.values()) and all(
                     (hx - P.x) ** 2 + (hy - P.y) ** 2 > 1.2 ** 2 for hx, hy in holes):
                 B.via(b, x, y, 'GND', d=0.5, drill=0.25)
                 holes.append((P.x, P.y))
@@ -222,6 +229,10 @@ def seal(b):
 def tail(b):
     """After the routing: the VIN bridge, the fills, the art, the seal."""
     print('VIN bridge', vin_bridge(b), flush=True)
+    for z in list(b.Zones()):                            # the art fields as make.py has them now
+        if z.GetIsRuleArea() and z.GetZoneName() in [n for n, _ in make.ART_FIELDS]:
+            B.remove(b, z)
+    make.art_fields(b)
     ground_fill(b)
     # the routing keep-outs become DRC rules (a rule area would bar the power
     # nets' own tracks too)

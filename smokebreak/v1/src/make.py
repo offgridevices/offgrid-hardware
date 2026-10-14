@@ -119,9 +119,9 @@ NEG = [(82.4, 27.6), (85.6, 27.6), (85.6, 24.3), (91.2, 24.3), (91.2, 33.7), (86
        (82.4, 29.5)]
 SHUNT_GND = B.rect(82.6, 31.0, 86.2, 33.4)
 # the underside art's fields: no vias (tracks and the ground fill may pass)
-LOCKUP_W = 22.0
+LOCKUP_W = 16.0
 ART_FIELDS = [
-    ('brand field', B.rect(B.W / 2 - LOCKUP_W / 2 - 0.5, 21.2, B.W / 2 + LOCKUP_W / 2 + 0.5, 29.6)),
+    ('brand field', B.rect(B.W / 2 - LOCKUP_W / 2 - 0.2, 21.2, B.W / 2 + LOCKUP_W / 2 + 0.2, 27.3)),
     ('name field', B.rect(B.W / 2 - 9.5, 3.4, B.W / 2 + 9.5, 8.6)),
     ('flag field', B.rect(69.5, 43.0, 80.5, 49.4)),
     ('smoke field', B.rect(26.5, 9.9, 45.5, 12.3)),        # under the pre-charge resistors
@@ -274,8 +274,9 @@ def art_items():
         return W - x
 
     bottom = [
-        # centred left to right; up from the middle by 1.2 mm so it clears the 6S socket's top pin
-        dict(kind='lockup', x=W / 2, y=B.H / 2 - 1.2, width=19.0, layer=Bs, fixed=True),
+        # centred left to right, in the via-free band between the controller's
+        # vias and the 6S socket's top pin
+        dict(kind='lockup', x=W / 2, y=24.25, width=LOCKUP_W, layer=Bs, fixed=True),
         t('SmokeBreak', W / 2, 5.3, 2.0, Bs, weight=600),
         t('v1.0', W / 2, 7.55, 0.8, Bs, font='mono'),
         dict(kind='flag', x=v(75.0), y=46.2, hoist=5.26, layer=Bs, fixed=True),     # under the rocker, level with the screws
@@ -291,7 +292,8 @@ def art_items():
     for ref, name, cap, side in (('J1', 'XT60', 1.2, 3.0), ('J2', 'XT30', 1.0, 2.6)):
         (x1, y1), (x2, y2) = _pad(ref, '1'), _pad(ref, '2')     # 1 = minus, 2 = plus
         bottom += [t(name, v(x1), (y1 + y2) / 2 + cap / 2, cap, Bs),
-                   t('\u2212', v(x1) + side, y1 + 0.6, 1.2, Bs), t('+', v(x2) + side, y2 + 0.6, 1.2, Bs)]
+                   dict(t('\u2212', v(x1) + side, y1 + 0.6, 1.2, Bs), fixed=False),
+                   dict(t('+', v(x2) + side, y2 + 0.6, 1.2, Bs), fixed=False)]
     # the drone leads' pads, both sides (the wires may go in from either):
     # the name between the pads, polarity on the board side of each
     top = []
@@ -299,11 +301,9 @@ def art_items():
         (x1, y1), (x2, y2) = _pad(ref, '1'), _pad(ref, '2')     # 1 = plus, 2 = minus
         for layer, f in ((T, lambda x: x), (Bs, v)):
             lst = top if layer == T else bottom
-            fx = layer == Bs
-            lst += [dict(t(name, f(x1), (y1 + y2) / 2 + cap / 2, cap, layer), fixed=fx),
-                    dict(t('+', f(x1 - 3.0), y1 + 0.6, 1.2, layer), fixed=fx),
-                    dict(t('\u2212', f(x2 - 3.0), y2 + 0.6, 1.2, layer), fixed=fx)]
-    top += [dict(t('SmokeBreak v1.0', 60.0, 49.6, 0.8, T), fixed=False)]
+            lst += [dict(t(name, f(x1), (y1 + y2) / 2 + cap / 2, cap, layer), fixed=layer == Bs, optional=True),
+                    dict(t('+', f(x1 - 3.0), y1 + 0.6, 1.2, layer), fixed=False),
+                    dict(t('\u2212', f(x2 - 3.0), y2 + 0.6, 1.2, layer), fixed=False)]
     return top, bottom
 
 
@@ -333,7 +333,8 @@ def add_art(b, work):
                 if _free((x0 + dx, y0 + dy, x1 + dx, y1 + dy), obs[side] + placed):
                     break
             else:
-                print('  no room for', it.get('text'))
+                if not it.get('optional'):
+                    print('  no room for', it.get('text'))
                 continue
         placed.append((x0 + dx - 0.3, y0 + dy - 0.3, x1 + dx + 0.3, y1 + dy + 0.3))
         polys = [dict(outer=[[x + (dx if side == 'T' else -dx), y + dy] for x, y in p['outer']],
