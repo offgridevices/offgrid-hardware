@@ -17,13 +17,13 @@ throttle, 4 s at 60 % and 14 s at 40 % (7.3 A per motor on average).
 
 | | As built | IDRIVE 30/60 mA | AM32 limit 120 °C | LiHV 26.1 V | 2,250 m | BSZ040 FETs | BSZ040 + IDRIVE 30/60 |
 |---|---|---|---|---|---|---|---|
-| SHx at 30 A, 5 nH (3-8 nH) | -10.3 V (-14.2) | -6.2 V (-8.5) | -10.3 V | -10.3 V | -10.3 V | -11.8 V (-15.9) | -6.7 V (-9.0) |
-| FET peaks (60 V parts): high side at 30 A, 5 nH / low side, worst of the 3-8 nH runs | 39.6 / 42.5 V | 32.3 / 26.8 V | same | 40.5 / 43.8 V | same | 42.1 / 57.4 V | 33.4 / 27.4 V |
-| Held all day before AM32 cuts, 50 °C, 5 m/s | 52 % (7.5 A) | 48 % (6.3 A) | 54 % (8.4 A) | 50 % (7.3 A) | 58 % (7.9 A) | 48 % (6.3 A) | 44 % (5.3 A) |
-| The same, 60 °C, 2 m/s | 40 % (4.4 A) | 30 % (2.9 A) | 44 % (5.3 A) | 35 % (3.9 A) | 47 % (4.7 A) | 32 % (3.2 A) | 28 % (2.5 A) |
-| Hard flight at 50 °C: AM32 cuts a motor | 10 % of it, from 62 s | 18 %, from 26 s | 2.5 %, from 106 s | 15 %, from 42 s | never | 19 %, from 25 s | 24 %, from 22 s |
-| Hard flight: hottest FET / ESC processor | 128 / 111 °C | 128 / 111 °C | 136 / 117 °C | 130 / 111 °C | 118 / 104 °C | 134 / 112 °C (150 °C part) | 134 / 112 °C |
-| Parts past their rating in the hard flight | none | none | the X7R bridge capacitor, 128 °C (125 °C) | none | none | none | none |
+| SHx at 30 A, 5 nH (3-8 nH) | -9.2 V (-12.8) | -5.6 V (-7.6) | -9.2 V | -9.3 V | -9.2 V | -10.6 V (-14.4) | -6.1 V (-8.2) |
+| FET peaks (60 V parts): high side at 30 A, 5 nH / low side, worst of the 3-8 nH runs | 37.7 / 37.2 V | 31.3 / 25.0 V | same | 38.7 / 38.5 V | same | 40.1 / 51.7 V | 32.3 / 25.0 V |
+| Held all day before AM32 cuts, 50 °C, 5 m/s | 52 % (7.7 A) | 49 % (6.6 A) | 54 % (8.6 A) | 50 % (7.5 A) | 58 % (8.0 A) | 48 % (6.5 A) | 45 % (5.5 A) |
+| The same, 60 °C, 2 m/s | 41 % (4.6 A) | 32 % (3.2 A) | 45 % (5.5 A) | 36 % (4.1 A) | 48 % (4.8 A) | 33 % (3.4 A) | 29 % (2.7 A) |
+| Hard flight at 50 °C: AM32 cuts a motor | 9 % of it, from 62 s | 16 %, from 42 s | 1 %, from 126 s | 15 %, from 43 s | never | 18 %, from 26 s | 24 %, from 22 s |
+| Hard flight: hottest FET / ESC processor | 128 / 110 °C | 129 / 111 °C | 134 / 116 °C | 128 / 112 °C | 116 / 102 °C | 132 / 111 °C (150 °C part) | 132 / 112 °C |
+| Parts past their rating in the hard flight | none | none | the X7R bridge capacitor, 126 °C (125 °C) | none | none | none | none |
 
 Hover is 27 % throttle at sea level (32 % at 2,250 m).  The amps are each
 motor's battery current at that throttle.
@@ -31,31 +31,31 @@ motor's battery current at that throttle.
 What they say:
 
 - **IDRIVE (the gate drivers' speed).**  As built (60 / 120 mA, 75 kΩ) the
-  high side's turn-off pulls SHx to -10.3 V at 30 A in the 5 nH loop, past
-  the DRV8320H's -7 V for 200 ns.  At 30 / 60 mA (18 kΩ) it is -6.2 V, and
-  the FETs' own peaks (the high side at 5 nH / the low side's worst case, at
-  8 nH) fall from 39.6 / 42.5 V to 32.3 / 26.8 V.  The cost
+  high side's turn-off pulls SHx to -9.2 V at 30 A in the 5 nH loop, past
+  the DRV8320H's -7 V for 200 ns.  At 30 / 60 mA (18 kΩ) it is -5.6 V, and
+  the FETs' own peaks (the high side at 5 nH / the low side's worst of the
+  3-8 nH runs) fall from 37.7 / 37.2 V to 31.3 / 25.0 V.  The cost
   is heat: on a 50 °C day the throttle AM32 lets a motor hold falls from
-  52 to 48 % (7.5 to 6.3 A), and in the hard flight AM32 cuts a motor for
-  18 % of it instead of 10 %.  At a punch's current the dip is deeper for
+  52 to 49 % (7.7 to 6.6 A), and in the hard flight AM32 cuts a motor for
+  16 % of it instead of 9 %.  At a punch's current the dip is deeper for
   both settings (see the punch, below).
 - **AM32's temperature limit.**  110 °C keeps every part in its rating.
-  120 °C nearly removes the cuts in the hard flight (2.5 % of it) but puts
-  the ESC's X7R bridge capacitor at 128 °C, past its 125 °C (and the
+  120 °C nearly removes the cuts in the hard flight (1 % of it) but puts
+  the ESC's X7R bridge capacitor at 126 °C, past its 125 °C (and the
   current amplifiers past theirs with IDRIVE 30).  Keep 110 °C.
 - **LiHV (26.1 V full).**  The same verdicts as 6S LiPo; the FETs peak at
-  40.5 / 43.8 V against 60 V, and the hard flight is cut for 15 % of it.
+  38.7 / 38.5 V against 60 V, and the hard flight is cut for 15 % of it.
 - **Altitude (2,250 m).**  Thinner air loads the props less and cools the
   boards less; the hard flight is never cut.  On the ground at 60 °C one
   more part passes its rating.
 - **The second-source FET, Infineon BSZ040N06LS5** (JLC stock; 4.0 mΩ,
   rated 150 °C instead of 175 °C): no.  Its body-diode recovery takes the
-  low-side FET to 57.4 V of its 60 V and SHx to -11.8 V, and it runs
-  hotter (AM32 cuts the hard flight for 19 % of it) with 25 °C less
-  rating.  With IDRIVE 30/60 the voltages are fine but the heat is worse
-  again (24 %).  In a crash its higher resistance makes the driver's trip
+  low-side FET to 51.7 V of its 60 V and SHx to -10.6 V, and it runs
+  hotter (AM32 cuts the hard flight for 18 % of it) with 25 °C less
+  rating.  With IDRIVE 30/60 its voltages are only marginal (SHx -6.1 V,
+  the off gate 1.08 V), but the heat is worse again (24 %).  In a crash its higher resistance makes the driver's trip
   act sooner (131 °C from a cool board), but from a hot one it reaches
-  258 °C against its 150 °C ([`sim/results/crash/bsz040/CRASH.md`](../sim/results/crash/bsz040/CRASH.md)).  Keep the
+  256 °C against its 150 °C ([`sim/results/crash/bsz040/CRASH.md`](../sim/results/crash/bsz040/CRASH.md)).  Keep the
   ISZ023N06LM6 and buy it ahead; qualify a second FET on the bench before
   relying on one.
 
@@ -82,9 +82,9 @@ that, the FET's case taken as its drain copper with all its heat in it:
 | cool board | 0.6 V | 68 ms (target change) | 182 °C | 11 ms |
 | cool board | 0.26 V (75 kΩ) | 248 ms | 70 °C | 0 |
 | hot (128 °C, after the hard flight at 50 °C) | none (a bound) | 248 ms | over 300 °C | 249 ms |
-| hot | 0.6 V (as built) | 248 ms | 221 °C | 198 ms |
-| hot | 0.6 V | 68 ms | 195 °C | 21 ms |
-| hot | 0.26 V | 248 ms | 193 °C | 67 ms |
+| hot | 0.6 V (as built) | 248 ms | 221 °C | 199 ms |
+| hot | 0.6 V | 68 ms | 195 °C | 22 ms |
+| hot | 0.26 V | 248 ms | 193 °C | 68 ms |
 | hot | 0.26 V | 68 ms | 141 °C | 0 |
 
 - The trip as built does most of the work: it acts in the first
@@ -96,7 +96,7 @@ that, the FET's case taken as its drain copper with all its heat in it:
   startup clamp keeps about 35 A in the stalled motor for a quarter of a
   second.  AM32 cuts after 11 timeouts (`bemf_timeout` 10, a variable in
   `main.c`, not a setting); after 3 the hot crash's time over the rating
-  falls from 198 to 21 ms.  The cost is a motor cut in flight if three
+  falls from 199 to 22 ms.  The cost is a motor cut in flight if three
   timeouts ever come in a row without a crash: a bench and flight test.
 - 0.26 V would protect the FET outright with the shorter cut, but it trips
   at 51-62 A on a hot FET, under the 64-68 A of a full-throttle punch (see
@@ -135,15 +135,28 @@ The switching edge at the punch's current, against the DRV8320H's -7 V
 
 | IDRIVE | 68 A, loop 3 / 5 / 8 nH: SHx lowest | FET peaks, 8 nH (high / low side) |
 |---|---|---|
-| 60 / 120 mA (as built) | -11.0 / -15.5 / -21.6 V | 55.6 / 57.2 V |
-| 30 / 60 mA | -6.3 / -8.9 / -12.4 V | 39.5 / 32.4 V |
+| 60 / 120 mA (as built) | -9.1 / -13.5 / -19.6 V | 52.6 / 52.0 V |
+| 30 / 60 mA | -5.3 / -7.6 / -11.1 V | 37.6 / 28.4 V |
 
 (FET at 25 °C, the worse case; [`sim/results/punch/PUNCH.md`](../sim/results/punch/PUNCH.md) has 30 A and 150 °C.)
 Neither setting keeps SHx inside -7 V at a punch's current in the 5 nH
 loop the layout is estimated at.  30 / 60 mA roughly halves the overshoot
 and keeps the FETs 20 V clear of their rating; at 60 / 120 mA in the 8 nH
-bracket they come within 3 V of it.  How long the dip lasts, and how the
+bracket they come within 7.4 V of it.  How long the dip lasts, and how the
 layout's real loop compares with 5 nH, only a scope will say.
+
+One switching check is marginal at both settings: while the high side
+turns on, the off low-side FET's gate is kicked up to 1.76 V on its die at
+150 °C with 60 / 120 mA and 1.46 V with 30 / 60 mA (the worst of the
+3-8 nH runs: [`STRESS.md`](../STRESS.md) section 3, and the `idrive30`
+variant's [`STRESS.md`](../sim/results/variants/idrive30/STRESS.md) for
+30 / 60 mA), above the hot FET's threshold (about 0.4 V minimum, 1.0 V
+typical).  The driver holds the gate pin to PGND with its 2 A ISTRONG, but
+the FET's source moves against PGND through the source copper and the
+shunt (common-source inductance).  The model's switching energies show no
+shoot-through.  It is not measured:
+[`TEST_PLAN.md`](TEST_PLAN.md) T5 measures the gate to source at the FET,
+with a differential or isolated probe, during the high side's turn-on.
 
 ## On the ground
 
@@ -165,6 +178,8 @@ continuous on the ground (0.5 A at 60 °C), 2 A with airflow.
 
 - How deep and how long SHx dips below -7 V, at each IDRIVE, at punch
   currents (a scope on SHx).
+- How far the off low-side FET's gate rises while the high side turns on
+  (T5: gate to source at the FET, a differential or isolated probe).
 - Whether the overcurrent monitor trips in hard hot punches (nFAULT has no
   pad: probe the driver's pin 17).
 - The locked-rotor behaviour at reduced voltage: AM32's cut, false
@@ -194,18 +209,22 @@ In order.  None of them needs a part ordered today.
    SHx and the FETs in hot full-throttle punches.  Unless the scope shows
    60 / 120 mA inside the driver's limits, ship 30 / 60 mA: at a punch's
    current it halves the dip and keeps the FETs well clear of 60 V, and its
-   cost is heat headroom (52 to 48 % throttle held on a 50 °C day; AM32
-   cuts a motor in 18 % of the hard flight instead of 10 %), which is the
+   cost is heat headroom (52 to 49 % throttle held on a 50 °C day; AM32
+   cuts a motor in 16 % of the hard flight instead of 9 %), which is the
    firmware protecting the board, not the board failing.  Neither setting
    holds SHx inside -7 V at 68 A: with the scope's numbers, evaluate a
    clamp or series resistor at the SHx pins, or an RC snubber, in the next
-   ESC revision.
+   ESC revision.  Measure the off low-side FET's gate to source at the FET
+   as well (T5, a differential or isolated probe): if it goes above the
+   FET's minimum threshold, the next revision returns the low-side gate
+   drive closer to the FET's source, or adds a gate-source capacitor or a
+   Miller clamp, sized from that measurement ([`STATUS.md`](STATUS.md), D6).
 4. **Keep AM32 at 110 °C / 20 A.**  120 °C takes the bridge capacitor past
    its rating.  Add Betaflight's ESC temperature warning about 10 °C below
    (the pilot sees it before a motor drops to a quarter).
 5. **A shorter stuck-rotor cut in the AM32 target** (`bemf_timeout` 2: the
    cut after about 68 ms instead of 248 ms) cuts a hot crash's time over
-   the FET's rating from 198 to 21 ms.  Bench- and flight-test it for
+   the FET's rating from 199 to 22 ms.  Bench- and flight-test it for
    false cuts before shipping it.
 6. **Leave the overcurrent trip at 0.6 V.**  0.26 V trips under a hard
    punch on a hot day.  In the next ESC revision add, per driver, a VDS

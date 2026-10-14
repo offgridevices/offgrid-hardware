@@ -46,7 +46,7 @@ Do it first on every stack.
 | Bench supply, 0-30 V, current limit, 5 A or more | bring-up, T3, T7 | a smoke stopper (fused or current-limited) on the first battery power-up |
 | 6S LiPo packs, fresh and tired; one 6S LiHV | T5-T9, T11-T13 | the "tired" pack is the high-resistance case for throttle chops |
 | Oscilloscope, 4 channels, 200 MHz or more | T5-T7, T10-T12 | short ground spring on the probe, not the clip lead |
-| Isolated or differential probe | T5, T12 | for the high-side FET (VDRAIN to SHx) |
+| Isolated or differential probe | T5, T12 | for the high-side FET (VDRAIN to SHx), and the off low-side FET's gate to source at the FET (T5) |
 | DC current clamp, 150 A or more | T3, T5-T7, T12 | on one motor phase wire (a locked rotor peaks at 146-148 A in [`CRASH.md`](../sim/results/crash/CRASH.md)) |
 | Logic analyser | T6, T7 | on the DRV8320H's nFAULT (pin 17): it has no pad, solder a fine wire to the pin's fillet |
 | K thermocouples (4) and a logger | T4, T7, T8 | Kapton tape on the hottest FET (phase C high side is beside the thermistor; measure the low sides too) |
@@ -108,25 +108,47 @@ current ([`sim/results/punch/PUNCH.md`](../sim/results/punch/PUNCH.md), from
 
 | IDRIVE | 30 A, 5 nH | 68 A (punch), 3 / 5 / 8 nH | FET peaks at 68 A, 8 nH |
 |---|---|---|---|
-| 60 / 120 mA (75 kΩ, as built) | -10.3 V | -11.0 / -15.5 / -21.6 V | 55.6 / 57.2 V |
-| 30 / 60 mA (18 kΩ) | -6.2 V | -6.3 / -8.9 / -12.4 V | 39.5 / 32.4 V |
+| 60 / 120 mA (75 kΩ, as built) | -9.2 V | -9.1 / -13.5 / -19.6 V | 52.6 / 52.0 V |
+| 30 / 60 mA (18 kΩ) | -5.6 V | -5.3 / -7.6 / -11.1 V | 37.6 / 28.4 V |
+
+They also say the off low-side FET's gate is kicked up when the high side
+turns on: the driver holds the gate pin to PGND with its 2 A ISTRONG, but
+the FET's source moves against PGND through the source copper and the shunt.
+On the die at 150 °C it reaches 1.76 V with 60 / 120 mA and 1.46 V with
+30 / 60 mA (the worst of the 3-8 nH runs; 1.26 V at 30 A, 5 nH, 60 / 120 mA),
+above the FET's threshold hot (about 0.4 V minimum, 1.0 V typical).  The
+simulated switching energies show no shoot-through
+([`../STRESS.md`](../STRESS.md) section 3, and the `idrive30` variant's
+[`STRESS.md`](../sim/results/variants/idrive30/STRESS.md) for 30 / 60 mA;
+marginal in both).
 
 - Probe SHx to the driver's ground at the driver, with the shortest ground
   you can make; the high-side FET's drain to source with the isolated probe;
   the low side's drain to source.  Current clamp on the phase.
+- In a capture of its own, the off low-side FET's gate to source at the
+  FET's own gate and source pins (not the driver's GLx and PGND), with the
+  isolated or differential probe, during the high side's turn-on.  The
+  simulation's figure is on the die, past the package's own source
+  inductance, which no probe reaches.
 - On the test stand, props on: 10, 20 and 30 A steady, then full-throttle
   punches from hover (the simulation peaks at 64-68 A per motor, about 4 ms
   in).  Cold, then with the FETs at about 100 °C (run at high throttle
   first).  Both IDRIVE settings.
 - Record: SHx's lowest value and how long it stays below -5 V; each FET's
-  peak; the phase current at that moment.
+  peak; the phase current at that moment; the off low-side FET's gate-source
+  peak and the FET's temperature.
 - Pass: SHx never below -7 V, and below -5 V for less than 200 ns at each
   edge (the DRV8320H's absolute maximum: -5 V continuous, -7 V for 200 ns);
-  FET peaks under 48 V (80 % of their 60 V).  The 5 nH loop is an estimate: this test
+  FET peaks under 48 V (80 % of their 60 V); the off low-side FET's gate
+  under its minimum threshold at the temperature measured (1.1 V at 25 °C,
+  about 0.4 V at 150 °C).  The 5 nH loop is an estimate: this test
   also tells which row of the table the real layout is.
 - Then decide IDRIVE (`STATUS.md`, D2).  If neither setting passes, the next
   ESC revision needs a clamp or series resistor at the SHx pins, or an RC
-  snubber: record the waveforms it would be designed from.
+  snubber: record the waveforms it would be designed from.  If the off gate
+  goes above the FET's minimum threshold, the next revision returns the
+  low-side gate drive closer to the FET's source, or adds a gate-source
+  capacitor or a Miller clamp (`STATUS.md`, D6), sized from this waveform.
 
 ### T6. The overcurrent monitor in hard punches
 
@@ -169,11 +191,11 @@ regulator.
 
 - Hold a fixed throttle until temperatures settle, stepping up.  The
   simulation: 52 % throttle held indefinitely before AM32's limit cuts at
-  50 °C and 5 m/s (44 % at 2 m/s), with 27 % for hover.
+  50 °C and 5 m/s (45 % at 2 m/s), with 27 % for hover.
 - Then the simulated hard flight on the stand: repeating 20 s cycles of 2 s
   at full throttle, 4 s at 60 % and 14 s at 40 %, for 3 minutes.  The
-  simulation: AM32 first cuts a motor at about 62 s and for 10 % of the
-  flight (18 % with IDRIVE 30 / 60), the hottest FET at 128 °C.
+  simulation: AM32 first cuts a motor at about 62 s and for 9 % of the
+  flight (16 % with IDRIVE 30 / 60), the hottest FET at 128 °C.
 - Pass: no part past its rating (FETs 150 °C design / 175 °C maximum,
   ESC processors 125 °C, FC processor 105 °C junction), and AM32's limit
   acting before the FETs pass 150 °C.  Record where the measurement
@@ -203,7 +225,7 @@ back-feed (about 4-4.6 V) and the buck does not switch.
 ### T11. Battery transients
 
 - Hot plug: plug a full 6S pack in, leads 10 cm and 30 cm, scope on the
-  ESC's battery pads.  Simulation: 39.7 V peak with 300 nH of leads.
+  ESC's battery pads.  Simulation: 41.5 V peak with 300 nH of leads.
   Pass: under 48 V.
 - Throttle chop: full throttle to zero on the stand, fresh and tired packs.
   Simulation: 28 V (fresh, 25 mΩ) to 35 V (tired, 100 mΩ) on the bus; the

@@ -17,7 +17,7 @@ act before the power stage burns out.  On such a day, with 5 m/s of air over
 the stack and the ESC on its heatsink, it holds 52 % throttle indefinitely
 before AM32's temperature limit starts cutting a motor (hover is 27 %; 58 %
 on a 25 °C day).  A hard three-minute flight has that limit cutting a motor
-for 10 % of it, from about a minute in, with the hottest FET at 128 °C:
+for 9 % of it, from about a minute in, with the hottest FET at 128 °C:
 on a day that hot the limit, not the parts, sets the pace.  [`docs/REV2.md`](docs/REV2.md) lists every change from revision 1 and
 why; [`STRESS.md`](STRESS.md) runs both revisions through the same
 simulations, including what rev 2 still does not pass.
@@ -150,10 +150,20 @@ battery meets it, the power FETs included:
 
 Rev 1's 40 V FETs ran at 63 %, and its switch node rang to their rating.
 The 60 V parts with the DRV8320H's controlled gate current keep the
-simulated peaks at 30 A well inside 60 V (42.5 V, [`STRESS.md`](STRESS.md));
-at a full-throttle punch's 68 A they reach 46 V in the estimated 5 nH loop
-and 57 V in the 8 nH bracket ([`docs/RELIABILITY.md`](docs/RELIABILITY.md),
-[`docs/STATUS.md`](docs/STATUS.md) D2).  The ESC carries its own bus
+simulated peaks at 30 A well inside 60 V (37.7 V, [`STRESS.md`](STRESS.md));
+at a full-throttle punch's 68 A they reach 42 V in the estimated 5 nH loop
+and 53 V in the 8 nH bracket ([`docs/RELIABILITY.md`](docs/RELIABILITY.md),
+[`docs/STATUS.md`](docs/STATUS.md) D2).  Two switching checks do not pass
+outright.  At 30 A the high side's turn-off pulls the driver's SHx pin to
+-9.2 V in the 5 nH loop (-12.8 V in the bracket), past its -7 V for 200 ns
+(fail).  While the high side turns on, the off low-side FET's gate reaches
+1.76 V on its die at 150 °C (the worst of the 3-8 nH runs), above the hot
+FET's threshold, about 0.4 V minimum and 1.0 V typical (marginal): the
+driver holds the gate pin to its ground, but the FET's source bounces
+through the source copper and the shunt.  The model's switching energies
+show no shoot-through.  [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) T5
+measures both, the gate at the FET with a differential or isolated probe
+([`docs/STATUS.md`](docs/STATUS.md) D2, D6).  The ESC carries its own bus
 capacitance (three 10 µF 50 V ceramics beside the twelve bridge
 capacitors), so nothing hangs on the battery leads.  The FC's SMF33A TVS
 clamps slow surges on the same battery line.
@@ -967,13 +977,13 @@ maps, SPICE runs) stay in `sim/out/`, which git ignores.
   export OPTIMOS6_60V_LIB=/path/to/OptiMOS6_60V_Spice.lib
   export OPTIMOS5_60V_LIB=/path/to/OptiMOS_OptiMOS5_60V_Spice.lib
   export TPN2R304PL_LIB=/path/to/TPN2R304PL_G0_00_PSpice_rev1.lib
-  sim/.venv/bin/python sim/stress.py                 # STRESS.md, images/stress/: both revisions, about 1 h 45 min
-  sim/.venv/bin/python sim/stress.py --variant=rev2  # sim/results/variants/rev2/: about 1.5 h
-  sim/.venv/bin/python sim/crash.py                  # sim/results/crash/: about 12 min
-  sim/.venv/bin/python sim/punch.py                  # sim/results/punch/: about 28 min
+  sim/.venv/bin/python sim/stress.py                 # STRESS.md, images/stress/: both revisions, about 3 h 25 min
+  sim/.venv/bin/python sim/stress.py --variant=rev2  # sim/results/variants/rev2/: about 2.5 h
+  sim/.venv/bin/python sim/crash.py                  # sim/results/crash/: about 21 min
+  sim/.venv/bin/python sim/punch.py                  # sim/results/punch/: about 37 min
   sim/.venv/bin/python sim/ground.py                 # sim/results/variants/rev2/GROUND.md
   for v in idrive30 lihv alt2250 bsz040 bsz040-idrive30 temp120 idrive30-temp120; do
-    sim/.venv/bin/python sim/stress.py --variant=$v  # about 1.5 h each
+    sim/.venv/bin/python sim/stress.py --variant=$v  # about 1.5-2.5 h each
   done
   sim/.venv/bin/python sim/crash.py --variant=bsz040 # sim/results/crash/bsz040/
   sim/.venv/bin/python sim/variants.py               # sim/results/VARIANTS.md

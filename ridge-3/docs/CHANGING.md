@@ -45,7 +45,7 @@ simulations](../README.md#stress-simulations) for `sim/`, and
    part with figures checked in `verify.py` needs its entry there and its
    datasheet in `DATASHEETS.md`.
 4. **Simulate:** `sim/.venv/bin/python sim/stress.py` writes `STRESS.md`
-   and `images/stress/` (about 1 h 45 min on four cores; it needs both
+   and `images/stress/` (about 3 h 25 min on four cores; it needs both
    revisions' FET models).  Then `sim/stress.py --variant=rev2`, which
    writes the `found.json` that `sim/crash.py`, `sim/punch.py` and
    `sim/ground.py` start from, and those three.  The README's [Stress
@@ -132,8 +132,8 @@ Evaluate a candidate in the simulations first, without touching the design
    committed.  A part with no published model cannot go through the
    switching simulation; say so in `RELIABILITY.md`.
 3. `sim/data.py`: a variant in `VARIANTS` naming the FET, then
-   `sim/stress.py --variant=NAME` (about 1.5 h on four cores),
-   `sim/crash.py --variant=NAME` (about 12 minutes) and `sim/variants.py` to
+   `sim/stress.py --variant=NAME` (about 1.5-2.5 h on four cores),
+   `sim/crash.py --variant=NAME` (about 21 minutes) and `sim/variants.py` to
    compare it with the others (`sim/results/VARIANTS.md`).
 4. If it is adopted: its entry in `src/parts.py` (footprint, LCSC, maker part
    number, DigiKey number, maker).  On the same land as the ISZ023N06LM6
@@ -224,6 +224,11 @@ These change the copper, so they make a new revision (the loop's step 6):
   0.9-1.0 mΩ (high side) of copper sits in what the monitor measures
   today).
 - **SHx clamp or snubber**, if T5 calls for one, sized from its waveforms.
+- **Off low-side gate**, if T5 shows the off low-side FET's gate reaching
+  its threshold (`STATUS.md`, D2 and D6): the low-side gate drive returned
+  closer to the FET's source (the DRV8320H sinks the low-side gates through
+  PGND), or a gate-source capacitor or a Miller clamp at each low-side FET,
+  sized from T5's waveforms.
 
 Then `python3.12 src/make.py --reroute esc`, `verify.py`, every simulation,
 and a change list for the new revision.

@@ -32,8 +32,8 @@ it.  When one is made, fill in **Decided** and follow `CHANGING.md`.
   2,518 in stock on 2026-10-13).  24 per ESC; at $1.49 they are most of
   the ESC's cost.
 - **Rejected:** Infineon BSZ040N06LS5 (JLC stock, cheaper).  Simulated:
-  57.4 V of its 60 V at the low side, hotter in flight (AM32 cuts the hard
-  flight for 19 % of it, against 10 %), rated 150 °C, and 258 °C in a hot
+  51.7 V of its 60 V at the low side, hotter in flight (AM32 cuts the hard
+  flight for 18 % of it, against 9 %), rated 150 °C, and 256 °C in a hot
   crash ([`RELIABILITY.md`](RELIABILITY.md)).
 - **Candidates for a second source** (from the 2026-10-13 sourcing
   research; recheck before ordering): Vishay SiSS22LDN (same land, rated
@@ -51,15 +51,25 @@ it.  When one is made, fill in **Decided** and follow `CHANGING.md`.
 - **Now:** 60 / 120 mA (75 kΩ, `R9 R21 R33 R45`).  Chosen on 2026-10-03,
   on numbers from before the heatsink was added.
 - **The trade:** at 60 / 120 mA the driver's SHx pin goes past its -7 V
-  absolute maximum, at 30 A (-10.3 V) and more in a full-throttle punch
-  (-15.5 V at 68 A), and the FETs reach 55-57 V of their 60 V in the 8 nH
-  case.  30 / 60 mA (18 kΩ, LCSC C295780) halves that (-6.2 V at 30 A,
-  -8.9 V in a punch, FETs under 40 V) and costs heat headroom: 48 % throttle
-  held on a 50 °C day instead of 52 %, and AM32 cuts a motor in 18 % of the
-  hard flight instead of 10 %.
+  absolute maximum, at 30 A (-9.2 V) and more in a full-throttle punch
+  (-13.5 V at 68 A), and the FETs reach 52.0-52.6 V of their 60 V in the
+  8 nH case.  30 / 60 mA (18 kΩ, LCSC C295780) halves that (-5.6 V at 30 A,
+  -7.6 V in a punch, FETs under 38 V) and costs heat headroom: 49 % throttle
+  held on a 50 °C day instead of 52 %, and AM32 cuts a motor in 16 % of the
+  hard flight instead of 9 %.
+- **At both settings:** the off low-side FET's gate is kicked up when the
+  high side turns on.  The driver holds the gate pin to PGND with its 2 A
+  ISTRONG, but the FET's source moves against PGND through the source
+  copper and the shunt (common-source inductance): on the die the gate
+  reaches 1.76 V at 150 °C with 60 / 120 mA and 1.46 V with 30 / 60 mA
+  (the worst of the 3-8 nH runs), above the FET's threshold hot (about
+  0.4 V minimum, 1.0 V typical), so `../STRESS.md` and the `idrive30`
+  variant mark it marginal.  The simulated switching energies show no
+  shoot-through.  It has not been measured: T5 measures it.
 - **Recommendation:** order one ESC panel with each (`TEST_PLAN.md`), measure
   (T5), and ship 30 / 60 mA unless the scope shows 60 / 120 mA within the
-  driver's limits.  If neither passes, see D6.
+  driver's limits.  If neither passes, or the off gate reaches the FET's
+  threshold, see D6.
 - **Decided:** _not yet_
 
 ### D3. AM32's stuck-rotor cut
@@ -69,7 +79,7 @@ it.  When one is made, fill in **Decided** and follow `CHANGING.md`.
   after hard flying on a 50 °C day, the simulation takes the low-side FET to
   221 °C for about 200 ms.
 - **Option:** a change in the `RIDGE3_F421` firmware target to cut after 3
-  (about 68 ms): 195 °C for 21 ms in the same crash.  Risk: a motor cut in
+  (about 68 ms): 195 °C for 22 ms in the same crash.  Risk: a motor cut in
   flight if three timeouts ever come in a row without a crash.
 - **Recommendation:** make the change, then prove it: T7 (locked rotor) and
   T13 (flying hard, looking for false cuts).
@@ -82,7 +92,7 @@ it.  When one is made, fill in **Decided** and follow `CHANGING.md`.
   in flight, and it does most of the work in a crash.
 - **Option:** 75 kΩ to AGND (0.26 V) protects the FET outright in a crash
   together with D3's shorter cut (141 °C from a hot board; with AM32's cut
-  as it ships, 193 °C, 67 ms past its rating), but trips at 51-62 A on a
+  as it ships, 193 °C, 68 ms past its rating), but trips at 51-62 A on a
   hot FET, under a punch's 64-68 A: it would cut motors in flight.  It also needs a footprint the board does not have.
 - **Recommendation:** keep 0.6 V.  In the next ESC revision add the
   footprint unfitted (D6).
@@ -105,15 +115,20 @@ it.  When one is made, fill in **Decided** and follow `CHANGING.md`.
 
 ### D6. The next ESC revision (after the prototypes)
 
-Open until T5, T6 and T7 are done.  Candidates, all from
-[`RELIABILITY.md`](RELIABILITY.md):
+Open until T5, T6 and T7 are done.  Candidates, from
+[`RELIABILITY.md`](RELIABILITY.md) and `../STRESS.md` (section 3):
 
 - a VDS resistor footprint per driver, left unfitted (0.6 V as now);
 - a test pad on each driver's nFAULT (pin 17), so trips can be seen;
 - each driver's SLx and VDRAIN routed as their own traces to the FETs
   (Kelvin), so the overcurrent monitor measures the FET, not the copper;
 - if T5 fails at both IDRIVE settings: a clamp or series resistor at the SHx
-  pins, or an RC snubber, sized from the measured waveforms.
+  pins, or an RC snubber, sized from the measured waveforms;
+- if T5 shows the off low-side FET's gate reaching its threshold (D2): the
+  low-side gate drive returned closer to the FET's source, so less source
+  inductance is shared with the power path (the DRV8320H sinks the
+  low-side gates through its PGND pin), or a gate-source capacitor or a
+  Miller clamp at each low-side FET, sized from that measurement.
 
 ### D7. Business decisions (owner)
 
@@ -129,8 +144,8 @@ Open until T5, T6 and T7 are done.  Candidates, all from
   sheet's subtitle (`src/make.py`) and the README's title print it.  The
   firmware reads 2S to 6S.
 - **Simulated:** 6S LiPo and 6S LiHV (26.1 V full) pass the same checks:
-  the FETs peak at 40.5 / 43.8 V of their 60 V on LiHV, and the hard flight
-  is cut for 15 % of it instead of 10 % ([`RELIABILITY.md`](RELIABILITY.md),
+  the FETs peak at 38.7 / 38.5 V of their 60 V on LiHV, and the hard flight
+  is cut for 15 % of it instead of 9 % ([`RELIABILITY.md`](RELIABILITY.md),
   the variants).  2S has three limits the design does not meet:
   - the 9 V video supply cannot hold 9 V: it regulates down to about 9.5 V
     of battery, and a 2S pack is 6.0-8.4 V;
@@ -336,5 +351,7 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
   ordering).  The switching simulation now holds the off gate with the
   DRV8320H's 2 A ISTRONG, reads gate voltages on the die and counts the FET
   packages' inductance once; the losses take the body diode's real share of
-  the dead time; every report was run again.  Decisions D1-D11 open.
+  the dead time; every report was run again.  The off low-side FET's gate
+  check is now marginal (1.76 V on the die at 150 °C; D2, D6, T5): rev 2
+  has 19 checks passing, 1 marginal, 3 failing.  Decisions D1-D11 open.
   Nothing ordered.

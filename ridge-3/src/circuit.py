@@ -457,19 +457,22 @@ def esc_power():
     add('P', 'PAD_BAT', {'1': 'VBAT'}, B, 'BAT+', ref='P_BAT+')
     add('P', 'PAD_BAT_K', {'1': GND, '2': 'FC_GND'}, B, 'BAT-', ref='P_BAT-')
     # No surge clamp of its own: the transients the simulation finds stay
-    # under 40 V on the 60 V FETs (plugging in a full pack through 300 nH
-    # of leads, a throttle chop into a tired pack: STRESS.md), and the one
-    # it cannot bound, the motors braking into a pack that has come off,
-    # is more energy than a 5 kW clamp absorbs.  The flight controller's
-    # input has its own clamp.  (A 5 kW SMC part has no place on the board
-    # that is clear of the chips' escape vias.)
+    # under 42 V on the 60 V FETs (41.5 V plugging in a full pack through
+    # 300 nH of leads, 35.4 V in a throttle chop into a tired pack:
+    # STRESS.md section 4), and the one it cannot bound, the motors braking
+    # into a pack that has come off, is more energy than a 5 kW clamp
+    # absorbs.  The flight controller's input has its own clamp.  (A 5 kW
+    # SMC part has no place on the board that is clear of the chips' escape
+    # vias.)
     # Bus capacitance: BULK_N 10 uF 50 V 1210 ceramics (about 5 uF each at
-    # 25 V) on the planes, as many as the board takes.  An electrolytic here would carry
-    # 4-10 A of the channels' ripple against a 0.5-3.6 A rating (sim
-    # scratch study, STRESS.md); the ceramics share it at about 0.5 A
-    # each.  Murata GCJ: soft (resin) terminations, so board flex cracks
-    # the termination, not the dielectric, and a cracked part opens
-    # instead of shorting the battery.
+    # 25 V) on the planes, as many as the board takes.  An electrolytic
+    # here would carry 10.9-16.7 A rms of the channels' ripple (four motors
+    # at 30 A, PWM staggered or in step: STRESS.md section 4) against a
+    # 0.5-3.6 A rating; the three ceramics share it at 3.6-5.6 A each,
+    # which warms each 4.6 C at most (Murata allows 20 C).  Murata GCJ:
+    # soft (resin) terminations, so board flex cracks the termination, not
+    # the dielectric, and a cracked part opens instead of shorting the
+    # battery.
     for k in range(BULK_N):
         cap('C10U50_SOFT', 'VBAT', GND, B, 'bus bulk %d' % (k + 1))
 
@@ -542,12 +545,12 @@ def esc_power():
 # (sim/spice.py, STRESS.md section 3), which reads it from here.
 # 60/120 mA, the owner's choice of heat over the driver's SHx rating
 # (2026-10-03, on pre-heatsink figures; open again, docs/STATUS.md D2): the
-# high side's turn-off pulls SHx below ground by L di/dt, -10.3 V at 30 A in
-# the 5 nH loop (-15.5 V at a punch's 68 A), past the driver's -7 V for
-# 200 ns; 30/60 mA keeps it at -6.2 V at 30 A but doubles the switching
+# high side's turn-off pulls SHx below ground by L di/dt, -9.2 V at 30 A in
+# the 5 nH loop (-13.5 V at a punch's 68 A), past the driver's -7 V for
+# 200 ns; 30/60 mA keeps it at -5.6 V at 30 A but doubles the switching
 # energy and nearly doubles the dead time: on a 50 C day (5 m/s, on the
 # heatsink) the throttle held before AM32's temperature limit acts falls
-# from 52 to 48 % (hover 27 %; sim/results/VARIANTS.md).
+# from 52 to 49 % (hover 27 %; sim/results/VARIANTS.md).
 # 30/60 mA is one resistor away (R18K_0201 to AGND).
 #   value: (source A, what the pin connects to: None = open, else (part, net))
 IDRIVE_LEVELS = {0.03: ('R18K_0201', GND), 0.06: ('R75K_0201', GND), 0.12: None, 0.26: ('R75K_0201', 'DVDD')}
