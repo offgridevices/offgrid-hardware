@@ -1,0 +1,49 @@
+Pack 17.4 V (4S HV full), 25 mOhm; lead 6 mOhm.  Peak = highest VBAT at the ceramics.
+
+                                scenario  VBAT pk  margin to 40 V  E_TVS mJ  P_TVS pk W  P allowed W  equiv. width               TVS
+----------------------------------------  -------  --------------  --------  ----------  -----------  ------------  ----------------
+    a: 60 A release, 100 nH, ESR 30 mOhm     17.4            22.6         0           -            -             -    not conducting
+    a: 60 A release, 100 nH, ESR 60 mOhm    17.71           22.29         0           -            -             -    not conducting
+c: 60 A release, 100 nH, NO electrolytic    19.68           20.32         0           -            -             -    not conducting
+    a: 60 A release, 150 nH, ESR 30 mOhm     17.4            22.6         0           -            -             -    not conducting
+    a: 60 A release, 150 nH, ESR 60 mOhm    17.91           22.09         0           -            -             -    not conducting
+c: 60 A release, 150 nH, NO electrolytic    20.51           19.49         0           -            -             -    not conducting
+     b: brake +60 -> -20 A, 5 ms, ESR 60    18.02           21.98         0           -            -             -    not conducting
+   c: brake +60 -> -20 A, 5 ms, NO elec.    18.64           21.36         0           -            -             -    not conducting
+    b: brake +60 -> -20 A, 20 ms, ESR 60    18.02           21.98         0           -            -             -    not conducting
+  c: brake +60 -> -20 A, 20 ms, NO elec.    18.65           21.35         0           -            -             -    not conducting
+     b: brake +60 -> -30 A, 5 ms, ESR 60    18.33           21.67         0           -            -             -    not conducting
+   c: brake +60 -> -30 A, 5 ms, NO elec.    19.03           20.97         0           -            -             -    not conducting
+    b: brake +60 -> -30 A, 20 ms, ESR 60    18.33           21.67         0           -            -             -    not conducting
+  c: brake +60 -> -30 A, 20 ms, NO elec.    19.04           20.96         0           -            -             -    not conducting
+     b: brake +60 -> -40 A, 5 ms, ESR 60    18.64           21.36         0           -            -             -    not conducting
+   c: brake +60 -> -40 A, 5 ms, NO elec.    19.42           20.58         0           -            -             -    not conducting
+    b: brake +60 -> -40 A, 20 ms, ESR 60    18.64           21.36         0           -            -             -    not conducting
+  c: brake +60 -> -40 A, 20 ms, NO elec.    19.42           20.58         0           -            -             -    not conducting
+         d: pack OPEN, braking 20 A 5 ms    56.84          -16.84  4.95e+03        1135           48       4363 us  OVERLOAD (fails)
+    d: pack OPEN, braking 20 A, NO elec.     56.9           -16.9  5.65e+03        1138           45       4967 us  OVERLOAD (fails)
+                     f: hot plug, 470 uF     17.4            22.6         0           -            -             -    not conducting
+            f: hot plug, NO electrolytic    26.36           13.64         0           -            -             -    not conducting
+             e: PWM ripple worst, 24 kHz    17.48           22.52         0           -            -             -    not conducting
+   e: PWM ripple worst, 24 kHz, NO elec.     19.6            20.4         0           -            -             -    not conducting
+             e: PWM ripple hover, 24 kHz    17.48           22.52         0           -            -             -    not conducting
+   e: PWM ripple hover, 24 kHz, NO elec.    18.32           21.68         0           -            -             -    not conducting
+             e: PWM ripple worst, 48 kHz     17.5            22.5         0           -            -             -    not conducting
+   e: PWM ripple worst, 48 kHz, NO elec.    19.48           20.52         0           -            -             -    not conducting
+             e: PWM ripple hover, 48 kHz    17.49           22.51         0           -            -             -    not conducting
+   e: PWM ripple hover, 48 kHz, NO elec.    18.15           21.85         0           -            -             -    not conducting
+
+PWM ripple (four ESCs in phase; for heating, independent ESCs add as sqrt(4) = 2x one ESC,
+i.e. half the in-phase rms):
+   PWM             per motor  electrolytic  VBAT p-p  I elec rms (in phase)  I elec rms (indep.)  P_ESR W (in phase)  P_ESR W (indep.)  lead ripple A rms
+------  --------------------  ------------  --------  ---------------------  -------------------  ------------------  ----------------  -----------------
+24 kHz  worst (10.4 A, 83 %)        470 uF     1.731                  10.41                5.207               4.338             1.084              7.967
+24 kHz  worst (10.4 A, 83 %)          none     6.757                      0                    0                   0                 0              22.72
+24 kHz     hover (4 A, 50 %)        470 uF    0.6471                  4.655                2.327              0.8667            0.2167              4.465
+24 kHz     hover (4 A, 50 %)          none     2.333                      0                    0                   0                 0              9.762
+48 kHz  worst (10.4 A, 83 %)        470 uF      1.67                  11.78                5.892               5.555             1.389               6.12
+48 kHz  worst (10.4 A, 83 %)          none     5.667                      0                    0                   0                 0              18.65
+48 kHz     hover (4 A, 50 %)        470 uF    0.6731                  5.486                2.743               1.204             0.301               3.85
+48 kHz     hover (4 A, 50 %)          none     1.994                      0                    0                   0                 0               10.4
+
+Limits: FET VDS (TPN2R304PL), abs max 40 V; 470 uF electrolytic, rated 35 V; LMR36506 VIN, abs max 70 V; TPS7A1601 IN (60 V) / EN tied to IN (40 V abs) 40 V; MLCCs on VBAT, rated 50 V; DRV8300 SHx / BSTx (110 / 125 V abs) 110 V

@@ -83,6 +83,50 @@ jobs:
           fi
           echo "Gerbers and drill files are byte-identical to the generator's output."
 
+  ridge3-lite-v1:
+    # Ridge 3 Lite (ridge3-lite/v1).  make.py needs KiCad's pcbnew module and
+    # kicad-cli, so the job runs in the same official KiCad image the board's
+    # toolchain pins (ridge3-lite/v1/tools/Dockerfile), by digest.  The routed
+    # copper is the design of record (the last connection was finished by
+    # hand), so routing is not re-run.  Everything after it is: the artwork
+    # (silkscreen, logo, flag) from src/, then every gate and the fab files,
+    # which must equal the committed ones.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 30
+    container:
+      image: kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
+      options: --user root
+    defaults:
+      run:
+        working-directory: ridge3-lite/v1
+    env:
+      HOME: /tmp
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Python packages tools/Dockerfile installs that make.py and
+      # verify.py use (KiKit is only for the panel, which --fab-only skips).
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git > /dev/null
+          pip3 install --break-system-packages -q numpy shapely Pillow matplotlib pypdf \
+            uharfbuzz fonttools pymupdf scipy
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Artwork from src/ (brand.py, silk.py), circuit gates, KiCad DRC
+      # (0 / 0 / 0), net check, Gerbers, BOM, CPL.
+      - name: Build artwork and fab files (make.py)
+        run: python3 src/make.py --artwork --fab-only
+
+      - name: Committed fab files match the build
+        run: python3 tools/check_outputs.py
+
+      # Firmware pin maps, parts, fab outputs, simulations' verdicts.
+      - name: Design checks (verify.py)
+        run: python3 src/verify.py
+
   ridge-3:
     # Ridge 3 (ridge-3/): the flight controller and the 4-in-1 ESC, rev 2.
     # make.py needs KiCad's pcbnew module and kicad-cli, so the job runs in
@@ -93,8 +137,8 @@ jobs:
     # --fab-only leaves out the renders and the STEP models: they need
     # KiCad's 3D-model package, which the image does not carry.
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    # In this image on 4 cores the install took about 2.5 minutes, make.py
-    # --fab-only about 6 and verify.py 1; this is the backstop for a hung
+    # In this image on 4 cores the install took 1-2.5 minutes, make.py
+    # --fab-only about 5 and verify.py 1; this is the backstop for a hung
     # KiCad, not an estimate.
     timeout-minutes: 40
     container:
@@ -142,6 +186,7 @@ jobs:
       # changed without its outputs, or outputs no source produces.
       - name: Committed outputs match the build
         run: |
+          git rev-parse --git-dir > /dev/null   # no repository: fail, never pass unchecked
           if [ -n "$(git status --porcelain -- .)" ]; then
             git status --porcelain -- .
             echo "::error::ridge-3 outputs differ from what src/make.py produces. Rebuild with python3.12 src/make.py and commit the outputs."
