@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Exploded-view video of a board, made straight from its KiCad file.
 
-    python3 video/make_video.py fc --check          # build the scene only: no frames
-    python3 video/make_video.py fc                  # draft, 720p 30 fps
-    python3 video/make_video.py fc --final          # 4K 60 fps, into fc/images/
-    python3 video/make_video.py fc --stills 0,200   # a few labelled stills
-    python3 video/make_video.py fc --build analog   # another build (circuit.BUILDS)
-    python3 video/make_video.py path/to/x.kicad_pcb --config x.json
+    python3.12 video/make_video.py fc --check          # build the scene only: no frames
+    python3.12 video/make_video.py fc                  # draft, 720p 30 fps
+    python3.12 video/make_video.py fc --final          # 4K 60 fps
+    python3.12 video/make_video.py fc --stills 0,200   # a few labelled stills
+    python3.12 video/make_video.py fc --build analog   # another build (circuit.BUILDS)
+    python3.12 video/make_video.py path/to/x.kicad_pcb --config x.json
 
-Run it with the Python that has KiCad's pcbnew (kicad-cli on PATH).  The
-first run makes video/.venv (Python 3.11 and Blender as a module) from
-video/requirements.txt; set VIDEO_PYTHON to use another Python 3.11.
+Run it from ridge-3/ with the Python that has KiCad's pcbnew (python3.12
+here, kicad-cli on PATH).  The first run makes video/.venv (Python 3.11 and
+Blender as a module) from video/requirements.txt; set VIDEO_PYTHON to use
+another Python 3.11.  Everything goes to video/out/<board>/, which git
+ignores: the work files, the frames and the MP4 (<name>-explode-draft.mp4,
+or <name>-explode.mp4 with --final).  The videos are published, never
+committed (docs/product-video.md at the repository's root).
 
 What it does, every step from the board file (so a changed board or a new
 one needs no other work):
@@ -32,7 +36,8 @@ one needs no other work):
      closes and lies down; the camera shots are fitted to what is in view.
   4. render.py renders the frames in parallel, resuming where it stopped
      (on a GPU when Blender finds one: CUDA, OptiX, HIP, Metal, oneAPI).
-  5. overlay.py adds the labels and the title and writes the MP4.
+  5. overlay.py adds the labels and the title and writes the MP4; the
+     music goes under it last.
 
 The board's own settings are a small JSON beside this file (fc.json,
 esc.json): the title, a few words on the main parts of each side, and
@@ -50,13 +55,16 @@ VPY = os.path.join(VENV, 'bin', 'python')
 BOARDS = {'fc': 'fc/ridge3-fc.kicad_pcb', 'esc': 'esc/ridge3-esc.kicad_pcb'}
 QUALITY = {'draft': dict(resolution=[1280, 720], fps=30, samples=12, noise_threshold=0.05),
            'final': dict(resolution=[3840, 2160], fps=60, samples=32, noise_threshold=0.02)}
+# the spec keys scene.py reads: a change to any of them changes the frames
+SCENE_KEYS = ('camera', 'copper', 'fps', 'gaps', 'lights', 'look', 'quality', 'sheen', 'sweep',
+              'timeline', 'tour', 'units', 'via_thin', 'vias', 'world')
 DEFAULTS = {
     'look': 'AgX - Medium High Contrast',
     'font': os.path.join(V1, 'fonts', 'InstrumentSans-VariableFont.ttf'),
     # space between neighbouring layers when open, in board widths
     'gaps': {'components': 0.8, 'copper': 0.7, 'other': 0.5},
     'vias': 'hide',               # the barrels leave as the board opens ('stretch': span the gaps)
-    'via_thin': 0.6,
+    'via_thin': 0.6,              # 'stretch' only: how much the barrels thin as they stretch
     'camera': {'lens': 85, 'fstop': 8,
                # where the board must sit in the frame (x0, x1, y0, y1)
                'frame': {'flat': [0.22, 0.78, 0.18, 0.82], 'standing': [0.3, 0.7, 0.2, 0.8],
@@ -221,7 +229,8 @@ def labels(facts, cfg):
     signal = sum(1 for n in facts['copper'] if 'plane' not in roles[n])
     what = []
     if planes:
-        what.append(' and '.join([', '.join(planes[:-1]), planes[-1]] if len(planes) > 1 else planes)
+        nets = list(dict.fromkeys(planes))     # each net once: two ground planes read "ground planes"
+        what.append(' and '.join([', '.join(nets[:-1]), nets[-1]] if len(nets) > 1 else nets)
                     + (' planes' if len(planes) > 1 else ' plane'))
     if signal:
         what.append('%d signal layer%s' % (signal, 's' if signal > 1 else ''))
@@ -325,10 +334,11 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('board', help='fc, esc, or a .kicad_pcb file')
     ap.add_argument('--config', help='the board\'s settings (default: video/<board>.json)')
-    ap.add_argument('--final', action='store_true', help='4K 60 fps, more samples, saved beside the board')
+    ap.add_argument('--final', action='store_true', help='4K 60 fps, more samples')
     ap.add_argument('--stills', help='only these frames, labelled (e.g. 0,200,300)')
     ap.add_argument('--jobs', type=int, default=2, help='renders at once')
-    ap.add_argument('--out', help='the MP4 (default: see --final)')
+    ap.add_argument('--out', help='the MP4 (default: video/out/<board>/<name>-explode-draft.mp4, '
+                                  'or <name>-explode.mp4 with --final)')
     ap.add_argument('--music', help='an audio file under the video (default: the board settings\' "music")')
     ap.add_argument('--build', help='fc / esc: the build to show (circuit.BUILDS; default circuit.DEFAULT_BUILD)')
     ap.add_argument('--check', action='store_true', help='build the scene and stop: no frames, no video')
@@ -385,14 +395,16 @@ def main():
     spec['sweep'] = merge(cfg['sweep'], {'f0': F(cfg['sweep']['t0']), 'f1': F(cfg['sweep']['t1'])})
     spec_path = os.path.join(work, 'spec-%s-%s.json' % (tag, quality))
     json.dump(spec, open(spec_path, 'w'), indent=1)
-    print('  %d copper layers; %s; silkscreen %s; parts %s; %.1f s'
+    print('  %d copper layers; %s; silkscreen %s; parts %s; %.2f s'
           % (len(facts['copper']), ', '.join('%s %s' % kv for kv in facts['roles'].items()),
              '+'.join(facts['silk']), facts['parts'], (tl['end'] + 1) / fps))
     blend = os.path.join(work, 'scene-%s-%s.blend' % (tag, quality))
     anchors = os.path.join(work, 'anchors-%s-%s.json' % (tag, quality))
     blender('scene.py', glb, spec_path, blend, anchors)
     if a.check:
-        print('scene built: %s (%d frames); render it without --check' % (os.path.relpath(blend, os.getcwd()), tl['end'] + 1))
+        # the length in ms is the length of the music edit to ask for
+        print('scene built: %s (%d frames, %d ms); render it without --check'
+              % (os.path.relpath(blend, os.getcwd()), tl['end'] + 1, round((tl['end'] + 1) / fps * 1000)))
         return
 
     if a.stills:
@@ -404,10 +416,15 @@ def main():
         print('stills in', os.path.relpath(stills + '-labelled', os.getcwd()))
         return
 
-    # frames are kept while the board and the spec (but for the music) stay the same
+    # frames are kept while the board, the scene's settings and scene.py and
+    # render.py stay the same (not the captions or the music: they are laid
+    # on afterwards; and not KiCad's export time in the GLB, or every
+    # re-export would start over)
     frames = os.path.join(work, 'frames-%s-%s' % (tag, quality))
-    looks = {k: v for k, v in spec.items() if not k.startswith('music')}
-    stamp = hashlib.sha1(json.dumps(looks, indent=1).encode() + open(glb, 'rb').read()).hexdigest()
+    looks = {k: spec[k] for k in SCENE_KEYS if k in spec}
+    code = b''.join(open(os.path.join(HERE, f), 'rb').read() for f in ('scene.py', 'render.py'))
+    glb_bytes = re.sub(rb'"generated_at"\s*:\s*"[^"]*"', b'', open(glb, 'rb').read())
+    stamp = hashlib.sha1(json.dumps(looks, indent=1).encode() + code + glb_bytes).hexdigest()
     stamp_file = os.path.join(frames, 'STAMP')
     if os.path.exists(frames) and (not os.path.exists(stamp_file) or open(stamp_file).read() != stamp):
         shutil.rmtree(frames)
@@ -416,10 +433,8 @@ def main():
     render_all(blend, frames, tl['end'] + 1, a.jobs)
     if a.out:
         mp4 = os.path.abspath(a.out)
-    elif a.final:
-        mp4 = os.path.join(os.path.dirname(pcb), 'images', tag + '-explode.mp4')
-    else:
-        mp4 = os.path.join(work, tag + '-explode-draft.mp4')
+    else:                                     # in out/: published, never committed
+        mp4 = os.path.join(work, tag + ('-explode.mp4' if a.final else '-explode-draft.mp4'))
     os.makedirs(os.path.dirname(mp4), exist_ok=True)
     run([VPY, os.path.join(HERE, 'overlay.py'), spec_path, anchors, frames, frames + '-labelled', mp4])
     music = a.music or cfg.get('music')

@@ -10,6 +10,9 @@ Open hardware from [OffGrid Devices](https://github.com/offgridevices). One fold
 The firmware and analysis tooling these boards run with live in
 [`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab).
 
+To make a board's product video, an exploded view rendered from its KiCad
+file, follow [`docs/product-video.md`](docs/product-video.md).
+
 ---
 
 ## How to build one

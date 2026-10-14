@@ -11,12 +11,14 @@ The tracks are licensed, so they stay out of the repository (see
 
 - `observatory-32750ms.wav`: "Observatory" by Out To The World, from
   Epidemic Sound (recording `0c47304b-4e50-43b2-8230-2397e7991316`), in
-  Epidemic Sound's own edit to 32.75 s, the length of both videos (1,965
-  frames at 60 fps). It was downloaded under OffGrid's Epidemic Sound
-  subscription, so publishing with it follows that plan's licence. When
-  the timeline changes length, ask Epidemic Sound for an edit of the new
-  length (the run prints the video's length). The tool pads or cuts the
-  audio, with fades, but a native edit ends on the music.
+  Epidemic Sound's own edit to 32.75 s, as WAV. That is the length of both
+  final videos, 1,965 frames at 60 fps (the ESC's settings shorten its
+  labelled hold to 3.2667 s to make it so). It was downloaded under
+  OffGrid's Epidemic Sound subscription, so publishing with it follows
+  that plan's licence. When the timeline changes length, ask Epidemic
+  Sound for an edit of the new length: `--final --check` prints it in
+  milliseconds. The tool pads or cuts the audio, with fades, but a native
+  edit ends on the music.
 
 To use it again after a fresh checkout, download the edit from Epidemic Sound
 and save it here under the same name.
