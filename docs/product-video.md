@@ -93,7 +93,8 @@ Ridge 3 videos.
       board opens and come back when it has closed. *`DEFAULTS['vias']` is
       `'hide'`.*
 - [ ] **85 mm lens, no depth of field.** At these distances it blurred the
-      layers. *`DEFAULTS['camera']`.*
+      layers. *`DEFAULTS['camera']` (`lens`); depth of field is off in
+      `scene.py` (`dof.use_dof`) unless the camera settings set `"dof"`.*
 - [ ] **Chip markings painted out.** The library models print a maker's
       logo and the package name on top; these are painted in the body
       colour. *`scene.py`.*
@@ -326,8 +327,9 @@ GPU machine if there is one.
      and the message `--build is for fc and esc`.
    - Check three assumptions the code makes, and change the code where
      they do not hold for this board:
-     - `DEFAULTS['mask']` says "gold pads show through", which is true only
-       for an ENIG finish.
+     - `DEFAULTS['mask']` says "gold pads show through", and `scene.py`
+       gives every outer pad its `ENIG gold` material (`M_GOLD`): both hold
+       only for an ENIG finish.
      - `human()` names only the `GND` and `VBAT` nets, and voltages written
        like `3V3` or `5V`. Other plane nets appear under their raw names.
      - `scene.py` paints out chip markings only on references that start
@@ -447,7 +449,8 @@ GPU machine if there is one.
      by the difference, as Ridge 3's ESC does, and run `--final --check`
      again until its length is the edit's. That changes the frames, so do
      it before step 8.
-   - Run the draft command of step 6 again to hear it. Its frames are kept:
+   - Run the draft command of step 6 again to hear it. If you changed the
+     hold above, its frames are rendered again; otherwise they are kept, and
      only the captions and the music are laid on again.
 
 8. **Read the brand's version** (see [Brand](#brand)), then **render the

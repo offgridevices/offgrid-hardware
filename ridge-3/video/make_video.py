@@ -419,7 +419,8 @@ def main():
 
     if a.stills:
         stills = os.path.join(work, 'stills-' + tag)
-        shutil.rmtree(stills, ignore_errors=True)
+        for d in (stills, stills + '-labelled'):
+            shutil.rmtree(d, ignore_errors=True)
         os.makedirs(stills)
         blender('render.py', blend, stills, str(os.cpu_count() or 4), a.stills)
         run([VPY, os.path.join(HERE, 'overlay.py'), spec_path, anchors, stills, stills + '-labelled'])
@@ -446,6 +447,9 @@ def main():
     else:                                     # in out/: published, never committed
         mp4 = os.path.join(work, tag + ('-explode.mp4' if a.final else '-explode-draft.mp4'))
     os.makedirs(os.path.dirname(mp4), exist_ok=True)
+    # every frame is labelled again each run, and ffmpeg reads the folder's
+    # numbered frames to the first gap: a longer run's last frames must go
+    shutil.rmtree(frames + '-labelled', ignore_errors=True)
     run([VPY, os.path.join(HERE, 'overlay.py'), spec_path, anchors, frames, frames + '-labelled', mp4])
     music = a.music or cfg.get('music')
     if music:

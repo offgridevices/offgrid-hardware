@@ -29,7 +29,11 @@ simulations](../README.md#stress-simulations) for `sim/`, and
    again (Freerouting 1.9.0, Java and `xvfb-run`; `make.py --help`).  A new
    land and its 3D model come into `aio.pretty` and `aio.3dshapes` as the
    README's [footprints](../README.md#adding-a-parts-footprint-and-3d-model)
-   note says.
+   note says.  Plain `make.py` keeps the committed board's outline and
+   silkscreen: after a change to them (`src/*_layout.py`, `src/artwork.py`,
+   `src/brand.py`) or to `REVISION` (step 6), run
+   `python3.12 src/make.py --artwork esc` (or `fc`, or both with no
+   argument, which also draws the stack sheet again).
 3. **Verify:** `python3.12 src/verify.py` writes `VERIFICATION.md` and
    exits 1 on any failure.  Its datasheet checks need the datasheets'
    text (`RIDGE3_DATASHEETS`, [`DATASHEETS.md`](DATASHEETS.md)) and its
@@ -105,8 +109,10 @@ simulations](../README.md#stress-simulations) for `sim/`, and
   `TEST_PLAN.md` (T5 and what to order), `RELIABILITY.md`, and the
   comment in `../firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch`.  The
   patch's comment does not change the image, but it changes the patch's
-  SHA-256: run `sha256sum firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch`
-  and replace its line in `../firmware/README.md` (`verify.py` checks it),
+  SHA-256: run `(cd firmware && sha256sum am32/AM32_2738df3_RIDGE3_F421_target.patch)`
+  and put the line it prints in place of the patch's line in
+  `../firmware/README.md` (`verify.py` checks it; the paths there are
+  relative to `firmware/`),
   and check that the patch still applies (`git apply --check` in an AM32
   checkout at `2738df3`).
 
@@ -182,8 +188,9 @@ it to 100 at low throttle (`adjusted_input < 150`) and to 10 above it
 2. Build the image as `../firmware/README.md` describes and replace
    `AM32_RIDGE3_F421_2.21.hex` with it.
 3. Replace both hash lines in `../firmware/README.md`, the patch's and the
-   image's (`sha256sum firmware/am32/*.patch firmware/am32/*.hex`):
-   `verify.py`, and so CI, fails on either.
+   image's: `(cd firmware && sha256sum am32/AM32_2738df3_RIDGE3_F421_target.patch am32/AM32_RIDGE3_F421_2.21.hex)`
+   prints both lines as the README lists them (paths relative to
+   `firmware/`).  `verify.py`, and so CI, fails on either.
 4. Update the texts that quote 11 timeouts or 248 ms: the README's
    *Headroom*, `STATUS.md` (D3), `TEST_PLAN.md` (T7), `RELIABILITY.md`
    (the crash and recommendation 5) and `../TESTS.md`'s crash rows (after

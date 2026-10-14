@@ -43,14 +43,14 @@ Do it first on every stack.
 | Item | For | Notes |
 |---|---|---|
 | Bench supply, 0-30 V, current limit, 5 A or more | bring-up, T3, T7 | a smoke stopper (fused or current-limited) on the first battery power-up |
-| 6S LiPo packs, fresh and tired; one 6S LiHV | T5-T9, T11, T13 | the "tired" pack is the high-resistance case for throttle chops |
-| Oscilloscope, 4 channels, 200 MHz or more | T5, T6, T11 | short ground spring on the probe, not the clip lead |
-| Isolated or differential probe | T5 | for the high-side FET (VDRAIN to SHx) |
-| DC current clamp, 100 A or more | T3, T5, T7 | on one motor phase wire |
-| Logic analyser | T6 | on the DRV8320H's nFAULT (pin 17): it has no pad, solder a fine wire to the pin's fillet |
+| 6S LiPo packs, fresh and tired; one 6S LiHV | T5-T9, T11-T13 | the "tired" pack is the high-resistance case for throttle chops |
+| Oscilloscope, 4 channels, 200 MHz or more | T5-T7, T10-T12 | short ground spring on the probe, not the clip lead |
+| Isolated or differential probe | T5, T12 | for the high-side FET (VDRAIN to SHx) |
+| DC current clamp, 150 A or more | T3, T5-T7, T12 | on one motor phase wire (a locked rotor peaks at 146-148 A in [`CRASH.md`](../sim/results/crash/CRASH.md)) |
+| Logic analyser | T6, T7 | on the DRV8320H's nFAULT (pin 17): it has no pad, solder a fine wire to the pin's fillet |
 | K thermocouples (4) and a logger | T4, T7, T8 | Kapton tape on the hottest FET (phase C high side is beside the thermistor; measure the low sides too) |
 | Thermal camera | T8, T9 | optional, finds the hot spot the thermocouple missed |
-| Motor test stand with thrust and RPM, 3" props, the reference motor (BrotherHobby VY1507 3100KV) | T5, T8 | the simulations are fitted to this motor |
+| Motor test stand with thrust and RPM, 3" props, the reference motor (BrotherHobby VY1507 3100KV) | T5, T8, T11, T12 | the simulations are fitted to this motor |
 | A box or room at 50 °C, and a fan with an anemometer (2 and 5 m/s) | T8, T9 | the simulations' hot day |
 | ST-Link V2 or Artery AT-Link | flashing, T2 | |
 | LiPo-safe area, eye protection, a blast shield for T7 | all | |
@@ -82,8 +82,12 @@ car-reverse mode with both limits off; this test proves the procedure in
 
 Each channel against a known DC load (bench supply through one motor
 winding, or an electronic load), 5, 10 and 20 A.  Record AM32's reading
-against the clamp meter; trim `ibata_scale` if needed.  Pass: within 10 %.
-AM32's current limit (20 A) acts on this reading.
+(ESC telemetry, `dshot_edt`) against the clamp meter, and Betaflight's
+battery current against the total.  `ibata_scale` trims only Betaflight's
+reading of the CUR line; AM32's own scale is `MILLIVOLT_PER_AMP` and
+`CURRENT_OFFSET` in the AM32 target patch, a firmware change
+(`../firmware/README.md`).  Pass: within 10 %.  AM32's current limit
+(20 A) acts on AM32's reading.
 
 ### T4. Temperature sensing
 
@@ -113,10 +117,11 @@ current ([`sim/results/punch/PUNCH.md`](../sim/results/punch/PUNCH.md), from
   punches from hover (the simulation peaks at 64-68 A per motor, about 4 ms
   in).  Cold, then with the FETs at about 100 °C (run at high throttle
   first).  Both IDRIVE settings.
-- Record: SHx's lowest value and how long it stays below -7 V; each FET's
+- Record: SHx's lowest value and how long it stays below -5 V; each FET's
   peak; the phase current at that moment.
-- Pass: SHx no lower than -7 V, or below it for less than 200 ns; FET peaks
-  under 48 V (80 % of their 60 V).  The 5 nH loop is an estimate: this test
+- Pass: SHx never below -7 V, and below -5 V for less than 200 ns at each
+  edge (the DRV8320H's absolute maximum: -5 V continuous, -7 V for 200 ns);
+  FET peaks under 48 V (80 % of their 60 V).  The 5 nH loop is an estimate: this test
   also tells which row of the table the real layout is.
 - Then decide IDRIVE (`STATUS.md`, D2).  If neither setting passes, the next
   ESC revision needs a clamp or series resistor at the SHx pins, or an RC

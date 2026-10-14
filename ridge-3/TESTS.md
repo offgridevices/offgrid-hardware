@@ -28,7 +28,7 @@ tri-blade, AM32 at 20 A and 110 °C per motor.
 
 `python3.12 src/make.py --fab-only` runs every gate below and stops on the
 first failure; `python3.12 src/make.py` runs them too and also makes the
-renders and STEP models.  CI's `ridge-3` job (`.github/workflows/ci.yml`)
+renders and STEP models.  CI's `ridge-3` job ([`../.github/workflows/ci.yml`](../.github/workflows/ci.yml))
 runs `--fab-only`, the comparison and `verify.py` on every pull request
 into `main` and every push to `main`.
 
@@ -42,7 +42,7 @@ into `main` and every push to `main`.
 | Production panels | The 3 × 2 panels are six true copies | the same | FC and ESC: 112 × 88 mm, 6 copies, DRC six times the board's own, every copy's Gerbers, BOM and CPL equal the board's | 2026-10-14 |
 | Committed outputs equal the build | Someone orders from them | the same, then `git status --porcelain -- .` (CI's step) | pass: after the run only the ignored unzipped Gerbers changed; the 23 order files, the boards and `mechanical/` unchanged (322 s for both boards) | 2026-10-14 |
 | Renders and STEP models rebuild unchanged | CI does not compare them | `python3.12 src/make.py` | pass: a second default run left all 57 outputs byte for byte (321 s) | 2026-10-14 |
-| CI job `ridge-3` | The same gates in a pinned toolchain, on every pull request into `main` and push to `main` | `.github/workflows/ci.yml`, in `kicad/kicad:10.0.6` by digest | its steps, run verbatim in that image: exit 0, every committed file unchanged, `verify.py` 206 passed, 0 failed (install 73 s, `make.py` 293 s, `verify.py` 58 s).  Not yet run on GitHub | 2026-10-14 |
+| CI job `ridge-3` | The same gates in a pinned toolchain, on every pull request into `main` and push to `main` | [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml), in `kicad/kicad:10.0.6` by digest | its steps, run verbatim in that image: exit 0, every committed file unchanged, `verify.py` 206 passed, 0 failed (install 73 s, `make.py` 293 s, `verify.py` 58 s).  GitHub's own runs are in the repository's Actions tab | 2026-10-14 |
 
 ## Design checks (`verify.py`)
 

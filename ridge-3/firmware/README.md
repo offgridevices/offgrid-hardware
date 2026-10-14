@@ -54,7 +54,7 @@ datasheet (DS-000440 tables 1-2 and section 5.3) gives ±2000 °/s at
 16.4 LSB/(°/s), ±16 g at 2048 LSB/g, and the ICM-42688-P's filter table
 (258 Hz = DELT 6, DELTSQR 36, BITSHIFT 10).  Unpatched, the gyro would read
 every rotation at twice its rate and the filter would sit near 1 kHz instead
-of 258 Hz.  `patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch`
+of 258 Hz.  `betaflight/patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch`
 changes those three cases in `accgyro_spi_icm426xx.c` and nothing else.  It
 should go upstream; until then, **never flash a stock Betaflight build onto
 this board with the IIM-42652 fitted.**
@@ -160,7 +160,7 @@ controller in the usual way.
    `C`, or `Cn` where the number fits).  Do not connect the probe's 3.3 V output:
    it would feed the flight controller's 3.3 V rail.
 3. Run `am32/flash_esc.sh` (all four, asking before each) or
-   `./flash_esc.sh 3` for one.  For each MCU it erases the flash, writes and
+   `am32/flash_esc.sh 3` for one.  For each MCU it erases the flash, writes and
    verifies the bootloader (`0x08000000`) and the firmware (`0x08001000`),
    and starts it.  The board ties BOOT0 low, so there are no option bytes to
    set.  Artery's ISP Programmer with an AT-Link does the same from a GUI.

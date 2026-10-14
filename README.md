@@ -52,7 +52,7 @@ says so.
 A revision folder is never edited once its board has been ordered. A change
 that alters copper becomes the next revision beside it.
 
-Ridge 3 predates this layout: one folder holds both of its boards (`fc/`,
+Ridge 3 is an exception to this layout: one folder holds both of its boards (`fc/`,
 `esc/`), their shared generator (`src/`), simulations (`sim/`) and mechanical
 parts (`mechanical/`), and its revision is printed on the boards (`REV 2.0`)
 rather than in a folder name.  Its own [`README.md`](ridge-3/README.md) has

@@ -224,7 +224,8 @@ on surviving a hot day:
   amplifiers ($2.34), the four ESC MCUs ($1.86).
 - **One-off, the parts alone pass $100**, and on top come JLC's per-order
   assembly fees: setup, stencil, and a loading fee for each unique extended
-  part (36 on the FC, 16 on the ESC).
+  part (JLC's quote counts them; `src/parts.py` notes, where it was
+  checked, whether a part is basic or extended).
 - **The point is still the repair.** A crash that kills a motor channel
   costs one ESC, not a whole stack.  Get a JLC or PCBWay quote for the
   panels at the volume you plan: bare boards and assembly were not priced
@@ -270,7 +271,8 @@ The exceptions and thin spots, checked 1 October 2026:
   (not ESCs) made in China, Russia, Iran or North Korea; ASDA looks at who
   manufactured or assembled the product. A JLCPCB-assembled FC fails both.
   The same design assembled in the US or an allied country by a non-PRC
-  firm passes, which is what the DigiKey BOM is for.
+  firm passes, which is what the DigiKey part numbers in `src/parts.py`
+  (`dk`, `dk_mpn`) are for; no DigiKey BOM file is generated yet.
 - **From 1 Jan 2027** (10 U.S.C. 4873), DoD may not buy PCBs made in those
   four countries, so a compliant build also needs a non-PRC bare-board fab.
   The Gerbers suit any 6- and 8-layer ENIG fab; the ESC's filled
@@ -360,14 +362,16 @@ few parts have only prototype-sized stock: see [Sourcing](#sourcing-lcscjlcpcb-g
 
 - **No bulk capacitors.**  Revision 2 carries its bus capacitance on the
   ESC; nothing goes on the battery leads.
-- **Battery lead:** XT30 or XT60 pigtail, 16-18 AWG.
+- **Battery lead:** XT30 or XT60 pigtail, 14-16 AWG (the pads' 1.8 mm
+  holes take up to 14 AWG).
 - **Stack lead:** a Molex Micro-Lock Plus housing, 505565-0801, with eight
-  505431 crimp terminals and eight 26-28 AWG wires, about 7 cm, crimped
+  505431 crimp terminals and eight 28 AWG wires (the ESC's lead pads are
+  sized for 28-30 AWG), about 7 cm, crimped
   in the pin order of [the stack lead](#what-it-does) and soldered to the
   ESC's lead pads (`+ 3V3 C` and `1 2 3 4` in the middle of the top, the
   ground wire on `G` beside the battery minus pad).  Check it with a
   multimeter: VBAT must reach pin 1, and the `3V3` pad pin 4.
-- **Video battery wires (HD or analog VTX):** two 22-24 AWG wires from the
+- **Video battery wires (HD or analog VTX):** two 20-22 AWG wires from the
   FC's `BAT` and `G` pads (rear right) to the ESC's battery pads.  Without
   them the 9 V video supply has no input and stays off; the rest of the FC
   runs from the stack lead.
@@ -421,8 +425,8 @@ pre-programming service.
    default.
 2. **Video:**
    - **HD** (DJI O3/O4, Walksnail, HDZero): solder the air unit's lead to
-     the FC's front pads: its supply to `9V`, ground to `G`, its RX to `T1`
-     and its TX to `R1`.  If the air unit carries the receiver's SBUS (DJI),
+     the FC's right edge's front pads (`9V G T1 R1`): its supply to `9V`,
+     ground to `G`, its RX to `T1` and its TX to `R1`.  If the air unit carries the receiver's SBUS (DJI),
      solder that wire to `R2` in place of the receiver's TX.
    - **Analog:** camera on `CAM`, `G`, `5V`; VTX on `VTX`, `G` and `9V`,
      along the front edge.
@@ -668,8 +672,12 @@ skips the renders, the STEP models, the panel renders and the stack sheet
 scratch first, with a fixed seed per board, so the same inputs give the same
 boards. `python3.12 src/verify.py` then writes `VERIFICATION.md`.
 
-The committed `.kicad_pcb` files are the design of record: CI rebuilds
-everything after the routing, never the routing.  `--reroute` overwrites
+The committed `.kicad_pcb` files are the design of record, silkscreen
+included: CI runs every gate and builds the fab files from them, but redoes
+neither the routing nor the artwork (`--fab-only` without `--artwork`).
+After a change to the outline or the silkscreen (`src/*_layout.py`,
+`src/artwork.py`, `src/brand.py`), run `python3.12 src/make.py --artwork`
+and commit the boards.  `--reroute` overwrites
 them with a new placement and routing, so review the copper before
 committing it, and run it only when a part's land changes
 ([`docs/CHANGING.md`](docs/CHANGING.md)).  Whether a `--reroute` gives back

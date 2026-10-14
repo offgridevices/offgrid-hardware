@@ -217,7 +217,7 @@ rejected on stock:
 - Toshiba's own TPN3R704PL (same package): stocked at both, but 3.7 mOhm
   max, over the limit.
 
-Overlay (`research/parts_fet_overlay.png`): Diodes' suggested PowerDI3333-8
+Overlay (a working image, not kept in the repository): Diodes' suggested PowerDI3333-8
 land, centred on the package, drawn on the TPN2R304PL's EasyEDA TSON Advance
 land.
 - **Matches:**

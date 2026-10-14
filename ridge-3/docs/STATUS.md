@@ -80,9 +80,10 @@ it.  When one is made, fill in **Decided** and follow `CHANGING.md`.
 - **Now:** the DRV8320H's VDS pin is open: 0.6 V.  It trips at 118-143 A
   with a hot FET (counting the board copper it measures through), so never
   in flight, and it does most of the work in a crash.
-- **Option:** 75 kΩ to AGND (0.26 V) protects the FET outright in a crash,
-  but trips at 51-62 A on a hot FET, under a punch's 64-68 A: it would cut
-  motors in flight.  It also needs a footprint the board does not have.
+- **Option:** 75 kΩ to AGND (0.26 V) protects the FET outright in a crash
+  together with D3's shorter cut (141 °C from a hot board; with AM32's cut
+  as it ships, 193 °C, 67 ms past its rating), but trips at 51-62 A on a
+  hot FET, under a punch's 64-68 A: it would cut motors in flight.  It also needs a footprint the board does not have.
 - **Recommendation:** keep 0.6 V.  In the next ESC revision add the
   footprint unfitted (D6).
 - **Decided:** _not yet_
@@ -143,8 +144,8 @@ Open until T5, T6 and T7 are done.  Candidates, all from
 - **Recommendation:** rate it 3S-6S LiPo and 6S LiHV (`RELIABILITY.md`,
   recommendation 8).  The silkscreen is a board change: the ESC's `2-6S`
   (`src/esc_layout.py`), the stack sheet's subtitle (`src/make.py`), the
-  README's title and battery row, the root README's row, the summary at the
-  top of `src/circuit.py`, and the comment in the AM32 target patch (then
+  README's title and battery row, the summary at the top of
+  `src/circuit.py`, and the comment in the AM32 target patch (then
   its SHA-256 in `../firmware/README.md`) change together, and the boards
   are rebuilt (`python3.12 src/make.py --artwork`: both boards, so the
   stack sheet is drawn again too).  For LiHV, also set
@@ -163,7 +164,7 @@ Open until T5, T6 and T7 are done.  Candidates, all from
   repository's rule ([`docs/versioning.md`](../../docs/versioning.md))
   is a folder per revision, frozen once ordered;
   [`docs/repo-structure.md`](../../docs/repo-structure.md) names
-  `ridge-3/` as an exception that predates it.
+  `ridge-3/` as an exception.
 - **Options:**
   - a folder per revision as `docs/versioning.md` has it
     (`ridge-3/v2/`, then the next beside it).  The CI job, the documents'
