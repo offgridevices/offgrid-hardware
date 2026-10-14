@@ -24,6 +24,7 @@ A handheld smoke stopper, LiPo checker and miswiring tester.
 | `fab/smokebreak.step` | The assembled board in 3D. |
 | `enclosure/out/*.step`, `*.stl` | The case parts: `top`, `bottom` (floor), `guard`, `rocker`, `ring_inlay`, `text_inlay`. `assembly.step` holds everything in place. |
 | `enclosure/out/fit_check.txt` | Case-to-board interference and clearance report. |
+| `SmokeBreak-enclosure.zip` | Every case part as STEP and STL plus the fit report, in one download. |
 | `enclosure/enclosure.py`, `check.py` | The case as code (CadQuery 2.8), and its fit check. |
 | `src/` | The board as code. The flow is: `geometry.py` → `circuit.py` → `parts.py` → `place.py` → `spread.py` (writes `place_legal.py`) → `make.py` → `route_run.py` → `finish_run.py` / `repair_run.py` → `final.py` → `fab.py`. |
 | `sim/` | Power-path simulations (ngspice). |
@@ -93,6 +94,17 @@ Hardware:
 - **Guard sensor:** it reads "open" only past about 40° (12.9 mT closed, under 1.5 mT at 40°). Firmware treats a partly open guard as closed.
 - **First print:** check the well plate bridge, the rocker feel (0.2 mm nub gap), and the press fits of both dowels.
 
-## Verification
+## Verification (final run)
 
-Filled in from the final run: see the bottom of this file.
+| Check | Result |
+|---|---|
+| KiCad 10 DRC, zones refilled, every severity | 0 errors, 0 warnings, 0 unconnected |
+| Netlist | `fab/smokebreak-netlist.csv` matches `src/circuit.py` pad for pad |
+| Power-path simulations (`sim/SIM.md`) | 21 of 21 checks pass |
+| Firmware model (`firmware/`) | 328 tests pass |
+| Enclosure STLs | all six watertight, consistent winding, one body each (ring 3, text 15 glyphs) |
+| Case vs board | no component box touches the shell, floor, guard or rocker; THT leads (1.3 mm) clear the floor |
+| Pass-through gaps | XT60 0.19 mm, XT30 0.19 mm, USB-C 0.07 mm, toggle bushing 0.125 mm radial |
+| Display pocket | 0.2 mm all round; nothing under the module over 6.34 mm (tallest 4.6) |
+| Guard | clears the lever by 1.0 mm (1.48 at ±20°), swings to 150°; 12.9 mT at the hall switch closed (2.7× its max operate point) |
+| Rocker | both switches actuate at 2.7° tilt, no rubbing |
