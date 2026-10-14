@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Design verification: every check that can be made without hardware.
 
-    python3.12 src/verify.py     writes VERIFICATION.md, exits 1 on any FAIL
+    python3.12 src/verify.py          writes VERIFICATION.md, exits 1 on any FAIL
+    python3.12 src/verify.py --help   this text (nothing is checked or written)
 
 Nothing here replaces a bench test.  What it does is check the design
 against sources other than the design itself:
@@ -41,10 +42,30 @@ named by an environment variable:
                       mark against the brand's own art
 
 A check that needs a source that is not set SKIPs, as do the pin maps when
-KiCad's symbol libraries (SYMBOLS) are not installed.  VERIFICATION.md names
+KiCad's symbol libraries (SYMBOLS) are not installed.  Parts whose 3D model
+files are not installed (KiCad's own: KICAD10_3DMODEL_DIR) are left out of
+the 3D-model checks, and one SKIP line names them.  VERIFICATION.md names
 each source by its variable and commit, never by its path.
 """
 import math, os, re, sys, hashlib, glob, zipfile, collections, subprocess, struct
+
+
+def parse(argv):
+    """The command line, read before KiCad loads: -h or --help prints the
+    docstring, anything else stops with a short message (exit status 2)."""
+    import argparse
+    ap = argparse.ArgumentParser(prog='verify.py', add_help=False, allow_abbrev=False,
+                                 usage='%(prog)s   (no arguments; --help: what it checks)')
+    ap.add_argument('-h', '--help', action='store_true')
+    a = ap.parse_args(argv)
+    if a.help:
+        print(__doc__)
+        sys.exit(0)
+    return a
+
+
+if __name__ == '__main__':
+    parse(sys.argv[1:])
 HERE = os.path.dirname(os.path.abspath(__file__))
 V1 = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
@@ -1904,6 +1925,23 @@ def check_pads_models(board, name):
     b = pcbnew.LoadBoard(path)
     comps = {c.ref: c for c in circuit.build(board)}
     outl = models3d.board_outlines(path, b)
+    # A part whose model file is not installed has no outline: the checks
+    # below leave it out (KiCad's own models are not in CI's image), so say
+    # which parts those are
+    proj = os.path.dirname(os.path.abspath(path))
+    missing = collections.defaultdict(list)
+    for fp in b.GetFootprints():
+        for m in fp.Models():
+            f = re.sub(r'\$\{(KICAD\d+_3DMODEL_DIR)\}', lambda v: os.environ.get(v.group(1), '/usr/share/kicad/3dmodels'),
+                       m.m_Filename.replace('${KIPRJMOD}', proj))
+            if m.m_Show and not os.path.exists(f):
+                missing[os.path.basename(m.m_Filename)].append(fp.GetReference())
+    if missing:
+        refkey = lambda r: [int(t) if t.isdigit() else t for t in re.split(r'(\d+)', r)]
+        refs = {r for v in missing.values() for r in v}
+        check(S, '3D models: %d parts\' model files not found (KiCad\'s own models are read from KICAD10_3DMODEL_DIR), '
+                 'so the 3D-model checks below leave those parts out' % len(refs), 'SKIP',
+              '; '.join('%s: %s' % (f, ', '.join(sorted(v, key=refkey))) for f, v in sorted(missing.items())))
 
     def polys(sps):
         return [Polygon([(sps.Outline(k).CPoint(i).x / 1e6, sps.Outline(k).CPoint(i).y / 1e6)

@@ -105,9 +105,12 @@ the same image; it was not stocked anywhere when this was written.
 
 1. Hold **BOOT** (right edge of the FC, rear half) and plug in USB-C. The
    board comes up in DFU mode.
-2. In Betaflight Configurator, open *Firmware Flasher*, click **Load Firmware
-   [Local]**, pick `betaflight_2025.12.5_STM32G47X_RIDGE3.hex`, and flash with
-   *Full chip erase* on.
+2. In Betaflight Configurator
+   (<https://github.com/betaflight/betaflight-configurator/releases>; record
+   the version you use in the bring-up results in `../docs/tests/`), open
+   *Firmware Flasher*, click **Load Firmware [Local]**, pick
+   `betaflight_2025.12.5_STM32G47X_RIDGE3.hex`, and flash with *Full chip
+   erase* on.
 3. Connect, then paste `betaflight/cli-setup.txt` into the CLI and `save`.
    It has two video blocks: keep the HD block for a DJI, Walksnail or HDZero
    system (`vcd_video_system = HD`, without which the OSD goes to the analog

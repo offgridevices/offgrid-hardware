@@ -7,7 +7,9 @@ in the FPV standard's pin order.  When one breaks, you replace that board,
 not the whole stack.
 
 Ridge 3 is the first of a line named by prop size: **Ridge 3**, **Ridge 7**,
-**Ridge 12**. Only Ridge 3 is designed so far.
+**Ridge 12**. Only Ridge 3 is designed so far; Ridge 3 Lite
+([`../ridge3-lite/`](../ridge3-lite/)), one board with the flight controller
+and ESC and no FPV parts, is a separate design for the same quads.
 
 **Revision 2** is built for a heavy quad on a 50 °C day: every part is
 chosen for the temperatures the simulations give, and the firmware's limits
@@ -24,11 +26,14 @@ simulations, including what rev 2 still does not pass.
 errors, zero warnings and zero unconnected items against JLCPCB's rules.
 The copper matches `src/circuit.py` pad for pad, and
 [`VERIFICATION.md`](VERIFICATION.md) checks the design against sources other
-than itself. No board has been made or measured. Order the minimum
-quantity, build one stack, and go through the [bring-up](#bring-up) steps
-before building more.  Open decisions, the prototype test plan and the
-progress log are in [`docs/STATUS.md`](docs/STATUS.md) (start there when
-taking the board on), with [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) and
+than itself. No board has been made or measured. Order the prototypes
+that [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md#what-to-order-for-testing)
+lists, build one stack, and go through the [bring-up](#bring-up) steps
+before building more.  Every test and simulation, with why it exists, how
+to run it and this revision's result, is in [`TESTS.md`](TESTS.md).  Open
+decisions, the prototype test plan and the progress log are in
+[`docs/STATUS.md`](docs/STATUS.md) (start there when taking the board on),
+with [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) and
 [`docs/CHANGING.md`](docs/CHANGING.md).
 
 **Revision 2.0** for both boards: printed `REV 2.0` by a corner of each, and
@@ -117,7 +122,8 @@ which the firmware sets, reads about 2.4 % low; trim it at bring-up).
 **Motor numbering:** Betaflight's Quad X. Motor 1 is rear-right, 2
 front-right, 3 rear-left and 4 front-left. On the ESC, each motor's number is
 printed beside its three pads. The order of the three wires within a motor
-does not matter: set the direction in ESC-configurator.
+does not matter: set the direction in the AM32 Configurator
+(<https://am32.ca>).
 
 ---
 
@@ -288,6 +294,16 @@ Reg. 6076046).
 Everything to upload is in `fc/production/` and `esc/production/`. You do
 not need KiCad or Python.
 
+**For the first prototypes**, order what
+[`docs/TEST_PLAN.md`](docs/TEST_PLAN.md#what-to-order-for-testing) lists:
+one FC panel and two ESC panels from `production/panel/`, one of them with
+the 18 kΩ IDRIVE line.  At JLCPCB a 36 mm board cannot be assembled on its
+own: only Standard PCBA places parts on both sides, and it takes boards and
+panels from 70 × 70 mm (JLCPCB's PCB assembly capabilities page, checked
+2026-10-14).  The single-board files below are for bare boards, or for a fab
+that assembles a 36 mm board on both sides.  The panels carry the HD build
+only; the analog build exists as single-board files (`ridge3-fc-analog-*`).
+
 ### Bare boards (JLCPCB or PCBWay)
 
 Upload `ridge3-fc-gerbers.zip` and `ridge3-esc-gerbers.zip` as two separate
@@ -314,7 +330,10 @@ The outline includes the four corner slots. They are routed with the
 outline, so no special order option is needed: the slot is 2.5 mm wide,
 above every fab's minimum router slot.
 
-### Assembly (JLCPCB PCBA)
+### Assembly (single boards, at a fab that assembles both sides of a 36 mm board)
+
+At JLCPCB, upload the panel files instead (*Ordering in volume*, below): its
+two-sided Standard PCBA needs a board or panel of at least 70 × 70 mm.
 
 | | FC | ESC |
 |---|---|---|
@@ -374,9 +393,9 @@ few parts have only prototype-sized stock: see [Sourcing](#sourcing-lcscjlcpcb-g
 
 ### Ordering in volume
 
-**Panels.** JLCPCB's Standard assembly is the only JLC service that places
-both sides and takes large quantities. It needs a board or panel of at least
-70 × 70 mm. `make.py` therefore also writes a **3 × 2 panel** of each board
+**Panels.** JLCPCB's Standard PCBA is the only JLC service that places
+both sides (Economic PCBA places one). It needs a board or panel of at least
+70 × 70 mm (capabilities page, checked 2026-10-14). `make.py` therefore also writes a **3 × 2 panel** of each board
 to `production/panel/`: Gerbers, BOM and CPL, ready to upload in place of
 the single-board files. The panel is 112 × 88 mm with six boards, 5 mm
 rails, mouse-bite tabs, three fiducials per side and four 2 mm tooling
@@ -472,7 +491,7 @@ Do these in order. Each step catches a fault before it can damage the next.
      temperature within a few degrees: that checks the four thermistors.
    - In Betaflight's Motors tab, spin each motor slowly. Confirm the order
      is 1 rear-right, 2 front-right, 3 rear-left, 4 front-left, and fix the
-     directions in ESC-configurator.
+     directions in the AM32 Configurator (<https://am32.ca>).
    - Check the RPM and current readouts. Bidirectional DShot working means
      the motor signal path is sound. The current reading should rise with
      throttle.
@@ -568,6 +587,8 @@ ridge-3/
                           bootloader and firmware, the AM32 target patch and
                           the script that makes its NTC table, flashing
                           script, CLI setup
+  TESTS.md                every test and simulation: why, how to run it, and
+                          revision 2.0's result with its date
   docs/README.md          the board's records: start with docs/STATUS.md
   docs/STATUS.md          where it stands, open decisions, next steps, log
   docs/TEST_PLAN.md       the tests for the first prototypes
@@ -581,7 +602,8 @@ ridge-3/
                           power stage, FC video, sourcing and market
   aio.pretty/ aio.3dshapes/   footprints and 3D models (from JLCPCB/EasyEDA's
                           own library entries for the exact LCSC parts; the
-                          USB-C connector uses KiCad's own model)
+                          USB-C connector and the BOOT switch use KiCad's
+                          own models)
   fonts/                  Instrument Sans and JetBrains Mono (SIL OFL), with
                           their versions and hashes (fonts/README.md)
   src/                    the design, as Python (see below)
@@ -610,9 +632,11 @@ apply a decision or swap a part, follow [`docs/CHANGING.md`](docs/CHANGING.md).
 | `circuit.py` | The schematic: every part and every connection, pin by pin, with the reasons. |
 | `parts.py` | Every orderable part, with its LCSC and DigiKey numbers, MPN and footprint. |
 | `footprints.py` | Builds `aio.pretty` from the JLCPCB/EasyEDA library entries (`src/easyeda_raw/`), plus the pads, test points and slotted mounting holes; adding a part: [below](#adding-a-parts-footprint-and-3d-model). |
+| `pcb.py` | Shared board construction: outline, stackup, rules, footprints from the circuit, placement, zones, keepouts, text; KiCad's DRC, and the refresh of each part's value and LCSC number from `circuit.py`. |
 | `fc_layout.py`, `esc_layout.py` | Placement, power copper, planes and silkscreen. The ESC is one motor channel written once and stamped onto four edges: driver, MCU, FETs, bridge capacitors, shunt, amplifier and thermistor in the same places on each. |
 | `legalize.py` | Packs the parts round their intended spots: the parts that must sit at a pin first, each supply's parts with their chip, nothing in a reserved via corridor or tab strip. |
 | `route.py`, `fanout.py`, `finish.py` | Plane fan-out and escape vias, then Freerouting for the signal routing, then an in-house maze router with rip-up for the last connections. |
+| `stamp.py` | Routes one ESC channel of the template and stamps it onto the other three (`esc_layout.CHANNELS`). |
 | `cleanup.py`, `pofv.py` | ESC clean-up after routing: unused escape vias and stubs come out one at a time, each removal kept only if KiCad's DRC agrees; vias move off the POFV hole spacing if needed. |
 | `pipeline.py` | The order the above run in for `--reroute`. |
 | `tools/board_view.py` | Not part of the build: a quick top and bottom PNG of a board (courtyards, pads by net class, tracks, vias, unrouted connections), for iterating on placement. |
@@ -623,11 +647,14 @@ apply a decision or swap a part, follow [`docs/CHANGING.md`](docs/CHANGING.md).
 | `heatsink.py` | The ESC's heatsink from the routed board: a pocket over every bottom-side part at its maximum height (`parts.HEIGHTS`), merged where the metal between would be too thin to machine; fins, feet, battery-lead notches; the gap pad at its maker's charted impedance.  STEP, STL, DXF and 3D views (CadQuery), the drawing, and the geometry the thermal model uses. |
 | `panel.py` | The 3 × 2 production panel (KiKit), checked copy by copy against the single board. |
 | `make.py` | Runs it all with gates. |
+| `models3d.py` | Each footprint's 3D model refreshed from the library, and where the models sit, for `verify.py`'s checks. |
 | `verify.py` | Writes `VERIFICATION.md`. |
 
 `python3.12 src/make.py` rebuilds every output from the committed
 `.kicad_pcb` files (`python3.12 src/make.py --help` lists its options; run
-from `ridge-3/`, about 7 minutes a board on four cores). It fails unless
+from `ridge-3/`, about 5.5 minutes for both boards on four cores when
+nothing has to be rendered again; re-rendering the four panel views added
+about 9 minutes). It fails unless
 each board has zero DRC errors, zero warnings and zero unconnected items,
 the copper matches `circuit.py` pad for pad, and every assembled part is in
 the BOM and the CPL. Run on unchanged boards it leaves every fab and order
@@ -636,39 +663,67 @@ really moved; renders and STEP models are made again only when the board, a
 3D model or KiCad changed (`stable.py`). `python3.12 src/make.py --fab-only`
 runs every gate and writes every order file, single boards and panels, but
 skips the renders, the STEP models, the panel renders and the stack sheet
-(about 6 minutes for both boards).
+(about 5 minutes for both boards).
 `python3.12 src/make.py --reroute` places and routes both boards from
 scratch first, with a fixed seed per board, so the same inputs give the same
 boards. `python3.12 src/verify.py` then writes `VERIFICATION.md`.
 
+The committed `.kicad_pcb` files are the design of record: CI rebuilds
+everything after the routing, never the routing.  `--reroute` overwrites
+them with a new placement and routing, so review the copper before
+committing it, and run it only when a part's land changes
+([`docs/CHANGING.md`](docs/CHANGING.md)).  Whether a `--reroute` gives back
+the committed copper, and how long it takes, has not been measured.
+
 **CI.** The `ridge-3` job in `../.github/workflows/ci.yml` runs on every
-push, in KiCad's official 10.0.6 image pinned by digest: `make.py
---fab-only`, a check that it left every committed output unchanged, then
-`verify.py` (without the firmware sources, datasheets and brand art, whose
-checks SKIP there).  A change that is not rebuilt and committed with its
-outputs fails there.
+pull request into `main` (`claude-code-review.yml` calls it first) and on
+every push to `main`, in KiCad's official 10.0.6 image pinned by digest:
+`make.py --fab-only`, a check that it left every committed output
+unchanged, then `verify.py` (without the firmware sources, datasheets and
+brand art, whose checks SKIP there).  A change whose fab and order files
+were not rebuilt and committed fails there.  CI does not compare the
+renders, the STEP models, the stack sheet, `VERIFICATION.md` (which it
+writes after the comparison) or `STRESS.md` with a rebuild: commit those
+from your own runs.  Every check, with this revision's result, is in
+[`TESTS.md`](TESTS.md).
 
 ### Setup
 
 The build host is Ubuntu 24.04, or the Docker image that
 [`tools/Dockerfile`](tools/Dockerfile) describes; its header has the
-commands to build and use it.  The image is KiCad's official
-`kicad/kicad:10.0.6`, pinned by digest, the one CI runs in: Debian 13 with
-Python 3.13, so its numpy, SciPy and the other packages from the
-distribution differ from the table below (the fab files do not depend on
-them), and it has not been built outside CI yet.  macOS and Windows are
-untested: `src/` reads KiCad's libraries from `/usr/share/kicad/`.  On
-Ubuntu 24.04, from `ridge-3/`:
+commands to build and use it.  The image starts from KiCad's official
+`kicad/kicad:10.0.6`, pinned by digest, which CI runs in directly: Debian 13
+with Python 3.13.  There the Python packages that matter come from pip at
+fixed versions (a few of Debian's own, such as packaging, are not pinned:
+`requirements.txt` says why).  numpy, SciPy, Pillow, matplotlib and pyamg are other versions
+than in the table below, since those have no wheels for Python 3.13
+(`requirements.txt` lists both sets).  The fab files do not depend on them,
+but the panels' Gerbers do depend on Shapely: KiKit builds each panel's
+outline with it, and Shapely 2.1 (Debian 13's own package) gives other
+panel Gerbers than the committed ones.  Use Shapely 2.0.7 there, as the
+image and CI do; Ubuntu's 2.0.3 gives the same files.  The image's steps
+have been run in the KiCad image's file system, where `make.py` left every
+committed file as it was; it has not been built with `docker build`.  In
+the image, write `python3` wherever this README says `python3.12` or
+`sim/.venv/bin/python`: its Python 3.13 has every package installed
+system-wide.  The simulations have not been run there yet, and CadQuery and
+the videos' Python 3.11 are not in it.  macOS and Windows are untested:
+`src/` reads KiCad's libraries from `/usr/share/kicad/`.  On Ubuntu 24.04,
+from `ridge-3/`:
 
 ```
 sudo add-apt-repository ppa:kicad/kicad-10.0-releases
 sudo apt install kicad=10.0.6~ubuntu24.04.1 kicad-symbols=10.0.6~ubuntu24.04.1 \
   kicad-footprints=10.0.6~ubuntu24.04.1 kicad-packages3d=10.0.6~ubuntu24.04.1 \
   python3-numpy python3-scipy python3-shapely python3-matplotlib python3-pil \
-  python3-fonttools g++ ngspice xvfb openjdk-21-jre poppler-utils
+  python3-fonttools python3-pip python3.12-venv g++ ngspice xvfb xauth \
+  openjdk-21-jre poppler-utils
 python3.12 -m pip install --break-system-packages -r requirements.txt
 python3.12 -m pip install --break-system-packages --no-deps gerbonara==1.6.3
 ```
+
+If the PPA no longer offers `10.0.6~ubuntu24.04.1`, use the Docker image,
+which is pinned by digest.
 
 Ubuntu's Python refuses a plain `pip install` (PEP 668), hence
 `--break-system-packages`; the packages Ubuntu ships come from apt and the
@@ -693,11 +748,12 @@ Then, only when they are needed:
 | Python | 3.12.3 (Ubuntu 24.04's) | `src/`, `sim/` |
 | from apt | numpy 1.26.4, scipy 1.11.4, shapely 2.0.3, Pillow 10.2.0, matplotlib 3.6.3, fonttools 4.46.0 | `src/` |
 | from pip | pypdf 6.19.0, uharfbuzz 0.56.2, pymupdf 1.28.2, scikit-image 0.26.0, kikit 1.8.1, gerbonara 1.6.3, pyamg 5.0.1 (`requirements.txt`) | `src/`, the panel (KiKit), `sim/` (pyamg) |
+| In the image and CI | Python 3.13.5; numpy 2.2.4, scipy 1.15.3, shapely 2.0.7, Pillow 11.1.0, matplotlib 3.10.1, fonttools 4.46.0, pyamg 5.2.1, the rest as above, from pip; Debian's packaging, PyYAML, typing-extensions and wxPython unpinned (CI leaves out matplotlib and pyamg) | the same |
 | Freerouting | 1.9.0, on OpenJDK 21 under `xvfb-run` | `make.py --reroute` |
 | CadQuery | cadquery 2.8.0, cadquery-ocp 7.9.3.1.1, ezdxf 1.4.4, vtk 9.6.2, numpy 2.5.3 (`requirements-cadquery.txt`) | the heatsink's STEP, STL, DXF and views |
 | ngspice | 42 (Ubuntu's `42+ds-3build1`) | `sim/` |
 | poppler-utils | 24.02.0 (`pdftotext`) | the datasheets' text ([`docs/DATASHEETS.md`](docs/DATASHEETS.md)) |
-| easyeda2kicad | 1.0.1 | a new part's footprint and 3D model (below) |
+| easyeda2kicad | 1.0.1 (`python3.12 -m pip install --break-system-packages easyeda2kicad==1.0.1`) | a new part's footprint and 3D model (below) |
 | Video | Python 3.11.15, bpy 4.5.14, numpy 1.26.4, Pillow 12.3.0, imageio-ffmpeg 0.6.0 with ffmpeg 7.0.2 (`video/requirements.txt`) | the exploded-view videos |
 | Arm GNU Toolchain | 13.3.rel1 | the firmware images ([`firmware/README.md`](firmware/README.md)) |
 
@@ -706,7 +762,9 @@ Then, only when they are needed:
 `verify.py` checks the design against sources other than itself.  Five are
 not in this repository.  Point these variables at them; without one, the
 checks that need it SKIP and the run still passes.  Commit a
-`VERIFICATION.md` made with all five set.
+`VERIFICATION.md` made with all five set.  Without access to the brand
+repository, ask the owner for it.  If that is not possible, commit with
+that one check SKIP and say so in [`docs/STATUS.md`](docs/STATUS.md)'s log.
 
 | Variable | What it points at | Source |
 |---|---|---|
@@ -782,7 +840,7 @@ closes and lies down under the title.
 - **Commands**, run from `ridge-3/` with KiCad's Python (`python3.12`):
 
   ```
-  python3.12 video/make_video.py fc --check          # build the scene only (1-4 min): no frames
+  python3.12 video/make_video.py fc --check          # build the scene only (1-5 min): no frames
   python3.12 video/make_video.py fc --stills 0,270   # a few labelled frames (numbered at 30 fps)
   python3.12 video/make_video.py fc                  # 720p 30 fps draft
   python3.12 video/make_video.py fc --final          # 4K 60 fps
@@ -803,23 +861,28 @@ closes and lies down under the title.
   `--out PATH` names the MP4; `--music PATH` lays another audio file under
   it; `--config PATH` reads the settings from another file.  `VIDEO_PYTHON`
   names the Python 3.11 that makes `video/.venv` (default `python3.11`).
-- **Length:** both boards' videos run 32.75 s, 1,965 frames at 60 fps (the
-  ESC's settings shorten its labelled hold to 3.2667 s to make it so), the
-  length of the music edit named in `video/music/README.md`.  The track is
-  licensed and stays out of git; without it the video comes out silent and
-  the run says so.
+- **Length:** both boards' final videos run 32.75 s, 1,965 frames at 60 fps
+  (the ESC's settings shorten its labelled hold to 3.2667 s to make it so),
+  the length of the music edit named in `video/music/README.md`.  The track
+  is licensed and stays out of git; without it the video comes out silent
+  and the run says so.
 - **Type:** Instrument Sans from `fonts/`, checked against the OffGrid brand
   v3.2.
 - **Setup:** the first run makes `video/.venv` (Python 3.11 with Blender as
-  a module, from `video/requirements.txt`; about 1.1 GB).
+  a module, from `video/requirements.txt`; about 1.1 GB).  Ubuntu 24.04 has
+  no Python 3.11: `sudo add-apt-repository ppa:deadsnakes/ppa && sudo apt
+  install python3.11 python3.11-venv` (the Ridge 3 videos were made with its
+  3.11.15-1+noble1; [the guide's Tools](../docs/product-video.md#tools)).
+  The Docker image has neither Python 3.11 nor bpy: make the videos outside
+  it.
 - **Rendering:** it uses Cycles, on a GPU when Blender finds one (CUDA,
   OptiX, HIP, Metal, oneAPI), otherwise on the CPU.  A 4K frame takes 2-4.5
   minutes on a 4-core CPU, so a final video is 65-147 hours there: use a
   GPU where one is at hand.  A stopped render resumes where it stopped:
   run the same command again.
-- **Disk:** a board's work folder in `video/out/` is 150-175 MB before any
-  frames; a draft's frames take about 1.8 GB, and a final video's 4K
-  frames far more (not measured; tens of GB).
+- **Disk:** a board's work folder in `video/out/` takes 70-180 MB for each
+  quality and build before any frames; a draft's frames take about 1.8 GB,
+  and a final video's 4K frames far more (not measured; tens of GB).
 
 The repository-wide guide to these videos, for a new board too, is
 [`../docs/product-video.md`](../docs/product-video.md).
@@ -890,8 +953,9 @@ maps, SPICE runs) stay in `sim/out/`, which git ignores.
   `stress.py --variant=rev2` writes, so that run comes first.  Without
   Toshiba's model, `stress.py` stops at once (rev 1 runs first), but
   `--variant=...` runs rev 2 alone.
-  `sim/stress.py --quick` (one air speed and temperature, short runs, into
-  `sim/out/quick/` only) checks that the code runs.
+  `sim/stress.py --quick --variant=rev2` (one air speed and temperature,
+  short runs, into `sim/out/quick/` only) checks that the code runs without
+  Toshiba's model.
 - The copper maps are cached in `sim/out/` per board file.
   `SIM_BOARD_ESC` / `SIM_BOARD_FC` point rev 2 at other board files (one
   still being routed, say).

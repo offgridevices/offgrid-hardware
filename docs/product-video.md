@@ -12,6 +12,16 @@ the brand's version and record it. Publish the MP4; never commit it or the
 music. Follow [Recipe for a new board](#recipe-for-a-new-board) step by
 step, and stop when everything in [Done means](#done-means) holds.
 
+**If you cannot reach the owner,** stop after the draft (step 6) and report
+what you made and what is left: the music edit, the final render and
+publishing wait until the owner has seen the draft. The draft needs no
+music: add a track only if you can download it under OffGrid's Epidemic
+Sound subscription (Ridge 3's is in
+[`ridge-3/video/music/README.md`](../ridge-3/video/music/README.md));
+otherwise leave `"music"` out, and the draft is silent. Read the brand's
+version only from the brand repository; if you cannot read it, record no
+version and say so in your report. Never guess it.
+
 ## What this is
 
 A product video is an exploded view of a board, rendered from its own
@@ -19,9 +29,10 @@ routed KiCad file in the style the owner approved for Ridge 3. The code is
 [`ridge-3/video/`](../ridge-3/video/), the reference copy. This page says
 what to copy, what to fill in, how to check it and what to commit.
 
-This is a plain document. Nothing in this repository is loaded into an AI
-assistant automatically (the root [`.gitignore`](../.gitignore) says why).
-To have an agent make a video, ask it to follow this page.
+This is a plain document. No instruction file in this repository is loaded
+into a contributor's AI assistant automatically (the root
+[`.gitignore`](../.gitignore) says why editor settings are kept out). To
+have an agent make a video, ask it to follow this page.
 
 Each board gets its own copy of the code, in its revision folder. A
 revision folder is frozen once its board is ordered, and a copy keeps a
@@ -117,8 +128,9 @@ Ridge 3 videos.
 **Edit**
 
 All times are in seconds. The Ridge 3 flight controller has 6 copper
-layers; the ESC has 8, so it opens and closes a little later, and its
-labelled hold is 0.23 s shorter so that both videos end at 32.75 s.
+layers; the ESC has 8, so it takes a little longer to open and to close
+(its tour comes about 0.12 s later). Its labelled hold is 0.23 s shorter: it
+starts to close earlier, and both videos end at 32.75 s.
 
 | Flight controller | ESC | What happens |
 |---|---|---|
@@ -134,11 +146,24 @@ labelled hold is 0.23 s shorter so that both videos end at 32.75 s.
 | 29.48 | 29.48 | The title fades in over 0.8 s |
 | 32.75 | 32.75 | End: 1,965 frames at 60 fps |
 
-The timings are in `make_video.py`'s `timeline` (stagger 0.125, move 3.5,
-stand 2.25 to 4.75, tour in 1.3, rest 1.6, glide 1.6, tour out 1.8, hold
-3.5, lie down 0.75 before the board has closed and 2.75 in all, tail 3.5)
-and `DEFAULTS['overlay']`. A board's `"timeline"` overrides any of them;
-Ridge 3's ESC sets `"hold": 3.2667`.
+The timings are in `make_video.py`'s `timeline` and
+`DEFAULTS['overlay']`. A board's `"timeline"` overrides any of these keys,
+in seconds; Ridge 3's ESC sets `"hold": 3.2667`. Any other key stops the
+run with the list of keys.
+
+| `"timeline"` key | Default | What it times |
+|---|---|---|
+| `stagger` | 0.125 | Between neighbouring layers as they part and close |
+| `move` | 3.5 | Each opening and closing move |
+| `stand` | [2.25, 4.75] | Standing up: start and end |
+| `tour_in` | 1.3 | From open to the first stop |
+| `tour_rest` | 1.6 | The rest on each stop |
+| `tour_move` | 1.6 | The glide to the next stop |
+| `tour_out` | 1.8 | From the last stop back to the whole board |
+| `hold` | 3.5 | The whole board with its labels, until it closes |
+| `lay_in` | 0.75 | How long before the board has closed it starts to lie down |
+| `lay` | 2.75 | Lying down, in all |
+| `tail` | 3.5 | The closing shot, after it has lain down |
 
 **Captions**
 
@@ -191,13 +216,15 @@ All sizes are for 720p and scale with the frame's height.
 
 ## Brand
 
-The brand's source is the private repository `offgridevices/offgrid-brand`,
-folder `current/`. Its version is the `$version` field of
-`current/handoff/tokens/tokens.json`. Read it before the final render and
-record it in the board README's video section. If you cannot read the
-repository, ask the owner for the version; do not guess it. Never copy the
-brand repository's files or text into this repository. More on the brand on
-a board: [`brand.md`](brand.md).
+[`brand.md`](brand.md) says where the brand comes from and how a board
+carries it: the private repository `offgridevices/offgrid-brand`, folder
+`current/`, whose version is the `$version` field of
+`current/handoff/tokens/tokens.json`. Read the version from there before
+the final render and record it in the board README's video section. Read
+it only from the brand repository, never from memory or another board: if
+you cannot read it, ask the owner for access, and without access record no
+version and say so. Never copy the brand repository's files or text into
+this repository.
 
 Ridge 3's videos were checked against brand v3.2.
 
@@ -206,32 +233,33 @@ What the video takes from the brand:
 - **Type.** Instrument Sans in sentence case: Medium (500) for names and
   Regular (400) for details. The font files are the board's own `fonts/`
   (SIL Open Font License), the same files its silkscreen is drawn from.
-- **Ground.** Dark, like the brand's dark ground and the board's black
-  solder mask.
-- **Accent.** The brand's accent, Ember, appears at most once on a surface.
-  The Ridge 3 video uses none.
+- **Ground.** Dark, like the brand's Pitch and the board's black solder
+  mask.
+- **Accent.** None. The brand's accent, Ember, is not used in the Ridge 3
+  video.
 - **Mark.** The OffGrid mark appears only as the board's own silkscreen,
   which the board's `src/brand.py` builds from the brand's geometry. Never
   draw or approximate a mark in the video.
 
 **Open decisions.** The approved Ridge 3 video differs from brand v3.2 in
 the points below. They are the owner's to decide. Until then, keep the
-Ridge 3 look; do not change any of them on your own.
+Ridge 3 look; do not change any of them on your own. For what the brand
+says on each, read its `current/` folder.
 
-1. The product name on the end card is SemiBold (600). The brand keeps 600
-   for the wordmark and sets display type at 400 or 500.
-2. The caption whites and greys, and the background gradient, are neutral
-   or slightly cool. The brand's dark theme is warm: a Pitch ground, Bone
-   type, Sand and Dim for secondary text, Bone hairlines.
-3. The tour counter ("01 / 03") is Instrument Sans. The brand sets numerals
-   in JetBrains Mono 500.
-4. No letter tracking is applied. The brand tracks display type and labels.
-5. Whether the video should show the mark beyond the silkscreen, and how.
-   The brand keeps a bracketed variant of the mark for motion. A rule the
-   owner wrote for another product (SmokeBreak) is that the mark is never
-   animated: it may only cut in and out.
-6. The brand says "no photography". Whether photoreal renders of a board
-   count as photography is the owner's call.
+1. **The end card's weight.** The product name is SemiBold (600). Compare
+   the brand's weights for display type and for the wordmark.
+2. **Colour.** The caption whites and greys, and the background gradient,
+   are neutral or slightly cool. Compare the brand's dark theme: its
+   ground, type, secondary text and hairlines.
+3. **Numerals.** The tour counter ("01 / 03") is Instrument Sans;
+   [`brand.md`](brand.md) sets numerals in JetBrains Mono 500.
+4. **Tracking.** No letter tracking is applied. Compare the brand's
+   tracking for display type and labels.
+5. **The mark in motion.** Whether the video should show the mark beyond
+   the silkscreen, and how the mark may move. Compare what the brand says
+   about the mark in motion, and ask the owner.
+6. **Imagery.** Whether photoreal renders of a board fit the brand's rules
+   on imagery.
 
 ## Tools
 
@@ -244,6 +272,21 @@ Ridge 3 look; do not change any of them on your own.
 | numpy, Pillow, imageio-ffmpeg | 1.26.4, 12.3.0, 0.6.0 (bundles ffmpeg 7.0.2) | The captions, the MP4, the music |
 | Instrument Sans | 1.000, variable (`fonts/`) | All text |
 | A GPU (optional) | OptiX, CUDA, HIP, Metal or oneAPI | Rendering, when Blender finds one; otherwise the CPU |
+
+Ubuntu 24.04 has no Python 3.11. The one that made the Ridge 3 videos is
+the deadsnakes PPA's `python3.11` 3.11.15-1+noble1, with `python3.11-venv`
+for the venv:
+
+```
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt install python3.11 python3.11-venv
+```
+
+On 2026-10-14 the PPA offered 3.11.16-1+noble1, no longer 3.11.15.
+KiCad 10.0.6 and the `python3.12` with `pcbnew` are installed as
+[Setup in ridge-3/README.md](../ridge-3/README.md#setup) describes. The
+Docker image of `ridge-3/tools/Dockerfile` has neither Python 3.11 nor
+bpy, so the videos are made outside it.
 
 `video/requirements.txt` pins every package in the venv. The venv takes
 about 1.1 GB. On a 4-core CPU without a GPU, a 4K frame takes 2–4.5
@@ -314,13 +357,20 @@ GPU machine if there is one.
      ("12 high-side FETs"), and put first the parts a reader cares about.
    - Keep each detail, "N parts: " included, to about 70 characters.
    - Leave the style alone. Other keys exist for facts the board file
-     cannot give: `labels` (`{unit: [title, detail]}`) replaces a label
-     outright, the surest fix for a label that reads wrong; `roles`
-     (`{copper layer: role}`) overrides what the copper label counts as a
-     plane; `tour` changes the stops (the units are
-     `components top`, `mask top`, `copper`, `mask bottom`,
-     `components bottom`); `builds` holds settings for one build;
-     `timeline` holds times in seconds.
+     cannot give:
+     - `labels` (`{unit: [title, detail]}`) replaces a label outright, the
+       surest fix for a label that reads wrong.
+     - `roles` (`{"In5.Cu": "ground plane"}`) sets what a copper layer
+       carries. The keys are KiCad's layer names, as step 4's summary
+       line prints them; a name the board does not have stops the run. In
+       the copper label, a role ending in "plane" counts that layer as
+       that net's plane ("ground plane": a ground plane), and any other
+       role as a signal layer.
+     - `tour` changes the stops (the units are `components top`,
+       `mask top`, `copper`, `mask bottom`, `components bottom`).
+     - `builds` holds settings for one build.
+     - `timeline` changes the edit's times, in seconds; its keys and
+       defaults are under **Edit** in [House style](#house-style).
 
 4. **Check the scene, without frames:**
 
@@ -416,8 +466,9 @@ GPU machine if there is one.
    ignores. Attach it to the board's GitHub release, or share it where the
    owner says.
    - Commit `video/*.py`, `video/requirements.txt`, `video/.gitignore`,
-     `video/<name>.json` and `video/music/README.md` (and `fonts/` if step
-     1 copied it).
+     `video/<name>.json`, `video/music/README.md`, the board's
+     `.gitignore` (step 2) and its README's video section (below), and
+     `fonts/` if step 1 copied it.
    - Never commit `video/.venv/`, `video/out/`, the audio or the video.
    - Add a short video section to the board's README: the commands, the
      length, the music (or a link to `video/music/README.md`) and the
@@ -434,6 +485,9 @@ GPU machine if there is one.
 - [ ] The owner has seen the draft.
 - [ ] Nothing rendered and no audio is staged: `git status` shows only the
       files of step 9.
+
+Without the owner, the work stops after step 6 and is not done: the report
+says which of these items are left.
 
 ## Ridge 3, the worked example
 
@@ -472,15 +526,20 @@ Measured on a 4-core CPU without a GPU (15 GB of memory):
 |---|---|
 | `fc --check` | 66–88 s |
 | `fc --build analog --check` | 68–69 s |
-| `esc --final --check` | 209–282 s |
+| `esc --final --check` | 209–286 s |
 | `fc --stills` with two frames | 85 s |
 | `esc --stills` with one frame | 175–259 s |
+| `--check`, and `--stills` with one frame, on a larger board: Ridge 3 Lite (223 parts, 8 copper layers) | 10.8 min and 9.6 min |
 
-The higher figures were measured with other work on the same CPU. Before
-any frames, a board's work folder in `video/out/` holds the GLB (28.5 MB
-for the flight controller, 62 MB for the ESC) and a `.blend` for each
-quality and build (42 MB for the flight controller's draft, 109–111 MB for
-the ESC's draft and final).
+The higher figures were measured with other work on the same CPU. Every
+command builds the scene again before it renders anything, so on a larger
+board each one starts with minutes of scene building. Before any frames, a
+board's work folder in `video/out/` holds the GLB (28.5 MB for the flight
+controller, 62 MB for the ESC, 94 MB for Ridge 3 Lite) and a `.blend` for
+each quality and build (42 MB for the flight controller's draft, 109–111 MB
+for the ESC's draft and final, 150 MB for Ridge 3 Lite's draft). When a
+run saves a `.blend` again, Blender keeps the previous one beside it as a
+`.blend1` of about the same size; delete `video/out/<name>/*.blend1`.
 
 ## Troubleshooting
 
@@ -494,5 +553,6 @@ the ESC's draft and final).
 | The venv will not install `bpy` | bpy 4.5 needs Python 3.11: `VIDEO_PYTHON=/path/to/python3.11`. Delete a half-made `video/.venv` first. |
 | `import pcbnew` fails | Run `make_video.py` with the Python that KiCad installed `pcbnew` for (`python3.12` on Ubuntu 24.04 with KiCad 10). |
 | The final render is very slow | It is probably on the CPU: the run does not say. `video/.venv/bin/python -c "import bpy; p = bpy.context.preferences.addons['cycles'].preferences; p.refresh_devices(); print(sorted({d.type for d in p.devices}))"` prints `['CPU']` when Blender finds no GPU. Render on a GPU machine. `--jobs` sets how many renders run at once (2 by default). |
-| The disk fills up | `video/out/` keeps every frame twice, raw and labelled: about 1.8 GB for a 720p draft and far more at 4K (not measured; tens of GB). Delete `video/out/<name>/frames-*` once the MP4 is published. |
+| The disk fills up | `video/out/` keeps every frame twice, raw and labelled: about 1.8 GB for a 720p draft and far more at 4K (not measured; tens of GB). Delete `video/out/<name>/frames-*` once the MP4 is published, and the `.blend1` backups Blender leaves beside each `.blend` (`video/out/<name>/*.blend1`, as large as the `.blend`) at any time. |
+| `"timeline": no key ...` or `"roles": no layer ...` | A key in the board's JSON is misspelt. The message lists the valid ones: the `timeline` keys under **Edit** in [House style](#house-style), or the board's copper layers. |
 | The frames render again after a caption change | They should not. Only the board, the scene's settings (`SCENE_KEYS` in `make_video.py`), `scene.py` and `render.py` make them render again. |

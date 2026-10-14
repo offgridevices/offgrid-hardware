@@ -224,9 +224,16 @@ def labels(facts, cfg):
         if cfg['mask'].get(side):
             detail.append(cfg['mask'][side])
         out['mask ' + side] = ['Solder mask', '; '.join(detail)]
+    bad = sorted(set(cfg.get('roles', {})) - set(facts['copper']))
+    if bad:
+        raise SystemExit('"roles": no layer %s; the copper layers are %s'
+                         % (', '.join(bad), ', '.join(facts['copper'])))
     roles = dict(facts['roles'], **cfg.get('roles', {}))
-    planes = [facts['planes'][n] for n in facts['copper'] if 'plane' in roles[n] and n in facts['planes']]
-    signal = sum(1 for n in facts['copper'] if 'plane' not in roles[n])
+    # a role ending in "plane" ("battery plane") makes the layer that net's
+    # plane, whether the board file or "roles" says so
+    planes = [roles[n].strip()[:-len('plane')].strip() or facts['planes'].get(n, '')
+              for n in facts['copper'] if roles[n].strip().endswith('plane')]
+    signal = len(facts['copper']) - len(planes)
     what = []
     if planes:
         nets = list(dict.fromkeys(planes))     # each net once: two ground planes read "ground planes"
@@ -247,6 +254,9 @@ def timeline(n, stops, o, fps):
     rate is only the quality's."""
     sec = dict(stagger=0.125, move=3.5, stand=[2.25, 4.75], tour_in=1.3, tour_rest=1.6, tour_move=1.6,
                tour_out=1.8, hold=3.5, lay_in=0.75, lay=2.75, tail=3.5)
+    bad = sorted(set(o) - set(sec))
+    if bad:
+        raise SystemExit('"timeline": no key %s; the keys are %s' % (', '.join(bad), ', '.join(sec)))
     sec.update(o)
     F = lambda x: int(round(x * fps))
     maxr = (n - 1) / 2

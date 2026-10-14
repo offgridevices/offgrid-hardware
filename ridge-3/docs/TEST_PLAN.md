@@ -5,7 +5,8 @@ been done yet: every expected value is a simulation (`../STRESS.md`,
 `RELIABILITY.md`, the tools in `../sim/`) or a datasheet limit, and the point
 of these tests is to replace them with measurements.  The open decisions each
 test settles are in [`STATUS.md`](STATUS.md); record results as described at
-the end, then update `STATUS.md`.
+the end, then update `STATUS.md` and [`../TESTS.md`](../TESTS.md), which
+lists every test and simulation with this revision's result.
 
 The basic bring-up (first power, flashing, orientation, motor order) is in
 the main README's [Bring-up](../README.md#bring-up) and is not repeated here.
@@ -15,12 +16,22 @@ Do it first on every stack.
 
 - **Boards:** one FC panel (6 FCs) and two ESC panels (12 ESCs), all from
   the committed files.  One ESC panel exactly as committed (IDRIVE 75 kΩ,
-  60 / 120 mA); on the other, change the IDRIVE line of the panel's BOM
-  (`../esc/production/panel/ridge3-esc-panel-bom-jlcpcb.csv`, line 11:
-  `75k, "R9_1,...,R45_6"`, and the same line of the PCBWay BOM beside it)
-  from LCSC C295816 (RC0201FR-0775KL) to **C295780 (RC0201FR-0718KL, 18 kΩ,
-  30 / 60 mA)** before ordering (`CHANGING.md`, C1).  Nothing else differs.
-  Label the panels.
+  60 / 120 mA); for the other, upload a BOM whose IDRIVE line (line 11,
+  `R9_1` ... `R45_6`) is changed from LCSC C295816 (RC0201FR-0775KL, 75 kΩ)
+  to **C295780 (RC0201FR-0718KL, 18 kΩ, 30 / 60 mA)** (`CHANGING.md`,
+  C1).  These commands, run from `ridge-3/`, write the changed BOMs
+  outside the repository; each changes only line 11 (value, LCSC number,
+  part number and, in the PCBWay file, the description):
+
+  ```
+  sed '11s/^75k,\(.*\),C295816,RC0201FR-0775KL,/18k,\1,C295780,RC0201FR-0718KL,/' \
+    esc/production/panel/ridge3-esc-panel-bom-jlcpcb.csv > ~/ridge3-esc-panel-bom-jlcpcb-18k.csv
+  sed '11s/,RC0201FR-0775KL,Resistor 75k 1% 0201,75k,\(.*\),C295816,/,RC0201FR-0718KL,Resistor 18k 1% 0201,18k,\1,C295780,/' \
+    esc/production/panel/ridge3-esc-panel-bom-pcbway.csv > ~/ridge3-esc-panel-bom-pcbway-18k.csv
+  ```
+
+  Upload the `-18k` BOM with the unchanged panel Gerbers and CPL.  Nothing
+  else differs.  Label the panels.
 - **Per stack:** the heatsink, gap pad, stack lead, grommets and hardware
   listed in the README's [Also needed](../README.md#also-needed-not-on-the-boards).
 - **Allocation:** of the 12 ESCs, 4 for function and switching (two of each
@@ -158,10 +169,10 @@ regulator.
   simulation: AM32 first cuts a motor at about 62 s and for 10 % of the
   flight (18 % with IDRIVE 30 / 60), the hottest FET at 128 °C.
 - Pass: no part past its rating (FETs 150 °C design / 175 °C maximum,
-  processors 125 °C junction), and AM32's limit acting before the FETs pass
-  150 °C.  Record where the measurement differs from the simulation by more
-  than 10 °C: the thermal model is then corrected (`../sim/thermal.py`,
-  `../sim/data.py`).
+  ESC processors 125 °C, FC processor 105 °C junction), and AM32's limit
+  acting before the FETs pass 150 °C.  Record where the measurement
+  differs from the simulation by more than 10 °C: the thermal model is then
+  corrected (`../sim/thermal.py`, `../sim/data.py`).
 
 ### T9. On the ground with video on
 
@@ -217,11 +228,15 @@ Not for the first prototypes; needed before selling:
 ## Recording results
 
 Write each test's results to `tests/YYYY-MM-DD-T<n>-<short-name>.md` in this
-folder: who, which board serial and IDRIVE, the setup (with a photo), the
+folder: who, which board and IDRIVE, the setup (with a photo), the
 numbers in a table against the simulation's, scope screenshots (PNG,
-compressed), and pass or fail.  Then tick the test in `STATUS.md` and record
-any decision it settled there, with the date.  If a measurement disagrees
-with a simulation, say so in `STATUS.md`: the simulation's inputs
+compressed), and pass or fail.  The boards carry no serial number: mark
+each by hand with its panel and position (for example ESC-B4, panel B
+being the 18 kΩ IDRIVE one) and use that mark.  Bring-up results go in
+`tests/YYYY-MM-DD-bringup-<mark>.md`.  Then tick the test in `STATUS.md`,
+fill in its result and date in [`../TESTS.md`](../TESTS.md), and record
+any decision it settled in `STATUS.md`, with the date.  If a measurement
+disagrees with a simulation, say so in `STATUS.md`: the simulation's inputs
 (`../sim/data.py`) are then corrected from the measurement and the
 simulations run again, so the next revision is designed on measured
 numbers.

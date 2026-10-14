@@ -13,6 +13,10 @@
 #   python3-pil          Pillow 10.2.0
 #   python3-matplotlib   matplotlib 3.6.3   heatsink.py's drawing, sim/'s figures
 #   python3-fonttools    fonttools 4.46.0   brand.py: font metrics
+# and, not pinned anywhere, packaging, which scikit-image and matplotlib
+# need: Ubuntu's python3-packaging 24.0 here, Debian 13's 25.0 in the
+# image.  Both give the same outputs.  A pin in this file would
+# make CI's pip (-c) put another copy over Debian's, which no run has tried.
 #
 # From pip, this file and gerbonara apart (its requirements pull in a web
 # server it does not need here):

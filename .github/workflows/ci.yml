@@ -153,7 +153,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # What make.py --fab-only and verify.py import, each at a fixed
+      # The packages make.py --fab-only and verify.py name, each at a fixed
       # version and from pip, not Debian's packages, which move with
       # Debian's updates: requirements.txt's pins as a constraint (-c), and
       # the packages the build machine takes from Ubuntu's apt at versions
@@ -162,7 +162,9 @@ jobs:
       # outline with it, and with Debian's Shapely 2.1 the panel Gerbers come
       # out different from the committed ones. gerbonara goes in without its
       # requirements (a web server it does not need here). tools/Dockerfile
-      # installs the same.
+      # installs the same. A few other packages present are Debian's and
+      # not pinned (packaging, PyYAML, typing-extensions, wxPython); none of
+      # them changes an output.
       - name: Install dependencies
         run: |
           apt-get update -qq

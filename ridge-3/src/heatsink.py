@@ -615,7 +615,8 @@ def build(board=BOARD, out=OUT):
 # Two outlines this close are the same plate: Shapely's GEOS library segments
 # the rounded corners differently from one version to the next (up to 0.013
 # mm apart here: GEOS 3.11 and 3.13 against the 3.12 that made the committed
-# files).  The drawing's tolerance is ISO 2768-m, +/-0.1 mm.
+# files).  The drawing's tolerance is ISO 2768-m: at least +/-0.1 mm on any
+# size of 0.5 mm or more.
 SAME_SHAPE = 0.05       # mm, Hausdorff distance
 
 

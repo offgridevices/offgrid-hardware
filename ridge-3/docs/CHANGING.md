@@ -54,10 +54,16 @@ simulations](../README.md#stress-simulations) for `sim/`, and
    `RELIABILITY.md`.
 5. **Document:** the README where it states the changed fact, the revision's
    change list (`REV2.md`, or the next revision's), `RELIABILITY.md` if its
-   numbers moved, and in `STATUS.md` the decision, its date and a log line.
+   numbers moved, the rows of [`../TESTS.md`](../TESTS.md) whose runs were
+   repeated (result and date), and in `STATUS.md` the decision, its date
+   and a log line.
 6. **Revision:** a change to the copper is a new revision: `REVISION` in
    `src/fc_layout.py` or `src/esc_layout.py` (printed on the board), and a
-   new change list.  A board that has been ordered is never edited in place.
+   new change list.  Before an order is placed, tag the commit its files
+   come from (`git tag ridge-3-rev2.0 <commit>` and push the tag) and
+   record the tag in `STATUS.md`'s log.  A later copper change bumps
+   `REVISION` and starts a new change list; the ordered files stay at their
+   tag (`STATUS.md`, D9).
 7. **Commit** the source and every output it regenerated together.  The
    committed outputs must be what the scripts produce: the `ridge-3` CI job
    rebuilds the fab files (`make.py --fab-only`) and fails if any differs.
@@ -66,12 +72,25 @@ simulations](../README.md#stress-simulations) for `sim/`, and
 
 - **For a prototype order only:** in the BOM you upload, change the IDRIVE
   line from LCSC C295816, RC0201FR-0775KL (75 kΩ) to LCSC **C295780**,
-  RC0201FR-0718KL (18 kΩ).  For single boards it is line 11 of
-  `../esc/production/ridge3-esc-bom-jlcpcb.csv` (`75k, "R9,R21,R33,R45"`)
-  and of `ridge3-esc-bom-pcbway.csv`; for a panel, line 11 of
-  `../esc/production/panel/ridge3-esc-panel-bom-jlcpcb.csv` and of
-  `ridge3-esc-panel-bom-pcbway.csv` (`R9_1` ... `R45_6`, 24 parts).  Do not
-  commit that edit: CI would fail on it.
+  RC0201FR-0718KL (18 kΩ).  It is line 11 of each ESC BOM: for single
+  boards `../esc/production/ridge3-esc-bom-jlcpcb.csv` (`75k,
+  "R9,R21,R33,R45"`) and `ridge3-esc-bom-pcbway.csv`; for a panel, the
+  same files in `../esc/production/panel/` with `-panel` in their names
+  (`R9_1` ... `R45_6`, 24 parts).  These commands, run from `ridge-3/`,
+  write changed copies of the single-board BOMs outside the repository,
+  changing only line 11 (the value, LCSC number, part number and, in the
+  PCBWay file, the description); [`TEST_PLAN.md`](TEST_PLAN.md) has the
+  panel's:
+
+  ```
+  sed '11s/^75k,\(.*\),C295816,RC0201FR-0775KL,/18k,\1,C295780,RC0201FR-0718KL,/' \
+    esc/production/ridge3-esc-bom-jlcpcb.csv > ~/ridge3-esc-bom-jlcpcb-18k.csv
+  sed '11s/,RC0201FR-0775KL,Resistor 75k 1% 0201,75k,\(.*\),C295816,/,RC0201FR-0718KL,Resistor 18k 1% 0201,18k,\1,C295780,/' \
+    esc/production/ridge3-esc-bom-pcbway.csv > ~/ridge3-esc-bom-pcbway-18k.csv
+  ```
+
+  Upload the `-18k` BOM with the unchanged Gerbers and CPL.  Do not commit
+  such a BOM: CI would fail on it.
 - **For the design:** in `src/circuit.py` set `IDRIVE = 0.03` (beside
   `IDRIVE_LEVELS`, which maps it to `R18K_0201` to AGND) and rewrite the
   comment above `IDRIVE_LEVELS` with the reason and the measured T5
@@ -116,11 +135,14 @@ Evaluate a candidate in the simulations first, without touching the design
    `aio:TSDSON-8FL_L3.3-W3.3-P0.65_IFX`) it can reuse that footprint; if not,
    add its footprint and its 3D model (the README's
    [footprints](../README.md#adding-a-parts-footprint-and-3d-model) note),
-   and expect a `--reroute`.  Its body height in `src/parts.py`'s height
-   table (`HEIGHTS`): a new height makes the heatsink again, which needs
-   CadQuery (`CADQUERY_PYTHON` pointing at a venv made from
-   `../requirements-cadquery.txt`), and changes the STEP, STL, DXF and PDF
-   in `../mechanical/`, and with them the CNC order.
+   and expect a `--reroute`.  Its body height goes in `src/parts.py`'s
+   `HEIGHTS` (the heatsink stops without one).  Any new part on the ESC's
+   bottom, the low-side FETs included, makes the heatsink again whatever
+   its height, because the heatsink's record names each pocketed part
+   (`heatsink.current`).  That needs CadQuery (`CADQUERY_PYTHON` pointing
+   at a venv made from `../requirements-cadquery.txt`) and rewrites the
+   STEP, STL, DXF and PDF in `../mechanical/`: send the CNC shop the new
+   files.
 5. `src/circuit.py`: the two `add('Q', 'ISZ023N06LM6', ...)` lines of the
    ESC channel (high and low side) and the summary at the top of the file.
 6. `sim/data.py`: `DESIGNS['rev2']`'s `FET`, so `STRESS.md` describes the
@@ -147,17 +169,26 @@ Evaluate a candidate in the simulations first, without touching the design
 
 In AM32 at the commit the target is built on (`2738df3`), the stuck-rotor
 cut is not a setting: `Src/main.c` declares `char bemf_timeout = 10;`, sets
-it to 10 or 100 depending on throttle (lines 2063-2067), and cuts the motor
-when `bemf_timeout_happened > bemf_timeout` (line 1144).
+it to 100 at low throttle (`adjusted_input < 150`) and to 10 above it
+(lines 2064-2067), and cuts the motor when
+`bemf_timeout_happened > bemf_timeout` (line 1144).
 
-1. In an AM32 checkout at `2738df3` with the target patch applied, make the
-   high-throttle value 2 for `RIDGE3_F421` only (an `#ifdef RIDGE3_F421`
-   around that assignment), and add the change to
-   `../firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch`.
-2. Build the image as `../firmware/README.md` describes, replace
-   `AM32_RIDGE3_F421_2.21.hex`, and update its SHA-256 in that README
-   (`verify.py` checks it).
-3. `sim/crash.py` already models it (`N_CUT_SHORT`); test T7 and T13 on
+1. In an AM32 checkout at `2738df3`, apply the target patch (`git apply`;
+   it changes only `Inc/`, so the line numbers above hold).  In
+   `Src/main.c`, replace the high-throttle assignment `bemf_timeout = 10;`
+   at line 2067 with `#ifdef RIDGE3_F421` / `bemf_timeout = 2;` / `#else` /
+   `bemf_timeout = 10;` / `#endif`.  Then write the patch again from the
+   checkout: `git diff > <this repo>/ridge-3/firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch`.
+2. Build the image as `../firmware/README.md` describes and replace
+   `AM32_RIDGE3_F421_2.21.hex` with it.
+3. Replace both hash lines in `../firmware/README.md`, the patch's and the
+   image's (`sha256sum firmware/am32/*.patch firmware/am32/*.hex`):
+   `verify.py`, and so CI, fails on either.
+4. Update the texts that quote 11 timeouts or 248 ms: the README's
+   *Headroom*, `STATUS.md` (D3), `TEST_PLAN.md` (T7), `RELIABILITY.md`
+   (the crash and recommendation 5) and `../TESTS.md`'s crash rows (after
+   running `sim/crash.py` again).
+5. `sim/crash.py` already models it (`N_CUT_SHORT`); test T7 and T13 on
    hardware before it ships.
 
 ## C4. The FC's 3.3 V inductor (D5)

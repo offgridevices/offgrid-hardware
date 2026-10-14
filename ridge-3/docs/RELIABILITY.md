@@ -100,9 +100,10 @@ that, the FET's case taken as its drain copper with all its heat in it:
 - 0.26 V would protect the FET outright with the shorter cut, but it trips
   at 51-62 A on a hot FET, under the 64-68 A of a full-throttle punch (see
   below), and the VDS pin has no footprint for the resistor.
-- The funnel via under Q1AL peaks at 166 °C (cool) and 171 °C (hot, with
-  the trip): below the 288 °C where pads lift.  More vias there are not
-  needed for this.
+- The funnel via under Q1AL peaks at 109 °C (cool) and 171 °C (hot) with
+  the trip as built, below the 288 °C where pads lift; without the trip it
+  reaches 166 °C cool and passes 288 °C for 16 ms hot.  More vias there are
+  not needed with the trip.
 - The model leans hot: the copper gives heat only to the FR-4 against it,
   not to the planes of other nets or the heatsink, over 250 ms; and the
   jam is instant and stays on one FET.  A prop that breaks, a rotor that
@@ -209,14 +210,16 @@ In order.  None of them needs a part ordered today.
    resistor footprint left unfitted, a test pad on nFAULT, and SLx and
    VDRAIN routed as their own traces to the FETs.
 7. **Parts for volume.**  Keep the ISZ023N06LM6 (DigiKey only, 52-week
-   factory lead time) and buy a year ahead from authorised sources; do not
+   factory lead time: from the 2026-10-13 sourcing research; recheck
+   before ordering) and buy a year ahead from authorised sources; do not
    use the BSZ040N06LS5.  Buy ahead, with quantities, from authorised
    sources: the STM32G473 (ST quotes 52 weeks for the family), the
    AT32F421 (JLC/LCSC only), the DRV8320H (TI store), the IIM-42652, the
    LMR38020F, the bus capacitors and the shunts.  The FC's 3.3 V inductor
    (TDK TFM252012ALMAR47MTAA) is out at JLC: buy it at DigiKey, or use
-   Bourns SRP2512TMA-R47M (150 °C, same size); not a 125 °C part.  Keep
-   the TPS628501DRLR.
+   Bourns SRP2512TMA-R47M (150 °C, same size, from the same research and
+   not checked against its datasheet here); not a 125 °C part.  Keep the
+   TPS628501DRLR.
 8. **Rate it plainly** (open: [`STATUS.md`](STATUS.md), D8): 3S-6S LiPo
    and 6S LiHV; 50 °C air in flight (AM32 trims power in the hardest
    flying at that heat); the 5 V rail 1 A continuous on the ground (0.5 A

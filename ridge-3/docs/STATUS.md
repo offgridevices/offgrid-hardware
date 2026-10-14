@@ -3,17 +3,19 @@
 The board's progress record.  Whoever works on Ridge 3 next (the owner, an
 engineer, an AI agent) reads this first and keeps it current: tick what is
 done, record each decision with its date and who made it, and add a line to
-the log at the end.  The evidence behind each item is linked; the tests are
-in [`TEST_PLAN.md`](TEST_PLAN.md), and how to apply a decision to the design
-is in [`CHANGING.md`](CHANGING.md).
+the log at the end.  The evidence behind each item is linked; every test
+and simulation with this revision's result is in [`../TESTS.md`](../TESTS.md),
+the hardware tests' procedure in [`TEST_PLAN.md`](TEST_PLAN.md), and how to
+apply a decision to the design is in [`CHANGING.md`](CHANGING.md).
 
-## Where it stands (2026-10-13)
+## Where it stands (2026-10-14)
 
 | | State |
 |---|---|
 | Design | **Revision 2.0**, both boards.  KiCad DRC 0 errors / 0 warnings / 0 unconnected; the copper matches `src/circuit.py` pad for pad; `../VERIFICATION.md` checks the design against independent sources |
 | Simulation | Done: `../STRESS.md` (switching, battery line, stack lead, copper, heat at 25 / 50 / 60 °C), and [`RELIABILITY.md`](RELIABILITY.md) (variants, a crash, a punch), with every report it quotes committed in `../sim/results/` |
-| Fabrication files | Committed in `../fc/production/` and `../esc/production/`, single boards and 3 × 2 panels.  CI (the `ridge-3` job) rebuilds them from the committed board files on every push and fails if they differ |
+| Fabrication files | Committed in `../fc/production/` and `../esc/production/`, single boards and 3 × 2 panels.  CI (the `ridge-3` job) rebuilds them from the committed board files on every pull request into `main` and every push to `main`, and fails if they differ |
+| Test record | [`../TESTS.md`](../TESTS.md): every build gate, design check and simulation with revision 2.0's result and date; the hardware rows not run |
 | Prototypes | **Not ordered.**  No board has been built or measured |
 | Firmware | Betaflight image and AM32 target in `../firmware/`: built, never run on this hardware |
 | Certification | Not started |
@@ -33,9 +35,11 @@ it.  When one is made, fill in **Decided** and follow `CHANGING.md`.
   57.4 V of its 60 V at the low side, hotter in flight (AM32 cuts the hard
   flight for 19 % of it, against 10 %), rated 150 °C, and 258 °C in a hot
   crash ([`RELIABILITY.md`](RELIABILITY.md)).
-- **Candidates for a second source** (named in the 2026-10 research, stock
-  not rechecked): Vishay SiSS22LDN (same land, rated 150 °C, no SPICE model
-  published) and Infineon ISZ034N06LM5 (same land, 175 °C, little stock).
+- **Candidates for a second source** (from the 2026-10-13 sourcing
+  research; recheck before ordering): Vishay SiSS22LDN (same land, rated
+  150 °C, no SPICE model published) and Infineon ISZ034N06LM5 (same land,
+  175 °C, little stock).  Neither part's land or rating has been checked
+  against its maker's datasheet here.
   Either needs a simulation run (`CHANGING.md`, C2) and T5, T7 and T8 on
   real boards before it is used.
 - **Recommendation:** keep the ISZ023N06LM6.  Before volume, buy a year's
@@ -91,7 +95,9 @@ it.  When one is made, fill in **Decided** and follow `CHANGING.md`.
   SRP2512TMA-R47M (0.47 µH, 2.5 × 2.0 mm, 150 °C; DigiKey stock on
   2026-10-13; check the land and its LCSC number before using it).  Not
   the Murata DFE252012PD-R47M: a 125 °C part, and the FC's supplies run
-  hot.
+  hot.  The two alternatives' figures and stock are from the 2026-10-13
+  sourcing research, not checked against their makers' datasheets here;
+  recheck before ordering.
 - **Recommendation:** keep the TDK part if it can be bought; the Bourns
   part otherwise, after the land check (`CHANGING.md`, C4).
 - **Decided:** _not yet_
@@ -150,6 +156,25 @@ Open until T5, T6 and T7 are done.  Candidates, all from
   counts 6.
 - **Decided:** _not yet_
 
+### D9. Where the next revision lives (owner)
+
+- **Now:** both boards of revision 2.0 in one folder, `ridge-3/`, the
+  revision only in the code (`REVISION`) and on the silkscreen.  The
+  repository's rule ([`docs/versioning.md`](../../docs/versioning.md))
+  is a folder per revision, frozen once ordered;
+  [`docs/repo-structure.md`](../../docs/repo-structure.md) names
+  `ridge-3/` as an exception that predates it.
+- **Options:**
+  - a folder per revision as `docs/versioning.md` has it
+    (`ridge-3/v2/`, then the next beside it).  The CI job, the documents'
+    links and the commands name `ridge-3/` paths, so the move is a change
+    of its own;
+  - one folder, with a git tag per ordered revision: the ordered files stay
+    at their tag, and the folder moves on to the next revision.
+- **Until it is decided:** before an order is placed, tag the commit its
+  files come from (`CHANGING.md`, step 6).  Either option keeps that tag.
+- **Decided:** _not yet_
+
 ## Before ordering prototypes
 
 - [ ] Recheck stock and lead time of every part, dated, in a file in this
@@ -163,6 +188,8 @@ Open until T5, T6 and T7 are done.  Candidates, all from
 - [ ] Quote the heatsink (STEP and PDF in `../mechanical/`) at two CNC shops.
 - [ ] Gap pads, stack leads, grommets and hardware (README, *Also needed*).
 - [ ] The test equipment in `TEST_PLAN.md`.
+- [ ] Decide D9, and tag the commit the order's files come from
+      (`CHANGING.md`, step 6); record the tag in the log below.
 
 ## Prototype tests
 
@@ -232,3 +259,8 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
   ones, then runs `verify.py`; the datasheets `verify.py` reads listed in
   [`DATASHEETS.md`](DATASHEETS.md).  The battery rating opened as D8.
   Decisions D1-D8 open.  Nothing ordered.
+- **2026-10-14** Brought in line with the repository's docs
+  (`docs/versioning.md`, `docs/repo-structure.md`): [`../TESTS.md`](../TESTS.md)
+  written, every build gate, design check and simulation with revision
+  2.0's result, the hardware tests not run; where the next revision lives
+  opened as D9.  Decisions D1-D9 open.  Nothing ordered.
