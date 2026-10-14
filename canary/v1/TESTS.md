@@ -15,6 +15,7 @@ empty until a board is built.
 | Firmware pin map = circuit = routed board | `src/check_pins.py` | **11 pins, 0 mismatches** |
 | Gerbers rebuild byte-identical | `src/fab.py` twice, dates normalised | **identical** |
 | Gerbers read by an independent tool | gerbv 2.10 render of copper, silk, outline, drills | renders correctly |
+| **GitHub Actions CI** (job `canary-v1`) | [run 38516417432](https://github.com/offgridevices/offgrid-hardware/actions/runs/38516417432), commit 8b23f34 | **success** — all gates, HIL 56/56, port 0 mismatches |
 | Whole CI script in the pinned CI image | `tools/ci.sh` in `kicad/kicad:10.0.6@sha256:1869…` (Debian's own avr-gcc) | **all gates pass, HIL 56/56, 6.4 min** |
 | Firmware builds warning-free | `avr-gcc -Wall -Wextra -Werror` | **8.5 KB flash (26 %), 285 B RAM** |
 
