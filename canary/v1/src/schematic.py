@@ -174,14 +174,15 @@ def build():
     for p in circuit.PARTS:
         s.part(p)
     for i, net in enumerate(circuit.PWR_FLAGS):
-        s.pwr_flag(net, snap(330 + 12 * i), snap(30))
-    s.text('POWER — USB-C 5 V in, TVS, 3.3 V LDO', 20, 25)
-    s.text('MCU — ATmega328P, internal 8 MHz', 100, 70)
-    s.text('SENSORS — VOC (SGP40), CO2 (SCD41), RH/T (SHT40)', 215, 25)
-    s.text('TEMPERATURE — on-board tab NTC + optional probe', 60, 150)
-    s.text('ALARM — 4 kHz 100 dB sounder, low-side switch', 15, 95)
-    s.text('INDICATION & TEST/HUSH', 170, 145)
-    s.text('PROGRAMMING (Tag-Connect TC2030) & TEST PADS', 180, 70, 1.8)
+        s.pwr_flag(net, snap(372 + 12 * i), snap(205))
+    s.text('POWER — USB-C 5 V in, TVS, 3.3 V LDO', 18, 28)
+    s.text('ALARM — 4 kHz 100 dB sounder, low-side switch', 15, 90)
+    s.text('MCU — ATmega328P, internal 8 MHz', 132, 88)
+    s.text('SENSORS — VOC (SGP40), RH/T (SHT40), CO2 (SCD41)', 232, 28)
+    s.text('TEMPERATURE — thermal-tab NTC + optional probe', 15, 178)
+    s.text('INDICATION & TEST/HUSH', 122, 205)
+    s.text('PROGRAMMING (Tag-Connect TC2030) & TEST PADS', 215, 172, 1.8)
+    s.text('MECHANICAL', 336, 198, 1.8)
     fix_footprint_props(s)
     s.write(os.path.join(ROOT, PROJECT + '.kicad_sch'))
 
