@@ -47,6 +47,37 @@ def hand_routes(b):
     return
 
 
+def gate_side_vias(b):
+    """The controller's SRC and GATE pins sit side by side above Q1's gate
+    pad, with the source copper beyond it: SRC drops through a via just under
+    its pin and comes up inside the source copper (In2); GATE gets a via on
+    its own short drop to Q1, so Q2's gate (at the far corner) can be reached
+    on an inner layer."""
+    import finish
+    u13, u14, q14 = pad_xy(b, 'U1', '13'), pad_xy(b, 'U1', '14'), pad_xy(b, 'Q1', '4')
+    vy = (u13[1] + 0.72 + q14[1] - 0.3) / 2              # midway between U1's pad ends and Q1's gate pad
+    sv = (u13[0] - 0.2, vy)
+    B.track(b, [u13, sv], 0.15, pcbnew.F_Cu, 'SRC')
+    B.via(b, *sv, 'SRC', d=0.45, drill=0.2)
+    sv2 = (q14[0] + 1.07, q14[1] - 0.3)                  # inside the source copper, east of Q1's gate
+    B.track(b, [sv, sv2], 0.15, pcbnew.In2_Cu, 'SRC')
+    B.via(b, *sv2, 'SRC', d=0.45, drill=0.2)
+    B.via(b, u14[0], vy, 'GATE', d=0.45, drill=0.2)
+    if not any(t.GetNetname() == 'GATE' and t.GetClass() == 'PCB_TRACK' and t.GetLayer() == pcbnew.F_Cu
+               and abs(pcbnew.ToMM(t.GetStart().x) - B.OX - u14[0]) < 0.05 for t in b.GetTracks()):
+        B.track(b, [u14, (u14[0], vy), q14], 0.2, pcbnew.F_Cu, 'GATE')
+
+
+def stitch_ok(x, y):
+    """Stitching stays out of the art's fields and the screw keep-outs."""
+    from shapely.geometry import Point, Polygon
+    import math
+    P = Point(x, y)
+    if any(Polygon(poly).buffer(0.4).contains(P) for name, poly in make.ART_FIELDS):
+        return False
+    return all(math.hypot(x - hx, y - hy) > 4.4 for hx, hy in B.HOLES)
+
+
 _VIN = None
 
 
@@ -131,7 +162,7 @@ def stitch(b, pitch=3.0, margin=0.45):
         x = 2.0
         while x < B.W - 2:
             P = Point(B.OX + x, B.OY + y)
-            if all(f.contains(P) for f in fills.values()) and all(
+            if stitch_ok(x, y) and all(f.contains(P) for f in fills.values()) and all(
                     (hx - P.x) ** 2 + (hy - P.y) ** 2 > 1.2 ** 2 for hx, hy in holes):
                 B.via(b, x, y, 'GND', d=0.5, drill=0.25)
                 holes.append((P.x, P.y))
@@ -203,7 +234,22 @@ def tail(b):
     seal(b)
 
 
-if __name__ == '__main__' and sys.argv[1] == '--tail':
+if __name__ == '__main__' and sys.argv[1] == '--fix':
+    # a routed, finished board (before the fills): the gate-side vias, the
+    # exact-pair finishing again, then the tail
+    import finish, finish_run
+    b = pcbnew.LoadBoard(sys.argv[2])
+    gate_side_vias(b)
+    finish.ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
+    finish.VIA_D, finish.VIA_DRILL, finish.RES = 0.45, 0.2, 0.025
+    tmp = os.path.join(B.HERE, 'out', 'prefill.kicad_pcb')
+    b.Save(tmp)
+    finish_run.copy_project(make.OUT, tmp)
+    w, c = finish_run.rules()
+    left = finish.finish_board(tmp, tmp, os.path.join(B.HERE, 'out', 'finish-final.json'), rules=w, clmap=c)
+    print('exact-pair finishing left', left, flush=True)
+    tail(pcbnew.LoadBoard(tmp))
+elif __name__ == '__main__' and sys.argv[1] == '--tail':
     # resume after the exact-pair finishing (out/prefill.kicad_pcb holds it)
     tail(pcbnew.LoadBoard(os.path.join(B.HERE, 'out', 'prefill.kicad_pcb')))
 elif __name__ == '__main__':
@@ -228,6 +274,7 @@ elif __name__ == '__main__':
     finish.VIA_D, finish.VIA_DRILL, finish.RES = 0.45, 0.2, 0.025
     import gate_side
     gate_side.reroute(b)
+    gate_side_vias(b)
     tmp = os.path.join(B.HERE, 'out', 'prefill.kicad_pcb')
     b.Save(tmp)
     finish_run.copy_project(make.OUT, tmp)

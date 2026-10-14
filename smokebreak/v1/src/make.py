@@ -274,7 +274,8 @@ def art_items():
         return W - x
 
     bottom = [
-        dict(kind='lockup', x=W / 2, y=B.H / 2, width=LOCKUP_W, layer=Bs, fixed=True),
+        # centred left to right; up from the middle by 1.2 mm so it clears the 6S socket's top pin
+        dict(kind='lockup', x=W / 2, y=B.H / 2 - 1.2, width=19.0, layer=Bs, fixed=True),
         t('SmokeBreak', W / 2, 5.3, 2.0, Bs, weight=600),
         t('v1.0', W / 2, 7.55, 0.8, Bs, font='mono'),
         dict(kind='flag', x=v(75.0), y=46.2, hoist=5.26, layer=Bs, fixed=True),     # under the rocker, level with the screws
