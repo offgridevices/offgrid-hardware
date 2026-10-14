@@ -106,7 +106,7 @@ def main():
     say('\n== Pass-through parts: real 3D bodies (lib/*.wrl) vs top shell; gap = smallest distance, <0 = overlap')
     for f, what in (('xt_J1.stl', 'XT60 (J1)'), ('xt_J2.stl', 'XT30 (J2)'), ('usb_J8.stl', 'USB-C (J8)')):
         m = load(os.path.join(ctx, f))
-        g = surface_gap(m, top, 150000)
+        g = surface_gap(m, top, 40000)
         say(f'  {what:11s} min gap to the shell {g:+.3f} mm')
     tog = load(os.path.join(ctx, 'toggle.stl'))
     say(f'  SW1 bushing + lever vs shell: overlap {ivol(tog, top):.4f} mm^3, min gap {surface_gap(tog, top):+.3f} mm '
@@ -121,22 +121,24 @@ def main():
     say(f'  overlap {ivol(disp, top):.4f} mm^3')
     mx, my, mw, mh = G.MODULE
     z0, z1 = G.MODULE_Z, G.MODULE_Z + G.MODULE_T
-    for nm, (a, b2) in {'left (-x)': ((mx - 0.6, my + 3, z0 + 0.5), (mx, my + mh - 3, z1 - 0.3)),
-                        'back (-y)': ((mx + 3, my - 0.6, z0 + 0.5), (mx + mw - 3, my, z1 - 0.3)),
-                        'front (+y)': ((mx + 3, my + mh, z0 + 0.5), (mx + 18, my + mh + 0.6, z1 - 0.3)),
-                        'right (+x, outside the FPC slot)': ((mx + mw, my + 0.3, z0 + 0.5), (mx + mw + 0.6, my + 3, z1 - 0.3))}.items():
-        probe = boxm(*a, *b2)
-        # walk the probe outward until it touches the shell
-        step, gap = 0.01, None
-        for i in range(0, 61):
-            d = i * step
-            sh = np.array({'left (-x)': (-d, 0, 0), 'back (-y)': (0, -d, 0), 'front (+y)': (0, d, 0)}.get(nm, (d, 0, 0)))
-            pr = probe.copy()
-            pr.apply_translation(sh)
-            if ivol(pr, top) > 1e-4:
-                gap = d
-                break
-        say(f'  {nm:34s} clearance ~{gap if gap is not None else ">0.6"} mm')
+    probes = {'left (-x)': (0, -1), 'right (+x, beside the FPC slot)': (0, 1), 'back (-y)': (1, -1), 'front (+y)': (1, 1)}
+    for nm, (axis, sgn) in probes.items():
+        n = 400
+        t = np.linspace(0.02, 0.98, n)
+        zz = np.linspace(z0 + 0.02, z1 - 0.4, 6)
+        pts = []
+        for z in zz:
+            for u in t:
+                if axis == 0:
+                    pts.append((mx if sgn < 0 else mx + mw, my + u * mh, z))
+                else:
+                    pts.append((mx + u * mw, my if sgn < 0 else my + mh, z))
+        pts = np.array(pts)
+        if nm.startswith('right'):
+            fy = my + mh / 2
+            pts = pts[np.abs(pts[:, 1] - fy) > E.FPC_SLOT_W / 2 + 0.1]
+        d = trimesh.proximity.closest_point(top, pts)[1]
+        say(f'  {nm:34s} clearance {d.min():.3f} mm')
     say(f'  top: the module face bears on the window lip at z {G.PANEL_UNDER_Z} (contact by design)')
     say(f'  under-screen rule (parts under the module <= {G.UNDER_SCREEN_MAX:.2f} mm):')
     worst = []
@@ -176,6 +178,13 @@ def main():
     else:
         say('  opening sweep: no contact with the shell 0..180 deg')
     say(f'  free to {free} deg')
+    lever = trimesh.creation.cylinder(radius=1.6, segment=[[tx, ty, bush_top], [tx, ty, z_tip]])
+    worst = 0.0
+    for deg in range(0, free + 1, 5):
+        g = guard.copy()
+        g.apply_transform(rotation_matrix(math.radians(deg), [1, 0, 0], [0, E.HINGE_Y, E.HINGE_Z]))
+        worst = max(worst, ivol(g, lever))
+    say(f'  opening sweep 0..{free} deg vs the upright lever: worst overlap {worst:.4f} mm^3')
     mag_y = G.M + G.GUARD_L - 0.6 - E.MAGNET_POCKET[0] / 2
     u6 = P['U6']
     say(f'  magnet centre (x {tx:.1f}, y {mag_y:.2f}, bottom z {G.CASE_H}) vs U6 ({u6["cx"]:.1f}, {u6["cy"]:.2f}, top z '
@@ -191,7 +200,7 @@ def main():
         dx = abs(p['cx'] - G.TOG[0])
         need = math.degrees(math.atan((E.NUB_GAP + 0.15) / dx))
         r = rocker.copy()
-        r.apply_transform(rotation_matrix(math.radians(side * -need * 1.3), [0, 1, 0], [G.TOG[0], 0, E.ROCK_PIN_Z]))
+        r.apply_transform(rotation_matrix(math.radians(side * need * 1.3), [0, 1, 0], [G.TOG[0], 0, E.ROCK_PIN_Z]))
         sw = boxm(p['courtyard'][0], p['courtyard'][1], G.PCB_TOP_Z, p['courtyard'][2], p['courtyard'][3], sw_top)
         say(f'  {ref} (dx {dx:.1f}): {need:.2f} deg tilt presses it; at 1.3x that tilt: overlap with shell '
             f'{ivol(r, top):.4f} mm^3, nub reaches {ivol(r, sw):.3f} mm^3 into the switch box (actuation)')
@@ -200,8 +209,13 @@ def main():
     say('\n== Drone leads (12 AWG Ø{} / 16 AWG Ø{})'.format(E.WIRE_D['J3'], E.WIRE_D['J4']))
     wires = load(os.path.join(ctx, 'wires.stl'))
     inside = boxm(-1, -1, -1, G.CASE_W - G.WALL - 0.2, G.CASE_D + 1, 20)
-    w_in = trimesh.boolean.intersection([wires, inside], engine='manifold')
-    say(f'  inside the case: overlap with shell {ivol(w_in, top):.4f}, with floor {ivol(w_in, floor):.4f} mm^3')
+    vt = vf = 0.0
+    for piece in wires.split(only_watertight=True):
+        w_in = trimesh.boolean.intersection([piece, inside], engine='manifold')
+        if not w_in.is_empty:
+            vt += ivol(w_in, top)
+            vf += ivol(w_in, floor)
+    say(f'  inside the case: overlap with shell {vt:.4f}, with floor {vf:.4f} mm^3')
     say(f'  in the end wall: crown clearance +{E.WIRE_CROWN_CLR} mm radial, floor-tab saddles squeeze '
         f'{E.WIRE_SQUEEZE} mm on the diameter')
 
@@ -217,11 +231,14 @@ def main():
     import shapely.ops as so
     for txt, x in E.text_labels():
         pgs = so.unary_union(E.glyph_polygons(txt, E.TEXT_CAP))
-        opened = pgs.buffer(-0.2, join_style=2).buffer(0.2, join_style=2)
-        lost = 1 - opened.area / pgs.area
-        thin = pgs.difference(opened.buffer(0.01))
-        say(f'  {txt:5s} at x {x:5.1f}: cap {E.TEXT_CAP} mm, area lost to a 0.4 mm opening {100 * lost:.1f}% '
-            f'(largest thin sliver {max([g.area for g in getattr(thin, "geoms", [thin])] + [0]):.3f} mm^2)')
+        parts_n = len(getattr(pgs, 'geoms', [pgs]))
+        lo, hi = 0.0, 1.0                              # thinnest stroke: smallest erosion that splits or drops a glyph
+        for _ in range(20):
+            mid = (lo + hi) / 2
+            er = pgs.buffer(-mid, join_style=1)
+            n = 0 if er.is_empty else len(getattr(er, 'geoms', [er]))
+            lo, hi = (mid, hi) if n == parts_n else (lo, mid)
+        say(f'  {txt:5s} at x {x:5.1f}: cap {E.TEXT_CAP} mm, thinnest stroke {2 * lo:.2f} mm, depth {E.TEXT_DEPTH} mm')
     say(f'  top shell vs text inlay overlap {ivol(top, parts["text_inlay"]):.4f} mm^3; vs ring inlay '
         f'{ivol(top, parts["ring_inlay"]):.4f} mm^3')
 

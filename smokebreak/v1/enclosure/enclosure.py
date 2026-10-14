@@ -116,6 +116,7 @@ LEAD_NOTCH_Y = (17.0, 44.5)
 # text
 TEXT_CAP = 2.5
 TEXT_DEPTH = 0.6
+TEXT_EMBOLDEN = 0.05          # outline offset: lifts the thinnest strokes (the 5's and S's tapers) over 0.4 mm
 
 # component heights above the PCB (box check), by footprint name
 def part_height(fp):
@@ -363,6 +364,12 @@ def build(P):
     # rocker opening; the H2 boss steps down under it
     rx, ry, rw, rh = G.ROCK
     cuts.append(g2_prism(rx, ry, rw, rh, 2.5, H2_BOSS_TOP_UNDER_ROCKER, G.CASE_H + 1, grow=ROCK_CLR))
+    # under the opening the H2 boss top slopes down at 45 deg away from the opening edge (prints face-down without support)
+    def rect_w(g, z):
+        pts = [V(rx - g, ry - g, z), V(rx + rw + g, ry - g, z), V(rx + rw + g, ry + rh + g, z), V(rx - g, ry + rh + g, z)]
+        return cq.Wire.makePolygon(pts + [pts[0]])
+    cuts.append(cq.Solid.makeLoft([rect_w(ROCK_CLR - 3.5, H2_BOSS_TOP_UNDER_ROCKER - 3.5),
+                                   rect_w(ROCK_CLR, H2_BOSS_TOP_UNDER_ROCKER + 0.01)], True))
     cuts.append(cyl_y(G.TOG[0], ROCK_PIN_Z, PIN_PRESS_D / 2, ROCK_CRADLE_Y[0][0] - 0.5, ROCK_CRADLE_Y[1][1]))
     # guard hinge bay (open to the back) and the pin bore (blind left, open at the drone end)
     cuts.append(box(BAY_X[0], -1, BAY_FLOOR_Z, BAY_X[1], BAY_Y1, G.CASE_H + 1))
@@ -382,18 +389,18 @@ def build(P):
     cuts.append(poly_prism_x(prof, -1.0, G.WALL + 0.6))
     prof, _ = plug_profile(j2, 'CONN-TH_XT30PW-M.wrl', [0.05, 0.6, 1.2, 1.8, 2.35], CLR + 0.4)
     cuts.append(poly_prism_x(prof, -1.0, 1.1))       # counterbore for the female's shoulder (its mouth sits 1 mm in)
-    # back wall: USB-C (stadium 9.2 x 3.4, centre z PCB+1.6) with an outside counterbore for the plug overmold
+    # back wall: USB-C (9.2 x 3.4, r 1.0 corners, centre z PCB+1.63) with an outside counterbore for the plug overmold
     j8 = P['J8']
     uz = G.PCB_TOP_Z + 1.63
-    cuts.append(stadium_y(j8['cx'], uz, 9.2, 3.4, -1, G.WALL + 0.5))
-    cuts.append(stadium_y(j8['cx'], uz, 12.4, 6.4, -1, 1.4))
+    cuts.append(rrect_y(j8['cx'], uz, 9.2, 3.4, 1.0, -1, G.WALL + 0.5))
+    cuts.append(rrect_y(j8['cx'], uz, 12.4, 6.4, 2.0, -1, 1.4))
     # drone end: one notch for the four leads (the floor's tab closes it from below), crowns over each wire
     cuts.append(box(G.CASE_W - G.WALL - 0.1, LEAD_NOTCH_Y[0], -1, G.CASE_W + 1, LEAD_NOTCH_Y[1], WIRE_Z))
     for ref in ('J3', 'J4'):
         for (_, _, py, _, _, _) in P[ref]['tht']:
             cuts.append(cyl_x(py, WIRE_Z, WIRE_D[ref] / 2 + WIRE_CROWN_CLR, G.CASE_W - G.WALL - 0.5, G.CASE_W + 1))
     # back finger lip: the back wall stops FINGER_NOTCH_Z above the desk plane along the straight back edge
-    cuts.append(box(G.CASE_R, -1, -1, G.CASE_W - G.CASE_R, G.WALL + 0.05, FINGER_NOTCH_Z))
+    cuts.append(box(G.CASE_R + 1, -1, -1, G.CASE_W - G.CASE_R - 1, G.WALL + 0.05, FINGER_NOTCH_Z))
     # floor hook groove in the battery-end wall
     cuts.append(box(1.6, HOOK_Y[0] - 0.5, 1.5, G.WALL + 0.1, HOOK_Y[1] + 0.5, 2.5))
     # component clearance (everything not designed to pass through)
@@ -425,11 +432,12 @@ def build(P):
     return S
 
 
-def stadium_y(cx, cz, w, h, y0, y1):
-    """A slot w (x) by h (z) with round ends, along y."""
-    r = h / 2
-    body = box(cx - w / 2 + r, y0, cz - r, cx + w / 2 - r, y1, cz + r)
-    return body.fuse(cyl_y(cx - w / 2 + r, cz, r, y0, y1), cyl_y(cx + w / 2 - r, cz, r, y0, y1)).clean()
+def rrect_y(cx, cz, w, h, r, y0, y1):
+    """A w (x) by h (z) rectangle with corner radius r, along y."""
+    a = box(cx - w / 2 + r, y0, cz - h / 2, cx + w / 2 - r, y1, cz + h / 2)
+    b = box(cx - w / 2, y0, cz - h / 2 + r, cx + w / 2, y1, cz + h / 2 - r)
+    cs = [cyl_y(cx + sx * (w / 2 - r), cz + sz * (h / 2 - r), r, y0, y1) for sx in (-1, 1) for sz in (-1, 1)]
+    return a.fuse(b, *cs).clean()
 
 
 def ring_solid(cx, cy, z0, z1):
@@ -454,11 +462,7 @@ def bold_font():
     from fontTools.varLib import instancer
     f = TTFont(FONT_VAR)
     axes = {a.axisTag: (a.minValue, a.maxValue) for a in f['fvar'].axes}
-    loc = {'wght': min(700, axes['wght'][1])}
-    for tag, (lo, hi) in axes.items():
-        if tag != 'wght':
-            loc[tag] = None
-    inst = instancer.instantiateVariableFont(f, {'wght': loc['wght']}, overlap=instancer.OverlapMode.REMOVE)
+    inst = instancer.instantiateVariableFont(f, {'wght': min(700, axes['wght'][1])}, overlap=instancer.OverlapMode.REMOVE)
     d = tempfile.mkdtemp(prefix='sbfont')
     path = os.path.join(d, 'InstrumentSans-Bold.ttf')
     inst.save(path)
@@ -467,12 +471,8 @@ def bold_font():
     return _FONT
 
 
-TEXT_LABELS = None
-
-
 def text_labels():
-    labels = [(f'{k + 2}S', G.SOCKET_X[k]) for k in range(5)] + [('LIMIT', G.TOG[0])]
-    return labels
+    return [(f'{k + 2}S', G.SOCKET_X[k]) for k in range(5)] + [('LIMIT', G.TOG[0])]
 
 
 def glyph_polygons(txt, cap_h):
@@ -485,7 +485,7 @@ def glyph_polygons(txt, cap_h):
     path, cap = bold_font()
     font = TTFont(path)
     upm = font['head'].unitsPerEm
-    k = cap_h / (cap * upm)
+    k = (cap_h - 2 * TEXT_EMBOLDEN) / (cap * upm)
     gs = font.getGlyphSet()
     cmap = font.getBestCmap()
 
@@ -526,17 +526,17 @@ def glyph_polygons(txt, cap_h):
         gname = cmap[ord(ch)]
         pen = Flat(gs)
         gs[gname].draw(pen)
-        geo = None
+        fill, holes = [], []
         for c in pen.contours:
-            pg = sg.Polygon([((px + x) * k, py * k) for px, py in c]).buffer(0)
-            geo = pg if geo is None else geo.symmetric_difference(pg)
-        if geo is not None:
-            shapes.append(geo)
+            ring = sg.LinearRing([((px + x) * k, py * k) for px, py in c])
+            (holes if ring.is_ccw else fill).append(sg.Polygon(ring).buffer(0))    # TrueType: outer contours run clockwise
+        if fill:
+            shapes.append(so.unary_union(fill).difference(so.unary_union(holes)) if holes else so.unary_union(fill))
         x += font['hmtx'][gname][0]
     geo = so.unary_union(shapes)
     minx, miny, maxx, maxy = geo.bounds
     from shapely import affinity
-    geo = affinity.translate(geo, -(minx + maxx) / 2, 0).simplify(0.005)
+    geo = affinity.translate(geo, -(minx + maxx) / 2, TEXT_EMBOLDEN).buffer(TEXT_EMBOLDEN, resolution=8).simplify(0.005)
     return list(geo.geoms) if geo.geom_type == 'MultiPolygon' else [geo]
 
 
@@ -564,7 +564,7 @@ def floor_solid(P, holes):
     for hx, hy in holes:
         adds.append(cyl_z(hx, hy, STANDOFF_R, G.FLOOR - 0.01, Z_PCB_BOT))
     # back lip rim (the finger lip's inner face)
-    adds.append(box(G.CASE_R, G.WALL + FLOOR_CLR, G.FLOOR - 0.01, G.CASE_W - G.CASE_R, G.WALL + FLOOR_CLR + 0.6,
+    adds.append(box(G.CASE_R + 1, G.WALL + FLOOR_CLR, G.FLOOR - 0.01, G.CASE_W - G.CASE_R - 1, G.WALL + FLOOR_CLR + 0.6,
                     FINGER_NOTCH_Z))
     # hook: lip + tongue into the battery-end wall groove
     adds.append(box(G.WALL + FLOOR_CLR, HOOK_Y[0], G.FLOOR - 0.01, G.WALL + FLOOR_CLR + 0.8, HOOK_Y[1], 2.4))
@@ -610,6 +610,7 @@ def floor_solid(P, holes):
 
 
 def bumpon_xy(holes):
+    # near the corners, clear of the screw heads (the right corners are taken by H1/H2)
     return [(9.5, 9.5), (9.5, G.CASE_D - 9.5), (80.5, 9.5), (80.5, G.CASE_D - 9.5)]
 
 

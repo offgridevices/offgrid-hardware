@@ -3,8 +3,9 @@
     /root/bpyenv/bin/python render.py
 
 -> out/preview_iso.png (assembly, guard closed), out/preview_open.png (guard open, iso from the back),
+   out/preview_battery_end.png (XT60/XT30 through the end wall, USB-C),
    out/preview_top.png (the face), out/preview_top_underside.png (the top shell from below),
-   out/preview_floor.png (the floor, inside up), out/preview_section.png (cut through the switch).
+   out/preview_floor.png (the floor, inside up).
 Files are in the export frame: x toward the drone end, Y toward the back, z up.
 """
 import math
@@ -123,8 +124,12 @@ def main():
     render(sc, 'preview_iso.png')
 
     sc = scene_assembly(105.0)
-    light_and_camera(sc, (48 + 90, 28 + 130, 110), (48, 30, 12), lens=60)
+    light_and_camera(sc, (165, -75, 120), (66, 34, 14), lens=55)
     render(sc, 'preview_open.png')
+
+    sc = scene_assembly(0.0)
+    light_and_camera(sc, (-85, -60, 70), (20, 28, 7), lens=70)
+    render(sc, 'preview_battery_end.png')
 
     sc = scene_assembly(0.0, with_ctx=False)
     light_and_camera(sc, (48.5, 28, 200), (48.5, 28, 0), ortho=108)

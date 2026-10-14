@@ -70,12 +70,12 @@ for i in range(12):
     fix(f'LED{i + 1}', TOG[0] + RING_R * math.cos(a), TOG[1] + RING_R * math.sin(a), -90 * round((i + 7) / 3))
 fix('U6', TOG[0], B(0, G.M + G.GUARD_L)[1] - 0.7, 0)    # hall switch under the guard tip's magnet
 SW_Y = B(0, G.ROCK_SW_FY)[1] - 0.6
-fix('SW2', TOG[0] - 7.5, SW_Y, 0)                        # Limit -
-fix('SW3', TOG[0] + 7.5, SW_Y, 0)                        # Limit +
+fix('SW2', TOG[0] - G.ROCK_SW_DX, SW_Y, 0)                        # Limit -
+fix('SW3', TOG[0] + G.ROCK_SW_DX, SW_Y, 0)                        # Limit +
 fix('BZ1', TOG[0], SW_Y + 2.2, 0)                        # beeper under the paddle, between its switches
 fix('J3', *G.J3_AT, 0)                                   # XT60 lead pads
 fix('J4', *G.J4_AT, 0)                                   # XT30 lead pads
-fix('J8', 62.1, 4.3, 180)                                # USB-C through the back wall
+fix('J8', B(G.USB_FX, 0)[0], 4.3, 180)                                # USB-C through the back wall
 fix('J7', 51.9, 10.5, 90)                                # display FPC, opening toward the module's FPC end
 fix('U5', 18.6, 12.9, 90)                                # MCU under the screen
 fix('R_PRE', 31.2, 8.69, 90)                             # pre-charge resistors, flat, under the screen

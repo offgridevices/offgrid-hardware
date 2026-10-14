@@ -168,6 +168,24 @@ def power_copper(b):
         v.SetLocked(True)
 
 
+def balance_buses(b):
+    """Pin k of every balance socket is tap k, and every socket has its pin 1
+    on one line: so tap k is one straight track along its pin row on B.Cu,
+    socket to socket, before the router sees the board."""
+    rows = {}
+    for ref, _ in place.SOCKETS:
+        for p in b.FindFootprintByReference(ref).Pads():
+            q = p.GetPosition()
+            rows.setdefault(p.GetNetname(), []).append((pcbnew.ToMM(q.x) - B.OX, pcbnew.ToMM(q.y) - B.OY))
+    n = 0
+    for net, pts in rows.items():
+        if len(pts) > 1:
+            pts.sort()
+            B.track(b, [pts[0], pts[-1]], 0.4, pcbnew.B_Cu, net)
+            n += 1
+    return n
+
+
 def screw_keepouts(b):
     """No track or via under an M3 washer or a printed boss: an 8 mm circle
     round each hole, every copper layer (pours may fill it; the plated ring
@@ -382,6 +400,7 @@ def build():
     B.netclass(b, 'Pulse', PULSE_NETS, 0.8, B.HV_CLEAR)                  # pre-charge: 7.8 A for ~0.1 s
     power_copper(b)
     moved = legalise(fps, b)
+    print('  balance buses', balance_buses(b))
     screw_keepouts(b)
     art_fields(b)
     import fanout

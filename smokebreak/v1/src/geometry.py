@@ -67,7 +67,7 @@ WELL_FLOOR_Z = PCB_TOP_Z + XH_H                # the floor plate sits on the soc
 SOCKET_X = [WELL_CX + XH_PITCH * k for k in (-2, -1, 0, 1, 2)]   # 2S .. 6S (case x)
 
 # ---------------------------------------------------------------- switch, ring, guard, rocker
-GUARD_W, GUARD_L, GUARD_H = 24.0, 30.0, 13.5
+GUARD_W, GUARD_L, GUARD_H = 24.0, 30.0, 17.9   # tall enough for the C&K 7107's lever (tip 26 mm over the PCB)
 GUARD_X0 = CASE_W - M - GUARD_W
 TOG = (GUARD_X0 + GUARD_W / 2, M + 12.0)       # switch centre (case)
 RING_R = 9.5                                   # status LEDs on this radius
@@ -77,7 +77,7 @@ TOG_SHOULDER = 8.89                            # PCB to shoulder (C&K 7000 serie
 ROCK_W, ROCK_H = 24.0, 8.0
 ROCK_Y0 = CASE_D - M - ROCK_H                  # its front edge M from the front
 ROCK = (TOG[0] - ROCK_W / 2, ROCK_Y0, ROCK_W, ROCK_H)
-ROCK_SW_DX = 6.5                               # its two switches, either side of the centre
+ROCK_SW_DX = 7.5                               # its two switches, either side of the centre
 ROCK_SW_FY = ROCK_Y0 + 2.7
 
 # ---------------------------------------------------------------- plugs: XT60, XT30 male through the battery end
@@ -85,7 +85,7 @@ ROCK_SW_FY = ROCK_Y0 + 2.7
 PLUG_PROUD = 2.47
 J1_AT = (-BOARD_AT - PLUG_PROUD + 13.17, 27.4)     # board coords of the XT60 footprint origin
 J2_AT = (6.3, 43.0)                              # XT30, rotated 270: its pegs must stay on the board, so its mouth sits 0.9 inside the wall
-USB_FX = 30.0                                      # USB-C in the back wall (case x)
+USB_FX = 64.8                                      # USB-C in the back wall (case x): beside the screen's FPC end
 
 # ---------------------------------------------------------------- drone leads, out of the drone end
 J3_AT = (88.4, 24.5)          # XT60 lead, 12 AWG pads (board)
