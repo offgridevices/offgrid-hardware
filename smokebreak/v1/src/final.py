@@ -57,10 +57,10 @@ def gate_side_vias(b):
     u13, u14, q14 = pad_xy(b, 'U1', '13'), pad_xy(b, 'U1', '14'), pad_xy(b, 'Q1', '4')
     vy = (u13[1] + 0.72 + q14[1] - 0.3) / 2              # midway between U1's pad ends and Q1's gate pad
     sv = (u13[0] - 0.2, vy)
-    B.track(b, [u13, sv], 0.15, pcbnew.F_Cu, 'SRC')
+    B.track(b, [u13, (u13[0], u13[1] + 1.0), sv], 0.15, pcbnew.F_Cu, 'SRC')    # straight down past BST's pad
     B.via(b, *sv, 'SRC', d=0.45, drill=0.2)
     sv2 = (q14[0] + 1.07, q14[1] - 0.3)                  # inside the source copper, east of Q1's gate
-    B.track(b, [sv, sv2], 0.15, pcbnew.In2_Cu, 'SRC')
+    B.track(b, [sv, (sv[0] + 0.3, sv[1] + 0.7), sv2], 0.15, pcbnew.In2_Cu, 'SRC')   # under GATE's via
     B.via(b, *sv2, 'SRC', d=0.45, drill=0.2)
     B.via(b, u14[0], vy, 'GATE', d=0.45, drill=0.2)
     if not any(t.GetNetname() == 'GATE' and t.GetClass() == 'PCB_TRACK' and t.GetLayer() == pcbnew.F_Cu
@@ -275,7 +275,6 @@ elif __name__ == '__main__':
     finish.VIA_D, finish.VIA_DRILL, finish.RES = 0.45, 0.2, 0.025
     import gate_side
     gate_side.reroute(b)
-    gate_side_vias(b)
     tmp = os.path.join(B.HERE, 'out', 'prefill.kicad_pcb')
     b.Save(tmp)
     finish_run.copy_project(make.OUT, tmp)

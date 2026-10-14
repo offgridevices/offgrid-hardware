@@ -402,6 +402,11 @@ def build():
     power_copper(b)
     moved = legalise(fps, b)
     print('  balance buses', balance_buses(b))
+    import final
+    final.gate_side_vias(b)
+    j7 = final.pad_xy(b, 'J7', '2')                       # the display's ground pin, between signal pins
+    B.track(b, [j7, (j7[0] - 1.2, j7[1])], 0.15, pcbnew.F_Cu, 'GND')
+    B.via(b, j7[0] - 1.2, j7[1], 'GND', d=0.45, drill=0.2)
     screw_keepouts(b)
     art_fields(b)
     import fanout

@@ -13,7 +13,7 @@ def reroute(b):
     x0, y0, x1, y1 = 46.0 + B.OX, 17.0 + B.OY, 66.0 + B.OX, 33.0 + B.OY      # the controller and the FETs
     n = 0
     for t in list(b.GetTracks()):
-        if t.GetNetname() in NETS:
+        if t.GetNetname() in NETS and not t.IsLocked():
             bb = t.GetBoundingBox()
             if pcbnew.ToMM(bb.GetRight()) > x0 and pcbnew.ToMM(bb.GetLeft()) < x1 and \
                pcbnew.ToMM(bb.GetBottom()) > y0 and pcbnew.ToMM(bb.GetTop()) < y1:
