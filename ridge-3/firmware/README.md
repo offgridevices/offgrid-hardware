@@ -17,8 +17,23 @@ committed.  None of it has run on this hardware yet: see "Bring-up" in
 5265b0c388e604d380f7bb1b00cc2a2d96f47b65393e38532cca0b72dd8d3b6e  betaflight/patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch
 c6ce4d235f18b0c3d6067ac1ec4c57ee7616ece91efe47e8495c0704731161df  am32/AM32_F421_BOOTLOADER_PB4_V19.hex
 c26d092cd1d2306588e06c9459935c29134ed220c506dc296f5a34a049f7ea29  am32/AM32_RIDGE3_F421_2.21.hex
-1754f3f435e393a7b01303af7ca2e8dd01337782151e0a6832d8794414640c71  am32/AM32_2738df3_RIDGE3_F421_target.patch
+000216e001ae13dc9fcb59141ceacd42345bd89ed354d76e3323a1984a3a1177  am32/AM32_2738df3_RIDGE3_F421_target.patch
 ```
+
+The upstream sources, by full commit.  `../src/verify.py` checks the pin maps
+and settings against checkouts of them when `BF_SRC`, `AM32_SRC` and
+`AM32_BL_SRC` point at one (`../README.md`, *What `verify.py` reads from
+outside the repository*); without them those checks SKIP.
+
+| Source | Repository | Commit |
+|---|---|---|
+| Betaflight 2025.12.5 | <https://github.com/betaflight/betaflight> | `7348054f268f0058574719c134e9f149565bb8ea` (tag `2025.12.5`) |
+| AM32 2.21 | <https://github.com/am32-firmware/AM32> | `2738df3240baa5bd4295b460cf0c5cfe0bd49d97` |
+| AM32-bootloader | <https://github.com/am32-firmware/AM32-bootloader> | `578ff29cb6774c5ce491075ec9b7f05e9781acd6` |
+
+All three images were compiled with the Arm GNU Toolchain 13.3.rel1
+(`arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi`), the one
+`make arm_sdk_install` puts in a Betaflight 2025.12.5 checkout's `tools/`.
 
 ## Flight controller (Betaflight)
 
@@ -61,8 +76,9 @@ The config also sets these defaults for this board (see the top of
 - **No beeper.**  The board has none; `cli-setup.txt` turns the DShot beacon
   on (the motors beep on a lost receiver link and on the beeper switch).
 - **Video.**  The AT7456E analog OSD is on SPI2 (shared with the blackbox
-  flash), chip select PA8 (`USE_MAX7456`).  The HD VTX connector is UART1,
-  which defaults to *VTX (MSP + DisplayPort)*.  No camera-control pin.
+  flash), chip select PA8 (`USE_MAX7456`).  The HD VTX pads (`T1`, `R1`)
+  are UART1, which defaults to *VTX (MSP + DisplayPort)*.  No camera-control
+  pin.
 - **VTX power switch.**  PINIO1 on PB5, driving the N-FET that pulls the
   9 V regulator's enable low: PB5 high = VTX off.  PINIO1 is a plain
   output tied to the USER1 mode (`PINIO1_BOX 40`), so it is low, and the
@@ -71,8 +87,11 @@ The config also sets these defaults for this board (see the top of
   it off above 96 °C (back on at 76 °C) whatever the firmware does.
 - **Battery.**  Voltage from the 30k/2k divider: `vbat_scale` 160 (2S-6S).
   Current from the ESC's CUR output, the average of its four 50 mV/A
-  channel sensors, i.e. 12.5 mV per amp of battery current: `ibata_scale`
-  125 (Betaflight's unit is mV per 10 A), offset 0, meter source ADC.
+  channel sensors, i.e. 12.5 mV per amp of battery current unloaded:
+  `ibata_scale` 125 (Betaflight's unit is mV per 10 A), offset 0, meter
+  source ADC.  Into the FC's 100 kΩ the four 10 kΩ averaging resistors give
+  12.2 mV/A, so 125 reads about 2.4 % low (122 would be exact,
+  `../VERIFICATION.md`); trim it at bring-up.
 
 The 16 MB blackbox flash is an Infineon S25FL128L (JEDEC `01 60 18`,
 -40..+125 °C), which Betaflight's `m25p16` driver lists.  The board runs
@@ -149,8 +168,10 @@ controller in the usual way.
    flight controller (Betaflight passthrough) and read the ESCs.  All four
    should show AM32 2.21 with the target name `RIDGE3_F421`.
 2. **Click "Send default config" before anything spins.**  An MCU flashed
-   over SWD starts with an erased settings page, which AM32 would read as 3D
-   mode, car-type reversing and stall boost *on*.
+   over SWD starts with an erased settings page, which AM32 reads as 3D
+   mode, car-type reversing and stall boost *on* and both limits *off*
+   (car-type reversing also turns stuck-rotor protection off).  AM32 does
+   not write its defaults over an erased page by itself.
 3. Set these on all four, then **Save config**:
 
    | AM32 Configurator setting | Value | Why |
@@ -161,9 +182,15 @@ controller in the usual way.
    | *30ms interval telemetry* | off | This ESC has no TLM line (lead pin 4 is its 3.3 V) |
    | *Stuck rotor protection* | **on** (the default) | Cuts a motor whose back-EMF disappears |
    | *Stall protection* | off (the default) | A crawler feature that *adds* power at stall |
+   | *PWM frequency* | **24** kHz | What the heat simulations assume (`../sim/data.py`, rev 2: fixed 24 kHz); the switching loss rises with it |
+   | *Variable PWM* | **off** (fixed) | Variable PWM raises the frequency with motor speed, up to twice the set value (AM32 `main.c`), and the switching loss with it |
    | *Limits* → *Low voltage cut off* | Off | Betaflight does battery warnings |
    | *Limits* → *Temperature limit* | **110** °C | Read at the FET thermistor; see below |
    | *Limits* → *Current limit* | **20** A | See below |
+
+   The two PWM settings' names were taken from AM32's source, not read
+   off the configurator: set the frequency to 24 kHz and variable PWM off,
+   whatever they are called there.
 
 4. Use Betaflight's *Motors* tab (props off!) to check the motor order and
    direction. Motor 1 is rear-right, 2 front-right, 3 rear-left, and 4
@@ -241,30 +268,42 @@ No official AM32 release is built for `RIDGE3_F421`, so update from a local
 ### Building it yourself
 
 AM32 releases are built with xPack GCC 10.3.  These images were built with
-Arm GNU 13.3.rel1, which needs `-Wno-array-bounds` for one false positive in
-`main.c` (a pointer into the device-info flash block).  The code is
-unchanged.
+the Arm GNU Toolchain 13.3.rel1 (above), which needs `-Wno-array-bounds` for
+one false positive in `main.c` (a pointer into the device-info flash block).
+The code is unchanged.
 
 ```
-# bootloader (repo am32-firmware/AM32-bootloader, commit 578ff29)
-make ARM_SDK_PREFIX=<gcc>/bin/arm-none-eabi- AM32_F421_BOOTLOADER_PB4
-# firmware (repo am32-firmware/AM32, commit 2738df3)
+# the compiler: the Arm GNU Toolchain 13.3.rel1 from a Betaflight 2025.12.5
+# checkout (make arm_sdk_install, above)
+GCC=<betaflight checkout>/tools/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi
+# bootloader (github.com/am32-firmware/AM32-bootloader,
+# commit 578ff29cb6774c5ce491075ec9b7f05e9781acd6)
+make ARM_SDK_PREFIX=$GCC/bin/arm-none-eabi- AM32_F421_BOOTLOADER_PB4
+# firmware (github.com/am32-firmware/AM32,
+# commit 2738df3240baa5bd4295b460cf0c5cfe0bd49d97)
 git apply <this repo>/ridge-3/firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch
-make ARM_SDK_PREFIX=<gcc>/bin/arm-none-eabi- RIDGE3_F421 \
+make ARM_SDK_PREFIX=$GCC/bin/arm-none-eabi- RIDGE3_F421 \
   CFLAGS_BASE="-fsingle-precision-constant -fomit-frame-pointer -ffast-math -IInc -g3 -O3 \
   -ffunction-sections --specs=nosys.specs -Wall -Wundef -Wextra -Werror \
   -Wno-unused-parameter -Wno-stringop-truncation -Wno-array-bounds"
 ```
 
+The committed AM32 images are these commands' output.  Whether a rebuild on
+another machine gives the same bytes has not been checked (the Betaflight
+image's has, above).
+
 ### Not yet verified
 
 - Nothing here has run on an AT32F421, on this ESC or on this FC.
   `flash_esc.sh` has not been run (no Artery OpenOCD or part was at hand).
+  Artery's OpenOCD is not pinned to a commit: record the one that works
+  when the script first runs, and the Betaflight and AM32 Configurator
+  versions used at bring-up.
 - `DEAD_TIME 15` with the DRV8320H's hold-off: scope the gate drive.
 - The NTC table against a thermometer at the FETs, on all four channels
   (an open thermistor reads -60 °C and disables that channel's limit), and
-  the 50 mV/A and
-  12.5 mV/A current scales against a bench ammeter.
+  the 50 mV/A and 12.5 mV/A (12.2 mV/A loaded) current scales against a
+  bench ammeter.
 - The Betaflight gyro patch: on the bench, the Setup tab's model must follow
   the board one for one (a 90° turn reads 90°), and the accelerometer reads
   1 g level.

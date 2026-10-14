@@ -2,6 +2,10 @@
 > Prices and stock are as found on the dates given and will have moved. The design decisions they led to
 > are in `src/circuit.py` and `src/parts.py`; where the two disagree, the code is current.
 >
+> Revision 2 (`../REV2.md`) replaced these choices: ESC FETs Infineon ISZ023N06LM6 (the
+> BSZ040N06LS5 recommended below was simulated and rejected, `../RELIABILITY.md`), TI DRV8320H
+> drivers, Artery AT32F421 MCUs, and no ESC buck.
+>
 > Later changes, made while laying the ESC out (the code has them):
 > - **No TVS on the ESC.** The bulk and bridge capacitors across the battery pads absorb
 >   the lead-inductance spike, and the flight controller's SMF33A sits on the same battery

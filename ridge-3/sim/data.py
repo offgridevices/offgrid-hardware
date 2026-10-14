@@ -115,10 +115,10 @@ G071 = dict(part='ST STM32G071GBU6', tj_max=105.0, ta_max=85.0,               # 
 INA186 = dict(part='TI INA186A3', ta_max=125.0, p=3.3 * 65e-6, vin_abs=(-0.3, 42.0))   # SBOS...: 6.1, 6.3, 6.5
 SHUNT = dict(part='Stackpole HCS1206FTL500', r=0.5e-3,
              p_rated=2.0, t_full=100.0, t_zero=170.0)   # 2 W to a 100 C terminal, 0 W at 170 C (p.3)
-AM32 = dict(dead=625e-9,                # DEAD_TIME 40 at 64 MHz (firmware/README.md)
-            f_min=24e3, f_max=48e3,     # variable PWM, 24 kHz low rpm to 48 kHz high (esc_power.md)
+AM32 = dict(dead=625e-9,                # rev 1: DEAD_TIME 40 at 64 MHz (rev 1's target; rev 2: DESIGNS)
+            f_min=24e3, f_max=48e3,     # rev 1: variable PWM, 24 kHz low rpm to 48 kHz high (esc_power.md)
             current_limit=20.0,         # A per motor, battery side, 50 ms average (firmware/README.md)
-            temp_limit=110.0)           # C, each MCU's own die sensor (firmware/README.md)
+            temp_limit=110.0)           # C; rev 1 read each MCU's own die sensor (rev 2: the FET thermistor)
 ESC_3V3_LOAD_REV1 = 4 * 11e-3 + 4 * 65e-6 + 1.3e-3   # A: four MCUs, four INA186, the power LED
 
 # ------------------------------------------------------------------ capacitors
@@ -179,7 +179,7 @@ JST_SH = dict(part='JST SH (SM08B/BM08B/BM06B-SRSS-TB)', i_rated=1.0,   # per co
 SMF33A = dict(vbr=(36.7, 40.6), vc=53.3, ipp=3.8, c=198e-12)            # Vishay 88588 rev 2.4
 
 # ------------------------------------------------------------------ the stack and its world
-STACK = dict(gap=5.0)                   # mm between the ESC's top and the FC's bottom: ASSUMPTION (grommets + nuts)
+STACK = dict(gap=5.0)                   # mm, ESC top to FC bottom: ASSUMPTION, closer (hotter) than the build's 6 mm minimum (docs/MOUNTING.md)
 BATTERY = dict(
     vfull=25.2,
     # 6S 1000-1300 mAh: no maker publishes internal resistance.  ASSUMPTION: a new,
@@ -240,7 +240,7 @@ DRV8320 = dict(
     vgs=11.0,                           # V: VGSH / VGSL typ at VM >= 12-13 V (7.5)
     dead_add=100e-9,                    # s after the other gate is seen low (8.3.1.3)
     i_vm=(10.5e-3, 14e-3),              # A typ / max, VM = 24 V, not switching (7.5)
-    i_dvdd_max=30e-3,                   # A external load on DVDD (7.3): the channel's MCU, amplifier, NTC
+    i_dvdd_max=30e-3,                   # A external load DVDD allows (7.3); rev 2 puts none on it
     tj_max=150.0, ta_max=125.0, rth_jb=6.8, rth_ja=32.9,   # (7.3, 7.4)
     i_strong=2.0,                       # A hold-off of the other gate for 4 us (8.3.1.3)
     vds_ocp=0.6,                        # V: VDS pin open (7.5)
@@ -251,7 +251,7 @@ AT32F421 = dict(part='Artery AT32F421G8U7', tj_max=125.0, ta_max=105.0,      # d
                 rth_jb=44.8,                    # thetaJA QFN28 4x4 (table 63), used as junction-to-board
                 i_run=20.7e-3,                  # A max at 120 MHz, all peripherals, 105 C (table 19)
                 p_run=3.3 * 20e-3)              # ~20 mA at 120 MHz, hot (table 18): ASSUMPTION within it
-# Each rev 2 channel's 3.3 V: the MCU, the INA186 (48 uA) and the
+# Each rev 2 channel's 3.3 V: the MCU, the INA186 (90 uA max, rounded to 0.1 mA) and the
 # thermistor's divider (~0.3 mA hot), from the flight controller's 3.3 V
 # buck down the stack lead's pin 4 and through the channel's ferrite bead.
 # The drivers' DVDD regulators feed only their own logic (inside their VM

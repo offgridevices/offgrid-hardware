@@ -4,15 +4,16 @@ What the simulations say about running the rev 2 stack hard, hot, high and
 crashed, the choices that trade one kind of margin for another, and what
 only the bench can settle.  Nothing here is measured: no board has been
 built.  Every figure comes from the tools in `sim/` run on the committed
-boards, and each section names the tool and its output.
+boards, and each section names the tool and its report (committed in
+`sim/results/`; commands run from `ridge-3/`).
 
 ## The variants
 
 `sim/stress.py --variant=NAME` runs the whole of `STRESS.md` on rev 2 with
 one change (`sim/data.py`, `VARIANTS`); `sim/variants.py` puts them side by
-side (`sim/out/variants/VARIANTS.md`).  The flight is the hard 3-minute one
-of `STRESS.md`: 20 s cycles of 2 s at full throttle, 4 s at 60 % and 14 s at
-40 % (7.3 A per motor on average).
+side ([`sim/results/VARIANTS.md`](../sim/results/VARIANTS.md)).  The flight
+is the hard 3-minute one of `STRESS.md`: 20 s cycles of 2 s at full
+throttle, 4 s at 60 % and 14 s at 40 % (7.3 A per motor on average).
 
 | | As built | IDRIVE 30/60 mA | AM32 limit 120 °C | LiHV 26.1 V | 2,250 m | BSZ040 FETs | BSZ040 + IDRIVE 30/60 |
 |---|---|---|---|---|---|---|---|
@@ -53,19 +54,22 @@ What they say:
   rating.  With IDRIVE 30/60 the voltages are fine but the heat is worse
   again (24 %).  In a crash its higher resistance makes the driver's trip
   act sooner (131 °C from a cool board), but from a hot one it reaches
-  258 °C against its 150 °C (`sim/out/crash/bsz040/CRASH.md`).  Keep the
+  258 °C against its 150 °C ([`sim/results/crash/bsz040/CRASH.md`](../sim/results/crash/bsz040/CRASH.md)).  Keep the
   ISZ023N06LM6 and buy it ahead; qualify a second FET on the bench before
   relying on one.
 
 ## A crash: a motor stopped dead at full throttle
 
-`sim/crash.py` (`sim/out/crash/CRASH.md`): the prop hits something and the
-rotor stops at once while the duty is at full.  AM32 reacts in about 22.5 ms
+`sim/crash.py` ([`sim/results/crash/CRASH.md`](../sim/results/crash/CRASH.md)):
+the prop hits something and the rotor stops at once while the duty is at
+full.  AM32 reacts in about 22.5 ms
 (its back-EMF timeout), ramps the duty down to its startup clamp at 2 % per
 ms, and cuts the motor after about 248 ms.  Its current limit, on a 50 ms
 average, barely moves in that time.  The DRV8320H's overcurrent monitor
-measures each FET through 0.3-0.7 mΩ of board copper; as built (VDS pin
-open) it trips at 0.6 V, a typical figure with no limits in the datasheet.
+measures each FET with board copper in series: up to 0.68 mΩ on the low
+side and 0.91 mΩ on the high side (0.99 mΩ with all four motors drawing);
+as built (VDS pin open) it trips at 0.6 V, a typical figure with no limits
+in the datasheet.
 
 The low-side FET's junction (rated 175 °C) and how long it stays above
 that, the FET's case taken as its drain copper with all its heat in it:
@@ -94,7 +98,7 @@ that, the FET's case taken as its drain copper with all its heat in it:
   falls from 198 to 21 ms.  The cost is a motor cut in flight if three
   timeouts ever come in a row without a crash: a bench and flight test.
 - 0.26 V would protect the FET outright with the shorter cut, but it trips
-  at 56-62 A on a hot FET, under the 64-68 A of a full-throttle punch (see
+  at 51-62 A on a hot FET, under the 64-68 A of a full-throttle punch (see
   below), and the VDS pin has no footprint for the resistor.
 - The funnel via under Q1AL peaks at 166 °C (cool) and 171 °C (hot, with
   the trip): below the 288 °C where pads lift.  More vias there are not
@@ -107,7 +111,7 @@ that, the FET's case taken as its drain copper with all its heat in it:
 
 ## A punch: full throttle from hover
 
-`sim/punch.py` (`sim/out/punch/PUNCH.md`): all four motors from hover to
+`sim/punch.py` ([`sim/results/punch/PUNCH.md`](../sim/results/punch/PUNCH.md)): all four motors from hover to
 full at AM32's 16 % per ms.
 
 The motor is fitted to its maker's load test; the rotor and prop's inertia
@@ -132,7 +136,7 @@ The switching edge at the punch's current, against the DRV8320H's -7 V
 | 60 / 120 mA (as built) | -11.0 / -15.5 / -21.6 V | 55.6 / 57.2 V |
 | 30 / 60 mA | -6.3 / -8.9 / -12.4 V | 39.5 / 32.4 V |
 
-(FET at 25 °C, the worse case; `sim/out/punch/PUNCH.md` has 30 A and 150 °C.)
+(FET at 25 °C, the worse case; [`sim/results/punch/PUNCH.md`](../sim/results/punch/PUNCH.md) has 30 A and 150 °C.)
 Neither setting keeps SHx inside -7 V at a punch's current in the 5 nH
 loop the layout is estimated at.  30 / 60 mA roughly halves the overshoot
 and keeps the FETs 20 V clear of their rating; at 60 / 120 mA in the 8 nH
@@ -141,7 +145,7 @@ layout's real loop compares with 5 nH, only a scope will say.
 
 ## On the ground
 
-`sim/ground.py` (`sim/out/variants/rev2/GROUND.md`), still air, video on:
+`sim/ground.py` ([`sim/results/variants/rev2/GROUND.md`](../sim/results/variants/rev2/GROUND.md)), still air, video on:
 
 | Air | HD unit on the 9 V pads (9 V 1.5 A, 5 V 1 A) | HD unit on the battery (5 V 1 A) |
 |---|---|---|
@@ -177,10 +181,10 @@ In order.  None of them needs a part ordered today.
    the ESCs for destructive tests (locked rotor at reduced voltage first).
 2. **Program every ESC at the factory from one image** (bootloader,
    firmware and the settings page: 110 °C, 20 A, stuck-rotor protection
-   on, 3D and car-reverse off) and read it back over SWD on a pogo
-   fixture.  An erased settings page reads as car-reverse mode with both
-   limits off; a forgotten "Send default config" is the most likely way
-   to ship an unprotected ESC.  Make the target fall back to 110 °C / 20 A
+   on, 3D and car-reverse off, a fixed 24 kHz PWM with variable PWM off)
+   and read it back over SWD on a pogo fixture.  An erased settings page
+   reads as car-reverse mode with both limits off; a forgotten "Send
+   default config" is the most likely way to ship an unprotected ESC.  Make the target fall back to 110 °C / 20 A
    whenever a stored limit reads as disabled.
 3. **IDRIVE: decide on the bench.**  Put the 18 kΩ (30 / 60 mA) on one
    prototype ESC panel and the 75 kΩ (60 / 120 mA) on the other, and scope
@@ -213,10 +217,10 @@ In order.  None of them needs a part ordered today.
    (TDK TFM252012ALMAR47MTAA) is out at JLC: buy it at DigiKey, or use
    Bourns SRP2512TMA-R47M (150 °C, same size); not a 125 °C part.  Keep
    the TPS628501DRLR.
-8. **Rate it plainly:** 3S-6S LiPo and 6S LiHV; 50 °C air in flight
-   (AM32 trims power in the hardest flying at that heat);
-   the 5 V rail 1 A continuous on the ground (0.5 A at 60 °C), 2 A with
-   airflow; HD video on the 9 V pads (the thermostat may pause it on the
+8. **Rate it plainly** (open: [`STATUS.md`](STATUS.md), D8): 3S-6S LiPo
+   and 6S LiHV; 50 °C air in flight (AM32 trims power in the hardest
+   flying at that heat); the 5 V rail 1 A continuous on the ground (0.5 A
+   at 60 °C), 2 A with airflow; HD video on the 9 V pads (the thermostat may pause it on the
    ground in heat).  Sell the HD build first: the analog build's OSD is an
    85 °C part.
 9. **Ship the ESC on its heatsink**, gap pad fitted and checked, and test

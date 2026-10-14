@@ -14,8 +14,8 @@ elsewhere, and a description.  Entries added for Ridge 3 also carry
 
 Sourcing rules (owner): key chips from non-Chinese makers, stocked at both
 LCSC/JLCPCB and DigiKey; the one exception is the AT7456E analog OSD chip.
-Voltage use <= 60 % of rating at 6S (25.2 V); the 40 V FETs (63 %) are the
-owner-approved exception.
+Voltage use <= 60 % of rating at 6S (25.2 V), every part (rev 1's 40 V FETs
+at 63 % were the one exception; rev 2's 60 V FETs run at 42 %).
 
 How the numbers in the comments were checked, all on 2026-09-27:
   JLC   JLCPCB's parts API (stock, 'basic' or 'extended').  Basic parts carry
@@ -81,12 +81,6 @@ PARTS = {
                       mpn='STM32G473CEU6', value='STM32G473CEU6',
                       desc='MCU Cortex-M4 170 MHz 512 KB, UFQFPN-48', kind='U',
                       dk='STM32G473CEU6-ND', maker='STMicroelectronics (Switzerland)'),
-    # TDK ICM-45686 (DS-000577 rev 1.1, via LCSC C22459454): the fitted
-    # gyro.  Same 14-lead 2.5 x 3 mm LGA as the ICM-42688-P (lead width,
-    # length, pitch and centres equal; 0.81 mm high, not 0.91), same pin
-    # functions and the same axes against pin 1 (fig. 13 = the 42688's fig.
-    # 15).  JLC 1,022 ext, $11.84 / 8.12 (1 / 100+) on 2026-09-29; DK
-    # 1428-ICM-45686CT-ND 0 (fc), $5.26 / 3.56 (1 / 1000).
     # Rev 2 IMU: TDK IIM-42652, -40..+105 C, the ICM-42688-P's pins and
     # axes (DS-000440).  JLC 4,292 ext, $11.05 (2026-09-30).  Same-pad second
     # source: ICM-42688-P (85 C).
@@ -141,9 +135,6 @@ PARTS = {
     'DRV8320H': dict(fp='aio:QFN-32_L5.0-W5.0-P0.50-TL-EP3.5', lcsc='C701782',
                      mpn='DRV8320HRTVR', value='DRV8320H',
                      desc='60 V 3-phase smart gate driver, IDRIVE by pin, WQFN-32 5x5', kind='U', maker=TI),
-    # TI INA180A3IDBVR, 100 V/V, SOT-23-5: 1 OUT, 2 GND, 3 IN+, 4 IN-, 5 VS.
-    # Common mode -0.2 to 26 V (low-side shunt: ~0 V).
-    # JLC 89,459 ext, $0.19 / 0.14; DK web 296-47654-1-ND 4,197.
     # ESC current sense: TI INA186A3 (100 V/V, 35 kHz, 40 V common mode,
     # +/-50 uV offset = 0.1 A on a 0.5 mOhm shunt), SC-70-6: half the
     # area of the INA180's SOT-23-5, which the ESC's top side needed.
@@ -210,17 +201,20 @@ PARTS = {
                     desc='N-MOSFET 30 V logic level, SOT-23', kind='Q',
                     dk='785-1000-1-ND', maker='Alpha & Omega Semiconductor (USA)'),
     # Rev 2 FET.  Infineon ISZ023N06LM6 (OptiMOS 6, logic level): 60 V,
-    # 2.3 mOhm max at 10 V (2.03 typ; 2.9 max at 4.5 V, so a 2S pack's
-    # ~6.5 V gate drive still switches it fully), Tj 175 C, RthJC 1.5 K/W
+    # 2.3 mOhm max at 10 V (2.03 typ; 2.9 max at 4.5 V; on an empty 2S pack
+    # (6 V) the DRV8320H drives the gate to 4-6 V, typ 5 V (SLVSDJ3D 7.5), at
+    # the edge of that figure: VERIFICATION.md), Tj 175 C, RthJC 1.5 K/W
     # max, Qg 46 nC to 10 V, Qgd 6 nC, Qrr 23 nC (20 A, 100 A/us), EAS
     # 148 mJ (datasheet rev 2.0, 2024-05-06).  At 6S (25.2 V) it runs at 42 %
     # of its rating, inside the <= 60 % rule the 40 V part broke (63 %).
     # PG-TSDSON-8 FL on Infineon's own land (footprints.tsdson8fl_fp).  Not
     # stocked by LCSC: JLCPCB fits it through its global sourcing, PCBWay
     # through turnkey.  DK 448-ISZ023N06LM6ATMA1CT-ND 2,625 at $1.49/100
-    # (2026-09-30).  Second source on the same land: Vishay SiSS22LDN
-    # (60 V, 3.65 mOhm, 150 C; LCSC C3279453, DK 69,952), and Infineon
-    # BSZ040N06LS5 (60 V, 4.0 mOhm, 150 C; LCSC C3279309, JLC 4,990).
+    # (2026-09-30).  Candidates on the same land, neither in use: Vishay
+    # SiSS22LDN (60 V, 3.65 mOhm, 150 C; LCSC C3279453, DK 69,952; not
+    # simulated, no SPICE model found), and Infineon BSZ040N06LS5 (60 V,
+    # 4.0 mOhm, 150 C; LCSC C3279309, JLC 4,990), simulated and rejected
+    # (docs/RELIABILITY.md; docs/STATUS.md D1).
     'ISZ023N06LM6': dict(fp='aio:TSDSON-8FL_L3.3-W3.3-P0.65_IFX', lcsc=None, source='global',
                          mpn='ISZ023N06LM6ATMA1', value='ISZ023N06LM6',
                          desc='N-MOSFET 60 V 2.3 mOhm logic level, PG-TSDSON-8 FL 3.3x3.3', kind='Q',
@@ -306,7 +300,8 @@ PARTS = {
                          desc='Inductor 15 uH, Isat 3.0 A, 7.1 x 6.5 x 3.0 mm, AEC-Q200, 125 C', kind='L',
                          maker='TDK (Japan)'),
     # Rev 2 FC 3.3 V buck: TDK TFM252012ALMAR47MTAA, 0.47 uH, 19 mOhm, 4.9 A,
-    # -55..150 C, 2.5 x 2.0 mm.  JLC 130 ext (C404800, 2026-10-01).
+    # -55..150 C, 2.5 x 2.0 mm.  JLC 130 ext (C404800, 2026-10-01); out of
+    # stock at JLC / LCSC on 2026-10-13 (docs/STATUS.md D5).
     'L470N_TFM': dict(fp='aio:IND-SMD_L2.5-W2.0_TFM252012ALMA2R2MTAA', lcsc='C404800',
                       mpn='TFM252012ALMAR47MTAA', value='0.47uH',
                       desc='Inductor 0.47 uH 4.9 A, 2.5 x 2.0 mm, -55..150 C', kind='L',
@@ -329,7 +324,7 @@ PARTS = {
     #  Shunts
     # =================================================================
     # Per-channel ESC shunt, 0.5 mOhm (so MILLIVOLT_PER_AMP = 0.5 x 100 =
-    # 50 with the INA180A3).  Stackpole HCS1206FTL500: 0.5 mOhm, 1 %, 2 W
+    # 50 with the INA186A3).  Stackpole HCS1206FTL500: 0.5 mOhm, 1 %, 2 W
     # at 100 C, +/-200 ppm/K, metal element, AEC-Q200; 0.2 W at 20 A = 10 %.
     # Land (generated in footprints.py, EasyEDA has no entry): Stackpole's
     # 1.70 x 1.80 mm pads, 1.40 mm gap (4.8 x 1.8 mm copper), plus Kelvin
@@ -358,8 +353,6 @@ PARTS = {
                  mpn='USB4105-GF-A-120', value='USB-C',
                  desc='USB-C receptacle USB 2.0, 16 contacts', kind='J',
                  dk='2073-USB4105-GF-A-120CT-ND', maker='Global Connector Technology (UK)'),
-    # JST SH 1.0 mm 8-pin.  Right-angle on the FC, vertical on the ESC.
-    # SM08B: JLC 123,874 ext; DK fc 455-1808-1-ND 62,910.
     # Rev 2 stack lead, flight-controller end: Molex Micro-Lock Plus 1.25 mm,
     # 8 positions, right angle, positive lock, -40..+105 C, 1.5 A per
     # contact (505567-0871; mate 505565-0801 + 505431 terminals).  Pads 9/10
@@ -368,10 +361,6 @@ PARTS = {
                     mpn='5055670871', value='Micro-Lock Plus 8P RA',
                     desc='Molex Micro-Lock Plus 1.25 mm 8-pin right-angle SMD, locking', kind='J',
                     maker='Molex (USA)'),
-    # Omron B3U-1000P (DigiKey now lists the maker as Aratas, Omron's
-    # components spin-off of July 2026): 3.0 x 2.5 mm, pads 1, 2; land 0.8 x
-    # 1.7 mm at 3.4 mm centres = Omron's.  Replaces v1's XUNPU TS-1088.
-    # JLC 153,225 ext, $0.15 / 0.11; DK fc SW1020CT-ND 135,347.
     # Rev 2 boot button: C&K KMR223G LFG, 4.2 x 2.8 x 1.9 mm, 2 N, gold
     # contacts, -40..125 C, 200k cycles, ground pin (pad 5).  Terminals 1-4
     # and 2-3 are joined; the button closes 1/4 to 2/3.  Gold contacts want
@@ -402,36 +391,34 @@ PARTS = {
     'R5K1':  R('5.1k', 'C25905', '0402WGF5101TCE', '311-5.10KLRCT-ND', 'RC0402FR-075K1L', UR_YAGEO),
     # JLC 23,609,853 basic; DK fc 311-10.0KLRCT-ND 11,721,670.
     'R10K':  R('10k',  'C25744', '0402WGF1002TCE', '311-10.0KLRCT-ND', 'RC0402FR-0710KL', UR_YAGEO),
-    # LM76003 FB bottom, 9.1 V.  JLC 264,652 ext; DK fc 311-12.4KLRCT-ND 24,115.
+    # LMR38020F 9 V BEC feedback bottom (9.06 V).  JLC 264,652 ext; DK fc 311-12.4KLRCT-ND 24,115.
     'R12K4': R('12.4k', 'C11692', '0402WGF1242TCE', '311-12.4KLRCT-ND', 'RC0402FR-0712K4L', UR_YAGEO),
     # BEMF / neutral dividers.  JLC 3,310,957 basic; DK fc 311-20.0KLRCT-ND 2,372,480.
     'R20K':  R('20k',  'C25765', '0402WGF2002TCE', '311-20.0KLRCT-ND', 'RC0402FR-0720KL', UR_YAGEO),
-    # LMR38020 FB bottom (5.02 V) and LM76003 UVLO.  JLC 25,811 ext; DK fc 311-24.9KLRCT-ND 63,651.
+    # LMR38020F 5 V feedback bottom (5.02 V) and the 9 V BEC's UVLO bottom.  JLC 25,811 ext; DK fc 311-24.9KLRCT-ND 63,651.
     'R24K9': R('24.9k', 'C25874', '0402WGF2492TCE', '311-24.9KLRCT-ND', 'RC0402FR-0724K9L', UR_YAGEO),
     # 6S battery divider top: 23.6 V across it, 47 % of the 50 V rating,
     # 18.6 mW = 30 % of 1/16 W.  JLC 73,275 ext; DK fc 311-30.0KLRCT-ND 1,211,795.
     'R30K':  R('30k',  'C25776', '0402WGF3002TCE', '311-30.0KLRCT-ND', 'RC0402FR-0730KL', UR_YAGEO),
-    # JLC 9,762,794 basic; DK fc 311-100KLRCT-ND 6,854,918.
     'R33K_0603': dict(R('33k', 'C126359', 'RC0603FR-0733KL'), fp='Resistor_SMD:R_0603_1608Metric',
                       desc='Resistor 33k 1% 0603, 100 mW 75 V', maker='Yageo (Taiwan)'),
     'R57K6': R('57.6k', 'C26983', '0402WGF5762TCE'),
     'R121K': R('121k', 'C11693', '0402WGF1213TCE'),
     'R22K1': R('22.1k', 'C43473', '0402WGF2212TCE'),
     'R3K3': R('3.3k', 'C25890', '0402WGF3301TCE'),
+    # JLC 9,762,794 basic; DK fc 311-100KLRCT-ND 6,854,918.
     'R100K': R('100k', 'C25741', '0402WGF1003TCE', '311-100KLRCT-ND', 'RC0402FR-07100KL', UR_YAGEO),
 
     # =================================================================
     #  Resistors, 0201 1 %, Yageo RC0201: the ESC's low-voltage resistors
-    #  (gates, back-EMF low legs, current filters and average, vsense
-    #  bottom, LED).  Half the area of 0402, which the channels need for
-    #  their chips' escapes.  Rated 25 V working and 1/20 W: none of them
-    #  sees more than 11.4 V (a gate resistor only sees the gate current's
-    #  drop) or 14 mW (a gate resistor at 48 kHz).  JLC has no 0201 basic
+    #  (back-EMF low legs, the neutral star, current filters and average,
+    #  vsense bottom, thermistor bias, IDRIVE).  Half the area of 0402, which
+    #  the channels need for their chips' escapes.  Rated 25 V working and
+    #  1/20 W: none sees more than about 3.3 V or a milliwatt.  JLC has no 0201 basic
     #  resistors, so the same Yageo part at JLC and DigiKey.  JLC stock on
     #  27 Sep 2026; DigiKey numbers from DigiKey's RC0201 kit list
     #  (RC0201-R-SKE24L).
     # =================================================================
-    # JLC 80,353 ext (3,300 ESCs at 24 each).
     # JLC 2,415,899 ext.
     'R1K_0201':  R0201('1k', 'C138165', 'RC0201FR-071KL', '311-1KMCT-ND'),
     # JLC 17,212 ext (1,400 ESCs at 12 each).
@@ -489,8 +476,8 @@ PARTS = {
     'C10P': C('10pF', C0402, 'C76946', 'GRM1555C1H100JA01D', '50V C0G 0402', maker=MURATA),
     'C10U50_SOFT': C('10uF', C1210, 'C437431', 'GCJ32EC71H106KA01L', '50V X7S 1210 soft termination',
                      maker=MURATA),
-    # 1 uF 25 V X7R 0603, Murata automotive (driver charge pump across
-    # VBAT and VCP at ~11 V, DVDD, MCU VDDA, buck VCC).  JLC 107,530 ext.
+    # 1 uF 25 V X7R 0603, Murata automotive (the drivers' charge pump across
+    # VBAT and VCP at ~11 V, and the FC MCU's VDDA bulk).  JLC 107,530 ext.
     'C1U_25_X7R': C('1uF', C0603, 'C85862', 'GCM188R71E105KA64D', '25V X7R 0603', maker=MURATA),
     # 1 uF 10 V X7R 0402, Murata (each ESC MCU's VDDA: Artery's 100 nF +
     # 1 uF, AT32F421 figure 8, in one 0402; each driver's DVDD).  JLC

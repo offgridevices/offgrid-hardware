@@ -12,8 +12,8 @@ is in [`CHANGING.md`](CHANGING.md).
 | | State |
 |---|---|
 | Design | **Revision 2.0**, both boards.  KiCad DRC 0 errors / 0 warnings / 0 unconnected; the copper matches `src/circuit.py` pad for pad; `../VERIFICATION.md` checks the design against independent sources |
-| Simulation | Done: `../STRESS.md` (switching, battery line, stack lead, copper, heat at 25 / 50 / 60 °C), and [`RELIABILITY.md`](RELIABILITY.md) (variants, a crash, a punch) |
-| Fabrication files | Committed in `fc/production/` and `esc/production/`, single boards and 3 × 2 panels |
+| Simulation | Done: `../STRESS.md` (switching, battery line, stack lead, copper, heat at 25 / 50 / 60 °C), and [`RELIABILITY.md`](RELIABILITY.md) (variants, a crash, a punch), with every report it quotes committed in `../sim/results/` |
+| Fabrication files | Committed in `../fc/production/` and `../esc/production/`, single boards and 3 × 2 panels.  CI (the `ridge-3` job) rebuilds them from the committed board files on every push and fails if they differ |
 | Prototypes | **Not ordered.**  No board has been built or measured |
 | Firmware | Betaflight image and AM32 target in `../firmware/`: built, never run on this hardware |
 | Certification | Not started |
@@ -116,6 +116,40 @@ Open until T5, T6 and T7 are done.  Candidates, all from
   Covered List) are a target, since that constrains where parts and
   assembly come from.
 
+### D8. The battery rating
+
+- **Now:** 2-6S, as the ESC's silkscreen (`src/esc_layout.py`), the stack
+  sheet's subtitle (`src/make.py`) and the README's title print it.  The
+  firmware reads 2S to 6S.
+- **Simulated:** 6S LiPo and 6S LiHV (26.1 V full) pass the same checks:
+  the FETs peak at 40.5 / 43.8 V of their 60 V on LiHV, and the hard flight
+  is cut for 15 % of it instead of 10 % ([`RELIABILITY.md`](RELIABILITY.md),
+  the variants).  2S has three limits the design does not meet:
+  - the 9 V video supply cannot hold 9 V: it regulates down to about 9.5 V
+    of battery, and a 2S pack is 6.0-8.4 V;
+  - the stack lead's contacts: at the FC's full load (both rails at their
+    2 A rating, 11.3 W) the lead carries about 1.9 A on an empty 2S pack
+    (6.0 V), past the Molex contact's 1.5 A (0.57 A on an empty 6S pack,
+    `../STRESS.md` section 5);
+  - the gate drive: at 6 V the DRV8320H drives the gates to 4-6 V (typ
+    5 V), at the edge of the 4.5 V down to which the FETs' on-resistance is
+    specified (`../VERIFICATION.md`).
+- **Recommendation:** rate it 3S-6S LiPo and 6S LiHV (`RELIABILITY.md`,
+  recommendation 8).  The silkscreen is a board change: the ESC's `2-6S`
+  (`src/esc_layout.py`), the stack sheet's subtitle (`src/make.py`), the
+  README's title and battery row, the root README's row, the summary at the
+  top of `src/circuit.py`, and the comment in the AM32 target patch (then
+  its SHA-256 in `../firmware/README.md`) change together, and the boards
+  are rebuilt (`python3.12 src/make.py --artwork`: both boards, so the
+  stack sheet is drawn again too).  For LiHV, also set
+  `vbat_max_cell_voltage` to 440 in `../firmware/betaflight/cli-setup.txt`:
+  Betaflight counts cells as the pack's voltage divided by that figure,
+  rounded down, plus one, so at its 430 a full 6S LiHV pack (26.1 V)
+  counts as 7 cells and its
+  cell-voltage warnings are wrong; at 440 it counts 6, and a 6S LiPo still
+  counts 6.
+- **Decided:** _not yet_
+
 ## Before ordering prototypes
 
 - [ ] Recheck stock and lead time of every part, dated, in a file in this
@@ -155,9 +189,10 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
 
 - [ ] **Factory programming:** one image per ESC MCU (bootloader, firmware,
       settings: 110 °C, 20 A, stuck-rotor protection on, 3D and car-reverse
-      off), written and read back over SWD on a pogo fixture; no manual
-      configurator step.  Make the target fall back to 110 °C / 20 A when a
-      stored limit reads as disabled.
+      off, a fixed 24 kHz PWM with variable PWM off), written and read back
+      over SWD on a pogo fixture; no manual configurator step.  Make the
+      target fall back to 110 °C / 20 A when a stored limit reads as
+      disabled.
 - [ ] **Production test** of every stack, results kept by serial number:
       the four ESC temperatures read sensibly, each current sensor against a
       known load, each motor spins, the gyro reads about 1 g level, the
@@ -175,7 +210,7 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
       Betaflight manufacturer ID registered, so customers who update with
       the official tools get correct firmware.
 - [ ] T14 in `TEST_PLAN.md` (EMC, environmental, flight hours).
-- [ ] Specification, as simulated: 3S-6S LiPo and 6S LiHV; 50 °C air in
+- [ ] Specification, as simulated: 3S-6S LiPo and 6S LiHV (D8); 50 °C air in
       flight (AM32 trims power in the hardest flying at that heat); the 5 V
       rail 1 A continuous on the ground (0.5 A at 60 °C), 2 A with airflow;
       HD video on the 9 V pads.  Correct it from the measurements.
@@ -187,3 +222,13 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
 - **2026-10-13** Reliability review: variant simulations, a crash, a punch
   ([`RELIABILITY.md`](RELIABILITY.md)); this file and the test plan
   written.  Decisions D1-D7 open.  Nothing ordered.
+- **2026-10-13** Prepared for handover: the simulation reports the
+  documents quote committed in `../sim/results/` (they had been only in the
+  ignored `sim/out/`), and revision 1's board files frozen in
+  `../sim/rev1/` for the comparison; the toolchain pinned
+  (`../requirements.txt`, `../requirements-cadquery.txt`,
+  `../tools/Dockerfile`) and a CI job, `ridge-3`, that rebuilds both boards'
+  fab files (`make.py --fab-only`), fails if they differ from the committed
+  ones, then runs `verify.py`; the datasheets `verify.py` reads listed in
+  [`DATASHEETS.md`](DATASHEETS.md).  The battery rating opened as D8.
+  Decisions D1-D8 open.  Nothing ordered.

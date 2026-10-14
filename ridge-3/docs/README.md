@@ -12,8 +12,11 @@ rest, and is where the board's progress is kept.
 | [RELIABILITY.md](RELIABILITY.md) | The reliability review: design variants side by side, a motor jammed at full throttle, a full-throttle punch, the stack on the ground, and the recommendations |
 | [REV2.md](REV2.md) | Every change from revision 1, and why |
 | [MOUNTING.md](MOUNTING.md) | The mounting holes and slots, and why they are where they are |
+| [DATASHEETS.md](DATASHEETS.md) | The datasheets `verify.py` reads (not committed): each file's name, document and revision, how its text was made, and the hashes of the copies used |
 | [research/](research/) | The research behind the revision 1 part choices: ESC power stage, FC video, sourcing |
 | `tests/` | Test results, one dated file per test (`TEST_PLAN.md`, *Recording results*); created with the first result |
 
-The simulations these documents quote are in `../sim/` (`../STRESS.md` is
-their report); the design checks are in `../VERIFICATION.md`.
+The simulations these documents quote are in `../sim/`: `../STRESS.md` is
+their main report, and the others (the variants, the crash, the punch, the
+ground runs) are committed in `../sim/results/`.  The design checks are in
+`../VERIFICATION.md`.

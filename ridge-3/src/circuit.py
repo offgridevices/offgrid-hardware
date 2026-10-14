@@ -110,8 +110,10 @@ def fc_power():
     # Battery.  Two ways in, for two jobs:
     #   * the ESC lead (pin 1 VBAT, pin 2 GND): the flight controller itself,
     #     its 5 V and 3.3 V rails.  A Molex Micro-Lock Plus contact is rated
-    #     1.5 A (-40..+105 C, positive lock), which the FC's own loads stay
-    #     under from 2S up (README).
+    #     1.5 A (-40..+105 C, positive lock): the FC's own loads at both rails'
+    #     2 A rating take 0.57 A through it on an empty 6S pack (STRESS.md
+    #     section 5), but about 1.9 A on an empty 2S pack, past the rating
+    #     (docs/RELIABILITY.md recommends rating the stack 3S-6S).
     #   * two solder pads, wired to the ESC's battery pads: VBAT_VTX, the
     #     9 V video supply's own input (video group).  A digital VTX takes up
     #     to 18 W; through the lead that is 1.5 A on an empty 6S pack, past
@@ -124,8 +126,8 @@ def fc_power():
     # lead from its battery pads by their own copper (esc_power).
     add('J', 'MLP8_RA', dict(STACK_PINS, **{'9': None, '10': None}), B,
         'to 4-in-1 ESC (pads 9/10 are mechanical tabs)', ref='J_ESC')
-    # 33 V stand-off, 53 V clamp at 7.5 A: above a full 6S pack (25.2 V),
-    # below the 5 V buck's 85 V absolute maximum.
+    # 33 V stand-off, 53.3 V clamp at 3.8 A (Vishay 88588): above a full 6S
+    # pack (25.2 V), below the 5 V buck's 85 V absolute maximum.
     add('D', 'SMF33A', {'1': 'VBAT', '2': GND}, B, 'VBAT TVS', ref='D_TVS')
     # (the lead's bulk capacitor is the 5 V BEC's input capacitor, below)
 
@@ -493,9 +495,10 @@ def esc_power():
     cap('C100N', 'CUR', GND, B, 'CUR filter')
 
     # 3.3 V for the four channels' MCUs, current amplifiers and
-    # thermistors (about 85 mA): the flight controller's, down the lead's
-    # pin 4 (STACK_PINS; the FC's 1 A 3.3 V buck has the room), each
-    # channel through its own ferrite bead (esc(), below).  The drivers'
+    # thermistors (86 mA at the datasheets' maxima, VERIFICATION.md): the
+    # flight controller's, down the lead's pin 4 (STACK_PINS; the FC's 1 A
+    # 3.3 V buck has the room), each channel through its own ferrite bead
+    # (esc(), below).  The drivers'
     # DVDD regulators could carry the load, but they are linear from the
     # battery: (25.2 - 3.3) V x 21 mA is 0.46 W in each driver, 1.8 W for
     # the board with the motors stopped, and on the ground in still air the
@@ -516,24 +519,28 @@ def esc_power():
     cap('C100N', 'DRV_EN', GND, B, 'driver enable filter')
 
     # Shared battery-voltage divider for AM32: 100k / 10k, ratio 11
-    # (TARGET_VOLTAGE_DIVIDER 110): 25.2 V -> 2.29 V at PA3.
+    # (TARGET_VOLTAGE_DIVIDER 110): 25.2 V -> 2.29 V at PA2 (the target moves
+    # AM32's voltage input from PA3 to PA2; PA3 reads the thermistor).
     res('R100K', 'VBAT', 'ESC_VSENSE', B, 'ESC vsense top')
     res('R10K_0201', 'ESC_VSENSE', GND, B, 'ESC vsense bottom')
     cap('C100N', 'ESC_VSENSE', GND, B, 'ESC vsense filter')
     # SWD programming: each MCU has its own SWDIO and SWCLK pads (in its
-    # channel, below); the board runs from a pack while it is flashed, and
-    # the probe's ground goes to the battery pad.
+    # channel, below); while it is flashed the board runs from a pack or a
+    # bench supply with the stack lead plugged into the flight controller
+    # (the MCUs' 3.3 V), and the probe's ground goes to the battery pad.
 
 # The DRV8320H's gate current, set by its IDRIVE pin (TI SLVSDJ3D table
 # 7-2): source / sink 10/20, 30/60, 60/120, 120/240, 260/520, 570/1140 or
 # 1000/2000 mA.  The level is chosen on the half-bridge simulation
 # (sim/spice.py, STRESS.md section 3), which reads it from here.
-# 60/120 mA, the owner's choice of heat over the driver's SHx rating: the
-# high side's turn-off pulls SHx below ground by L di/dt, -9.5 V at 30 A in
-# the 5 nH loop (-7.8 V at 20 A), past the driver's -7 V for 200 ns; 30/60
-# mA kept it at -6.2 V but doubled the switching energy and nearly doubled
-# the dead time, and on a 50 C day (5 m/s) cut the throttle the stack holds
-# before AM32's temperature limit acts from 34 to 28 % (hover 27 %).
+# 60/120 mA, the owner's choice of heat over the driver's SHx rating
+# (2026-10-03, on pre-heatsink figures; open again, docs/STATUS.md D2): the
+# high side's turn-off pulls SHx below ground by L di/dt, -10.3 V at 30 A in
+# the 5 nH loop (-15.5 V at a punch's 68 A), past the driver's -7 V for
+# 200 ns; 30/60 mA keeps it at -6.2 V at 30 A but doubles the switching
+# energy and nearly doubles the dead time: on a 50 C day (5 m/s, on the
+# heatsink) the throttle held before AM32's temperature limit acts falls
+# from 52 to 48 % (hover 27 %; sim/results/VARIANTS.md).
 # 30/60 mA is one resistor away (R18K_0201 to AGND).
 #   value: (source A, what the pin connects to: None = open, else (part, net))
 IDRIVE_LEVELS = {0.03: ('R18K_0201', GND), 0.06: ('R75K_0201', GND), 0.12: None, 0.26: ('R75K_0201', 'DVDD')}
@@ -583,8 +590,9 @@ def esc(n):
         '26': None, '27': None, '28': None,     # PB5, PB6, PB7
         '29': GND,                              # exposed pad
     }, B, 'ESC %d MCU' % n, ref='U_ESC%d' % n)
-    # The channel's 3.3 V from the board's buck (esc_power) through its own
-    # ferrite bead (Murata BLM03AX601SN1D, 0201: 0.85 ohm max, 18 mV at the
+    # The channel's 3.3 V from the flight controller's buck, down the stack
+    # lead's pin 4 (ESC_3V3, esc_power), through its own ferrite bead
+    # (Murata BLM03AX601SN1D, 0201: 0.85 ohm max, 18 mV at the
     # channel's 22 mA, so VDDA, the ADC's reference, stays 3.3 V), which
     # keeps the channel's switching noise off the others' supply.  100 nF at VDD; at VDDA, Artery's 100 nF +
     # 1 uF (AT32F421 figure 8) as one 1 uF 0402: in the same case its
@@ -595,8 +603,9 @@ def esc(n):
     cap('C1U_10_X7R', p('3V3'), GND, B, 'U_ESC%d VDDA' % n)
     cap('C100N', p('NRST'), GND, B, 'U_ESC%d reset filter' % n)
     # The power stage's temperature: a 10k NTC (Murata NCU15XH103F60RC,
-    # B 3380 K) at the channel's FETs, from PA2 to ground, under a 10k from
-    # the channel's 3.3 V (AM32's NTC_table for it is in firmware/am32).
+    # B 3380 K) at the channel's FETs, from PA3 (ADC_IN3) to ground, under a
+    # 10k from the channel's 3.3 V (AM32's NTC_table for it is in
+    # firmware/am32).
     add('RT', 'NTC10K', {'1': p('NTC'), '2': GND}, B, 'ESC %d FET thermistor' % n, ref='RT%d' % n)
     res('R10K_0201', p('3V3'), p('NTC'), B, 'thermistor bias')
 
@@ -606,15 +615,18 @@ def esc(n):
     #     that current (sink twice source) and holds the other FET of the
     #     leg off with 2 A (ISTRONG) while one switches, then 50 mA: no
     #     gate resistors.
-    #   VDS open (Hi-Z): overcurrent trip at 0.6 V across a conducting FET,
-    #     150 A hot, a short, not a hard punch; 4 ms automatic retry.
+    #   VDS open (Hi-Z): overcurrent trip at 0.6 V (typical, no limits given)
+    #     across a conducting FET and the board copper in series with it:
+    #     about 118-143 A with a hot (128 C) FET, 181-221 A at 25 C
+    #     (sim/results/crash, sim/results/punch).  A short or a jammed motor,
+    #     not a punch (64-68 A); 4 ms automatic retry.
     #   The high side runs from its charge pump (VCP), not bootstrap
     #     capacitors, so 100 % duty holds.  Its dead time: it waits for the
     #     other gate to fall, then 100 ns, on top of AM32's own.
     #   ENABLE from the bus through its clamp (esc_power): the driver wakes
     #     with the battery.  Its DVDD regulator feeds only the driver's own
-    #     logic and its 1 uF (the channel's 3.3 V comes from the board's
-    #     buck, esc_power).
+    #     logic and its 1 uF (the channel's 3.3 V is the flight controller's,
+    #     down the stack lead, esc_power).
     #     nFAULT is not read (AM32 has no use for it).
     add('U', 'DRV8320H', {
         '1': p('CPH'), '32': p('CPL'), '2': p('VCP'), '3': 'VBAT', '4': 'VBAT',   # VM, VDRAIN

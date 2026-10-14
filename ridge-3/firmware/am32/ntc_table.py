@@ -2,8 +2,9 @@
 """AM32's NTC_table for the Ridge 3 ESC's FET thermistors.
 
 Each channel reads a Murata NCU15XH103F60RC (10 k, B25/50 3380 K) to ground
-under a 10 k bias resistor from the driver's DVDD, which is also the MCU's
-VDDA, so the reading is ratiometric:
+under a 10 k bias resistor from the channel's 3.3 V (the flight controller's
+3.3 V through the channel's bead), which is also the MCU's VDDA, so the
+reading is ratiometric:
 
     ADC = 4096 R / (R + 10k)
 

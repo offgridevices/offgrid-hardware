@@ -57,7 +57,7 @@
 #define LED0_PIN            PB7
 #define LED_STRIP_PIN       PB6
 
-#define UART1_TX_PIN        PA9             // HD VTX connector (MSP DisplayPort), or analog VTX control
+#define UART1_TX_PIN        PA9             // HD VTX pads T1/R1 (MSP DisplayPort), or analog VTX control
 #define UART1_RX_PIN        PA10
 #define UART2_TX_PIN        PB3             // receiver
 #define UART2_RX_PIN        PB4

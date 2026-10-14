@@ -26,7 +26,10 @@ The copper matches `src/circuit.py` pad for pad, and
 [`VERIFICATION.md`](VERIFICATION.md) checks the design against sources other
 than itself. No board has been made or measured. Order the minimum
 quantity, build one stack, and go through the [bring-up](#bring-up) steps
-before building more.
+before building more.  Open decisions, the prototype test plan and the
+progress log are in [`docs/STATUS.md`](docs/STATUS.md) (start there when
+taking the board on), with [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) and
+[`docs/CHANGING.md`](docs/CHANGING.md).
 
 **Revision 2.0** for both boards: printed `REV 2.0` by a corner of each, and
 in each board file's title block, which the Gerbers carry. Each board keeps
@@ -41,11 +44,11 @@ a change to one board moves only its number.
 
 | | Flight controller (`fc/`) | 4-in-1 ESC (`esc/`) |
 |---|---|---|
-| Battery | 2-6S (up to 25.2 V).  The ESC lead feeds the FC; the video supply has its own battery pads | 2-6S.  60 V FETs: 42 % of their rating on 6S |
+| Battery | 2-6S as printed (up to 25.2 V); a 6S LiHV pack (26.1 V) is simulated and passes.  On 2S the 9 V video supply cannot hold 9 V, and at full load the FC draws about 1.9 A through the stack lead's 1.5 A contacts: [`docs/RELIABILITY.md`](docs/RELIABILITY.md) recommends rating it 3S-6S LiPo and 6S LiHV, an open decision ([`docs/STATUS.md`](docs/STATUS.md), D8).  The ESC lead feeds the FC; the video supply has its own battery pads | 2-6S as printed, 6S LiHV simulated.  60 V FETs: 42 % of their rating on 6S (44 % on LiHV) |
 | Brain | STM32G473 (170 MHz). Betaflight target `RIDGE3` | 4 × Artery AT32F421 (120 MHz). AM32 target `RIDGE3_F421` |
 | Sensors | TDK IIM-42652 industrial gyro (-40..105 °C; an ICM-42688-P fits the same pads), battery voltage, current from the ESC | Current per motor (0.5 mΩ Kelvin shunt + TI INA186), battery voltage, an NTC thermistor at each motor's FETs |
 | Video (optional groups) | **HD** (the default build): solder pads for DJI O3/O4, Walksnail and HDZero air units, `9V G T1 R1` (MSP DisplayPort on UART1). **Analog build:** adds an AT7456E OSD with camera and VTX pads | – |
-| Power out | 5 V 2 A (TI LMR38020F). **9 V 2 A for the VTX** (a second LMR38020F) from its own battery pads, which Betaflight can switch off and a thermostat cuts above 96 °C. 3.3 V from a TI TPS628501 buck | – |
+| Power out | 5 V 2 A with airflow, 1 A continuous on the ground in still air (0.5 A at 60 °C: [`docs/RELIABILITY.md`](docs/RELIABILITY.md)) (TI LMR38020F). **9 V 2 A for the VTX** (a second LMR38020F) from its own battery pads, which Betaflight can switch off and a thermostat cuts above 96 °C. 3.3 V from a TI TPS628501 buck | – |
 | Power stage | – | 24 × Infineon ISZ023N06LM6 (60 V, 2.3 mΩ), TI DRV8320H smart gate drivers (set gate current, 2 A hold-off, overcurrent shutdown) |
 | Protection | TVS on each battery input. The 9 V rail stays off without its battery pads, and when its thermostat trips | Three 10 µF 50 V bus ceramics on the board, the FC's TVS on the same battery line. Current limit and temperature limit (read at the FETs) per motor (AM32), the drivers' overcurrent shutdown, stuck-rotor cut-out |
 | Connectors | USB-C, BOOT button, Molex Micro-Lock Plus stack lead (locking), solder pads | Through-hole battery pads, motor pads, soldered stack lead |
@@ -102,10 +105,14 @@ terminals): 1.5 A and 105 °C per contact, against the JST-SH's 1 A and
 85 °C, and it locks.  The lead carries only the FC's own 5 V side, under
 0.6 A on an empty 6S pack; the video supply has its own wires from the
 ESC's battery pads.  To use this ESC with another maker's FC, solder that
-FC's lead to the ESC's pads; to use this FC with another ESC, make a lead
-with the Molex housing at this end.  The ESC's CUR output is the average of
-its four channels' sensors: 12.5 mV per amp of battery current (Betaflight
-`ibata_scale` 125, which the firmware sets).
+FC's lead to the ESC's pads but keep its pin 4 (TLM, an input on that FC)
+off the `3V3` pad, and give the `3V3` pad 3.3 V (about 90 mA) from that FC
+or a regulator: without it the ESC's MCUs do not run.  To use this FC with
+another ESC, make a lead with the Molex housing at this end and leave
+pin 4 unconnected: this FC drives 3.3 V on it.  The ESC's CUR output is the
+average of its four channels' sensors: 12.5 mV per amp of battery current
+unloaded, 12.2 mV/A into the FC's 100 kΩ (Betaflight `ibata_scale` 125,
+which the firmware sets, reads about 2.4 % low; trim it at bring-up).
 
 **Motor numbering:** Betaflight's Quad X. Motor 1 is rear-right, 2
 front-right, 3 rear-left and 4 front-left. On the ESC, each motor's number is
@@ -129,10 +136,13 @@ battery meets it, the power FETs included:
 
 Rev 1's 40 V FETs ran at 63 %, and its switch node rang to their rating.
 The 60 V parts with the DRV8320H's controlled gate current keep the
-simulated peaks well inside 60 V (see [`STRESS.md`](STRESS.md)).  The ESC
-carries its own bus capacitance (three 10 µF 50 V ceramics beside the
-twelve bridge capacitors), so nothing hangs on the battery leads.  The FC's
-SMF33A TVS clamps slow surges on the same battery line.
+simulated peaks at 30 A well inside 60 V (42.5 V, [`STRESS.md`](STRESS.md));
+at a full-throttle punch's 68 A they reach 46 V in the estimated 5 nH loop
+and 57 V in the 8 nH bracket ([`docs/RELIABILITY.md`](docs/RELIABILITY.md),
+[`docs/STATUS.md`](docs/STATUS.md) D2).  The ESC carries its own bus
+capacitance (three 10 µF 50 V ceramics beside the twelve bridge
+capacitors), so nothing hangs on the battery leads.  The FC's SMF33A TVS
+clamps slow surges on the same battery line.
 
 **Current.** Each FET is rated 149 A continuous with its case at 25 °C
 (105 A at 100 °C, 596 A pulsed; 2.3 mΩ maximum at 10 V gate drive, and the
@@ -140,12 +150,18 @@ DRV8320H drives about 11 V).  A 3" motor's 20-30 A bursts are a small
 fraction of that.  What limits current is heat in a 36 mm board, and the
 simulations in [`STRESS.md`](STRESS.md) give the numbers at 25, 50 and 60 °C
 air.  The firmware keeps the board from cooking itself: AM32's per-motor
-current limit (20 A, read from this board's shunts), its temperature limit
-(110 °C, read by a thermistor at each motor's FETs) and stuck-rotor
-protection, and the gate drivers' own overcurrent trip (all six FETs off
-for 4 ms, then a retry).  See [`firmware/README.md`](firmware/README.md);
-[`docs/RELIABILITY.md`](docs/RELIABILITY.md) runs a crash and a
-full-throttle punch through them.
+current limit (20 A, read from this board's shunts, over 50 ms), its
+temperature limit (110 °C, read by a thermistor at each motor's FETs) and
+stuck-rotor protection (a cut after about 248 ms).  Under them, each gate
+driver has its own overcurrent trip (all six FETs off for 4 ms, then a
+retry) at 0.6 V across a FET and the copper in series with it: about
+118-143 A with a hot FET, 181-221 A with a cool one, so it never acts in a
+punch (64-68 A) and catches a short or a jammed motor.  In the simulated
+worst crash, a motor stopped dead at full throttle right after hard flying
+on a 50 °C day, the low-side FET still passes its 175 °C rating for about
+0.2 s before AM32 cuts.  See [`firmware/README.md`](firmware/README.md);
+[`docs/RELIABILITY.md`](docs/RELIABILITY.md) has the crash and the punch,
+and [`docs/STATUS.md`](docs/STATUS.md) the decisions they raise (D3, D4).
 
 **Heat on the flight controller.**  The FC's own losses are its supplies,
 and the video supply is the big one.  It runs from its own battery pads,
@@ -227,7 +243,8 @@ The exceptions and thin spots, checked 1 October 2026:
 | Infineon ISZ023N06LM6 (ESC FETs) | Not stocked by LCSC | JLC global sourcing or PCBWay turnkey; DigiKey had 2,625 on 30 September |
 | Infineon S25FL128L (flash) | LCSC lists it with 0 stock | JLC global sourcing; the board runs without it |
 | Abracon ABM8AIG 27 MHz (OSD crystal) | JLC stock 1 | DigiKey had 8,544; SCTF SX3B27.000F1010G30 (105 °C) fits the same land with JLC stock |
-| TI TPS628501 (3.3 V buck), TDK TFM252012 (its inductor), Murata GCJ32E 10 µF (ESC bus) | JLC stock 85 / 130 / 259 | Enough for a prototype run; buy ahead or consign for volume |
+| TI TPS628501 (3.3 V buck), Murata GCJ32E 10 µF (ESC bus) | JLC stock 85 / 259 (1 October) | Enough for a prototype run; buy ahead or consign for volume |
+| TDK TFM252012ALMAR47MTAA (3.3 V inductor) | Out of stock at JLC / LCSC on 13 October (DigiKey had stock) | Consign it from DigiKey, or the Bourns SRP2512TMA-R47M after a land check: [`docs/STATUS.md`](docs/STATUS.md), D5 |
 | STM32G473CEU6 (FC MCU) | 105 °C junction; the 130 °C CEU3 fits the same pads and image but is out of stock everywhere: since mid-2026 ST quotes 52 weeks for the whole STM32G4 family (foundry capacity moved to higher-value parts, distributors asking for 2027's orders now), and DigiKey, Mouser, JLC and ST's own store have none of the -3 temperature grade.  The STM32G474CEU3 is the same (DigiKey 0, 52 weeks, 3 October) | Fit the CEU3 when it is available |
 | Resistors | JLC's are UNI-ROYAL (operations in China) | Yageo equivalents are listed as `dk_mpn` in `parts.py` |
 
@@ -439,14 +456,18 @@ Do these in order. Each step catches a fault before it can damage the next.
    - Yaw right: the model yaws right.
    Then calibrate the accelerometer on a level surface: it should read
    about 1 g level before calibration (2 g means the wrong firmware).
-4. **ESC on a current-limited supply:** 15 V with a 0.3 A limit, or a
-   smoke stopper on the battery.
-   - It should idle at a few tens of mA (four gate drivers and MCUs).
+4. **Stack on a current-limited supply, the video wires off** (or the air
+   unit unplugged): 15 V with a 0.3 A limit, or a smoke stopper on the
+   battery.
+   - It should idle near 0.1 A: the four gate drivers, the FC's supplies
+     and the five processors (an estimate from `sim/data.py`, not
+     measured).  Record it.
 5. **Stack plus battery, props off:**
    - The AM32 configurator, through Betaflight passthrough, must see four
      `RIDGE3_F421` ESCs. Send the default config, then set the motor KV and
-     pole count, the current limit (20 A) and the temperature limit
-     (110 °C).
+     pole count, the current limit (20 A), the temperature limit (110 °C)
+     and a fixed 24 kHz PWM (variable PWM off): the settings table in
+     [`firmware/README.md`](firmware/README.md).
    - Betaflight's ESC temperatures (`dshot_edt`) should read the room's
      temperature within a few degrees: that checks the four thermistors.
    - In Betaflight's Motors tab, spin each motor slowly. Confirm the order
@@ -504,10 +525,17 @@ default expression, so the boards are **Pitch** (black solder mask) with
 - Pad names, part codes and numerals are JetBrains Mono. Words ("Boot",
   "Flight controller") are Instrument Sans. Both follow the brand's `tokens.json`.
 - Everything is drawn as filled outlines from the fonts in `fonts/` (SIL
-  OFL), not KiCad's stroke font. The Gerbers carry the exact letterforms,
-  and nobody needs the fonts installed.
+  OFL; [`fonts/README.md`](fonts/README.md) has their versions and
+  hashes), not KiCad's stroke font. The Gerbers carry the exact
+  letterforms, and nobody needs the fonts installed.
 - Silkscreen prints one colour, and the brand's rule is one accent or none,
   so there is no Ember.
+- No brand file is copied into this repository: `src/brand.py` draws the
+  mark and the lockup from the hand-off's numbers.  `src/verify.py`
+  compares the mark with the brand's own lockup PNG in the brand repository
+  (offgridevices/offgrid-brand, private, at `685c4d4`: hand-off v3.2) when
+  `OFFGRID_BRAND` points at a checkout of it; without one, that check
+  SKIPs.
 
 ---
 
@@ -516,7 +544,8 @@ default expression, so the boards are **Pitch** (black solder mask) with
 ```
 ridge-3/
   README.md               this file
-  images/                 both sides of both boards on one sheet
+  images/                 both sides of both boards on one sheet; stress/:
+                          the STRESS.md figures
   VERIFICATION.md         every design check that can be made without
                           hardware, with its result (src/verify.py)
   STRESS.md               the stack simulated flat out, hot, on 6S: copper,
@@ -525,7 +554,8 @@ ridge-3/
   fc/                     flight controller
     ridge3-fc.kicad_pcb / .kicad_pro / .kicad_dru   open in KiCad 10
     production/           Gerbers zip, BOM + CPL (JLCPCB), BOM (PCBWay),
-                          netlist, assembly drawing (PDF)
+                          netlist, assembly drawing (PDF); the analog
+                          build's BOMs and CPL (-analog)
       panel/              the same for a 3 x 2 panel, for volume assembly
     images/               renders
   esc/                    4-in-1 ESC, same layout
@@ -535,33 +565,51 @@ ridge-3/
                           drawing (PDF, PNG preview), 3D views, the gap pad's
                           outline (DXF), and the JSON make.py checks
   firmware/               Betaflight image and its gyro patch, AM32
-                          bootloader and firmware, the AM32 target patch,
-                          flashing script, CLI setup
+                          bootloader and firmware, the AM32 target patch and
+                          the script that makes its NTC table, flashing
+                          script, CLI setup
+  docs/README.md          the board's records: start with docs/STATUS.md
+  docs/STATUS.md          where it stands, open decisions, next steps, log
+  docs/TEST_PLAN.md       the tests for the first prototypes
+  docs/CHANGING.md        how to carry a decision into the design
   docs/REV2.md            every change from revision 1, and why
   docs/RELIABILITY.md     variants, a crash, a punch: the trade-offs and
                           what to decide, and what only the bench can settle
+  docs/MOUNTING.md        the mounting holes and slots
+  docs/DATASHEETS.md      the datasheets verify.py reads (not committed)
   docs/research/          the research behind the rev 1 part choices: ESC
                           power stage, FC video, sourcing and market
   aio.pretty/ aio.3dshapes/   footprints and 3D models (from JLCPCB/EasyEDA's
                           own library entries for the exact LCSC parts; the
                           USB-C connector uses KiCad's own model)
-  fonts/                  Instrument Sans and JetBrains Mono (SIL OFL)
+  fonts/                  Instrument Sans and JetBrains Mono (SIL OFL), with
+                          their versions and hashes (fonts/README.md)
   src/                    the design, as Python (see below)
   sim/                    the stress simulations behind STRESS.md
+    results/              their reports, committed: the variants, the
+                          ground runs, the crash, the punch
+    rev1/                 revision 1's boards and circuit, for the comparison
+  tools/                  Dockerfile: the pinned toolchain; board_view.py and
+                          mcu_cluster_search.py (not part of the build)
   video/                  exploded-view videos, made from the board files
-  requirements.txt
+  requirements.txt        Python packages for src/ and sim/, pinned
+  requirements-cadquery.txt   CadQuery, for the heatsink's CAD files
+  .gitignore              the build's working copy of the Gerbers
+                          (*/production/gerbers/), the CadQuery venv
+                          (.venv-cq/), KiCad's backups, final videos
 ```
 
 ## How it is made (and how to change it)
 
 The design is the Python in `src/`. Nothing is drawn by hand, and nothing
-is patched after the fact: every board comes out of the same code path.
+is patched after the fact: every board comes out of the same code path.  To
+apply a decision or swap a part, follow [`docs/CHANGING.md`](docs/CHANGING.md).
 
 | File | What it holds |
 |---|---|
 | `circuit.py` | The schematic: every part and every connection, pin by pin, with the reasons. |
 | `parts.py` | Every orderable part, with its LCSC and DigiKey numbers, MPN and footprint. |
-| `footprints.py` | Builds `aio.pretty` from the JLCPCB/EasyEDA library entries, plus the pads, test points and slotted mounting holes. |
+| `footprints.py` | Builds `aio.pretty` from the JLCPCB/EasyEDA library entries (`src/easyeda_raw/`), plus the pads, test points and slotted mounting holes; adding a part: [below](#adding-a-parts-footprint-and-3d-model). |
 | `fc_layout.py`, `esc_layout.py` | Placement, power copper, planes and silkscreen. The ESC is one motor channel written once and stamped onto four edges: driver, MCU, FETs, bridge capacitors, shunt, amplifier and thermistor in the same places on each. |
 | `legalize.py` | Packs the parts round their intended spots: the parts that must sit at a pin first, each supply's parts with their chip, nothing in a reserved via corridor or tab strip. |
 | `route.py`, `fanout.py`, `finish.py` | Plane fan-out and escape vias, then Freerouting for the signal routing, then an in-house maze router with rip-up for the last connections. |
@@ -570,7 +618,7 @@ is patched after the fact: every board comes out of the same code path.
 | `tools/board_view.py` | Not part of the build: a quick top and bottom PNG of a board (courtyards, pads by net class, tracks, vias, unrouted connections), for iterating on placement. |
 | `tools/mcu_cluster_search.py` | Not part of the build: the search that found the spots of the ESC's small parts round its MCU and driver (supply, reset and filter capacitors, the comparators' dividers, the thermistor's bias, the debug pads). It scores each layout against the fan-out's own via rules and the lines `esc_layout.route_local` lays first, so every pin keeps a way out; the spots it found are written into `esc_layout.py`. |
 | `artwork.py`, `brand.py` | Silkscreen placement (labels go only where they touch no pad, hole, part body, grommet or other label) and the OffGrid mark, lockup and type as outlines. |
-| `fab.py` | Gerbers, drills, BOM, CPL, netlist, assembly PDF, renders, STEP. |
+| `fab.py` | Gerbers, drills, BOM, CPL, netlist, assembly PDF, renders (256-colour PNG), STEP. |
 | `stable.py` | Keeps a rebuild from rewriting what has not changed: KiCad stamps each Gerber and STEP with the time and its raytracer's noise differs per run, so Gerbers keep their bytes when only the stamp differs, and renders and STEPs are made again only when the board, a 3D model or KiCad changed. |
 | `heatsink.py` | The ESC's heatsink from the routed board: a pocket over every bottom-side part at its maximum height (`parts.HEIGHTS`), merged where the metal between would be too thin to machine; fins, feet, battery-lead notches; the gap pad at its maker's charted impedance.  STEP, STL, DXF and 3D views (CadQuery), the drawing, and the geometry the thermal model uses. |
 | `panel.py` | The 3 × 2 production panel (KiKit), checked copy by copy against the single board. |
@@ -578,17 +626,133 @@ is patched after the fact: every board comes out of the same code path.
 | `verify.py` | Writes `VERIFICATION.md`. |
 
 `python3.12 src/make.py` rebuilds every output from the committed
-`.kicad_pcb` files. It fails unless each board has zero DRC errors, zero
-warnings and zero unconnected items, the copper matches `circuit.py` pad for
-pad, and every assembled part is in the BOM and the CPL. Run on unchanged
-boards it changes no file, so `git status` shows only what a change really
-moved. `python3.12 src/make.py --reroute` places and routes both boards from
+`.kicad_pcb` files (`python3.12 src/make.py --help` lists its options; run
+from `ridge-3/`, about 7 minutes a board on four cores). It fails unless
+each board has zero DRC errors, zero warnings and zero unconnected items,
+the copper matches `circuit.py` pad for pad, and every assembled part is in
+the BOM and the CPL. Run on unchanged boards it leaves every fab and order
+file byte for byte as it was, so `git status` shows only what a change
+really moved; renders and STEP models are made again only when the board, a
+3D model or KiCad changed (`stable.py`). `python3.12 src/make.py --fab-only`
+runs every gate and writes every order file, single boards and panels, but
+skips the renders, the STEP models, the panel renders and the stack sheet
+(about 6 minutes for both boards).
+`python3.12 src/make.py --reroute` places and routes both boards from
 scratch first, with a fixed seed per board, so the same inputs give the same
 boards. `python3.12 src/verify.py` then writes `VERIFICATION.md`.
 
-The tools: KiCad 10 (`pcbnew` Python module and `kicad-cli`), Freerouting
-1.9 (Java, headless via `xvfb-run`), KiKit 1.8 for the panel, and Python
-3.12 with the packages in `requirements.txt`.
+**CI.** The `ridge-3` job in `../.github/workflows/ci.yml` runs on every
+push, in KiCad's official 10.0.6 image pinned by digest: `make.py
+--fab-only`, a check that it left every committed output unchanged, then
+`verify.py` (without the firmware sources, datasheets and brand art, whose
+checks SKIP there).  A change that is not rebuilt and committed with its
+outputs fails there.
+
+### Setup
+
+The build host is Ubuntu 24.04, or the Docker image that
+[`tools/Dockerfile`](tools/Dockerfile) describes; its header has the
+commands to build and use it.  The image is KiCad's official
+`kicad/kicad:10.0.6`, pinned by digest, the one CI runs in: Debian 13 with
+Python 3.13, so its numpy, SciPy and the other packages from the
+distribution differ from the table below (the fab files do not depend on
+them), and it has not been built outside CI yet.  macOS and Windows are
+untested: `src/` reads KiCad's libraries from `/usr/share/kicad/`.  On
+Ubuntu 24.04, from `ridge-3/`:
+
+```
+sudo add-apt-repository ppa:kicad/kicad-10.0-releases
+sudo apt install kicad=10.0.6~ubuntu24.04.1 kicad-symbols=10.0.6~ubuntu24.04.1 \
+  kicad-footprints=10.0.6~ubuntu24.04.1 kicad-packages3d=10.0.6~ubuntu24.04.1 \
+  python3-numpy python3-scipy python3-shapely python3-matplotlib python3-pil \
+  python3-fonttools g++ ngspice xvfb openjdk-21-jre poppler-utils
+python3.12 -m pip install --break-system-packages -r requirements.txt
+python3.12 -m pip install --break-system-packages --no-deps gerbonara==1.6.3
+```
+
+Ubuntu's Python refuses a plain `pip install` (PEP 668), hence
+`--break-system-packages`; the packages Ubuntu ships come from apt and the
+rest from pip, as `requirements.txt` sets out (pip builds pyamg 5.0.1 from
+source, hence `g++`), and gerbonara goes in on its own with `--no-deps`.
+Then, only when they are needed:
+
+- **`make.py --reroute`:** Freerouting 1.9.0,
+  <https://github.com/freerouting/freerouting/releases/download/v1.9.0/freerouting-1.9.0.jar>
+  (SHA-256 `9084a4888937a7f31f857ecc12aa7a37407f51160e4d2892dff9c9bb47ae3102`),
+  named by `FREEROUTING_JAR=/path/to/freerouting-1.9.0.jar`.
+- **The heatsink's CAD files**, which `make.py esc` makes again only when
+  the ESC or the heatsink's parameters change: CadQuery in a venv of its
+  own (it needs a newer numpy than Ubuntu's shapely is built for):
+  `python3.12 -m venv .venv-cq && .venv-cq/bin/pip install -r requirements-cadquery.txt`,
+  then `CADQUERY_PYTHON=$PWD/.venv-cq/bin/python python3.12 src/make.py esc`.
+- **The simulations** and **the videos**: their own venvs, below.
+
+| Tool | Version | Used for |
+|---|---|---|
+| KiCad | 10.0.6: `kicad`, `kicad-symbols`, `kicad-footprints`, `kicad-packages3d` at `10.0.6~ubuntu24.04.1` (`ppa:kicad/kicad-10.0-releases`); `kicad/kicad:10.0.6` by digest in the image | `pcbnew`, `kicad-cli`: DRC, Gerbers, drills, renders, STEP |
+| Python | 3.12.3 (Ubuntu 24.04's) | `src/`, `sim/` |
+| from apt | numpy 1.26.4, scipy 1.11.4, shapely 2.0.3, Pillow 10.2.0, matplotlib 3.6.3, fonttools 4.46.0 | `src/` |
+| from pip | pypdf 6.19.0, uharfbuzz 0.56.2, pymupdf 1.28.2, scikit-image 0.26.0, kikit 1.8.1, gerbonara 1.6.3, pyamg 5.0.1 (`requirements.txt`) | `src/`, the panel (KiKit), `sim/` (pyamg) |
+| Freerouting | 1.9.0, on OpenJDK 21 under `xvfb-run` | `make.py --reroute` |
+| CadQuery | cadquery 2.8.0, cadquery-ocp 7.9.3.1.1, ezdxf 1.4.4, vtk 9.6.2, numpy 2.5.3 (`requirements-cadquery.txt`) | the heatsink's STEP, STL, DXF and views |
+| ngspice | 42 (Ubuntu's `42+ds-3build1`) | `sim/` |
+| poppler-utils | 24.02.0 (`pdftotext`) | the datasheets' text ([`docs/DATASHEETS.md`](docs/DATASHEETS.md)) |
+| easyeda2kicad | 1.0.1 | a new part's footprint and 3D model (below) |
+| Video | Python 3.11.15, bpy 4.5.14, numpy 1.26.4, Pillow 12.3.0, imageio-ffmpeg 0.6.0 with ffmpeg 7.0.2 (`video/requirements.txt`) | the exploded-view videos |
+| Arm GNU Toolchain | 13.3.rel1 | the firmware images ([`firmware/README.md`](firmware/README.md)) |
+
+### What `verify.py` reads from outside the repository
+
+`verify.py` checks the design against sources other than itself.  Five are
+not in this repository.  Point these variables at them; without one, the
+checks that need it SKIP and the run still passes.  Commit a
+`VERIFICATION.md` made with all five set.
+
+| Variable | What it points at | Source |
+|---|---|---|
+| `AM32_SRC` | an AM32 checkout at the commit the target patch is for; `verify.py` applies `firmware/am32`'s patch in memory (a checkout that already carries this exact patch also works) | <https://github.com/am32-firmware/AM32>, `2738df3240baa5bd4295b460cf0c5cfe0bd49d97` |
+| `AM32_BL_SRC` | an AM32-bootloader checkout | <https://github.com/am32-firmware/AM32-bootloader>, `578ff29cb6774c5ce491075ec9b7f05e9781acd6` |
+| `BF_SRC` | a Betaflight checkout; the gyro patch is applied in memory the same way | <https://github.com/betaflight/betaflight>, tag `2025.12.5`, `7348054f268f0058574719c134e9f149565bb8ea` |
+| `RIDGE3_DATASHEETS` | a folder of the parts' datasheets and their text | each file, its document and how its text was made: [`docs/DATASHEETS.md`](docs/DATASHEETS.md) |
+| `OFFGRID_BRAND` | a checkout of the brand repository, for the mark's one check | offgridevices/offgrid-brand (private), `685c4d4` (hand-off v3.2) |
+
+```
+AM32_SRC=/src/AM32 AM32_BL_SRC=/src/AM32-bootloader BF_SRC=/src/betaflight \
+  RIDGE3_DATASHEETS=/src/datasheets OFFGRID_BRAND=/src/offgrid-brand \
+  python3.12 src/verify.py
+```
+
+### Adding a part's footprint and 3D model
+
+Every footprint in `aio.pretty` is either generated in `src/footprints.py`
+(pads, test points, the mounting hole, the shunt's and the FETs' lands) or
+converted once from JLCPCB/EasyEDA's own library entry for the exact LCSC
+part with easyeda2kicad 1.0.1 and kept verbatim in `src/easyeda_raw/`.  For
+a new LCSC part, in an empty scratch folder (it writes `ee.pretty/` and
+`ee.3dshapes/` there):
+
+```
+easyeda2kicad --footprint --3d --lcsc_id Cxxxxxx --output ee
+```
+
+1. Copy the `.kicad_mod` from `ee.pretty/` into `src/easyeda_raw/` as it
+   is.  Its 3D model line must read `ee.3dshapes/NAME.wrl`: `footprints.py`
+   points it at `../aio.3dshapes/NAME.stpZ` by that name.
+2. Gzip the STEP from `ee.3dshapes/` into `aio.3dshapes/NAME.stpZ` (KiCad
+   reads gzipped STEP under that extension):
+   `gzip -c ee.3dshapes/NAME.step > aio.3dshapes/NAME.stpZ`.
+3. Pad names that differ from the datasheet's, or an exposed pad smaller
+   than the maker's land pattern, go in `FIXUPS` in `src/footprints.py`;
+   a model that sits off the pads, in `MODEL_SHIFT`.  The raw file stays
+   verbatim.
+4. `python3.12 src/footprints.py` rewrites `aio.pretty` (item IDs are
+   derived from each footprint's name, so the footprints that did not
+   change come out byte for byte).
+5. The part's entry in `src/parts.py` names it as `aio:NAME`, with its
+   body height in `HEIGHTS` if it sits on the ESC's bottom; then the loop
+   in [`docs/CHANGING.md`](docs/CHANGING.md).
+
+Check the converted land against the maker's drawing before using it.
 
 ### Exploded-view videos
 
@@ -618,31 +782,58 @@ closes and lies down under the title.
 - **Commands**, run from `ridge-3/` with KiCad's Python (`python3.12`):
 
   ```
-  python3.12 video/make_video.py fc --check     # build the scene only (a minute): no frames
-  python3.12 video/make_video.py fc --stills 0,270    # a few labelled frames
-  python3.12 video/make_video.py fc             # 720p 30 fps draft, video/out/fc/
-  python3.12 video/make_video.py fc --final     # 4K 60 fps, fc/images/ridge3-fc-explode.mp4
-  python3.12 video/make_video.py fc --final --build analog   # ridge3-fc-analog-explode.mp4
-  python3.12 video/make_video.py esc --final    # esc/images/ridge3-esc-explode.mp4
+  python3.12 video/make_video.py fc --check          # build the scene only (1-4 min): no frames
+  python3.12 video/make_video.py fc --stills 0,270   # a few labelled frames (numbered at 30 fps)
+  python3.12 video/make_video.py fc                  # 720p 30 fps draft
+  python3.12 video/make_video.py fc --final          # 4K 60 fps
+  python3.12 video/make_video.py fc --final --build analog
+  python3.12 video/make_video.py esc --final
   ```
 
-  Both boards' final videos run 32.75 s (1,965 frames), the length of the
-  music edit named in `video/music/README.md`; without the licensed track the
-  video comes out silent and the run says so.
-- **Setup:** the first run sets up `video/.venv` (Python 3.11 with Blender as
-  a module).
+  Everything goes to `video/out/<board>/`, which git ignores: the draft as
+  `ridge3-fc-explode-draft.mp4`, the final videos as
+  `ridge3-fc-explode.mp4`, `ridge3-fc-analog-explode.mp4` and
+  `ridge3-esc-explode.mp4`.  The final videos are published (as release
+  assets, for example), never committed.
+- **Options:** `--check` builds the scene and stops; `--stills N,N` renders
+  only those frames, labelled (frame numbers at the quality's frame rate:
+  30 fps for a draft, 60 with `--final`); `--final` is 4K at 60 fps with more
+  samples; `--build NAME` shows another build of the FC
+  (`circuit.BUILDS`); `--jobs N` renders N frames at once (2 by default);
+  `--out PATH` names the MP4; `--music PATH` lays another audio file under
+  it; `--config PATH` reads the settings from another file.  `VIDEO_PYTHON`
+  names the Python 3.11 that makes `video/.venv` (default `python3.11`).
+- **Length:** both boards' videos run 32.75 s, 1,965 frames at 60 fps (the
+  ESC's settings shorten its labelled hold to 3.2667 s to make it so), the
+  length of the music edit named in `video/music/README.md`.  The track is
+  licensed and stays out of git; without it the video comes out silent and
+  the run says so.
+- **Type:** Instrument Sans from `fonts/`, checked against the OffGrid brand
+  v3.2.
+- **Setup:** the first run makes `video/.venv` (Python 3.11 with Blender as
+  a module, from `video/requirements.txt`; about 1.1 GB).
 - **Rendering:** it uses Cycles, on a GPU when Blender finds one (CUDA,
-  OptiX, HIP, Metal, oneAPI), otherwise on the CPU. A 4K frame takes 2-4.5
-  minutes on a 4-core CPU; a stopped render resumes.
+  OptiX, HIP, Metal, oneAPI), otherwise on the CPU.  A 4K frame takes 2-4.5
+  minutes on a 4-core CPU, so a final video is 65-147 hours there: use a
+  GPU where one is at hand.  A stopped render resumes where it stopped:
+  run the same command again.
+- **Disk:** a board's work folder in `video/out/` is 150-175 MB before any
+  frames; a draft's frames take about 1.8 GB, and a final video's 4K
+  frames far more (not measured; tens of GB).
+
+The repository-wide guide to these videos, for a new board too, is
+[`../docs/product-video.md`](../docs/product-video.md).
 
 ### Stress simulations
 
 `sim/.venv/bin/python sim/stress.py` writes `STRESS.md` and its figures in
 `images/stress/`: the FC on the ESC, a full 6S pack, hot air (50 °C is the
 design's hot day), full current.  It runs revision 2 (the boards and
-`circuit.py` in this tree) and revision 1 (read from git, `sim/design.py`)
-through the same simulations and compares them, so it follows the boards
-as they change.
+`circuit.py` in this tree) and revision 1 (its board files and circuit,
+kept in `sim/rev1/`; `sim/design.py`) through the same simulations and
+compares them, so it follows the boards as they change.  The other reports
+the documents quote are committed in `sim/results/`; the caches (copper
+maps, SPICE runs) stay in `sim/out/`, which git ignores.
 
 | File | What it does |
 |---|---|
@@ -653,28 +844,54 @@ as they change.
 | `thermal.py`, `stack.py` | Both boards as thermal grids, stacked with the air gap between them, and the ESC's heatsink under it (its plate on the ESC's grid, from `src/heatsink.py`'s geometry: pockets, contact, the gap pad's charted impedance, the fins); each part that heats or has a temperature limit gets a node. |
 | `losses.py` | Heat per part for an operating point: FETs, switching, dead time, shunts, drivers, regulators, the FC's supplies. |
 | `data.py` | Every datasheet figure used, with its source, and each assumption, marked as one; `DESIGNS` maps each revision to its parts. |
-| `design.py` | Where each revision's files come from: rev 2 from the working tree, rev 1 from git. |
-| `stress.py` | The scenarios and the report.  `--variant=NAME` runs rev 2 with one change from `data.VARIANTS` (another FET, IDRIVE, AM32's temperature limit, a LiHV pack, thin air) into `sim/out/variants/NAME/`. |
-| `variants.py` | The variants' runs side by side (`sim/out/variants/VARIANTS.md`). |
-| `ground.py` | The stack on the ground, still air, with the video and 5 V loads wired either way, 25-60 °C. |
-| `crash.py` | A motor jammed at full throttle: AM32's reaction, the gate driver's overcurrent monitor with the copper it measures through, the FET junctions and the source copper's hottest via (`sim/out/crash/CRASH.md`). |
-| `punch.py` | A full-throttle punch from hover: the phase current it peaks at, the overcurrent monitor's margin, and the switching edges at that current for two IDRIVE settings (`sim/out/punch/PUNCH.md`). |
+| `design.py` | Where each revision's files come from: rev 2 from the working tree, rev 1 from `sim/rev1/`. |
+| `stress.py` | The scenarios and the report.  `--variant=NAME` runs rev 2 with one change from `data.VARIANTS` (another FET, IDRIVE, AM32's temperature limit, a LiHV pack, thin air) into `sim/results/variants/NAME/` (`STRESS.md` and `found.json`). |
+| `variants.py` | The variants' runs side by side ([`sim/results/VARIANTS.md`](sim/results/VARIANTS.md)). |
+| `ground.py` | The stack on the ground, still air, with the video and 5 V loads wired either way, 25-60 °C ([`sim/results/variants/rev2/GROUND.md`](sim/results/variants/rev2/GROUND.md)). |
+| `crash.py` | A motor jammed at full throttle: AM32's reaction, the gate driver's overcurrent monitor with the copper it measures through, the FET junctions and the source copper's hottest via ([`sim/results/crash/CRASH.md`](sim/results/crash/CRASH.md)). |
+| `punch.py` | A full-throttle punch from hover: the phase current it peaks at, the overcurrent monitor's margin, and the switching edges at that current for two IDRIVE settings ([`sim/results/punch/PUNCH.md`](sim/results/punch/PUNCH.md)). |
 
 - **Setup:** ngspice (`apt install ngspice`), and a venv that sees KiCad's
-  `pcbnew`: `python3.12 -m venv --system-site-packages sim/.venv`, then
-  `sim/.venv/bin/pip install "pyamg<5.1"` (5.0 works with the SciPy 1.11
-  that Ubuntu ships; newer pyamg needs SciPy 1.12).
+  `pcbnew` and the packages above: `python3.12 -m venv
+  --system-site-packages sim/.venv`.  The solvers need pyamg 5.0.1, which
+  `requirements.txt` installs (5.0 works with the SciPy 1.11 that Ubuntu
+  ships; newer pyamg needs SciPy 1.12); without it there,
+  `sim/.venv/bin/pip install pyamg==5.0.1`.
 - **The FET models** are the makers', for simulation, not for passing on,
-  so neither is in this repository:
-  - rev 2: Infineon's OptiMOS 6 60 V SPICE library (from the
-    ISZ023N06LM6's page, "Simulation models"), as
-    `sim/out/spice/OptiMOS6_60V_Spice.lib` or pointed to by
-    `OPTIMOS6_60V_LIB`;
-  - rev 1: Toshiba's TPN2R304PL PSpice model (the part's page, "Design &
-    Development", "SPICE model"), as
-    `sim/out/spice/TPN2R304PL_G0_00_PSpice_rev1.lib` or pointed to by
-    `TPN2R304PL_LIB`.
-- **Time:** about an hour on a 4-core machine for both revisions; the
-  copper maps are cached in `sim/out/` per board file.
+  so none is in this repository.  Put each in `sim/out/spice/` under its
+  own name, or point its variable at it (`sim/spice.py`'s docstring says
+  where each comes from):
+
+  | Variable | Library | Needed for |
+  |---|---|---|
+  | `OPTIMOS6_60V_LIB` | Infineon's "OptiMOS 6 60 V" library, `OptiMOS6_60V_Spice.lib` (the ISZ023N06LM6's page, "Simulation models"; headed `Version 030726`, SHA-256 `329e8eaf97ba8e682ba316e3a2bd402cc737f01cd7f505787bcc920fca0e20d8`) | rev 2: every run |
+  | `OPTIMOS5_60V_LIB` | Infineon's "OptiMOS / OptiMOS 5 60 V" library, `OptiMOS_OptiMOS5_60V_Spice.lib`, from the same zip (`Version 030726`, SHA-256 `7215379a380e047c3f67e1f081abe37a641c74281463e400e1af0d1f88c948eb`) | the BSZ040N06LS5 variants only |
+  | `TPN2R304PL_LIB` | Toshiba's TPN2R304PL "G0" PSpice model, `TPN2R304PL_G0_00_PSpice_rev1.lib` (the part's page, "Design & Development", "SPICE model"; SHA-256 `d07c7aa62f38f581b061e6eff178f2cc18585628509fad2031fca986ec6d8d65`) | rev 1, only for the comparison in `STRESS.md` |
+
+- **The runs**, in this order, from `ridge-3/` (times on a 4-core machine):
+
+  ```
+  export OPTIMOS6_60V_LIB=/path/to/OptiMOS6_60V_Spice.lib
+  export OPTIMOS5_60V_LIB=/path/to/OptiMOS_OptiMOS5_60V_Spice.lib
+  export TPN2R304PL_LIB=/path/to/TPN2R304PL_G0_00_PSpice_rev1.lib
+  sim/.venv/bin/python sim/stress.py                 # STRESS.md, images/stress/: both revisions, about 1 h 45 min
+  sim/.venv/bin/python sim/stress.py --variant=rev2  # sim/results/variants/rev2/: about 1.5 h
+  sim/.venv/bin/python sim/crash.py                  # sim/results/crash/: about 12 min
+  sim/.venv/bin/python sim/punch.py                  # sim/results/punch/: about 28 min
+  sim/.venv/bin/python sim/ground.py                 # sim/results/variants/rev2/GROUND.md
+  for v in idrive30 lihv alt2250 bsz040 bsz040-idrive30 temp120 idrive30-temp120; do
+    sim/.venv/bin/python sim/stress.py --variant=$v  # about 1.5 h each
+  done
+  sim/.venv/bin/python sim/crash.py --variant=bsz040 # sim/results/crash/bsz040/
+  sim/.venv/bin/python sim/variants.py               # sim/results/VARIANTS.md
+  ```
+
+  `crash.py`, `punch.py` and `ground.py` start from the `found.json` that
+  `stress.py --variant=rev2` writes, so that run comes first.  Without
+  Toshiba's model, `stress.py` stops at once (rev 1 runs first), but
+  `--variant=...` runs rev 2 alone.
+  `sim/stress.py --quick` (one air speed and temperature, short runs, into
+  `sim/out/quick/` only) checks that the code runs.
+- The copper maps are cached in `sim/out/` per board file.
   `SIM_BOARD_ESC` / `SIM_BOARD_FC` point rev 2 at other board files (one
   still being routed, say).

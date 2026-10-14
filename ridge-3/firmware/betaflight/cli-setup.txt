@@ -20,7 +20,7 @@ feature TELEMETRY
 set motor_pwm_protocol = DSHOT300
 set dshot_bidir = ON
 set dshot_edt = ON
-# XING2 1404 is 9N12P: 12 magnets in the bell.  Set your motor's count.
+# 12 poles is a common 3" motor's count (14 for 12N14P motors); set your motor's.
 set motor_poles = 12
 
 # battery voltage: 30k/2k divider on the FC (ratio 16), good for 2S to 6S
@@ -30,8 +30,9 @@ set vbat_min_cell_voltage = 330
 set vbat_warning_cell_voltage = 350
 set vbat_max_cell_voltage = 430
 # battery current: the ESC sends CUR = the average of its four channels'
-# 50 mV/A current-sense outputs = 12.5 mV per amp of total battery current,
-# 0 A = 0 V.  Betaflight's scale is mV per 10 A, its offset mA.
+# 50 mV/A current-sense outputs = 12.5 mV per amp of total battery current
+# unloaded, 0 A = 0 V; into the FC's 100k it is 12.2 mV/A, so 125 reads
+# about 2.4 % low.  Betaflight's scale is mV per 10 A, its offset mA.
 # Check against a bench supply's ammeter at bring-up; trim ibata_scale if
 # needed (a higher scale reads lower current).
 set current_meter = ADC
@@ -48,11 +49,11 @@ beacon RX_LOST
 beacon RX_SET
 
 # ---------------------------------------------------------------- video
-# Pick ONE of the two blocks below.  The HD connector and the T1/R1 pads
-# are both UART1, so a digital system and an analog VTX's control wire
-# cannot be used at the same time.
+# Pick ONE of the two blocks below.  The HD air unit and an analog VTX's
+# control wire both use UART1 (pads T1/R1), so they cannot be used at the
+# same time.
 
-# --- HD system (DJI O3/O4, Walksnail, HDZero) on the 6-pin HD connector:
+# --- HD system (DJI O3/O4, Walksnail, HDZero) soldered to the 9V G T1 R1 pads:
 # UART1 = "VTX (MSP + DisplayPort)" (131073), the firmware's default.
 # vcd_video_system = HD makes Betaflight draw the OSD over MSP DisplayPort.
 # Without it, a board with the AT7456E fitted would find the analog chip
@@ -71,8 +72,8 @@ set vcd_video_system = HD
 # set vcd_video_system = AUTO
 
 # ---------------------------------------------------------------- VTX power
-# The 9 V video supply runs from its own battery pads (VBAT and G by the HD
-# connector, wired to the ESC's battery pads), never from the stack lead.
+# The 9 V video supply runs from its own battery pads (BAT and G, rear right,
+# wired to the ESC's battery pads), never from the stack lead.
 # A thermostat on the board switches it off above 96 C at the regulator and
 # back on at 76 C, whatever Betaflight does.  It can also be switched off
 # from the radio, e.g. to keep the VTX cool on the bench.  PB5 (PINIO1)

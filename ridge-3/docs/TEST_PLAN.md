@@ -15,9 +15,12 @@ Do it first on every stack.
 
 - **Boards:** one FC panel (6 FCs) and two ESC panels (12 ESCs), all from
   the committed files.  One ESC panel exactly as committed (IDRIVE 75 kΩ,
-  60 / 120 mA); on the other, change the BOM line `75k, "R9,R21,R33,R45"`
+  60 / 120 mA); on the other, change the IDRIVE line of the panel's BOM
+  (`../esc/production/panel/ridge3-esc-panel-bom-jlcpcb.csv`, line 11:
+  `75k, "R9_1,...,R45_6"`, and the same line of the PCBWay BOM beside it)
   from LCSC C295816 (RC0201FR-0775KL) to **C295780 (RC0201FR-0718KL, 18 kΩ,
-  30 / 60 mA)** before ordering.  Nothing else differs.  Label the panels.
+  30 / 60 mA)** before ordering (`CHANGING.md`, C1).  Nothing else differs.
+  Label the panels.
 - **Per stack:** the heatsink, gap pad, stack lead, grommets and hardware
   listed in the README's [Also needed](../README.md#also-needed-not-on-the-boards).
 - **Allocation:** of the 12 ESCs, 4 for function and switching (two of each
@@ -58,7 +61,8 @@ Each test: what it settles, how, what to record, and what passes.
 
 On every ESC, after the README's bring-up step 5: read the settings back in
 the AM32 configurator.  Record: temperature limit 110 °C, current limit
-20 A, stuck-rotor protection on, 3D off, car-type reversing off.  An MCU
+20 A, stuck-rotor protection on, 3D off, car-type reversing off, PWM
+24 kHz fixed (variable PWM off).  An MCU
 flashed over SWD starts with an erased settings page, which AM32 reads as
 car-reverse mode with both limits off; this test proves the procedure in
 `../firmware/README.md` set them.  Pass: all four, every ESC.
@@ -83,7 +87,8 @@ offset: AM32's 110 °C limit acts on the reported value.
 
 The simulations say the high side's turn-off pulls the driver's SHx pin
 below ground past its -7 V (for 200 ns) absolute maximum, more at a punch's
-current (`../sim/out/punch/PUNCH.md` after `python sim/punch.py`):
+current ([`sim/results/punch/PUNCH.md`](../sim/results/punch/PUNCH.md), from
+`sim/.venv/bin/python sim/punch.py`):
 
 | IDRIVE | 30 A, 5 nH | 68 A (punch), 3 / 5 / 8 nH | FET peaks at 68 A, 8 nH |
 |---|---|---|---|
@@ -131,11 +136,12 @@ motor after about 248 ms.
 - Record: the current against time, when AM32 cuts (its back-EMF timeouts
   are 22.5 ms apart; the cut comes at the 11th), whether the driver trips,
   the FET's peak temperature, and whether the ESC works afterwards without
-  unplugging the battery (a gate-driver fault on the DRV8320H latches until
-  power is removed).
-- Compare with `../sim/out/crash/CRASH.md` (`python sim/crash.py`).  Then
-  decide whether to change AM32's stuck-rotor cut to 3 timeouts (`STATUS.md`,
-  D3), and if so repeat T7 and T13 with the changed firmware.
+  unplugging the battery (whether a DRV8320H fault latches until power is
+  removed is one of the things this test settles: `RELIABILITY.md`).
+- Compare with [`sim/results/crash/CRASH.md`](../sim/results/crash/CRASH.md)
+  (`sim/.venv/bin/python sim/crash.py`).  Then decide whether to change
+  AM32's stuck-rotor cut to 3 timeouts (`STATUS.md`, D3), and if so repeat
+  T7 and T13 with the changed firmware.
 
 ### T8. Heat on a hot day
 
@@ -185,7 +191,10 @@ Ripple on each with the probe's ground spring.
 ### T12. LiHV
 
 T5 (punch only) and T11 on a full 6S LiHV pack (26.1 V).  The simulation:
-the same verdicts as 6S LiPo, punch peaks 68-72 A.
+the same verdicts as 6S LiPo, punch peaks 68-72 A.  Set Betaflight's
+`vbat_max_cell_voltage` to 440 first: at the 430 in
+`../firmware/betaflight/cli-setup.txt` a full 6S LiHV pack is counted as
+7 cells (`STATUS.md`, D8).
 
 ### T13. Flight
 
