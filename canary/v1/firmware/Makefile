@@ -12,7 +12,7 @@ FUSES = -U lfuse:w:0xE2:m -U hfuse:w:0xD9:m -U efuse:w:0xFD:m
 
 build/canary.hex: build/canary.elf
 	avr-objcopy -O ihex -R .eeprom $< $@
-	avr-size --mcu=$(MCU) -C $<
+	avr-size $<
 
 build/canary.elf: $(SRC) src/*.h
 	mkdir -p build
