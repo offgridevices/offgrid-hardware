@@ -1,0 +1,75 @@
+(a) Current sense
+  ISENSE gain: 0.5 mOhm x 100 = 50 mV/A at IOUT, x 1k/(1.5k + 1k) = 20.0 mV/A at PA5 (AM32 GEN_64K_G071 MILLIVOLT_PER_AMP 20).
+  Filter: Thevenin 1.5k || 1k = 600 ohm with 100 nF -> fc = 2.65 kHz (circuit.py says 1.0 kHz: that is 1.5k x 100 nF alone).
+  Full scale: IOUT swings to ~VS - 0.1 V = 3.2 V at the ~1.6 mA the 2.5k + 10k loads draw -> 64 A instantaneous; PA5 then reads 1.28 V (ADC never clips).
+  1 LSB (12 bit, 3.3 V) = 0.81 mV = 0.040 A.
+                                 error source   offset     gain
+---------------------------------------------  -------  -------
+                       INA186 VOS (50 uV max)   0.10 A         
+                    VOS drift 0.5 uV/C x 75 C  0.075 A         
+                            INA186 gain error             1.0 %
+                   gain drift 10 ppm/C x 75 C           0.075 %
+                              shunt tolerance             1.0 %
+shunt TCR 200 ppm/C x 75 C (HCS1206 0.5 mOhm)             1.5 %
+       1.5k / 1k ratio, 1 % parts (0.6 x 2 %)             1.2 %
+  Worst-case sum: offset 0.17 A, gain 4.8 %; RSS gain 2.4 %.  At 15 A: +-0.89 A worst.
+  Negative (regenerative) current reads 0: REF = GND, unidirectional.
+  PWM pulse train through the INA186 (slew 0.3 V/us, 35 kHz) and filter: average at PA5 vs ideal:
+PWM kHz  I A  duty  ideal mV  reading mV     error %  ripple mV p-p
+-------  ---  ----  --------  ----------  ----------  -------------
+     24    5   5 %         5           5    0.004166          2.135
+     24    5  10 %        10          10     0.02338          4.123
+     24    5  25 %        25          25   0.0005972          8.956
+     24    5  50 %        50          50   0.0003959          12.26
+     24    5  90 %        90          90   0.0002274          4.119
+     24   15   5 %        15          15    0.004166          6.405
+     24   15  10 %        30       30.01     0.02338          12.37
+     24   15  25 %        75          75   0.0005972          26.87
+     24   15  50 %       150         150   0.0003959          36.79
+     24   15  90 %       270         270   0.0002274          12.36
+     24   30   5 %        30        29.7     -0.9892          12.68
+     24   30  10 %        60       59.72     -0.4722          24.62
+     24   30  25 %       150       149.7     -0.1943          53.66
+     24   30  50 %       300         300   0.0003967          73.58
+     24   30  90 %       540       540.3      0.0553           24.6
+     48    5   5 %         5           5    0.004243           0.76
+     48    5  10 %        10          10     0.03824          1.453
+     48    5  25 %        25          25  -0.0009818           3.09
+     48    5  50 %        50          50  -0.0007232          4.182
+     48    5  90 %        90          90   -0.000667          1.452
+     48   15   5 %        15          15    0.004243           2.28
+     48   15  10 %        30       30.01     0.03824           4.36
+     48   15  25 %        75          75  -0.0009818           9.27
+     48   15  50 %       150         150  -0.0007232          12.55
+     48   15  90 %       270         270   -0.000667          4.357
+     48   30   5 %        30       29.44      -1.873          4.475
+     48   30  10 %        60        59.5     -0.8304          8.648
+     48   30  25 %       150       149.7      -0.229          18.51
+     48   30  50 %       300         300  -0.0007238          25.09
+     48   30  90 %       540       540.5     0.09586          8.641
+  CUR (FC PB1): 0.25 x 62k / (62k + 2.5k) x 50 mV/A = 12.02 mV/A of total battery current (ibata_scale 120); Thevenin 2403 ohm x 100 nF -> fc 662 Hz.
+  CUR ripple, 4 x 15 A at 50 %, 24 kHz, in phase: 22.06 mV p-p (= 1.84 A), mean 360.4 mV (ideal 360.5 mV)
+  CUR ripple, 4 x 15 A at 50 %, 48 kHz, in phase: 10.12 mV p-p (= 0.84 A), mean 357.3 mV (ideal 360.5 mV)
+
+(b) Back-EMF network
+  One phase moving, others at 0: CMP gain 0.1620 (1/6.174); NEUTRAL gain 0.0601.
+  All three together: CMP gain 0.1803 (1/5.545) - the unloaded 2.2/(10 + 2.2) divider.
+  CMP_x - NEUTRAL = (V_x - mean of the three phases) / 6.545 (one phase moving: 0.1019 = (2/3)/6.545).  Equivalently, with NEUTRAL held, each phase sees (10k || 2.2k) / (10k + 10k || 2.2k) = 1/6.545.
+  mid throttle (50 %), 60000 eRPM, 48 kHz PWM: CMP max 2.94 V, NEUTRAL -0.05..1.82 V, CMP min -0.13 V; zero-crossing error (PWM-on samples) <= 0.00 el. deg (ideal resistors)
+  full throttle (98 %), 60000 eRPM, 48 kHz PWM: CMP max 2.97 V, NEUTRAL -0.05..2.05 V, CMP min -0.13 V; zero-crossing error (PWM-on samples) <= 0.00 el. deg (ideal resistors)
+  Static worst: one phase at VBAT + 0.8 V (body diode), one at VBAT: CMP 3.11 V.  All three at VBAT + 0.8 V (all high sides off, coasting at full speed): CMP 3.28 V.
+  Limits: VDDA 3.3 V + 0.3 V = 3.6 V for a valid comparison; FT_a pin absolute max VDD + 4 V = 7.3 V.
+  Transient: phase at 24.0 V (snubbed switch-node overshoot) -> CMP 3.89 V (one phase), 4.33 V (all three).
+  Transient: phase at 41.0 V (as-drawn overshoot at 15 A) -> CMP 6.64 V (one phase), 7.39 V (all three).
+  Transient: phase at 35.5 V (VBAT at the TVS clamp) -> CMP 5.75 V (one phase), 6.40 V (all three).
+  1 % resistors (Monte Carlo, 2000 boards): comparator offset referred to the floating phase back-EMF: 58 mV typ (median), 210 mV at 99 %, 287 mV max (at VBAT 17.4 V, PWM on).
+    -> zero-crossing shift at startup, E = 0.5 V: 3.5 el. deg typ, 12.6 el. deg at 99 %
+    -> zero-crossing shift at E = 2 V: 0.9 el. deg typ, 3.2 el. deg at 99 %
+    -> zero-crossing shift at full speed, E = 8 V: 0.2 el. deg typ, 0.8 el. deg at 99 %
+
+(c) Battery-voltage dividers
+             divider  ratio  scale  V at 17.4 V  full scale V  tolerance (1 %)  source ohm  filter tau  V at 35.5 V
+--------------------  -----  -----  -----------  ------------  ---------------  ----------  ----------  -----------
+   FC 10k / 1k (PB2)     11    110        1.582          36.3    +1.8 / -1.8 %       909.1       91 us        3.227
+ESC 100k / 10k (PA6)     11    110        1.582          36.3    +1.8 / -1.8 %        9091        none        3.227
+  STM32G071 12-bit ADC max source resistance (DS12232 Table 57): 8.2k at 19.5 cycles, 15k at 39.5 cycles.  The ESC divider is 9.1k with no capacitor: it needs >= 39.5-cycle sampling, or a 10-100 nF capacitor at PA6 (then any sampling time works).

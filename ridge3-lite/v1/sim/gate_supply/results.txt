@@ -1,0 +1,31 @@
+PWM 24 kHz (sim): GVDD at a driver 10.962..10.975 V (13 mV p-p), LDO output 15 mV p-p, LDO input current 15.7 mA avg, bootstrap 9.99..10.11 V
+PWM 48 kHz (sim): GVDD at a driver 10.964..10.977 V (13 mV p-p), LDO output 15 mV p-p, LDO input current 24.3 mA avg, bootstrap 9.93..10.04 V
+
+LDO dissipation (4 drivers, max currents), VIN 17.4 V; board at 100 C:
+f kHz  corner  I_GVDD mA  P(10R) mW  P_LDO mW  Tj (board 100 C, RthJB 11.3)  Tj (100 C + RthJA 44.5)  Tj (50 C amb, RthJA)
+-----  ------  ---------  ---------  --------  ----------------------------  -----------------------  --------------------
+   24     typ       12.7      1.613     79.98                         100.9                    103.6                 53.56
+   24     max      15.72      2.471     98.52                         101.1                    104.4                 54.38
+   48     typ      21.34      4.554     132.5                         101.5                    105.9                  55.9
+   48     max      24.36      5.934     150.6                         101.7                    106.7                  56.7
+Limits: TJ 125 C operating (150 C abs), thermal shutdown 170 C; current limit 101 mA min.
+
+Bootstrap at 100 % duty (high side held on for 120 electrical degrees):
+corner  VBST before  after turn-on  droop V/s  time to BSTUV ms  min eRPM  min mech. RPM
+------  -----------  -------------  ---------  ----------------  --------  -------------
+   typ        10.28          10.17      212.8                29     689.7          98.54
+   max        10.13          10.02      375.2             14.71      1360          194.2
+
+Sagging pack (GVDD = VBAT - I x 10 ohm - dropout (5 ohm x I max); bootstrap after turn-on):
+             pack  VBAT   GVDD  VBST after HS turn-on (worst)      status
+-----------------  ----  -----  -----------------------------  ----------
+       4S HV full  17.4  10.98                          10.02          OK
+4S 3.5 V/cell sag    14  10.98                          10.02          OK
+          3S full  12.6  10.98                          10.02          OK
+    3S 3.3 V/cell   9.9  9.535                          8.593          OK
+3S 3.0 V/cell sag     9  8.635                          7.702          OK
+          2S full   8.4  8.035                          7.108          OK
+    2S 3.3 V/cell   6.6  6.235                          5.326          OK
+2S 3.0 V/cell sag     6  5.635                          4.732          OK
+    2S 2.8 V/cell   5.6  5.235                          4.336  BSTUV risk
+Lowest VBAT keeping VBST above BSTUV after a turn-on: 5.77 V worst case, 5.11 V typical (2.88 / 2.56 V per cell on 2S).

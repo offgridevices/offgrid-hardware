@@ -1,0 +1,163 @@
+(footprint "RES-SMD_1206_HCS1206"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "Stackpole HCS1206 current shunt, 3.2 x 1.65 mm; Stackpole land a=1.40 b=1.70 c=1.80; Kelvin sense pads 3 (=1) and 4 (=2)")
+	(property "Reference" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "ed2c06b8-a59b-4e19-b796-dc9266c7aafd")
+		(effects
+			(font
+				(size 0.5 0.5)
+				(thickness 0.08)
+			)
+		)
+	)
+	(property "Value" "RES-SMD_1206_HCS1206"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "9aaaef3f-a0ab-42a9-8a76-52f3443c77f5")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "bfaa93e0-d513-4ea6-8c6f-20d6e5eef24e")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "17fb4bc0-7848-4743-94e3-6b3cb7280bd3")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr smd)
+	(net_tie_pad_groups "1, 3" "2, 4")
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -2.5 -1)
+		(end 2.5 -1)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "b6c37237-2131-4233-bd90-d6f6928f64ed")
+	)
+	(fp_line
+		(start -2.5 1.45)
+		(end -2.5 -1)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "6ed7bd43-1923-4c7b-8404-f94dd330deef")
+	)
+	(fp_line
+		(start 2.5 -1)
+		(end 2.5 1.45)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "034558ab-fa01-41fe-b563-d0738f99baa2")
+	)
+	(fp_line
+		(start 2.5 1.45)
+		(end -2.5 1.45)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "243f39e4-4716-498e-992a-5e08b21f16b2")
+	)
+	(fp_line
+		(start -1.6 -0.825)
+		(end 1.6 -0.825)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "530b49d2-d2ee-4133-82ea-a08153a0dc83")
+	)
+	(fp_line
+		(start -1.6 0.825)
+		(end -1.6 -0.825)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "125ee8cf-798c-4c7c-a529-52eb3fe08b7c")
+	)
+	(fp_line
+		(start 1.6 -0.825)
+		(end 1.6 0.825)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "22e26c16-2f88-4682-9536-9f4ddb50186d")
+	)
+	(fp_line
+		(start 1.6 0.825)
+		(end -1.6 0.825)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "da0369c5-30e7-4a07-8c48-19ec1691a666")
+	)
+	(pad "1" smd rect
+		(at -1.55 0)
+		(size 1.7 1.8)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(uuid "1112d29e-7928-49c4-9c24-0221ecf39350")
+	)
+	(pad "2" smd rect
+		(at 1.55 0)
+		(size 1.7 1.8)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(uuid "3aaf4fea-2b42-4c4b-83b5-5f4ba35b71f0")
+	)
+	(pad "3" smd rect
+		(at -0.825 1.1)
+		(size 0.25 0.5)
+		(layers "F.Cu" "F.Mask")
+		(thermal_bridge_angle 45)
+		(uuid "c1d52338-f1d0-443f-9f33-49c79526ba04")
+	)
+	(pad "4" smd rect
+		(at 0.825 1.1)
+		(size 0.25 0.5)
+		(layers "F.Cu" "F.Mask")
+		(thermal_bridge_angle 45)
+		(uuid "c535eb59-3ce2-499c-ae94-dd04eb7ee46a")
+	)
+	(embedded_fonts no)
+)

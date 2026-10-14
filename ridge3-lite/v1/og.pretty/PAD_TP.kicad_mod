@@ -1,0 +1,144 @@
+(footprint "PAD_TP"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "Test point (SWD probe), plated through")
+	(property "Reference" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "840db51e-f3a0-43ad-b738-a30a00cd8427")
+		(effects
+			(font
+				(size 0.4 0.4)
+				(thickness 0.06)
+			)
+		)
+	)
+	(property "Value" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "abb3d3bb-51fe-4834-b543-6ab1634c7cb5")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "86c1c874-c64c-4530-986d-50f37cda4840")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "30724d89-99e4-46fd-bdf2-29eaecc0d7aa")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr through_hole exclude_from_pos_files exclude_from_bom)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -0.475 -0.475)
+		(end 0.475 -0.475)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "B.CrtYd")
+		(uuid "159a4a2c-e5e9-4ee0-a025-934c6dc61f25")
+	)
+	(fp_line
+		(start -0.475 0.475)
+		(end -0.475 -0.475)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "B.CrtYd")
+		(uuid "7166d25e-ee6e-4080-b0c5-62c493a1159d")
+	)
+	(fp_line
+		(start 0.475 -0.475)
+		(end 0.475 0.475)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "B.CrtYd")
+		(uuid "e72ac689-8ff2-44c9-811a-66ed94b3e87a")
+	)
+	(fp_line
+		(start 0.475 0.475)
+		(end -0.475 0.475)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "B.CrtYd")
+		(uuid "d491bd09-8129-4216-8434-869d6b032dca")
+	)
+	(fp_line
+		(start -0.475 -0.475)
+		(end 0.475 -0.475)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "a3eb235b-cbc3-4d3e-ac31-ea737ffc6bf7")
+	)
+	(fp_line
+		(start -0.475 0.475)
+		(end -0.475 -0.475)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "83fe5d8e-c174-4776-bb0c-9d8f9cd2a32b")
+	)
+	(fp_line
+		(start 0.475 -0.475)
+		(end 0.475 0.475)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "c481368e-4311-4da0-a852-eb15576cf120")
+	)
+	(fp_line
+		(start 0.475 0.475)
+		(end -0.475 0.475)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "90795d1a-5e8d-42d9-bbef-45e520df2979")
+	)
+	(pad "1" thru_hole roundrect
+		(at 0 0)
+		(size 0.75 0.75)
+		(drill 0.35)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(roundrect_rratio 0.3)
+		(thermal_bridge_angle 45)
+		(uuid "2e53f5f7-ae81-4ae1-9e70-a6e5be6856c1")
+	)
+	(embedded_fonts no)
+)
