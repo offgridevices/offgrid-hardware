@@ -55,6 +55,24 @@ def surface_gap(moving, fixed, n=60000):
     return float(-sd.max())
 
 
+def magnet_field(rot, centre, R, L, br, p, nz=40, nphi=180):
+    """B (tesla) at p from a uniformly axially magnetised cylinder (axis +z before `rot`): the side surface
+    current K = Br/mu0, summed as nz loops by Biot-Savart (mu0 cancels)."""
+    phi = np.linspace(0, 2 * np.pi, nphi, endpoint=False)
+    dphi = 2 * np.pi / nphi
+    B = np.zeros(3)
+    R3 = rot[:3, :3]
+    c = (rot @ np.r_[centre, 1])[:3]
+    for z in (np.arange(nz) + 0.5) / nz * L - L / 2:
+        pts = np.c_[R * np.cos(phi), R * np.sin(phi), np.full(nphi, z)]
+        dl = np.c_[-R * np.sin(phi), R * np.cos(phi), np.zeros(nphi)] * dphi
+        pts = pts @ R3.T + c
+        dl = dl @ R3.T
+        r = p - pts
+        B += (br / (4 * np.pi)) * (L / nz) * np.sum(np.cross(dl, r) / np.linalg.norm(r, axis=1)[:, None] ** 3, axis=0)
+    return B
+
+
 def main():
     P = E.board_parts(refresh=False)
     parts = {n: load(os.path.join(OUT, f'{n}.stl')) for n in E.PART_NAMES}
@@ -185,10 +203,35 @@ def main():
         g.apply_transform(rotation_matrix(math.radians(deg), [1, 0, 0], [0, E.HINGE_Y, E.HINGE_Z]))
         worst = max(worst, ivol(g, lever))
     say(f'  opening sweep 0..{free} deg vs the upright lever: worst overlap {worst:.4f} mm^3')
-    mag_y = G.M + G.GUARD_L - 0.6 - E.MAGNET_POCKET[0] / 2
+    # hinge pin: hidden, loaded from inside
+    ax0, ax1 = E.GUARD_PIN_X0, E.GUARD_PIN_X0 + E.GUARD_PIN_L
+    pin = trimesh.creation.cylinder(radius=E.PIN_D / 2, segment=[[ax0, E.HINGE_Y, E.HINGE_Z], [ax1, E.HINGE_Y, E.HINGE_Z]])
+    path = trimesh.creation.cylinder(radius=E.PIN_D / 2, segment=[[E.PIN_GROOVE_X0 + 0.5, E.HINGE_Y, E.HINGE_Z], [ax0, E.HINGE_Y, E.HINGE_Z]])
+    outside = [top.contains([[x, E.HINGE_Y, E.HINGE_Z]])[0] for x in np.linspace(ax1 + 0.5, 96.5, 12)]
+    say(f'  hinge pin Ø{E.PIN_D} x {E.GUARD_PIN_L:g} at x {ax0:.1f}..{ax1:.1f}: press interference in the right lug '
+        f'{ivol(pin, top):.3f} mm^3 (Ø{E.PIN_PRESS_D} bore), loading path x {E.PIN_GROOVE_X0 + 0.5:.1f}..{ax0:.1f} '
+        f'overlap {ivol(path, top):.4f} mm^3, solid shell between the blind end and the outside: {all(outside)}')
+    # magnet field at U6 (Biot-Savart on the magnet's equivalent surface current), Bz = across the package
+    mag_y, mz0, mz1 = E.magnet_pose()
     u6 = P['U6']
-    say(f'  magnet centre (x {tx:.1f}, y {mag_y:.2f}, bottom z {G.CASE_H}) vs U6 ({u6["cx"]:.1f}, {u6["cy"]:.2f}, top z '
-        f'{G.PCB_TOP_Z + 1.0:.1f}): {abs(mag_y - u6["cy"]):.2f} mm off-axis, {G.CASE_H - G.PCB_TOP_Z - 1.0:.1f} mm above')
+    sens = np.array([u6['cx'], u6['cy'], G.PCB_TOP_Z + 0.65])        # SOT-23 Hall element 0.65 mm over the seat
+    say(f'  magnet Ø{E.MAGNET_D:g} x {E.MAGNET_T:g} N52 centre (x {tx:.1f}, y {mag_y:.2f}), z {mz0:.1f}..{mz1:.1f}; '
+        f'U6 element at (y {sens[1]:.2f}, z {sens[2]:.2f}): {abs(mag_y - sens[1]):.2f} mm off-axis, '
+        f'{mz0 - sens[2]:.2f} mm below the magnet')
+    rel = None
+    for d10 in range(0, 900, 5):
+        rot = rotation_matrix(math.radians(d10 / 10), [1, 0, 0], [0, E.HINGE_Y, E.HINGE_Z])
+        if abs(magnet_field(rot, np.array([tx, mag_y, (mz0 + mz1) / 2]), E.MAGNET_D / 2, E.MAGNET_T, 1.42, sens)[2]) < 0.5e-3:
+            rel = d10 / 10
+            break
+    say(f'    |Bz| falls below BRP min (0.5 mT) at {rel} deg open')
+    for deg in (0, 10, 20, 30):
+        rot = rotation_matrix(math.radians(deg), [1, 0, 0], [0, E.HINGE_Y, E.HINGE_Z])
+        for br, tag in ((1.42, 'Br 1.42 T'),):
+            b = magnet_field(rot, np.array([tx, mag_y, (mz0 + mz1) / 2]), E.MAGNET_D / 2, E.MAGNET_T, br, sens)
+        say(f'    guard open {deg:2d} deg: |Bz| at U6 = {abs(b[2]) * 1e3:6.2f} mT, |B| = {np.linalg.norm(b) * 1e3:6.2f} mT ({tag})')
+    say('    DRV5032FA (SLVSDC7H): BOP +-1.5/3/4.8 mT, BRP +-0.5/1.5/3 mT (min/typ/max); target closed >= 9.6 mT, '
+        'open must fall below BRP min 0.5 mT')
 
     # ------------------------------------------------------------ rocker
     say('\n== Rocker')

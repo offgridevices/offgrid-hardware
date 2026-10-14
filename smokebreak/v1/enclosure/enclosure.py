@@ -64,23 +64,33 @@ LEVER_TIP_ABOVE_PCB = 26.0
 GUARD_ROOF = 1.6
 GUARD_WALL = 1.6
 GUARD_LEVER_CLR = 1.0
-GUARD_H_FIT = max(G.GUARD_H, G.PCB_TOP_Z + LEVER_TIP_ABOVE_PCB + GUARD_LEVER_CLR + GUARD_ROOF - G.CASE_H)
+GUARD_H_FIT = G.GUARD_H
+assert G.CASE_H + G.GUARD_H - GUARD_ROOF >= G.PCB_TOP_Z + LEVER_TIP_ABOVE_PCB + GUARD_LEVER_CLR - 1e-6, 'GUARD_H too low for the lever'
 GUARD_R = 3.0                 # G2 plan corners
 
 # guard hinge: Ø2 steel pin across a bay at the back edge
 PIN_D = 2.0
 PIN_PRESS_D = 1.9             # in the shell (press fit)
+PIN_SLIP_D = 2.05             # entry lug: the pin slides through it
 PIN_FREE_D = 2.25             # in the moving part
+GUARD_PIN_L = 20.0            # Ø2 x 20 dowel
 HINGE_Y, HINGE_Z = 2.6, 13.0  # pin axis (case)
 KNUCKLE_R = 2.2
 KNUCKLE_X = (73.0, 85.0)
 BAY_X = (KNUCKLE_X[0] - 0.4, KNUCKLE_X[1] + 0.4)
 BAY_Y1 = 8.0
 BAY_FLOOR_Z = HINGE_Z - KNUCKLE_R - 0.4             # 10.4
-HINGE_BLOCK = (70.0, G.WALL, 94.6, 8.8, BAY_FLOOR_Z - 1.0, G.PANEL_UNDER_Z)   # x0 y0 x1 y1 z0 z1
-GUARD_PIN_X0 = 71.4                                  # blind end in the left lug; open at the right end face
-MAGNET_D, MAGNET_T = 4.0, 2.0
-MAGNET_POCKET = (4.15, 2.1)
+HINGE_BLOCK = (68.3, G.WALL, 94.6, 8.6, BAY_FLOOR_Z - 1.0, G.PANEL_UNDER_Z)   # x0 y0 x1 y1 z0 z1
+GUARD_PIN_X0 = 68.6          # the pin's left end when fitted; its right end is blind in the right lug
+# The pin goes in from inside the shell, before the display: it lies in a groove along the back-wall / panel
+# corner (open into the empty display pocket), then is pushed right through the left lug (slip) and the
+# knuckle into the right lug (press).  No hole shows outside.
+PIN_GROOVE_X0 = GUARD_PIN_X0 - GUARD_PIN_L - 2.0
+MAGNET_D, MAGNET_T = 6.0, 3.0                        # Ø6 x 3 N52 disc
+MAGNET_POCKET = (6.15, 3.1)
+MAGNET_SKIN = 0.6             # guard material under (and in front of) the magnet
+MAGNET_NOSE = 1.0             # the magnet sits in a nose under the guard tip that drops into a seat in the face
+SEAT_CLR = 0.2                # seat radius over the nose
 
 # rocker
 ROCK_CLR = 0.25
@@ -306,7 +316,7 @@ def build(P):
     tog_x, tog_y = G.TOG
     holes = [(x + BA, y + BA) for x, y in G.HOLES]
     sw2, sw3 = P['SW2'], P['SW3']
-    nubs = [(sw2['cx'], sw2['cy']), (sw3['cx'], sw3['cy'])]
+    nubs = [(tog_x - G.ROCK_SW_DX, sw2['cy']), (tog_x + G.ROCK_SW_DX, sw3['cy'])]
 
     # ------------------------------------------------------------ top shell
     outer = prism(outer_wire(), 0, G.CASE_H)
@@ -357,6 +367,9 @@ def build(P):
         fx0, fy0, fx1, fy1 = P[ref]['fab']
         cuts.append(box(fx0 - SOCKET_CLR, fy0 - SOCKET_CLR, G.WELL_FLOOR_Z - 0.5, fx1 + SOCKET_CLR, fy1 + SOCKET_CLR,
                         G.WELL_FLOOR_Z + PLATE_T + 0.5))
+    # seat for the guard's magnet nose
+    mag_y, _, _ = magnet_pose()
+    cuts.append(cyl_z(tog_x, mag_y, nose_r() + SEAT_CLR, G.CASE_H - MAGNET_NOSE - 0.05, G.CASE_H + 1))
     # toggle bushing, light ring
     cuts.append(cyl_z(tog_x, tog_y, BUSH_HOLE_D / 2, G.PANEL_UNDER_Z - 1, G.CASE_H + 1))
     S['ring_inlay'] = ring = ring_solid(tog_x, tog_y, G.PANEL_UNDER_Z, G.CASE_H)
@@ -373,7 +386,11 @@ def build(P):
     cuts.append(cyl_y(G.TOG[0], ROCK_PIN_Z, PIN_PRESS_D / 2, ROCK_CRADLE_Y[0][0] - 0.5, ROCK_CRADLE_Y[1][1]))
     # guard hinge bay (open to the back) and the pin bore (blind left, open at the drone end)
     cuts.append(box(BAY_X[0], -1, BAY_FLOOR_Z, BAY_X[1], BAY_Y1, G.CASE_H + 1))
-    cuts.append(cyl_x(HINGE_Y, HINGE_Z, PIN_PRESS_D / 2, GUARD_PIN_X0, G.CASE_W + 1))
+    pin_x1 = GUARD_PIN_X0 + GUARD_PIN_L
+    cuts.append(cyl_x(HINGE_Y, HINGE_Z, PIN_PRESS_D / 2, BAY_X[1] - 0.5, pin_x1 + 0.2))       # right lug: press, blind
+    cuts.append(cyl_x(HINGE_Y, HINGE_Z, PIN_SLIP_D / 2, PIN_GROOVE_X0, BAY_X[0] + 0.5))      # left lug: slip
+    cuts.append(cyl_x(HINGE_Y, HINGE_Z, 1.15, PIN_GROOVE_X0, HINGE_BLOCK[0]))                # loading groove
+    cuts.append(box(PIN_GROOVE_X0, G.WALL, fz0 - 1, px1 + POCKET_WALL + 0.5, py0, G.PANEL_UNDER_Z))   # pocket back wall off there
     # heat-set insert holes
     for (hx, hy) in holes:
         cuts.append(cyl_z(hx, hy, INSERT_D / 2, G.PCB_TOP_Z - 0.5, G.PCB_TOP_Z + INSERT_DEPTH))
@@ -392,8 +409,9 @@ def build(P):
     # back wall: USB-C (9.2 x 3.4, r 1.0 corners, centre z PCB+1.63) with an outside counterbore for the plug overmold
     j8 = P['J8']
     uz = G.PCB_TOP_Z + 1.63
-    cuts.append(rrect_y(j8['cx'], uz, 9.2, 3.4, 1.0, -1, G.WALL + 0.5))
-    cuts.append(rrect_y(j8['cx'], uz, 12.4, 6.4, 2.0, -1, 1.4))
+    assert abs(j8['cx'] - G.USB_FX) < 0.01, (j8['cx'], G.USB_FX)
+    cuts.append(rrect_y(G.USB_FX, uz, 9.2, 3.4, 1.0, -1, G.WALL + 0.5))
+    cuts.append(rrect_y(G.USB_FX, uz, 12.4, 6.4, 2.0, -1, 1.4))
     # drone end: one notch for the four leads (the floor's tab closes it from below), crowns over each wire
     cuts.append(box(G.CASE_W - G.WALL - 0.1, LEAD_NOTCH_Y[0], -1, G.CASE_W + 1, LEAD_NOTCH_Y[1], WIRE_Z))
     for ref in ('J3', 'J4'):
@@ -625,9 +643,11 @@ def guard_solid():
     g = body.cut(inner)
     # magnet block in the tip, over U6
     tip_y1 = y0 + l
-    mag_y = tip_y1 - 0.6 - MAGNET_POCKET[0] / 2
-    blk = box(G.TOG[0] - 3.5, mag_y - 3.0, z0, G.TOG[0] + 3.5, tip_y1 - 0.5, z0 + MAGNET_POCKET[1] + 1.0)
-    g = g.fuse(blk)
+    mag_y, mz0, mz1 = magnet_pose()
+    rp = MAGNET_POCKET[0] / 2
+    blk = box(G.TOG[0] - rp - 1.2, mag_y - rp - 1.2, z0, G.TOG[0] + rp + 1.2, mag_y + rp + MAGNET_SKIN, mz1 + 0.05 + 1.0)
+    nose = cyl_z(G.TOG[0], mag_y, nose_r(), z0 - MAGNET_NOSE, z0 + 0.01)
+    g = g.fuse(blk, nose)
     # thumb tab at the tip
     tab = g2_prism(G.TOG[0] - 6.0, tip_y1 - 3.0, 12.0, 5.0, 1.5, z1 - GUARD_ROOF, z1)
     g = g.fuse(tab)
@@ -637,8 +657,26 @@ def guard_solid():
     knuckle = cyl_x(HINGE_Y, HINGE_Z, KNUCKLE_R, kx0, kx1)
     g = g.fuse(web, knuckle).clean()
     g = g.cut(cyl_x(HINGE_Y, HINGE_Z, PIN_FREE_D / 2, kx0 - 1, kx1 + 1),
-              cyl_z(G.TOG[0], mag_y, MAGNET_POCKET[0] / 2, z0 - 1, z0 + MAGNET_POCKET[1])).clean()
+              cyl_z(G.TOG[0], mag_y, MAGNET_POCKET[0] / 2, mz0, mz0 + MAGNET_POCKET[1]),
+              # the magnet slides in from the block's back face (glue it); 0.6 mm skin under and in front
+              box(G.TOG[0] - MAGNET_POCKET[0] / 2, mag_y - 10, mz0, G.TOG[0] + MAGNET_POCKET[0] / 2, mag_y,
+                  mz0 + MAGNET_POCKET[1]),
+              box(G.TOG[0] - nose_r() - 1, mag_y - 20, z0 - MAGNET_NOSE - 1, G.TOG[0] + nose_r() + 1, mag_y - nose_r(),
+                  z0)).clean()                        # keep the slot from cutting below the guard bottom
     return g
+
+
+def magnet_pose():
+    """Magnet centre y and its bottom/top z in the closed guard: right over U6 (place.py puts U6 0.7 mm
+    behind the guard tip), carried in a chin in front of the tip; its 0.6 mm skin is the bottom of a
+    1 mm nose that sits in a seat in the face."""
+    mag_y = G.M + G.GUARD_L - 0.7
+    mz0 = G.CASE_H - MAGNET_NOSE + MAGNET_SKIN
+    return mag_y, mz0, mz0 + MAGNET_T
+
+
+def nose_r():
+    return MAGNET_POCKET[0] / 2 + MAGNET_SKIN
 
 
 def guard_rotated(g, deg):
