@@ -156,8 +156,8 @@ Sources read: AM32 at 2738df3 (AM32_SRC); AM32-bootloader at 578ff29 (AM32_BL_SR
 | PASS | ESC channel beads (FB600_0201, Murata BLM03AX601SN1D): 21.6 mA in the worst channel, 9 % of the 250 mA rating |  |
 | PASS | ESC battery sense: 25.2 V / 11.0 = 2.29 V (< 3.20 V, the lowest channel 3.3 V = VDDA, the ADC reference) |  |
 | PASS | FC battery sense: 25.2 V / 16 = 1.57 V at PB2 (< 3.3 V; vbat_scale 160) |  |
-| PASS | BEMF divider 20k/2k: 25.2 V phase -> 2.29 V at the comparator; the switching peak at the 5 nH estimate, 38.0 V -> 3.45 V (< 3.50 V: an FTa pin in analog mode stays under VDD + 0.3 V, at the lowest channel 3.3 V) |  |
-| PASS | BEMF divider at the worst-case switching peak (8 nH): 42.5 V -> 3.86 V, past VDD + 0.3 V for nanoseconds but under the 4.0 V absolute maximum of an FTa pin in analog mode (AT32F421 table 6) |  |
+| PASS | BEMF divider 20k/2k: 25.2 V phase -> 2.29 V at the comparator; the switching peak at the 5 nH estimate, 34.9 V -> 3.17 V (< 3.50 V: an FTa pin in analog mode stays under VDD + 0.3 V, at the lowest channel 3.3 V) |  |
+| PASS | BEMF divider at the worst-case switching peak (8 nH): 37.2 V -> 3.38 V (under VDD + 0.3 V too), under the 4.0 V absolute maximum of an FTa pin in analog mode (AT32F421 table 6) |  |
 | PASS | virtual neutral: 10k from each of CMP_A/B/C to a star only the comparator loads, in all four ESCs: the star is their mean; the comparator sees 0.85 of CMP minus that mean | [] |
 | PASS | current sense: 0.5 mOhm x 100 V/V = 50 mV/A; the 3.3 V ADC range is 66 A per motor |  |
 | PASS | shunt dissipation at 20 A per motor: 0.20 W in a 2 W 1206 (10 %) |  |

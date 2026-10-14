@@ -1586,13 +1586,14 @@ def check_power():
     lim = vlo + fig('at32_fta')
     # the phase node's switching peaks, STRESS.md section 3 (the low side's V_DS at the high side's turn-on):
     # the highest at the 5 nH loop estimate (a throttle chop) and the worst case (30 A, 8 nH)
-    ph_est, ph_worst = 38.0, 42.5
+    ph_est, ph_worst = 34.9, 37.2
     check(S, 'BEMF divider %gk/%gk: %.1f V phase -> %.2f V at the comparator; the switching peak at the 5 nH '
              'estimate, %.1f V -> %.2f V (< %.2f V: an FTa pin in analog mode stays under VDD + 0.3 V, at the lowest '
              'channel 3.3 V)' % (bt / 1e3, bb / 1e3, VMAX, VMAX * kr, ph_est, ph_est * kr, lim), ph_est * kr < lim)
-    check(S, 'BEMF divider at the worst-case switching peak (8 nH): %.1f V -> %.2f V, past VDD + 0.3 V for nanoseconds '
-             'but under the %.1f V absolute maximum of an FTa pin in analog mode (AT32F421 table 6)'
-          % (ph_worst, ph_worst * kr, fig('at32_fta_max')), ph_worst * kr < fig('at32_fta_max'))
+    check(S, 'BEMF divider at the worst-case switching peak (8 nH): %.1f V -> %.2f V (%s), under the %.1f V absolute '
+             'maximum of an FTa pin in analog mode (AT32F421 table 6)'
+          % (ph_worst, ph_worst * kr, 'under VDD + 0.3 V too' if ph_worst * kr < lim
+             else 'past VDD + 0.3 V for nanoseconds', fig('at32_fta_max')), ph_worst * kr < fig('at32_fta_max'))
     # virtual neutral: equal legs from the three divided phases to a star
     # that only the MCU's comparator input loads; the star is then the mean
     # of the three CMP nodes, and CMP - NEUTRAL crosses zero where the

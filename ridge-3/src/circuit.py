@@ -676,9 +676,9 @@ def esc(n):
         # node, so the switching loop closes through the board's thickness
         # and stays on the bridge side of the shunt.
         cap('C_BRIDGE', 'VBAT', p('SRC'), B, 'bridge ' + ph)
-        # Back-EMF divider 20k / 2k (ratio 11: the phase's 38 V switching peak at
-        # the 5 nH loop estimate reaches 3.45 V; the 42.5 V worst case, 3.86 V,
-        # stays under the pin's 4.0 V absolute maximum: STRESS.md section 3).
+        # Back-EMF divider 20k / 2k (ratio 11: the phase's 34.9 V switching peak
+        # at the 5 nH loop estimate reaches 3.17 V, the 37.2 V worst case (8 nH)
+        # 3.38 V, both under VDD + 0.3 V: STRESS.md section 3).
         res('R20K', p(ph), p('CMP_' + ph), B, 'BEMF ' + ph)
         res('R2K_0201', p('CMP_' + ph), GND, B, 'BEMF ' + ph)
         # Virtual neutral: 10k from each divided phase (CMP) to a star.  The
