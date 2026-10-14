@@ -188,7 +188,25 @@ def seal(b):
     print('unconnected', len(unc))
 
 
-if __name__ == '__main__':
+def tail(b):
+    """After the routing: the VIN bridge, the fills, the art, the seal."""
+    print('VIN bridge', vin_bridge(b), flush=True)
+    ground_fill(b)
+    # the routing keep-outs become DRC rules (a rule area would bar the power
+    # nets' own tracks too)
+    for z in list(b.Zones()):
+        if z.GetIsRuleArea() and z.GetZoneName().startswith('keepout '):
+            B.remove(b, z)
+    placed = make.add_art(b, os.path.join(B.HERE, 'out'))
+    for p in placed:
+        print('  art', p, flush=True)
+    seal(b)
+
+
+if __name__ == '__main__' and sys.argv[1] == '--tail':
+    # resume after the exact-pair finishing (out/prefill.kicad_pcb holds it)
+    tail(pcbnew.LoadBoard(os.path.join(B.HERE, 'out', 'prefill.kicad_pcb')))
+elif __name__ == '__main__':
     src = sys.argv[1]
     b = pcbnew.LoadBoard(src)
     print('widened', widen(b), 'slivers')
@@ -217,14 +235,4 @@ if __name__ == '__main__':
     left = finish.finish_board(tmp, tmp, os.path.join(B.HERE, 'out', 'finish-final.json'), rules=w, clmap=c)
     print('exact-pair finishing left', left)
     b = pcbnew.LoadBoard(tmp)
-    print('VIN bridge', vin_bridge(b))
-    ground_fill(b)
-    # the routing keep-outs become DRC rules (a rule area would bar the power
-    # nets' own tracks too)
-    for z in list(b.Zones()):
-        if z.GetIsRuleArea() and z.GetZoneName().startswith('keepout '):
-            B.remove(b, z)
-    placed = make.add_art(b, os.path.join(B.HERE, 'out'))
-    for p in placed:
-        print('  art', p)
-    seal(b)
+    tail(b)
