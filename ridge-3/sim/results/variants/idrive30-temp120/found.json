@@ -1,0 +1,1238 @@
+{
+ "variant": "idrive30-temp120",
+ "desc": "IDRIVE 30 mA / 60 mA and AM32's temperature limit at 120 C",
+ "hover": 27.0,
+ "vdss": 60.0,
+ "verdicts": [
+  [
+   "Voltage",
+   "High-side FET at turn-off, 30 A, 5 nH loop",
+   "PASS",
+   "32.3 V",
+   "60 V rating"
+  ],
+  [
+   "Voltage",
+   "Low-side FET after the high side turns on (body-diode recovery)",
+   "PASS",
+   "26.8 V (worst case)",
+   "60 V rating"
+  ],
+  [
+   "Voltage",
+   "SHx below ground at high-side turn-off, 5 nH loop (3-8 nH bracket)",
+   "MARGINAL",
+   "-6.2 V (-8.5 V in the bracket)",
+   "-7 V for 200 ns (DRV8320H; -5 V continuous)"
+  ],
+  [
+   "Voltage",
+   "High-side FET at turn-off, 20 A, while a throttle chop holds the bus at 31-35 V",
+   "PASS",
+   "41.0 V",
+   "60 V rating"
+  ],
+  [
+   "Voltage",
+   "Off FET's gate kicked up by the other FET turning on (hot)",
+   "PASS",
+   "0.25 V",
+   "V<sub>th</sub> min 1.1 V at 25 C, about 0.4 V at 150 C"
+  ],
+  [
+   "Voltage",
+   "Plugging in a full 6S pack, leads up to 300 nH",
+   "PASS",
+   "39.7 V",
+   "60 V FETs"
+  ],
+  [
+   "Voltage",
+   "Ripple self-heating of the board's bus capacitors, 4 x 30 A",
+   "PASS",
+   "15.6 A rms, 4.1 C each",
+   "20 C (Murata)"
+  ],
+  [
+   "Stack lead",
+   "FC at full load, lead current on an empty 6S pack",
+   "PASS",
+   "0.57 A",
+   "1.5 A per contact (Molex Micro-Lock Plus 505567)"
+  ],
+  [
+   "Stack lead",
+   "Ground-loop current in the lead's GND contact, video pads also wired, 20 A per motor",
+   "PASS",
+   "0 A (the loop does not enclose the planes)",
+   "1.5 A"
+  ],
+  [
+   "Heat",
+   "Hover (27 % throttle) held indefinitely with every part in its rating, 25 C air, 5 m/s",
+   "PASS",
+   "up to 57 % throttle",
+   "27 %"
+  ],
+  [
+   "Heat",
+   "Hover held indefinitely with the FETs under 150 C, 25 C air, 5 m/s",
+   "PASS",
+   "up to 60 % throttle",
+   "27 %"
+  ],
+  [
+   "Heat",
+   "Hover (27 % throttle) held indefinitely with every part in its rating, 50 C air, 5 m/s",
+   "PASS",
+   "up to 52 % throttle",
+   "27 %"
+  ],
+  [
+   "Heat",
+   "Hover held indefinitely with the FETs under 150 C, 50 C air, 5 m/s",
+   "PASS",
+   "up to 55 % throttle",
+   "27 %"
+  ],
+  [
+   "Heat",
+   "Hover (27 % throttle) held indefinitely with every part in its rating, 60 C air, 5 m/s",
+   "PASS",
+   "up to 50 % throttle",
+   "27 %"
+  ],
+  [
+   "Heat",
+   "Hover held indefinitely with the FETs under 150 C, 60 C air, 5 m/s",
+   "PASS",
+   "up to 53 % throttle",
+   "27 %"
+  ],
+  [
+   "Heat",
+   "Full-throttle burst from hover (AM32 at 20 A per motor), 25 C air, 5 m/s: hottest FET with AM32's temperature limit acting",
+   "PASS",
+   "139 C (the limit acts after 8.2 s; without it a FET reaches 175 C not in 10 s)",
+   "150 C design, 175 C maximum"
+  ],
+  [
+   "Heat",
+   "Full-throttle burst from hover (AM32 at 20 A per motor), 50 C air, 5 m/s: hottest FET with AM32's temperature limit acting",
+   "PASS",
+   "137 C (the limit acts after 3.5 s; without it a FET reaches 175 C after 9.0 s)",
+   "150 C design, 175 C maximum"
+  ],
+  [
+   "Heat",
+   "Hard 3-minute flight at 50 C: AM32 cuts a motor's power for heat",
+   "FAIL",
+   "first at 46 s, 11 % of the flight",
+   "never"
+  ],
+  [
+   "Heat",
+   "Hard 3-minute flight at 50 C: hottest FET",
+   "PASS",
+   "140 C",
+   "175 C (150 C design)"
+  ],
+  [
+   "Heat",
+   "Hard 3-minute flight at 50 C: ESC processors",
+   "PASS",
+   "120 C",
+   "125 C junction (Artery AT32F421G8U7)"
+  ],
+  [
+   "Heat",
+   "Hard 3-minute flight at 50 C: first part past its rating",
+   "FAIL",
+   "ESC C17 (X7R capacitor (Murata GRM21BZ71H475KE15L)) at 62 s",
+   "125 C"
+  ],
+  [
+   "Heat",
+   "On the ground, video on (9 V at 1.5 A, 5 V at 1 A), 25 C still air",
+   "PASS",
+   "all inside, video on 69 % of the time (thermostat)",
+   "-"
+  ],
+  [
+   "Heat",
+   "On the ground, video on (9 V at 1.5 A, 5 V at 1 A), 50 C still air",
+   "PASS",
+   "all inside, video on 8 % of the time (thermostat)",
+   "-"
+  ],
+  [
+   "Heat",
+   "On the ground, video on (9 V at 1.5 A, 5 V at 1 A), 60 C still air",
+   "FAIL",
+   "1 parts past their rating, video on 0 % of the time (thermostat)",
+   "-"
+  ]
+ ],
+ "found": {
+  "r_src": 0.002047208321660337,
+  "r_planes": 0.0011379167548864445,
+  "via_worst": [
+   0.5877284425154391,
+   11.754568850308782
+  ],
+  "ls_peak": 26.78838401,
+  "slew": 0.16089385474860352,
+  "mil": 0.24641816400000005,
+  "hs30": {
+   "10": 29.535073829999998,
+   "30": 31.23636809
+  },
+  "hs_peak": 32.29717865,
+  "sw": {
+   "V": 25.2,
+   "I": [
+    0.0,
+    10,
+    20,
+    30,
+    60
+   ],
+   "on": [
+    0.0,
+    2.0581124808744006e-05,
+    4.108341941114263e-05,
+    6.27056225638925e-05,
+    0.000125411245127785
+   ],
+   "off": [
+    0.0,
+    1.0260357560629566e-05,
+    2.3801578159108843e-05,
+    3.923413558679954e-05,
+    7.846827117359907e-05
+   ]
+  },
+  "plug": 39.7070006,
+  "ripple": 15.6,
+  "ripple_rise": 4.056,
+  "lead": 0.5706785367802317,
+  "loop": 0.0,
+  "dshot_offset": 0.06218485462409129,
+  "hold": {
+   "2.0 | 25.0": [
+    51.5625,
+    53.90625,
+    "ESC RT1",
+    "NTC thermistor (Murata NCU15, 125 C)",
+    1.0
+   ],
+   "2.0 | 50.0": [
+    44.53125,
+    50.390625,
+    "ESC RT1",
+    "NTC thermistor (Murata NCU15, 125 C)",
+    1.0
+   ],
+   "2.0 | 60.0": [
+    40.625,
+    47.65625,
+    "ESC U_ESC1",
+    "Artery AT32F421G8U7 junction",
+    0.6290439629188006
+   ],
+   "5.0 | 25.0": [
+    57.421875,
+    59.765625,
+    "ESC RT1",
+    "NTC thermistor (Murata NCU15, 125 C)",
+    1.0
+   ],
+   "5.0 | 50.0": [
+    51.953125,
+    55.078125,
+    "ESC RT1",
+    "NTC thermistor (Murata NCU15, 125 C)",
+    1.0
+   ],
+   "5.0 | 60.0": [
+    49.609375,
+    53.125,
+    "ESC RT1",
+    "NTC thermistor (Murata NCU15, 125 C)",
+    1.0
+   ],
+   "10.0 | 25.0": [
+    62.5,
+    66.40625,
+    "ESC C17",
+    "X7R capacitor (Murata GRM21BZ71H475KE15L)",
+    1.0
+   ],
+   "10.0 | 50.0": [
+    55.46875,
+    58.59375,
+    "ESC C17",
+    "X7R capacitor (Murata GRM21BZ71H475KE15L)",
+    1.0
+   ],
+   "10.0 | 60.0": [
+    52.734375,
+    56.25,
+    "ESC RT1",
+    "NTC thermistor (Murata NCU15, 125 C)",
+    1.0
+   ]
+  },
+  "am32_hold": {
+   "2.0 | 25.0": 51.171875,
+   "2.0 | 50.0": 42.96875,
+   "2.0 | 60.0": 38.28125,
+   "5.0 | 25.0": 56.640625,
+   "5.0 | 50.0": 51.171875,
+   "5.0 | 60.0": 47.265625,
+   "10.0 | 25.0": 61.328125,
+   "10.0 | 50.0": 54.296875,
+   "10.0 | 60.0": 51.5625
+  },
+  "hover_heat": [
+   8.36598069522102,
+   {
+    "FET conduction": 1.715063202404153,
+    "FET switching": 2.54612474530011,
+    "body diode in the dead time": 1.1195200598400001,
+    "shunts": 0.03993375613500001,
+    "gate drive": 1.7894515968,
+    "copper: battery plane (VBAT)": 0.2756895971741309,
+    "copper: ground plane (GND)": 0.174521489642296,
+    "copper: phase copper": 0.1516021443942644,
+    "copper: sense nodes": 0.5540741035310647
+   }
+  ],
+  "bursts": {
+   "25.0 | 5.0": [
+    null,
+    8.25
+   ],
+   "50.0 | 5.0": [
+    9.0,
+    3.5
+   ],
+   "50.0 | 10.0": [
+    null,
+    4.5
+   ],
+   "60.0 | 5.0": [
+    6.75,
+    2.25
+   ]
+  },
+  "bursts_protected": {
+   "25.0 | 5.0": 138.6897750522374,
+   "50.0 | 5.0": 137.38631544941921,
+   "50.0 | 10.0": 138.38047276336317,
+   "60.0 | 5.0": 135.9815357681336
+  },
+  "flight": {
+   "cut": 46.0,
+   "frac": 0.1111111111111111,
+   "vtx_off": 0.0,
+   "fet": 139.59697113882575,
+   "mcu": 120.17101037334022,
+   "peaks": {
+    "ESC FETs (hottest)": 139.59697113882575,
+    "ESC processors (hottest)": 120.17101037334022,
+    "ESC gate drivers (hottest)": 123.65272167637582,
+    "ESC current amplifiers (hottest)": 126.42642508341731,
+    "ESC capacitors, X7S (hottest)": 115.0077531120334,
+    "ESC capacitors, X7R (hottest)": 131.16045176114636,
+    "FC capacitors, X7R (hottest)": 82.78967721085878,
+    "ESC shunts (hottest)": 133.47361740488478,
+    "FC stack connector": 77.1799593070692,
+    "FC gyro": 75.89233484271413,
+    "FC processor": 78.36754437422672,
+    "FC flash": 71.11560695303743,
+    "FC 9 V buck": 95.24256289091777,
+    "FC 5 V buck": 95.6520912531623,
+    "FC 3.3 V regulator": 72.10881842405324
+   },
+   "first": [
+    "ESC C17",
+    [
+     62.0,
+     128.73225077719889,
+     125.0,
+     "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+    ]
+   ]
+  },
+  "ground": {
+   "25.0 | both rails at 2 A": [
+    [
+     [
+      -6.216504947092901,
+      "FC J_ESC",
+      111.2165049470929,
+      105.0,
+      "Molex Micro-Lock Plus 505567"
+     ],
+     [
+      -5.580605370650034,
+      "FC U_FC",
+      110.58060537065003,
+      105.0,
+      "ST STM32G473CEU6 junction"
+     ],
+     [
+      -0.34595399243532654,
+      "FC U_IMU",
+      105.34595399243533,
+      105.0,
+      "TDK IIM-42652 operating"
+     ]
+    ],
+    0.0,
+    {
+     "FC U_FC": 110.58060537065003,
+     "FC U_IMU": 105.34595399243533
+    }
+   ],
+   "25.0 | 9 V at 1.5 A, 5 V at 1 A": [
+    [],
+    0.6934929800889419,
+    {
+     "FC U_FC": 96.24163670888433,
+     "FC U_IMU": 92.56779024855209
+    }
+   ],
+   "25.0 | 9 V at 1 A, 5 V at 0.5 A": [
+    [],
+    1.0,
+    {
+     "FC U_FC": 87.06287373587898,
+     "FC U_IMU": 83.35756679593236
+    }
+   ],
+   "50.0 | both rails at 2 A": [
+    [
+     [
+      -22.741223054708172,
+      "FC J_ESC",
+      127.74122305470817,
+      105.0,
+      "Molex Micro-Lock Plus 505567"
+     ],
+     [
+      -22.122462832607624,
+      "FC U_FC",
+      127.12246283260762,
+      105.0,
+      "ST STM32G473CEU6 junction"
+     ],
+     [
+      -16.876995995967633,
+      "FC U_IMU",
+      121.87699599596763,
+      105.0,
+      "TDK IIM-42652 operating"
+     ],
+     [
+      -8.649047827006797,
+      "FC C4",
+      133.6490478270068,
+      125.0,
+      "X7R capacitor (Murata GRM188R72A104KA35D)"
+     ],
+     [
+      -7.724718784464557,
+      "FC L_5V",
+      132.72471878446456,
+      125.0,
+      "inductor"
+     ],
+     [
+      -4.759556195304697,
+      "FC C3",
+      129.7595561953047,
+      125.0,
+      "X7R capacitor (Taiyo Yuden UMK325AB7106KM-T)"
+     ],
+     [
+      -4.7525510843159395,
+      "FC C5",
+      129.75255108431594,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -3.513208379170777,
+      "FC C7",
+      128.51320837917078,
+      125.0,
+      "X7R capacitor (Murata GRM32ER71E226KE15L)"
+     ],
+     [
+      -2.281653780711636,
+      "FC C18",
+      127.28165378071164,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -1.5065792078349745,
+      "FC C6",
+      126.50657920783497,
+      125.0,
+      "X7R capacitor (Murata GRM32ER71E226KE15L)"
+     ]
+    ],
+    0.0,
+    {
+     "FC U_FC": 127.12246283260762,
+     "FC U_IMU": 121.87699599596763
+    }
+   ],
+   "50.0 | 9 V at 1.5 A, 5 V at 1 A": [
+    [],
+    0.0779850099533943,
+    {
+     "FC U_FC": 101.24209995158112,
+     "FC U_IMU": 96.31079484752138
+    }
+   ],
+   "50.0 | 9 V at 1 A, 5 V at 0.5 A": [
+    [],
+    0.5572856534956807,
+    {
+     "FC U_FC": 100.53442972420338,
+     "FC U_IMU": 96.3269549826751
+    }
+   ],
+   "60.0 | both rails at 2 A": [
+    [
+     [
+      -29.57039470894179,
+      "FC J_ESC",
+      134.5703947089418,
+      105.0,
+      "Molex Micro-Lock Plus 505567"
+     ],
+     [
+      -28.960127871054965,
+      "FC U_FC",
+      133.96012787105496,
+      105.0,
+      "ST STM32G473CEU6 junction"
+     ],
+     [
+      -23.710327779790504,
+      "FC U_IMU",
+      128.7103277797905,
+      105.0,
+      "TDK IIM-42652 operating"
+     ],
+     [
+      -15.471579966789193,
+      "FC C4",
+      140.4715799667892,
+      125.0,
+      "X7R capacitor (Murata GRM188R72A104KA35D)"
+     ],
+     [
+      -14.543301646699774,
+      "FC L_5V",
+      139.54330164669977,
+      125.0,
+      "inductor"
+     ],
+     [
+      -11.594193795894512,
+      "FC C3",
+      136.5941937958945,
+      125.0,
+      "X7R capacitor (Taiyo Yuden UMK325AB7106KM-T)"
+     ],
+     [
+      -11.581739849990413,
+      "FC C5",
+      136.5817398499904,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -10.32384043910315,
+      "FC C7",
+      135.32384043910315,
+      125.0,
+      "X7R capacitor (Murata GRM32ER71E226KE15L)"
+     ],
+     [
+      -9.114930495130523,
+      "FC C18",
+      134.11493049513052,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -8.323497950422166,
+      "FC C6",
+      133.32349795042217,
+      125.0,
+      "X7R capacitor (Murata GRM32ER71E226KE15L)"
+     ],
+     [
+      -5.870641847338703,
+      "FC C24",
+      130.8706418473387,
+      125.0,
+      "X7R capacitor (Murata GRM188Z71A475KE15D)"
+     ],
+     [
+      -5.755154119271566,
+      "FC C25",
+      130.75515411927157,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -5.545506200608912,
+      "ESC U_ESC1",
+      130.5455062006089,
+      125.0,
+      "Artery AT32F421G8U7 junction"
+     ],
+     [
+      -5.507145905925739,
+      "ESC U_ESC2",
+      130.50714590592574,
+      125.0,
+      "Artery AT32F421G8U7 junction"
+     ],
+     [
+      -5.373694233299602,
+      "ESC U_ESC3",
+      130.3736942332996,
+      125.0,
+      "Artery AT32F421G8U7 junction"
+     ],
+     [
+      -5.3472950666212,
+      "ESC U_ESC4",
+      130.3472950666212,
+      125.0,
+      "Artery AT32F421G8U7 junction"
+     ],
+     [
+      -5.003805474596788,
+      "FC C21",
+      130.0038054745968,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -4.3182197481931155,
+      "FC C11",
+      129.31821974819312,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -3.857429749845295,
+      "FC C29",
+      128.8574297498453,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -3.3256841446318504,
+      "FC C9",
+      128.32568414463185,
+      125.0,
+      "X7R capacitor (Murata GRM188R72A104KA35D)"
+     ],
+     [
+      -3.1927015984236107,
+      "FC U_BUCK5",
+      153.1927015984236,
+      150.0,
+      "TI LMR38020F junction"
+     ],
+     [
+      -3.16585232106101,
+      "ESC C3",
+      128.165852321061,
+      125.0,
+      "X7S capacitor (Murata GCJ32EC71H106KA01L)"
+     ],
+     [
+      -3.106455467267324,
+      "FC C8",
+      128.10645546726732,
+      125.0,
+      "X7R capacitor (Taiyo Yuden UMK325AB7106KM-T)"
+     ],
+     [
+      -3.061697663575842,
+      "ESC C2",
+      128.06169766357584,
+      125.0,
+      "X7S capacitor (Murata GCJ32EC71H106KA01L)"
+     ],
+     [
+      -2.957356143599341,
+      "ESC C5",
+      127.95735614359934,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.9449679058379843,
+      "ESC C1",
+      127.94496790583798,
+      125.0,
+      "X7S capacitor (Murata GCJ32EC71H106KA01L)"
+     ],
+     [
+      -2.9086033987632476,
+      "ESC C4",
+      127.90860339876325,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.818401187667533,
+      "ESC C6",
+      127.81840118766753,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.815218375846058,
+      "ESC C14",
+      127.81521837584606,
+      125.0,
+      "X7R capacitor (Murata GRM155Z71A105KE01D)"
+     ],
+     [
+      -2.768871881778594,
+      "ESC C7",
+      127.7688718817786,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.7682578782919336,
+      "ESC C26",
+      127.76825787829193,
+      125.0,
+      "X7R capacitor (Murata GRM155Z71A105KE01D)"
+     ],
+     [
+      -2.7471774541576934,
+      "ESC C38",
+      127.7471774541577,
+      125.0,
+      "X7R capacitor (Murata GRM155Z71A105KE01D)"
+     ],
+     [
+      -2.738988739419085,
+      "ESC C13",
+      127.73898873941909,
+      125.0,
+      "X7R capacitor (TDK CGA2B3X7R1H473KT0Y0F)"
+     ],
+     [
+      -2.6777243132486603,
+      "ESC C37",
+      127.67772431324866,
+      125.0,
+      "X7R capacitor (TDK CGA2B3X7R1H473KT0Y0F)"
+     ],
+     [
+      -2.656343650235385,
+      "ESC C50",
+      127.65634365023539,
+      125.0,
+      "X7R capacitor (Murata GRM155Z71A105KE01D)"
+     ],
+     [
+      -2.6194384554957395,
+      "ESC C25",
+      127.61943845549574,
+      125.0,
+      "X7R capacitor (TDK CGA2B3X7R1H473KT0Y0F)"
+     ],
+     [
+      -2.6183239216418883,
+      "FC C14",
+      127.61832392164189,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71E106KE15L)"
+     ],
+     [
+      -2.5886775533696493,
+      "ESC C12",
+      127.58867755336965,
+      125.0,
+      "X7R capacitor (Murata GCM188R71E105KA64D)"
+     ],
+     [
+      -2.5726479969126075,
+      "ESC C49",
+      127.57264799691261,
+      125.0,
+      "X7R capacitor (TDK CGA2B3X7R1H473KT0Y0F)"
+     ],
+     [
+      -2.5287842768664746,
+      "FC C20",
+      127.52878427686647,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.498074961066905,
+      "ESC C36",
+      127.4980749610669,
+      125.0,
+      "X7R capacitor (Murata GCM188R71E105KA64D)"
+     ],
+     [
+      -2.462724733227958,
+      "ESC C24",
+      127.46272473322796,
+      125.0,
+      "X7R capacitor (Murata GCM188R71E105KA64D)"
+     ],
+     [
+      -2.391965697145068,
+      "ESC C48",
+      127.39196569714507,
+      125.0,
+      "X7R capacitor (Murata GCM188R71E105KA64D)"
+     ],
+     [
+      -2.271457251311517,
+      "ESC C11",
+      127.27145725131152,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.2638149191804047,
+      "ESC C8",
+      127.2638149191804,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.231596779137149,
+      "ESC C35",
+      127.23159677913715,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.1964060372430083,
+      "FC C23",
+      127.19640603724301,
+      125.0,
+      "X7R capacitor (Murata GCM188R71E105KA64D)"
+     ],
+     [
+      -2.188943305288987,
+      "ESC C20",
+      127.18894330528899,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.1268987008237303,
+      "ESC C23",
+      127.12689870082373,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.1163101205637247,
+      "ESC C47",
+      127.11631012056372,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.0925798494898658,
+      "ESC C32",
+      127.09257984948987,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -2.032157878168263,
+      "ESC C44",
+      127.03215787816826,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -1.925843077449997,
+      "FC C19",
+      126.92584307745,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -1.8348316342016489,
+      "FC C28",
+      126.83483163420165,
+      125.0,
+      "X7R capacitor (Murata GRM188Z71A475KE15D)"
+     ],
+     [
+      -1.7906962047344877,
+      "FC C30",
+      126.79069620473449,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -1.4935554991415074,
+      "ESC C21",
+      126.49355549914151,
+      125.0,
+      "X7R capacitor (Murata GRM155Z71A105KE01D)"
+     ],
+     [
+      -1.4897849367475828,
+      "ESC C9",
+      126.48978493674758,
+      125.0,
+      "X7R capacitor (Murata GRM155Z71A105KE01D)"
+     ],
+     [
+      -1.395572963374974,
+      "ESC C10",
+      126.39557296337497,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -1.342144385463314,
+      "ESC C22",
+      126.34214438546331,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -1.32988556738988,
+      "ESC C45",
+      126.32988556738988,
+      125.0,
+      "X7R capacitor (Murata GRM155Z71A105KE01D)"
+     ],
+     [
+      -1.3240494547001447,
+      "ESC C33",
+      126.32404945470014,
+      125.0,
+      "X7R capacitor (Murata GRM155Z71A105KE01D)"
+     ],
+     [
+      -1.3207439854535323,
+      "FC C22",
+      126.32074398545353,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -1.262645604020534,
+      "FC C10",
+      126.26264560402053,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -1.254354978686223,
+      "ESC RT1",
+      126.25435497868622,
+      125.0,
+      "NTC thermistor (Murata NCU15, 125 C)"
+     ],
+     [
+      -1.1959208600083144,
+      "ESC C34",
+      126.19592086000831,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -1.1822144781639565,
+      "ESC C46",
+      126.18221447816396,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -1.098245797153325,
+      "ESC RT2",
+      126.09824579715333,
+      125.0,
+      "NTC thermistor (Murata NCU15, 125 C)"
+     ],
+     [
+      -1.041574778241909,
+      "ESC RT3",
+      126.04157477824191,
+      125.0,
+      "NTC thermistor (Murata NCU15, 125 C)"
+     ],
+     [
+      -1.0343407371914282,
+      "ESC C19",
+      126.03434073719143,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -0.9679216292772992,
+      "ESC RT4",
+      125.9679216292773,
+      125.0,
+      "NTC thermistor (Murata NCU15, 125 C)"
+     ],
+     [
+      -0.9542750730039558,
+      "ESC C31",
+      125.95427507300396,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -0.889196470797927,
+      "ESC C16",
+      125.88919647079793,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ],
+     [
+      -0.810617722335536,
+      "ESC C43",
+      125.81061772233554,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -0.8046291520451945,
+      "ESC C55",
+      125.8046291520452,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -0.790336231204563,
+      "ESC C40",
+      125.79033623120456,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ],
+     [
+      -0.7472517247114752,
+      "ESC C28",
+      125.74725172471148,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ],
+     [
+      -0.702381876474206,
+      "ESC C52",
+      125.7023818764742,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ],
+     [
+      -0.671871470203925,
+      "FC C15",
+      125.67187147020393,
+      125.0,
+      "X7R capacitor (Murata GRM188Z71A475KE15D)"
+     ],
+     [
+      -0.6643491307596321,
+      "FC C1",
+      125.66434913075963,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -0.6345206896538542,
+      "ESC U_CS1",
+      125.63452068965385,
+      125.0,
+      "INA186 operating"
+     ],
+     [
+      -0.6319484254224079,
+      "ESC C18",
+      125.63194842542241,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -0.6183887200785136,
+      "FC C12",
+      125.61838872007851,
+      125.0,
+      "X7R capacitor (Murata GRM32ER71E226KE15L)"
+     ],
+     [
+      -0.5744473484458439,
+      "ESC C17",
+      125.57444734844584,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ],
+     [
+      -0.5441156932682389,
+      "ESC C30",
+      125.54411569326824,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -0.5340532404193539,
+      "FC C16",
+      125.53405324041935,
+      125.0,
+      "X7R capacitor (Murata GRM188Z71A475KE15D)"
+     ],
+     [
+      -0.5204456675652409,
+      "ESC U_CS2",
+      125.52044566756524,
+      125.0,
+      "INA186 operating"
+     ],
+     [
+      -0.46976956553929483,
+      "FC C2",
+      125.4697695655393,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -0.4419358211190456,
+      "ESC C29",
+      125.44193582111905,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ],
+     [
+      -0.41700395169404203,
+      "ESC C42",
+      125.41700395169404,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -0.4169811902760756,
+      "ESC U_CS3",
+      125.41698119027608,
+      125.0,
+      "INA186 operating"
+     ],
+     [
+      -0.41464648109413815,
+      "ESC C41",
+      125.41464648109414,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ],
+     [
+      -0.387700989462644,
+      "ESC C15",
+      125.38770098946264,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ],
+     [
+      -0.3874897227475742,
+      "ESC C54",
+      125.38748972274757,
+      125.0,
+      "X7R capacitor (Samsung CL05B104KB54PNC)"
+     ],
+     [
+      -0.37381100924285704,
+      "ESC U_CS4",
+      125.37381100924286,
+      125.0,
+      "INA186 operating"
+     ],
+     [
+      -0.35955765964840225,
+      "ESC C53",
+      125.3595576596484,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ],
+     [
+      -0.3539312608973262,
+      "FC L_9V",
+      125.35393126089733,
+      125.0,
+      "inductor"
+     ],
+     [
+      -0.3182321402270105,
+      "ESC C39",
+      125.31823214022701,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ],
+     [
+      -0.2342542030518331,
+      "ESC C27",
+      125.23425420305183,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ],
+     [
+      -0.21088213380333798,
+      "ESC C51",
+      125.21088213380334,
+      125.0,
+      "X7R capacitor (Murata GRM21BZ71H475KE15L)"
+     ]
+    ],
+    0.0,
+    {
+     "FC U_FC": 133.96012787105496,
+     "FC U_IMU": 128.7103277797905
+    }
+   ],
+   "60.0 | 9 V at 1.5 A, 5 V at 1 A": [
+    [
+     [
+      -2.4194432614938393,
+      "FC U_FC",
+      107.41944326149384,
+      105.0,
+      "ST STM32G473CEU6 junction"
+     ]
+    ],
+    0.0,
+    {
+     "FC U_FC": 107.41944326149384,
+     "FC U_IMU": 102.29636109551353
+    }
+   ],
+   "60.0 | 9 V at 1 A, 5 V at 0.5 A": [
+    [],
+    0.07545075362560169,
+    {
+     "FC U_FC": 101.36341177801896,
+     "FC U_IMU": 96.39978720523526
+    }
+   ]
+  }
+ }
+}

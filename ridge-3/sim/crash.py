@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
 """A crash: a motor jammed at full throttle on 6S, and what it does to the ESC.
 
+From ridge-3/:
+
     sim/.venv/bin/python sim/crash.py [--variant=NAME]
-                                writes sim/out/crash/CRASH.md (or crash/NAME/)
+
+writes CRASH.md and crash.json to sim/results/crash/ (a variant's to
+sim/results/crash/NAME/).  It reads the ESC's board, and the hot start
+(below) from the found.json that `stress.py --variant=NAME` writes to
+sim/results/variants/NAME/ (rev2's without --variant).
 
 The current.  A prop that hits something stops the rotor in a few
 milliseconds; the ESC goes on applying its duty to a motor with no back-EMF,
@@ -72,7 +78,8 @@ sys.path.insert(0, os.path.join(RIDGE, 'src'))
 import copper, dcflow, data
 from thermal import K_FR4_Z, RC_FR4
 
-OUT = os.path.join(HERE, 'out', 'crash')
+RESULTS = os.path.join(HERE, 'results')
+OUT = os.path.join(RESULTS, 'crash')       # the report, committed
 K_CU, RC_CU = 390.0, 3.45e6          # copper: W/m K, J/m3 K
 KRHO_SOLDER = 58.0 * dcflow.RHO_SOLDER
 T_LIFT, T_MELT = 288.0, 1085.0
@@ -365,10 +372,10 @@ def hot_start():
     """The hottest FET of the hard 3-minute flight on a 50 C day, from
     stress.py's numbers for this variant (or for the design)."""
     for name in (VARIANT, data.design_name()):
-        p = os.path.join(HERE, 'out', 'variants', name or '', 'found.json')
+        p = os.path.join(RESULTS, 'variants', name or '', 'found.json')
         if name and os.path.exists(p):
             return float(json.load(open(p))['found']['flight']['fet']), name
-    raise SystemExit('no found.json for %s: run stress.py --variant=%s first' % (
+    raise SystemExit('no sim/results/variants/%s/found.json: run stress.py --variant=%s first' % (
         VARIANT or data.design_name(), VARIANT or data.design_name()))
 
 
@@ -451,7 +458,12 @@ def run():
 VARIANT = None
 
 if __name__ == '__main__':
-    VARIANT = next((a.split('=', 1)[1] for a in sys.argv[1:] if a.startswith('--variant=')), None)
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 allow_abbrev=False)
+    ap.add_argument('--variant', choices=list(data.VARIANTS), metavar='NAME',
+                    help='rev 2 with one change: %s' % ', '.join(data.VARIANTS))
+    VARIANT = ap.parse_args().variant
     if VARIANT:
         data.variant(VARIANT)
         OUT = os.path.join(OUT, VARIANT)

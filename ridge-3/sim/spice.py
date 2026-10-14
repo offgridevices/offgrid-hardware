@@ -20,11 +20,16 @@ simulation, not for passing on, so they are not in this repository:
     OptiMOS_OptiMOS5_60V_Spice.lib, from the same zip.  Point
     OPTIMOS5_60V_LIB at it or put it in sim/out/spice/.
 
-Everything else is built here from datasheet figures (data.py): the DRV8300
-gate driver as its output resistance up to its peak current behind the gate
-resistor, the capacitors at their DC-bias capacitance with ESR and ESL, the
-battery as a source behind its internal resistance and lead inductance, the
-SMF33A TVS as a breakdown diode with its clamping resistance.
+Everything else is built here from datasheet figures (data.py): the gate
+driver (driver(): rev 1's DRV8300 as its output resistance up to its peak
+current, behind 10 ohm gate resistors; rev 2's DRV8320H as its IDRIVE
+source and sink currents, straight to the gates), the capacitors at their
+DC-bias capacitance with ESR and ESL, the battery as a source behind its
+internal resistance and lead inductance, the SMF33A TVS as a breakdown
+diode with its clamping resistance.
+
+The netlists and ngspice's results go in WORK (sim/out/spice/; a variant
+run, or punch.py, sets its own folder under sim/out/).
 """
 import os, re, glob, subprocess
 import numpy as np
@@ -96,9 +101,9 @@ def fet_lib():
 # runs that stalled under trapezoidal integration and were solved with
 # Gear's instead (name, what the netlist was): the report names them
 GEAR = []
-# runs that stalled under Gear's too and were solved with gmin 1e-11 S
-# (ngspice's default 1e-12: a conductance from every node to ground, still
-# a million million times under the amps here): the report names them
+# runs that stalled under Gear's too and were solved with gmin 1e-11 S, or
+# 1e-10 S (ngspice's default 1e-12: a conductance from every node to ground,
+# still a million million times under the amps here): the report names them
 GMIN = []
 
 
@@ -145,11 +150,12 @@ def run(name, netlist, vectors):
 
 
 def driver(prefix, vset, out, ref, rpu, rpd, ipu, ipd):
-    """DRV8300 output stage: pulls `out` toward `vset`.
+    """The gate driver's output stage: pulls `out` toward `vset`.
 
     Up to its peak current it looks like its on-resistance (rpu up, rpd down,
-    from the datasheet's output drop at 100 mA); beyond, it holds the peak
-    current (ipu source, ipd sink).  I = Ipk tanh(dV / (R Ipk)) does both
+    from the DRV8300's output drop at 100 mA); beyond, it holds the peak
+    current (ipu source, ipd sink: the DRV8300's typical peaks, or the
+    DRV8320H's IDRIVE setting).  I = Ipk tanh(dV / (R Ipk)) does both
     smoothly; the up and down halves are blended over about 0.1 V so the
     solver sees no corner."""
     d = 'V(%s,%s)-V(%s,%s)' % (vset, ref, out, ref)

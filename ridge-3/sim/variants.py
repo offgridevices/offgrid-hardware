@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 """The variants side by side, from their runs' numbers.
 
+From ridge-3/:
+
     sim/.venv/bin/python sim/variants.py [NAME ...]
 
-Reads sim/out/variants/NAME/found.json (stress.py --variant=NAME) for each
-variant that has been run (all of data.VARIANTS by default) and writes the
-comparison table to sim/out/variants/VARIANTS.md.  Throttle figures are the
+Reads sim/results/variants/NAME/found.json (`stress.py --variant=NAME`) for
+each variant that has been run (all of data.VARIANTS by default) and writes
+the comparison table to sim/results/VARIANTS.md.  Throttle figures are the
 reference motor's (data.MOTOR); the amps beside them are the battery current
 per motor at that throttle, which carries over to other motors.
 """
@@ -15,11 +17,11 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'src'))
 import data, losses
 
-OUT = os.path.join(HERE, 'out', 'variants')
+RESULTS = os.path.join(HERE, 'results')
 
 
 def load(name):
-    p = os.path.join(OUT, name, 'found.json')
+    p = os.path.join(RESULTS, 'variants', name, 'found.json')
     return json.load(open(p)) if os.path.exists(p) else None
 
 
@@ -31,6 +33,9 @@ def amps(name, throttle):
 def rows_for(names):
     got = {n: load(n) for n in names}
     got = {n: g for n, g in got.items() if g}
+    if not got:
+        raise SystemExit('no sim/results/variants/NAME/found.json for %s: run stress.py --variant=NAME first'
+                         % ', '.join(names))
     cols = list(got)
     def row(label, fn):
         out = [label]
@@ -75,10 +80,18 @@ def main(names):
              'run through the same simulations (`stress.py --variant=NAME`).', '',
              '| | ' + ' | '.join('`%s`' % c for c in cols) + ' |', '|---' * (len(cols) + 1) + '|']
     lines += ['| ' + ' | '.join(r) + ' |' for r in R]
-    os.makedirs(OUT, exist_ok=True)
-    open(os.path.join(OUT, 'VARIANTS.md'), 'w').write('\n'.join(lines) + '\n')
+    os.makedirs(RESULTS, exist_ok=True)
+    open(os.path.join(RESULTS, 'VARIANTS.md'), 'w').write('\n'.join(lines) + '\n')
     print('\n'.join(lines))
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:] or list(data.VARIANTS))
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 allow_abbrev=False)
+    ap.add_argument('names', nargs='*', metavar='NAME', help='variants to compare: %s' % ', '.join(data.VARIANTS))
+    names = ap.parse_args().names
+    bad = [n for n in names if n not in data.VARIANTS]
+    if bad:
+        ap.error('unknown variant %s (data.VARIANTS: %s)' % (', '.join(bad), ', '.join(data.VARIANTS)))
+    main(names or list(data.VARIANTS))

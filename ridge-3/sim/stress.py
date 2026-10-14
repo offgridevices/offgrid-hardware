@@ -1,14 +1,26 @@
 # -*- coding: utf-8 -*-
 """Stress simulations of the Ridge 3 stack: the FC on the ESC, hot, 6S, flat out.
 
-    python3 sim/stress.py          writes ../STRESS.md and ../images/stress/*.png
-    python3 sim/stress.py --quick  one air speed and temperature, short runs: a
-                                   check that the code runs, into sim/out/ only
-    python3 sim/stress.py --variant=NAME
-                                   rev 2 with one change (data.VARIANTS: another
-                                   IDRIVE, FET, pack voltage or air density), into
-                                   sim/out/variants/NAME/: STRESS.md and found.json
-                                   (variants.py compares them)
+From ridge-3/:
+
+    sim/.venv/bin/python sim/stress.py
+        writes STRESS.md and images/stress/*.png: rev 2 in full, and rev 1
+        through the same simulations for the comparison
+    sim/.venv/bin/python sim/stress.py --quick
+        one air speed and temperature, short runs: a check that the code
+        runs, into sim/out/quick/ only.  Rev 1 runs first, which needs
+        Toshiba's model; with --variant=rev2 it runs rev 2 alone
+    sim/.venv/bin/python sim/stress.py --variant=NAME
+        rev 2 with one change (data.VARIANTS: another IDRIVE, FET, pack
+        voltage, AM32 limit or air density): STRESS.md and found.json into
+        sim/results/variants/NAME/ (variants.py, crash.py, punch.py and
+        ground.py read found.json); its figures, SPICE runs and flight
+        record stay in sim/out/variants/NAME/
+
+It reads rev 2's boards (esc/, fc/) and src/circuit.py, rev 1's from
+sim/rev1/ (design.py), the part figures in data.py and the makers' SPICE
+models (spice.py says where they come from).  Copper maps and other caches
+go in sim/out/, which git ignores.
 
 Runs, in order:
 
@@ -31,17 +43,32 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(RIDGE, 'src'))
 import copper, dcflow, copperloss, thermal, spice, losses, data, stack, design
 
-QUICK = '--quick' in sys.argv
-VARIANT = next((a.split('=', 1)[1] for a in sys.argv[1:] if a.startswith('--variant=')), None)
 HOT = 50.0             # the design's hot day: 50 C air around the quad (owner's requirement)
 AIRS = (25.0, HOT, 60.0)
-OUT = os.path.join(HERE, 'out')
-IMG = os.path.join(OUT, 'quick') if QUICK else os.path.join(RIDGE, 'images', 'stress')
-REPORT = os.path.join(OUT, 'quick', 'STRESS.md') if QUICK else os.path.join(RIDGE, 'STRESS.md')
-if VARIANT:            # its own folder for everything it writes, so variants can run side by side
-    IMG = os.path.join(OUT, 'variants', VARIANT)
-    REPORT = os.path.join(IMG, 'STRESS.md')
-    spice.WORK = os.path.join(IMG, 'spice')
+OUT = os.path.join(HERE, 'out')            # caches, and what the quick and variant runs make
+RESULTS = os.path.join(HERE, 'results')    # the variants' reports, committed
+
+
+def configure(quick=False, variant=None):
+    """Where a run writes (the docstring's command lines)."""
+    global QUICK, VARIANT, IMG, REPORT
+    QUICK, VARIANT = quick, variant
+    base = os.path.join(OUT, 'quick') if quick else OUT
+    spice.WORK = spice.OUT
+    if variant:        # its own folders, so variants can run side by side
+        IMG = os.path.join(base, 'variants', variant)
+        REPORT = os.path.join(base if quick else RESULTS, 'variants', variant, 'STRESS.md')
+        spice.WORK = os.path.join(IMG, 'spice')
+    elif quick:
+        IMG = base
+        REPORT = os.path.join(base, 'STRESS.md')
+    else:
+        IMG = os.path.join(RIDGE, 'images', 'stress')
+        REPORT = os.path.join(RIDGE, 'STRESS.md')
+
+
+configure()
+
 CH = (1, 2, 3, 4)
 PH = 'ABC'
 
@@ -60,6 +87,34 @@ def table(head, rows):
     say('|' + '|'.join('---' for _ in head) + '|')
     for r in rows:
         say('| ' + ' | '.join(str(x) for x in r) + ' |')
+    say()
+
+
+def count(n):
+    """A small number in words, as the report writes them."""
+    return {2: 'two', 4: 'four', 6: 'six', 8: 'eight', 10: 'ten', 12: 'twelve'}.get(n, str(n))
+
+
+def save_figure(fig, name, **kw):
+    """A figure into IMG, saved again as a 256-colour PNG as the renders are
+    (src/stable.py): about a third of the size."""
+    import matplotlib.pyplot as plt
+    import stable
+    os.makedirs(IMG, exist_ok=True)
+    path = os.path.join(IMG, name)
+    fig.savefig(path, **kw)
+    plt.close(fig)
+    stable.compact(path)
+
+
+def figure(alt, name):
+    """The report's link to a figure in IMG.  A variant's figures stay in
+    sim/out/ (not committed), so its report names the file instead."""
+    if VARIANT and not QUICK:
+        say('Figure, %s: `sim/out/variants/%s/%s`, made by the run and not committed.' % (
+            alt[0].lower() + alt[1:], VARIANT, name))
+    else:
+        say('![%s](%s)' % (alt, os.path.relpath(os.path.join(IMG, name), os.path.dirname(REPORT)).replace(os.sep, '/')))
     say()
 
 
@@ -130,12 +185,12 @@ def copper_section(esc_ops):
     P = u['paths']
     say('## 2. The ESC\'s copper under motor current')
     say()
-    say('Every copper cell of the ESC (%.2f mm grid, all six layers, zones, '
+    say('Every copper cell of the ESC (%.2f mm grid, all %s layers, zones, '
         'tracks, pads and via barrels as KiCad fills them) solved for DC current '
         'flow, one net at a time, with the FETs, shunts and battery pads putting '
         'current in and taking it out where their pads are.  The solver was '
         'checked against a copper strip and a ring, whose resistance has a '
-        'closed form: both agree to within the grid\'s staircase edges.' % c.res)
+        'closed form: both agree to within the grid\'s staircase edges.' % (c.res, count(len(c.layers))))
     say()
     rows = []
     rho100 = 1 + dcflow.ALPHA * 80
@@ -272,8 +327,9 @@ def switching_section():
             'integration instead, the same circuit.' % ('; '.join(gear), 'it was' if len(gear) == 1 else 'they were'))
         say()
     if gmin:
-        say('Gear\'s stalled too on %s; %s solved with ngspice\'s gmin at 1e-11 S instead of 1e-12 (a '
-            'conductance from every node to ground, a million million times under the currents here).' % (
+        say('Gear\'s stalled too on %s; %s solved with ngspice\'s gmin at 1e-11 S (1e-10 S where that '
+            'still stalled) instead of 1e-12 (a conductance from every node to ground, a million million '
+            'times under the currents here).' % (
                 '; '.join(gmin), 'it was' if len(gmin) == 1 else 'they were'))
         say()
     vr = '%.0f V rating' % data.FET['vdss']
@@ -374,18 +430,15 @@ def plot_edges(res):
         a.plot(t[m] - t0, (w['v(dH)'] - w['v(sH)'])[m], label='high-side V_DS')
         a.plot(t[m] - t0, (w['v(dL0)'] - w['v(sL)'])[m], label='low-side V_DS')
         a.axhline(data.FET['vdss'], color='r', ls='--', lw=1, label='%.0f V rating' % data.FET['vdss'])
-        a.set_title(title + ', 30 A, 25.2 V, 5 nH, T_j 150 C'); a.legend(fontsize=8); a.grid(alpha=.3)
+        a.set_title(title + ', 30 A, %.1f V, 5 nH, T_j 150 C' % data.BRIDGE['V']); a.legend(fontsize=8); a.grid(alpha=.3)
         a = ax[1, col]
         a.plot(t[m] - t0, w['i(vidh)'][m], label='high-side I_D')
         a.plot(t[m] - t0, w['i(vidl)'][m], label='low-side I_D')
         a.set_xlabel('ns'); a.legend(fontsize=8); a.grid(alpha=.3)
     ax[0, 0].set_ylabel('V'); ax[1, 0].set_ylabel('A')
     fig.tight_layout()
-    os.makedirs(IMG, exist_ok=True)
-    fig.savefig(os.path.join(IMG, 'switching-edges.png'), dpi=110)
-    plt.close(fig)
-    say('![Switching edges](images/stress/switching-edges.png)')
-    say()
+    save_figure(fig, 'switching-edges.png', dpi=110)
+    figure('Switching edges', 'switching-edges.png')
 
 
 # =================================================================== 4. battery line
@@ -639,7 +692,7 @@ def lead_section(i_motor=20.0):
                      '%.2f W' % s.loss, '%.0f A/mm2 (%s, %.3f mm copper)' % (jl[lj], cf.layers[lj], cf.t[lj]),
                      '%.2f A' % bc])
     say('The FC\'s own supply copper at its full load (copper at 100 C).  The '
-        'FC\'s inner layers are 0.5 oz (%.4f mm):' % cf.t[1])
+        'FC\'s inner layers are %.1f oz (%.4f mm):' % (cf.t[1] / 0.035, cf.t[1]))
     say()
     table(['Net', 'Where the current goes in and out', 'Largest drop', 'Loss', 'Densest point', 'Most in one via'], rows)
     return dict(i_loop=i_loop, v_gnd=v_gnd)
@@ -764,15 +817,18 @@ def heat_section(sw):
     log('heat: steady limits')
     say('## 6. Heat: the stack in hot air')
     say()
-    say('Both boards as thermal grids (%.1f mm cells on each of the six copper '
-        'layers, copper coverage from the boards themselves, every via), the FC '
-        '%.0f mm above the ESC, exchanging heat across the gap by conduction and '
-        'radiation; outer faces cooled by the air and by radiation.  Heat from '
+    m0 = model(5.0, HOT)
+    say('Both boards as thermal grids (%.1f mm cells on each copper layer, %s on '
+        'the ESC and %s on the FC, copper coverage from the boards themselves, '
+        'every via), the FC %.0f mm above the ESC, exchanging heat across the '
+        'gap by conduction and radiation; outer faces cooled by the air and by '
+        'radiation.  Heat from '
         'every FET (on-resistance at its own junction temperature, the simulated '
         'switching energies, body-diode dead time), the shunts, the drivers, the '
         'regulators, the processors and the copper itself (section 2, at each '
         'cell\'s temperature).  The FC carries its maximum load in every run: '
-        '2 A on 5 V and 2 A on 9 V%s.' % (HEAT_H, data.STACK['gap'],
+        '2 A on 5 V and 2 A on 9 V%s.' % (
+            HEAT_H, count(len(m0.ce.layers)), count(len(m0.cf.layers)), data.STACK['gap'],
         ' (where the video supply\'s thermostat cuts the 9 V BEC at %.0f C, the '
         'tables say how much of the time the video stays on)' % data.THERMOSTAT['trip']
         if data.THERMOSTAT else ''))
@@ -1094,6 +1150,8 @@ def flight_section(sw, fcmax):
     rows = []
     for label, names in groups.items():
         lim, what = limit_of(names[0], m)
+        if len({m.parts[x].get('kind') for x in names}) > 1:
+            what = what.split(' (')[0]          # capacitors of one dielectric, several parts: the class
         past = [first[x][0] for x in names if x in first]
         rows.append([label, what, '%.0f C' % max(tr[label]), '%.0f C' % lim if lim else '-',
                      '%.0f s' % min(past) if past else '-'])
@@ -1118,7 +1176,7 @@ def flight_section(sw, fcmax):
                            fet=max(tr['ESC FETs (hottest)']), mcu=max(tr['ESC processors (hottest)']),
                            peaks={k: max(v) for k, v in tr.items() if k in groups},
                            first=min(first.items(), key=lambda kv: kv[1][0]) if first else None)
-    np.savez(os.path.join(IMG if VARIANT else OUT, 'hot-flight-%s.npz' % data.design_name()), T=T,
+    np.savez(os.path.join(IMG if VARIANT or QUICK else OUT, 'hot-flight-%s.npz' % data.design_name()), T=T,
              **{k: np.asarray(v) for k, v in tr.items()})
     plot_flight(tr, groups, m)
     plot_maps(m, T, 'hot-flight')
@@ -1235,11 +1293,8 @@ def plot_flight(tr, groups, m):
     ax[1].legend(fontsize=7)
     ax[1].set_ylabel('throttle %'); ax[1].set_xlabel('s'); ax[1].grid(alpha=.3)
     fig.tight_layout()
-    os.makedirs(IMG, exist_ok=True)
-    fig.savefig(os.path.join(IMG, 'hot-flight.png'), dpi=110)
-    plt.close(fig)
-    say('![Hot flight](images/stress/hot-flight.png)')
-    say()
+    save_figure(fig, 'hot-flight.png', dpi=110)
+    figure('Hot flight', 'hot-flight.png')
 
 
 def plot_maps(m, T, name):
@@ -1247,7 +1302,8 @@ def plot_maps(m, T, name):
         return
     import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
     fig, ax = plt.subplots(1, 4, figsize=(16, 4.4))
-    views = [(m.ge, 0, 0, 'ESC top'), (m.ge, 0, 5, 'ESC bottom'), (m.gf, 1, 5, 'FC bottom'), (m.gf, 1, 0, 'FC top')]
+    views = [(m.ge, 0, 0, 'ESC top'), (m.ge, 0, m.ge.L - 1, 'ESC bottom'), (m.gf, 1, m.gf.L - 1, 'FC bottom'),
+             (m.gf, 1, 0, 'FC top')]
     vmax = max(T[:m.st.off[2]].max(), 60)
     for a, (g, bi, li, title) in zip(ax, views):
         img = np.full((g.ny, g.nx), np.nan)
@@ -1256,10 +1312,8 @@ def plot_maps(m, T, name):
         im = a.imshow(img, cmap='inferno', vmin=m.T_amb, vmax=vmax)
         a.set_title('%s, max %.0f C' % (title, np.nanmax(img))); a.axis('off')
     fig.colorbar(im, ax=ax, fraction=0.02, label='C')
-    fig.savefig(os.path.join(IMG, name + '-maps.png'), dpi=100, bbox_inches='tight')
-    plt.close(fig)
-    say('![Temperatures at the end](images/stress/%s-maps.png)' % name)
-    say()
+    save_figure(fig, name + '-maps.png', dpi=100, bbox_inches='tight')
+    figure('Temperatures at the end', name + '-maps.png')
 
 
 def plot_copper(u):
@@ -1268,7 +1322,7 @@ def plot_copper(u):
     import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
     c = copper.extract('esc')
     W = copperloss.loss_map(u, {n: 20.0 for n in CH}, {n: 0.95 for n in CH})
-    fig, ax = plt.subplots(1, 6, figsize=(18, 3.6))
+    fig, ax = plt.subplots(1, len(c.layers), figsize=(3 * len(c.layers), 3.6))
     area = (c.res) ** 2
     vmax = np.percentile(W[W > 0] / area, 99.5)
     for li, a in enumerate(ax):
@@ -1276,11 +1330,8 @@ def plot_copper(u):
         im = a.imshow(img, cmap='magma', vmin=0, vmax=vmax)
         a.set_title('%s, %.1f W' % (c.layers[li], W[li].sum())); a.axis('off')
     fig.colorbar(im, ax=ax, fraction=0.015, label='W/mm2')
-    os.makedirs(IMG, exist_ok=True)
-    fig.savefig(os.path.join(IMG, 'esc-copper-loss.png'), dpi=100, bbox_inches='tight')
-    plt.close(fig)
-    say('![Where the copper heats, 20 A on every motor](images/stress/esc-copper-loss.png)')
-    say()
+    save_figure(fig, 'esc-copper-loss.png', dpi=100, bbox_inches='tight')
+    figure('Where the copper heats, 20 A on every motor', 'esc-copper-loss.png')
 
 
 # =================================================================== report
@@ -1288,9 +1339,9 @@ def summary(r2, r1):
     out = ['# Ridge 3 stack: stress simulations', '',
            'Generated by `sim/stress.py` on %s.  The FC on the ESC, a full 6S pack '
            '(25.2 V), hot air (%.0f C is the design\'s hot day), full current.  Rev 2, '
-           'the design in this repository, is reported in full; rev 1 (commit %s) '
-           'is run through the same simulations for the comparison below.' % (
-               time.strftime('%Y-%m-%d'), HOT, design.REV1_COMMIT), '',
+           'the design in this repository, is reported in full; rev 1 (kept in '
+           '`sim/rev1/`) is run through the same simulations for the comparison below.' % (
+               time.strftime('%Y-%m-%d'), HOT), '',
            '**What this is not:** a measurement.  These are simulations of the '
            'design files, with the makers\' datasheet figures (`sim/data.py`, each '
            'with its source) and a few stated assumptions.  They say where the '
@@ -1310,7 +1361,7 @@ def compare_section(r1, r2):
     f1, f2 = r1['found'], r2['found']
     out = ['## Rev 2 against rev 1', '',
            'The same simulations on both designs: rev 1\'s boards and circuit from '
-           'git (commit %s), rev 2 from the working tree.' % design.REV1_COMMIT, '']
+           '`sim/rev1/`, rev 2 from the working tree.', '']
     rows = []
     def row(what, a, b, unit_fmt, better='lower'):
         if a is None or b is None:
@@ -1429,11 +1480,13 @@ def main_variant(name):
     import json
     t0 = time.time()
     os.makedirs(IMG, exist_ok=True)
+    os.makedirs(os.path.dirname(REPORT), exist_ok=True)
     r = run_design('rev2', full=True, variant=name)
     desc = data.VARIANTS[name]['desc']
+    main_report = os.path.relpath(os.path.join(RIDGE, 'STRESS.md'), os.path.dirname(REPORT)).replace(os.sep, '/')
     head = ['# Ridge 3 stack: stress simulations, variant `%s`' % name, '',
             'Rev 2 with one change: %s.  Generated by `sim/stress.py --variant=%s` on %s; '
-            'everything else as in STRESS.md.' % (desc, name, time.strftime('%Y-%m-%d')), '']
+            'everything else as in [STRESS.md](%s).' % (desc, name, time.strftime('%Y-%m-%d'), main_report), '']
     lines.clear(); lines.extend(r['lines'])
     verdicts.clear(); verdicts.extend(r['verdicts'])
     found.clear(); found.update(r['found'])
@@ -1441,7 +1494,8 @@ def main_variant(name):
     text += '\n---\nRun time %.0f min.\n' % ((time.time() - t0) / 60)
     open(REPORT, 'w').write(text)
     json.dump(dict(variant=name, desc=desc, hover=HOVER, vdss=r['vdss'], verdicts=r['verdicts'],
-                   found=_plain(r['found'])), open(os.path.join(IMG, 'found.json'), 'w'), indent=1)
+                   found=_plain(r['found'])), open(os.path.join(os.path.dirname(REPORT), 'found.json'), 'w'),
+              indent=1)
     log('wrote', REPORT)
 
 
@@ -1515,8 +1569,8 @@ def limits_section():
         'The loop inductance of each half-bridge is estimated from the layout, '
         'not field-solved; the edge results are shown for 3-8 nH.',
         'AC effects in the copper: the switching-frequency part of the battery '
-        'current is solved as DC (it has no skin effect at 48 kHz in 35 um '
-        'copper, but it may take a slightly different path).',
+        'current is solved as DC (it has no skin effect at the 24-48 kHz of '
+        'AM32\'s PWM in 35 um copper, but it may take a slightly different path).',
         'EMI, ESD and radio interference; vibration; solder-joint fatigue from '
         'the heat cycles; the long-term effect of running parts near their '
         'limits.',
@@ -1569,4 +1623,12 @@ def heat_verdicts(results, first):
 
 
 if __name__ == '__main__':
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 allow_abbrev=False)
+    ap.add_argument('--quick', action='store_true', help='one air speed and temperature, short runs')
+    ap.add_argument('--variant', choices=list(data.VARIANTS), metavar='NAME',
+                    help='rev 2 with one change: %s' % ', '.join(data.VARIANTS))
+    a = ap.parse_args()
+    configure(a.quick, a.variant)
     main()

@@ -2,7 +2,15 @@
 """A full-throttle punch from hover: the phase current it peaks at, what the
 DRV8320H's overcurrent monitor makes of it, and the switching edges at it.
 
-    sim/.venv/bin/python sim/punch.py      writes sim/out/punch/PUNCH.md
+From ridge-3/:
+
+    sim/.venv/bin/python sim/punch.py
+
+writes PUNCH.md and punch.json to sim/results/punch/; its SPICE netlists
+and runs stay in sim/out/punch/spice/.  It reads the ESC's board, the
+OptiMOS 6 SPICE model (spice.py) and the hot FET temperature from
+sim/results/variants/rev2/found.json, which `stress.py --variant=rev2`
+writes.
 
 The current.  Each motor as its DC equivalent: the duty times the bus
 voltage drives the phase current against the back-EMF and the loop's
@@ -34,7 +42,8 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'src'))
 import copper, dcflow, data, spice, crash
 
-OUT = os.path.join(HERE, 'out', 'punch')
+OUT = os.path.join(HERE, 'results', 'punch')           # the report, committed
+WORK = os.path.join(HERE, 'out', 'punch', 'spice')       # the SPICE runs
 RAMP_HIGH = 0.16 / 1e-3              # duty per second: AM32's high-rpm ramp at max ramp 160
 INERTIA = (1.5e-6, 2.5e-6, 4e-6)     # kg m2, rotor and prop: ASSUMPTION (see the docstring)
 DT = 20e-6
@@ -102,7 +111,7 @@ def vbat_copper(c):
 def run():
     t0 = time.time()
     os.makedirs(OUT, exist_ok=True)
-    spice.WORK = os.path.join(OUT, 'spice')
+    spice.WORK = WORK
     os.makedirs(spice.WORK, exist_ok=True)
     data.variant('rev2')
     ke, kp, w_h = fit()
@@ -133,7 +142,7 @@ def run():
     hs_own = max(p['vdrain'] + p['hs_src'] for p in parts.values())
     vb = vbat_copper(c)
     hs = max(p['hs_src'] for p in parts.values()) + vb       # all four motors' current in the plane
-    flight = json.load(open(os.path.join(HERE, 'out', 'variants', 'rev2', 'found.json')))['found']['flight']['fet']
+    flight = json.load(open(os.path.join(HERE, 'results', 'variants', 'rev2', 'found.json')))['found']['flight']['fet']
     lines += ['', '## What the driver\'s overcurrent monitor trips at', '',
               'Copper in what it measures (20 C): low side %.2f mOhm (channel %d phase %s, the most); high side '
               'up to %.2f mOhm with only its own phase\'s current, and %.2f mOhm when all four motors draw the '
@@ -181,4 +190,7 @@ def run():
 
 
 if __name__ == '__main__':
+    import argparse
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+                            allow_abbrev=False).parse_args()
     run()
