@@ -12,6 +12,8 @@ on:
   # here is green, so a PR runs this suite exactly once and a red suite stops
   # there — no paid review of a board that does not rebuild.
   workflow_call:
+  # Manual runs (any branch), e.g. to check a board branch before its PR.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
