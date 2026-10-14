@@ -8,8 +8,9 @@ test settles are in [`STATUS.md`](STATUS.md); record results as described at
 the end, then update `STATUS.md` and [`../TESTS.md`](../TESTS.md), which
 lists every test and simulation with this revision's result.
 
-The basic bring-up (first power, flashing, orientation, motor order) is in
-the main README's [Bring-up](../README.md#bring-up) and is not repeated here.
+The basic bring-up (the short check, first power and flashing in the
+README's *Assembly* step 5, orientation, motor order) is in the main
+README's [Bring-up](../README.md#bring-up) and is not repeated here.
 Do it first on every stack.
 
 ## What to order for testing
@@ -193,7 +194,9 @@ step 7.
 The FC's 5 V, 9 V and 3.3 V rails at no load and full load (2 A on 5 V,
 2 A on 9 V, briefly), and the 9 V rail on a nearly empty 3S pack (about
 9.9 V): it should stay in regulation down to about 9.5 V of battery.
-Ripple on each with the probe's ground spring.
+Ripple on each with the probe's ground spring, and the 3.3 V rail's
+response to a load step (0.1 to 0.5 A): no ringing that does not settle in
+a few cycles (`STATUS.md`, D10).
 
 ### T11. Battery transients
 

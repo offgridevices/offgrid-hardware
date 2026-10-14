@@ -81,10 +81,14 @@ front-rear axis and four feet round the mounting holes that stand on the
 frame.  Four bosses round the holes carry the ESC (on the bare ring the
 copper keeps clear of each hole), so the gap between the board and the plate
 is machined, 1.25 mm, and a 1.5 mm T-Global TG-A6200 gap pad fills it.
-Every part on the ESC's bottom has a pocket as deep as its maximum height
-(from its maker's drawing), so the pad lies over the parts at the same
-squeeze; the two tall 1210 capacitors have a window through the plate and a
-hole in the pad.  Notches at the rear let the battery lead in from below.
+Every part on the ESC's bottom has a pocket at least as deep as its maximum
+height (from its maker's drawing), cut at two depths, 0.8 and 1.45 mm (a
+pocket within 0.4 mm of a deeper one is cut as deep).  The pad lies at the
+board's squeeze over the processors, drivers and bridge capacitors; over the
+FETs and shunts (1.05-1.10 mm parts in 1.45 mm pockets) it has 1.6 mm of
+room for its 1.5 mm and does not press (the thermal model counts the pad
+only on bare board).  The two tall 1210 capacitors have a window through the
+plate and a hole in the pad.  Notches at the rear let the battery lead in from below.
 `src/heatsink.py` makes it from the routed ESC: the STEP, the gap pad's
 outline (DXF) and a drawing for the CNC order are in `mechanical/`, and
 the stress simulations use the same geometry.  It weighs about 14.5 g, the pad
@@ -100,9 +104,10 @@ load.  The ESC's MCUs therefore run only with the FC connected.  Neither
 board pairs with another maker's 4-in-1 or FC on a standard lead: an ESC
 that drives telemetry on pin 4 would fight the FC's 3.3 V (the Micro-Lock
 housing does not fit the usual JST-SH header anyway).  At the ESC the wires
-are soldered to pads (no connector at the hot end): VBAT, CUR and the four
-signals to a row in the middle of the top, and the ground wire to a pad of
-its own beside the battery minus pad, where the FC's ground meets the
+are soldered to pads (no connector at the hot end): VBAT, 3V3 and CUR
+(`+ 3V3 C`) and the four signals (`1 2 3 4`) to two rows in the middle of
+the top, and the ground wire to a pad of its own beside the battery minus
+pad, where the FC's ground meets the
 ESC's (through the battery pad's Kelvin tap: no motor current flows between
 that pad and the battery wire, so none flows round the lead).  At the FC
 they go into a Molex Micro-Lock Plus housing (505565-0801, 505431
@@ -174,8 +179,9 @@ and the video supply is the big one.  It runs from its own battery pads,
 and a thermostat beside it switches it off above 96 °C (on again at 76 °C),
 which keeps the supplies and the processor in their ratings on the ground
 up to a 50 °C day, and in the simulated hard flight at 50 °C never trips.
-The HD build has no part rated below 105 °C left: the air unit solders to
-pads.  The analog build's AT7456E OSD is an 85 °C part the thermostat does
+In the HD build the only parts rated below 105 °C are the USB-C receptacle
+(85 °C; it carries nothing in flight) and the two status LEDs (100 °C): the
+air unit solders to pads, so no 85 °C connector carries the video.  The analog build's AT7456E OSD is an 85 °C part the thermostat does
 not protect: on the ground in still air it reaches 91 °C on a 25 °C day.
 Past the design day, at 60 °C in still air, the processor reaches 107 °C
 against its 105 °C even with the video held off.  The 130 °C STM32G473CEU3
@@ -184,7 +190,8 @@ On the bench, put a fan on the stack or keep the video off;
 [`STRESS.md`](STRESS.md) has the times.
 
 The inner copper is 1 oz on both boards.  None of this is measured yet:
-bring-up step 6 measures it.
+bring-up steps 6 (the ESC's FETs) and 7 (the FC's video thermostat), and
+[`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) T8 and T9, measure it.
 
 **What it cannot do:**
 
@@ -205,9 +212,14 @@ before assembly fees and bare boards:
 
 | | 1 set | 100 sets | 1,000 sets |
 |---|---|---|---|
-| FC | $43.59 | $33.44 | $32.05 |
+| FC (HD build) | $37.91 | $29.53 | $28.34 |
 | ESC | $63.13 | $54.48 | $52.56 |
-| **Stack** | **$106.72** | **$87.92** | **$84.61** |
+| **Stack** | **$101.04** | **$84.01** | **$80.90** |
+
+The analog build adds $5.33 / $3.63 / $3.46 to the FC (the AT7456E OSD,
+its 27 MHz crystal and their parts).  The ESC's row is its BOM before
+2 October's changes (four ferrite beads and eight 1 µF capacitors in, eight
+other capacitors out), which move it by a few cents.
 
 Revision 1 was $84.48 / $57.12 / $53.60.  Revision 2 spends the difference
 on surviving a hot day:
@@ -224,8 +236,8 @@ on surviving a hot day:
   amplifiers ($2.34), the four ESC MCUs ($1.86).
 - **One-off, the parts alone pass $100**, and on top come JLC's per-order
   assembly fees: setup, stencil, and a loading fee for each unique extended
-  part (JLC's quote counts them; `src/parts.py` notes, where it was
-  checked, whether a part is basic or extended).
+  part (on 1 October's listing, 31 on the FC's HD build, 35 on its analog
+  build and 17-18 on the ESC; JLC's quote gives the count on the day).
 - **The point is still the repair.** A crash that kills a motor channel
   costs one ESC, not a whole stack.  Get a JLC or PCBWay quote for the
   panels at the volume you plan: bare boards and assembly were not priced
@@ -237,9 +249,10 @@ Every part has an LCSC number (for JLCPCB assembly) or, where LCSC does not
 stock it, a manufacturer part number for JLCPCB's global sourcing or
 PCBWay's turnkey service (`src/parts.py`).  The chips that matter come from
 TI (supplies, gate drivers, current amplifiers, thermostat), ST (FC MCU),
-TDK InvenSense (gyro), Infineon (FETs, flash), and Murata, TDK, Taiyo Yuden,
-NDK, Abracon, Rohm, Vishay, Stackpole, Yageo, Molex, C&K, GCT and JST
-(passives, crystals, LEDs and connectors).
+TDK InvenSense (gyro), Infineon (FETs, flash), Diodes Inc. and Alpha & Omega
+(small FETs), and Murata, Samsung, TDK, Taiyo Yuden, NDK, Abracon, Rohm,
+Vishay, Stackpole, Yageo, Molex, C&K and GCT (passives, crystals, LEDs and
+connectors).
 
 The exceptions and thin spots, checked 1 October 2026:
 
@@ -253,7 +266,7 @@ The exceptions and thin spots, checked 1 October 2026:
 | TI TPS628501 (3.3 V buck), Murata GCJ32E 10 µF (ESC bus) | JLC stock 85 / 259 (1 October) | Enough for a prototype run; buy ahead or consign for volume |
 | TDK TFM252012ALMAR47MTAA (3.3 V inductor) | Out of stock at JLC / LCSC on 13 October (DigiKey had stock) | Consign it from DigiKey, or the Bourns SRP2512TMA-R47M after a land check: [`docs/STATUS.md`](docs/STATUS.md), D5 |
 | STM32G473CEU6 (FC MCU) | 105 °C junction; the 130 °C CEU3 fits the same pads and image but is out of stock everywhere: since mid-2026 ST quotes 52 weeks for the whole STM32G4 family (foundry capacity moved to higher-value parts, distributors asking for 2027's orders now), and DigiKey, Mouser, JLC and ST's own store have none of the -3 temperature grade.  The STM32G474CEU3 is the same (DigiKey 0, 52 weeks, 3 October) | Fit the CEU3 when it is available |
-| Resistors | JLC's are UNI-ROYAL (operations in China) | Yageo equivalents are listed as `dk_mpn` in `parts.py` |
+| Resistors | JLC's are UNI-ROYAL (operations in China) | Yageo equivalents are listed as `dk_mpn` in `parts.py`, except for the FC's 57.6k, 121k, 22.1k and 3.3k, which still need one |
 
 ## Selling in the US and allied countries (not legal advice)
 
@@ -437,8 +450,10 @@ pre-programming service.
    left, `-` right, as printed on both sides.
 4. **Stack lead:** solder its wires to the ESC's lead pads, the ground wire
    to `G` beside the battery minus pad.
-5. **Flash the ESCs** with the two boards side by side (not stacked, no
-   motors) and the stack lead plugged into the FC: the ESC's MCUs run from
+5. **Flash the ESCs.**  First do [bring-up](#bring-up) step 1 (no power:
+   BAT+ to BAT- and the FC's rails not shorted).  Then, with the two boards
+   side by side (not stacked, no motors) and the stack lead plugged into
+   the FC: the ESC's MCUs run from
    the FC's 3.3 V on the lead's pin 4.  Power them from a current-limited
    bench supply (12 V, 0.3 A) on the battery lead.  See
    [`firmware/README.md`](firmware/README.md).  Each MCU's `Dn` (data) and
@@ -466,7 +481,9 @@ Do these in order. Each step catches a fault before it can damage the next.
 1. **No power:**
    - Measure BAT+ to BAT- on the ESC. It must not read as a short: the
      meter should climb past a few kΩ as the capacitors charge.
-   - Measure the FC's `5V`, `9V` and `3V3` pads to `G` the same way.
+   - Measure the FC's `5V` and `9V` pads to `G` the same way, and its
+     3.3 V at the ESC's `3V3` lead pad (the stack lead plugged into the FC)
+     to the lead's `G` pad: the FC has no 3.3 V pad of its own.
 2. **FC on USB only:**
    - The red power LED lights.
    - Flash Betaflight: hold **BOOT**, plug in USB, and follow
@@ -530,10 +547,10 @@ default expression, so the boards are **Pitch** (black solder mask) with
   whose baseline leaves the word 25 units (of its 200) above the ring's
   centre; it was made at the owner's direction.
 - The flag is not from the brand files. It is drawn in the proportions of
-  Executive Order 10834 (hoist 1, fly 1.9, 13 stripes), 4 mm high, in one
+  Executive Order 10834 (hoist 1, fly 1.9, 13 stripes), 3.5 mm high, in one
   colour: the red stripes and the union are ink, the white stripes are
   the board. The 50 stars are left out: at this size each would be about
-  0.25 mm across, below what silkscreen prints, so the union is solid.
+  0.2 mm across, below what silkscreen prints, so the union is solid.
 - Every side carries the same front arrow (2.6 mm long, 1.8 mm across the
   head: one definition in `src/brand.py`) with the side's name, **Top** or
   **Bottom**, beside it. Where it sits and which side of the arrow the word

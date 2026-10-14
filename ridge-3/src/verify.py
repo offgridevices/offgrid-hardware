@@ -402,6 +402,8 @@ FIGS = {
     'at32_fta': (0.3, 'artery_AT32F421.txt',
                  r'when set as analog mode, it loses 5 V tolerant\s+characteristic, and in this case, the input level must be less '
                  r'than VDD \+ 0\.3 V', 'AT32F421 FTa pins in analog mode: below VDD + 0.3 V (table 5 note 2)'),
+    'at32_fta_max': (4.0, 'artery_AT32F421.txt', r'VSS-0\.3\s+4\.0\s+Input voltage on FTa GPIO \(set as analog mode\)',
+                     'AT32F421 FTa pins in analog mode: 4.0 V absolute maximum (table 6)'),
     # TI INA186, SBOS318B (ESC current sense)
     'ina186_gain': ({'A1': 25, 'A2': 50, 'A3': 100, 'A4': 200, 'A5': 500}, 'ti_ina186.txt',
                     r'INA186A1: 25 V/V[\s\S]{0,300}INA186A2: 50 V/V[\s\S]{0,300}INA186A3: 100 V/V[\s\S]{0,300}'
@@ -448,16 +450,43 @@ def fig(key):
     return FIGS[key][0]
 
 
+def _fig_numbers(v):
+    """The non-zero numbers in a FIGS value (a number, or a table of them)."""
+    if isinstance(v, dict):
+        for k, x in v.items():
+            yield from _fig_numbers(k)
+            yield from _fig_numbers(x)
+    elif isinstance(v, (tuple, list)):
+        for x in v:
+            yield from _fig_numbers(x)
+    elif isinstance(v, (int, float)) and not isinstance(v, bool) and v:
+        yield v
+
+
 def figs_check(S, keys):
-    """One check: the datasheet figures a section uses are in the datasheets' text."""
+    """One check: the datasheet figures a section uses are in the datasheets'
+    text, each number of the value among the numbers the pattern matched (at
+    one of the usual unit scales), so a figure changed here alone fails."""
     missing, bad = [], []
     for k in keys:
         v, f, pat, what = FIGS[k]
         t = ds_text(f)
         if t is None:
             missing.append(f)
-        elif not re.search(pat, t):
+            continue
+        m = re.search(pat, t)
+        if not m:
             bad.append('%s: not found in %s' % (what, f))
+            continue
+        toks = {x.replace(',', '') for x in re.findall(r'\d[\d.,]*\d|\d', m.group(0))}
+        toks |= {'%g' % float(x) for x in toks}
+        hexes = {h.upper().lstrip('0') or '0' for g in re.findall(r'0x([0-9A-Fa-f]+)|\b([0-9A-F]{2})h\b', m.group(0))
+                 for h in g if h}
+        off = [n for n in _fig_numbers(v)
+               if not any('%g' % (n * sc) in toks for sc in (1, 1e3, 1e6, 1e9, 1e12, 100, 1e-3))
+               and not (isinstance(n, int) and '%X' % n in hexes)]
+        if off:
+            bad.append('%s: value %s not in the matched text' % (what, off))
     name = 'the %d datasheet figures used here are in the datasheets\' text: %s' % (
         len(keys), '; '.join(FIGS[k][3] for k in keys))
     if bad:
@@ -871,13 +900,13 @@ def check_fc_pins():
     check(S, 'PID loop %s kHz: the IIM-42652 / ICM-42688-P gyro rate in Betaflight (gyro_sync.c) %s kHz / '
              'DEFAULT_PID_PROCESS_DENOM %s' % ('%g' % (rate / 1e3 / int(denom)) if rate and denom else '?',
                                                '%g' % (rate / 1e3) if rate else '?', denom),
-          (denom == '2' and rate is not None) if BF else 'SKIP', '' if BF else 'set BF_SRC')
+          (rate == 8000 and denom == '2') if BF else 'SKIP', '' if BF else 'set BF_SRC')
     check(S, 'HSE crystal on PF0/PF1 with SYSTEM_HSE_MHZ 8 (two-pad 8 MHz part, pads 1/2)',
           c.pins['5'] == 'HSE_IN' and c.pins['6'] == 'HSE_OUT' and d('SYSTEM_HSE_MHZ') == '8'
           and comp('fc', 'Y1').part == 'XTAL8M' and comp('fc', 'Y1').pins == {'1': 'HSE_IN', '2': 'HSE_OUT'})
     check(S, 'USB D+/D- on PA12/PA11', ports['PA12'] == 'USB_DP' and ports['PA11'] == 'USB_DM')
-    check(S, 'SWD on PA13/PA14 to test pads', ports['PA13'] == 'SWDIO' and ports['PA14'] == 'SWCLK'
-          and comp('fc', 'TP_SWDIO').pins['1'] == 'SWDIO')
+    check(S, 'SWD on PA13/PA14 to test pads TP_SWDIO and TP_SWCLK', ports['PA13'] == 'SWDIO' and ports['PA14'] == 'SWCLK'
+          and comp('fc', 'TP_SWDIO').pins['1'] == 'SWDIO' and comp('fc', 'TP_SWCLK').pins['1'] == 'SWCLK')
     pd = [x for x in fc if re.match(r'R\d', x.ref) and set(x.pins.values()) == {'BOOT0', 'GND'}]
     sw_ = comp('fc', 'SW_BOOT').pins
     check(S, 'BOOT0 (pin 46, PB8-BOOT0) pulled down (%s), the DFU button between BOOT0 and 3.3 V (KMR223G: pads 1/4 and '
@@ -1001,6 +1030,8 @@ def check_esc_pins():
     check(S, 'stack lead: the ESC\'s lead pads carry the FC connector\'s nets (its GND as FC_GND, its +3V3 on pin %s '
              'as ESC_3V3); no TLM line on either board: no serial telemetry' % '/'.join(p3),
           lead == want_lead and p3 == ['4'] and not tlm, 'pads %s; connector %s; TLM on %s' % (lead, want_lead, tlm))
+    # the driver's figures this section uses need only the datasheets
+    figs_check(S, ['drv_tdead', 'drv_mode_6x'])
     if not AM32:
         check(S, 'AM32 targets.h', 'SKIP', 'set AM32_SRC to an AM32 checkout (commit %s) to check against the firmware'
               % AM32_COMMIT)
@@ -1093,7 +1124,6 @@ def check_esc_pins():
     check(S, 'DEAD_TIME %d = %.0f ns at %d MHz (TMR1 on APB2, undivided; DTC linear below 128), on top of the DRV8320H\'s '
              'own %.0f ns after it sees the other gate off (SLVSDJ3D 7.5): not checked on a scope'
           % (dt, dt * 1e3 / mhz, mhz, fig('drv_tdead') * 1e9), 'INFO' if tmr1 and dt < 128 else False)
-    figs_check(S, ['drv_tdead', 'drv_mode_6x'])
 
 
 # ------------------------------------------------------------------ firmware scales
@@ -1168,6 +1198,8 @@ def check_fw_scales():
         r = esc_vsense_ratio()
         check(S, 'ESC battery divider ratio %.2f = AM32 TARGET_VOLTAGE_DIVIDER %s / 10; 6S full 25.2 V -> %.2f V at %s'
               % (r, tdv, 25.2 / r, at.get('ESC_VSENSE', '?')), tdv is not None and round(r * 10) == int(tdv) and 25.2 / r < 3.3)
+    else:
+        check(S, 'ESC battery divider ratio = AM32 TARGET_VOLTAGE_DIVIDER', 'SKIP', 'set AM32_SRC')
     # ESC: the FET thermistor's table against the thermistor's datasheet
     ds_check(S, 'Murata XH103 R-T table, center values (NCU15XH103F60RC catalogue page)', ncu_xh103_from_ds(),
              NCU_XH103_RT, same=lambda w, g: g is not None and abs(w - g) < 1e-6)
@@ -1292,7 +1324,10 @@ def check_fw_scales():
             check(S, 'IIM-42652 scale in Betaflight: gyro %s dps, accelerometer %s LSB/g = the datasheet at the full scale '
                      'the driver sets (GYRO_FS_SEL / ACCEL_FS_SEL 0): +/-%d dps, %d LSB/g (DS-000440 tables 1, 2)'
                   % (sc.group(1) if sc else '?', lsb, fig('iim_gyro_fs'), fig('iim_acc_lsb')),
-                  sc is not None and int(sc.group(1)) == fig('iim_gyro_fs') and lsb == fig('iim_acc_lsb'))
+                  sc is not None and int(sc.group(1)) == fig('iim_gyro_fs') and lsb == fig('iim_acc_lsb')
+                  # and the driver does write FS_SEL 0 (bits 7:5) into both config registers
+                  and re.search(r'ICM426XX_RA_GYRO_CONFIG0,\s*\(0 << 5\)', src) is not None
+                  and re.search(r'ICM426XX_RA_ACCEL_CONFIG0,\s*\(0 << 5\)', src) is not None)
             lut = re.search(r'(aafLUT\w+)\[', arm('static aafConfig_t getGyroAafConfig(', 'IIM_42652_SPI'))
             rows_ = {}
             if lut:
@@ -1549,9 +1584,15 @@ def check_power():
     bt = value([c for c in ph if c.part == 'R20K'][0].part); bb = value([c for c in ph if c.part != 'R20K'][0].part)
     kr = bb / (bt + bb)
     lim = vlo + fig('at32_fta')
-    check(S, 'BEMF divider %gk/%gk: %.1f V phase -> %.2f V at the comparator; a 35 V spike -> %.2f V (< %.2f V: an FTa pin '
-             'in analog mode stays under VDD + 0.3 V, at the lowest channel 3.3 V)' % (bt / 1e3, bb / 1e3, VMAX, VMAX * kr, 35 * kr, lim),
-          35 * kr < lim)
+    # the phase node's switching peaks, STRESS.md section 3 (the low side's V_DS at the high side's turn-on):
+    # the highest at the 5 nH loop estimate (a throttle chop) and the worst case (30 A, 8 nH)
+    ph_est, ph_worst = 38.0, 42.5
+    check(S, 'BEMF divider %gk/%gk: %.1f V phase -> %.2f V at the comparator; the switching peak at the 5 nH '
+             'estimate, %.1f V -> %.2f V (< %.2f V: an FTa pin in analog mode stays under VDD + 0.3 V, at the lowest '
+             'channel 3.3 V)' % (bt / 1e3, bb / 1e3, VMAX, VMAX * kr, ph_est, ph_est * kr, lim), ph_est * kr < lim)
+    check(S, 'BEMF divider at the worst-case switching peak (8 nH): %.1f V -> %.2f V, past VDD + 0.3 V for nanoseconds '
+             'but under the %.1f V absolute maximum of an FTa pin in analog mode (AT32F421 table 6)'
+          % (ph_worst, ph_worst * kr, fig('at32_fta_max')), ph_worst * kr < fig('at32_fta_max'))
     # virtual neutral: equal legs from the three divided phases to a star
     # that only the MCU's comparator input loads; the star is then the mean
     # of the three CMP nodes, and CMP - NEUTRAL crosses zero where the
@@ -1679,10 +1720,19 @@ def check_power():
     check(S, 'HSE load caps %d pF each: CL = %.1f pF with 3 pF stray (crystal CL %g pF)'
           % (cl * 1e12, cl * 1e12 / 2 + 3, fig('xtal_cl') * 1e12), abs(cl * 1e12 / 2 + 3 - fig('xtal_cl') * 1e12) <= 1.5)
     cc = [x for x in fc if x.note.startswith('CC') and x.note.endswith('Rd')]
-    check(S, 'USB-C: 5.1k Rd on CC1 and CC2 (C-to-C cables supply 5 V)', len(cc) == 2 and all(x.part == 'R5K1' for x in cc))
+    check(S, 'USB-C: 5.1k Rd on CC1 and CC2 to ground (C-to-C cables supply 5 V)',
+          len(cc) == 2 and all(x.part == 'R5K1' for x in cc)
+          and sorted(tuple(sorted(x.pins.values())) for x in cc) == [('GND', 'USB_CC1'), ('GND', 'USB_CC2')])
     fc_caps = [x for x in fc if x.note.startswith('U_FC pin')]
-    check(S, 'FC MCU: one 100 nF per VDD/VBAT/VDDA pin group (%d) plus 1 uF and 4.7 uF bulk' % len(fc_caps),
-          len(fc_caps) == 5)
+    cov = {p for x in fc_caps for p in re.match(r'U_FC pin ([\d/]+)', x.note).group(1).split('/')}
+    bulk = find('fc', 'U_FC VDDA bulk') + find('fc', 'U_FC bulk')
+    supply = {k for k, v in comp('fc', 'U_FC').pins.items() if v == '+3V3'}
+    check(S, 'FC MCU: one 100 nF per VDD/VBAT/VDDA pin group (%d, pins %s) plus 1 uF and 4.7 uF bulk'
+          % (len(fc_caps), '/'.join(sorted(cov, key=int))),
+          cov == supply
+          and all(abs(value(x.part) - 100e-9) < 1e-12 and set(x.pins.values()) == {'+3V3', 'GND'} for x in fc_caps)
+          and [round(value(x.part) * 1e7) for x in bulk] == [10, 47]
+          and all(set(x.pins.values()) == {'+3V3', 'GND'} for x in bulk))
     for n in (1, 2, 3, 4):
         net = {'M%d_3V3' % n, 'GND'}
         vdd, vdda = find('esc', 'U_ESC%d VDD' % n), find('esc', 'U_ESC%d VDDA' % n)
@@ -1694,7 +1744,7 @@ def check_power():
               '%s %s' % ([x.part for x in vdd], [x.part for x in vdda]))
     figs_check(S, ['lmr_vref', 'lmr_en_rise', 'lmr_en_fall', 'lmr_ihs', 'lmr_vin', 'lmr_rt', 'tps_vfb', 'tps_vfb_acc', 'tps_iout', 'tps_ilim', 'blm03',
                    'tmp390_h20', 'drv_vm', 'drv_vi', 'drv_idvdd', 'drv_dvdd', 'drv_vih', 'drv_iih', 'drv_rpd', 'drv_vgsh',
-                   'drv_vgsh6', 'drv_idrive', 'drv_vds_hiz', 'at32_vdd', 'at32_idd', 'at32_fta', 'ina186_iq', 'ina186_vs',
+                   'drv_vgsh6', 'drv_idrive', 'drv_vds_hiz', 'at32_vdd', 'at32_idd', 'at32_fta', 'at32_fta_max', 'ina186_iq', 'ina186_vs',
                    'fet_vds', 'fet_vgs', 'fet_rds', 'fet_rds45', 'fet_qg', 'spm6530_150', 'tfm_r47', 'xtal_cl'])
 
 
@@ -1738,9 +1788,26 @@ def check_board(board, name):
     want = sorted((sx * pcb.HOLE, sy * pcb.HOLE, pcb.HOLE_D / 2) for sx in (-1, 1) for sy in (-1, 1))
     poly = pcbnew.SHAPE_POLY_SET()
     closed = b.GetBoardPolygonOutlines(poly, False) and poly.OutlineCount() == 1
+    # each slot measured: two outline segments along the hole-to-corner
+    # diagonal, on the corner's side of the hole, SLOT_W apart
+    slots_ok = True
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            hx, hy, ux, uy = sx * pcb.HOLE, sy * pcb.HOLE, sx / math.sqrt(2), sy / math.sqrt(2)
+            offs = []
+            for d in b.GetDrawings():
+                if d.GetLayer() != pcbnew.Edge_Cuts or d.GetShape() != pcbnew.SHAPE_T_SEGMENT:
+                    continue
+                pts = [(q.x / 1e6 - pcb.CX - hx, q.y / 1e6 - pcb.CY - hy) for q in (d.GetStart(), d.GetEnd())]
+                along = [x * ux + y * uy for x, y in pts]
+                across = [-x * uy + y * ux for x, y in pts]
+                if min(along) > 0 and abs(across[0] - across[1]) < 1e-3 and abs(across[0]) < pcb.SLOT_W:
+                    offs.append(round(across[0], 2))
+            slots_ok &= sorted(offs) == [round(-pcb.SLOT_W / 2, 2), round(pcb.SLOT_W / 2, 2)]
     check(S, 'mounting: four %.1f mm holes on the 25.5 mm pattern, each open to its corner through a %.1f mm slot '
              '(M2 soft-mount grommets slide in); outline closed' % (pcb.HOLE_D, pcb.SLOT_W),
-          got == [tuple(round(v, 2) for v in t) for t in want] and closed, str(got))
+          got == [tuple(round(v, 2) for v in t) for t in want] and closed and slots_ok,
+          str(got) + ('' if slots_ok else '; a slot is not %.1f mm wide along its diagonal' % pcb.SLOT_W))
     # no sharp point anywhere on the outline: where the slots meet the edge
     # and the hole it is rounded, and at every joint the two pieces meeting
     # there share a tangent (read back from the board's own Edge.Cuts)
@@ -2137,13 +2204,23 @@ def check_brand():
     S = 'Brand'
     import brand
     m, w = brand.lockup()
-    check(S, 'mark geometry from offgrid-mark-bone.svg: ring r 58, stroke 22, gap at the top, node r 17',
+    check(S, 'mark width 138 units: ring r 58 plus half its 22 stroke each side (brand.py\'s copy of '
+             'offgrid-mark-bone.svg; the shape against the brand\'s own art is the IoU check)',
           abs(m.bounds[2] - m.bounds[0] - 138) < 0.1)
     # the "O" (its overshoot even above and below) against the ring's centre
     o = min((w.geoms if hasattr(w, 'geoms') else [w]), key=lambda p: p.bounds[0])
     off = (o.bounds[1] + o.bounds[3]) / 2 - (brand.MARK_AT[1] + brand.ring_centre()[1])
     check(S, 'lockup: "OffGrid" on one line with the mark, its capitals centred on the ring (%.1f units off, of '
              'the lockup\'s 200)' % abs(off), abs(off) < 1.5)
+    # the vendored fonts against fonts/README.md's table, with or without the brand repository
+    table = {f: (lic, h) for f, lic, h in re.findall(
+        r'^\| `(\S+\.ttf)` \| `(\S+\.txt)` \|.*\| `([0-9a-f]{64})` \|$',
+        open(os.path.join(brand.FONTS, 'README.md')).read(), re.M)}
+    for f, face in (('Instrument Sans', brand.SANS), ('JetBrains Mono', brand.MONO)):
+        h = hashlib.sha256(open(face, 'rb').read()).hexdigest() if os.path.exists(face) else ''
+        lic, want = table.get(os.path.basename(face), ('', ''))
+        check(S, '%s variable font: sha256 %s... = fonts/README.md; licence %s beside it' % (f, h[:16], lic or '?'),
+              bool(h) and h == want and bool(lic) and os.path.exists(os.path.join(brand.FONTS, lic)))
     if not BRAND:
         check(S, 'mark against the brand PNG', 'SKIP', 'set OFFGRID_BRAND to a checkout of the brand repository')
         return
@@ -2163,9 +2240,6 @@ def check_brand():
     mine = np.array(im) > 127
     iou = (mine & ember).sum() / (mine | ember).sum()
     check(S, 'mark drawn from the SVG numbers overlaps the brand\'s own 1600 px lockup PNG: IoU %.3f' % iou, iou > 0.95)
-    for f, face in (('Instrument Sans', brand.SANS), ('JetBrains Mono', brand.MONO)):
-        h = hashlib.sha256(open(face, 'rb').read()).hexdigest()
-        check(S, '%s variable font vendored (OFL), sha256 %s...' % (f, h[:16]), os.path.exists(face))
 
 
 # ------------------------------------------------------------------ firmware
@@ -2318,19 +2392,25 @@ def check_options():
                   not bad, ', '.join(bad) or '%d parts in the group' % len(grp))
             rest = [c for c in comps if c.option != opt]
             left = circuit.nets(rest)
-            lost = sorted(n for n, m in left.items() if len(m) < 2 and len(full[n]) >= 2
-                          and not all(c.part in parts.PADS or c.ref.startswith('U_') for c in comps
-                                      if c.ref in {r for r, _ in m}))
-            single = sorted(n for n, m in left.items() if len(m) < 2 and len(full[n]) >= 2)
+            mcu = re.compile(r'U_FC$' if board == 'fc' else r'U_ESC\d$')
+            single = {n: sorted({r for r, _ in m}) for n, m in left.items() if len(m) < 2 and len(full[n]) >= 2}
+            lost = sorted(n for n, refs in single.items() if not all(mcu.match(r) for r in refs))
             check(S, '%s without the %s group: no net left with a single pin, beyond MCU pins the group used'
-                  % (board, opt), not lost, 'left on an MCU pin only: %s' % (', '.join(single) or 'none'))
-            supplies = {'fc': ['VBAT', 'GND', '+5V', '+3V3', '+3V3_GYRO'],
-                        'esc': ['VBAT', 'GND', 'DRV_EN', 'ESC_3V3'] + ['M%d_%s' % (n, r) for n in (1, 2, 3, 4)
-                                                                      for r in ('DVDD', '3V3')]}[board]
-            src = {n: sorted(r for r, _ in left.get(n, [])) for n in supplies}
+                  % (board, opt), not lost,
+                  'left on one pin: %s' % (', '.join('%s (%s)' % (n, '/'.join(r)) for n, r in sorted(single.items()))
+                                           or 'none'))
+            # each supply's source: the parts that make it, the last of them on the net
+            sources = {'fc': {'VBAT': ['J_ESC'], 'GND': ['J_ESC'], '+5V': ['U_BUCK5', 'L_5V'],
+                              '+3V3': ['U_BUCK3', 'L_3V3'], '+3V3_GYRO': ['R21']},
+                       'esc': dict({'VBAT': ['P_BAT+'], 'GND': ['P_BAT-'], 'DRV_EN': ['R5'], 'ESC_3V3': ['P_L3V']},
+                                   **{'M%d_DVDD' % n: ['U_GD%d' % n] for n in (1, 2, 3, 4)},
+                                   **{'M%d_3V3' % n: ['FB%d' % n] for n in (1, 2, 3, 4)})}[board]
+            kept = {c.ref: c for c in rest}
             check(S, '%s without the %s group: every supply keeps its source' % (board, opt),
-                  all(len(v) >= 2 for v in src.values()) and not any(n in owned for n in supplies),
-                  '; '.join('%s %d parts' % (n, len(v)) for n, v in src.items()))
+                  all(all(r in kept for r in rs) and n in kept[rs[-1]].pins.values() for n, rs in sources.items())
+                  and not any(n in owned for n in sources),
+                  '; '.join('%s from %s, %d parts' % (n, '/'.join(rs), len({r for r, _ in left.get(n, [])}))
+                            for n, rs in sources.items()))
 
 
 def main():

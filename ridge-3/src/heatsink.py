@@ -19,10 +19,12 @@ parts' heights in parts.HEIGHTS):
     the mounting holes that the ESC is screwed down onto (the board's copper
     keep-out ring, bare laminate, takes them): the pad's squeeze is fixed by
     the machining, not by rubber grommets
-  * a pocket over every part on the ESC's bottom, as deep as its maximum
-    height (the pad drapes over it at the same squeeze); a part too tall for
-    that and PARAMS['floor'] of metal under it gets a hole in the pad
-    instead, and a window through the base if it needs one
+  * a pocket over every part on the ESC's bottom, at least as deep as its
+    maximum height, cut at a few depths (a pocket within
+    PARAMS['level_step'] of a deeper one is cut as deep, so the pad presses
+    on some parts and only covers others); a part too tall for that and
+    PARAMS['floor'] of metal under it gets a hole in the pad instead, and a
+    window through the base if it needs one
   * a notch open to the rear edge at each battery pad: the leads are
     soldered from below
   * straight fins underneath along the board's front-rear axis (the air in

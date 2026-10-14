@@ -150,8 +150,9 @@ def fc_power():
     # 2), where its switching loss is half of 1 MHz's: 0.5 W at 1 A from 6S
     # (TI's efficiency data) for a board that sits in 50 C air.  15 uH
     # (table 9-1 at 400 kHz; equation 11 asks at least 2.8 uH; TDK
-    # SPM6530T-HZ, 3.0 mm tall on the bottom) keeps the ripple 0.35-0.6 A
-    # over 2S-6S.  Output: 2 x 22 uF X7R 1210, about 36 uF
+    # SPM6530T-HZ, 3.0 mm tall on the bottom) keeps the ripple 0.33-0.6 A
+    # over 3S-6S (0.12-0.3 A on 2S, under TI's rule of thumb of 10 % of the
+    # 2 A rating below about 6.9 V: SNVSC40E 9.2.2.4).  Output: 2 x 22 uF X7R 1210, about 36 uF
     # at 5 V (table 9-1: 2 x 22 uF minimum).  Loaded to about 1 A: the
     # 3.3 V buck, receiver, camera, LED strip.
     add('U', 'LMR38020F', {'1': GND, '2': 'VBAT', '3': 'VBAT', '4': 'BUCK5_RT', '5': 'BUCK5_FB',
@@ -231,10 +232,11 @@ def fc_power():
     # (table 8-1: at least 8 uF out at 3.3 V); MODE high: forced PWM, a
     # steady frequency near the gyro.  Vout = 0.6 V x (1 + 100k / 22.1k) =
     # 3.31 V, 10 pF across the top resistor (table 7-1).  0.47 uH (TDK
-    # TFM252012ALMAR47MTAA, 150 C); out, 2 x 4.7 uF X7R at it (about 7.6
-    # uF at 3.3 V) with the 3.3 V plane's own (4.7 + 1 + 0.5 uF at the
-    # MCU), over table 8-1's 8 uF.  It runs from USB too: VBUS feeds the
-    # 5 V rail.
+    # TFM252012ALMAR47MTAA, 150 C); out, 2 x 4.7 uF X7R 0603 at it: 3.6 uF
+    # each at 3.3 V on Murata's curve, 7.2 uF, UNDER the 8 uF effective
+    # minimum close to the device (recommended conditions, table 8-1); the
+    # plane's 4.7 + 1 + 0.5 uF at the MCU, 14 mm away, do not count.  Open:
+    # docs/STATUS.md D10.  It runs from USB too: VBUS feeds the 5 V rail.
     add('U', 'TPS628501', {'1': '+5V', '2': '+5V', '3': '+5V', '4': GND, '5': 'BUCK3_FB',
                            '6': None, '7': 'BUCK3_SW', '8': GND}, B, '3.3V buck', ref='U_BUCK3')
     cap('C10U25_X7R', '+5V', GND, B, '3.3V buck input')
@@ -669,7 +671,9 @@ def esc(n):
         # node, so the switching loop closes through the board's thickness
         # and stays on the bridge side of the shunt.
         cap('C_BRIDGE', 'VBAT', p('SRC'), B, 'bridge ' + ph)
-        # Back-EMF divider 20k / 2k (ratio 11: a 35 V spike reaches 3.2 V).
+        # Back-EMF divider 20k / 2k (ratio 11: the phase's 38 V switching peak at
+        # the 5 nH loop estimate reaches 3.45 V; the 42.5 V worst case, 3.86 V,
+        # stays under the pin's 4.0 V absolute maximum: STRESS.md section 3).
         res('R20K', p(ph), p('CMP_' + ph), B, 'BEMF ' + ph)
         res('R2K_0201', p('CMP_' + ph), GND, B, 'BEMF ' + ph)
         # Virtual neutral: 10k from each divided phase (CMP) to a star.  The

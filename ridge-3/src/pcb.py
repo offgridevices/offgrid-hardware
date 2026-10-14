@@ -14,7 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 V1 = os.path.normpath(os.path.join(HERE, '..'))
 MM = pcbnew.FromMM
 CX, CY = 100.0, 100.0            # board centre on KiCad's page
-HALF = 18.0                      # 36 mm square (SpeedyBee F405 AIO V2 size), 25.5 mm holes
+HALF = 18.0                      # 36 mm square (the SpeedyBee F405 AIO V2 is 36.5 mm), 25.5 mm holes
 HOLE = 12.75                     # 25.5 mm pattern
 # Round each hole (ridge-3/docs/MOUNTING.md has the study):
 #  * outer layers: no copper within HOLE_COPPER_R, what the M2 hardware

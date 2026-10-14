@@ -49,24 +49,24 @@ into `main` and every push to `main`.
 `python3.12 src/verify.py` writes [`VERIFICATION.md`](VERIFICATION.md) and
 exits 1 on any failure.  With the five outside sources set (the README's
 [*What `verify.py` reads from outside the repository*](README.md#what-verifypy-reads-from-outside-the-repository)):
-**254 passed, 0 failed**, 12 informational lines.  Without them: 206
-passed, 0 failed, 27 SKIP; in CI, whose image has none of KiCad's own 3D
+**255 passed, 0 failed**, 12 informational lines.  Without them: 209
+passed, 0 failed, 29 SKIP; in CI, whose image has none of KiCad's own 3D
 models, two more SKIP lines (69 FC and 118 ESC parts left out of the
-3D-model checks), 29 in all.  Both on 2026-10-14.  By section, with
+3D-model checks), 31 in all.  Both on 2026-10-14.  By section, with
 every source set:
 
 | Section | Why | Rev 2.0 result | Ran |
 |---|---|---|---|
 | FC pin map | Every processor pin against KiCad's STM32G473 symbol and Betaflight's `RIDGE3` config: a wrong pin is a dead board | 67 passed | 2026-10-14 |
 | ESC pin map | Each AT32F421's pins against Artery's datasheet and AM32's target; supplies, reset, SWD pads | 25 passed, 1 informational (AM32's dead time, not scoped) | 2026-10-14 |
-| Firmware scales | The current, voltage and thermistor scales in Betaflight and AM32 equal the hardware's; the gyro patch applies and matches the IIM-42652's datasheet | 15 passed | 2026-10-14 |
-| Power and analog | Supply voltages, dividers, pin tables against the datasheets, the 60 % voltage rule, inductor saturation, gate drive, decoupling | 52 passed, 7 informational (inductor margins, gate drive at 2S, conduction losses) | 2026-10-14 |
+| Firmware scales | The current, voltage and thermistor scales in Betaflight and AM32 against the hardware's (Betaflight's current scale within 3 %: 125 against the 12.2 mV/A its input sees, 122 exact, as `firmware/README.md` says); the gyro patch applies and matches the IIM-42652's datasheet | 15 passed | 2026-10-14 |
+| Power and analog | Supply voltages, dividers, pin tables against the datasheets, the 60 % voltage rule, inductor saturation, gate drive, decoupling | 53 passed, 7 informational (inductor margins, gate drive at 2S, conduction losses) | 2026-10-14 |
 | Option groups | The FC's video, analog and blackbox groups: each reaches no part outside it, and the board keeps every supply and no single-pin net without it | 9 passed | 2026-10-14 |
 | Board FC | DRC, nets, outline, mounting slots, stackup, fab files, CPL rotations, 3D models in their courtyards, solder pads | 21 passed, 1 informational (nearest part body to a wire pad, 0.68 mm) | 2026-10-14 |
 | Silkscreen FC | Strokes the fab prints cleanly, only the brand's faces, the mark at its minimum size, the front arrow | 14 passed | 2026-10-14 |
 | Board ESC | The same for the ESC, and its drivers' capacitors, thermistors and MCU supplies placed at their parts | 21 passed, 3 informational (thermistor and capacitor distances, nearest part body to a wire pad, 0.50 mm) | 2026-10-14 |
 | Silkscreen ESC | As for the FC | 12 passed | 2026-10-14 |
-| Brand | The mark against the brand repository's art (`OFFGRID_BRAND`); the vendored fonts' hashes | 5 passed | 2026-10-14 |
+| Brand | The mark against the brand repository's art (`OFFGRID_BRAND`); the vendored fonts' hashes against `fonts/README.md`, with or without it | 5 passed | 2026-10-14 |
 | Firmware | Each image and patch against its SHA-256 in `firmware/README.md`; nothing left from revision 1; the AM32 image holds the patch's thermistor table; the bootloader's device info | 13 passed | 2026-10-14 |
 
 ## Simulations (run by hand, recorded here)
@@ -147,7 +147,7 @@ The procedure, equipment and pass criteria are in
 | T7. Locked rotor (destructive) | D3, D6: the FET in a crash, AM32's cut | T7 | not run |
 | T8. Heat on a hot day | The thermal model and the 50 °C rating | T8 | not run |
 | T9. On the ground with video | The video thermostat | T9 | not run |
-| T10. Supplies | The FC's 5 V, 9 V and 3.3 V rails | T10 | not run |
+| T10. Supplies | The FC's 5 V, 9 V and 3.3 V rails; the 3.3 V buck's load step (D10) | T10 | not run |
 | T11. Battery transients | The voltage ratings: hot plug, throttle chop | T11 | not run |
 | T12. LiHV | D8: the LiHV rating | T12 | not run |
 | T13. Flight | Everything together; false stuck-rotor cuts | T13 | not run |

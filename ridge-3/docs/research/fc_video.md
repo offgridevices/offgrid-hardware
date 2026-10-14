@@ -357,7 +357,7 @@ Source: [datasheet SNVSAK0A](https://www.ti.com/lit/ds/symlink/lm76003.pdf), §8
 ## 5. STM32G473CEU6 pins
 
 **How the pins were checked:**
-1. **KiCad symbol library** at `/usr/share/kicad/symbols/MCU_ST_STM32G4.kicad_sym` (KiCad 10). `STM32G473CEUx` extends `STM32G473C_B-C-E_Ux`, whose pins list each pin's alternate functions. `verify.py` already uses this library for v1. Full dump: `research/g473_pins.txt`.
+1. **KiCad symbol library** at `/usr/share/kicad/symbols/MCU_ST_STM32G4.kicad_sym` (KiCad 10). `STM32G473CEUx` extends `STM32G473C_B-C-E_Ux`, whose pins list each pin's alternate functions. `verify.py` already uses this library for v1. Full dump: `research/g473_pins.txt` (a working file, not kept in the repository).
 2. **ST datasheet DS12712 Rev 3** (via LCSC): Table 12 (UFQFPN48 column; PC4 exists only in this package, pin 16, which matches `circuit.py`), I/O structure, and Table 13 (alternate functions, e.g. PB9 AF2 = TIM4_CH4, PB5 AF2 = TIM3_CH2).
 3. **Betaflight 2025.12.5** UART and timer tables.
 
@@ -427,4 +427,4 @@ The maker is as LCSC shows it; country is by headquarters.
 - **Mouser stock and ADI's own lifecycle status for the MAX7456:** not reachable (HTTP 503).
 - **Not re-verified here:** the v1 stack's ESC side (4S only), including the 35 V bulk cap and 30 V FETs. OG3 on 6S needs a new ESC.
 
-Working files (not deliverables): `research/lcsc.py` and `research/jlc.py` (stock lookups), `research/ds/*.txt` (datasheet text), `research/g473_pins.txt` (KiCad alternate-function dump).
+Working files (not deliverables, not kept in the repository): `research/lcsc.py` and `research/jlc.py` (stock lookups), `research/ds/*.txt` (datasheet text), `research/g473_pins.txt` (KiCad alternate-function dump).

@@ -89,8 +89,9 @@ set box_user_1_name = VTX_OFF
 # Then assign USER1 ("VTX_OFF" in the Modes tab) to a switch.  Example,
 # VTX off while AUX4 (channel 8) is high; uncomment and adapt:
 # aux 5 40 3 1700 2100 0 0
-# Do not free PB5 ("resource PINIO 1 NONE"): Betaflight pulls unused pins up,
-# which would half-switch the FET.
+# Do not free PB5 ("resource PINIO 1 NONE"): Betaflight pulls unused pins up
+# (25-55k), which against the gate's 100k pull-down puts 2.1-2.6 V on the
+# gate, turns the FET on and switches the VTX off.
 # On USB power alone the 9 V rail stays off whatever PINIO says: it has no
 # battery input then (its own pads).
 

@@ -182,9 +182,10 @@ def netlist(board, out_dir, name):
 def check_netlist(board, board_name):
     """The routed board must carry exactly circuit.py's connections."""
     b = pcbnew.LoadBoard(board)
-    want = {}
+    want, listed = {}, set()
     for c in circuit.build(board_name):
         for pad, net in c.pins.items():
+            listed.add((c.ref, pad))
             if net:
                 want[(c.ref, pad)] = net
     got = {}
@@ -193,9 +194,10 @@ def check_netlist(board, board_name):
             if p.GetNetname():
                 got[(fp.GetReference(), p.GetNumber())] = p.GetNetname()
     bad = [(k, want.get(k), got.get(k)) for k in set(want) | set(got) if want.get(k) != got.get(k)]
-    # footprints may carry extra same-net pads (e.g. repeated exposed-pad
-    # numbers); only flag real disagreements
-    bad = [x for x in bad if x[1] is not None]
+    # pads circuit.py does not list at all (extra copies of a numbered pad,
+    # mechanical pads) are ignored; a pad it lists as unconnected must have
+    # no net
+    bad = [x for x in bad if x[1] is not None or x[0] in listed]
     return bad
 
 

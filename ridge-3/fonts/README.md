@@ -28,8 +28,9 @@ version above is what the files themselves say.
 - **The exploded-view videos**: the labels and the title are Instrument
   Sans (`../video/make_video.py`, `DEFAULTS['font']`, drawn by
   `../video/overlay.py`).
-- `../src/verify.py` checks that both files are present and prints the
-  start of each one's SHA-256 in `../VERIFICATION.md`.
+- `../src/verify.py` checks each file's SHA-256 against this table and that
+  its licence file is beside it (with or without the brand repository), and
+  prints the start of each one's SHA-256 in `../VERIFICATION.md`.
 
 Another version of either font can move the silkscreen outlines, and with
 them the committed Gerbers: check a replacement's SHA-256 against this

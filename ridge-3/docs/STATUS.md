@@ -176,7 +176,38 @@ Open until T5, T6 and T7 are done.  Candidates, all from
   files come from (`CHANGING.md`, step 6).  Either option keeps that tag.
 - **Decided:** _not yet_
 
+### D10. The FC's 3.3 V buck output capacitance (fix before ordering)
+
+- **Found** in the pre-merge review (2026-10-14), not yet fixed: the
+  TPS628501's output has 2 × Murata GRM188Z71A475KE15D (4.7 µF 10 V X7R
+  0603, `C4U7_X7R`, `'3.3V buck output'`).  On Murata's DC-bias curve each
+  is 3.6 µF at 3.3 V, 7.2 µF together.  TI (SLUSEC8C, recommended
+  operating conditions and table 8-1 for COMP/FSET to ground) asks at least
+  8 µF of effective output capacitance close to the device (10 µF below
+  3.3 V; the output is 3.31 V).  The 3.3 V plane's other capacitors sit at
+  the processor, about 14 mm away, and do not count.
+- **Risk:** too little output capacitance for its compensation can make the
+  loop ring or oscillate on the processor's and the gyro's load steps.
+  Nothing has been measured.
+- **Options:**
+  - 2 × Murata GRM21BZ71E106KE15L (10 µF 25 V X7R 0805, already on this
+    board as the buck's input capacitor, `C10U25_X7R`): 8.4 µF each at
+    3.3 V, about 17 µF.  An 0805 land in place of the 0603: the two parts
+    are placed again (`src/fc_layout.py`, `'3.3V buck output'`) and the FC
+    routed again (`--reroute fc`), then the loop in `CHANGING.md`;
+  - a 0603 X7R part with at least 4 µF each at 3.3 V on its maker's curve,
+    on the same land: a part swap with no new layout (`CHANGING.md`, the
+    loop), if such a part is found in stock;
+  - a third 4.7 µF 0603 beside the two (10.8 µF): a placement change and a
+    reroute, like the first.
+- **Recommendation:** the 0805 part, already qualified on this board, before
+  the prototypes are ordered; then T10 checks the 3.3 V rail's ripple and a
+  load step.
+- **Decided:** _not yet_
+
 ## Before ordering prototypes
+
+- [ ] Fix D10 (the FC's 3.3 V buck output capacitance).
 
 - [ ] Recheck stock and lead time of every part, dated, in a file in this
       folder (`sourcing-YYYY-MM-DD.md`).  Single-source parts to watch:
@@ -208,7 +239,7 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
 | T7 | Locked rotor (destructive) | **D3**, D6 | [ ] |
 | T8 | Heat on a hot day | the thermal model, the 50 °C rating | [ ] |
 | T9 | On the ground with video | the video thermostat | [ ] |
-| T10 | Supplies | the FC's rails | [ ] |
+| T10 | Supplies | the FC's rails, D10 | [ ] |
 | T11 | Battery transients | the voltage ratings | [ ] |
 | T12 | LiHV | the LiHV rating | [ ] |
 | T13 | Flight | everything together | [ ] |
@@ -265,3 +296,10 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
   written, every build gate, design check and simulation with revision
   2.0's result, the hardware tests not run; where the next revision lives
   opened as D9.  Decisions D1-D9 open.  Nothing ordered.
+- **2026-10-14** Pre-merge review of the documents against the code and the
+  datasheets.  Found: the FC's 3.3 V buck has 7.2 µF of effective output
+  capacitance against TI's 8 µF minimum, opened as D10 (fix before
+  ordering); the battery-line simulation used revision 1's capacitance and
+  stack lead for every design (fixed in `../sim/data.py`, every report run
+  again); the Betaflight image had been built from an older `config.h`
+  (rebuilt).  Decisions D1-D10 open.  Nothing ordered.
