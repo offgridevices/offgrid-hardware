@@ -6,9 +6,17 @@ Open hardware from [OffGrid Devices](https://github.com/offgridevices). One fold
 |---|---|---|
 | [`packet-logger-carrier/`](packet-logger-carrier/) v1 | 86 × 58 mm carrier for a LoRa mesh packet logger — RAK19003 + XIAO ESP32-C6 + microSD | v1 ordered, not yet bench-verified |
 | [`ridge3-lite/`](ridge3-lite/) v1 | Ridge 3 Lite: 38 × 38 mm flight controller + 4-in-1 ESC for a 3" quad, 8 layers | v1 designed, not yet built |
+| [`ridge-3/`](ridge-3/) rev 2 | Ridge 3: a 36 × 36 mm flight controller with HD or analog video and a separate 4-in-1 ESC on a machined heatsink, for 3" FPV quads | Revision 2 designed and simulated, not yet ordered |
 
 The packet logger's firmware and analysis tooling live in
-[`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab); Ridge 3 Lite's firmware is in its own folder.
+[`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab); Ridge 3's and Ridge 3 Lite's firmware is in each board's own folder.
+
+Ridge 3 and Ridge 3 Lite are separate designs for 3-inch quads and share no
+files: Ridge 3 is a two-board stack (a flight controller with video, and an
+ESC on a heatsink), Ridge 3 Lite one board that carries both.
+
+To make a board's product video, an exploded view rendered from its KiCad
+file, follow [`docs/product-video.md`](docs/product-video.md).
 
 ---
 
@@ -43,6 +51,13 @@ says so.
 
 A revision folder is never edited once its board has been ordered. A change
 that alters copper becomes the next revision beside it.
+
+Ridge 3 is an exception to this layout: one folder holds both of its boards (`fc/`,
+`esc/`), their shared generator (`src/`), simulations (`sim/`) and mechanical
+parts (`mechanical/`), and its revision is printed on the boards (`REV 2.0`)
+rather than in a folder name.  Its own [`README.md`](ridge-3/README.md) has
+the map, and [`ridge-3/docs/STATUS.md`](ridge-3/docs/STATUS.md) the open
+decision on where its next revision goes.
 
 ## Building a new board
 

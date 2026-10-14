@@ -1,0 +1,102 @@
+(footprint "PAD_SIG"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "Signal / power solder pad")
+	(property "Reference" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "8a89a639-b82d-5ab3-a4ce-25ff59b6680d")
+		(effects
+			(font
+				(size 0.4 0.4)
+				(thickness 0.06)
+			)
+		)
+	)
+	(property "Value" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "8a169f71-e544-561d-9d3d-8062e4d5fd3c")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "e99c8aed-a889-5fe2-b77d-13d1ee0c5dfa")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "13264cc5-9e4a-5dde-aaca-226e45064bb3")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr smd exclude_from_pos_files exclude_from_bom)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -0.65 -0.9)
+		(end 0.65 -0.9)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "534607c1-035a-5364-bd13-ec4ddcd58b4c")
+	)
+	(fp_line
+		(start -0.65 0.9)
+		(end -0.65 -0.9)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "172cb7b8-7c88-5331-a61a-b6a30fdd3b43")
+	)
+	(fp_line
+		(start 0.65 -0.9)
+		(end 0.65 0.9)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "b4023c56-efbd-5182-95e0-d4826e5e7b32")
+	)
+	(fp_line
+		(start 0.65 0.9)
+		(end -0.65 0.9)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(layer "F.CrtYd")
+		(uuid "b44e1cbd-04ae-5b8c-91ee-b0ac3c06c609")
+	)
+	(pad "1" smd roundrect
+		(at 0 0)
+		(size 1.1 1.6)
+		(layers "F.Cu" "F.Mask")
+		(roundrect_rratio 0.2)
+		(thermal_bridge_angle 45)
+		(uuid "3ab2c520-ca4e-50fe-b8c3-7a2ea4d05745")
+	)
+	(embedded_fonts no)
+)

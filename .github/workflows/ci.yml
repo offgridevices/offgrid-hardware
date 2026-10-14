@@ -126,3 +126,79 @@ jobs:
       # Firmware pin maps, parts, fab outputs, simulations' verdicts.
       - name: Design checks (verify.py)
         run: python3 src/verify.py
+
+  ridge-3:
+    # Ridge 3 (ridge-3/): the flight controller and the 4-in-1 ESC, rev 2.
+    # make.py needs KiCad's pcbnew module and kicad-cli, so the job runs in
+    # the official KiCad 10.0.6 image by digest, the one ridge-3/tools/
+    # Dockerfile starts from. The routed copper is the design of record, so
+    # routing is not re-run; everything after it is: every gate, the fab
+    # files and both 3 x 2 panels, which must equal the committed ones.
+    # --fab-only leaves out the renders and the STEP models: they need
+    # KiCad's 3D-model package, which the image does not carry.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    # In this image on 4 cores the install took 1-2.5 minutes, make.py
+    # --fab-only about 5 and verify.py 1; this is the backstop for a hung
+    # KiCad, not an estimate.
+    timeout-minutes: 40
+    container:
+      image: kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
+      options: --user root
+    defaults:
+      run:
+        working-directory: ridge-3
+    env:
+      HOME: /tmp
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v7
+
+      # The packages make.py --fab-only and verify.py name, each at a fixed
+      # version and from pip, not Debian's packages, which move with
+      # Debian's updates: requirements.txt's pins as a constraint (-c), and
+      # the packages the build machine takes from Ubuntu's apt at versions
+      # with wheels for this image's Python 3.13 (requirements.txt says
+      # which and why). Shapely must stay at 2.0.7: KiKit builds the panels'
+      # outline with it, and with Debian's Shapely 2.1 the panel Gerbers come
+      # out different from the committed ones. gerbonara goes in without its
+      # requirements (a web server it does not need here). tools/Dockerfile
+      # installs the same. A few other packages present are Debian's and
+      # not pinned (packaging, PyYAML, typing-extensions, wxPython); none of
+      # them changes an output.
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip > /dev/null
+          pip3 install --break-system-packages -q -c requirements.txt \
+            numpy==2.2.4 scipy==1.15.3 shapely==2.0.7 pillow==11.1.0 fonttools==4.46.0 \
+            pypdf uharfbuzz pymupdf scikit-image kikit
+          pip3 install --break-system-packages -q --no-deps gerbonara==1.6.3
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # circuit.py's own checks, KiCad DRC (0 / 0 / 0), nets equal to
+      # circuit.py, BOM and CPL equal to the placed parts, the ESC's heatsink
+      # made from this board, and the panels: DRC six times the board's, and
+      # every copy's Gerbers, BOM and CPL equal to the board's. Any failing
+      # gate exits non-zero.
+      - name: Build both boards and panels (make.py --fab-only)
+        run: python3 src/make.py --fab-only
+
+      # stable.py puts the committed bytes back where only KiCad's stamps
+      # (time, build) differ, so a change left here is a real one: a source
+      # changed without its outputs, or outputs no source produces.
+      - name: Committed outputs match the build
+        run: |
+          git rev-parse --git-dir > /dev/null   # no repository: fail, never pass unchecked
+          if [ -n "$(git status --porcelain -- .)" ]; then
+            git status --porcelain -- .
+            echo "::error::ridge-3 outputs differ from what src/make.py produces. Rebuild with python3.12 src/make.py and commit the outputs."
+            exit 1
+          fi
+          echo "Every ridge-3 output is byte-identical to the build's."
+
+      # Pin maps, the firmware's scale factors, the power arithmetic, the
+      # boards' DRC and silkscreen. The firmware sources, the datasheets and
+      # the brand art are not here, so the checks that need them SKIP. It
+      # rewrites VERIFICATION.md, so it runs after the comparison.
+      - name: Design checks (verify.py)
+        run: python3 src/verify.py
