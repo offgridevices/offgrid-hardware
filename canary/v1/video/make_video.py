@@ -117,7 +117,7 @@ def mux():
     final = os.path.join(HERE, 'canary-v1-product-video.mp4')
     subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', os.path.join(OUT, 'video_only.mp4'), '-i', wav,
                     '-i', srtp, '-map', '0:v', '-map', '1:a', '-map', '2:s', '-c:v', 'copy', '-c:a', 'aac',
-                    '-b:a', '160k', '-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng', '-shortest',
+                    '-b:a', '160k', '-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng', '-t', f'{total:.3f}',
                     '-movflags', '+faststart', final], check=True)
     print('wrote', final, round(total, 1), 's')
 
