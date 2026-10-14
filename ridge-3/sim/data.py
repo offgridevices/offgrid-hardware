@@ -50,6 +50,7 @@ ISZ023N06LM6 = dict(
     vth_typ_T=((25, 1.72), (75, 1.50), (100, 1.36), (125, 1.20), (150, 1.00), (175, 0.78)),   # diagram 10, 38 uA
     ciss=3200e-12, crss=21e-12, coss=870e-12,      # typ, 30 V, 1 MHz (table 5)
     qg=46e-9, qgd=6.0e-9, qoss=50e-9,              # typ, 0-10 V, 30 V (table 6)
+    qgs=8.6e-9,                         # typ, to the plateau (table 6)
     qrr=23e-9, trr=29e-9,               # IF 20 A, 100 A/us, VR 30 V (table 7)
     vsd_hot=0.70,                       # V: diagram 12, 20 A: 0.85 V at 25 C, 0.62 V at 175 C
     eas=148e-3, ias=20.0,               # single pulse, ID 20 A (table 2)
@@ -80,6 +81,7 @@ BSZ040N06LS5 = dict(
     vth_typ_T=((25, 1.58), (75, 1.36), (100, 1.23), (125, 1.09), (150, 0.93)),   # diagram 10, 36 uA
     ciss=2400e-12, crss=25e-12, coss=500e-12,      # typ, 30 V, 1 MHz (table 5)
     qg=35.1e-9, qgd=5.3e-9, qoss=32e-9,            # typ: 0-10 V at 30 V, 20 A (diagram 14); table 6
+    qgs=6.6e-9,                         # typ, to the plateau (table 6)
     qrr=11e-9, trr=24e-9,               # IF 20 A, 100 A/us, VR 30 V (table 7)
     vsd_hot=0.72,                       # V: diagram 12, 20 A: 0.80 V at 25 C, 0.65 V at 150 C
     eas=117e-3, ias=20.0,               # single pulse, ID 20 A (table 2)
@@ -91,7 +93,6 @@ BSZ040N06LS5 = dict(
 )
 BSZ040N06LS5['vth_hot_drop'] = 1.58 - 0.93
 for _f in (TPN2R304PL, ISZ023N06LM6, BSZ040N06LS5):
-    _f['qg_11v'] = _f['qg'] * 11.33 / 10        # gate charge to the 11.3 V drive (above the plateau Qg ~ linear in V)
     _f['vth_min_hot'] = _f['vth_min'] - _f['vth_hot_drop']
 BODY_DIODE = FET['body_diode']
 
@@ -243,7 +244,7 @@ DRV8320 = dict(
     i_vm=(10.5e-3, 14e-3),              # A typ / max, VM = 24 V, not switching (7.5)
     i_dvdd_max=30e-3,                   # A external load DVDD allows (7.3); rev 2 puts none on it
     tj_max=150.0, ta_max=125.0, rth_jb=6.8, rth_ja=32.9,   # (7.3, 7.4)
-    i_strong=2.0,                       # A hold-off of the other gate for 4 us (8.3.1.3)
+    i_strong=2.0,                       # A: ISTRONG, the other gate held off for tDRIVE 4 us (7.5, 8.3.1.4.2)
     vds_ocp=0.6,                        # V: VDS pin open (7.5)
     slew_max=None,                      # no SHx slew limit given
     sh_min=-7.0, sh_note='-7 V for 200 ns (DRV8320H; -5 V continuous)',   # (7.1)
@@ -364,13 +365,25 @@ def design_name():
     return design.current
 
 
+def qg_drive():
+    """The FET's gate charge to the design's gate drive (Qg is given 0-10 V;
+    above the plateau it grows about linearly with V): rev 1's 11.3 V GVDD,
+    rev 2's DRV8320H 11 V."""
+    return FET['qg'] * DRIVER['vgs'] / 10
+
+
 def idrive(i_src):
     """The DRV8320's gate drive at an IDRIVE source current (A): source and
-    sink current, and the dead time that follows (the driver turns a gate
-    on 100 ns after it sees the other one low, about Qg / sink current, or
-    AM32's, if longer)."""
+    sink current, the dead time that follows (the driver turns a gate on
+    100 ns after it sees the other one low, about Qg / sink current, or
+    AM32's, if longer), and the body diode's share of it: from the outgoing
+    gate leaving its plateau (Qgs / sink current) to the incoming one
+    reaching it (Qgs / source current), with the driver's 100 ns between;
+    before that the outgoing channel still carries the current."""
     ipd = DRIVER['sink_ratio'] * i_src
-    return dict(ipu=i_src, ipd=ipd, dead=max(AM32['dead'], FET['qg_11v'] / ipd + DRIVER['dead_add']))
+    dead = max(AM32['dead'], qg_drive() / ipd + DRIVER['dead_add'])
+    return dict(ipu=i_src, ipd=ipd, dead=dead,
+                diode=min(dead, FET['qgs'] / ipd + DRIVER['dead_add'] + FET['qgs'] / i_src))
 
 
 def use(name):
@@ -386,11 +399,12 @@ def use(name):
     D = DRIVER
     if D['kind'] == 'gvdd':             # DRV8300: fixed peak currents through Rg, bootstrap high side
         b.update(Rg=10.0, gvdd=GVDD, vboot=GVDD - 0.8, ipu=D['i_source'][1], ipd=D['i_sink'][1],
-                 dead=AM32['dead'] + D['dead'][1])
+                 dead=AM32['dead'] + D['dead'][1], diode=AM32['dead'] + D['dead'][1],   # 1.5 A drive: all diode
+                 istrong=0.0)
     else:                               # DRV8320: IDRIVE current, no gate resistor, charge pump
         # the IDRIVE level the design's circuit.py sets
         g['DRIVER'] = D = dict(D, i_src=design.circuit(name).IDRIVE)
-        b.update(Rg=0.5, gvdd=D['vgs'], vboot=D['vgs'], **idrive(D['i_src']))
+        b.update(Rg=0.5, gvdd=D['vgs'], vboot=D['vgs'], istrong=D['i_strong'], **idrive(D['i_src']))
     b.update(rpu=D['r_pu'], rpd=D['r_pd'], Cb=C_BRIDGE['c_bias'], ESRb=C_BRIDGE['esr'],
              ESLb=C_BRIDGE['esl'], Cb2=2 * C_BRIDGE['c_bias'], ESRb2=C_BRIDGE['esr'] / 2,
              Cext=BULK['c'], ESRext=BULK['esr'], ESLext=BULK['esl'])

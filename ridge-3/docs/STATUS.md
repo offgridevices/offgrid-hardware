@@ -205,9 +205,38 @@ Open until T5, T6 and T7 are done.  Candidates, all from
   load step.
 - **Decided:** _not yet_
 
+### D11. The FC's 5 V buck on USB power (fix before ordering)
+
+- **Found** in the pre-merge review (2026-10-14), not yet fixed: the 5 V
+  buck (`U_BUCK5`, LMR38020F, forced PWM) has EN tied to VIN.  On USB alone
+  the USB diode feeds +5V, the buck's output, and the buck's high-side body
+  diode back-feeds VBAT at about 4.1-4.6 V: at or above the part's 4.2 V
+  maximum start-up threshold (SNVSC40E 7.5).  The buck can then start with
+  its output above its input, which TI forbids (9.3), and in forced PWM it
+  passes current backwards (8.4.2): it pumps VBAT to about 4.8-5 V, or,
+  when USB's 5 V less the diode is above the buck's 5 V set point (from
+  about 5.3 V of VBUS, inside USB's 4.75-5.5 V), sinks up to 0.9 A from USB
+  into VBAT with nothing to limit it.  VBAT can then pass the 9 V BEC's
+  5.5 V turn-on and the gate drivers' UVLO, so the VTX and the ESC's
+  drivers run from USB.  No simulation models this.
+- **Options:**
+  - an EN divider like the 9 V BEC's: 100 kΩ VBAT to EN, 24.9 kΩ EN to
+    ground (both values already on the board): on at 5.5-7.0 V, off at
+    4.8-6.1 V (SNVSC40E equations 13, 14), clear of the back-feed.  Two
+    0402 parts at `U_BUCK5` pin 2, so the FC is placed and routed again
+    (`--reroute fc`), with D10 in the same pass.  The 5 V rail then needs
+    about 7 V to start, in line with D8's 3S-6S rating;
+  - 30 kΩ for the bottom keeps 2S starting from 6 V, but leaves no margin
+    over the back-feed at 5.5 V of VBUS on a hot board.
+- **Recommendation:** 100 kΩ / 24.9 kΩ, in the same FC change as D10.  T10
+  then checks the board on USB alone.
+- **Decided:** _not yet_
+
 ## Before ordering prototypes
 
-- [ ] Fix D10 (the FC's 3.3 V buck output capacitance).
+- [ ] Fix D10 (the FC's 3.3 V buck output capacitance) and D11 (the 5 V
+      buck's enable on USB power): one change to the FC, placed and routed
+      again (`CHANGING.md`).
 
 - [ ] Recheck stock and lead time of every part, dated, in a file in this
       folder (`sourcing-YYYY-MM-DD.md`).  Single-source parts to watch:
@@ -239,7 +268,7 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
 | T7 | Locked rotor (destructive) | **D3**, D6 | [ ] |
 | T8 | Heat on a hot day | the thermal model, the 50 °C rating | [ ] |
 | T9 | On the ground with video | the video thermostat | [ ] |
-| T10 | Supplies | the FC's rails, D10 | [ ] |
+| T10 | Supplies | the FC's rails, D10, D11 | [ ] |
 | T11 | Battery transients | the voltage ratings | [ ] |
 | T12 | LiHV | the LiHV rating | [ ] |
 | T13 | Flight | everything together | [ ] |
@@ -302,4 +331,10 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
   ordering); the battery-line simulation used revision 1's capacitance and
   stack lead for every design (fixed in `../sim/data.py`, every report run
   again); the Betaflight image had been built from an older `config.h`
-  (rebuilt).  Decisions D1-D10 open.  Nothing ordered.
+  (rebuilt).  A fourth pass found the 5 V buck's enable tied to its input,
+  which lets it run backwards on USB power: opened as D11 (fix before
+  ordering).  The switching simulation now holds the off gate with the
+  DRV8320H's 2 A ISTRONG, reads gate voltages on the die and counts the FET
+  packages' inductance once; the losses take the body diode's real share of
+  the dead time; every report was run again.  Decisions D1-D11 open.
+  Nothing ordered.

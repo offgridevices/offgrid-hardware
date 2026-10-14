@@ -147,7 +147,7 @@ The procedure, equipment and pass criteria are in
 | T7. Locked rotor (destructive) | D3, D6: the FET in a crash, AM32's cut | T7 | not run |
 | T8. Heat on a hot day | The thermal model and the 50 °C rating | T8 | not run |
 | T9. On the ground with video | The video thermostat | T9 | not run |
-| T10. Supplies | The FC's 5 V, 9 V and 3.3 V rails; the 3.3 V buck's load step (D10) | T10 | not run |
+| T10. Supplies | The FC's 5 V, 9 V and 3.3 V rails; the 3.3 V buck's load step (D10); the board on USB alone (D11) | T10 | not run |
 | T11. Battery transients | The voltage ratings: hot plug, throttle chop | T11 | not run |
 | T12. LiHV | D8: the LiHV rating | T12 | not run |
 | T13. Flight | Everything together; false stuck-rotor cuts | T13 | not run |

@@ -154,7 +154,11 @@ def fc_power():
     # over 3S-6S (0.12-0.3 A on 2S, under TI's rule of thumb of 10 % of the
     # 2 A rating below about 6.9 V: SNVSC40E 9.2.2.4).  Output: 2 x 22 uF X7R 1210, about 36 uF
     # at 5 V (table 9-1: 2 x 22 uF minimum).  Loaded to about 1 A: the
-    # 3.3 V buck, receiver, camera, LED strip.
+    # 3.3 V buck, receiver, camera, LED strip.  EN is tied to VIN: on USB
+    # power the back-fed VBAT (about 4.1-4.6 V) can start it with its output
+    # above its input, and in forced PWM it then runs backwards (SNVSC40E
+    # 8.4.2, 9.3).  Open: docs/STATUS.md D11 (an EN divider like the 9 V
+    # BEC's).
     add('U', 'LMR38020F', {'1': GND, '2': 'VBAT', '3': 'VBAT', '4': 'BUCK5_RT', '5': 'BUCK5_FB',
                            '6': None, '7': 'BUCK5_CB', '8': 'BUCK5_SW', '9': GND},
         B, '5V BEC', ref='U_BUCK5')
@@ -183,7 +187,8 @@ def fc_power():
         # 9.5 V of battery (3S).  0.6 W at 1 A from 6S.
         # EN (1.1-1.4 V rising, 0.95-1.22 V falling, at most VIN + 0.3 V):
         #   * UVLO 100k / 24.9k: on above 5.5-7.0 V, so the rail stays off
-        #     while USB back-feeds about 4 V to VBAT through the 5 V buck;
+        #     while USB back-feeds about 4-4.6 V to VBAT through the 5 V buck
+        #     (unless that buck runs backwards: docs/STATUS.md D11);
         #   * an N-FET to ground, driven by PB5 (Betaflight PINIO1), turns
         #     the VTX off.  PB5 is pulled low at boot: the VTX is on unless
         #     the pilot switches it;

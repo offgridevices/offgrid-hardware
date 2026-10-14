@@ -258,10 +258,13 @@ def switching_section():
                  'gate resistors' % (D['part'], B['ipu'], B['ipd'], B['Rg']))
     else:
         dead = ('%.0f ns: the %s turns a gate on %.0f ns after it sees the other one discharged, '
-                'longer than AM32\'s own %.0f ns' % (B['dead'] * 1e9, D['part'], D['dead_add'] * 1e9,
-                                                      data.AM32['dead'] * 1e9))
+                'longer than AM32\'s own %.0f ns; the body diode carries the current for about %.0f ns of it, '
+                'from the outgoing gate leaving its plateau to the incoming one reaching it'
+                % (B['dead'] * 1e9, D['part'], D['dead_add'] * 1e9, data.AM32['dead'] * 1e9, B['diode'] * 1e9))
         drive = ('the %s\'s gate current set by its IDRIVE pin (%.0f mA source, %.0f mA sink) straight '
-                 'to the gates' % (D['part'], B['ipu'] * 1e3, B['ipd'] * 1e3))
+                 'to the gates, the gate that is off held to its source pin with %.0f A (ISTRONG) while the '
+                 'other FET switches; gate voltages are read on the die, past the package\'s own source '
+                 'inductance' % (D['part'], B['ipu'] * 1e3, B['ipd'] * 1e3, B['istrong']))
     bulk = ('the %.0f uF external capacitor at the pads' % (B['Cext'] * 1e6) if not data.BULK.get('on_board')
             else 'the ESC\'s own bus capacitors (%s)' % data.BULK['desc'])
     say('One phase leg of the ESC switching the motor current, simulated through '
@@ -285,7 +288,10 @@ def switching_section():
             for T in ((150,) if QUICK else (25, 150)) for I in (10, 20, 30)
             for L in ((5e-9,) if QUICK else (3e-9, 5e-9, 8e-9))
             if not (diode == 'as supplied' and data.BODY_DIODE and (L != 5e-9 or T != 150))]
-    buses = (31.3, 35.3)
+    # the bus a throttle chop holds (section 4's steady level): the pack plus
+    # the regenerated current through a tired pack's resistance
+    buses = tuple(round(data.BUS['Vpack'] - data.REGEN['i_bus'] * (r + data.BUS['Rcontact']), 1)
+                  for r in data.BATTERY['r_tired'])
     fixes = [(tag, kw, I) for tag, kw in (('as designed', {}),) + (
                  (('gate resistors 22 ohm', dict(Rg=22)), ('gate resistors 47 ohm', dict(Rg=47)))
                  if data.DRIVER['kind'] == 'gvdd' else ()) + (
@@ -357,7 +363,7 @@ def switching_section():
     found['slew'] = slew
     mil = max(v['vgs_ls_miller'] for k, v in res.items() if k[1] == 150 and k[0] == MAIN())
     chop = max(v['vds_hs_peak'] for k, v in res.items() if k[0].startswith('bus'))
-    verdict('Voltage', 'High-side FET at turn-off, 20 A, while a throttle chop holds the bus at 31-35 V',
+    verdict('Voltage', 'High-side FET at turn-off, 20 A, while a throttle chop holds the bus at %.0f-%.0f V' % buses,
             chop < 0.9 * data.FET['vdss'] or ('MARGINAL' if chop < data.FET['vdss'] - 0.5 else False),
             '%.1f V' % chop, vr)
     found['mil'] = mil
@@ -749,7 +755,8 @@ def operating(throttle, V, sw, fc=None, per_motor=None):
     for n in CH:
         ib, d, i = losses.limited(th[n], V)
         I[n], D[n], Ib[n] = i, d, ib
-    op = dict(esc=dict(V=V, f=pwm_f(max(th.values())), dead=data.BRIDGE['dead'],
+    # 'dead': the body diode's share of each dead time (data.idrive), the loss's
+    op = dict(esc=dict(V=V, f=pwm_f(max(th.values())), dead=data.BRIDGE['diode'],
                        I=I, D=D, sw=sw), Ib=Ib)
     if fc:
         op['fc'] = fc_op(fc, V)
@@ -1054,7 +1061,7 @@ def bursts_section(sw, fcmax):
         fmax = np.max([tr[k] for k in fets], axis=0)
         mmax = np.max([tr[k] for k in sensor], axis=0)
         when = lambda arr, lim: ('%.1f s' % t[np.argmax(arr >= lim)]) if (arr >= lim).any() else '> %.0f s' % t[-1]
-        at = lambda arr, s_: ('%.0f C' % np.interp(s_, t, arr)) if np.interp(s_, t, arr) < data.FET['tch_max'] else 'past 175 C'
+        at = lambda arr, s_: ('%.0f C' % np.interp(s_, t, arr)) if np.interp(s_, t, arr) < data.FET['tch_max'] else 'past %.0f C' % data.FET['tch_max']
         rows.append(['%.0f C, %.0f m/s' % (Ta, v),
                      '%.0f / %.0f / %.0f C' % (hot(T0, fets), hot(T0, mcu), hot(T0, caps)),
                      '%s / %s' % (at(fmax, 1.0), at(fmax, 2.0)),
@@ -1070,7 +1077,7 @@ def bursts_section(sw, fcmax):
         rows[-1].append('%.0f C' % peak)
     table(['Air', 'Hovering: hottest FET / processor / %s capacitor' % CAP_LABEL[0],
            'Without the temperature limit: hottest FET after 1 / 2 s of full throttle', 'A FET reaches 150 C',
-           'A FET reaches its 175 C maximum',
+           'A FET reaches its %.0f C maximum' % data.FET['tch_max'],
            'AM32\'s sensor (%s) reaches its %.0f C cut' % (
                'the processor' if data.AM32.get('sensor', 'U_ESC') == 'U_ESC' else 'the FET thermistor',
                data.AM32['temp_limit']),
@@ -1085,11 +1092,11 @@ def bursts_section(sw, fcmax):
     sensor = ('each processor\'s own die, a few millimetres from its FETs' if data.AM32.get('sensor', 'U_ESC') == 'U_ESC'
               else 'a thermistor beside each channel\'s FETs')
     say('The hottest FET is %s, %.1f mm from a battery pad.  AM32\'s '
-        'temperature limit reads %s%s.  The numbers past 175 C are not '
+        'temperature limit reads %s%s.  The numbers past %.0f C are not '
         'survivable, so they are not shown.' % (
             name.split()[1], pad, sensor,
             (', so in a burst it trips after the FETs are already past their maximum'
-             if t175 is not None and (tcut is None or tcut > t175) else '')))
+             if t175 is not None and (tcut is None or tcut > t175) else ''), data.FET['tch_max']))
     say()
 
 
@@ -1283,9 +1290,9 @@ def plot_flight(tr, groups, m):
         ax[0].plot(t, tr[label], label='%s (rating %s C)' % (label, '%.0f' % lim if lim else '-'), lw=1.2, color=col)
     ax[0].axhline(85, color='k', ls=':', lw=1)
     ax[0].axhline(105, color='k', ls='--', lw=1)
-    ax[0].axhline(175, color='r', ls='--', lw=1)
+    ax[0].axhline(data.FET['tch_max'], color='r', ls='--', lw=1)
     ax[0].set_ylabel('C'); ax[0].grid(alpha=.3); ax[0].legend(fontsize=7, ncol=2)
-    ax[0].set_title('Hard flight, %.0f C air, 5 m/s over the stack (dotted 85 C, dashed 105 C, red 175 C)' % HOT)
+    ax[0].set_title('Hard flight, %.0f C air, 5 m/s over the stack (dotted 85 C, dashed 105 C, red %.0f C)' % (HOT, data.FET['tch_max']))
     ax[1].plot(t, tr['throttle'], color='k', lw=1, label='pilot')
     ax[1].plot(t, tr['applied'], color='r', lw=1, label='the most-cut motor')
     cut = np.array(tr['cut'])
@@ -1599,17 +1606,17 @@ def heat_verdicts(results, first):
             verdict('Heat', 'Full-throttle burst from hover (AM32 at 20 A per motor), %.0f C air, 5 m/s: '
                     'hottest FET with AM32\'s temperature limit acting' % Ta,
                     peak < 150.0 or ('MARGINAL' if peak < data.FET['tch_max'] else False),
-                    '%.0f C (the limit acts after %s; without it a FET reaches 175 C %s)' % (
-                        peak, '%.1f s' % tcut if tcut is not None else '> 10 s',
+                    '%.0f C (the limit acts after %s; without it a FET reaches %.0f C %s)' % (
+                        peak, '%.1f s' % tcut if tcut is not None else '> 10 s', data.FET['tch_max'],
                         'after %.1f s' % t175 if t175 is not None else 'not in 10 s'),
-                    '150 C design, 175 C maximum')
+                    '150 C design, %.0f C maximum' % data.FET['tch_max'])
     f = found.get('flight', {})
     verdict('Heat', 'Hard 3-minute flight at %.0f C: AM32 cuts a motor\'s power for heat' % HOT,
             f.get('cut') is None, 'first at %.0f s, %.0f %% of the flight' % (f['cut'], 100 * f['frac'])
             if f.get('cut') is not None else 'never', 'never')
     verdict('Heat', 'Hard 3-minute flight at %.0f C: hottest FET' % HOT, f.get('fet', 0) < 150 or
             ('MARGINAL' if f.get('fet', 0) < data.FET['tch_max'] else False),
-            '%.0f C' % f.get('fet', 0), '175 C (150 C design)')
+            '%.0f C' % f.get('fet', 0), '%.0f C (150 C design)' % data.FET['tch_max'])
     verdict('Heat', 'Hard 3-minute flight at %.0f C: ESC processors' % HOT, f.get('mcu', 0) <= data.MCU_ESC['tj_max'],
             '%.0f C' % f.get('mcu', 0), '%.0f C junction (%s)' % (data.MCU_ESC['tj_max'], data.MCU_ESC['part']))
     if f.get('first'):

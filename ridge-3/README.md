@@ -26,7 +26,10 @@ simulations, including what rev 2 still does not pass.
 errors, zero warnings and zero unconnected items against JLCPCB's rules.
 The copper matches `src/circuit.py` pad for pad, and
 [`VERIFICATION.md`](VERIFICATION.md) checks the design against sources other
-than itself. No board has been made or measured. Order the prototypes
+than itself. No board has been made or measured.  Two changes to the FC
+are open and must be made before anything is ordered: its 3.3 V buck's
+output capacitance and its 5 V buck's enable on USB power
+([`docs/STATUS.md`](docs/STATUS.md), D10 and D11).  Then order the prototypes
 that [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md#what-to-order-for-testing)
 lists, build one stack, and go through the [bring-up](#bring-up) steps
 before building more.  Every test and simulation, with why it exists, how

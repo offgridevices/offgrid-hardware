@@ -70,13 +70,18 @@ def _infineon5_lib():
 # per FET (data.FET['spice']): the model's file, its subcircuit, the node
 # inside it that is the gate after the package's own gate resistance, and
 # whether ngspice must read it as PSpice
+# gate / source: the die's nodes inside the subcircuit (Toshiba's G0 has no
+# package: its pin is the die source).  l_pkg: the package inductance the
+# subcircuit carries itself (Infineon's L1: Ld 100 pH + Ls 250 pH each), taken
+# out of the loop estimate, which counts the packages already.
 FETS = {
-    'TPN2R304PL': dict(lib=_toshiba_lib, subckt='TPN2R304PL_G0_00', gate='22', ps=False),
-    'ISZ023N06LM6': dict(lib=_infineon_lib, subckt='ISZ023N06LM6_L1', gate='g', ps=True),
+    'TPN2R304PL': dict(lib=_toshiba_lib, subckt='TPN2R304PL_G0_00', gate='22', source=None, l_pkg=0.0, ps=False),
+    'ISZ023N06LM6': dict(lib=_infineon_lib, subckt='ISZ023N06LM6_L1', gate='g', source='s', l_pkg=0.7e-9, ps=True),
     # OptiMOS 5's core overflows at the DC operating point under ngspice's
     # default gmin (1e-12 S); 1e-10 S solves it and leaves its capacitances
     # at the datasheet's (Ciss 2.44 nF at 30 V, 1 MHz; 2.4 nF typ)
-    'BSZ040N06LS5': dict(lib=_infineon5_lib, subckt='BSZ040N06LS5_L1', gate='g', ps=True, options='gmin=1e-10'),
+    'BSZ040N06LS5': dict(lib=_infineon5_lib, subckt='BSZ040N06LS5_L1', gate='g', source='s', l_pkg=0.7e-9, ps=True,
+                         options='gmin=1e-10'),
 }
 
 
@@ -174,7 +179,9 @@ def half_bridge(p):
     capacitor), Cext/ESRext/ESLext, Llead/Rbat, Lplane/Rplane, Lg (gate
     loop), lm (body diode, see _fet_variant), snub (R, C across each FET),
     Rg_off (a Schottky and this resistor beside Rg: faster turn-off),
-    snub_ls_only (the snubber across the low-side FET only).
+    snub_ls_only (the snubber across the low-side FET only), istrong (A:
+    the DRV8320H's strong pull-down, GLx to PGND and GHx to SHx, on the gate
+    that is off while the other FET switches; 0 for the DRV8300).
     """
     lib = _fet_variant(p.get('lm'))
     t_off_ls = 0.5e-6
@@ -182,7 +189,7 @@ def half_bridge(p):
     t_off_hs = t_on_hs + 2.0e-6
     t_on_ls = t_off_hs + p['dead']
     tr = 5e-9
-    L = p['Lloop']
+    L = p['Lloop'] - _fet()['l_pkg']        # the board's share: the model has its package's own
     n = """* half-bridge edge test
 .include %(lib)s
 .options temp=%(T)g reltol=1e-3 abstol=1e-6 vntol=1e-4 chgtol=1e-12
@@ -226,6 +233,7 @@ VsH vsH sH PWL(0 0 %(t_on_hs)g 0 %(t3)g %(vboot)g %(t_off_hs)g %(vboot)g %(t4)g 
 %(drvH)sRgH goH gH1 %(Rg)g
 LgH gH1 gH %(Lg)g
 %(gate_off)s
+%(strong)s
 CgLo goL gb 10p
 CgHo goH sH 10p
 .tran 0.02n %(tend)g 0 0.05n
@@ -235,6 +243,18 @@ CgHo goH sH 10p
            drvL=driver('L', 'vsL', 'goL', 'gb', p['rpu'], p['rpd'], p['ipu'], p['ipd']),
            drvH=driver('H', 'vsH', 'goH', 'sH', p['rpu'], p['rpd'], p['ipu'], p['ipd']),
            tend=t_on_ls + 1.0e-6,
+           # ISTRONG (tDRIVE 4 us, longer than the 2 us the high side is on):
+           # the low gate held from the high side's turn-on command to the low
+           # side's own, the high gate from the start (the low side turning
+           # off) to its turn-on command and again once the low side turns on
+           strong=(('* DRV8320H ISTRONG: the off gate held to PGND / SHx while the other FET switches\n'
+                    'VenL enL 0 PWL(0 0 {a} 0 {a1} 1 {b} 1 {b1} 0)\n'
+                    'BsL goL gb I = V(enL)*{i}*tanh(V(goL,gb)/{r})\n'
+                    'VenH enH 0 PWL(0 1 {a} 1 {a1} 0 {b} 0 {b1} 1)\n'
+                    'BsH goH sH I = V(enH)*{i}*tanh(V(goH,sH)/{r})').format(
+                        a=t_on_hs, a1=t_on_hs + 1e-9, b=t_on_ls, b1=t_on_ls + 1e-9,
+                        i=p['istrong'], r=p['rpd'] * p['istrong'])
+                   if p.get('istrong') else ''),
            snub=(('* RC snubber across the low-side FET\nRsnL dL0 sn1 %g\nCsnL sn1 sL %g\n' % (p['snub'][0], p['snub'][1]))
                  + ('' if p.get('snub_ls_only') else
                     '* and across the high-side FET\nRsnH dH sn2 %g\nCsnH sn2 sH %g' % (p['snub'][0], p['snub'][1])))
@@ -244,15 +264,16 @@ CgHo goH sH 10p
            gate_off=('* turn-off path: Schottky + Rg_off beside Rg\n'
                      'RoL goL goL2 %(r)g\nDoL gL1 goL2 dgoff\nRoH goH goH2 %(r)g\nDoH gH1 goH2 dgoff\n'
                      '.model dgoff d(is=1e-6 n=1.05 rs=0.1 cjo=30p)' % dict(r=p['Rg_off'])) if p.get('Rg_off') else '')
+    g_, s_ = _fet()['gate'], _fet()['source']
     w = run('hb_%(tag)s' % p, n, ['v(dH)', 'v(sH)', 'v(dL0)', 'v(sL)', 'v(gH)', 'v(gL)',
-                                  'v(xh.%s)' % _fet()['gate'], 'v(xl.%s)' % _fet()['gate'],
-                                  'v(vb)', 'v(src)', 'v(gb)', 'v(pad)',
-                                  'i(vidh)', 'i(vidl)'])
+                                  'v(xh.%s)' % g_, 'v(xl.%s)' % g_, 'v(vb)', 'v(src)', 'v(gb)', 'v(pad)',
+                                  'i(vidh)', 'i(vidl)'] + (['v(xh.%s)' % s_, 'v(xl.%s)' % s_] if s_ else []))
     t = w['time']
     vdsH = w['v(dH)'] - w['v(sH)']
     vdsL = w['v(dL0)'] - w['v(sL)']
-    vgsL = w['v(xl.%s)' % _fet()['gate']] - w['v(sL)']
-    vgsH = w['v(xh.%s)' % _fet()['gate']] - w['v(sH)']
+    # the die's gate to the die's source (past the package's own source inductance)
+    vgsL = w['v(xl.%s)' % g_] - (w['v(xl.%s)' % s_] if s_ else w['v(sL)'])
+    vgsH = w['v(xh.%s)' % g_] - (w['v(xh.%s)' % s_] if s_ else w['v(sH)'])
     sh = w['v(sH)'] - w['v(gb)']
     iH, iL = w['i(vidh)'], w['i(vidl)']
     win = lambda a, b: (t >= a) & (t <= b)

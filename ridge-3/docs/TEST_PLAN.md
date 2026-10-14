@@ -196,7 +196,9 @@ The FC's 5 V, 9 V and 3.3 V rails at no load and full load (2 A on 5 V,
 9.9 V): it should stay in regulation down to about 9.5 V of battery.
 Ripple on each with the probe's ground spring, and the 3.3 V rail's
 response to a load step (0.1 to 0.5 A): no ringing that does not settle in
-a few cycles (`STATUS.md`, D10).
+a few cycles (`STATUS.md`, D10).  On USB alone (no battery): VBAT, the USB
+current and the 5 V buck's switch node; with D11 fixed, VBAT stays at the
+back-feed (about 4-4.6 V) and the buck does not switch.
 
 ### T11. Battery transients
 

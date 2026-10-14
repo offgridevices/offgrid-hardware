@@ -59,7 +59,7 @@ def esc_channel(I, D, V, f, dead, Tj, sw):
 def driver(V, f):
     """One channel's gate driver heat (W) at battery voltage V, PWM f."""
     D = data.DRIVER
-    qg = data.FET['qg_11v']
+    qg = data.qg_drive()
     if D['kind'] == 'gvdd':
         return 2 * qg * data.GVDD * f + D['i_q'] * data.GVDD
     return 3 * qg * V * f + D['i_vm'][1] * V + (V - 3.3) * data.DVDD_LOAD
@@ -69,7 +69,7 @@ def gvdd_current(fs):
     """The drivers' supply current from the gate-drive LDO (A): gate charge
     at each channel's PWM frequency in fs, and quiescent (rev 1; rev 2 has
     no such LDO)."""
-    return sum(2 * data.FET['qg_11v'] * f + data.DRIVER['i_q'] for f in fs)
+    return sum(2 * data.qg_drive() * f + data.DRIVER['i_q'] for f in fs)
 
 
 def buck_loss(part, iout, vout):
