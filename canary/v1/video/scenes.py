@@ -408,7 +408,8 @@ def sim_clock(t):
 def sim(t, D):
     tel, io, res = sim_data()
     st, speed = sim_clock(t)
-    T0, T1 = 300, 420
+    T1 = max(st + 8, 340.0)                 # sliding 40 s window
+    T0 = T1 - 40
     def gx(s):
         return 320 + (s - T0) / (T1 - T0) * 2000
     panels = [('SGP40 GAS SIGNAL', 1, 21000, 31000, AMBER, '{:.0f}'), ('CO2  ppm', 2, 0, 7500, (170, 200, 230), '{:.0f}'),
@@ -445,18 +446,19 @@ def sim(t, D):
             last = [v for ts, *v in tel if ts <= st][-1][idx - 1]
             cv.text(2300, y0 + 50, fmt.format(last), mono(46), WHITE, anchor='rm')
     # vent marker
-    if st >= 400:
+    if st >= 400 and T0 <= 400:
         x = gx(400)
         for y in range(420, 1840, 40):
             cv.line(x, y, x, y + 20, WHITE, a=150, width=4)
-        cv.text(x, 380, 'VENT', bold(44), WHITE, ls=4)
+        cv.text(x - 20, 380, 'VENT', bold(44), WHITE, anchor='rm')
     lat = res['vent']['latency_s']
     if st >= 400 + lat:
         x = gx(400 + lat)
         for y in range(420, 1840, 40):
             cv.line(x, y, x, y + 20, RED, a=200, width=4)
-        cv.text(x + 30, 1890, f'ALARM  +{lat:.1f} s', bold(46), RED, anchor='lm')
-    cv.text(gx(T0), 1890, f'{T0} s', mono(40), SOFTWHITE, anchor='lm')
+        cv.text(x + 20, 380, f'ALARM +{lat:.1f} s', bold(44), RED, anchor='lm')
+    cv.text(gx(T0), 1890, f'{T0:.0f} s', mono(40), SOFTWHITE, anchor='lm')
+    cv.text(gx(T1), 1890, f'{T1:.0f} s', mono(40), SOFTWHITE, anchor='rm')
     # board + outputs
     cv.image(img('top.png'), BX, BY, 3808 * KD)
     if tone > 0.4:

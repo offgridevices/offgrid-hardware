@@ -32,6 +32,14 @@ flashing + 100 dB 4 kHz sounder in the smoke-alarm T3 pattern. The button
 self-tests in normal state and hushes for 2 minutes in alarm — the hush
 ends early if the evidence gets worse.
 
+**Product video:** [`video/canary-v1-product-video.mp4`](video/canary-v1-product-video.mp4)
+(about 4 minutes, narrated, subtitles included).
+
+The real firmware, on a simulated ATmega328P with virtual sensors, catching
+a vent at 400 s (alarm 7.6 s later) — `sim/hil/`:
+
+![vent scenario](images/sim-vent.png)
+
 ## Requirements, and whether they are met
 
 | Requirement | How it is checked | Met? |

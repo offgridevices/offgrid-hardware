@@ -126,3 +126,37 @@ jobs:
       # Firmware pin maps, parts, fab outputs, simulations' verdicts.
       - name: Design checks (verify.py)
         run: python3 src/verify.py
+
+  canary-v1:
+    # Canary (canary/v1). Routing is Freerouting's and not bit-for-bit
+    # repeatable, so the committed canary.kicad_pcb is the design of record.
+    # Everything else is rebuilt and gated by tools/ci.sh: the schematic is
+    # regenerated from src/circuit.py and must equal the committed one (ERC 0,
+    # netlist = circuit), DRC must be empty (all severities, schematic parity),
+    # the fab files must equal the committed ones, the firmware pin map must
+    # match, and the firmware must pass the hardware-in-the-loop scenarios
+    # (simavr), the SPICE model and the analyses.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 30
+    container:
+      image: kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
+      options: --user root
+    defaults:
+      run:
+        working-directory: canary/v1
+    env:
+      HOME: /tmp
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git gcc make pkg-config \
+            gcc-avr avr-libc libelf-dev ngspice > /dev/null
+          pip3 install --break-system-packages -q numpy matplotlib
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Gates, fab files, firmware and simulations (tools/ci.sh)
+        run: tools/ci.sh
