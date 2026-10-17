@@ -564,7 +564,7 @@
 		(embedded_fonts no)
 		(model "${KIPRJMOD}/ph.3dshapes/SMA_L4.3-W2.6-LS5.0-RD.stpZ"
 			(offset
-				(xyz 0 0 0)
+				(xyz 0 0 1.17)
 			)
 			(scale
 				(xyz 1 1 1)
@@ -2347,7 +2347,7 @@
 		(embedded_fonts no)
 		(model "${KIPRJMOD}/ph.3dshapes/USB-A-TH__USB-AF-90.stpZ"
 			(offset
-				(xyz 0 -4.3 0)
+				(xyz 0 -4.3 3.5)
 			)
 			(scale
 				(xyz 1 1 1)
@@ -5500,7 +5500,7 @@
 		(embedded_fonts no)
 		(model "${KIPRJMOD}/ph.3dshapes/SOD-123_L2.7-W1.6-LS3.7-RD-1.stpZ"
 			(offset
-				(xyz 0 0 0)
+				(xyz 0 0 0.6)
 			)
 			(scale
 				(xyz 1 1 1)
@@ -9263,7 +9263,7 @@
 		(embedded_fonts no)
 		(model "${KIPRJMOD}/ph.3dshapes/USB-A-TH__USB-AF-90.stpZ"
 			(offset
-				(xyz 0 -4.3 0)
+				(xyz 0 -4.3 3.5)
 			)
 			(scale
 				(xyz 1 1 1)
@@ -9645,7 +9645,7 @@
 		(embedded_fonts no)
 		(model "${KIPRJMOD}/ph.3dshapes/USB-A-TH__USB-AF-90.stpZ"
 			(offset
-				(xyz 0 -4.3 0)
+				(xyz 0 -4.3 3.5)
 			)
 			(scale
 				(xyz 1 1 1)
@@ -15259,7 +15259,7 @@
 		(embedded_fonts no)
 		(model "${KIPRJMOD}/ph.3dshapes/USB-A-TH__USB-AF-90.stpZ"
 			(offset
-				(xyz 0 -4.3 0)
+				(xyz 0 -4.3 3.5)
 			)
 			(scale
 				(xyz 1 1 1)
@@ -16446,7 +16446,7 @@
 		(embedded_fonts no)
 		(model "${KIPRJMOD}/ph.3dshapes/WIFIM-SMD_ESP32-S3-WROOM-1-N8.stpZ"
 			(offset
-				(xyz 0 0 0)
+				(xyz 0 3.75 0)
 			)
 			(scale
 				(xyz 1 1 1)
@@ -19162,7 +19162,7 @@
 		(embedded_fonts no)
 		(model "${KIPRJMOD}/ph.3dshapes/USB-A-TH__USB-AF-90.stpZ"
 			(offset
-				(xyz 0 -4.3 0)
+				(xyz 0 -4.3 3.5)
 			)
 			(scale
 				(xyz 1 1 1)
@@ -21383,7 +21383,7 @@
 		(embedded_fonts no)
 		(model "${KIPRJMOD}/ph.3dshapes/SOD-123_L2.7-W1.6-LS3.7-RD-1.stpZ"
 			(offset
-				(xyz 0 0 0)
+				(xyz 0 0 0.6)
 			)
 			(scale
 				(xyz 1 1 1)

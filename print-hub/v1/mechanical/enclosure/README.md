@@ -357,3 +357,15 @@ FIT CHECK RESULT: PASS (0 failed)
   gap at the split, and a thin one gets up to 0.1 mm of play before the walls meet.
 * **Heat.** The vents are sized by judgement, not simulation. Check the buck area
   after an hour at full load.
+
+## Fit against the real board
+
+`fit_board.py` loads the assembled board's STEP (`../print-hub-step.zip`,
+every part's model on its land) and the case's STEP and checks that no
+solid of the board overlaps the base or the lid. Result on the v1 board
+(17 Oct 2026): **PASS**, 365 board solids, no overlap; the USB-A
+receptacles are the tallest parts at 7.0 mm above the board.
+
+```
+cd print-hub/v1 && tools/kd python3 mechanical/enclosure/fit_board.py
+```

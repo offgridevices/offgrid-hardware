@@ -45,7 +45,8 @@ def main():
         for c in case_solids:
             if not overlaps(sb, c.bounding_box()):     # cheap reject first
                 continue
-            v = (s & c).volume
+            i = s & c
+            v = i.volume if i is not None else 0.0
             if v > 0.01:
                 bad += 1
                 print('  OVERLAP %.2f mm^3: board solid at x %.1f..%.1f y %.1f..%.1f z %.1f..%.1f'
