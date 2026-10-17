@@ -95,7 +95,13 @@ FIXUPS = {
     # The ESP32-S3 module's EasyEDA land carries twelve unnumbered 0.4 mm
     # plated holes in its ground pad (thermal vias).  Unnumbered, they would
     # come out as unplated holes; the board's own ground vias replace them.
-    'WIFIM-SMD_ESP32-S3-WROOM-1-N8': dict(drop_unnamed=True),
+    # its model is centred on the module, the land on Espressif's pin 1:
+    # the model sits 3.75 mm back from where the module lands
+    'WIFIM-SMD_ESP32-S3-WROOM-1-N8': dict(drop_unnamed=True, model_offset=(0.0, 3.75, 0.0)),
+    # models that easyeda2kicad left sunk into the board (EasyEDA's own
+    # vertical offset is lost in the conversion)
+    'SMA_L4.3-W2.6-LS5.0-RD': dict(model_offset=(0.0, 0.0, 1.17)),
+    'SOD-123_L2.7-W1.6-LS3.7-RD-1': dict(model_offset=(0.0, 0.0, 0.60)),
     # HRO TYPE-C-31-M-12: EasyEDA's model sits 2.55 mm back from its land
     # (its mouth 2.55 mm behind where the footprint's outline puts it, the
     # SMT legs off the pads).  Only the renders and the STEP see this.
@@ -103,7 +109,9 @@ FIXUPS = {
     # Jing Extension 902-131A (C2345): the land matches the maker's drawing
     # (mouth 10.3 mm ahead of the shell legs, 14.1 mm body); EasyEDA's model
     # sits 4.3 mm behind it, over the parts behind the receptacle
-    'USB-A-TH__USB-AF-90': dict(model_offset=(0.0, -4.3, 0.0)),
+    # and 3.5 mm too low: its 7.0 mm body then sits on the board (drawing:
+    # 7.00 tall), its legs 2.75 mm through
+    'USB-A-TH__USB-AF-90': dict(model_offset=(0.0, -4.3, 3.5)),
 }
 
 def _fix_pad(name, p):

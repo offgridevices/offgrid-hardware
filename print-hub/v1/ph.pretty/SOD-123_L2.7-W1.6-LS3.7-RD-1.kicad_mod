@@ -194,7 +194,7 @@
 	(embedded_fonts no)
 	(model "${KIPRJMOD}/ph.3dshapes/SOD-123_L2.7-W1.6-LS3.7-RD-1.stpZ"
 		(offset
-			(xyz 0 0 0)
+			(xyz 0 0 0.6)
 		)
 		(scale
 			(xyz 1 1 1)

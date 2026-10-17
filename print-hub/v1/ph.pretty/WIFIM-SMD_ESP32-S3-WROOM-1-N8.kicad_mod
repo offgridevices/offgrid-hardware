@@ -438,7 +438,7 @@
 	(embedded_fonts no)
 	(model "${KIPRJMOD}/ph.3dshapes/WIFIM-SMD_ESP32-S3-WROOM-1-N8.stpZ"
 		(offset
-			(xyz 0 0 0)
+			(xyz 0 3.75 0)
 		)
 		(scale
 			(xyz 1 1 1)
