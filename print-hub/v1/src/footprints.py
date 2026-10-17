@@ -87,6 +87,8 @@ def _area(pts):
 #   'trim':   {pad name: d} shortens a pad by d mm at its +y end (the pad
 #             keeps its -y end), footprint axes
 #   'model':  a 3D model (in ../ph.3dshapes) for a part EasyEDA has none for
+#   'model_offset': move the 3D model (mm, KiCad's 3D axes: +y is up the
+#             screen) where EasyEDA's model does not sit on its own land
 #   'drop_unnamed': leave out the pads with no number (the module's
 #             thermal vias: the board places its own ground vias)
 FIXUPS = {
@@ -94,6 +96,10 @@ FIXUPS = {
     # plated holes in its ground pad (thermal vias).  Unnumbered, they would
     # come out as unplated holes; the board's own ground vias replace them.
     'WIFIM-SMD_ESP32-S3-WROOM-1-N8': dict(drop_unnamed=True),
+    # HRO TYPE-C-31-M-12: EasyEDA's model sits 2.55 mm back from its land
+    # (its mouth 2.55 mm behind where the footprint's outline puts it, the
+    # SMT legs off the pads).  Only the renders and the STEP see this.
+    'USB-C_SMD-TYPE-C-31-M-12_1': dict(model_offset=(0.0, -2.55, 0.0)),
 }
 
 def _fix_pad(name, p):
@@ -201,6 +207,9 @@ def clean_easyeda(path):
         m = re.search(r'ee\.3dshapes/([^"]+)\.wrl', model[1])
         if m and os.path.exists(os.path.join(MODELS, m.group(1) + '.stpZ')):
             model[1] = '"${KIPRJMOD}/ph.3dshapes/%s.stpZ"' % m.group(1)
+            off = FIXUPS.get(name, {}).get('model_offset')
+            if off:
+                _get(_get(model, 'offset'), 'xyz')[1:] = ['%.3f' % v for v in off]
             out.append(model)
     open(os.path.join(LIB, name + '.kicad_mod'), 'w').write(_emit(out) + '\n')
     # round-trip through KiCad so the file is in its native format
