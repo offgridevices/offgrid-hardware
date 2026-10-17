@@ -64,8 +64,8 @@ def placement(comps):
     rel_power = {
         ('POWER IN', 0): (J1_X, USBC_Y, 180),
         ('input TVS', 0): (-34.0, -21.0, 0),
-        ('USB-PD sink', 0): (-26.5, -22.0, 0),
-        ('HUSB238 VIN', 0): (-29.4, -22.4, 270),
+        ('USB-PD sink', 0): (-26.5, -22.0, 180),     # VIN and CC on top, VSET / ISET / I2C below
+        ('HUSB238 VIN', 0): (-24.0, -24.6, 0),
         ('VSET 9 V (5.1k of 6.1k)', 0): (-25.6, -18.8, 0),
         ('VSET 9 V (1k of 6.1k)', 0): (-25.6, -17.7, 0),
         ('ISET 2 A (10k of 10.47k)', 0): (-27.6, -18.8, 0),

@@ -155,7 +155,8 @@ SCREW_CLEAR_D = 3.4          # clearance hole in the lid
 CBORE_D = 6.2                # counterbore for the screw head
 BRIDGE_LAYER = 0.2           # one layer: the stepped "bridging" layers at the counterbore floor
 STANDOFF_D = 7.0             # base standoffs (under the board, inside the keep-clear circle)
-LID_BOSS_D = 6.6             # lid bosses where they touch the board (inside the 7.0 keep-clear circle)
+LID_BOSS_D = 6.8             # lid bosses where they touch the board (inside the 7.0 keep-clear circle;
+                             # not 6.6: that would just touch the side wall and leave a non-manifold edge)
 LID_COLLAR_D = 9.0           # lid bosses widen above all parts, round the counterbore
 LID_COLLAR_Z = 6.0           # ... from this height up (above OTHER_PARTS_H + board)
 PEG_D = 2.8                  # locating peg through the 3.2 mm hole
@@ -356,11 +357,15 @@ def text_outline(txt, size):
     return affinity.translate(shape, -(minx + maxx) / 2, -(miny + maxy) / 2)
 
 
-def ktext(txt, size, x, y, z_top, depth):
+def ktext(txt, size, x, y, z_top, depth, halign='center'):
     """Engraving tool: text read from above with the front edge towards you.
-    `size` is the font size (em) in mm; capitals come out about 0.73 x size tall."""
+    `size` is the font size (em) in mm; capitals come out about 0.73 x size tall.
+    halign 'right' puts the text's right end at x."""
     from build123d import Face, Wire
+    from shapely import affinity
     shape = text_outline(txt, size)
+    if halign == 'right':
+        shape = affinity.translate(shape, -shape.bounds[2], 0)
     geoms = getattr(shape, 'geoms', [shape])
     tools = []
     for poly in geoms:
@@ -494,7 +499,9 @@ def build_lid():
     for label, cx in USBC.items():
         cuts.append(ktext(label, TEXT_LABEL_SIZE, cx, TEXT_LABEL_Y, TOP_Z, TEXT_DEPTH))
     for label, (x, y) in BUTTONS.items():
-        cuts.append(ktext(label, TEXT_BUTTON_SIZE, x - 7.6, y, TOP_Z, TEXT_DEPTH))
+        # right-aligned, 1.2 mm clear of the paperclip hole or the flexure slot
+        edge = x - BUTTON_HOLE_D / 2 if BUTTON_STYLE == 'pin' else x - 3.0 - FLEX_SLOT
+        cuts.append(ktext(label, TEXT_BUTTON_SIZE, edge - 1.2, y, TOP_Z, TEXT_DEPTH, halign='right'))
     cuts.append(ktext(TEXT_TITLE, TEXT_TITLE_SIZE, TEXT_TITLE_AT[0], TEXT_TITLE_AT[1], TOP_Z, TEXT_DEPTH))
     lid = cut_all(lid, cuts)
     if BUTTON_STYLE == 'flexure':
@@ -506,7 +513,7 @@ def flexure_cuts():
     """An E-shaped slot through the top plate frees two tongues (rooted on the
     +x side, free ends past the buttons); the tongues are thinned from inside."""
     (bx, y_rst), (_, y_boot) = BUTTONS['RST'], BUTTONS['BOOT']
-    x_free = bx - 3.0
+    x_free = bx - 3.0                  # free end 3 mm past the button centre
     x_root = x_free + FLEX_LEN
     ys = sorted([y_rst, y_boot])
     y_lo = ys[0] - FLEX_W / 2
@@ -777,8 +784,68 @@ def fit_check(base, lid):
         hits = [n for n, p in things.items() if overlap(s, p) > 1e-4]
         r.add(not hits, name + ' misses all parts', ', '.join(hits))
 
+    r.info('-- 7. exported STL files')
+    for name in ('printhub-base.stl', 'printhub-lid.stl'):
+        path = os.path.join(HERE, name)
+        if not os.path.exists(path):
+            r.info('%s not written: skipped' % name)
+            continue
+        ok, detail = stl_check(path)
+        r.add(ok, name, detail)
+    r.info('-- 8. overhangs in print orientation (faces pointing down, above the bed)')
+    known = {'printhub-base.stl': {FOOT_DEPTH: 'foot recess ceilings: %.1f mm round bridges' % FOOT_D},
+             'printhub-lid.stl': {TEXT_DEPTH: 'engraved text floors: letter-stroke bridges',
+                                  CBORE_DEPTH: 'counterbore floor, bridging layer 1 (spans <= %.1f)' % CBORE_D,
+                                  CBORE_DEPTH + BRIDGE_LAYER: 'bridging layer 2 (spans %.1f)' % SCREW_CLEAR_D,
+                                  CBORE_DEPTH + 2 * BRIDGE_LAYER: 'square-to-round corners of the bridged hole (tiny)'}}
+    if BUTTON_STYLE == 'flexure':
+        known['printhub-lid.stl'][FLEX_T] = 'flexure tongue thinning (open upwards: none)'
+    for name, levels in known.items():
+        path = os.path.join(HERE, name)
+        if not os.path.exists(path):
+            continue
+        for z, area in overhangs(path):
+            what = [t for zz, t in levels.items() if abs(zz - z) < 0.03]
+            r.add(bool(what), '%s overhang at z %.2f' % (name[9:-4], z),
+                  '%.0f mm^2: %s' % (area, what[0] if what else 'UNEXPECTED, needs support'))
+
     print('\nFIT CHECK RESULT: %s (%d failed)\n' % ('PASS' if r.fails == 0 else 'FAIL', r.fails))
     return r
+
+
+def stl_check(path):
+    """Closed (every edge shared by exactly two triangles) and lying on z = 0."""
+    import numpy as np
+    with open(path, 'rb') as f:
+        f.read(80)
+        n = int(np.frombuffer(f.read(4), np.uint32)[0])
+        rec = np.frombuffer(f.read(50 * n), dtype=np.dtype([('n', '<f4', 3), ('v', '<f4', (3, 3)), ('a', '<u2')]))
+    V = rec['v'].reshape(-1, 3)
+    _, idx = np.unique(np.round(V, 4), axis=0, return_inverse=True)
+    tri = idx.reshape(-1, 3)
+    edges = np.sort(np.concatenate([tri[:, [0, 1]], tri[:, [1, 2]], tri[:, [2, 0]]]), axis=1)
+    _, counts = np.unique(edges, axis=0, return_counts=True)
+    bad = int((counts != 2).sum())
+    zmin, zmax = float(V[:, 2].min()), float(V[:, 2].max())
+    return bad == 0 and abs(zmin) < 1e-3, '%d triangles, %s, z %.2f..%.2f (on the bed)' % (
+        n, 'watertight' if bad == 0 else '%d open/non-manifold edges' % bad, zmin, zmax)
+
+
+def overhangs(path):
+    """(z, area) of every height where triangles face down (steeper than 60 deg
+    from vertical) without sitting on the bed."""
+    import numpy as np
+    with open(path, 'rb') as f:
+        f.read(80)
+        n = int(np.frombuffer(f.read(4), np.uint32)[0])
+        rec = np.frombuffer(f.read(50 * n), dtype=np.dtype([('n', '<f4', 3), ('v', '<f4', (3, 3)), ('a', '<u2')]))
+    T = rec['v'].astype(float)
+    nn = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0])
+    area = np.linalg.norm(nn, axis=1) / 2
+    nz = nn[:, 2] / (2 * area + 1e-12)
+    zc = np.round(T[:, :, 2].mean(1), 2)
+    down = (nz < -0.5) & (zc > 0.05)
+    return [(float(z), float(area[down & (zc == z)].sum())) for z in np.unique(zc[down])]
 
 
 # =============================================================================
