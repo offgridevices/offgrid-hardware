@@ -33,6 +33,12 @@ def run(work, passes=int(os.environ.get('PASSES', 40))):
     # Freerouting 1.9.0: 2.5.0 stalled on this board with 13 connections
     # left (17 Oct 2026), the way 2.x stalled on Ridge 3 Lite
     route.FR2 = None
+    # the two inner layers are planes (ground, 5 V): marked as power layers
+    # in the copy Freerouting sees, so it routes only on F.Cu and B.Cu
+    def planes_only(b):
+        for l in (pcbnew.In1_Cu, pcbnew.In2_Cu):
+            b.SetLayerType(l, pcbnew.LT_POWER)
+    route.PRE_EXPORT = planes_only
     left = route.route(placed, routed, passes=passes, rounds=4)
     log('  unrouted after Freerouting: %d' % left)
     pcb.write_rules(routed)

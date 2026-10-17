@@ -205,7 +205,7 @@ TEXT_LABEL_Y = -28.0
 TEXT_BUTTON_SIZE = 3.6       # RST / BOOT
 TEXT_TITLE = 'PRINT HUB'
 TEXT_TITLE_SIZE = 5.0
-TEXT_TITLE_AT = (-8.0, -3.0)
+TEXT_TITLE_AT = (0.0, 0.0)     # centre of the lid
 
 # Rubber feet: recesses in the bottom for 10 mm self-adhesive bumpers
 FOOT_D = 10.6
