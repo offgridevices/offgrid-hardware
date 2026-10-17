@@ -100,6 +100,10 @@ FIXUPS = {
     # (its mouth 2.55 mm behind where the footprint's outline puts it, the
     # SMT legs off the pads).  Only the renders and the STEP see this.
     'USB-C_SMD-TYPE-C-31-M-12_1': dict(model_offset=(0.0, -2.55, 0.0)),
+    # Jing Extension 902-131A (C2345): the land matches the maker's drawing
+    # (mouth 10.3 mm ahead of the shell legs, 14.1 mm body); EasyEDA's model
+    # sits 4.3 mm behind it, over the parts behind the receptacle
+    'USB-A-TH__USB-AF-90': dict(model_offset=(0.0, -4.3, 0.0)),
 }
 
 def _fix_pad(name, p):

@@ -87,9 +87,9 @@ def text(fam, s, cap=CAP):
 
 def draw(b):
     top = Placer(b, 'T')
-    # each port's number, left of its LED
+    # each port's number, right of its LED (and the LED's capacitor)
     for i, x in enumerate(layout.PORT_X):
-        top.put(text('mono', str(i + 1), 1.8), x + 2.9, layout.USBA_Y - 4.5)
+        top.put(text('mono', str(i + 1), 1.8), x + 10.0, layout.USBA_Y - 4.4, search=2.0)
     jy = layout.USBC_Y + 4.0
     top.put(brand.line([('sans', 'Power in'), ('mono', 'PD 9V')], CAP)[0], layout.J1_X, jy + 1.6)
     top.put(text('sans', 'Data'), layout.J2_X, jy + 1.6)
@@ -110,5 +110,6 @@ def draw(b):
     bot.put(brand.line([('sans', NAME), ('mono', REV)], 2.4)[0], 0.0, 1.0)
     bot.put(text('sans', 'Power: a USB-C PD charger, 30 W or more'), 0.0, 5.5)
     bot.put(text('sans', 'Data: the print server (USB) or Wi-Fi'), 0.0, 8.0)
-    bot.put(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 1.0)[0], 0.0, 11.5)
+    # the licence in the corner behind the antenna (silk is not copper)
+    bot.put(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 1.0)[0], 34.0, -28.5)
     return top, bot

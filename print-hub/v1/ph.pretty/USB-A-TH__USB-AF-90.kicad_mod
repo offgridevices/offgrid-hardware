@@ -193,7 +193,7 @@
 	(embedded_fonts no)
 	(model "${KIPRJMOD}/ph.3dshapes/USB-A-TH__USB-AF-90.stpZ"
 		(offset
-			(xyz 0 0 0)
+			(xyz 0 -4.3 0)
 		)
 		(scale
 			(xyz 1 1 1)

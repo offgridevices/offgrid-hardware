@@ -10,10 +10,10 @@ dates given, on the commit that adds this file's results.
 
 | Gate | Why | Result (17 Oct 2026) |
 |---|---|---|
-| Every part has a footprint and an LCSC number; no single-pin net; every pin on its footprint, every pad in `circuit.py` | a wrong or missing pad is a dead board | pass, 135 parts |
+| Every part has a footprint and an LCSC number; no single-pin net; every pin on its footprint, every pad in `circuit.py` | a wrong or missing pad is a dead board | pass, 136 parts |
 | KiCad 10.0.6 DRC with JLCPCB's limits | the fab rejects or mis-builds what breaks its rules | 0 errors, 0 warnings, 0 unconnected |
 | Every pad's net on the routed board equals `src/circuit.py` | the copper is the circuit | pass |
-| BOM and CPL list exactly the assembled parts | nothing missing or extra on the assembly line | pass, 129 parts |
+| BOM and CPL list exactly the assembled parts | nothing missing or extra on the assembly line | pass, 128 parts in 34 BOM lines |
 | Committed Gerbers, drills, BOM, CPL, netlist, rules equal what `make.py` builds (`tools/check_outputs.py`) | someone orders from the committed files | pass |
 
 ## Design checks (`src/verify.py` -> `VERIFICATION.md`; CI)
