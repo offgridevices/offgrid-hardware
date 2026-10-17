@@ -1,0 +1,61 @@
+// Print Hub v1: the pins and the hardware behind lib/hub's Hal.
+//
+// The pin numbers are ESP32-S3 GPIOs and must match the board
+// (src/circuit.py): src/verify.py reads this file and checks every one.
+#pragma once
+#include <Adafruit_NeoPixel.h>
+#include <Arduino.h>
+#include <Wire.h>
+
+#include "hub.h"
+
+namespace pins {
+// per port, USB1..USB5
+constexpr uint8_t EN[hub::NPORTS] = {9, 10, 11, 12, 13};      // power switch enable, high = on
+constexpr uint8_t FLT[hub::NPORTS] = {14, 15, 16, 17, 18};    // power switch fault, low = fault
+constexpr uint8_t ISENSE[hub::NPORTS] = {1, 2, 4, 5, 6};      // current-sense amplifier out (ADC1)
+constexpr uint8_t VIN_SENSE = 7;    // POWER IN voltage through a divider (ADC1)
+constexpr uint8_t RAIL_SENSE = 8;   // the 5 V port rail through a divider (ADC1)
+constexpr uint8_t LED_DATA = 38;    // WS2812-type chain: USB1..USB5 then status
+constexpr uint8_t I2C_SDA = 39;     // USB-PD sink controller
+constexpr uint8_t I2C_SCL = 40;
+constexpr uint8_t BUTTON = 0;       // BOOT button, low = pressed
+}  // namespace pins
+
+// the analogue scaling, from src/circuit.py's parts
+namespace scale {
+// current sense: shunt (ohm) x amplifier gain (V/V) -> volts per amp
+constexpr float SHUNT_OHM = 0.020f;
+constexpr float AMP_GAIN = 50.0f;
+constexpr float MV_PER_MA = SHUNT_OHM * AMP_GAIN;   // 1.0 mV per mA
+// dividers: (top + bottom) / bottom
+constexpr float VIN_DIV = (100.0f + 22.0f) / 22.0f;
+constexpr float RAIL_DIV = (100.0f + 100.0f) / 100.0f;
+}  // namespace scale
+
+class Board : public hub::Hal {
+ public:
+  void begin();
+  void poll(uint32_t now);
+  void set_enable(int port, bool on) override;
+  bool fault(int port) override;
+  uint16_t port_ma(int port) override { return ma_[port]; }
+  uint16_t input_budget_ma() override;
+  uint16_t input_mv() const { return vin_mv_; }
+  uint16_t rail_mv() const { return rail_mv_; }
+  std::string contract() const { return contract_; }
+  void set_led(int i, uint32_t rgb) { leds_.setPixelColor(i, rgb); }
+  void show_leds() { leds_.show(); }
+  bool button_pressed();
+
+ private:
+  void read_pd();
+  Adafruit_NeoPixel leds_{hub::NPORTS + 1, pins::LED_DATA, NEO_GRB + NEO_KHZ800};
+  uint16_t ma_[hub::NPORTS] = {};
+  uint16_t vin_mv_ = 0, rail_mv_ = 0;
+  uint16_t pd_mv_ = 0, pd_ma_ = 0;   // the charger's contract: volts and amps it offers
+  std::string contract_ = "none";
+  uint32_t pd_at_ = 0;
+  bool button_was_ = false;
+  uint32_t button_at_ = 0;
+};
