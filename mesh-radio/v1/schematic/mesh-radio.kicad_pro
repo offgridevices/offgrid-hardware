@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "filename": "mesh-radio.kicad_pro",
+    "version": 3
+  },
+  "erc": {
+    "rule_severities": {
+      "footprint_link_issues": "ignore"
+    }
+  }
+}

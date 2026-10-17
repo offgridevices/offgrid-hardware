@@ -65,6 +65,11 @@ def import_symbol(lib, name, libid, pinmap=None):
     import copy
     s = copy.deepcopy(lib_symbol(lib, name))
     s[1] = q(libid)
+    # unit sub-symbols are named <symbol>_<unit>_<style>: follow the rename
+    base = libid.split(':')[1]
+    for n in s:
+        if isinstance(n, list) and n[0] == 'symbol' and n[1].startswith(q(name)[:-1] + '_'):
+            n[1] = '"' + base + n[1][len(name) + 1:]
     pins = {}
     for node, pname, pnum, x, y, a in walk_pins(s):
         pad = pnum
@@ -84,7 +89,7 @@ def import_symbol(lib, name, libid, pinmap=None):
 
 def _font(size=1.27, hide=False, justify=None):
     e = ['effects', ['font', ['size', f(size), f(size)]]]
-    if justify:
+    if justify and justify != 'center':      # centred is KiCad's default and has no keyword
         e.append(['justify'] + justify.split())
     if hide:
         e.append(['hide', 'yes'])
@@ -169,21 +174,28 @@ class Page:
     def need(self, libid, sym):
         self.syms[libid] = sym
 
-    def place(self, libid, ref, value, x, y, angle, comp, fields):
+    def place(self, libid, ref, value, x, y, angle, comp, fields, refpos=None, valpos=None, hide_ref=False,
+              just='left'):
         u = uid(self.name, ref)
-        props = [['property', '"Reference"', q(ref), ['at', f(x), f(y - 3.2), '0'], _font(justify='left' if angle in (0, 180) else None)],
-                 ['property', '"Value"', q(value), ['at', f(x), f(y + 3.2), '0'], _font(justify='left' if angle in (0, 180) else None)]]
+        rx, ry = refpos or (x, y - 3.2)
+        vx, vy = valpos or (x, y + 3.2)
+        props = [['property', '"Reference"', q(ref), ['at', f(rx), f(ry), '0'], _font(1.0, justify=just, hide=hide_ref)],
+                 ['property', '"Value"', q(value), ['at', f(vx), f(vy), '0'], _font(1.0, justify=just)]]
         for k, v in fields:
             props.append(['property', q(k), q(v), ['at', f(x), f(y), '0'], _font(hide=True)])
         node = ['symbol', ['lib_id', q(libid)], ['at', f(x), f(y), str(angle)], ['unit', '1'],
                 ['exclude_from_sim', 'no'], ['in_bom', 'yes' if comp else 'no'], ['on_board', 'yes' if comp else 'no'],
-                ['dnp', 'yes' if (comp and getattr(comp, 'dnp', False)) else 'no'], ['uuid', q(u)]] + props
+                ['dnp', 'yes' if (comp and parts.PARTS[comp.part].get('dnp')) else 'no'], ['uuid', q(u)]] + props
         self.items.append(('sym', node, ref))
         return node
 
     def wire(self, x1, y1, x2, y2):
         self.items.append(('raw', ['wire', ['pts', ['xy', f(x1), f(y1)], ['xy', f(x2), f(y2)]],
                                    ['stroke', ['width', '0'], ['type', 'default']], ['uuid', q(uid(self.name, 'w', x1, y1, x2, y2))]]))
+
+    def junction(self, x, y):
+        self.items.append(('raw', ['junction', ['at', f(x), f(y)], ['diameter', '0'], ['color', '0', '0', '0', '0'],
+                                   ['uuid', q(uid(self.name, 'j', x, y))]]))
 
     def label(self, net, x, y, angle):
         just = {0: 'left', 180: 'right', 90: 'left', 270: 'right'}[angle]
@@ -201,24 +213,29 @@ class Page:
                                    _font(size, justify='left top'), ['uuid', q(uid(self.name, 't', s[:40], x, y))]]))
 
     def port(self, net, x, y, direction):
-        """A power port at a pin end; direction is where the wire leaves the pin."""
+        """A power port at a pin end; direction is where the wire leaves the
+        pin.  The port sits one grid step out along that direction, turned to
+        face the pin, so it can never touch a neighbouring pin's label."""
         self.pwr += 1
         libid = 'power:GND' if net == 'GND' else 'og_power:' + net
         s, _ = power_symbol(net)
         self.need(libid, s)
-        # GND hangs below, rails stand above; a short wire gets there
-        if net == 'GND':
-            ex, ey = x, y + G
-        else:
-            ex, ey = x, y - G
-        if direction in ('L', 'R'):
-            dx = -G if direction == 'L' else G
-            self.wire(x, y, x + dx, y)
-            x += dx
-            ex, ey = x, (y + G if net == 'GND' else y - G)
+        dx, dy = {'L': (-G, 0), 'R': (G, 0), 'U': (0, -G), 'D': (0, G)}[direction]
+        ex, ey = x + 2 * dx, y + 2 * dy
         self.wire(x, y, ex, ey)
+        # body direction: GND hangs "down" at 0 deg, rails stand "up" at 0 deg
+        if net == 'GND':
+            angle = {'L': 270, 'R': 90, 'U': 180, 'D': 0}[direction]
+        else:
+            angle = {'L': 90, 'R': 270, 'U': 0, 'D': 180}[direction]
         ref = '#PWR%s%03d' % (self.name[:3].upper(), self.pwr)
-        self.place(libid, ref, net, ex, ey, 0, None, [])
+        if net == 'GND':
+            self.place(libid, ref, net, ex, ey, angle, None, [], hide_ref=True,
+                       valpos=(ex, ey + 4.0), just='center')   # GND's value is hidden by its library symbol anyway
+        else:
+            vp = {'L': (ex - 3.5, ey), 'R': (ex + 3.5, ey), 'U': (ex, ey - 4.0), 'D': (ex, ey + 4.0)}[direction]
+            jt = {'L': 'right', 'R': 'left', 'U': 'center', 'D': 'center'}[direction]
+            self.place(libid, ref, net, ex, ey, angle, None, [], hide_ref=True, valpos=vp, just=jt)
 
     def flag(self, net, x, y):
         s, _ = import_symbol('power', 'PWR_FLAG', 'power:PWR_FLAG')
@@ -226,7 +243,8 @@ class Page:
         self.pwr += 1
         self.label(net, x, y + G, 180)
         self.wire(x, y, x, y + G)
-        self.place('power:PWR_FLAG', '#FLG%s%02d' % (self.name[:3].upper(), self.pwr), 'PWR_FLAG', x, y, 0, None, [])
+        self.place('power:PWR_FLAG', '#FLG%s%02d' % (self.name[:3].upper(), self.pwr), 'PWR_FLAG', x, y, 0, None, [],
+                   hide_ref=True, valpos=(x, y - 4.5), just='center')
 
 
 POWER_NETS = set()     # filled from circuit.POWER_NETS
@@ -277,7 +295,9 @@ def symbol_for(part):
 def two_pin_horizontal(part):
     """Two-terminal parts are drawn lying down, labels at both ends."""
     p = parts.PARTS[part]
-    return p['sym'] != 'box' and len(p.get('pads', ['1', '2'])) == 2 and p.get('lie', True)
+    if p['sym'] == 'box' or not p.get('lie', True):
+        return False
+    return len(symbol_for(part)[2]) == 2
 
 
 def draw_page(page, comps):
@@ -302,31 +322,98 @@ def draw_page(page, comps):
         cx = x + lw + w / 2
         cy = y + top + G
         cy = G * round(cy / G); cx = G * round(cx / G)
-        page.place(libid, c.ref, parts.PARTS[c.part]['value'], cx, cy, 0, c, fields(c))
+        page.place(libid, c.ref, parts.PARTS[c.part]['value'], cx, cy, 0, c, fields(c),
+                   refpos=(cx - w / 2 + G, cy - top - 1.5), valpos=(cx - w / 2 + G, cy - bottom + 2.5))
+        done = set()
+        spec = parts.PARTS[c.part].get('symbol')
+        if spec:
+            # runs of neighbouring pins on one power net share one wire and one port
+            for side in ('left', 'right'):
+                run = []
+                for pad in spec[side] + ['-']:
+                    n = c.pins.get(pad) if pad != '-' else None
+                    if run and (pad == '-' or n != c.pins.get(run[0]) or n not in POWER_NETS):
+                        if len(run) > 1:
+                            pts = [(cx + pos[r][0][0], cy - pos[r][0][1], _dir(pos[r][0][2], 0)) for r in run]
+                            d = pts[0][2]
+                            bx = pts[0][0] + (-G if d == 'L' else G)
+                            for (px_, py_, _) in pts:
+                                page.wire(px_, py_, bx, py_)
+                            for (_, ya, _), (_, yb, _) in zip(pts, pts[1:]):
+                                page.wire(bx, ya, bx, yb)
+                            for (_, ya, _) in pts[1:-1]:
+                                page.junction(bx, ya)
+                            mid = pts[len(pts) // 2][1]
+                            if len(pts) == 2:
+                                page.junction(bx, mid)
+                            page.port(c.pins.get(run[0]), bx, mid, d)
+                            done.update(run)
+                        run = []
+                    if pad != '-' and n in POWER_NETS:
+                        run.append(pad)
         for pad, plist in pos.items():
+            if pad in done:
+                continue
             for (px, py, pa) in plist:
                 sx, sy = cx + px, cy - py
                 connect(page, c.pins.get(pad, '__missing__'), sx, sy, _dir(pa, 0))
         x += full_w + 5.08
         rowh = max(rowh, (top - bottom) + 2 * G + 6)
-    # two-pin parts in rows below
+    # two-pin parts below: standing up (rail on top, ground at the bottom)
+    # when either end is a power net, lying down between two labels otherwise
     y = G * round((y + rowh + 12.7) / G)
-    x = x0
-    for c in small:
+    stand = [c for c in small if c.pins.get('1') in POWER_NETS or c.pins.get('2') in POWER_NETS]
+    lie = [c for c in small if c not in stand]
+    x, col = x0, 12.7
+
+    def upright(pos):
+        """Library symbols draw resistors and capacitors with pins top and
+        bottom, but diodes, LEDs and switches with pins left and right:
+        the rotation that puts pin 1 at the top differs."""
+        (px, py, _), = pos['1'][:1]
+        return 0 if abs(py) > abs(px) else 270
+
+    def lab(n):
+        return 0 if (n in POWER_NETS or n is None) else label_len(n)
+    rowh = 0
+    for c in stand:
         libid, sym, pos, _ = symbol_for(c.part)
         page.need(libid, sym)
-        n1 = c.pins.get('1'); n2 = c.pins.get('2')
-        l1 = 0 if n1 in POWER_NETS or n1 is None else label_len(n1)
-        l2 = 0 if n2 in POWER_NETS or n2 is None else label_len(n2)
-        span = 7.62 + l1 + l2 + 2 * G + 7.62
-        if x + span > 380:
-            x, y = x0, y + 15.24
-        cx = G * round((x + l1 + G + 3.81 + 2) / G)
-        page.place(libid, c.ref, parts.PARTS[c.part]['value'], cx, y, 90, c, fields(c))
+        n1, n2 = c.pins.get('1'), c.pins.get('2')
+        flip = n1 == 'GND' or (n2 in POWER_NETS and n2 != 'GND' and n1 not in POWER_NETS)
+        top, bot = (n2, n1) if flip else (n1, n2)
+        h_top = 3.81 + 2 * G + max(lab(top), 4)
+        h_bot = 3.81 + 2 * G + max(lab(bot), 4)
+        if x + col > 390:
+            x, y, rowh = x0, y + rowh + 7.62, 0
+        cy = G * round((y + h_top) / G)
+        cx = G * round(x / G)
+        angle = (upright(pos) + (180 if flip else 0)) % 360
+        page.place(libid, c.ref, parts.PARTS[c.part]['value'], cx, cy, angle, c, fields(c),
+                   refpos=(cx + 1.8, cy - 1.0), valpos=(cx + 1.8, cy + 1.6))
         for pad, plist in pos.items():
             for (px, py, pa) in plist:
-                ox, oy = _rot(px, py, 90)
-                connect(page, c.pins.get(pad, '__missing__'), cx + ox, y + oy, _dir(pa, 90))
+                ox, oy = _rot(px, py, angle)
+                connect(page, c.pins.get(pad, '__missing__'), cx + ox, cy + oy, _dir(pa, angle))
+        x += col
+        rowh = max(rowh, h_top + h_bot)
+    y = G * round((y + rowh + 10.16) / G)
+    x = x0
+    for c in lie:
+        libid, sym, pos, _ = symbol_for(c.part)
+        page.need(libid, sym)
+        l1, l2 = lab(c.pins.get('1')), lab(c.pins.get('2'))
+        span = l1 + l2 + 2 * 3.81 + 4 * G + 5.08
+        if x + span > 390:
+            x, y = x0, y + 12.7
+        cx = G * round((x + l1 + 2 * G + 3.81) / G)
+        angle = (upright(pos) + 90) % 360        # pin 1 on the left
+        page.place(libid, c.ref, parts.PARTS[c.part]['value'], cx, y, angle, c, fields(c),
+                   refpos=(cx, y - 2.6), valpos=(cx, y + 3.0), just='center')
+        for pad, plist in pos.items():
+            for (px, py, pa) in plist:
+                ox, oy = _rot(px, py, angle)
+                connect(page, c.pins.get(pad, '__missing__'), cx + ox, y + oy, _dir(pa, angle))
         x += span
     page.maxy = y + 20
 
@@ -336,6 +423,29 @@ def fields(c):
     out = [('Footprint', p.get('fp', '')), ('MPN', p.get('mpn', '')), ('Manufacturer', p.get('maker', '')),
            ('DigiKey', p.get('digikey', '')), ('LCSC', p.get('lcsc', '')), ('Description', p.get('desc', ''))]
     return [(k, v) for k, v in out if v]
+
+
+def pin_type(part, pad):
+    p = parts.PARTS[part]
+    if p['sym'] == 'box':
+        return p['symbol']['pins'][pad][1]
+    return 'passive'
+
+
+def power_flags(comps):
+    """{block: [nets]} for nets with a power_in pin and no power_out pin,
+    each flagged once on the first page it appears on."""
+    types, first = {}, {}
+    for c in comps:
+        for pad, n in c.pins.items():
+            if n:
+                types.setdefault(n, set()).add(pin_type(c.part, pad))
+                first.setdefault(n, c.block)
+    out = {}
+    for n, t in sorted(types.items()):
+        if 'power_in' in t and not t & {'power_out'}:
+            out.setdefault(first[n], []).append(n)
+    return out
 
 
 def write_sheet(path, page, root_uuid, sheet_uuid, paper):
@@ -363,19 +473,23 @@ def build():
     comps = circuit.build()
     os.makedirs(OUT, exist_ok=True)
     root_uuid = uid('root')
+    flags = power_flags(comps)
     sheets = []
     for i, (block, title) in enumerate(circuit.BLOCKS):
         cs = [c for c in comps if c.block == block]
         page = Page(block, title)
         draw_page(page, cs)
-        # nets that only a connector or battery feeds need a power flag
-        for net in circuit.FLAG_NETS.get(block, []):
-            page.flag(net, 15.24 + 25.4 * (circuit.FLAG_NETS[block].index(net)), page.maxy)
-        page.maxy += 10
+        # a net with power inputs but nothing KiCad recognises as a source
+        # (a connector, the battery, an inductor output) gets a power flag
+        page.maxy = G * round(page.maxy / G)
+        for k, net in enumerate(flags.get(block, [])):
+            page.flag(net, 15.24 + 30.48 * k, page.maxy)
+        page.maxy = G * round((page.maxy + 10) / G)
         h = max(297, G * round((page.maxy + 15) / G))
         paper = ['paper', '"User"', f(420), f(h)] if h > 297 else ['paper', '"A3"']
         su = uid('sheet', block)
         write_sheet(os.path.join(OUT, block + '.kicad_sch'), page, root_uuid, su, paper)
+        ALLSYMS.update(page.syms)
         sheets.append((block, title, su, i + 2))
     # the root page: the block diagram as sheet boxes, plus the design notes
     root = ['kicad_sch', ['version', '20250114'], ['generator', '"eeschema"'], ['generator_version', '"10.0"'],
@@ -393,17 +507,53 @@ def build():
                      ['property', '"Sheetname"', q(title), ['at', f(x), f(y - 0.8), '0'], _font(1.524, justify='left bottom')],
                      ['property', '"Sheetfile"', q(block + '.kicad_sch'), ['at', f(x), f(y + 31.3), '0'], _font(1.27, justify='left top')],
                      ['instances', ['project', q(PROJECT), ['path', q('/' + root_uuid), ['page', q(str(pg))]]]]])
+        note = circuit.BLOCK_NOTES.get(block, '')
+        if note:
+            root.append(['text', q(note.replace('\n', ' ')), ['exclude_from_sim', 'no'], ['at', f(x + 1.5), f(y + 2.0), '0'],
+                         _font(1.1, justify='left top'), ['uuid', q(uid('note', block))]])
     root.append(['text', q(circuit.OVERVIEW), ['exclude_from_sim', 'no'], ['at', '20.32', '17.78', '0'],
                  _font(1.8, justify='left top'), ['uuid', q(uid('overview'))]])
     root.append(['sheet_instances', ['path', '"/"', ['page', '"1"']]])
     root.append(['embedded_fonts', 'no'])
     with open(os.path.join(OUT, PROJECT + '.kicad_sch'), 'w') as fh:
         fh.write(emit(root) + '\n')
-    pro = os.path.join(OUT, PROJECT + '.kicad_pro')
-    if not os.path.exists(pro):
-        with open(pro, 'w') as fh:
-            json.dump({'meta': {'filename': PROJECT + '.kicad_pro', 'version': 3}}, fh, indent=2)
+    write_libraries(ALLSYMS)
+    # Footprints are linked by name now and the library (og.pretty) is built
+    # with the board layout; until then KiCad cannot find it, so that one
+    # check is switched off here, and only that one.
+    with open(os.path.join(OUT, PROJECT + '.kicad_pro'), 'w') as fh:
+        json.dump({'meta': {'filename': PROJECT + '.kicad_pro', 'version': 3},
+                   'erc': {'rule_severities': {'footprint_link_issues': 'ignore'}}}, fh, indent=2)
+        fh.write('\n')
     return comps
+
+
+ALLSYMS = {}
+
+
+def write_libraries(syms):
+    """Every symbol the drawing uses, as project libraries (lib/<nickname>.kicad_sym)
+    with a sym-lib-table, so the schematic opens in KiCad with its symbols
+    editable and the library check clean."""
+    import copy
+    libdir = os.path.join(OUT, 'lib')
+    os.makedirs(libdir, exist_ok=True)
+    bynick = {}
+    for libid, sym in syms.items():
+        nick, name = libid.split(':', 1)
+        s = copy.deepcopy(sym)
+        s[1] = q(name)
+        bynick.setdefault(nick, []).append((name, s))
+    rows = []
+    for nick in sorted(bynick):
+        doc = ['kicad_symbol_lib', ['version', '20241209'], ['generator', '"mesh_radio_sch"'],
+               ['generator_version', '"10.0"']] + [s for _, s in sorted(bynick[nick], key=lambda t: t[0])]
+        with open(os.path.join(libdir, nick + '.kicad_sym'), 'w') as fh:
+            fh.write(emit(doc) + '\n')
+        rows.append(['lib', ['name', q(nick)], ['type', '"KiCad"'], ['uri', q('${KIPRJMOD}/lib/%s.kicad_sym' % nick)],
+                     ['options', '""'], ['descr', '"Mesh Radio v1 schematic symbols"']])
+    with open(os.path.join(OUT, 'sym-lib-table'), 'w') as fh:
+        fh.write(emit(['sym_lib_table', ['version', '7']] + rows) + '\n')
 
 
 def kicad_nets(netfile):

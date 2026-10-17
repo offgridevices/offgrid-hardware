@@ -31,7 +31,7 @@ def emit(n, ind=0):
 
 
 def q(s):
-    return '"' + str(s).replace('\\', '\\\\').replace('"', '\\"') + '"'
+    return '"' + str(s).replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n') + '"'
 
 
 def uid(*key):

@@ -1,0 +1,447 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "10.0")
+	(uuid "1e0df660-60b5-6ed0-6a2a-f5098e72ebfd")
+	(paper "A3")
+	(title_block
+		(title "Mesh Radio v1 (working name)")
+		(rev "v1")
+		(company "OffGrid Devices")
+		(comment 1 "Generated from src/circuit.py by src/sch.py. Edit the circuit, not this file.")
+	)
+	(lib_symbols)
+	(sheet
+		(at 20.32 60.96)
+		(size 83.82 30.48)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "5a6865ff-c820-7b59-04c3-313017cf62ee")
+		(property "Sheetname" "Power in: USB-C, solar, drone 5 V (each surge-clamped and fused)"
+			(at 20.32 60.16 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "inputs.kicad_sch"
+			(at 20.32 92.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd"
+					(page "2")
+				)
+			)
+		)
+	)
+	(text "Every input: flat-clamp or bidirectional TVS, then a TPS259470A eFuse (over-voltage cut-off, current limit, reverse blocking). USB 5.8 V / 1.5 A, drone 5.8 V / 1.3 A, solar 10 V / 1.3 A."
+		(exclude_from_sim no)
+		(at 21.82 62.96 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+			(justify left top)
+		)
+		(uuid "996b378e-6876-4623-e2d7-218d3afdc164")
+	)
+	(sheet
+		(at 119.38 60.96)
+		(size 83.82 30.48)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "9f171647-52ea-aa63-c2e7-0af4c9c3ce05")
+		(property "Sheetname" "Charger and battery: protection, reverse polarity, battery sense"
+			(at 119.38 60.16 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "charger.kicad_sch"
+			(at 119.38 92.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd"
+					(page "3")
+				)
+			)
+		)
+	)
+	(text "Battery plug wired the Adafruit/SparkFun way (pad 1 = +). Cell protection on the minus side (OCD ~4.1 A, SCD ~21 A, OV 4.275 V, UV 2.8 V); reverse-battery P-FET on the plus side."
+		(exclude_from_sim no)
+		(at 120.88 62.96 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+			(justify left top)
+		)
+		(uuid "e25f7c86-8bde-3830-5108-7af68f941c04")
+	)
+	(sheet
+		(at 218.44 60.96)
+		(size 83.82 30.48)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "2f3f0b85-467d-aba7-63bd-0d0b1c38f73c")
+		(property "Sheetname" "System power: on/off switch, 3.3 V rail"
+			(at 218.44 60.16 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "system.kicad_sch"
+			(at 218.44 92.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd"
+					(page "4")
+				)
+			)
+		)
+	)
+	(text "The slide switch only drives the load switch enable; charging works with the board switched off."
+		(exclude_from_sim no)
+		(at 219.94 62.96 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+			(justify left top)
+		)
+		(uuid "069549cf-6ff5-fef0-77a1-e1841706575d")
+	)
+	(sheet
+		(at 317.5 60.96)
+		(size 83.82 30.48)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "3d7fa33f-8d7a-b115-7fa0-920d3d2c36be")
+		(property "Sheetname" "Processor and Bluetooth: nRF52840"
+			(at 317.5 60.16 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "mcu.kicad_sch"
+			(at 317.5 92.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd"
+					(page "5")
+				)
+			)
+		)
+	)
+	(text "nRF52840 in normal-voltage mode: VDD = VDDH = the 3.3 V rail, so its pins and the SX1262 share one logic level. REG1 DC/DC on (10 uH + 15 nH). Nordic reference circuit, aQFN73."
+		(exclude_from_sim no)
+		(at 319 62.96 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+			(justify left top)
+		)
+		(uuid "92217d79-456e-4998-4638-e5514b9a81d0")
+	)
+	(sheet
+		(at 20.32 111.76)
+		(size 83.82 30.48)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "d2839439-ccc6-636d-893e-761ca0d1a7fe")
+		(property "Sheetname" "LoRa radio: SX1262, its clock, transmit match and receive balun"
+			(at 20.32 110.96 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "radio.kicad_sch"
+			(at 20.32 143.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd"
+					(page "6")
+				)
+			)
+		)
+	)
+	(text "Semtech SX1262MB2CAS (915 MHz) reference values. TCXO on DIO3 (set 2.2 V in firmware), DIO2 drives the antenna switch."
+		(exclude_from_sim no)
+		(at 21.82 113.76 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+			(justify left top)
+		)
+		(uuid "243a77bc-56eb-f82d-771b-dcb5375a17d8")
+	)
+	(sheet
+		(at 119.38 111.76)
+		(size 83.82 30.48)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "02e2910f-2b94-2e9a-4f24-7dfc00fa15a0")
+		(property "Sheetname" "RF front end: 15 dB pad, 3 W amplifier, filters, antenna switch, LNA"
+			(at 119.38 110.96 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "frontend.kicad_sch"
+			(at 119.38 143.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd"
+					(page "7")
+				)
+			)
+		)
+	)
+	(text "Drive: SX1262 +11 dBm -> 30 dBm (1 W), +17 dBm -> ~35 dBm (3 W). The 15.9 dB pad keeps the amplifier input below its +13 dBm limit even at the SX1262 maximum (+22 dBm -> +6 dBm)."
+		(exclude_from_sim no)
+		(at 120.88 113.76 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+			(justify left top)
+		)
+		(uuid "f9af04b1-588d-fa30-f588-d9f15ab9ea41")
+	)
+	(sheet
+		(at 218.44 111.76)
+		(size 83.82 30.48)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "2b2c8bd9-9e70-fab2-afb8-de35f83d5714")
+		(property "Sheetname" "Amplifier power: battery-first supply, buck-boost, control voltage, temperature"
+			(at 218.44 110.96 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "pa_power.kicad_sch"
+			(at 218.44 143.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd"
+					(page "8")
+				)
+			)
+		)
+	)
+	(text "Amplifier runs from the battery through a power mux (charger SYS only when no battery), then a TPS63810 buck-boost set over I2C (0x75): ~2.7 V for 1 W, up to 4.0 V for 3 W."
+		(exclude_from_sim no)
+		(at 219.94 113.76 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+			(justify left top)
+		)
+		(uuid "3ee49cca-4191-67c9-b189-e26c339a4645")
+	)
+	(sheet
+		(at 317.5 111.76)
+		(size 83.82 30.48)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "7f4f5fdb-9d3f-986c-3228-336ce6b7a0b3")
+		(property "Sheetname" "Ports: drone (JST-GH), GPS add-on (JST-SH), expansion header, buttons, LEDs"
+			(at 317.5 110.96 0)
+			(effects
+				(font
+					(size 1.524 1.524)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "ports.kicad_sch"
+			(at 317.5 143.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd"
+					(page "9")
+				)
+			)
+		)
+	)
+	(text "Drone port wired as Pixhawk TELEM (pins from the autopilot side): 1 5V, 2 TX, 3 RX, 4 CTS, 5 RTS, 6 GND. Series resistors and ESD on every external signal."
+		(exclude_from_sim no)
+		(at 319 113.76 0)
+		(effects
+			(font
+				(size 1.1 1.1)
+			)
+			(justify left top)
+		)
+		(uuid "53606e41-94c1-6283-6160-35ee36d75fed")
+	)
+	(text "Mesh Radio v1 (working name) - OffGrid Devices\nLoRa 902-928 MHz mesh radio, up to ~3 W; Bluetooth LE; one LiPo cell; USB-C, solar and drone power.\nNDAA-ready parts list: every part from a US / EU / Japan / Taiwan / Korea / Norway maker.\nEach box below is one page. Every connection is a named label; the same name is the same wire.\nThis drawing is generated from src/circuit.py by src/sch.py: change the code, not the drawing."
+		(exclude_from_sim no)
+		(at 20.32 17.78 0)
+		(effects
+			(font
+				(size 1.8 1.8)
+			)
+			(justify left top)
+		)
+		(uuid "677445db-6bc3-113a-9a81-a4db6487995d")
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)

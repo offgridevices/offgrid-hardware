@@ -45,8 +45,8 @@ PARTS = {}
 # =================================================================== processor + Bluetooth
 NRF_PINS = [
     # power and regulators
-    ('Y2', 'VDDH', PI), ('AB2', 'DCCH', P), ('B1', 'VDD', PO), ('W1', 'VDD', PO), ('AD14', 'VDD', PO),
-    ('AD23', 'VDD', PO), ('A22', 'VDD', PO), ('B3', 'DCC', P), ('B5', 'DEC4', P), ('C1', 'DEC1', P),
+    ('Y2', 'VDDH', PI), ('AB2', 'DCCH', P), ('B1', 'VDD', PI), ('W1', 'VDD', PI), ('AD14', 'VDD', PI),
+    ('AD23', 'VDD', PI), ('A22', 'VDD', PI), ('B3', 'DCC', P), ('B5', 'DEC4', P), ('C1', 'DEC1', P),
     ('A18', 'DEC2', P), ('D23', 'DEC3', P), ('N24', 'DEC5', P), ('E24', 'DEC6', P),
     ('AD2', 'VBUS', PI), ('AC5', 'DECUSB', P), ('AD4', 'D-', B), ('AD6', 'D+', B),
     ('B7', 'VSS', PI), ('0', 'VSS (EP)', PI), ('F23', 'VSS_PA', PI),
@@ -68,7 +68,7 @@ NRF_PINS = [
     ('A14', 'P1.15', B),
 ]
 PARTS['NRF52840'] = ic(
-    'NRF52840-QIAA-R', ('Nordic Semiconductor', NO), 'C190794', '',
+    'NRF52840-QIAA-F-R7', ('Nordic Semiconductor', NO), 'C3606858', '',
     'og:AQFN-73_L7.0-W7.0-P0.50-BL-EP4.8',
     'Bluetooth LE SoC, Cortex-M4F 64 MHz, 1 MB flash, 256 KB RAM, USB, aQFN-73 7 x 7',
     NRF_PINS,
@@ -96,11 +96,17 @@ PARTS['SX1262'] = ic(
 PARTS['TCXO32'] = ic(
     'ECS-TXO-20CSMV4-320-AY-TR', ('ECS Inc.', US), 'C19858587', '', 'og:OSC-SMD_4P-L2.0-W1.6-BL',
     'TCXO 32 MHz +/-0.5 ppm, clipped sine, 2.0 x 1.6',
-    [('1', 'GND', PI), ('2', 'GND', PI), ('3', 'OUT', O), ('4', 'VDD', PI)],
+    [('1', 'GND', PI), ('2', 'GND', PI), ('3', 'OUT', O), ('4', 'VDD', P)],
     left=['4', '1', '2'], right=['3'], prefix='Y')
 
 # =================================================================== RF front end
-QPA_PINS = []   # filled in once its datasheet pin table is confirmed (docs/part-audit.md)
+PARTS['QPA9510'] = ic(
+    'QPA9510TR7', ('Qorvo', US), 'C52059849', '', 'og:QFN-16_3x3_QPA9510',
+    'Power amplifier 100-1000 MHz, 35.4 dBm at 3.6 V, 33.8 dB gain, QFN-16 3 x 3',
+    [('1', 'VCC1', PI), ('2', 'GND1', PI), ('3', 'RF IN', P), ('4', 'GND2', PI), ('5', 'VCC2', PI), ('6', 'VCC2', PI),
+     ('7', 'NC', NC), ('8', '2F0', P), ('9', 'RF OUT', P), ('10', 'RF OUT', P), ('11', 'RF OUT', P), ('12', 'RF OUT', P),
+     ('13', 'NC', NC), ('14', 'VCC (bias)', PI), ('15', 'APC2', I), ('16', 'APC1', I), ('17', 'GND (EP)', PI)],
+    left=['3', '-', '16', '15', '-', '1', '5', '6', '14'], right=['9', '10', '11', '12', '8', '-', '2', '4', '17', '7', '13'])
 
 PARTS['SKY13330'] = ic(
     'SKY13330-397LF', ('Skyworks Solutions', US), 'C2654715', '',
@@ -141,7 +147,7 @@ PARTS['TPS259470A'] = ic(
     'TPS259470ARPWR', TI, 'C3662799', '', 'og:VQFN-10_L2.0-W2.0-P0.45-TL',
     'eFuse 2.7-23 V, adjustable over-voltage and current limit, reverse blocking, auto-retry, QFN-10 2 x 2',
     [('1', 'EN/UVLO', I), ('2', 'OVLO', I), ('3', 'PG', OC), ('4', 'FLT', OC), ('5', 'IN', PI),
-     ('6', 'OUT', PO), ('7', 'DVDT', P), ('8', 'GND', PI), ('9', 'ILM', P), ('10', 'ITIMER', P)],
+     ('6', 'OUT', P), ('7', 'DVDT', P), ('8', 'GND', PI), ('9', 'ILM', P), ('10', 'ITIMER', P)],
     left=['5', '1', '2', '7', '9', '10'], right=['6', '3', '4', '8'])
 
 PARTS['BQ25185'] = ic(
@@ -174,7 +180,7 @@ PARTS['CSD25485F5'] = ic(
 PARTS['TPS2121'] = ic(
     'TPS2121RUXR', TI, 'C485916', '', 'og:VQFN-12_TPS2121RUX',
     'Power mux 2.8-22 V, 4.5 A, priority switch-over, QFN-12 2 x 2 (amplifier supply: battery, else SYS)',
-    [('1', 'OUT', PO), ('8', 'OUT', PO), ('2', 'IN2', PI), ('7', 'IN1', PI), ('3', 'CP2', P), ('4', 'OV2', I),
+    [('1', 'OUT', PO), ('8', 'OUT', P), ('2', 'IN2', PI), ('7', 'IN1', PI), ('3', 'CP2', P), ('4', 'OV2', I),
      ('5', 'OV1', I), ('6', 'PR1', I), ('9', 'ST', OC), ('10', 'ILM', P), ('11', 'SS', P), ('12', 'GND', PI)],
     left=['7', '2', '6', '5', '4', '3'], right=['1', '8', '9', '10', '11', '12'])
 
@@ -183,7 +189,7 @@ PARTS['TPS63810'] = ic(
     'Buck-boost 2.2-5.5 V in, 1.8-5.2 V out (I2C), 2.5 A, 13 uA, WCSP-15 (amplifier supply)',
     [('A1', 'EN', I), ('A2', 'VIN', PI), ('A3', 'VIN', PI), ('B1', 'VSEL', I), ('B2', 'LX1', P), ('B3', 'LX1', P),
      ('C1', 'AGND', PI), ('C2', 'GND', PI), ('C3', 'GND', PI), ('D1', 'SCL', I), ('D2', 'LX2', P), ('D3', 'LX2', P),
-     ('E1', 'SDA', B), ('E2', 'VOUT', PO), ('E3', 'VOUT', PO)],
+     ('E1', 'SDA', B), ('E2', 'VOUT', PO), ('E3', 'VOUT', P)],
     left=['A2', 'A3', 'A1', 'B1', 'D1', 'E1'], right=['E2', 'E3', 'B2', 'B3', 'D2', 'D3', 'C1', 'C2', 'C3'])
 
 PARTS['TPS62840'] = ic(
@@ -196,7 +202,7 @@ PARTS['TPS22965'] = ic(
     'TPS22965DSGR', TI, 'C122837', '', 'og:UDFN-8_L2.0-W2.0-P0.50-TL-EP',
     'Load switch 5.7 V 4 A, 16 mOhm, quick output discharge, WSON-8 2 x 2 (main power switch)',
     [('1', 'VIN', PI), ('2', 'VIN', PI), ('3', 'ON', I), ('4', 'VBIAS', PI), ('5', 'GND', PI), ('6', 'CT', P),
-     ('7', 'VOUT', PO), ('8', 'VOUT', PO), ('9', 'GND (EP)', PI)],
+     ('7', 'VOUT', PO), ('8', 'VOUT', P), ('9', 'GND (EP)', PI)],
     left=['1', '2', '4', '3', '6'], right=['7', '8', '5', '9'])
 
 PARTS['TLV75528'] = ic(
@@ -267,3 +273,125 @@ PARTS['HDR_2x10'] = dict(
     sym='box', kind='J', dnp=True,
     symbol=dict(prefix='J', left=[str(i) for i in range(1, 21, 2)], right=[str(i) for i in range(2, 21, 2)],
                 pins={str(i): (str(i), P) for i in range(1, 21)}))
+
+# =================================================================== small parts
+def _two(kind, key, mpn, maker, lcsc, fp, value, desc, sym, pinmap=None, **kw):
+    m, hq = maker
+    PARTS[key] = dict(mpn=mpn, maker=m, hq=hq, lcsc=lcsc, digikey='', fp=fp, value=value, desc=desc,
+                      sym=sym, kind=kind, **({'pinmap': pinmap} if pinmap else {}), **kw)
+
+SAMSUNG, MURATA, YAGEO, TDK, ROHM, LITEON, ABRACON, PANASONIC, COILCRAFT, CK, OMRON, LITTELFUSE = (
+    ('Samsung Electro-Mechanics', KR), ('Murata', JP), ('Yageo', TW), ('TDK', JP), ('Rohm', JP),
+    ('Lite-On', TW), ('Abracon', US), ('Panasonic', JP), ('Coilcraft', US), ('C&K', US),
+    ('Omron (Aratas)', JP), ('Littelfuse', US))
+
+FP = {'0402': 'og:C_0402', '0603': 'og:C_0603', '0805': 'og:C_0805', '1206': 'og:R_1206'}
+
+def cap(key, value, size, rating, mpn, lcsc, maker=SAMSUNG):
+    _two('C', key, mpn, maker, lcsc, 'og:C_%s' % size, value, 'Capacitor %s %s %s' % (value, rating, size),
+         ('Device', 'C'))
+
+def res(key, value, size, mpn, lcsc, maker=YAGEO, note='1%'):
+    _two('R', key, mpn, maker, lcsc, 'og:R_%s' % size, value, 'Resistor %s %s %s' % (value, note, size),
+         ('Device', 'R'))
+
+def ind(key, value, size, mpn, lcsc, maker=MURATA, note=''):
+    _two('L', key, mpn, maker, lcsc, 'og:L_%s' % size, value, 'Inductor %s %s %s' % (value, size, note),
+         ('Device', 'L'))
+
+# decoupling and bulk (X7R/X5R, voltage rating >= 1.5x working)
+cap('C100n', '100nF', '0402', '16V X7R', 'CL05B104KO5NNNC', 'C1525')
+cap('C1u', '1uF', '0402', '16V X5R', 'CL05A105KO5NNNC', 'C29266')
+cap('C1u25', '1uF', '0603', '25V X7R', 'CL10B105KA8NNNC', 'C29936')
+cap('C470n', '470nF', '0402', '16V X5R', 'CL05A474KO5NNNC', 'C480644')
+cap('C2u2', '2.2uF', '0402', '6.3V X5R', 'CL05A225MQ5NSNC', 'C12530')
+cap('C4u7', '4.7uF', '0603', '10V X5R', 'CL10A475KP8NNNC', 'C1705')
+cap('C10u', '10uF', '0603', '10V X5R', 'CL10A106KP8NNNC', 'C19702')
+cap('C10u25', '10uF', '0805', '25V X5R', 'CL21A106KAYNNNE', 'C15850')
+cap('C22u25', '22uF', '0805', '25V X5R', 'CL21A226MAQNNNE', 'C45783')
+cap('C47u', '47uF', '0805', '6.3V X5R', 'CL21A476MQYNNNE', 'C16780')
+cap('C47n', '47nF', '0402', '16V X7R', 'CL05B473KO5NNNC', 'C307434')
+cap('C10n', '10nF', '0402', '50V X7R', 'CL05B103KB5NNNC', 'C15195')
+cap('C1n', '1nF', '0402', '50V C0G', 'GRM1555C1H102JA01D', 'C76947', MURATA)
+cap('C820p', '820pF', '0402', '50V C0G', 'GRM1555C1H821JA01D', 'C85943', MURATA)
+cap('C100p', '100pF', '0402', '50V C0G', 'GRM1555C1H101JA01D', 'C77177', MURATA)
+cap('C22p', '22pF', '0402', '50V C0G', 'GRM1555C1H220JA01D', 'C76960', MURATA)
+cap('C12p', '12pF', '0402', '50V C0G', 'CL05C120JB5NNNC', 'C26406')
+# RF: Murata GJM high-Q C0G
+for v, code, lc in [('0.5pF', 'R50B', 'C76911'), ('0.8pF', 'R80B', 'C76915'), ('1.0pF', '1R0B', 'C76898'),
+                    ('1.5pF', '1R5B', 'C76900'), ('1.8pF', '1R8B', 'C76902'), ('2.4pF', '2R4B', 'C88888'),
+                    ('3.0pF', '3R0B', 'C88891'), ('5.6pF', '5R6B', 'C161329'), ('10pF', '100J', 'C85874'),
+                    ('11pF', '110J', 'C426107'), ('15pF', '150J', 'C88877'), ('27pF', '270J', 'C88884'),
+                    ('39pF', '390J', 'C426038'), ('47pF', '470J', 'C161322')]:
+    cap('RF' + v, v, '0402', '50V C0G high-Q', 'GJM1555C1H%sB01D' % code, lc, MURATA)
+# PA harmonic filter: 250 V C0G (an open antenna roughly doubles the RF voltage)
+for v, size, mpn, lc in [('0.7pF', '0805', 'GQM2195C2ER70WB12D', 'C3908487'), ('1.5pF', '0805', 'GQM2195C2E1R5BB12D', 'C2173009'),
+                         ('2.7pF', '0805', 'GQM2195C2E2R7BB12D', 'C668330'), ('3.3pF', '0603', 'GQM1875C2E3R3BB12D', 'C882553'),
+                         ('4.3pF', '0805', 'GQM2195C2E4R3BB12D', 'C668332')]:
+    cap('HV' + v, v, size, '250V C0G high-Q', mpn, lc, MURATA)
+
+for v, code, lc in [('0R', '0R', 'C106231'), ('22R', '22R', 'C114765'), ('330R', '330R', 'C105875'), ('470R', '470R', 'C114877'),
+                    ('604R', '604R', 'C273693'), ('1k', '1K', 'C106235'), ('2.2k', '2K2', 'C114762'), ('2.21k', '2K21', 'C138019'),
+                    ('2.49k', '2K49', 'C145071'), ('4.7k', '4K7', 'C105871'), ('5.1k', '5K1', 'C105872'), ('10k', '10K', 'C60490'),
+                    ('13k', '13K', 'C138057'), ('15k', '15K', 'C114761'), ('22.1k', '22K1', 'C163478'), ('47k', '47K', 'C93943'),
+                    ('100k', '100K', 'C60491'), ('137k', '137K', 'C138058'), ('220k', '220K', 'C138030'), ('261k', '261K', 'C185437'),
+                    ('267k', '267K', 'C327360'), ('301k', '301K', 'C171693'), ('330k', '330K', 'C138006'), ('383k', '383K', 'C163468'),
+                    ('510k', '510K', 'C137961'), ('562k', '562K', 'C273337'), ('1M', '1M', 'C138033'), ('1.5M', '1M5', 'C138034')]:
+    res('R' + v, v, '0402', 'RC0402FR-07%sL' % code, lc)
+res('R68_0805', '68R', '0805', 'RC0805FR-0768RL', 'C137498')
+res('R150_0805', '150R', '0805', 'RC0805FR-07150RL', 'C114523')
+res('R22m', '22mR', '1206', 'ERJ-8BWFR022V', 'C2075813', PANASONIC, '1% 1 W')
+
+ind('L10u', '10uH', '0805', 'MLZ2012M100WT000', 'C88173', TDK, 'nRF52840 DC/DC')
+ind('L15u', '15uH', '0805', 'MLZ2012M150WT000', 'C383402', TDK, 'SX1262 DC/DC')
+ind('L2u2', '2.2uH', '0806', 'DFE201610E-2R2M=P2', 'C337891', MURATA, '3.3 V buck')
+ind('L470n', '0.47uH', '1008', 'DFE252012F-R47M=P2', 'C703140', MURATA, 'amplifier buck-boost')
+for v, mpn, lc in [('1.5nH', 'LQW15AN1N5C00D', 'C167468'), ('2.5nH', 'LQW15AN2N5C00D', 'C703121'), ('2.7nH', 'LQW15AN2N7C00D', 'C98058'),
+                   ('3.9nH', 'LQW15AN3N9C00D', 'C98063'), ('4.7nH', 'LQW15AN4N7C00D', 'C167480'), ('5.1nH', 'LQW15AN5N1C00D', 'C113117'),
+                   ('11nH', 'LQW15AN11NJ00D', 'C167465'), ('15nH', 'LQW15AN15NJ00D', 'C94079'), ('47nH', 'LQW15AN47NJ00D', 'C192855')]:
+    ind('L' + v, v, '0402', mpn, lc, MURATA, 'wire-wound RF')
+ind('L4.7nH_0603', '4.7nH', '0603', 'LQW18AN4N7D00D', 'C98078', MURATA, 'wire-wound RF, harmonic filter')
+ind('L5.6nH_0603', '5.6nH', '0603', 'LQW18AN5N6C00D', 'C98081', MURATA, 'wire-wound RF, harmonic filter')
+ind('L11nH_0603', '11nH', '0603', 'LQW18AN11NG00D', 'C701196', MURATA, 'wire-wound RF, amplifier supply feed')
+ind('L8.1nH_PA', '8.1nH', '0908SQ', '0908SQ-8N1', 'C19191636', COILCRAFT, 'air-core, amplifier output choke (carries the 1.7 A collector current)')
+_two('FB', 'FB120', 'BLM15AG100SN1D', MURATA, 'C76882', 'og:L_0402', '10R@100MHz', 'Ferrite bead 0402', ('Device', 'FerriteBead_Small'))
+
+# diodes, LEDs, discretes
+_two('D', 'RB060MM', 'RB060MM-30TR', ROHM, 'C308720', 'og:SOD-123FL', 'RB060MM-30', 'Schottky 30 V 2 A, SOD-123FL',
+     ('Device', 'D_Schottky'), {'K': '1', 'A': '2'})
+_two('D', 'SMF15CA', 'SMF15CA', LITTELFUSE, 'C1851361', 'og:SOD-123FL', 'SMF15CA', 'TVS bidirectional 15 V standoff, 200 W, SOD-123FL',
+     ('Device', 'D_TVS'), {'A1': '1', 'A2': '2'})
+for key, mpn, lc, col in [('LED_R', 'LTST-C191KRKT', 'C125099', 'red'), ('LED_G', 'LTST-C191KGKT', 'C125098', 'green'),
+                          ('LED_B', 'LTST-C191TBKT', 'C99290', 'blue')]:
+    _two('LED', key, mpn, LITEON, lc, 'og:LED0603-RD', col, 'LED %s 0603' % col, ('Device', 'LED'), {'K': '1', 'A': '2'})
+_two('Y', 'XTAL32M', 'ABM11W-32.0000MHZ-8-D1X-T3', ABRACON, 'C5189005', 'og:CRYSTAL-SMD_4P-L2.0-W1.6-BL_CXAN-211',
+     '32MHz', 'Crystal 32 MHz CL 8 pF, 2.0 x 1.6, -40..85 C', ('Device', 'Crystal_GND24'), {'1': '1', '3': '3', 'G': '2'},
+     lie=False)
+_two('Y', 'XTAL32K', 'ABS07-32.768KHZ-7-T', ABRACON, 'C276424', 'og:ABS07', '32.768kHz', 'Crystal 32.768 kHz CL 7 pF, 3.2 x 1.5',
+     ('Device', 'Crystal'), None)
+_two('TH', 'NTC10K', 'NCP15XH103F03RC', MURATA, 'C77131', 'og:R_0402', '10k NTC', 'Thermistor NTC 10 k B3380, 0402',
+     ('Device', 'Thermistor_NTC'))
+_two('SW', 'B3U', 'B3U-1000P', OMRON, 'C231329', 'og:KEY-SMD_B3U-1000PM', 'B3U-1000P', 'Tactile switch, top push',
+     ('Switch', 'SW_Push'))
+PARTS['SLIDE'] = ic('JS102011SAQN', CK, 'C221660', '', 'og:SW-SMD_JS102011SAQN',
+                    'Slide switch SPDT 300 mA (drives the power switch enable, carries no load current)',
+                    [('1', 'A', P), ('2', 'COM', P), ('3', 'B', P)], left=['2'], right=['1', '3'], prefix='SW')
+PARTS['TPS22916'] = ic('TPS22916CYFPR', TI, 'C2680319', '', 'og:DSBGA-4_TPS22916',
+                       'Load switch 5.5 V 2 A, 0.5 uA, WCSP-4 (GPS add-on supply)',
+                       [('A1', 'VOUT', PO), ('A2', 'VIN', PI), ('B1', 'GND', PI), ('B2', 'ON', I)],
+                       left=['A2', 'B2'], right=['A1', 'B1'])
+# 2N7002-class N-FET to turn the amplifier power mux on with the board
+_two('Q', 'NMOS', 'SSM3K56ACT,L3F', ('Toshiba', JP), 'C146308', 'og:SOT-883', 'SSM3K56ACT', 'N-MOSFET 20 V 0.8 A, logic level, CST3',
+     ('Device', 'Q_NMOS'), {'G': '1', 'S': '2', 'D': '3'})
+
+res('R220R', '220R', '0402', 'RC0402FR-07220RL', 'C112291')
+ind('L1.6nH', '1.6nH', '0402', 'LQG15HS1N6S02D', 'C162539', MURATA, 'multilayer RF')
+ind('L3.6nH_0603', '3.6nH', '0603', 'LQW18AN3N6D00D', 'C341694', MURATA, 'wire-wound RF, amplifier output match')
+for v, size, mpn, lc in [('5.6pF', '0603', 'GQM1875C2E5R6CB12D', 'C2171689'), ('10pF', '0603', 'GQM1875C2E100JB12D', 'C882554'),
+                         ('15pF', '0603', 'GQM1875C2E150JB12D', 'C2181572'), ('47pF', '0603', 'GQM1875C2E470JB12D', 'C882552')]:
+    cap('HV' + v, v, size, '250V C0G high-Q', mpn, lc, MURATA)
+# test pads: bare copper, not an assembled part
+PARTS['TP'] = dict(mpn='(copper pad)', maker='', hq='', lcsc='', digikey='', fp='og:TestPoint_Pad_1.0mm',
+                   value='TP', desc='Test pad', sym=('Connector', 'TestPoint'), kind='TP', pinmap={'1': '1'},
+                   assembled=False, lie=False)
+PARTS['HDR_2x10']['assembled'] = False
