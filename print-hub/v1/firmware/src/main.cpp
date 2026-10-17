@@ -236,7 +236,7 @@ static void update_leds(uint32_t now) {
       c = ((now / 250) & 1) ? 0x200000 : 0;                   // red blink: tripped
     else if (s.last_off == hub::Why::shed || s.last_off == hub::Why::no_power) c = 0x201000;  // amber
     else c = 0;
-    board.set_led(p, c);
+    board.set_led(hub::NPORTS - p, c);   // the chain runs status, USB5 ... USB1
   }
   // the status LED: green on Wi-Fi, blue blink in setup mode, red when no charger
   uint32_t st;
@@ -244,7 +244,7 @@ static void update_leds(uint32_t now) {
   else if (WiFi.status() == WL_CONNECTED) st = 0x002000;
   else if (ap_mode) st = ((now / 500) & 1) ? 0x000030 : 0;
   else st = 0x101000;
-  board.set_led(hub::NPORTS, st);
+  board.set_led(0, st);
   board.show_leds();
 }
 

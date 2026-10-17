@@ -16,7 +16,7 @@ constexpr uint8_t FLT[hub::NPORTS] = {14, 15, 16, 17, 18};    // power switch fa
 constexpr uint8_t ISENSE[hub::NPORTS] = {1, 2, 4, 5, 6};      // current-sense amplifier out (ADC1)
 constexpr uint8_t VIN_SENSE = 7;    // POWER IN voltage through a divider (ADC1)
 constexpr uint8_t RAIL_SENSE = 8;   // the 5 V port rail through a divider (ADC1)
-constexpr uint8_t LED_DATA = 38;    // WS2812-type chain: USB1..USB5 then status
+constexpr uint8_t LED_DATA = 38;    // WS2812B chain: status, then USB5 ... USB1
 constexpr uint8_t I2C_SDA = 39;     // USB-PD sink controller
 constexpr uint8_t I2C_SCL = 40;
 constexpr uint8_t BUTTON = 0;       // BOOT button, low = pressed
@@ -29,7 +29,7 @@ constexpr float SHUNT_OHM = 0.020f;
 constexpr float AMP_GAIN = 50.0f;
 constexpr float MV_PER_MA = SHUNT_OHM * AMP_GAIN;   // 1.0 mV per mA
 // dividers: (top + bottom) / bottom
-constexpr float VIN_DIV = (100.0f + 22.0f) / 22.0f;
+constexpr float VIN_DIV = (100.0f + 15.0f) / 15.0f;
 constexpr float RAIL_DIV = (100.0f + 100.0f) / 100.0f;
 }  // namespace scale
 
@@ -56,6 +56,7 @@ class Board : public hub::Hal {
   uint16_t pd_mv_ = 0, pd_ma_ = 0;   // the charger's contract: volts and amps it offers
   std::string contract_ = "none";
   uint32_t pd_at_ = 0;
+  bool asked_ = false;               // asked for the 9 V offer since plug-in
   bool button_was_ = false;
   uint32_t button_at_ = 0;
 };

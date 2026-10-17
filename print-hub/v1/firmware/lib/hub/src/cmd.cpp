@@ -134,7 +134,7 @@ std::string run(Hub &h, const std::string &line, uint32_t now, const Extra &x, b
       snprintf(c.name, sizeof c.name, "%s", w[2].c_str());
     } else if (verb == "limit") {
       long v = strtol(w[2].c_str(), nullptr, 10);
-      if (v < 100 || v > MAX_LIMIT_MA) return err("limit: 100 to 2000 mA");
+      if (v < 100 || v > MAX_LIMIT_MA) return err("limit: 100 to 1800 mA");
       c.limit_ma = (uint16_t)v;
     } else if (verb == "priority") {
       long v = strtol(w[2].c_str(), nullptr, 10);

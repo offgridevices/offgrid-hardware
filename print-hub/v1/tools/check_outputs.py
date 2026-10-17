@@ -1,6 +1,6 @@
 """CI: the fab files make.py just wrote must equal the committed ones.
 
-    python3 tools/check_outputs.py      (from ridge3-lite/v1, after make.py)
+    python3 tools/check_outputs.py      (from print-hub/v1, after make.py)
 
 Compares against git HEAD.  The Gerber zip is compared file by file with
 the creation-date stamps KiCad writes left out (they change every run);
@@ -10,7 +10,7 @@ The assembly PDF is not compared: it embeds its creation time and is drawn
 from the same board file as the Gerbers."""
 import io, re, subprocess, sys, zipfile
 
-NAME = 'ridge3-lite'
+NAME = 'print-hub'
 DATE = re.compile(r'CreationDate|^G04 Created by .* date |^; DRILL file .* date ')
 
 

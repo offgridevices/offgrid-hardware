@@ -97,17 +97,17 @@ int main() {
   // a port over its own limit is switched off, not during the switch-on surge
   {
     Fake f; Hub h(f); uint32_t now = 100;
-    f.draw[0] = 1900;                       // over the 1800 default
+    f.draw[0] = 1600;                       // over the 1500 default
     CHECK(ok(cmd(h, "on 1", now)));
     run_for(h, now, SETTLE_MS - 20);
     CHECK(f.en[0]);
     run_for(h, now, TRIP_MS + 50);
     CHECK(!f.en[0] && h.state(0).last_off == Why::overcurrent);
-    CHECK(ok(cmd(h, "limit 1 2000", now)));
+    CHECK(ok(cmd(h, "limit 1 1800", now)));
     CHECK(ok(cmd(h, "on 1", now)));
     run_for(h, now, 3000);
     CHECK(f.en[0]);
-    CHECK(!ok(cmd(h, "limit 1 2500", now)));
+    CHECK(!ok(cmd(h, "limit 1 1900", now)));
   }
   // a short spike over the limit does not trip
   {

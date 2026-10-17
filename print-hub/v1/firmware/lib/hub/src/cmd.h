@@ -7,7 +7,7 @@
 //   off fan [after 10m]            switch off (optionally later)
 //   on all / off all
 //   name 1 fan                     name port 1 "fan" (letters, digits, - _)
-//   limit fan 1200                 software current limit, mA (100..2000)
+//   limit fan 1200                 software current limit, mA (100..1800)
 //   priority fan 1                 1 = switched off last when power runs short
 //   boot fan on|off                switch on at power-up
 //   budget 2500 | budget auto      override what the charger reports

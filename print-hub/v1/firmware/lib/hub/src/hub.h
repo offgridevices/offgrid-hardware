@@ -30,8 +30,8 @@ constexpr uint32_t TRIP_MS = 500;      // over a port's limit this long: off
 constexpr uint32_t SHED_MS = 1000;     // over the input budget this long: shed one port
 constexpr uint32_t STAGGER_MS = 250;   // between ports switched on together
 constexpr uint32_t SETTLE_MS = 300;    // ignore a port's current this long after switch-on (surge)
-constexpr uint16_t DEFAULT_LIMIT_MA = 1800;
-constexpr uint16_t MAX_LIMIT_MA = 2000;     // the switch chip's own limit is above this
+constexpr uint16_t DEFAULT_LIMIT_MA = 1500;
+constexpr uint16_t MAX_LIMIT_MA = 1800;     // the switch chip's own limit is 1.92 A at least
 constexpr uint16_t DEFAULT_EXPECT_MA = 500; // a port never seen on is assumed to draw this
 
 struct PortConfig {

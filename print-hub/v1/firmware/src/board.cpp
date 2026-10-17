@@ -3,11 +3,17 @@
 #include <stdio.h>
 
 // The USB-PD sink controller (Hynetek HUSB238) on I2C: it asks the charger
-// for 9 V by itself (its VSET resistor) and reports the contract here.
+// for 9 V by itself (its VSET resistor) and reports the contract here
+// (register map: Hynetek "HUSB238 Register Information" rev 1.1).
 namespace husb238 {
 constexpr uint8_t ADDR = 0x08;
 constexpr uint8_t PD_STATUS0 = 0x00;   // [7:4] contract volts, [3:0] contract amps
 constexpr uint8_t PD_STATUS1 = 0x01;   // [6] attached, [5:3] PD response, [2] 5 V, [1:0] Type-C 5 V current
+constexpr uint8_t SRC_PDO_9V = 0x03;   // [7] the charger offers 9 V, [3:0] at this current
+constexpr uint8_t SRC_PDO = 0x08;      // [7:4] which offer to request
+constexpr uint8_t GO_COMMAND = 0x09;
+constexpr uint8_t SELECT_9V = 0x20;
+constexpr uint8_t GO_REQUEST = 0x01;
 const uint16_t VOLTS_MV[16] = {0, 5000, 9000, 12000, 15000, 18000, 20000};
 const uint16_t AMPS_MA[16] = {500, 700, 1000, 1250, 1500, 1750, 2000, 2250,
                               2500, 2750, 3000, 3250, 3500, 4000, 4500, 5000};
@@ -64,41 +70,57 @@ static bool read_reg(uint8_t reg, uint8_t *v) {
   return true;
 }
 
+static bool write_reg(uint8_t reg, uint8_t v) {
+  Wire.beginTransmission(husb238::ADDR);
+  Wire.write(reg);
+  Wire.write(v);
+  return Wire.endTransmission() == 0;
+}
+
 void Board::read_pd() {
-  uint8_t s0, s1;
-  char buf[40];
+  uint8_t s0, s1, pdo9;
+  char buf[48];
   if (vin_mv_ < 4000) {                      // nothing on POWER IN
     pd_mv_ = pd_ma_ = 0;
+    asked_ = false;
     contract_ = "none";
     return;
   }
   if (!read_reg(husb238::PD_STATUS0, &s0) || !read_reg(husb238::PD_STATUS1, &s1)) {
-    // no answer: assume a plain 5 V source at the USB default
-    pd_mv_ = 5000; pd_ma_ = 500;
-    contract_ = "unknown (PD chip not answering)";
+    pd_mv_ = pd_ma_ = 0;
+    contract_ = "unknown (USB-PD chip not answering)";
     return;
   }
+  // The VSET/ISET resistors ask for 9 V at 2 A, so a 20 W charger still
+  // gives 9 V.  Once, after each plug-in, ask over I2C for the charger's
+  // 9 V offer itself, which the chip then requests at its full current.
+  if (!asked_ && read_reg(husb238::SRC_PDO_9V, &pdo9) && (pdo9 & 0x80)) {
+    write_reg(husb238::SRC_PDO, husb238::SELECT_9V);
+    write_reg(husb238::GO_COMMAND, husb238::GO_REQUEST);
+    asked_ = true;
+  }
   uint16_t mv = husb238::VOLTS_MV[s0 >> 4];
-  if (((s1 >> 3) & 7) == 1 && mv) {          // PD contract made
+  if (((s1 >> 3) & 7) == 1 && mv) {          // USB-PD contract made
     pd_mv_ = mv;
     pd_ma_ = husb238::AMPS_MA[s0 & 15];
-    snprintf(buf, sizeof buf, "%uV %.2gA USB-PD", mv / 1000, pd_ma_ / 1000.0);
-  } else {                                   // a plain Type-C source: 5 V at its advertised current
+    snprintf(buf, sizeof buf, "%uV %.3gA USB-PD", mv / 1000, pd_ma_ / 1000.0);
+  } else {                                   // a plain Type-C source: 5 V only
     pd_mv_ = 5000;
     pd_ma_ = husb238::TYPEC_MA[s1 & 3];
-    snprintf(buf, sizeof buf, "5V %.2gA Type-C", pd_ma_ / 1000.0);
+    snprintf(buf, sizeof buf, "5V %.3gA (no USB-PD)", pd_ma_ / 1000.0);
   }
   contract_ = buf;
+  if (pd_mv_ < 9000) contract_ += ": needs a USB-PD charger with 9 V";
 }
 
 uint16_t Board::input_budget_ma() {
-  if (!pd_mv_ || vin_mv_ < 4000) return 0;
-  // power in from the charger, through the buck at its efficiency (on a
-  // 5 V source the buck passes the input straight through), less what
-  // the board uses, less 10 % margin, and never over the buck's rating
-  float watts = (pd_mv_ / 1000.0f) * (pd_ma_ / 1000.0f) * (pd_mv_ > 5000 ? BUCK_EFF : 0.97f);
-  float ma = watts / RAIL_V * 1000.0f - BOARD_MA;
-  ma *= 0.9f;
+  // The buck needs 9 V or more to make 5.16 V: below that the ports get
+  // nothing (a 5 V source would leave about 4.3 V on them).
+  if (pd_mv_ < 9000 || vin_mv_ < 8000) return 0;
+  // power in from the charger, through the buck at its efficiency, less
+  // what the board uses, less 10 % margin, never over the buck's rating
+  float watts = (pd_mv_ / 1000.0f) * (pd_ma_ / 1000.0f) * BUCK_EFF;
+  float ma = (watts / RAIL_V * 1000.0f - BOARD_MA) * 0.9f;
   if (ma > BUCK_MAX_MA) ma = BUCK_MAX_MA;
   return clamp16(ma);
 }

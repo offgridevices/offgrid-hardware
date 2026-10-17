@@ -126,3 +126,50 @@ jobs:
       # Firmware pin maps, parts, fab outputs, simulations' verdicts.
       - name: Design checks (verify.py)
         run: python3 src/verify.py
+
+  print-hub-v1:
+    # Print Hub (print-hub/v1).  Same pinned KiCad image as the board's
+    # toolchain (print-hub/v1/tools/Dockerfile), by digest.  The routed board
+    # is the design of record: the artwork is rebuilt from src/, then every
+    # gate and the fab files, which must equal the committed ones.  Then the
+    # design checks, the power-chain analysis and the firmware's host tests.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 30
+    container:
+      image: kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
+      options: --user root
+    defaults:
+      run:
+        working-directory: print-hub/v1
+    env:
+      HOME: /tmp
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git g++ make > /dev/null
+          pip3 install --break-system-packages -q numpy==2.5.4 shapely==2.2.0 Pillow==13.0.0 \
+            pypdf==6.21.1 uharfbuzz==0.56.3 fonttools==4.67.0
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Artwork from src/ (brand.py, silk.py), circuit gates, KiCad DRC
+      # (0 / 0 / 0), net check, Gerbers, BOM, CPL.
+      - name: Build artwork and fab files (make.py)
+        run: python3 src/make.py --artwork --fab-only
+
+      - name: Committed fab files match the build
+        run: python3 tools/check_outputs.py
+
+      - name: Power-chain analysis (sim/power_budget.py)
+        run: python3 sim/power_budget.py
+
+      # Firmware pin map and scaling against the circuit, LED chain, port
+      # parts, simulation verdicts.
+      - name: Design checks (verify.py)
+        run: python3 src/verify.py
+
+      - name: Firmware host tests
+        run: make -C firmware/test
