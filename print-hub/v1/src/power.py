@@ -3,8 +3,6 @@
 
   input     POWER IN's two VBUS contacts -> a bar -> a 9 V pour on F.Cu that
             takes in the TVS, the buck's input capacitors and its IN pins
-  CC        each CC contact drops through a via just below the connector
-            and goes on to the PD chip on B.Cu (the routers' job)
   LX        the buck's switch node is an inner pad (the octagon between its
             ground pads): it leaves to the left through the 0.75 mm gap
             between them, then a 1.5 mm track to the inductor
@@ -44,13 +42,6 @@ def draw(b):
     vin = [(-36.6, bar_y - 0.4), (-30.8, bar_y - 0.4), (-30.8, -15.7), (-35.6, -15.7), (-35.6, -13.3),
            (u2[0] + 1.0, -13.3), (u2[0] + 1.0, -15.7), (-36.6, -15.7)]
     pcb.zone(b, 'VBUS_IN', F, vin, clearance=0.25, thermal=False, priority=2, name='9 V input')
-    # ---- CC: a via below each contact, on to B.Cu
-    for pad, dx in (('A5', 0.0), ('B5', 0.35)):
-        x, y = pa('J1', pad)
-        dx = dx if x < -38 else -dx
-        pcb.track(b, [(x, y), (x, y + 0.7), (x + dx, y + 1.3)], 0.25, F, b.FindFootprintByReference('J1')
-                  .FindPadByNumber(pad).GetNetname())
-        pcb.via(b, x + dx, y + 1.3, b.FindFootprintByReference('J1').FindPadByNumber(pad).GetNetname())
     # ---- LX: out of the octagon to the left, then wide to the inductor
     lx = pa('U2', '2')
     ch_y = u2[1] + 0.425                     # the gap between ground pads 1 and 3
