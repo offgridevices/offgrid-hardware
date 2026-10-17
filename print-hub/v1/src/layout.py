@@ -30,20 +30,23 @@ def port_parts(n):
     and the port block's datum line y = 0 at USBA_Y."""
     return {
         ('USB-A port', 0): (0.0, 0.0, 0),
-        # the current path, right to left: rail via -> switch -> shunt -> port pad 1
-        ('port switch', 0): (-1.0, -11.0, 0),
-        ('switch input', 0): (1.8, -12.0, 90),         # 100 nF right by IN
-        ('rail bulk at the port', 0): (4.2, -11.0, 90),
-        ('current shunt', 0): (-4.4, -8.0, 270),
-        ('port output', 0): (-7.4, -5.6, 90),
-        ('current sense', 0): (1.2, -7.4, 0),
-        ('amplifier supply', 0): (3.6, -7.0, 90),
-        ('current limit 2.07 A', 0): (-3.4, -12.4, 0),
-        ('enable pull-down', 0): (6.4, -13.5, 0),
-        ('fault pull-up', 0): (6.4, -12.4, 0),
-        ('ADC filter R', 0): (6.6, -9.0, 90),
-        ('ADC filter C', 0): (7.8, -9.0, 90),
-        ('port LED', 0): (5.5, -4.5, 0),
+        # the switch turned round: OUT and IN on its bottom row, ILIM and
+        # FAULT on its right, EN top left.  OUT drops straight onto the
+        # shunt below it; the shunt's lower end feeds the output capacitor
+        # and the port's VBUS pin (power.py draws both).
+        ('port switch', 0): (-1.0, -11.0, 180),
+        ('switch input', 0): (-3.3, -9.7, 90),           # 100 nF by IN
+        ('rail bulk at the port', 0): (-5.0, -9.2, 90),
+        ('current shunt', 0): (0.0, -7.2, 270),
+        ('port output', 0): (-3.6, -4.0, 180),
+        ('current sense', 0): (2.9, -7.2, 180),          # IN+ / IN- face the shunt's two ends
+        ('amplifier supply', 0): (3.7, -4.4, 0),
+        ('current limit 2.07 A', 0): (1.5, -11.0, 0),
+        ('enable pull-down', 0): (-3.2, -12.6, 90),
+        ('fault pull-up', 0): (1.5, -12.8, 0),
+        ('ADC filter R', 0): (5.4, -8.6, 90),
+        ('ADC filter C', 0): (6.6, -8.6, 90),
+        ('port LED', 0): (6.0, -4.4, 0),
     }
 
 
@@ -133,7 +136,7 @@ def placement(comps):
             rel = port_parts(n)
             k = (note, i)
             if c.note == 'port LED' and c.part != 'WS2812B':
-                dx, dy, rot = 7.6, -4.5, 90
+                dx, dy, rot = 8.0, -4.4, 90
             else:
                 dx, dy, rot = rel[k]
             out[c.ref] = (PORT_X[n - 1] + dx, USBA_Y + dy, rot)

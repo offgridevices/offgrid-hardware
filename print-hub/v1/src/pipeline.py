@@ -4,7 +4,7 @@ Used by make.py --reroute.
 
   1. board.build()      parts, planes, power copper, a via for every
                         ground and 5 V pad (power.py)
-  2. Freerouting        every other connection; ground and the 5 V rail
+  2. Freerouting 1.9   every other connection; ground and the 5 V rail
                         are left out (they are planes)
   3. ground fill on F.Cu and B.Cu, stitched to the plane
   4. KiCad DRC          must be 0 errors / 0 warnings / 0 unconnected
@@ -30,6 +30,9 @@ def run(work, passes=int(os.environ.get('PASSES', 40))):
     board.build(placed)
     log('== route (Freerouting)')
     route.DROP_NETS = ('GND', 'VRAIL')
+    # Freerouting 1.9.0: 2.5.0 stalled on this board with 13 connections
+    # left (17 Oct 2026), the way 2.x stalled on Ridge 3 Lite
+    route.FR2 = None
     left = route.route(placed, routed, passes=passes, rounds=4)
     log('  unrouted after Freerouting: %d' % left)
     pcb.write_rules(routed)

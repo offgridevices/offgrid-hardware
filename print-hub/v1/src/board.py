@@ -19,7 +19,7 @@ F, IN1, IN2, BK = pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu
 
 # net classes: width for the current each carries (1 oz outer copper)
 POWER_NETS = {
-    'VBUS_IN': 0.8, 'VRAIL': 1.0, 'BUCK_LX': 0.4,
+    'VBUS_IN': 0.4, 'VRAIL': 1.0, 'BUCK_LX': 0.4,
     **{'PORT%d_SW' % n: 0.8 for n in range(1, 6)}, **{'VBUS%d' % n: 0.8 for n in range(1, 6)},
 }
 LOGIC_NETS = {'VLOGIC': 0.4, 'VBUS_DATA': 0.4, '+3V3': 0.4}

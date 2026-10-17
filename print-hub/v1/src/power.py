@@ -75,6 +75,24 @@ def draw(b):
     pcb.zone(b, 'VRAIL', F, out, clearance=0.25, thermal=False, priority=2, name='5 V buck output')
     for i in range(7):
         pcb.via(b, -50.6 + i * 1.3, -11.7, 'VRAIL')
+    # ---- each port: switch OUT straight down onto the shunt, the shunt's
+    # far end to the output capacitor and on to the USB-A's VBUS pin
+    for c in b.GetFootprints():
+        r = c.GetReference()
+        if not (r.startswith('U') and len(r) == 4 and r.endswith('01')):
+            continue
+        n = r[1]
+        out_pad = pa(r, '1')
+        sh = 'R%s04' % n                      # the shunt (circuit.py order: ILIM, EN, FLT, shunt)
+        assert b.FindFootprintByReference(sh).GetValue() == '20mR', sh
+        s1, s2 = pa(sh, '1'), pa(sh, '2')
+        cap = 'C%s05' % n                     # port output capacitor
+        cp = pa(cap, '1')
+        jv = pa('J%s01' % n, '1')
+        pcb.track(b, [out_pad, (out_pad[0], out_pad[1] + 0.5), s1], 0.5, F, 'PORT%s_SW' % n)
+        mid = (s2[0], cp[1])
+        pcb.track(b, [s2, mid, cp], 0.8, F, 'VBUS%s' % n)
+        pcb.track(b, [cp, jv], 0.8, F, 'VBUS%s' % n)
     return {('U2', '1'), ('U2', '10')}      # pads joined here: the fanout leaves them
 
 
