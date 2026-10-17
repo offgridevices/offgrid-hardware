@@ -138,6 +138,7 @@ def logic():
                       'A5': 'CC1_DATA', 'B5': 'CC2_DATA', 'A6': 'USB_DP', 'B6': 'USB_DP', 'A7': 'USB_DN',
                       'B7': 'USB_DN', 'A8': None, 'B8': None, '1': GND, '2': GND, '3': GND, '4': GND},
         B, 'DATA', ref='J2')
+    cap('C10U_10', 'VBUS_DATA', GND, B, 'DATA VBUS')
     res('R5K1', 'CC1_DATA', GND, B, 'DATA CC1 Rd')
     res('R5K1', 'CC2_DATA', GND, B, 'DATA CC2 Rd')
     # USBLC6: I/O1 = D- (pins 1, 6), I/O2 = D+ (pins 3, 4), flow-through

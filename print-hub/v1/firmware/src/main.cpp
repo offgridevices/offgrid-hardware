@@ -144,6 +144,8 @@ static std::string board_command(const std::string &verb, const std::string &res
     for (int p = 0; p < hub::NPORTS; p++) hubv.set(p, false, millis());   // ports off while flashing
     WiFiClient client;
     httpUpdate.rebootOnUpdate(false);
+    // a 1.3 MB image takes longer than the 8 s watchdog: feed it as it goes
+    httpUpdate.onProgress([](int, int) { esp_task_wdt_reset(); });
     t_httpUpdate_return r = httpUpdate.update(client, a[0].c_str());
     if (r != HTTP_UPDATE_OK) return err(httpUpdate.getLastErrorString().c_str());
     reboot_pending = true;

@@ -41,9 +41,8 @@ Config default_config() {
   return c;
 }
 
-Hub::Hub(Hal &hal) : hal_(hal), cfg_(default_config()) {
-  for (int p = 0; p < NPORTS; p++) hal_.set_enable(p, false);
-}
+// the board switches every port off in its own begin(), before this runs
+Hub::Hub(Hal &hal) : hal_(hal), cfg_(default_config()) {}
 
 void Hub::load(const Config &c) {
   cfg_ = c;
@@ -51,7 +50,6 @@ void Hub::load(const Config &c) {
     if (cfg_.port[p].limit_ma == 0 || cfg_.port[p].limit_ma > MAX_LIMIT_MA) cfg_.port[p].limit_ma = DEFAULT_LIMIT_MA;
     if (cfg_.port[p].priority < 1 || cfg_.port[p].priority > 9) cfg_.port[p].priority = 5;
     cfg_.port[p].name[NAME_LEN] = 0;
-    if (cfg_.port[p].boot_on) st_[p].pending = true;   // tick() brings them up, staggered
   }
 }
 
@@ -73,7 +71,11 @@ uint16_t Hub::total_ma() const {
 }
 
 uint16_t Hub::budget_ma() const {
-  return cfg_.budget_override_ma ? cfg_.budget_override_ma : hal_.input_budget_ma();
+  // the override only ever applies on top of a working 9 V supply: with
+  // no charger or a 5 V one there is nothing to give, whatever is saved
+  uint16_t a = hal_.input_budget_ma();
+  if (!a) return 0;
+  return cfg_.budget_override_ma ? cfg_.budget_override_ma : a;
 }
 
 void Hub::enable(int p, uint32_t now) {
@@ -133,6 +135,20 @@ Err Hub::off_after(int p, uint32_t now, uint32_t after_ms) {
 }
 
 void Hub::tick(uint32_t now) {
+  // 0. the supply: when it goes, every port goes off (the buck would sit in
+  // dropout at the charger's first 5 V); when it comes back, the ports set
+  // to come on at power-up are queued again, to come up staggered
+  bool power = budget_ma() > 0;
+  if (!power && had_power_) {
+    for (int p = 0; p < NPORTS; p++)
+      if (st_[p].on || st_[p].pending) disable(p, Why::no_power);
+  } else if (power && !had_power_) {
+    for (int p = 0; p < NPORTS; p++)
+      if (cfg_.port[p].boot_on && !st_[p].on) st_[p].pending = true;
+  }
+  had_power_ = power;
+  if (!power) return;
+
   // 1. bring up one queued port per stagger slot, highest priority first
   if (reached(now, next_stagger_)) {
     int best = -1;

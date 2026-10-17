@@ -87,7 +87,7 @@ As the owner set them, and where v1 stands.
 | Size | 104 × 66 mm, 1.6 mm, square corners, 4 × M3 holes at ±49, ±30 mm |
 | PCB | 4 layers (F signals, In1 ground, In2 5 V plane, B signals), 1 oz outer, 0.15 mm track and gap, 0.6 / 0.3 mm vias: JLCPCB's standard tier |
 | Input | USB-C PD, 9 V (asks for 9 V; 5 V-only chargers run the logic but no ports) |
-| Ports | 5 × USB-A, 5.16 V, 1.5 A each by default (settable to 1.8 A), 5 A in total (4.1 A on a 30 W charger) |
+| Ports | 5 × USB-A, 5.16 V, 1.5 A each (the USB-A receptacles' rating; less if set), 5 A in total (4.1 A on a 30 W charger) |
 | Control | Wi-Fi 2.4 GHz (HTTP API, mDNS `printhub.local`), USB serial |
 
 ## Ordering (JLCPCB)
@@ -185,7 +185,7 @@ printhub --json status              printhub ota http://server/printhub.bin
   USB-C charger of 18 W or more). A 5 V-only charger runs the board but no
   ports; the firmware says so. Budget by charger: 20 W gives the ports
   2.7-3.0 A, 30 W and up 4.1 A (`sim/power_budget.md`).
-- **1.5 A per port by default, 1.8 A at most** (the switch's own limit is
+- **1.5 A per port at most** (the USB-A receptacles' rating; the switch's own limit is
   1.92-2.20 A); 5 A in total, from the buck's rating.
 - **2.4 GHz Wi-Fi only.** Keep metal and the screws away from the antenna
   corner; the enclosure does.

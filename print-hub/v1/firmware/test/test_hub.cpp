@@ -97,17 +97,18 @@ int main() {
   // a port over its own limit is switched off, not during the switch-on surge
   {
     Fake f; Hub h(f); uint32_t now = 100;
-    f.draw[0] = 1600;                       // over the 1500 default
+    CHECK(ok(cmd(h, "limit 1 1000", now)));
+    f.draw[0] = 1200;
     CHECK(ok(cmd(h, "on 1", now)));
     run_for(h, now, SETTLE_MS - 20);
     CHECK(f.en[0]);
     run_for(h, now, TRIP_MS + 50);
     CHECK(!f.en[0] && h.state(0).last_off == Why::overcurrent);
-    CHECK(ok(cmd(h, "limit 1 1800", now)));
+    CHECK(ok(cmd(h, "limit 1 1500", now)));
     CHECK(ok(cmd(h, "on 1", now)));
     run_for(h, now, 3000);
     CHECK(f.en[0]);
-    CHECK(!ok(cmd(h, "limit 1 1900", now)));
+    CHECK(!ok(cmd(h, "limit 1 1600", now)));      // over the USB-A receptacle's 1.5 A
   }
   // a short spike over the limit does not trip
   {
@@ -144,21 +145,45 @@ int main() {
     f.draw[0] = 1000;                         // the fan speeds up: 1600 > 1500
     run_for(h, now, SHED_MS + 100);
     CHECK(f.en[0] && !f.en[1] && h.state(1).last_off == Why::shed);
-    // no charger at all
+    // no charger at all: refused, and what was on goes off
     f.budget = 0;
     CHECK(!ok(cmd(h, "on 4", now)));
-    // manual budget override
+    run_for(h, now, 20);
+    CHECK(!f.en[0] && h.state(0).last_off == Why::no_power);
+    // manual budget override: only on top of a working supply, 5 A at most
     CHECK(ok(cmd(h, "budget 4000", now)));
+    CHECK(h.budget_ma() == 0);
+    f.budget = 1500;
     CHECK(h.budget_ma() == 4000);
     CHECK(ok(cmd(h, "on 4", now)));
+    CHECK(!ok(cmd(h, "budget 6000", now)));
     CHECK(ok(cmd(h, "budget auto", now)));
   }
-  // boot_on ports come up after power-up, staggered
+  // boot_on ports come up after power-up, staggered, once there is a supply
   {
     Fake f; Hub h(f); uint32_t now = 0;
     Config c = default_config();
     c.port[0].boot_on = true; c.port[3].boot_on = true;
+    f.budget = 0;                              // only the DATA cable
     h.load(c);
+    run_for(h, now, 1000);
+    for (int p = 0; p < NPORTS; p++) CHECK(!f.en[p]);
+    f.budget = 3000;                           // the charger is plugged in
+    run_for(h, now, 20);
+    int n = 0; for (int p = 0; p < NPORTS; p++) n += f.en[p];
+    CHECK(n == 1);                             // one at a time
+    run_for(h, now, 1000);
+    CHECK(f.en[0] && f.en[3] && !f.en[1]);
+    // a port switched on by hand; then the charger is unplugged: all off
+    CHECK(ok(cmd(h, "on 2", now)));
+    run_for(h, now, 1000);
+    CHECK(f.en[1]);
+    f.budget = 0;
+    run_for(h, now, 20);
+    for (int p = 0; p < NPORTS; p++) CHECK(!f.en[p]);
+    CHECK(h.state(1).last_off == Why::no_power);
+    // plugged in again: the boot_on ports come back, port 2 stays off
+    f.budget = 3000;
     run_for(h, now, 1000);
     CHECK(f.en[0] && f.en[3] && !f.en[1]);
   }

@@ -134,7 +134,7 @@ std::string run(Hub &h, const std::string &line, uint32_t now, const Extra &x, b
       snprintf(c.name, sizeof c.name, "%s", w[2].c_str());
     } else if (verb == "limit") {
       long v = strtol(w[2].c_str(), nullptr, 10);
-      if (v < 100 || v > MAX_LIMIT_MA) return err("limit: 100 to 1800 mA");
+      if (v < 100 || v > MAX_LIMIT_MA) return err("limit: 100 to 1500 mA");
       c.limit_ma = (uint16_t)v;
     } else if (verb == "priority") {
       long v = strtol(w[2].c_str(), nullptr, 10);
@@ -153,7 +153,7 @@ std::string run(Hub &h, const std::string &line, uint32_t now, const Extra &x, b
     if (lower(w[1]) == "auto") h.config_mut().budget_override_ma = 0;
     else {
       long v = strtol(w[1].c_str(), nullptr, 10);
-      if (v < 100 || v > 6000) return err("budget: 100 to 6000 mA, or auto");
+      if (v < 100 || v > MAX_BUDGET_MA) return err("budget: 100 to 5000 mA, or auto");
       h.config_mut().budget_override_ma = (uint16_t)v;
     }
     *changed = true;

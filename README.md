@@ -6,6 +6,7 @@ Open hardware from [OffGrid Devices](https://github.com/offgridevices). One fold
 |---|---|---|
 | [`packet-logger-carrier/`](packet-logger-carrier/) v1 | 86 × 58 mm carrier for a LoRa mesh packet logger — RAK19003 + XIAO ESP32-C6 + microSD | v1 ordered, not yet bench-verified |
 | [`ridge3-lite/`](ridge3-lite/) v1 | Ridge 3 Lite: 38 × 38 mm flight controller + 4-in-1 ESC for a 3" quad, 8 layers | v1 designed, not yet built |
+| [`print-hub/`](print-hub/) v1 | Print Hub: 104 × 66 mm, five switched USB ports for a resin printer's accessories, ESP32-S3 on Wi-Fi and USB, USB-PD in, printed enclosure | v1 designed, not yet built |
 
 The packet logger's firmware and analysis tooling live in
 [`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab); Ridge 3 Lite's firmware is in its own folder.

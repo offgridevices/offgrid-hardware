@@ -33,14 +33,32 @@ dates given, on the commit that adds this file's results.
 
 | Simulation | Why | Result (17 Oct 2026) |
 |---|---|---|
-| `power_budget.py`: buck ripple, peak current against the inductor's saturation, efficiency, junction temperature at 45 C air; port voltage at 1, 1.5 and 2.2 A worst case; switch and shunt heat; current-sense range and error; logic supply from the server's USB alone; budget per charger | every rating with its margin, from the datasheets | **20 pass, 0 fail**: 5.00-5.33 V rail; 95.8 % at 5 A; buck 68 C, switch 74 C at its limit; 4.81 V at a port at 1.5 A worst case; +-52 mA at 1.5 A |
+| `power_budget.py`: buck ripple, peak current against the inductor's saturation, efficiency, junction temperature at 45 C air; port voltage at 1, 1.5 and 2.2 A worst case; switch and shunt heat; current-sense range and error; logic supply from the server's USB alone; budget per charger | every rating with its margin, from the datasheets | **20 pass, 0 fail**: 5.00-5.33 V rail; 95.8 % at 5 A; buck 68 C, switch 82 C at its limit (with 0.12 W of output clamp at the rail's highest corner); 4.81 V at a port at 1.5 A worst case; +-52 mA at 1.5 A |
 | `port_events.py` (ngspice): all five ports switched on together into real loads; then one port shorted while the others run | "never browns out" | **3 pass**: rail dips to 5.13 V at switch-on; the short pulls the other ports to 4.77 V for 2 us, then they hold 5.05 V |
+
+## Independent design review (17 Oct 2026)
+
+A second reviewer went through `src/circuit.py`, the parts, the footprints
+and the firmware against the datasheets. Every IC's pins, every resistor
+value (VSET, ISET, feedback, ILIM, dividers) and the ESP32-S3 pin use
+checked out. What it found, and what was done:
+
+| Finding | Done |
+|---|---|
+| Ports set to come on at power-up came on with no charger or a 5 V one; ports stayed on when the charger was unplugged; a saved budget override applied to any charger | firmware: no 9 V supply, no ports (all off as "no_power", the power-up ones queued again when it returns); override only on top of a 9 V supply, 5 A at most; host tests added |
+| The buck's switch node left the chip through a 0.4 mm, 2.9 mm track | a pour instead: the whole gap between the ground pads (about 0.45 mm, 1.3 mm long), then full width to the inductor |
+| Software current limit up to 1.8 A, over the USB-A receptacle's 1.5 A | capped at 1.5 A |
+| Firmware update over Wi-Fi would trip the 8 s watchdog | the watchdog is fed during the download |
+| The rail's highest corner (5.33 V) is above the port switch's minimum output clamp (5.25 V) | harmless (the switch drops 0.08 V linearly, 0.12 W); now counted in `power_budget.py` |
+| "USB-PD contract made" read from the wrong register field | read from PD_STATUS0's voltage field |
+| No capacitor on the DATA port's VBUS | 10 uF added |
+| Unsure, to check on the bench: the HUSB238 with its I2C pulled up while unpowered (DATA only); 21 uF on POWER IN against USB-C's 10 uF at attach | hardware rows below |
 
 ## Software
 
 | Test | Why | Result |
 |---|---|---|
-| `make -C firmware/test`: port logic and command language on the host (ASan, UBSan) | timers, limits, shedding, budget, names, durations, millis() wrap | **68 checks pass** |
+| `make -C firmware/test`: port logic and command language on the host (ASan, UBSan) | timers, limits, shedding, budget, no ports without a 9 V supply (boot, unplug, re-plug), names, durations, millis() wrap | **87 checks pass** |
 | `pio run` (Arduino core 3.3.12, pioarduino 55.03.312-1) | the firmware builds | pass: flash 38 %, RAM 17 % |
 | `python3 host/test_printhub.py`: the CLI against a fake board | commands, JSON, tokens, quoting, exit codes | **7 pass** |
 
@@ -61,3 +79,5 @@ dates given, on the commit that adds this file's results.
 | Chargers: 20 W, 30 W, 5 V-only | `printhub status` contract and budget | not yet built |
 | Buck temperature at 5 A, case closed | thermocouple on L1 / U2 | not yet built |
 | Wi-Fi range inside the case, beside the printer | RSSI in `status` | not yet built |
+| DATA only: current through the I2C pull-ups into the unpowered HUSB238; then plug POWER IN and check it negotiates 9 V | meter, `printhub status` | not yet built |
+| Plug-in with several chargers: no charger trips on the 21 uF input | plug in 10 times each | not yet built |

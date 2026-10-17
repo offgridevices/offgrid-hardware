@@ -98,6 +98,7 @@ def placement(comps):
     ex, ey = ESP
     rel_logic = {
         ('DATA', 0): (J2_X, USBC_Y, 180),
+        ('DATA VBUS', 0): (-12.8, -21.2, 90),
         ('DATA CC1 Rd', 0): (-3.2, -24.0, 90),
         ('DATA CC2 Rd', 0): (-12.8, -24.0, 90),
         ('USB ESD', 0): (-8.0, -20.6, 0),

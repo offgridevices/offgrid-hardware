@@ -95,12 +95,13 @@ void Board::read_pd() {
   // gives 9 V.  Once, after each plug-in, ask over I2C for the charger's
   // 9 V offer itself, which the chip then requests at its full current.
   if (!asked_ && read_reg(husb238::SRC_PDO_9V, &pdo9) && (pdo9 & 0x80)) {
-    write_reg(husb238::SRC_PDO, husb238::SELECT_9V);
-    write_reg(husb238::GO_COMMAND, husb238::GO_REQUEST);
-    asked_ = true;
+    asked_ = write_reg(husb238::SRC_PDO, husb238::SELECT_9V) &&
+             write_reg(husb238::GO_COMMAND, husb238::GO_REQUEST);
   }
+  // PD_STATUS0's voltage field is set once an explicit contract stands;
+  // PD_STATUS1's response field is only the result of the last request
   uint16_t mv = husb238::VOLTS_MV[s0 >> 4];
-  if (((s1 >> 3) & 7) == 1 && mv) {          // USB-PD contract made
+  if (mv) {                                  // USB-PD contract made
     pd_mv_ = mv;
     pd_ma_ = husb238::AMPS_MA[s0 & 15];
     snprintf(buf, sizeof buf, "%uV %.3gA USB-PD", mv / 1000, pd_ma_ / 1000.0);
@@ -116,7 +117,9 @@ void Board::read_pd() {
 uint16_t Board::input_budget_ma() {
   // The buck needs 9 V or more to make 5.16 V: below that the ports get
   // nothing (a 5 V source would leave about 4.3 V on them).
-  if (pd_mv_ < 9000 || vin_mv_ < 8000) return 0;
+  // (7 V, not 9: a 9 V offer may sit at 8.55 V, less a cable's drop and
+  // the divider's error; the buck regulates down to about 6 V in)
+  if (pd_mv_ < 9000 || vin_mv_ < 7000) return 0;
   // power in from the charger, through the buck at its efficiency, less
   // what the board uses, less 10 % margin, never over the buck's rating
   float watts = (pd_mv_ / 1000.0f) * (pd_ma_ / 1000.0f) * BUCK_EFF;

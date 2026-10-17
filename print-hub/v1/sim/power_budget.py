@@ -65,7 +65,13 @@ def run():
     w('| | value |\n|---|---|')
     w('| output, nominal | %.3f V |' % vout)
     w('| output, tolerance corners | %.3f .. %.3f V |' % (vout_lo, vout_hi))
-    check(vout_hi < 5.40, 'rail stays under the port switch\'s 5.4 V output clamp (%.2f V)' % vout_hi)
+    # the TPS25200 clamps its output at 5.25 V minimum (5.4 typical): at the
+    # rail's highest corner the switch may drop the excess itself, linearly
+    # (it does not flag a fault, SLVSCJ0F 7.3.4); count that as heat
+    clamp_w = max(0.0, vout_hi - 5.25) * 1.5
+    w('| at the highest corner, above the switch\'s 5.25 V minimum clamp | %.2f V: %.2f W more in the switch at 1.5 A |'
+      % (max(0.0, vout_hi - 5.25), clamp_w))
+    check(clamp_w < 0.2, 'rail above the switch\'s minimum output clamp by at most %.2f V: %.2f W more in the switch (harmless)' % (vout_hi - 5.25, clamp_w))
     for vin in (9.0, 12.0):
         d = vout / vin
         for lval, tag in ((L, 'nominal L'), (L * (1 - L_TOL), 'L -20 %')):
@@ -103,8 +109,8 @@ def run():
     check(row[1] >= USB_MIN, 'port voltage %.2f V at 1.5 A, worst case, at or over USB\'s 4.75 V' % row[1])
     pts = [i ** 2 * RON_SW_MAX for i in (1.0, 1.5, ILIM_MAX)]
     w('| switch dissipation, hot | %.2f W | %.2f W | %.2f W |' % tuple(pts))
-    tsw = AMBIENT + pts[2] * THETA_SW
-    w('| switch junction at %g C air | | | %.0f C (thermal shutdown 135-155 C) |' % (AMBIENT, tsw))
+    tsw = AMBIENT + (pts[2] + 0.12) * THETA_SW
+    w('| switch junction at %g C air (with the clamp\'s 0.12 W) | | | %.0f C (thermal shutdown 135-155 C) |' % (AMBIENT, tsw))
     check(tsw < 125, 'switch junction %.0f C at its current limit, under 125 C' % tsw)
     ps = ILIM_MAX ** 2 * R_SHUNT
     w('| shunt dissipation at the limit | | | %.2f W (rated 1 W) |' % ps)
@@ -125,6 +131,7 @@ def run():
     w('| amplifier offset as current | %.1f mA max |' % off_ma)
     w('| error at 0.5 A / 1.5 A | +-%.0f mA / +-%.0f mA |' % (err(0.5), err(1.5)))
     check(err(1.5) < 100, 'error at 1.5 A (%.0f mA) small next to the 1.5 A software limit\'s margin to the switch (420 mA)' % err(1.5))
+    w('| software limit, per port | 1.5 A at most: the USB-A receptacle\'s rating (1.5 A per contact) |')
 
     w('\n## Logic supply\n')
     v_pc = VBUS_PC_MIN - VF_OR

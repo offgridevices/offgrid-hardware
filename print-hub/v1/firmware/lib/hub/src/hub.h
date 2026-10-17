@@ -8,7 +8,10 @@
 // What protects what:
 //   hardware   each port's power switch limits its current and shuts down
 //              on a short or overheat (its FAULT line tells us)
-//   tick()     a port over its own limit for TRIP_MS is switched off and
+//   tick()     no 9 V supply (no charger, a 5 V one, or unplugged): every
+//              port off as "no_power"; when it returns, the ports set to
+//              come on at power-up come back, staggered
+//              a port over its own limit for TRIP_MS is switched off and
 //              marked "overcurrent"; a FAULT line switches it off as
 //              "fault"; when all the ports together draw more than the
 //              charger can give for SHED_MS, the lowest-priority port that
@@ -31,7 +34,9 @@ constexpr uint32_t SHED_MS = 1000;     // over the input budget this long: shed 
 constexpr uint32_t STAGGER_MS = 250;   // between ports switched on together
 constexpr uint32_t SETTLE_MS = 300;    // ignore a port's current this long after switch-on (surge)
 constexpr uint16_t DEFAULT_LIMIT_MA = 1500;
-constexpr uint16_t MAX_LIMIT_MA = 1800;     // the switch chip's own limit is 1.92 A at least
+constexpr uint16_t MAX_LIMIT_MA = 1500;     // the USB-A receptacle's rating (1.5 A per contact);
+                                            // the switch chip's own limit is 1.92-2.21 A above it
+constexpr uint16_t MAX_BUDGET_MA = 5000;    // the buck's rating
 constexpr uint16_t DEFAULT_EXPECT_MA = 500; // a port never seen on is assumed to draw this
 
 struct PortConfig {
@@ -97,6 +102,7 @@ class Hub {
   Config cfg_;
   PortState st_[NPORTS];
   uint32_t over_budget_since_ = 0;
+  bool had_power_ = false;
   uint32_t next_stagger_ = 0;
 };
 

@@ -5,8 +5,8 @@
             takes in the TVS, the buck's input capacitors and its IN pins
   CC2       drops through a via just below the connector, on to B.Cu
   LX        the buck's switch node is an inner pad (the octagon between its
-            ground pads): it leaves to the left through the 0.75 mm gap
-            between them, then a 1.5 mm track to the inductor
+            ground pads): a pour leaves it to the left through the 0.75 mm
+            gap between them and widens straight away to the inductor
   5 V       the inductor's output pad, the four output capacitors and a row
             of vias into In2 (the 5 V plane) share one pour on F.Cu
   fanout    every SMD pad on ground or the 5 V rail gets its own via into
@@ -53,8 +53,14 @@ def draw(b):
     lx = pa('U2', '2')
     ch_y = u2[1] + 0.425                     # the gap between ground pads 1 and 3
     l1 = pa('L1', '1')
-    pcb.track(b, [(lx[0], ch_y), (u2[0] - 2.9, ch_y)], 0.4, F, 'BUCK_LX')
-    pcb.track(b, [(u2[0] - 2.9, ch_y), (l1[0], l1[1])], 1.5, F, 'BUCK_LX')
+    # a pour, not a track: the fill takes the whole gap between the ground
+    # pads (0.45 mm at the 0.15 mm clearance, 1.3 mm long) and widens to
+    # the inductor right after it.  Above the 5 V pour, so that one gives way.
+    xn, xw = u2[0] - 1.95, l1[0] - 1.0         # neck starts / wide part ends
+    lx_poly = [(xw, ch_y - 1.2), (xn, ch_y - 1.2), (xn, ch_y - 0.4), (lx[0], ch_y - 0.4),
+               (lx[0], ch_y + 0.4), (xn, ch_y + 0.4), (xn, ch_y + 1.2), (xw, ch_y + 1.2)]
+    pcb.zone(b, 'BUCK_LX', F, lx_poly, clearance=0.15, min_width=0.2, thermal=False, priority=3,
+             name='switch node')
     bs = pa('C5', '2')                       # bootstrap capacitor's switch-node end
     pcb.track(b, [bs, (bs[0], ch_y)], 0.4, F, 'BUCK_LX')
     # ground pad 1 (boxed in by the switch node, the bootstrap capacitor
