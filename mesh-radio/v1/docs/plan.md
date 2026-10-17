@@ -74,9 +74,32 @@ listening rises to about 13 mA. That is still below the RAK, and it buys
 about 4.5 dB of hearing, worth about as much range as 3 W of transmit power.
 Both modes are a firmware setting; see question 1.
 
+## Cost
+
+**Parts: about $76 per board at 10 boards and $58 at 100, at DigiKey
+prices.** The figures come from the audit (`part-audit.md`), with three
+small lines estimated. That is above the roughly $40 the owner expected,
+and well above the RAK's $32 retail. Assembly is extra.
+
+| Block (DigiKey, 100 boards) | Cost |
+|---|---|
+| RF front end: amplifier, filters, antenna switch, LNA | $17.20 |
+| Amplifier power: power mux, buck-boost, control voltage, temperature sensor | $4.85 |
+| LoRa radio: SX1262, clock, matching | $8.97 |
+| Input protection: 3 eFuses, surge clamps, ESD | $8.11 |
+| Processor + Bluetooth | $7.96 |
+| Charger and battery protection | $4.53 |
+| Ports, buttons, LEDs | $3.85 |
+| Power switch and 3.3 V rail | $2.89 |
+| **Total** | **$58.39** |
+
+The 3 W stage (the first two rows) is about $22 of that. A 1 W-only
+version would replace it with a single Skyworks front-end chip (about $4
+with its parts), for a total of roughly **$40**. See question 2.
+
 ## Size and build
 
-- **About 232 assembled parts, on both sides.** About half of them are the
+- **About 238 assembled parts, on both sides.** About half of them are the
   amplifier, filters and power protection the RAK does not have.
 - **Size target: 25.4 mm wide, length set at layout.** The Heltec V4 is
   51.7 mm long. The amplifier stage adds about 10–12 mm of length, so expect
@@ -102,6 +125,11 @@ Both modes are a firmware setting; see question 1.
 - Values come from the makers' reference designs (Nordic, Semtech, Qorvo,
   Infineon, TI), with the formulas shown in `src/circuit.py`.
 
+**Also done:**
+
+- An independent design review, with all its findings fixed (above).
+- A DigiKey and LCSC audit of every line (`part-audit.md`).
+
 **Not proven yet:**
 
 - **Layout and the simulations.** Power surges, short circuits, bad
@@ -120,6 +148,36 @@ Both modes are a firmware setting; see question 1.
   Firmware should watch for it and back off. Bench test on built boards.
 - **Battery plug polarity.** The pin numbering was worked out from footprint
   drawings. Check it with a meter on a real Adafruit cell before the order.
+
+## Fixed after an independent design review (17 Oct 2026)
+
+A second engineer reviewed the circuit before this plan went to the owner.
+Every finding was fixed:
+
+| Finding | Fix |
+|---|---|
+| A battery plugged in backwards was safe only when nothing else powered the board | The reverse-battery switch now takes its gate from the cell's own minus terminal, so it stays off whatever powers the board |
+| A 12 V solar panel (about 21 V open-circuit) would have overheated the solar and drone surge clamps | Both inputs now have a reverse-blocking diode and the same 22 V clamp as USB. A 4.7 V clamp on each eFuse's enable pin keeps that pin inside its rating at 20 V. |
+| A 3 W burst on a worn cell could make the charger let go of the system rail and reset the board | An ideal diode now holds the system rail on the cell |
+| The charge LED was on the fault pin | Moved to the "charging" pin |
+| The USB cut-off (5.8 V) was at the processor's absolute limit | Lowered to 5.4 V |
+| The charger's own temperature window is 0–60 °C, and above about 67 °C a hot cell can look like a held reset button | The processor can now stop charging. Firmware holds charging to 0–45 °C and keeps that reset timer from running. |
+| The radio clock was rated only to −30 °C | Changed to the −40 °C version |
+| The power mux drew 0.3 mA whenever the board was on | It now runs only while the amplifier is enabled |
+| No-antenna safety at 3 W is not covered by the datasheets | Firmware ceiling is 3.6 V on the amplifier (about 34 dBm, 2.5 W), the voltage at which Qorvo rates it for a missing antenna. 35 dBm is an opt-in setting. |
+| The first resistor of the 15.9 dB pad would run at 92 % of its rating at the radio's maximum drive | Firmware caps the radio chip at +20 dBm, which puts it at 58 % |
+| An unprotected battery-voltage pin on the expansion header | Removed (now ground) |
+
+## Questions for the owner
+
+1. **Listening mode:** LNA on (about 13 mA, about 4.5 dB better hearing) or
+   off (about 8 mA) as the default? Both are a firmware setting.
+2. **Cost vs 3 W:** keep 3 W (about $58 of parts at 100), or make v1 a
+   1 W-only board (about $40)?
+3. **Battery polarity:** check the battery plug on a real Adafruit cell with
+   a meter before the order (the footprint drawing says pad 1 = +).
+4. **Mechanical parts rated to −25 °C**, not −40 °C (buttons, JST
+   connectors). Acceptable for Cairn's hot environment?
 
 ## After approval
 

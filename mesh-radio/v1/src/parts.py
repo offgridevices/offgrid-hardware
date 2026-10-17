@@ -94,8 +94,8 @@ PARTS['SX1262'] = ic(
 
 # 32 MHz TCXO for the SX1262, powered from its DIO3
 PARTS['TCXO32'] = ic(
-    'ECS-TXO-20CSMV4-320-AY-TR', ('ECS Inc.', US), 'C19858587', '', 'og:OSC-SMD_4P-L2.0-W1.6-BL',
-    'TCXO 32 MHz +/-0.5 ppm, clipped sine, 2.0 x 1.6',
+    'ECS-TXO-20CSMV4-320-AP-TR', ('ECS Inc.', US), 'C54284784', '', 'og:OSC-SMD_4P-L2.0-W1.6-BL',
+    'TCXO 32 MHz +/-0.5 ppm, clipped sine, -40..105 C, 2.0 x 1.6 (the -AY code is only -30 C)',
     [('1', 'GND', PI), ('2', 'GND', PI), ('3', 'OUT', O), ('4', 'VDD', P)],
     left=['4', '1', '2'], right=['3'], prefix='Y')
 
@@ -181,7 +181,8 @@ PARTS['TPS2121'] = ic(
     'TPS2121RUXR', TI, 'C485916', '', 'og:VQFN-12_TPS2121RUX',
     'Power mux 2.8-22 V, 4.5 A, priority switch-over, QFN-12 2 x 2 (amplifier supply: battery, else SYS)',
     [('1', 'OUT', PO), ('8', 'OUT', P), ('2', 'IN2', PI), ('7', 'IN1', PI), ('3', 'CP2', P), ('4', 'OV2', I),
-     ('5', 'OV1', I), ('6', 'PR1', I), ('9', 'ST', OC), ('10', 'ILM', P), ('11', 'SS', P), ('12', 'GND', PI)],
+     ('5', 'OV1', I), ('6', 'PR1', I), ('9', 'ST', P),   # ST: status output, grounded when unused (datasheet)
+     ('10', 'ILM', P), ('11', 'SS', P), ('12', 'GND', PI)],
     left=['7', '2', '6', '5', '4', '3'], right=['1', '8', '9', '10', '11', '12'])
 
 PARTS['TPS63810'] = ic(
@@ -308,7 +309,7 @@ cap('C2u2', '2.2uF', '0402', '6.3V X5R', 'CL05A225MQ5NSNC', 'C12530')
 cap('C4u7', '4.7uF', '0603', '10V X5R', 'CL10A475KP8NNNC', 'C1705')
 cap('C10u', '10uF', '0603', '10V X5R', 'CL10A106KP8NNNC', 'C19702')
 cap('C10u25', '10uF', '0805', '25V X5R', 'CL21A106KAYNNNE', 'C15850')
-cap('C22u25', '22uF', '0805', '25V X5R', 'CL21A226MAQNNNE', 'C45783')
+cap('C22u16', '22uF', '0805', '16V X5R', 'GRM21BR61C226ME44L', 'C86817', MURATA)
 cap('C47u', '47uF', '0805', '6.3V X5R', 'CL21A476MQYNNNE', 'C16780')
 cap('C47n', '47nF', '0402', '16V X7R', 'CL05B473KO5NNNC', 'C307434')
 cap('C10n', '10nF', '0402', '50V X7R', 'CL05B103KB5NNNC', 'C15195')
@@ -331,7 +332,7 @@ for v, size, mpn, lc in [('0.7pF', '0805', 'GQM2195C2ER70WB12D', 'C3908487'), ('
     cap('HV' + v, v, size, '250V C0G high-Q', mpn, lc, MURATA)
 
 for v, code, lc in [('0R', '0R', 'C106231'), ('22R', '22R', 'C114765'), ('330R', '330R', 'C105875'), ('470R', '470R', 'C114877'),
-                    ('604R', '604R', 'C273693'), ('1k', '1K', 'C106235'), ('2.2k', '2K2', 'C114762'), ('2.21k', '2K21', 'C138019'),
+                    ('604R', '604R', 'C273693'), ('287k', '287K', 'C327358'), ('1k', '1K', 'C106235'), ('2.2k', '2K2', 'C114762'), ('2.21k', '2K21', 'C138019'),
                     ('2.49k', '2K49', 'C145071'), ('4.7k', '4K7', 'C105871'), ('5.1k', '5K1', 'C105872'), ('10k', '10K', 'C60490'),
                     ('13k', '13K', 'C138057'), ('15k', '15K', 'C114761'), ('22.1k', '22K1', 'C163478'), ('47k', '47K', 'C93943'),
                     ('100k', '100K', 'C60491'), ('137k', '137K', 'C138058'), ('220k', '220K', 'C138030'), ('261k', '261K', 'C185437'),
@@ -359,8 +360,12 @@ _two('FB', 'FB120', 'BLM15AG100SN1D', MURATA, 'C76882', 'og:L_0402', '10R@100MHz
 # diodes, LEDs, discretes
 _two('D', 'RB060MM', 'RB060MM-30TR', ROHM, 'C308720', 'og:SOD-123FL', 'RB060MM-30', 'Schottky 30 V 2 A, SOD-123FL',
      ('Device', 'D_Schottky'), {'K': '1', 'A': '2'})
-_two('D', 'SMF15CA', 'SMF15CA', LITTELFUSE, 'C1851361', 'og:SOD-123FL', 'SMF15CA', 'TVS bidirectional 15 V standoff, 200 W, SOD-123FL',
-     ('Device', 'D_TVS'), {'A1': '1', 'A2': '2'})
+_two('D', 'ZENER4V7', 'UDZVTE-174.7B', ROHM, 'C209560', 'og:SOD-323FL', '4.7V', 'Zener 4.7 V 200 mW, SOD-323FL',
+     ('Device', 'D_Zener'), {'K': '1', 'A': '2'})
+PARTS['LM66100'] = ic('LM66100DCKR', TI, 'C2869734', '', 'og:SC-70-6',
+                      'Ideal diode 1.5-5.5 V 1.5 A, 79 mOhm, SC-70-6 (cell to system rail)',
+                      [('1', 'VIN', PI), ('2', 'GND', PI), ('3', '~{CE}', I), ('4', 'NC', NC), ('5', 'ST', OC), ('6', 'VOUT', P)],
+                      left=['1', '3'], right=['6', '5', '4', '2'])
 for key, mpn, lc, col in [('LED_R', 'LTST-C191KRKT', 'C125099', 'red'), ('LED_G', 'LTST-C191KGKT', 'C125098', 'green'),
                           ('LED_B', 'LTST-C191TBKT', 'C99290', 'blue')]:
     _two('LED', key, mpn, LITEON, lc, 'og:LED0603-RD', col, 'LED %s 0603' % col, ('Device', 'LED'), {'K': '1', 'A': '2'})
@@ -395,3 +400,157 @@ PARTS['TP'] = dict(mpn='(copper pad)', maker='', hq='', lcsc='', digikey='', fp=
                    value='TP', desc='Test pad', sym=('Connector', 'TestPoint'), kind='TP', pinmap={'1': '1'},
                    assembled=False, lie=False)
 PARTS['HDR_2x10']['assembled'] = False
+
+# =================================================================== DigiKey numbers and second sources
+# From docs/part-audit-2026-10-17.tsv (DigiKey pages read 17 Oct 2026).  SECOND is what a US or
+# allied assembler buys where the first choice was out of stock or not for new designs at DigiKey;
+# same footprint and rating unless the note says otherwise.  Parts added after the audit have no
+# DigiKey number yet (docs/part-audit.md lists them).
+DIGIKEY = {
+    'UFL': '26-U.FL-R-SMT-1(80)CT-ND',
+    'ANT2450': '712-2450AT18A0100001ECT-ND',
+    'B3U': 'SW1020CT-ND',
+    'BGA7L1BN6': 'BGA7L1BN6E6327XTSA1CT-ND',
+    'BQ25185': '296-BQ25185DLHRCT-ND',
+    'BQ29700': '296-43985-1-ND',
+    'C100n': '1276-1001-1-ND',
+    'C100p': '490-5922-1-ND',
+    'C10n': '1276-1028-1-ND',
+    'C10u': '1276-1192-1-ND',
+    'C10u25': '1276-2891-1-ND',
+    'C12p': '1276-1178-1-ND',
+    'C1n': '490-3244-1-ND',
+    'C1u': '1276-1067-1-ND',
+    'C1u25': '1276-1184-1-ND',
+    'C470n': '1276-CL05A474KO5NNNCCT-ND',
+    'C47n': '1276-1077-1-ND',
+    'C47u': '1276-1852-1-ND',
+    'C4u7': '1276-1044-1-ND',
+    'C820p': '490-3242-1-ND',
+    'CSD25485F5': '296-47760-1-ND',
+    'FB120': '490-5176-1-ND',
+    'HV0.7pF': '490-GQM2195C2ER70WB12DCT-ND',
+    'HV1.5pF': '490-5282-1-ND',
+    'HV10pF': '490-6086-1-ND',
+    'HV15pF': '490-14794-1-ND',
+    'HV2.7pF': '490-5286-1-ND',
+    'HV3.3pF': '490-8126-1-ND',
+    'HV4.3pF': '490-GQM2195C2E4R3BB12DCT-ND',
+    'HV47pF': '490-5900-1-ND',
+    'HV5.6pF': '490-7162-1-ND',
+    'JST_GH6': '455-1568-1-ND',
+    'JST_PH2': '455-S2B-PH-SM4-TBCT-ND',
+    'JST_SH2': '455-SM02B-SRSS-TBCT-ND',
+    'JST_SH6': '455-SM06B-SRSS-TBCT-ND',
+    'L1.6nH': '490-8388-1-ND',
+    'L10u': '445-6396-1-ND',
+    'L11nH': '490-6766-1-ND',
+    'L11nH_0603': '490-6859-1-ND',
+    'L15nH': '490-1148-1-ND',
+    'L15u': '445-6397-1-ND',
+    'L2.5nH': '490-6798-1-ND',
+    'L2.7nH': '490-6800-1-ND',
+    'L2u2': '490-17728-1-ND',
+    'L3.6nH_0603': '490-1159-1-ND',
+    'L3.9nH': '490-6813-1-ND',
+    'L4.7nH': '490-1139-1-ND',
+    'L4.7nH_0603': '490-1162-1-ND',
+    'L470n': '490-13049-1-ND',
+    'L47nH': '490-1154-1-ND',
+    'L5.1nH': '490-6832-1-ND',
+    'LED_B': '160-1647-1-ND',
+    'LED_G': '160-1446-1-ND',
+    'LED_R': '160-1447-1-ND',
+    'LFCN1000': '3157-LFCN-1000+CT-ND',
+    'NMOS': 'SSM3K56ACTL3FCT-ND',
+    'NRF52840': '4823-NRF52840-QIAA-F-R7CT-ND',
+    'NTC10K': '490-4801-1-ND',
+    'QPA9510': '2312-QPA9510TR7CT-ND',
+    'R0R': '311-0.0LRCT-ND',
+    'R1.5M': '13-RC0402FR-071M5LCT-ND',
+    'R100k': '311-100KLRCT-ND',
+    'R10k': '311-10.0KLRCT-ND',
+    'R137k': 'YAG2972CT-ND',
+    'R13k': '311-13.0KLRCT-ND',
+    'R150_0805': '311-150CRCT-ND',
+    'R1M': '311-1.00MLRCT-ND',
+    'R1k': '311-1.00KLRCT-ND',
+    'R2.21k': '311-2.21KLRCT-ND',
+    'R2.2k': '311-2.20KLRCT-ND',
+    'R2.49k': '311-2.49KLRCT-ND',
+    'R22.1k': '311-22.1KLRCT-ND',
+    'R220R': '311-220LRCT-ND',
+    'R220k': '311-220KLRCT-ND',
+    'R22R': '311-22.0LRCT-ND',
+    'R22m': 'P.022AUCT-ND',
+    'R261k': '311-261KLRCT-ND',
+    'R267k': 'YAG3079CT-ND',
+    'R301k': '311-301KLRCT-ND',
+    'R330R': '311-330LRCT-ND',
+    'R330k': '311-330KLRCT-ND',
+    'R383k': 'YAG3139CT-ND',
+    'R4.7k': '311-4.7KLRCT-ND',
+    'R470R': '311-470LRCT-ND',
+    'R47k': '311-47.0KLRCT-ND',
+    'R5.1k': '311-5.10KLRCT-ND',
+    'R510k': '311-510KLRCT-ND',
+    'R562k': '311-562KLRCT-ND',
+    'R604R': 'YAG3199CT-ND',
+    'R68_0805': '311-68.0CRCT-ND',
+    'RB060MM': 'RB060MM-30CT-ND',
+    'RF0.5pF': '490-6077-1-ND',
+    'RF0.8pF': '490-6080-1-ND',
+    'RF1.0pF': '490-6073-1-ND',
+    'RF1.5pF': '490-8087-1-ND',
+    'RF1.8pF': '490-8089-1-ND',
+    'RF10pF': '490-3113-1-ND',
+    'RF15pF': '490-3117-1-ND',
+    'RF2.4pF': '490-8093-1-ND',
+    'RF27pF': '490-17672-1-ND',
+    'RF3.0pF': '490-8095-1-ND',
+    'RF39pF': '490-17673-1-ND',
+    'RF47pF': '490-14446-1-ND',
+    'RF5.6pF': '490-11225-1-ND',
+    'SKY13330': '863-1643-1-ND',
+    'SLIDE': '401-1999-1-ND',
+    'SMF15CA': '18-SMF15CACT-ND',
+    'SSM10N954L': '264-SSM10N954LEFFCT-ND',
+    'SX1262': 'SX1262IMLTRTCT-ND',
+    'TLV75528': '296-TLV75528PDQNRCT-ND',
+    'TMP1075': '296-TMP1075NDRLRCT-ND',
+    'TPD4E05U06': '296-35765-1-ND',
+    'TPS2121': '296-53410-1-ND',
+    'TPS22916': '296-50065-1-ND',
+    'TPS22965': '296-39362-1-ND',
+    'TPS259470A': '296-TPS259470ARPWRCT-ND',
+    'TPS62840': '296-TPS62840YBGRCT-ND',
+    'TPS63810': '296-TPS63810YFFRCT-ND',
+    'TVS2200': '296-52187-1-ND',
+    'USBC': '12401610E4#2ACT-ND',
+    'XTAL32K': '535-9543-1-ND',
+    'XTAL32M': '535-13900-1-ND',
+}
+SECOND = {
+    'C100n': 'Murata GRM155R71C104KA88J (0402 100nF 16V X7R) DK 490-6328-1-ND stock 7,440,307 $0.025@10 $0.0141@100',
+    'C10u': 'Taiyo Yuden EMK107BBJ106MA-T (0603 10uF 16V X5R) DK 587-3238-1-ND stock 703,701 $0.185@10 $0.119@100',
+    'C10u25': 'KYOCERA AVX KGM21AR51E106KU (0805 10uF 25V X5R) DK 478-KGM21AR51E106KUCT-ND stock 5,472 $0.386@10 $0.2584@100.',
+    'C12p': 'Murata GRM1555C1H120JA01D (0402 12pF 50V C0G) DK 490-5924-1-ND stock 2,493 $0.023@10 $0.0129@100.',
+    'C1u25': 'TDK CGA3E1X7R1E105K080AC (0603 1uF 25V X7R) DK 445-6931-1-ND stock 867,741 $0.095@10 $0.0582@100.',
+    'C47n': 'KEMET C0402C473K3RACTU (0402 47nF 25V X7R) DK 399-C0402C473K3RACTUCT-ND stock 276,448 $0.073@10 $0.0434@100.',
+    'C47u': 'Samsung CL21A476MQYNNNG (same part, different packaging code) DK 1276-6467-1-ND stock 19,300 $0.204@10 $0.1321@100.',
+    'C4u7': 'TDK C1608X5R1E475K080AC (0603 4.7uF 25V X5R) DK 445-9050-1-ND stock 641,155 $0.145@10 $0.0914@100.',
+    'L470n': 'TDK TFM252012ALMAR47MTAA (2520 0.47uH 4.9A/24mOhm) DK 445-181489-1-ND stock 940 $0.468@10 $0.3845@100; or Bourns SRP2512TMA-R47M (2.5x2.0x1.2, 6.2A/18mOhm) DK 118-SRP2512TMA-R47MCT-ND stock 1,750 $0.2',
+    'NTC10K': 'NCU15XH103F60RC (0402 10k NTC B3380K) DK 490-18149-1-ND stock 45,468 $0.065@10 $0.0527@100. Check B-value vs firmware table (NCP15XH103 is B3380 also).',
+    'R1.5M': 'Stackpole RMCF0402FT1M50 DK RMCF0402FT1M50CT-ND stock 33,358 $0.023@10 $0.0107@100. | DK stock 34',
+    'R301k': 'Panasonic ERJ-2RKF3013X (0402 301k 1%) DK P301KLCT-ND stock 246,107 $0.033@10 $0.0164@100. (RC0402FR-13301KL also 0.) JLC C171693 has 4,857.',
+    'R4.7k': 'Yageo RC0402FR-134K7L (same part, 10k reel code) DK 13-RC0402FR-134K7LCT-ND stock 769,461 $0.022@10 $0.0103@100.',
+    'R510k': 'Yageo RC0402FR-13510KL DK 13-RC0402FR-13510KLCT-ND stock ~43,759 (read from page) $0.022@10 $0.0103@100. (Panasonic ERJ-2RKF5103X also 0.)',
+    'TPD4E05U06': 'Diodes Inc DT1240-04LP-7 (U-DFN2510-10, same 2.5x1.0 10-pin flow-through, 5.5V) DK DT1240-04LP-7DICT-ND stock 127,377 $0.296@10 $0.1868@100 - confirm pinout. Beware GOODWORK clone listing at DK.',
+    'XTAL32M': 'Abracon ABM11N-32.0000MHZ-8-D1X-T3 (2016, 8pF, 50 ohm) DK 535-ABM11N-32.0000MHZ-8-D1X-T3CT-ND stock 1,000 $0.553@10 $0.4803@100',
+}
+for _k, _pn in DIGIKEY.items():
+    if _k in PARTS:
+        PARTS[_k]['digikey'] = _pn
+for _k, _s in SECOND.items():
+    if _k in PARTS:
+        PARTS[_k]['second'] = _s

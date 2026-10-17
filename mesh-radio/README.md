@@ -9,7 +9,7 @@ The name is a placeholder until the owner picks one before the first order.
 
 | Revision | Status | Folder |
 |---|---|---|
-| **v1** | Requirements agreed; design started | [`v1/`](v1/) |
+| **v1** | Schematic done; waiting for the owner's review before layout | [`v1/`](v1/) |
 
 Start with the latest revision's README: what it is, its requirements, next
 steps, and its test record. How revisions work across this repository:

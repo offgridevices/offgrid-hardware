@@ -1762,6 +1762,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "401-1999-1-ND"
+			(at 43.18 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C221660"
 			(at 43.18 48.26 0)
 			(effects
@@ -1882,8 +1891,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "7638ac32-96c5-7405-f2a6-c4773f64afd9")
-		(property "Reference" "U6"
+		(uuid "2930d640-cc20-3389-c695-f67bd69e1c35")
+		(property "Reference" "U7"
 			(at 76.2 41.68 0)
 			(effects
 				(font
@@ -1928,6 +1937,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "296-39362-1-ND"
+			(at 86.36 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C122837"
 			(at 86.36 50.8 0)
 			(effects
@@ -1949,7 +1967,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2f3f0b85-467d-aba7-63bd-0d0b1c38f73c"
-					(reference "U6")
+					(reference "U7")
 					(unit 1)
 				)
 			)
@@ -2310,8 +2328,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "2930d640-cc20-3389-c695-f67bd69e1c35")
-		(property "Reference" "U7"
+		(uuid "cc695142-6a9a-02c3-fe70-8452c74dd8a6")
+		(property "Reference" "U8"
 			(at 128.27 41.68 0)
 			(effects
 				(font
@@ -2356,6 +2374,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "296-TPS62840YBGRCT-ND"
+			(at 134.62 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C2071139"
 			(at 134.62 48.26 0)
 			(effects
@@ -2377,7 +2404,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2f3f0b85-467d-aba7-63bd-0d0b1c38f73c"
-					(reference "U7")
+					(reference "U8")
 					(unit 1)
 				)
 			)
@@ -3011,6 +3038,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "311-1.00MLRCT-ND"
+			(at 25.4 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C138033"
 			(at 25.4 96.52 0)
 			(effects
@@ -3171,6 +3207,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "490-3244-1-ND"
+			(at 38.1 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C76947"
 			(at 38.1 96.52 0)
 			(effects
@@ -3323,6 +3368,15 @@
 			)
 		)
 		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 50.8 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "1276-1184-1-ND"
 			(at 50.8 91.44 0)
 			(effects
 				(font
@@ -3504,6 +3558,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "1276-1192-1-ND"
+			(at 63.5 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C19702"
 			(at 63.5 91.44 0)
 			(effects
@@ -3677,6 +3740,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "YAG3079CT-ND"
+			(at 76.2 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C327360"
 			(at 76.2 99.06 0)
 			(effects
@@ -3829,6 +3901,15 @@
 			)
 		)
 		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 88.9 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "1276-1044-1-ND"
 			(at 88.9 91.44 0)
 			(effects
 				(font
@@ -4010,6 +4091,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "490-17728-1-ND"
+			(at 101.6 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C337891"
 			(at 101.6 91.44 0)
 			(effects
@@ -4162,6 +4252,15 @@
 			)
 		)
 		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 114.3 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "1276-1192-1-ND"
 			(at 114.3 91.44 0)
 			(effects
 				(font
@@ -4335,6 +4434,15 @@
 			)
 		)
 		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 127 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "1276-1192-1-ND"
 			(at 127 91.44 0)
 			(effects
 				(font

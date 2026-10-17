@@ -1301,6 +1301,183 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "og:LM66100"
+			(pin_names
+				(offset 0.508)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "U"
+				(at -7.62 6.35 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "LM66100"
+				(at -7.62 -8.89 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "LM66100_0_1"
+				(rectangle
+					(start -7.62 5.08)
+					(end 7.62 -7.62)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "LM66100_1_1"
+				(pin power_in line
+					(at -10.16 2.54 0)
+					(length 2.54)
+					(name "VIN"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -10.16 0 0)
+					(length 2.54)
+					(name "~{CE}"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 10.16 2.54 180)
+					(length 2.54)
+					(name "VOUT"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+					(number "6"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+				)
+				(pin open_collector line
+					(at 10.16 0 180)
+					(length 2.54)
+					(name "ST"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+				)
+				(pin no_connect line
+					(at 10.16 -2.54 180)
+					(length 2.54)
+					(name "NC"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at 10.16 -5.08 180)
+					(length 2.54)
+					(name "GND"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "og:SSM10N954L"
 			(pin_names
 				(offset 0.508)
@@ -2649,6 +2826,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "296-BQ25185DLHRCT-ND"
+			(at 50.8 55.88 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C19725033"
 			(at 50.8 55.88 0)
 			(effects
@@ -3157,6 +3343,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "455-S2B-PH-SM4-TBCT-ND"
+			(at 104.14 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C295747"
 			(at 104.14 50.8 0)
 			(effects
@@ -3304,6 +3499,15 @@
 			)
 		)
 		(property "Manufacturer" "Texas Instruments"
+			(at 147.32 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "296-47760-1-ND"
 			(at 147.32 50.8 0)
 			(effects
 				(font
@@ -3499,6 +3703,15 @@
 			)
 		)
 		(property "Manufacturer" "Texas Instruments"
+			(at 195.58 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "296-43985-1-ND"
 			(at 195.58 50.8 0)
 			(effects
 				(font
@@ -3749,6 +3962,15 @@
 			)
 		)
 		(property "Manufacturer" "Toshiba"
+			(at 241.3 53.34 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "264-SSM10N954LEFFCT-ND"
 			(at 241.3 53.34 0)
 			(effects
 				(font
@@ -4115,6 +4337,283 @@
 		)
 	)
 	(symbol
+		(lib_id "og:LM66100")
+		(at 287.02 50.8 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "b0336530-8fab-cfdd-399b-953454f01ccb")
+		(property "Reference" "U6"
+			(at 279.4 44.22 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "LM66100DCKR"
+			(at 279.4 60.92 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "og:SC-70-6"
+			(at 287.02 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "LM66100DCKR"
+			(at 287.02 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "Texas Instruments"
+			(at 287.02 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C2869734"
+			(at 287.02 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Ideal diode 1.5-5.5 V 1.5 A, 79 mOhm, SC-70-6 (cell to system rail)"
+			(at 287.02 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
+					(reference "U6")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 276.86 48.26)
+			(xy 271.78 48.26)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c6b26418-a4e7-67e0-3c59-9f773ac2bd55")
+	)
+	(symbol
+		(lib_id "og_power:BAT_P")
+		(at 271.78 48.26 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "c6a78701-b703-9c4c-4c2a-dcec48ace837")
+		(property "Reference" "#PWRCHA006"
+			(at 271.78 45.06 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify right)
+				(hide yes)
+			)
+		)
+		(property "Value" "BAT_P"
+			(at 268.28 48.26 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify right)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
+					(reference "#PWRCHA006")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 276.86 50.8)
+			(xy 271.78 50.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "14d51a4e-7d81-cc81-634a-d9630415e5e7")
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 271.78 50.8 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "674bd91e-64b2-8a9c-3dca-8d1fec6b1b9e")
+		(property "Reference" "#PWRCHA007"
+			(at 271.78 47.6 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 271.78 54.8 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
+					(reference "#PWRCHA007")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 297.18 48.26)
+			(xy 302.26 48.26)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "176fc08f-b64a-acd6-7a0d-117e14bd709e")
+	)
+	(symbol
+		(lib_id "og_power:VSYS")
+		(at 302.26 48.26 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "ced78bfa-8759-1af3-571c-b065155d43f6")
+		(property "Reference" "#PWRCHA008"
+			(at 302.26 45.06 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+		(property "Value" "VSYS"
+			(at 305.76 48.26 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
+					(reference "#PWRCHA008")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(no_connect
+		(at 297.18 50.8)
+		(uuid "7d5c7e31-0754-3b54-4ba0-1d6e53e3b621")
+	)
+	(no_connect
+		(at 297.18 53.34)
+		(uuid "9cfb5286-a5cc-9a5b-9c93-b68e7f63906e")
+	)
+	(wire
+		(pts
+			(xy 297.18 55.88)
+			(xy 302.26 55.88)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "156694fe-21ba-7b1e-4a31-110c5fcd7c62")
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 302.26 55.88 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "6aa65fcf-c876-1fca-ef8f-19f65edd6bfe")
+		(property "Reference" "#PWRCHA009"
+			(at 302.26 52.68 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 302.26 59.88 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
+					(reference "#PWRCHA009")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C")
 		(at 25.4 96.52 0)
 		(unit 1)
@@ -4160,6 +4659,15 @@
 			)
 		)
 		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 25.4 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "1276-1184-1-ND"
 			(at 25.4 96.52 0)
 			(effects
 				(font
@@ -4214,8 +4722,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "c6a78701-b703-9c4c-4c2a-dcec48ace837")
-		(property "Reference" "#PWRCHA006"
+		(uuid "f4d38b16-4730-990c-eaa0-276c2a4cd4c4")
+		(property "Reference" "#PWRCHA010"
 			(at 25.4 84.43 0)
 			(effects
 				(font
@@ -4235,7 +4743,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA006")
+					(reference "#PWRCHA010")
 					(unit 1)
 				)
 			)
@@ -4260,8 +4768,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "674bd91e-64b2-8a9c-3dca-8d1fec6b1b9e")
-		(property "Reference" "#PWRCHA007"
+		(uuid "3c8c6d42-1c85-6979-a8a1-ef603b6897ad")
+		(property "Reference" "#PWRCHA011"
 			(at 25.4 102.21 0)
 			(effects
 				(font
@@ -4281,7 +4789,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA007")
+					(reference "#PWRCHA011")
 					(unit 1)
 				)
 			)
@@ -4341,6 +4849,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "1276-2891-1-ND"
+			(at 38.1 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C15850"
 			(at 38.1 96.52 0)
 			(effects
@@ -4387,8 +4904,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "ced78bfa-8759-1af3-571c-b065155d43f6")
-		(property "Reference" "#PWRCHA008"
+		(uuid "9bc82be1-635d-e864-eb17-6d9a6fd8d040")
+		(property "Reference" "#PWRCHA012"
 			(at 38.1 84.43 0)
 			(effects
 				(font
@@ -4408,7 +4925,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA008")
+					(reference "#PWRCHA012")
 					(unit 1)
 				)
 			)
@@ -4433,8 +4950,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "6aa65fcf-c876-1fca-ef8f-19f65edd6bfe")
-		(property "Reference" "#PWRCHA009"
+		(uuid "95b1c366-3233-1581-2ec1-ceffa15f3964")
+		(property "Reference" "#PWRCHA013"
 			(at 38.1 102.21 0)
 			(effects
 				(font
@@ -4454,7 +4971,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA009")
+					(reference "#PWRCHA013")
 					(unit 1)
 				)
 			)
@@ -4514,6 +5031,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "1276-2891-1-ND"
+			(at 50.8 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C15850"
 			(at 50.8 96.52 0)
 			(effects
@@ -4560,8 +5086,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "f4d38b16-4730-990c-eaa0-276c2a4cd4c4")
-		(property "Reference" "#PWRCHA010"
+		(uuid "5a3f3b33-a30a-c027-995d-1bbb4322318e")
+		(property "Reference" "#PWRCHA014"
 			(at 50.8 84.43 0)
 			(effects
 				(font
@@ -4581,7 +5107,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA010")
+					(reference "#PWRCHA014")
 					(unit 1)
 				)
 			)
@@ -4606,8 +5132,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "3c8c6d42-1c85-6979-a8a1-ef603b6897ad")
-		(property "Reference" "#PWRCHA011"
+		(uuid "bbc043c4-2c4b-da8c-3975-2ae67bf26a21")
+		(property "Reference" "#PWRCHA015"
 			(at 50.8 102.21 0)
 			(effects
 				(font
@@ -4627,7 +5153,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA011")
+					(reference "#PWRCHA015")
 					(unit 1)
 				)
 			)
@@ -4687,6 +5213,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "1276-2891-1-ND"
+			(at 63.5 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C15850"
 			(at 63.5 96.52 0)
 			(effects
@@ -4733,8 +5268,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "9bc82be1-635d-e864-eb17-6d9a6fd8d040")
-		(property "Reference" "#PWRCHA012"
+		(uuid "39c856fd-38c1-9af2-8efd-06879ae5f20d")
+		(property "Reference" "#PWRCHA016"
 			(at 63.5 84.43 0)
 			(effects
 				(font
@@ -4754,7 +5289,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA012")
+					(reference "#PWRCHA016")
 					(unit 1)
 				)
 			)
@@ -4779,8 +5314,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "95b1c366-3233-1581-2ec1-ceffa15f3964")
-		(property "Reference" "#PWRCHA013"
+		(uuid "96251d88-bf08-bfc8-99e5-583a4cd9ea3a")
+		(property "Reference" "#PWRCHA017"
 			(at 63.5 102.21 0)
 			(effects
 				(font
@@ -4800,7 +5335,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA013")
+					(reference "#PWRCHA017")
 					(unit 1)
 				)
 			)
@@ -4852,6 +5387,15 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
+			(at 76.2 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "YAG3199CT-ND"
 			(at 76.2 104.14 0)
 			(effects
 				(font
@@ -4939,8 +5483,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "5a3f3b33-a30a-c027-995d-1bbb4322318e")
-		(property "Reference" "#PWRCHA014"
+		(uuid "0a2a8876-665e-78af-e918-6c4163f36595")
+		(property "Reference" "#PWRCHA018"
 			(at 76.2 109.83 0)
 			(effects
 				(font
@@ -4960,7 +5504,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA014")
+					(reference "#PWRCHA018")
 					(unit 1)
 				)
 			)
@@ -5012,6 +5556,15 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
+			(at 88.9 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-13.0KLRCT-ND"
 			(at 88.9 104.14 0)
 			(effects
 				(font
@@ -5099,8 +5652,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "bbc043c4-2c4b-da8c-3975-2ae67bf26a21")
-		(property "Reference" "#PWRCHA015"
+		(uuid "efb29ac9-cd44-49bd-669a-17d90d9bcdba")
+		(property "Reference" "#PWRCHA019"
 			(at 88.9 109.83 0)
 			(effects
 				(font
@@ -5120,7 +5673,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA015")
+					(reference "#PWRCHA019")
 					(unit 1)
 				)
 			)
@@ -5172,6 +5725,15 @@
 			)
 		)
 		(property "Manufacturer" "Murata"
+			(at 101.6 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "490-4801-1-ND"
 			(at 101.6 101.6 0)
 			(effects
 				(font
@@ -5259,8 +5821,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "39c856fd-38c1-9af2-8efd-06879ae5f20d")
-		(property "Reference" "#PWRCHA016"
+		(uuid "b7a9487f-7d15-ddcc-d23b-5dd8ad78f10d")
+		(property "Reference" "#PWRCHA020"
 			(at 101.6 107.29 0)
 			(effects
 				(font
@@ -5280,7 +5842,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA016")
+					(reference "#PWRCHA020")
 					(unit 1)
 				)
 			)
@@ -5332,6 +5894,15 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
+			(at 114.3 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-100KLRCT-ND"
 			(at 114.3 104.14 0)
 			(effects
 				(font
@@ -5419,8 +5990,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "96251d88-bf08-bfc8-99e5-583a4cd9ea3a")
-		(property "Reference" "#PWRCHA017"
+		(uuid "9c49625d-ecf7-73b9-5625-1a8fbcdab30b")
+		(property "Reference" "#PWRCHA021"
 			(at 114.3 109.83 0)
 			(effects
 				(font
@@ -5440,7 +6011,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA017")
+					(reference "#PWRCHA021")
 					(unit 1)
 				)
 			)
@@ -5492,6 +6063,15 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
+			(at 127 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-10.0KLRCT-ND"
 			(at 127 96.52 0)
 			(effects
 				(font
@@ -5579,8 +6159,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "0a2a8876-665e-78af-e918-6c4163f36595")
-		(property "Reference" "#PWRCHA018"
+		(uuid "730543ff-d09b-4d68-6433-c7a259de1b2d")
+		(property "Reference" "#PWRCHA022"
 			(at 127 84.43 0)
 			(effects
 				(font
@@ -5600,7 +6180,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA018")
+					(reference "#PWRCHA022")
 					(unit 1)
 				)
 			)
@@ -5652,6 +6232,15 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
+			(at 139.7 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-10.0KLRCT-ND"
 			(at 139.7 96.52 0)
 			(effects
 				(font
@@ -5739,8 +6328,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "efb29ac9-cd44-49bd-669a-17d90d9bcdba")
-		(property "Reference" "#PWRCHA019"
+		(uuid "0387acb3-46c2-a536-2f69-a9ca04ae220d")
+		(property "Reference" "#PWRCHA023"
 			(at 139.7 84.43 0)
 			(effects
 				(font
@@ -5760,7 +6349,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA019")
+					(reference "#PWRCHA023")
 					(unit 1)
 				)
 			)
@@ -5812,6 +6401,15 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
+			(at 152.4 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-1.00KLRCT-ND"
 			(at 152.4 96.52 0)
 			(effects
 				(font
@@ -5899,8 +6497,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "b7a9487f-7d15-ddcc-d23b-5dd8ad78f10d")
-		(property "Reference" "#PWRCHA020"
+		(uuid "c55feec3-1bda-5101-b8e6-705443dd3283")
+		(property "Reference" "#PWRCHA024"
 			(at 152.4 84.43 0)
 			(effects
 				(font
@@ -5920,7 +6518,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA020")
+					(reference "#PWRCHA024")
 					(unit 1)
 				)
 			)
@@ -5928,167 +6526,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 165.1 101.6 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "7db03543-6fe7-c158-5fda-d9bbc532079d")
-		(property "Reference" "R27"
-			(at 166.9 100.6 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "100k"
-			(at 166.9 103.2 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "og:R_0402"
-			(at 165.1 101.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "MPN" "RC0402FR-07100KL"
-			(at 165.1 101.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Manufacturer" "Yageo"
-			(at 165.1 101.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "LCSC" "C60491"
-			(at 165.1 101.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor 100k 1% 0402"
-			(at 165.1 101.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(instances
-			(project "mesh-radio"
-				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "R27")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 165.1 97.79)
-			(xy 165.1 95.25)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "24cb6832-1af2-9ec5-2899-8ba41918c28c")
-	)
-	(global_label "REV_G"
-		(shape passive)
-		(at 165.1 95.25 90)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "c4876d74-3b1f-4ebd-36e1-1c44022ecded")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 165.1 95.25 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-				(hide yes)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 165.1 105.41)
-			(xy 165.1 110.49)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "26f4b088-da05-caf1-4d20-518e82ef4bc2")
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 165.1 110.49 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom no)
-		(on_board no)
-		(dnp no)
-		(uuid "9c49625d-ecf7-73b9-5625-1a8fbcdab30b")
-		(property "Reference" "#PWRCHA021"
-			(at 165.1 107.29 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 165.1 114.49 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-			)
-		)
-		(instances
-			(project "mesh-radio"
-				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA021")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:R")
-		(at 177.8 96.52 0)
+		(at 165.1 96.52 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -6096,7 +6534,7 @@
 		(dnp no)
 		(uuid "15d4b1e5-0b0b-ad99-e787-0aefe064a38d")
 		(property "Reference" "R28"
-			(at 179.6 95.52 0)
+			(at 166.9 95.52 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6105,7 +6543,7 @@
 			)
 		)
 		(property "Value" "330R"
-			(at 179.6 98.12 0)
+			(at 166.9 98.12 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6114,7 +6552,7 @@
 			)
 		)
 		(property "Footprint" "og:R_0402"
-			(at 177.8 96.52 0)
+			(at 165.1 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6123,7 +6561,7 @@
 			)
 		)
 		(property "MPN" "RC0402FR-07330RL"
-			(at 177.8 96.52 0)
+			(at 165.1 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6132,7 +6570,16 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
-			(at 177.8 96.52 0)
+			(at 165.1 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-330LRCT-ND"
+			(at 165.1 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6141,7 +6588,7 @@
 			)
 		)
 		(property "LCSC" "C105875"
-			(at 177.8 96.52 0)
+			(at 165.1 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6150,7 +6597,7 @@
 			)
 		)
 		(property "Description" "Resistor 330R 1% 0402"
-			(at 177.8 96.52 0)
+			(at 165.1 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6169,26 +6616,26 @@
 	)
 	(wire
 		(pts
-			(xy 177.8 92.71)
-			(xy 177.8 87.63)
+			(xy 165.1 92.71)
+			(xy 165.1 87.63)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "7b84958c-abba-9183-5be1-43f72eba2363")
+		(uuid "360363f1-53d8-9774-d258-c0c5dd737996")
 	)
 	(symbol
 		(lib_id "og_power:BAT_P")
-		(at 177.8 87.63 0)
+		(at 165.1 87.63 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "730543ff-d09b-4d68-6433-c7a259de1b2d")
-		(property "Reference" "#PWRCHA022"
-			(at 177.8 84.43 0)
+		(uuid "f0421d7e-6a6c-6aad-0041-c2060fad3326")
+		(property "Reference" "#PWRCHA025"
+			(at 165.1 84.43 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6197,7 +6644,7 @@
 			)
 		)
 		(property "Value" "BAT_P"
-			(at 177.8 83.63 0)
+			(at 165.1 83.63 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6207,7 +6654,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA022")
+					(reference "#PWRCHA025")
 					(unit 1)
 				)
 			)
@@ -6215,18 +6662,18 @@
 	)
 	(wire
 		(pts
-			(xy 177.8 100.33)
-			(xy 177.8 102.87)
+			(xy 165.1 100.33)
+			(xy 165.1 102.87)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "bd094f84-3ec2-35fe-02b5-fd2ed8ebb909")
+		(uuid "e16ba081-6ba5-7aab-58e0-d512e8f438d8")
 	)
 	(global_label "PROT_BAT"
 		(shape passive)
-		(at 177.8 102.87 270)
+		(at 165.1 102.87 270)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -6234,9 +6681,9 @@
 			)
 			(justify right)
 		)
-		(uuid "9efe417e-0bda-5440-100c-c6a00a044980")
+		(uuid "dae2c193-5c07-b545-3a19-2df40775a25f")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 177.8 102.87 0)
+			(at 165.1 102.87 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6248,7 +6695,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 190.5 101.6 0)
+		(at 177.8 101.6 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -6256,7 +6703,7 @@
 		(dnp no)
 		(uuid "83ea0baf-73f5-120e-f366-be20f666e113")
 		(property "Reference" "R29"
-			(at 192.3 100.6 0)
+			(at 179.6 100.6 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6265,7 +6712,7 @@
 			)
 		)
 		(property "Value" "2.2k"
-			(at 192.3 103.2 0)
+			(at 179.6 103.2 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6274,7 +6721,7 @@
 			)
 		)
 		(property "Footprint" "og:R_0402"
-			(at 190.5 101.6 0)
+			(at 177.8 101.6 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6283,7 +6730,7 @@
 			)
 		)
 		(property "MPN" "RC0402FR-072K2L"
-			(at 190.5 101.6 0)
+			(at 177.8 101.6 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6292,7 +6739,16 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
-			(at 190.5 101.6 0)
+			(at 177.8 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-2.20KLRCT-ND"
+			(at 177.8 101.6 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6301,7 +6757,7 @@
 			)
 		)
 		(property "LCSC" "C114762"
-			(at 190.5 101.6 0)
+			(at 177.8 101.6 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6310,7 +6766,7 @@
 			)
 		)
 		(property "Description" "Resistor 2.2k 1% 0402"
-			(at 190.5 101.6 0)
+			(at 177.8 101.6 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6329,6 +6785,175 @@
 	)
 	(wire
 		(pts
+			(xy 177.8 97.79)
+			(xy 177.8 95.25)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0671c965-d43a-0a1a-15ae-9be586962581")
+	)
+	(global_label "PROT_VM"
+		(shape passive)
+		(at 177.8 95.25 90)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "f09dcd73-016d-ea25-01ca-16c0b1e985d6")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 177.8 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 177.8 105.41)
+			(xy 177.8 110.49)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "05d7793d-e3dd-b038-ef40-d34ce0b6e34a")
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 177.8 110.49 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "2962f4d4-1424-daa0-b38e-2da6350e3d4f")
+		(property "Reference" "#PWRCHA026"
+			(at 177.8 107.29 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 177.8 114.49 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
+					(reference "#PWRCHA026")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 190.5 101.6 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "391e96b5-a15b-9221-0bb7-cb11b61229ac")
+		(property "Reference" "R30"
+			(at 192.3 100.6 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "22mR"
+			(at 192.3 103.2 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "og:R_1206"
+			(at 190.5 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "ERJ-8BWFR022V"
+			(at 190.5 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "Panasonic"
+			(at 190.5 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "P.022AUCT-ND"
+			(at 190.5 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C2075813"
+			(at 190.5 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor 22mR 1% 1 W 1206"
+			(at 190.5 101.6 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
+					(reference "R30")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
 			(xy 190.5 97.79)
 			(xy 190.5 95.25)
 		)
@@ -6338,7 +6963,7 @@
 		)
 		(uuid "f5ddf98d-4b7d-4e00-cf98-0e6fb72f9c83")
 	)
-	(global_label "PROT_VM"
+	(global_label "PROT_S2"
 		(shape passive)
 		(at 190.5 95.25 90)
 		(fields_autoplaced yes)
@@ -6348,7 +6973,7 @@
 			)
 			(justify left)
 		)
-		(uuid "f526a44a-62b1-7edf-3c94-00d6c2175611")
+		(uuid "6a3edf6a-1ba1-2191-91f4-12747e500ae3")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 190.5 95.25 0)
 			(effects
@@ -6379,8 +7004,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "0387acb3-46c2-a536-2f69-a9ca04ae220d")
-		(property "Reference" "#PWRCHA023"
+		(uuid "ed5a1536-e6f4-810f-6cd5-826a4f3007eb")
+		(property "Reference" "#PWRCHA027"
 			(at 190.5 107.29 0)
 			(effects
 				(font
@@ -6400,7 +7025,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA023")
+					(reference "#PWRCHA027")
 					(unit 1)
 				)
 			)
@@ -6408,167 +7033,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 203.2 101.6 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "391e96b5-a15b-9221-0bb7-cb11b61229ac")
-		(property "Reference" "R30"
-			(at 205 100.6 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "22mR"
-			(at 205 103.2 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "og:R_1206"
-			(at 203.2 101.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "MPN" "ERJ-8BWFR022V"
-			(at 203.2 101.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Manufacturer" "Panasonic"
-			(at 203.2 101.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "LCSC" "C2075813"
-			(at 203.2 101.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor 22mR 1% 1 W 1206"
-			(at 203.2 101.6 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(instances
-			(project "mesh-radio"
-				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "R30")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 203.2 97.79)
-			(xy 203.2 95.25)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "4f9ef0b1-bc8d-e20f-44e1-dc4dbb79d08a")
-	)
-	(global_label "PROT_S2"
-		(shape passive)
-		(at 203.2 95.25 90)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "33689923-138c-2e46-3216-6223d13daf34")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 203.2 95.25 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-				(hide yes)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 203.2 105.41)
-			(xy 203.2 110.49)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "8336630e-1e5f-bfc6-8e9b-378e1fad30ee")
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 203.2 110.49 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom no)
-		(on_board no)
-		(dnp no)
-		(uuid "c55feec3-1bda-5101-b8e6-705443dd3283")
-		(property "Reference" "#PWRCHA024"
-			(at 203.2 107.29 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 203.2 114.49 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-			)
-		)
-		(instances
-			(project "mesh-radio"
-				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA024")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:R")
-		(at 215.9 96.52 0)
+		(at 203.2 96.52 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -6576,7 +7041,7 @@
 		(dnp no)
 		(uuid "d1e63370-c11d-bc84-f97f-73db4fb3e9ce")
 		(property "Reference" "R31"
-			(at 217.7 95.52 0)
+			(at 205 95.52 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6585,7 +7050,7 @@
 			)
 		)
 		(property "Value" "1M"
-			(at 217.7 98.12 0)
+			(at 205 98.12 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6594,7 +7059,7 @@
 			)
 		)
 		(property "Footprint" "og:R_0402"
-			(at 215.9 96.52 0)
+			(at 203.2 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6603,7 +7068,7 @@
 			)
 		)
 		(property "MPN" "RC0402FR-071ML"
-			(at 215.9 96.52 0)
+			(at 203.2 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6612,7 +7077,16 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
-			(at 215.9 96.52 0)
+			(at 203.2 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-1.00MLRCT-ND"
+			(at 203.2 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6621,7 +7095,7 @@
 			)
 		)
 		(property "LCSC" "C138033"
-			(at 215.9 96.52 0)
+			(at 203.2 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6630,7 +7104,7 @@
 			)
 		)
 		(property "Description" "Resistor 1M 1% 0402"
-			(at 215.9 96.52 0)
+			(at 203.2 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6649,26 +7123,26 @@
 	)
 	(wire
 		(pts
-			(xy 215.9 92.71)
-			(xy 215.9 87.63)
+			(xy 203.2 92.71)
+			(xy 203.2 87.63)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "77e9be0c-ea78-8e54-cfcf-6ce801f2ee2f")
+		(uuid "870160eb-e06e-0658-4e04-fe2c915fa381")
 	)
 	(symbol
 		(lib_id "og_power:BAT_P")
-		(at 215.9 87.63 0)
+		(at 203.2 87.63 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "f0421d7e-6a6c-6aad-0041-c2060fad3326")
-		(property "Reference" "#PWRCHA025"
-			(at 215.9 84.43 0)
+		(uuid "76843dcc-56ef-fd34-c6e5-c1406e9bf197")
+		(property "Reference" "#PWRCHA028"
+			(at 203.2 84.43 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6677,7 +7151,7 @@
 			)
 		)
 		(property "Value" "BAT_P"
-			(at 215.9 83.63 0)
+			(at 203.2 83.63 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6687,7 +7161,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA025")
+					(reference "#PWRCHA028")
 					(unit 1)
 				)
 			)
@@ -6695,18 +7169,18 @@
 	)
 	(wire
 		(pts
-			(xy 215.9 100.33)
-			(xy 215.9 102.87)
+			(xy 203.2 100.33)
+			(xy 203.2 102.87)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "1bacb5be-31bf-57d6-a83c-d744fe14b4c1")
+		(uuid "3e9afa6b-dc35-3875-618f-11afba9f8053")
 	)
 	(global_label "VBAT_SENSE"
 		(shape passive)
-		(at 215.9 102.87 270)
+		(at 203.2 102.87 270)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -6714,9 +7188,9 @@
 			)
 			(justify right)
 		)
-		(uuid "9f1f1313-7eae-2b25-4bff-52ea332537d8")
+		(uuid "f0db867f-2f48-9086-1e0a-db0502f0277c")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 215.9 102.87 0)
+			(at 203.2 102.87 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6728,7 +7202,7 @@
 	)
 	(symbol
 		(lib_id "Device:R")
-		(at 228.6 106.68 0)
+		(at 215.9 106.68 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -6736,7 +7210,7 @@
 		(dnp no)
 		(uuid "f3664f37-6520-aaee-f933-7e333c0d628c")
 		(property "Reference" "R32"
-			(at 230.4 105.68 0)
+			(at 217.7 105.68 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6745,7 +7219,7 @@
 			)
 		)
 		(property "Value" "1.5M"
-			(at 230.4 108.28 0)
+			(at 217.7 108.28 0)
 			(effects
 				(font
 					(size 1 1)
@@ -6754,7 +7228,7 @@
 			)
 		)
 		(property "Footprint" "og:R_0402"
-			(at 228.6 106.68 0)
+			(at 215.9 106.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6763,7 +7237,7 @@
 			)
 		)
 		(property "MPN" "RC0402FR-071M5L"
-			(at 228.6 106.68 0)
+			(at 215.9 106.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6772,7 +7246,16 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
-			(at 228.6 106.68 0)
+			(at 215.9 106.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "13-RC0402FR-071M5LCT-ND"
+			(at 215.9 106.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6781,7 +7264,7 @@
 			)
 		)
 		(property "LCSC" "C138034"
-			(at 228.6 106.68 0)
+			(at 215.9 106.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6790,7 +7273,7 @@
 			)
 		)
 		(property "Description" "Resistor 1.5M 1% 0402"
-			(at 228.6 106.68 0)
+			(at 215.9 106.68 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6802,6 +7285,175 @@
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
 					(reference "R32")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 215.9 102.87)
+			(xy 215.9 100.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d51e92c0-2adf-a8d7-d4bb-62471318d760")
+	)
+	(global_label "VBAT_SENSE"
+		(shape passive)
+		(at 215.9 100.33 90)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "1768b1e0-f90c-492a-4acc-f1cd52f4015c")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 215.9 100.33 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 215.9 110.49)
+			(xy 215.9 115.57)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8e3cd12e-18f5-76e5-0e23-eb520b76553a")
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 215.9 115.57 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "f3f3e45d-1084-2271-01f9-e80fb0a887bd")
+		(property "Reference" "#PWRCHA029"
+			(at 215.9 112.37 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 215.9 119.57 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
+					(reference "#PWRCHA029")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 228.6 106.68 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "11a04b94-d9de-590d-5847-f438d89745d9")
+		(property "Reference" "C15"
+			(at 230.4 105.68 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "100nF"
+			(at 230.4 108.28 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "og:C_0402"
+			(at 228.6 106.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "CL05B104KO5NNNC"
+			(at 228.6 106.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 228.6 106.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "1276-1001-1-ND"
+			(at 228.6 106.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C1525"
+			(at 228.6 106.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Capacitor 100nF 16V X7R 0402"
+			(at 228.6 106.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
+					(reference "C15")
 					(unit 1)
 				)
 			)
@@ -6859,8 +7511,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "2962f4d4-1424-daa0-b38e-2da6350e3d4f")
-		(property "Reference" "#PWRCHA026"
+		(uuid "e70dcd19-9098-f5f3-19d7-8442a8e73ebe")
+		(property "Reference" "#PWRCHA030"
 			(at 228.6 112.37 0)
 			(effects
 				(font
@@ -6880,167 +7532,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA026")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Device:C")
-		(at 241.3 106.68 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "11a04b94-d9de-590d-5847-f438d89745d9")
-		(property "Reference" "C15"
-			(at 243.1 105.68 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-				(justify left)
-			)
-		)
-		(property "Value" "100nF"
-			(at 243.1 108.28 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-				(justify left)
-			)
-		)
-		(property "Footprint" "og:C_0402"
-			(at 241.3 106.68 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "MPN" "CL05B104KO5NNNC"
-			(at 241.3 106.68 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Manufacturer" "Samsung Electro-Mechanics"
-			(at 241.3 106.68 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "LCSC" "C1525"
-			(at 241.3 106.68 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 100nF 16V X7R 0402"
-			(at 241.3 106.68 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(instances
-			(project "mesh-radio"
-				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "C15")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 241.3 102.87)
-			(xy 241.3 100.33)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6accfb61-5a54-95e0-fadc-4db7bdfee5ef")
-	)
-	(global_label "VBAT_SENSE"
-		(shape passive)
-		(at 241.3 100.33 90)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "b3e7e76a-74ee-eb3a-6770-0a0eaac20297")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 241.3 100.33 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-				(hide yes)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 241.3 110.49)
-			(xy 241.3 115.57)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "6c7cab6c-1982-9252-90b2-9e6a0447659d")
-	)
-	(symbol
-		(lib_id "power:GND")
-		(at 241.3 115.57 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom no)
-		(on_board no)
-		(dnp no)
-		(uuid "ed5a1536-e6f4-810f-6cd5-826a4f3007eb")
-		(property "Reference" "#PWRCHA027"
-			(at 241.3 112.37 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-				(hide yes)
-			)
-		)
-		(property "Value" "GND"
-			(at 241.3 119.57 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-			)
-		)
-		(instances
-			(project "mesh-radio"
-				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#PWRCHA027")
+					(reference "#PWRCHA030")
 					(unit 1)
 				)
 			)
@@ -7098,6 +7590,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "160-1447-1-ND"
+			(at 45.72 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C125099"
 			(at 45.72 129.54 0)
 			(effects
@@ -7136,7 +7637,7 @@
 		)
 		(uuid "114c7409-1f66-0b07-e34d-92e8e8842809")
 	)
-	(global_label "CHG_STAT1"
+	(global_label "CHG_STAT2"
 		(shape passive)
 		(at 39.37 129.54 180)
 		(fields_autoplaced yes)
@@ -7146,7 +7647,7 @@
 			)
 			(justify right)
 		)
-		(uuid "7b48c882-d01b-91c8-ec9d-e225577944a9")
+		(uuid "7b36a79c-eb00-98ca-0ab0-8980d8a08ad4")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 39.37 129.54 0)
 			(effects
@@ -7192,8 +7693,162 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 88.9 129.54 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "7db03543-6fe7-c158-5fda-d9bbc532079d")
+		(property "Reference" "R27"
+			(at 88.9 126.94 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(property "Value" "100k"
+			(at 88.9 132.54 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(property "Footprint" "og:R_0402"
+			(at 88.9 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "RC0402FR-07100KL"
+			(at 88.9 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "Yageo"
+			(at 88.9 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-100KLRCT-ND"
+			(at 88.9 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C60491"
+			(at 88.9 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor 100k 1% 0402"
+			(at 88.9 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
+					(reference "R27")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 85.09 129.54)
+			(xy 82.55 129.54)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c1824e32-0258-854f-4116-cd3cca08e775")
+	)
+	(global_label "REV_G"
+		(shape passive)
+		(at 82.55 129.54 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "d7779851-e4b3-b73d-4ec5-5374fd72b863")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 82.55 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+				(hide yes)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 92.71 129.54)
+			(xy 95.25 129.54)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e3a28284-f58a-4a52-be16-888fef6445ff")
+	)
+	(global_label "CELL_MINUS"
+		(shape passive)
+		(at 95.25 129.54 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "2809c11b-711e-b2ef-603d-af4f9ebf83ae")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 95.25 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C")
-		(at 91.44 129.54 90)
+		(at 137.16 129.54 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -7201,7 +7856,7 @@
 		(dnp no)
 		(uuid "437b08d4-4128-afd7-147b-30252f97cb52")
 		(property "Reference" "C14"
-			(at 91.44 126.94 0)
+			(at 137.16 126.94 0)
 			(effects
 				(font
 					(size 1 1)
@@ -7209,7 +7864,7 @@
 			)
 		)
 		(property "Value" "100nF"
-			(at 91.44 132.54 0)
+			(at 137.16 132.54 0)
 			(effects
 				(font
 					(size 1 1)
@@ -7217,7 +7872,7 @@
 			)
 		)
 		(property "Footprint" "og:C_0402"
-			(at 91.44 129.54 0)
+			(at 137.16 129.54 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7226,7 +7881,7 @@
 			)
 		)
 		(property "MPN" "CL05B104KO5NNNC"
-			(at 91.44 129.54 0)
+			(at 137.16 129.54 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7235,7 +7890,16 @@
 			)
 		)
 		(property "Manufacturer" "Samsung Electro-Mechanics"
-			(at 91.44 129.54 0)
+			(at 137.16 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "1276-1001-1-ND"
+			(at 137.16 129.54 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7244,7 +7908,7 @@
 			)
 		)
 		(property "LCSC" "C1525"
-			(at 91.44 129.54 0)
+			(at 137.16 129.54 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7253,7 +7917,7 @@
 			)
 		)
 		(property "Description" "Capacitor 100nF 16V X7R 0402"
-			(at 91.44 129.54 0)
+			(at 137.16 129.54 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7272,18 +7936,18 @@
 	)
 	(wire
 		(pts
-			(xy 87.63 129.54)
-			(xy 85.09 129.54)
+			(xy 133.35 129.54)
+			(xy 130.81 129.54)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "b5bc207a-b70d-47b9-6a20-eb9b94bae575")
+		(uuid "0c971531-8304-cf1c-2c73-18378f087e5d")
 	)
 	(global_label "PROT_BAT"
 		(shape passive)
-		(at 85.09 129.54 180)
+		(at 130.81 129.54 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -7291,9 +7955,9 @@
 			)
 			(justify right)
 		)
-		(uuid "83d9b8ea-c8de-8403-a83a-18b31540af25")
+		(uuid "efcebdd1-352a-4deb-4f57-2a0c5a90031f")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 85.09 129.54 0)
+			(at 130.81 129.54 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7305,18 +7969,18 @@
 	)
 	(wire
 		(pts
-			(xy 95.25 129.54)
-			(xy 97.79 129.54)
+			(xy 140.97 129.54)
+			(xy 143.51 129.54)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "48441924-6d4b-3ba7-7600-fb842d8629b3")
+		(uuid "155d5859-10a4-b62f-d9c4-a8c6d349feb8")
 	)
 	(global_label "CELL_MINUS"
 		(shape passive)
-		(at 97.79 129.54 0)
+		(at 143.51 129.54 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -7324,9 +7988,9 @@
 			)
 			(justify left)
 		)
-		(uuid "b2a76cbd-4fd1-4e1f-4e00-dc29f280230c")
+		(uuid "ff5f5acc-fb57-8aeb-d81c-2476d3bc94eb")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 97.79 129.54 0)
+			(at 143.51 129.54 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -7377,8 +8041,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "81d7ad8c-e23b-cb9b-985a-a41d379ad321")
-		(property "Reference" "#FLGCHA28"
+		(uuid "094957f7-80ac-d80e-c98f-86dd012b34fd")
+		(property "Reference" "#FLGCHA31"
 			(at 15.24 146.66 0)
 			(effects
 				(font
@@ -7398,7 +8062,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#FLGCHA28")
+					(reference "#FLGCHA31")
 					(unit 1)
 				)
 			)
@@ -7445,8 +8109,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "ef0302b4-1994-ce26-2e78-869371cbab83")
-		(property "Reference" "#FLGCHA29"
+		(uuid "624f1cbf-c216-132b-6468-99527f95eb34")
+		(property "Reference" "#FLGCHA32"
 			(at 45.72 146.66 0)
 			(effects
 				(font
@@ -7466,7 +8130,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#FLGCHA29")
+					(reference "#FLGCHA32")
 					(unit 1)
 				)
 			)
@@ -7513,8 +8177,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "9daf909f-9d4b-0152-ef31-5d01e70cedf8")
-		(property "Reference" "#FLGCHA30"
+		(uuid "13e3004d-adff-0909-748c-a77cf8d34949")
+		(property "Reference" "#FLGCHA33"
 			(at 76.2 146.66 0)
 			(effects
 				(font
@@ -7534,7 +8198,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "#FLGCHA30")
+					(reference "#FLGCHA33")
 					(unit 1)
 				)
 			)

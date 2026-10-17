@@ -471,7 +471,7 @@
 		)
 		(embedded_fonts no)
 	)
-	(symbol "D_TVS_SMF15CA"
+	(symbol "D_Zener_ZENER4V7"
 		(pin_numbers
 			(hide yes)
 		)
@@ -494,7 +494,7 @@
 				)
 			)
 		)
-		(property "Value" "D_TVS"
+		(property "Value" "D_Zener"
 			(at 0 -2.54 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -526,7 +526,7 @@
 				)
 			)
 		)
-		(property "Description" "Bidirectional transient-voltage-suppression diode"
+		(property "Description" "Zener diode"
 			(at 0 0 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -537,7 +537,7 @@
 				)
 			)
 		)
-		(property "ki_keywords" "diode TVS thyrector"
+		(property "ki_keywords" "diode"
 			(at 0 0 0)
 			(show_name no)
 			(do_not_autoplace no)
@@ -559,29 +559,12 @@
 				)
 			)
 		)
-		(symbol "D_TVS_SMF15CA_0_1"
+		(symbol "D_Zener_ZENER4V7_0_1"
 			(polyline
 				(pts
-					(xy -2.54 1.27)
-					(xy -2.54 -1.27)
-					(xy 2.54 1.27)
-					(xy 2.54 -1.27)
-					(xy -2.54 1.27)
-				)
-				(stroke
-					(width 0.254)
-					(type default)
-				)
-				(fill
-					(type none)
-				)
-			)
-			(polyline
-				(pts
-					(xy 0.508 1.27)
-					(xy 0 1.27)
-					(xy 0 -1.27)
-					(xy -0.508 -1.27)
+					(xy -1.27 -1.27)
+					(xy -1.27 1.27)
+					(xy -0.762 1.27)
 				)
 				(stroke
 					(width 0.254)
@@ -604,12 +587,27 @@
 					(type none)
 				)
 			)
+			(polyline
+				(pts
+					(xy 1.27 -1.27)
+					(xy 1.27 1.27)
+					(xy -1.27 0)
+					(xy 1.27 -1.27)
+				)
+				(stroke
+					(width 0.254)
+					(type default)
+				)
+				(fill
+					(type none)
+				)
+			)
 		)
-		(symbol "D_TVS_SMF15CA_1_1"
+		(symbol "D_Zener_ZENER4V7_1_1"
 			(pin passive line
 				(at -3.81 0 0)
 				(length 2.54)
-				(name "A1"
+				(name "K"
 					(effects
 						(font
 							(size 1.27 1.27)
@@ -627,7 +625,7 @@
 			(pin passive line
 				(at 3.81 0 180)
 				(length 2.54)
-				(name "A2"
+				(name "A"
 					(effects
 						(font
 							(size 1.27 1.27)

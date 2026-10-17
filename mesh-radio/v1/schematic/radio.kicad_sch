@@ -1438,8 +1438,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b3b821cf-967b-de1b-03b1-7199d67ba789")
-		(property "Reference" "U9"
+		(uuid "5a6f0cb0-b1ec-e64e-d370-6316058e1731")
+		(property "Reference" "U10"
 			(at 43.18 44.22 0)
 			(effects
 				(font
@@ -1484,6 +1484,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "SX1262IMLTRTCT-ND"
+			(at 53.34 66.04 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C191341"
 			(at 53.34 66.04 0)
 			(effects
@@ -1505,7 +1514,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/d2839439-ccc6-636d-893e-761ca0d1a7fe"
-					(reference "U9")
+					(reference "U10")
 					(unit 1)
 				)
 			)
@@ -2333,7 +2342,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "ECS-TXO-20CSMV4-320-AY-TR"
+		(property "Value" "ECS-TXO-20CSMV4-320-AP-TR"
 			(at 99.06 58.38 0)
 			(effects
 				(font
@@ -2351,7 +2360,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "ECS-TXO-20CSMV4-320-AY-TR"
+		(property "MPN" "ECS-TXO-20CSMV4-320-AP-TR"
 			(at 104.14 50.8 0)
 			(effects
 				(font
@@ -2369,7 +2378,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C19858587"
+		(property "LCSC" "C54284784"
 			(at 104.14 50.8 0)
 			(effects
 				(font
@@ -2378,7 +2387,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "TCXO 32 MHz +/-0.5 ppm, clipped sine, 2.0 x 1.6"
+		(property "Description" "TCXO 32 MHz +/-0.5 ppm, clipped sine, -40..105 C, 2.0 x 1.6 (the -AY code is only -30 C)"
 			(at 104.14 50.8 0)
 			(effects
 				(font
@@ -2601,6 +2610,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "1276-1067-1-ND"
+			(at 25.4 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C29266"
 			(at 25.4 119.38 0)
 			(effects
@@ -2766,6 +2784,15 @@
 			)
 		)
 		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 38.1 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "1276-1001-1-ND"
 			(at 38.1 119.38 0)
 			(effects
 				(font
@@ -2947,6 +2974,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "1276-1001-1-ND"
+			(at 50.8 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C1525"
 			(at 50.8 119.38 0)
 			(effects
@@ -3120,6 +3156,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "1276-CL05A474KO5NNNCCT-ND"
+			(at 63.5 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C480644"
 			(at 63.5 127 0)
 			(effects
@@ -3272,6 +3317,15 @@
 			)
 		)
 		(property "Manufacturer" "Samsung Electro-Mechanics"
+			(at 76.2 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "1276-1001-1-ND"
 			(at 76.2 127 0)
 			(effects
 				(font
@@ -3440,6 +3494,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "1276-1077-1-ND"
+			(at 88.9 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C307434"
 			(at 88.9 127 0)
 			(effects
@@ -3592,6 +3655,15 @@
 			)
 		)
 		(property "Manufacturer" "Murata"
+			(at 101.6 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "490-14446-1-ND"
 			(at 101.6 127 0)
 			(effects
 				(font
@@ -3760,6 +3832,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "490-11225-1-ND"
+			(at 114.3 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C161329"
 			(at 114.3 127 0)
 			(effects
@@ -3912,6 +3993,15 @@
 			)
 		)
 		(property "Manufacturer" "Murata"
+			(at 127 127 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "490-8089-1-ND"
 			(at 127 127 0)
 			(effects
 				(font
@@ -4080,6 +4170,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "490-8089-1-ND"
+			(at 139.7 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C76902"
 			(at 139.7 129.54 0)
 			(effects
@@ -4232,6 +4331,15 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
+			(at 152.4 129.54 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-10.0KLRCT-ND"
 			(at 152.4 129.54 0)
 			(effects
 				(font
@@ -4398,6 +4506,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "445-6397-1-ND"
+			(at 45.72 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C383402"
 			(at 45.72 152.4 0)
 			(effects
@@ -4535,6 +4652,15 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
+			(at 91.44 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-220LRCT-ND"
 			(at 91.44 152.4 0)
 			(effects
 				(font
@@ -4688,6 +4814,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "490-3113-1-ND"
+			(at 134.62 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C85874"
 			(at 134.62 152.4 0)
 			(effects
@@ -4825,6 +4960,15 @@
 			)
 		)
 		(property "Manufacturer" "Murata"
+			(at 180.34 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "490-1154-1-ND"
 			(at 180.34 152.4 0)
 			(effects
 				(font
@@ -4978,6 +5122,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "311-0.0LRCT-ND"
+			(at 223.52 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C106231"
 			(at 223.52 152.4 0)
 			(effects
@@ -5115,6 +5268,15 @@
 			)
 		)
 		(property "Manufacturer" "Murata"
+			(at 269.24 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "490-6798-1-ND"
 			(at 269.24 152.4 0)
 			(effects
 				(font
@@ -5268,6 +5430,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "490-8095-1-ND"
+			(at 314.96 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C88891"
 			(at 314.96 152.4 0)
 			(effects
@@ -5405,6 +5576,15 @@
 			)
 		)
 		(property "Manufacturer" "Murata"
+			(at 358.14 152.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "490-17673-1-ND"
 			(at 358.14 152.4 0)
 			(effects
 				(font
@@ -5558,6 +5738,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "490-1139-1-ND"
+			(at 45.72 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C167480"
 			(at 45.72 165.1 0)
 			(effects
@@ -5695,6 +5884,15 @@
 			)
 		)
 		(property "Manufacturer" "Murata"
+			(at 88.9 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "490-8093-1-ND"
 			(at 88.9 165.1 0)
 			(effects
 				(font
@@ -5848,6 +6046,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "490-1148-1-ND"
+			(at 139.7 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C94079"
 			(at 139.7 165.1 0)
 			(effects
@@ -5985,6 +6192,15 @@
 			)
 		)
 		(property "Manufacturer" "Yageo"
+			(at 187.96 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-4.7KLRCT-ND"
 			(at 187.96 165.1 0)
 			(effects
 				(font
