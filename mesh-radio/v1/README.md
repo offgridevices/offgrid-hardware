@@ -1,0 +1,166 @@
+# Mesh Radio — v1
+
+**A LoRa mesh radio on one narrow board, built only from parts a US or
+allied factory can buy and assemble.** It does what the RAK WisBlock does in
+OffGrid's mesh nodes today (Meshtastic over LoRa, set up from the phone over
+Bluetooth), on a single board shaped like a Heltec V4. It also has a
+transmit amplifier that goes past the legal 1 W for licensed or experimental
+use, a locking serial port for the Cairn drone, and protection on every
+input.
+
+> **Status: requirements agreed (17 Oct 2026); design started.** Nothing
+> is designed, ordered or measured yet. This README begins as the
+> requirement list ([`docs/new-board.md`](../../docs/new-board.md)). At the
+> end it records which requirements were met.
+
+## This revision
+
+| | |
+|---|---|
+| Revision | **v1** (product: [`../README.md`](../README.md)) |
+| Status | requirements agreed; design started |
+| Trade-offs and research | [`docs/decisions.md`](docs/decisions.md) |
+| Tests and simulations | `TESTS.md` (written with the design) |
+
+## Who it is for
+
+- **Cairn nodes.** These are the mesh nodes the Cairn drone drops: on a
+  1.5–2 m pole or on a treetop.
+  - Each node weighs under 300 g.
+  - A node runs on one LiPo cell for days to weeks.
+  - In the sun, it sits in a sealed box at 55–60 °C.
+  - The node is live on the mesh while the drone carries it. The drone's
+    onboard computer (Jetson Orin Nano) reads signal strength from it over
+    a cable to pick the drop point.
+- **Any OffGrid node** that uses a RAK WisBlock today.
+- **A defence build later.** If a contract needs NDAA-compliant radios built
+  in the US or allied countries, this design is the starting point. It
+  should need only minor changes, not months of work.
+
+## Requirements
+
+Set by the owner on 17 Oct 2026, with the evidence for each in
+[`docs/decisions.md`](docs/decisions.md). Each requirement says how it will
+be checked. The *v1* column fills in as the design proves each one.
+
+### Sourcing and compliance
+
+| # | Requirement | How it is checked | v1 |
+|---|---|---|---|
+| S1 | **No part from a Chinese, Russian, Iranian or North Korean company, and none from Huawei, ZTE, Hytera, Hikvision or Dahua.** Every part comes from a US, EU, UK, Japanese, Taiwanese, Korean, Swiss or Norwegian maker. | BOM audit listing each part's maker and headquarters | ⏳ |
+| S2 | **Every part is in production today and stocked at DigiKey**, with a second source where one exists | Dated DigiKey stock and lifecycle check in `docs/` | ⏳ |
+| S3 | **The same files build at JLCPCB/PCBWay (test boards) and at a US or allied assembler (compliant boards)**, with no redesign. Test boards from China are *not* NDAA compliant and must never be described as such. | Every part has a DigiKey part number and an LCSC part number; no JLC-only parts | ⏳ |
+| S4 | Country of origin recorded for every chip, so a compliance file can be built later | BOM column | ⏳ |
+
+### Radio
+
+| # | Requirement | How it is checked | v1 |
+|---|---|---|---|
+| R1 | **LoRa, 902–928 MHz (US)**, Semtech SX1262, compatible with Meshtastic and MeshCore | Firmware variant builds; pins match firmware source | ⏳ |
+| R2 | **Transmit power adjustable from about 10 mW to about 3 W (35 dBm) into the antenna**, in bursts | PA datasheet and supply simulation at full battery; measured on built boards | ⏳ |
+| R3 | **1 W (30 dBm) whenever the radio is set to the US region**, the Part 15 limit. Above 1 W only in Meshtastic's licensed (ham) mode or with custom firmware. | Firmware power table (`TX_GAIN_LORA`) from the PA's gain; measured | ⏳ |
+| R4 | Receive at least as well as the RAK4631 (SX1262 sensitivity, about −131 dBm at LongFast). The amplifier's receive path must not make it worse. | Noise-figure budget; measured side by side with a RAK | ⏳ |
+| R5 | **LoRa antenna on a U.FL connector** at the end of the board, as on the Heltec V4 | Layout | ⏳ |
+| R6 | Transmit harmonics filtered so a 3 W burst stays inside FCC spurious limits | Filter simulation; measured with a spectrum analyser | ⏳ |
+| R7 | **Bluetooth LE on an on-board antenna** (no second connector), for setup from the Meshtastic app; turned off in firmware when not wanted | Antenna in layout; firmware setting | ⏳ |
+
+### Power
+
+| # | Requirement | How it is checked | v1 |
+|---|---|---|---|
+| P1 | **Listening (receive, Bluetooth off): 10 mA or less.** The RAK WisBlock idles near 20 mA. Lower is better. | Current budget from datasheets; measured | ⏳ |
+| P2 | Transmit bursts up to about 2 A from the battery at 3 W, without the 3.3 V rail dropping or the board resetting | Supply simulation with a worn battery | ⏳ |
+| P3 | **One LiPo cell (3.0–4.2 V) on a JST-PH 2.0 connector with standard (Adafruit/SparkFun) polarity**, which is the opposite of RAK's | Footprint and silkscreen | ⏳ |
+| P4 | **USB-C** for power, charging, firmware and the serial console | Layout | ⏳ |
+| P5 | **Solar input (5–6 V panel)** on its own connector, charging the cell | Charger simulation | ⏳ |
+| P6 | Optional 5 V from the drone's serial cable charges the cell while it is carried | Power-path simulation | ⏳ |
+| P7 | Charging stops when the cell is too hot or too cold (LiPo in a 60 °C box) | Charger temperature input and thermistor placement | ⏳ |
+| P8 | Power slide switch | Layout | ⏳ |
+
+### Protection: it must not burn out
+
+| # | Requirement | How it is checked | v1 |
+|---|---|---|---|
+| X1 | Battery plugged in backwards: no damage | Simulation; tested on built boards | ⏳ |
+| X2 | Short circuit on any output pin or the battery path: current is limited and the board recovers | eFuse / current-limit simulation | ⏳ |
+| X3 | Wrong or surging input on USB, solar or the drone port, up to at least 20 V and with plug-in spikes: no damage | Hot-plug and overvoltage simulation | ⏳ |
+| X4 | A bad or weak battery (high internal resistance, deep discharge to 2.5 V, a 4.35 V "HV" cell, the cell pulled out while on solar): no damage, clean restart | Simulation set | ⏳ |
+| X5 | Unprotected cells are protected on the board (over-discharge, over-charge, over-current) | Protection IC in the circuit | ⏳ |
+| X6 | Static (ESD) protection on USB, the antenna port and every external pin | Parts in the circuit | ⏳ |
+| X7 | Never damaged by transmitting with no antenna attached (field mistake) | PA ruggedness rating and power limit | ⏳ |
+
+### Heat and environment
+
+| # | Requirement | How it is checked | v1 |
+|---|---|---|---|
+| E1 | Every part rated −40 to +85 °C or better | BOM audit | ⏳ |
+| E2 | **Works continuously in a sealed box at 60 °C**, including a storm of messages (sustained transmitting) | Thermal simulation on the routed board, 60 °C air, worst-case duty cycle | ⏳ |
+| E3 | 3 W transmitting is held back by firmware before any part overheats | Thermal simulation; temperature sensing in firmware | ⏳ |
+| E4 | Large headroom: every part runs at no more than about 70 % of its rated current, voltage and power in the worst case | Derating table | ⏳ |
+
+### Connections
+
+| # | Requirement | How it is checked | v1 |
+|---|---|---|---|
+| C1 | **Drone port:** a locking JST-GH 6-pin, wired as the Pixhawk TELEM standard (5 V, TX, RX, CTS, RTS, GND), carrying Meshtastic's serial API | Pinout against the Pixhawk connector standard; firmware | ⏳ |
+| C2 | **GPS add-on plug** (JST-SH) on its own serial port, so GPS and the drone link work together (the RAK19003 makes you choose one) | Pin map | ⏳ |
+| C3 | **Expansion header** (0.1", fitted only when needed): 3.3 V, GND, I2C, the SPI pins a generic display uses (SCK, MOSI, MISO, CS, DC, RST, backlight), and at least 4 spare general pins (some analog) | Pin map | ⏳ |
+| C4 | Two buttons, reset and user, placed by the USB-C as on the Heltec V4 | Layout | ⏳ |
+| C5 | Status LEDs that firmware can turn off (to save power) | Circuit | ⏳ |
+| C6 | Firmware flashing over USB (drag-and-drop UF2, as on the RAK) and SWD test pads for recovery | Bootloader; test pads | ⏳ |
+| C7 | No display or GPS on the board itself | — | ⏳ |
+
+### Size and build quality
+
+| # | Requirement | How it is checked | v1 |
+|---|---|---|---|
+| M1 | **As compact as possible.** No wider than the Heltec V4 (25.4 mm); longer than its 51.7 mm only if needed; parts on both sides | Board outline | ⏳ |
+| M2 | One board, no stacked modules | — | ⏳ |
+| M3 | Mounting holes for a node enclosure | Layout | ⏳ |
+| M4 | Clean RF and power layout: 50 Ω controlled-impedance RF lines, short current loops, no sharp corners, unbroken ground under RF and power, stitching vias | Impedance calculation; layout review | ⏳ |
+| M5 | Repository rules: DRC 0/0/0, nets equal the circuit, CI rebuilds the board, current OffGrid brand, revision on the silkscreen ([`docs/new-board.md`](../../docs/new-board.md)) | Build gates | ⏳ |
+
+### Cost
+
+| # | Requirement | How it is checked | v1 |
+|---|---|---|---|
+| K1 | **About $40 of parts per board at small quantity, well under $100 in all.** For comparison, a RAK WisBlock with antenna costs about $32 from Amazon. US assembly costs more than China; both will be quoted. | Priced BOM at 10 and 100 boards | ⏳ |
+
+### Firmware
+
+| # | Requirement | How it is checked | v1 |
+|---|---|---|---|
+| F1 | A Meshtastic board variant (pins, PA gain table, power control), kept in this folder until it goes upstream | Builds against the pinned Meshtastic release | ⏳ |
+| F2 | Pins chosen so MeshCore can run too | Pin map review | ⏳ |
+
+## Testing: what can and cannot be proven before building
+
+Proven in simulation before ordering:
+
+- power surges and plug-in spikes;
+- short circuits and reversed battery;
+- weak, bad and over-voltage batteries;
+- solar input;
+- 3 W bursts on a worn battery;
+- heat at 60 °C with a message storm;
+- filter harmonics;
+- trace impedance.
+
+Proven only on built boards:
+
+- the exact output power;
+- antenna matching;
+- receive sensitivity;
+- real current draw.
+
+The plan is a small test batch measured on a bench with a spectrum
+analyser, side by side with a RAK.
+
+## Next steps
+
+1. Pick and verify every part: stock, maker, country of origin, LCSC
+   equivalent.
+2. Write the circuit in code, then place and route the board.
+3. Run the simulations above on the routed board.
+4. Write the Meshtastic variant.
+5. Order a test batch.
