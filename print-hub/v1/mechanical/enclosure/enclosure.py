@@ -22,7 +22,7 @@ COORDINATES.  Every position below is written in the board's KiCad
 coordinates, as in the layout: millimetres from the board centre, x to the
 right, y towards the FRONT edge (the USB-A side), z up from the board's
 bottom face.  KiCad's y axis points down the screen, so a right-handed 3D
-model needs y flipped: the helpers kbox()/kcyl()/kpos() do that, and the
+model needs y flipped: the helpers kbox()/kcbox()/kcyl()/ktext() do that, and the
 exported files have +Y pointing to the BACK of the box (USB-C side), +Z up.
 Building straight in KiCad (x, y) would give a mirror image of the real box.
 
@@ -44,7 +44,7 @@ receptacles (layout.py), so the lid's wall can sit right on it.
 """
 import gzip
 import math
-import os
+import os, zipfile
 import shutil
 import sys
 import tempfile
@@ -114,7 +114,12 @@ ESP_H = 3.11                 # module height (STEP)
 # Addressable LEDs, 2 x 2 mm, top-facing
 LED_SIZE = 2.2               # body + tolerance, for the fit check
 LED_H = 1.0
-LEDS = [(x + 5.5, 17.5) for x in USBA_X] + [(46.0, -10.0)]
+# Port LED: (cx + 6.0, 17.6) per src/layout.py at commit 492f15c ('port LED' dx 6.0,
+# dy -4.4 from y 22.0); the original brief said (cx + 5.5, 17.5).  The 2.5 mm
+# window centred on the new spot still sits over most of the LED at the old one.
+PORT_LED_DX, PORT_LED_Y = 6.0, 17.6
+STATUS_LED = (46.0, -10.0)
+LEDS = [(x + PORT_LED_DX, PORT_LED_Y) for x in USBA_X] + [STATUS_LED]
 # Everything else on the board is under this height above its top face,
 # and nothing but the USB-A receptacles sits in front of y = 19.0
 OTHER_PARTS_H = 3.5
@@ -215,6 +220,7 @@ FEET = [(-40.0, -22.0), (40.0, -22.0), (-40.0, 22.0), (40.0, 22.0)]
 
 # Exports
 STL_TOL = 0.02
+STEP_TIMESTAMP = '2026-10-17T00:00:00'   # fixed, so a rebuild gives a byte-identical STEP
 PREVIEW_TOL = 0.15
 PREVIEW_DPI = 80
 PREVIEW_SUPERSAMPLE = 2       # render at 2x and average down (anti-aliasing)
@@ -1010,15 +1016,22 @@ def main():
     print('  base %.1f cm^3, lid %.1f cm^3' % (base.volume / 1000, lid.volume / 1000))
     if not check_only:
         base.label, lid.label = 'printhub-base', 'printhub-lid'
-        export_step(Compound(children=[base, lid], label='printhub-enclosure'),
-                    os.path.join(HERE, 'printhub-enclosure.step'))
+        # the STEP goes out zipped (the repository keeps STEP files zipped)
+        raw = os.path.join(tempfile.gettempdir(), 'printhub-enclosure.step')
+        export_step(Compound(children=[base, lid], label='printhub-enclosure'), raw, timestamp=STEP_TIMESTAMP)
+        with zipfile.ZipFile(os.path.join(HERE, 'printhub-enclosure-step.zip'), 'w', zipfile.ZIP_DEFLATED,
+                             compresslevel=9) as z:
+            info = zipfile.ZipInfo('printhub-enclosure.step', date_time=(2026, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(info, open(raw, 'rb').read())
+        os.remove(raw)
         # STLs in print orientation, resting on z = 0
         b = Pos(0, 0, -FLOOR_BOT) * base
         export_stl(b, os.path.join(HERE, 'printhub-base.stl'), tolerance=STL_TOL, angular_tolerance=0.2)
         l = Pos(0, 0, TOP_Z) * (Rot(180, 0, 0) * lid)
         export_stl(l, os.path.join(HERE, 'printhub-lid.stl'), tolerance=STL_TOL, angular_tolerance=0.2)
         render(base, lid)
-        print('  wrote printhub-base.stl, printhub-lid.stl, printhub-enclosure.step, printhub-preview.png, printhub-views.png')
+        print('  wrote printhub-base.stl, printhub-lid.stl, printhub-enclosure-step.zip, printhub-preview.png, printhub-views.png')
     if '--no-check' in sys.argv:
         return 0
     r = fit_check(base, lid)

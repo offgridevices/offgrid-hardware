@@ -23,6 +23,10 @@ NAME = 'Print Hub'
 # v2/ prints V2 with no edit
 REV = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).upper()
 CAP = 1.2              # cap height of the labels, mm
+# where the big artwork goes, kept free of stitching vias (stitch.py):
+# (x0, y0, x1, y1), board mm.  Top: the title and the mark, in the band
+# between the logic and the ports.  Bottom: the lockup and the notes.
+ART = [(-14.0, -9.5, 14.0, 1.0), (-22.0, -11.0, 22.0, 13.0)]
 
 
 def strip(b):
@@ -50,7 +54,8 @@ def _blocked(b, side):
                                bb.GetRight() / 1e6 - pcb.CX, bb.GetBottom() / 1e6 - pcb.CY))
     for t in b.GetTracks():
         if t.GetClass() == 'PCB_VIA':
-            out.append(Point(pcb.xy(t.GetPosition())).buffer(t.GetWidth(pcbnew.F_Cu) / 2e6 + 0.1))
+            # vias are tented: ink may cross the ring, not the hole
+            out.append(Point(pcb.xy(t.GetPosition())).buffer(t.GetDrillValue() / 2e6 + 0.15))
     return unary_union(out)
 
 

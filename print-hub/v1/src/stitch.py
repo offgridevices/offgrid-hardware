@@ -6,9 +6,9 @@ millimetres wherever both fills and the In1 plane are ground ties them
 together, so no fill is an island and every return path is short.
 """
 import pcbnew
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, box
 from shapely.ops import unary_union
-import pcb
+import pcb, silk
 
 F, BK = pcbnew.F_Cu, pcbnew.B_Cu
 PITCH = 3.0          # stitching grid, mm
@@ -45,14 +45,16 @@ def pour_and_stitch(path):
     vias = [Point(pcb.xy(t.GetPosition())) for t in b.GetTracks() if t.GetClass() == 'PCB_VIA']
     holes = [Point(pcb.xy(p.GetPosition())).buffer(p.GetDrillSize().x / 2e6 + 0.5)
              for fp in b.GetFootprints() for p in fp.Pads() if p.GetDrillSize().x > 0]
+    # no stitching where the artwork goes (silk.ART): ink over a via is clipped
+    art = [box(*r).buffer(0.8) for r in silk.ART]
     n = 0
     y = -pcb.HY + 1.5
     while y < pcb.HY - 1.0:
         x = -pcb.HX + 1.5
         while x < pcb.HX - 1.0:
             q = Point(x, y)
-            if both.contains(q) and not keep.contains(q) and all(v.distance(q) > 1.5 for v in vias) \
-                    and not any(h.contains(q) for h in holes):
+            if both.contains(q) and not keep.contains(q) and not any(a.contains(q) for a in art) \
+                    and all(v.distance(q) > 1.5 for v in vias) and not any(h.contains(q) for h in holes):
                 pcb.via(b, x, y, 'GND')
                 vias.append(q)
                 n += 1
