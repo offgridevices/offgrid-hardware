@@ -31,6 +31,7 @@ each pack by number.
 | Status | designed, not yet built |
 | Tests and simulations | [`TESTS.md`](TESTS.md): every one with its v1 result |
 | Trade-offs | [`docs/decisions.md`](docs/decisions.md) |
+| Parts availability | [`docs/parts-check-2026-10-18.md`](docs/parts-check-2026-10-18.md) (check again before ordering) |
 | How the circuit works | [`docs/architecture.md`](docs/architecture.md) |
 | Toolchain | KiCad 10.0.7 (pinned image, `tools/Dockerfile`), Freerouting 2.5.0, ngspice 47, CadQuery 2.8 |
 | Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../docs/brand.md)); checked by `tools/verify_brand.py` |
@@ -92,8 +93,11 @@ What the owner set, and where v1 stands.
 2. **Assembly:** turnkey, top side only. Upload
    `production/smokebreak-bom-pcbway.csv` and `production/smokebreak-cpl.csv`.
    - LCSC has no stock of the fuse (**2822HC40-RTR**) or the pre-charge
-     resistors (**D2TO020C3R900FRE3**). Their BOM lines ask PCBWay to source
-     them by part number from Digi-Key or Mouser.
+     resistors (**D2TO020C3R900FRE3**), and only 3 of the TVS diode
+     (**SMBJ64CA**) on 18 Oct 2026. Their BOM lines ask PCBWay to source the
+     first two by part number from Digi-Key or Mouser. The TVS is a standard
+     part that several makers produce. Details:
+     [`docs/parts-check-2026-10-18.md`](docs/parts-check-2026-10-18.md).
    - The THT lines are not fitted; they ship loose: XT60PW-M, XT30PW-M,
      JST B3B/B4B/B5B/B6B/B7B-XH-A (one each), the C&K 7107 toggle, and the
      two drone leads (XT60H female on 12 AWG, XT30U female on 16 AWG, 50–75 mm).
