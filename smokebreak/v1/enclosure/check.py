@@ -1,6 +1,6 @@
 """Fit checks for the exported enclosure (trimesh + manifold3d).
 
-    /root/cqenv/bin/python check.py        # after enclosure.py; writes out/fit_check.txt
+    python check.py        # after enclosure.py (CadQuery + trimesh); writes out/fit_check.txt
 
 Everything is checked in the case frame (the STLs are mirrored back on load).
 """

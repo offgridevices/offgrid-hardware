@@ -1,7 +1,7 @@
 """SmokeBreak compact enclosure, CadQuery.
 
-    /root/cqenv/bin/python enclosure.py            # refresh the board dump, build, export
-    /root/cqenv/bin/python enclosure.py --no-dump  # reuse board_parts.json
+    python enclosure.py            # refresh the board dump, build, export (a Python with CadQuery 2.8)
+    python enclosure.py --no-dump  # reuse board_parts.json
 
 Every mechanical number comes from ../src/geometry.py; part positions come
 from place.PL via dump_board.py (system python3, pcbnew), written to

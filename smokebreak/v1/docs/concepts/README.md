@@ -20,7 +20,7 @@ renders them again from the models.
 
 | # | Concept | Views |
 |---|---|---|
-| 00 | [Flat Box](00-flat-box/concept.md) | [render](00-flat-box/hero.png) |
+| 00 | [Flat Box](../spec.md) (the spec's baseline) | [render](00-flat-box/hero.png) |
 | 01 | [Baton](01-baton/concept.md) | [render](01-baton/hero.png) |
 | 02 | [Puck](02-puck/concept.md) | [render](02-puck/hero.png) |
 | 03 | [Lantern](03-lantern/concept.md) | [render](03-lantern/hero.png) |

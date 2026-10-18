@@ -1,6 +1,6 @@
 """Preview renders of the exported STLs (Blender bpy, headless Cycles).
 
-    /root/bpyenv/bin/python render.py
+    python render.py       (Blender's Python, bpy)
 
 -> out/preview_iso.png (assembly, guard closed), out/preview_open.png (guard open, iso from the back),
    out/preview_battery_end.png (XT60/XT30 through the end wall, USB-C),

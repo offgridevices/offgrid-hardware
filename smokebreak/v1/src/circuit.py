@@ -1,6 +1,6 @@
 """SmokeBreak v1: the circuit, as code.  Every part, every pin, every net.
 
-The board's design follows ../ARCHITECTURE.md; pin maps were taken from
+The board's design follows ../docs/architecture.md; pin maps were taken from
 KiCad's symbol libraries, TI's datasheets and LCSC's symbols (noted where a
 pin's role is not obvious).  `check()` fails on any pin left without a net
 that is not declared unused, and on any net with only one pin.

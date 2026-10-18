@@ -5,7 +5,7 @@ demo animation.
     <bpy venv>/bin/python arm.py showcase   # showcase-*.png: armed, back, closed
     <bpy venv>/bin/python arm.py video      # arm-demo.mp4 (3D + the real screen + sound)
 
-The screen in the animation plays ../../ui/frames24 (made by ui/screens.py
+The screen in the animation plays ../../../ui/frames24 (made by ui/screens.py
 and resampled to 24 fps), so the 3D product shows exactly the screens in
 the storyboard, in sync with the guard and the switch.
 
@@ -25,8 +25,8 @@ import bpy            # noqa: E402
 import studio as s    # noqa: E402
 
 FPS = 24
-UI_FRAMES = os.path.join(SB, 'ui', 'frames24')
-UI_VIDEO = os.path.join(SB, 'ui', 'arm-sequence.mp4')
+UI_FRAMES = os.path.join(SB, '..', 'ui', 'frames24')
+UI_VIDEO = os.path.join(SB, '..', 'ui', 'arm-sequence.mp4')
 
 # ---------------------------------------------------------------- geometry
 W, D, H, R = 100.0, 58.0, 18.0, 9.0       # body

@@ -1,4 +1,4 @@
-"""00 - the flat-box baseline from SPEC.md (the design to beat)."""
+"""00 - the flat-box baseline from docs/spec.md (the design to beat)."""
 VIEW = dict(elevation=32, azimuth=-30)
 
 

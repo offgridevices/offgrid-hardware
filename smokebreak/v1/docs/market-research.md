@@ -1,6 +1,6 @@
 > Research notes written before designing SmokeBreak (10 October 2026).
 > Prices and listings are as found on that date and will have moved.
-> The decisions they led to are in [`../../SPEC.md`](../../SPEC.md).
+> The decisions they led to are in [`spec.md`](spec.md).
 
 # Smoke stoppers: what exists, and what people complain about
 

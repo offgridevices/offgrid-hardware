@@ -12,10 +12,10 @@ cd smokebreak/v1/firmware
 python -m pytest -q          # 328 tests, ~18 s
 ```
 
-Reference documents: `../ARCHITECTURE.md` (the board), `../src/circuit.py`
+Reference documents: `../docs/architecture.md` (the board), `../src/circuit.py`
 (the final hardware), `../sim/SIM.md` (power-path simulations and the design
-values the firmware must honour), `../../SPEC.md` (§4 stages, §5 protection,
-§6 UI, §7 memory), `../../ui/screens.py` (S00–S18).
+values the firmware must honour), `../docs/spec.md` (§4 stages, §5 protection,
+§6 UI, §7 memory), `../ui/screens.py` (S00–S21).
 
 ## Hardware the model is written against (circuit.py, SIM.md)
 
