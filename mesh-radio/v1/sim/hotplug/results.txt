@@ -1,0 +1,41 @@
+Study 1: hot plug and over-voltage (X3).  Limits: eFuse IN 28 V, IN slew 100 V/us up / 10 V/us down,
+EN/UVLO and OVLO 6.5 V, nRF52840 VBUS 5.8 V (5.5 V recommended), BQ25185 IN 25 V; 20 V never passes an eFuse;
+TVS2200 DC breakdown current <= 18 mA.  TVS at maximum breakdown (27.6 V) unless the case says otherwise.
+
+                                case  IN max V  dV/dt up V/us  dV/dt down V/us  EN max  OVLO max  eFuse OUT max  VIN_CHG max  eFuse   TVS pk A   TVS DC mA   verdict                    notes
+------------------------------------  --------  -------------  ---------------  ------  --------  -------------  -----------  -----  ---------  ----------  --------  -----------------------
+                    USB 5 V hot plug     8.649          4.488            3.281   1.384     1.604          4.738        4.332     on  0.0002391   5.784e-09      PASS                        -
+    USB 5.5 V (vSafe5V max) hot plug     9.526          4.937            3.604   1.523     1.764       0.004951    0.0004903    off  0.0002554     6.5e-09  MARGINAL  input did not switch on
+           USB 20 V hot plug (fault)     27.74          18.07            6.796    4.17     5.627        0.01408     0.001511    off      13.45     2.1e-08  MARGINAL    IN within 1 V of 28 V
+          USB 5 V -> 20 V step, 1 us     27.72          12.75            6.728   4.174     5.574          4.754        4.346    off      9.666     2.1e-08  MARGINAL    IN within 1 V of 28 V
+          12 V panel, 21 V Voc, 25 C     20.85          2.982          0.03843   4.188     2.512        0.03435      0.03435    off  0.0002832   2.185e-08      PASS                        -
+12 V panel at -20 C (TVS min 24.6 V)     24.41          3.515          0.05497   4.213     2.941        0.03432      0.03432    off  0.0003211   0.0006236      PASS                        -
+12 V panel at -40 C (TVS min 24.6 V)     24.74          3.734          0.05155   4.215     2.981        0.03435      0.03435    off     0.2169       211.1      FAIL            TVS DC 211 mA
+     6 V 1 W panel (7.2 V Voc), 25 C     6.899          1.084            0.204    2.33    0.8313          4.077        4.077     on  0.0001136   5.061e-09      PASS                        -
+              6 V 1 W panel at -40 C     8.624          1.337           0.2849   2.913     1.039          4.088        4.088     on  0.0001376   5.061e-09      PASS                        -
+                  drone 5 V hot plug      8.11          7.653             0.14   2.235     1.678          4.489        4.489     on  0.0004196   5.536e-09      PASS                        -
+         drone 20 V hot plug (fault)     27.82           32.1           0.4622   4.217     5.701       0.006216     0.006216    off      28.54  -1.141e-05  MARGINAL    IN within 1 V of 28 V
+  (eFuse OUT = USB_5V for USB; for solar / drone the eFuse output is VIN_CHG.)
+
+12 V panel (36 cells, 21.0 V Voc at 25 C, -2.2 mV/C/cell) against the TVS2200 breakdown 24.6 / 25.9 / 27.6 V:
+cell temp  Voc V  after RB060MM V  TVS (min VBR)
+---------  -----  ---------------  -------------
+     25 C     21             20.7             no
+      0 C  22.98            22.68             no
+    -10 C  23.77            23.47             no
+    -20 C  24.56            24.26             no
+    -30 C  25.36            25.06       conducts
+    -40 C  26.15            25.85       conducts
+  A conducting TVS2200 carries the panel current (Isc 0.33 A) continuously: 8 W against an 18 mA DC rating.
+
+EN/UVLO threshold vs. 4.7 V zener leakage (UDZV4.7B: IR <= 2 uA at 1 V, 25 C; 1 M top resistor):
+input  UVLO rise V (no leak)  +0.1 uA  +1 uA  +2 uA (datasheet max)  OV nom V  OV min (1 % R)  OV max (1 % R)
+-----  ---------------------  -------  -----  ---------------------  --------  --------------  --------------
+  USB                  4.333    4.433  5.333                  6.333     5.381           5.223            5.57
+solar                  3.553    3.653  4.553                  5.553     9.959           9.647           10.33
+drone                  4.333    4.433  5.333                  6.333     5.798           5.626           6.003
+  With 2 uA the USB and drone UVLO (6.3 V) sits above their OV cut-off: those inputs would never switch on.
+  USB sources may legally sit at up to 5.25 V (USB 2.0) / 5.5 V (Type-C vSafe5V); the USB OV cut-off is
+  5.22-5.57 V (comparator and 1 %% resistor tolerance): a 5.25-5.5 V charger can be refused.  Once tripped,
+  OVLO only releases below 1.09 V on the pin, i.e. 4.89 V on VBUS.
+

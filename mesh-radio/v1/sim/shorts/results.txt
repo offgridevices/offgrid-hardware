@@ -1,0 +1,39 @@
+Study 3: shorts (X2) and cell-protector trip timing (X5).  Short 10 mOhm + 5 nH (header: 40 mOhm + 15 nH)
+from 5 ms to 65 ms, run to 110 ms.  Fresh cell = 4.2 V / 50 mOhm, mid = 3.7 V / 150 mOhm, worn = 3.7 V / 300 mOhm.
+
+          case  Ishort pk  Ishort avg  Icell pk  LM66100 pk  TPS22965 pk  buck out pk  mux pk  BB in pk  BATFET pk         protector  3V3 at end  verdict                                                                                         notes
+--------------  ---------  ----------  --------  ----------  -----------  -----------  ------  --------  ---------  ----------------  ----------  -------  --------------------------------------------------------------------------------------------
+     3v3_fresh        111         1.1   0.05884     0.08377       0.3786          1.1       0         0    0.05091           no trip       3.297     PASS                                                                                             -
+  hdr3v3_fresh      50.43         1.1    0.1149      0.1229       0.4534          1.1       0         0     0.0747           no trip       3.297     PASS                                                                                             -
+  vsyssw_fresh      134.9       4.975     18.17       16.66        80.06        0.013       0         0      10.13  OCD/SCD 20.21 ms   2.845e-18     FAIL  LM66100 > 2.5 A for 20.2 ms, TPS22965 80.1 A for 20.2 ms, no restart on its own (3V3 0.00 V)
+    vsyssw_mid      119.5       4.508      10.9       15.06        70.12        0.013       0         0      9.154  OCD/SCD 20.20 ms   2.845e-18     FAIL  LM66100 > 2.5 A for 19.2 ms, TPS22965 70.1 A for 17.4 ms, no restart on its own (3V3 0.00 V)
+     vpa_fresh       93.5       3.497    0.3466     0.09337       0.1313         0.13  0.4727     2.187    0.05674           no trip       3.274     PASS                                                                                             -
+    pain_fresh        183         4.5      4.63       2.239       0.9995         0.13     4.5    0.6091    0.04915           no trip       3.274     PASS                                                                                             -
+    batp_fresh      120.4   1.601e-05     25.38       39.99        15.72        0.013       0         0   0.004296   OCD/SCD 0.25 ms   2.851e-18     FAIL                                LM66100 > 2.5 A for 0.0 ms, no restart on its own (3V3 0.00 V)
+      batp_mid        106   1.601e-05     13.47       33.31        13.17        0.013       0         0   0.004878   OCD/SCD 0.27 ms    2.85e-18     FAIL                                LM66100 > 2.5 A for 0.0 ms, no restart on its own (3V3 0.00 V)
+     batp_worn        106   1.601e-05     9.014       33.31        13.17        0.013       0         0    0.00488   OCD/SCD 0.29 ms    2.85e-18     FAIL                                LM66100 > 2.5 A for 0.0 ms, no restart on its own (3V3 0.00 V)
+       3v3_usb        111         1.1    0.2845      0.2843       0.3687          1.1       0         0          0           no trip       3.297     PASS                                                                                             -
+batp_usb_drawn      122.1    0.007016     25.32        41.5        15.82       0.3854       0         0          0   OCD/SCD 0.26 ms       3.297     FAIL                                                                    LM66100 > 2.5 A for 0.0 ms
+  batp_usb_fix      120.7    0.007016     25.51       30.95        13.71      0.04741       0         0          0   OCD/SCD 0.26 ms       3.297     FAIL                                                                    LM66100 > 2.5 A for 0.0 ms
+
+Protector trip vs. load current (typical thresholds, simulated) and datasheet bands:
+load A  V- - VSS mV (typ)  trip (typ, sim)                    datasheet band
+------  -----------------  ---------------  --------------------------------
+     2              52.32          no trip                              none
+     3              78.87          no trip                              none
+   3.5              92.18          no trip              OCD maybe (16-24 ms)
+     4              105.6          no trip              OCD maybe (16-24 ms)
+   4.5                119        20.209 ms              OCD maybe (16-24 ms)
+     5              132.5        20.209 ms                      OCD 16-24 ms
+     8               5952        20.207 ms                      OCD 16-24 ms
+    12               6485        20.206 ms                      OCD 16-24 ms
+    16               7015        20.207 ms                      OCD 16-24 ms
+    19               7412         0.259 ms  SCD maybe (125-375 us), else OCD
+    21               7676         0.257 ms  SCD maybe (125-375 us), else OCD
+    24               8072         0.257 ms  SCD maybe (125-375 us), else OCD
+  OCD trips for 3.40-4.80 A (85-115 mV over 22.0-24.75 mOhm); SCD for 16.0-25.0 A (400-600 mV).
+  Release after OCD / SCD needs BAT - V- > 1 V: the BQ29700 sinks 8-24 uA from V- to VSS, so with the board
+  load still on BAT_P the release needs that load to be above 1 V / 8 uA = 125 kOhm (42 kOhm at 24 uA):
+  with the slide switch ON (3V3 rail, ~13 mA) the cell stays cut off until USB / solar / drone power is applied;
+  with it OFF the remaining load (charger IQ_BAT 4-5 uA, TPS2121 standby 15-25 uA x 2, LM66100, 1.7 uA
+  divider, eFuse reverse leakage) is ~30-60 uA, i.e. 70-140 kOhm: release is NOT guaranteed (bench check).

@@ -1,0 +1,45 @@
+Study 2: battery plugged in backwards (X1).  4.2 V cell, 50 mOhm, plugged at 20 ms, run to 2 s.
+Limits: CSD25485F5 |VGS| 12 V, |VDS| 20 V, 0.5 W (min Cu), 3.2 A; BQ29700 BAT-VSS -0.3..12 V, V- <= BAT + 0.3 V;
+IC pins >= -0.3 V; pin / substrate-diode current <= 1 mA; cell current after 100 ms <= 10 mA.
+
+              case  Icell pk A  Icell >100ms A  FET VDS min   VGS min     VGS max  FET W >100ms  BAT-VSS min  BAT-VSS max  V- - BAT max  BAT_P min  BAT_P max  CELL_MINUS min  CELL_MINUS max  LM66100 |I| A  verdict                                                                                                        why
+------------------  ----------  --------------  -----------  --------  ----------  ------------  -----------  -----------  ------------  ---------  ---------  --------------  --------------  -------------  -------  ---------------------------------------------------------------------------------------------------------
+         rev_nousb    0.009459       1.008e-09       -4.004     0.195      0.1959     4.037e-09      -0.1959       -0.195      0.001624  -0.001653  -0.001606          0.1934          0.8468              0     PASS                                                                                                          -
+     rev_usb_drawn     0.01167       9.847e-10       -4.011    0.1886        0.19     3.949e-09        -0.19      -0.1886        -4.429      4.429      4.429           4.618           5.752      0.0004667     PASS                                                                                                          -
+       rev_usb_fix     0.01175       9.862e-10       -4.011    0.1887      0.1901     3.956e-09      -0.1901      -0.1887          -4.2        4.2        4.2           4.389           5.518              0     PASS                                                                                                          -
+rev_usb_drawn_held       33.07       3.476e-05       -5.156    -4.429     0.09082     0.0001791     -0.09087        4.428        0.6033     -4.442      4.429         -0.6031           4.431          50.64     FAIL  V- above BAT, pin current, IC pin < -0.3 V, BAT_P below -0.3 V for 431 us, 98 uC through substrate diodes
+  rev_usb_fix_held       27.72       3.247e-05       -5.153      -4.2     0.07145     0.0001673     -0.07149        4.199        0.6034     -4.279      4.235         -0.6255           4.086              0     FAIL  V- above BAT, pin current, IC pin < -0.3 V, BAT_P below -0.3 V for 450 us, 94 uC through substrate diodes
+    rev_nousb_held    0.009479       1.008e-09       -4.198  0.001752    0.002671     4.234e-09    -0.002678    -0.001752      0.001664  -0.001684  -0.001637       0.0001005          0.6366              0     PASS                                                                                                          -
+         fwd_nousb       9.497         0.01139   -9.561e-06    -4.204  -0.0006232      4.96e-06    0.0006232          4.2        0.6833  0.0002097        4.2          -5.525       2.539e-05          6.215     PASS                                                                                                          -
+
+Pin currents (peak, A): BQ29700 VSS, V-, BAT (through 330 R); substrate diodes on MUX_IN1, VSYS and the
+BQ25185 BAT pin:
+              case        VSS         V-       BAT  mux IN1 sub   VSYS sub  BQ25185 BAT sub
+------------------  ---------  ---------  --------  -----------  ---------  ---------------
+         rev_nousb  1.968e-11  6.616e-13   0.00198    2.313e-15  1.231e-15        2.313e-15
+     rev_usb_drawn  2.076e-11  5.573e-12  0.003436    4.439e-12  4.439e-12        4.439e-12
+       rev_usb_fix  2.061e-11  5.339e-12  0.003422     4.21e-12  4.509e-12         4.21e-12
+rev_usb_drawn_held      4e-06  0.0001342   0.02526        3.558  4.509e-12            3.575
+  rev_usb_fix_held      4e-06  0.0001344   0.02433        3.396  4.521e-12            3.413
+    rev_nousb_held  3.769e-15  6.447e-13  0.001928    2.357e-15  1.258e-15        2.357e-15
+         fwd_nousb      4e-06   0.002683   0.01673     4.21e-12   4.21e-12         4.21e-12
+
+Protector flags (OCD/SCD, OCC, OVP, UVP) and late VSYS / 3V3:
+              case    OCD    OCC    OVP    UVP      VSYS V  3V3 V
+------------------  -----  -----  -----  -----  ----------  -----
+         rev_nousb  False   True  False   True  -0.0008832      0
+     rev_usb_drawn  False   True  False   True       4.429  3.297
+       rev_usb_fix  False   True  False   True       4.499  3.297
+rev_usb_drawn_held  False   True  False   True       4.429  3.297
+  rev_usb_fix_held  False   True  False   True       4.499  3.297
+    rev_nousb_held  False  False  False   True  -0.0009029      0
+         fwd_nousb  False  False  False  False       4.198  3.297
+
+Every node, min / max after the plug (V):
+  rev_nousb: 3v3 0.00/0.00, bat_p -0.00/-0.00, bat_p_c -0.02/0.01, batt_plus -4.01/-3.00, cell_minus 0.19/0.85, mux_in1 -0.00/-0.00, pa_in 0.00/0.00, prot_bat -0.00/0.65, prot_cout -0.00/0.00, prot_d 0.16/0.53, prot_dout 0.19/0.85, prot_s2 -0.00/0.00, prot_vm -0.00/0.00, rev_g 0.18/0.21, vbat_sense -0.00/-0.00, vin_chg -0.00/-0.00, vpa 0.00/0.00, vsys -0.00/-0.00, vsys_sw -0.00/-0.00
+  rev_usb_drawn: 3v3 3.30/3.30, bat_p 4.43/4.43, bat_p_c 4.41/4.45, batt_plus 0.42/1.89, cell_minus 4.62/5.75, mux_in1 4.43/4.43, pa_in 0.00/0.00, prot_bat 4.43/5.56, prot_cout -0.00/0.00, prot_d 4.59/5.42, prot_dout 4.62/5.75, prot_s2 -0.00/0.00, prot_vm -0.00/0.00, rev_g 4.60/4.64, usb_5v 5.00/5.00, usb_vbus 5.00/5.00, vbat_sense 2.66/2.66, vin_chg 4.76/4.76, vpa 0.00/0.00, vsys 4.43/4.43, vsys_sw 4.43/4.43
+  rev_usb_fix: 3v3 3.30/3.30, bat_p 4.20/4.20, bat_p_c 4.18/4.22, batt_plus 0.19/1.66, cell_minus 4.39/5.52, mux_in1 4.20/4.20, pa_in 0.00/0.00, prot_bat 4.20/5.33, prot_cout -0.00/0.00, prot_d 4.36/5.18, prot_dout 4.39/5.52, prot_s2 -0.00/0.00, prot_vm -0.00/0.00, rev_g 4.37/4.41, usb_5v 5.00/5.00, usb_vbus 5.00/5.00, vbat_sense 2.52/2.52, vin_chg 4.76/4.76, vpa 0.00/0.00, vsys 4.50/4.50, vsys_sw 4.50/4.50
+  rev_usb_drawn_held: 3v3 3.28/3.30, bat_p -4.44/4.43, bat_p_c -4.44/4.43, batt_plus -4.82/4.43, cell_minus -0.60/4.43, mux_in1 -4.42/4.43, pa_in 0.00/0.00, prot_bat -0.68/5.13, prot_cout -0.04/5.16, prot_d -0.00/4.26, prot_dout -0.51/5.22, prot_s2 -0.00/0.73, prot_vm -0.07/0.58, rev_g -8.18/4.45, usb_5v 4.65/5.01, usb_vbus 4.69/5.01, vbat_sense -2.67/2.66, vin_chg 4.25/4.76, vpa 0.00/0.00, vsys 2.07/4.50, vsys_sw 2.10/4.50
+  rev_usb_fix_held: 3v3 3.30/3.30, bat_p -4.28/4.24, bat_p_c -4.28/4.24, batt_plus -4.83/4.20, cell_minus -0.63/4.09, mux_in1 -4.26/4.24, pa_in 0.00/0.00, prot_bat -0.68/4.80, prot_cout -0.04/4.81, prot_d -0.00/3.88, prot_dout -0.54/4.87, prot_s2 -0.00/0.61, prot_vm -0.07/0.57, rev_g -7.95/4.10, usb_5v 4.88/5.01, usb_vbus 4.90/5.01, vbat_sense -2.57/2.54, vin_chg 4.53/4.77, vpa 0.00/0.00, vsys 4.34/4.51, vsys_sw 4.34/4.51
+  rev_nousb_held: 3v3 0.00/0.00, bat_p -0.00/-0.00, bat_p_c -0.02/0.01, batt_plus -4.20/-3.19, cell_minus 0.00/0.64, mux_in1 -0.00/-0.00, pa_in 0.00/0.00, prot_bat -0.00/0.63, prot_cout -0.00/0.00, prot_d -0.00/0.34, prot_dout 0.00/0.64, prot_s2 -0.00/0.00, prot_vm -0.00/0.00, rev_g -0.01/0.01, vbat_sense -0.00/-0.00, vin_chg -0.00/-0.00, vpa 0.00/0.00, vsys -0.00/-0.00, vsys_sw -0.00/-0.00
+  fwd_nousb: 3v3 0.00/3.32, bat_p 0.00/4.20, bat_p_c -0.06/4.20, batt_plus 0.00/4.20, cell_minus -5.53/0.00, mux_in1 0.00/4.20, pa_in 0.00/0.00, prot_bat -5.52/4.20, prot_cout -1.37/4.20, prot_d -1.14/0.38, prot_dout -5.53/4.20, prot_s2 -0.21/0.00, prot_vm -4.84/0.00, rev_g -1.83/1.21, vbat_sense 0.00/2.52, vin_chg -0.00/-0.00, vpa 0.00/0.00, vsys 0.00/4.20, vsys_sw 0.00/4.20

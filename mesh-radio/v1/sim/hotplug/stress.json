@@ -1,0 +1,132 @@
+[
+ {
+  "part": "TPS259470A",
+  "ref": "U (eFuse IN)",
+  "qty": "peak input voltage",
+  "value": 27.824251638608736,
+  "unit": "V",
+  "rating": 28.0,
+  "kind": "absmax",
+  "case": "drone 20 V hot plug (fault)"
+ },
+ {
+  "part": "TPS259470A",
+  "ref": "U (eFuse IN)",
+  "qty": "steady input voltage (20 V fault / 12 V panel)",
+  "value": 21.0,
+  "unit": "V",
+  "rating": 23.0,
+  "kind": "rec",
+  "case": "23 V recommended maximum"
+ },
+ {
+  "part": "TPS259470A",
+  "ref": "U (EN/UVLO pin)",
+  "qty": "peak voltage",
+  "value": 4.216547635993586,
+  "unit": "V",
+  "rating": 6.5,
+  "kind": "absmax",
+  "case": "drone 20 V hot plug (fault)"
+ },
+ {
+  "part": "TPS259470A",
+  "ref": "U (OVLO pin)",
+  "qty": "peak voltage",
+  "value": 5.701282527342177,
+  "unit": "V",
+  "rating": 6.5,
+  "kind": "absmax",
+  "case": "drone 20 V hot plug (fault)"
+ },
+ {
+  "part": "C1u25 0603 25 V",
+  "ref": "C (raw inputs)",
+  "qty": "steady voltage, 12 V panel / 20 V fault",
+  "value": 21.0,
+  "unit": "V",
+  "rating": 25.0,
+  "kind": "derate",
+  "case": "continuous with a 12 V panel at 25 C (24 V+ cold)"
+ },
+ {
+  "part": "TVS2200",
+  "ref": "D (surge clamp)",
+  "qty": "standoff, 12 V panel at 25 C",
+  "value": 20.7,
+  "unit": "V",
+  "rating": 22.0,
+  "kind": "rec",
+  "case": "VRWM 22 V"
+ },
+ {
+  "part": "RB060MM-30",
+  "ref": "D (solar / drone reverse block)",
+  "qty": "reverse voltage, panel reversed (cold)",
+  "value": 26.148,
+  "unit": "V",
+  "rating": 30.0,
+  "kind": "derate",
+  "case": "12 V panel plugged in backwards at -40 C"
+ },
+ {
+  "part": "nRF52840",
+  "ref": "U (VBUS)",
+  "qty": "peak voltage",
+  "value": 4.7538083086339995,
+  "unit": "V",
+  "rating": 5.8,
+  "kind": "absmax",
+  "case": "USB 5 V -> 20 V step, 1 us"
+ },
+ {
+  "part": "nRF52840",
+  "ref": "U (VBUS)",
+  "qty": "steady voltage at OV max",
+  "value": 5.570411396191884,
+  "unit": "V",
+  "rating": 5.5,
+  "kind": "rec",
+  "case": "a source just under the USB OV cut-off"
+ },
+ {
+  "part": "BQ25185",
+  "ref": "U (IN)",
+  "qty": "peak voltage",
+  "value": 4.489032302539652,
+  "unit": "V",
+  "rating": 25.0,
+  "kind": "absmax",
+  "case": "drone 5 V hot plug"
+ },
+ {
+  "part": "BQ25185",
+  "ref": "U (IN)",
+  "qty": "steady voltage (solar OV cut-off max)",
+  "value": 10.330350881073509,
+  "unit": "V",
+  "rating": 18.0,
+  "kind": "rec",
+  "case": "VIN_OP 18 V"
+ },
+ {
+  "part": "C10u25 0805 25 V",
+  "ref": "C (VIN_CHG)",
+  "qty": "steady voltage (solar OV max)",
+  "value": 10.330350881073509,
+  "unit": "V",
+  "rating": 25.0,
+  "kind": "derate",
+  "case": "solar eFuse passes up to its OV cut-off"
+ },
+ {
+  "part": "C4u7 0603 10 V",
+  "ref": "C (USB_5V)",
+  "qty": "voltage at OV max",
+  "value": 5.570411396191884,
+  "unit": "V",
+  "rating": 10.0,
+  "kind": "derate",
+  "case": ""
+ }
+]

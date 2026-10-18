@@ -1,0 +1,42 @@
+[
+ {
+  "part": "R22m 1206 1 W",
+  "ref": "R (sense)",
+  "qty": "energy in a battery short (SCD)",
+  "value": 14.169248411891841,
+  "unit": "W",
+  "rating": 1.0,
+  "kind": "pulse",
+  "case": "peak power for <= 375 us"
+ },
+ {
+  "part": "LM66100",
+  "ref": "U (cell-to-SYS)",
+  "qty": "peak current, short",
+  "value": 41.4978040940063,
+  "unit": "A",
+  "rating": 2.5,
+  "kind": "absmax",
+  "case": "batp_usb_drawn (2.5 A pulsed <= 120 ms)"
+ },
+ {
+  "part": "TPS22965",
+  "ref": "U (main switch)",
+  "qty": "peak current, short",
+  "value": 80.05830878893215,
+  "unit": "A",
+  "rating": 8.0,
+  "kind": "absmax",
+  "case": "vsyssw_fresh (8 A < 300 us; 6 A continuous)"
+ },
+ {
+  "part": "L2u2 DFE201610E",
+  "ref": "L (3.3 V buck)",
+  "qty": "current, 3V3 short",
+  "value": 1.4749999999999999,
+  "unit": "A",
+  "rating": 1.9,
+  "kind": "derate",
+  "case": "ILIMF 1.4 A max + 50 ns x VIN/L overshoot vs Isat 1.9 A"
+ }
+]

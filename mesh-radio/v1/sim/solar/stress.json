@@ -1,0 +1,42 @@
+[
+ {
+  "part": "BQ25185",
+  "ref": "U (charger)",
+  "qty": "dissipation, 6 V panel",
+  "value": 0.10400960093306069,
+  "unit": "W",
+  "rating": 1.1,
+  "kind": "derate",
+  "case": "pv_3_1_100_25_diode (vs (125-60) C / 68.3 C/W = 0.95 W at 60 C ambient; 1.1 W shown as TJ 135 C)"
+ },
+ {
+  "part": "BQ25185",
+  "ref": "U (charger)",
+  "qty": "dissipation, USB charging 3.7 V cell (CE=VSYS)",
+  "value": 0.35649538793183716,
+  "unit": "W",
+  "rating": 0.95,
+  "kind": "derate",
+  "case": "(125 - 60 C) / 68.3 C/W JEDEC"
+ },
+ {
+  "part": "BQ25185",
+  "ref": "U (charger)",
+  "qty": "IN current (ILIM 1.05 A, max 1.1 A)",
+  "value": 1.1,
+  "unit": "A",
+  "rating": 1.1,
+  "kind": "absmax",
+  "case": "input current limit sits at the 1.1 A abs-max DC input current"
+ },
+ {
+  "part": "BQ25185",
+  "ref": "U (charger)",
+  "qty": "dissipation, 12 V panel at ~10 V (just under solar OV), 3.0 V cell",
+  "value": 2.3362416,
+  "unit": "W",
+  "rating": 0.95,
+  "kind": "derate",
+  "case": "Isc 0.33 A; thermal regulation (TREG 100 C) would cut it back"
+ }
+]

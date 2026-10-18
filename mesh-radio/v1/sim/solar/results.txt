@@ -1,0 +1,62 @@
+Study 5: 6 V 1 W panel through VINDPM (P5); charge-path control (P7, X5).
+Panel 12 cells, 7.2 V Voc, 0.185 A Isc at full sun; cell 100 mOhm; 3V3 load 13 mA.  Last 10 ms of 40 ms averaged.
+
+             cell    sun  panel         BAT_P-VSYS path  Vpanel  Ipanel mA  Ppanel mW  MPP mW  VIN_CHG   VSYS  into cell mA  harvest %  verdict
+-----------------  -----  -----  ----------------------  ------  ---------  ---------  ------  -------  -----  ------------  ---------  -------
+3.0 V (precharge)  100 %   25 C  LM66100 CE=GND (drawn)   3.958      183.8      727.6    1046    3.609  3.053         169.6      49.29     PASS
+3.0 V (precharge)  100 %   25 C        Schottky instead   3.958      183.8      727.6    1046    3.609  3.156         169.6      49.29     PASS
+3.0 V (precharge)  100 %   60 C  LM66100 CE=GND (drawn)   3.958      182.8      723.5   868.3    3.609  3.052         168.6         59     PASS
+3.0 V (precharge)  100 %   60 C        Schottky instead   3.958      182.8      723.5   868.3    3.609  3.156         168.6         59     PASS
+3.0 V (precharge)   50 %   25 C  LM66100 CE=GND (drawn)   3.917      91.38      357.9   494.5    3.604  3.024         77.15      47.08     PASS
+3.0 V (precharge)   50 %   25 C        Schottky instead   3.917      91.38      357.9   494.5    3.604  3.126         77.15      47.08     PASS
+3.0 V (precharge)   50 %   60 C  LM66100 CE=GND (drawn)   3.917      90.92      356.1   404.9    3.604  3.024         76.69      57.15     PASS
+3.0 V (precharge)   50 %   60 C        Schottky instead   3.917      90.92      356.1   404.9    3.604  3.125         76.69      57.15     PASS
+3.0 V (precharge)   20 %   25 C  LM66100 CE=GND (drawn)   3.877      35.91      139.2   180.6    3.602  3.007         21.68      36.08     PASS
+3.0 V (precharge)   20 %   25 C        Schottky instead   3.877      35.91      139.2   180.6    3.602  3.107         21.68      36.08     PASS
+3.0 V (precharge)   20 %   60 C  LM66100 CE=GND (drawn)   3.877      35.75      138.6   145.2    3.602  3.007         21.52      44.53     PASS
+3.0 V (precharge)   20 %   60 C        Schottky instead   3.877      35.75      138.6   145.2    3.602  3.107         21.52      44.53     PASS
+     3.0 V (fast)  100 %   25 C  LM66100 CE=GND (drawn)   3.958      183.8      727.6    1046    3.609  3.053         169.6      49.29     PASS
+     3.0 V (fast)  100 %   25 C        Schottky instead   3.958      183.8      727.6    1046    3.609  3.156         169.6      49.29     PASS
+     3.0 V (fast)  100 %   60 C  LM66100 CE=GND (drawn)   3.958      182.8      723.5   868.3    3.609  3.052         168.6         59     PASS
+     3.0 V (fast)  100 %   60 C        Schottky instead   3.958      182.8      723.5   868.3    3.609  3.156         168.6         59     PASS
+     3.0 V (fast)   50 %   25 C  LM66100 CE=GND (drawn)   3.917      91.38      357.9   494.5    3.604  3.024         77.15      47.08     PASS
+     3.0 V (fast)   50 %   25 C        Schottky instead   3.917      91.38      357.9   494.5    3.604  3.126         77.15      47.08     PASS
+     3.0 V (fast)   50 %   60 C  LM66100 CE=GND (drawn)   3.917      90.92      356.1   404.9    3.604  3.024         76.69      57.15     PASS
+     3.0 V (fast)   50 %   60 C        Schottky instead   3.917      90.92      356.1   404.9    3.604  3.125         76.69      57.15     PASS
+     3.0 V (fast)   20 %   25 C  LM66100 CE=GND (drawn)   3.877      35.91      139.2   180.6    3.602  3.007         21.68      36.08     PASS
+     3.0 V (fast)   20 %   25 C        Schottky instead   3.877      35.91      139.2   180.6    3.602  3.107         21.68      36.08     PASS
+     3.0 V (fast)   20 %   60 C  LM66100 CE=GND (drawn)   3.877      35.75      138.6   145.2    3.602  3.007         21.52      44.53     PASS
+     3.0 V (fast)   20 %   60 C        Schottky instead   3.877      35.75      138.6   145.2    3.602  3.107         21.52      44.53     PASS
+            4.1 V  100 %   25 C  LM66100 CE=GND (drawn)   4.824      183.1      883.4    1046    4.474  4.149         170.4       67.4     PASS
+            4.1 V  100 %   25 C        Schottky instead   4.824      183.1      883.4    1046    4.474  4.253         170.7      67.51     PASS
+            4.1 V  100 %   60 C  LM66100 CE=GND (drawn)   4.819      176.2        849   868.3    4.473  4.147         163.4      77.82     PASS
+            4.1 V  100 %   60 C        Schottky instead   4.819      176.2        849   868.3    4.473  4.251         163.7      77.95     PASS
+            4.1 V   50 %   25 C  LM66100 CE=GND (drawn)   4.763      90.96      433.2   494.5    4.451  4.123         78.17      65.07     PASS
+            4.1 V   50 %   25 C        Schottky instead   4.763      90.96      433.2   494.5    4.451  4.224         78.45       65.3     PASS
+            4.1 V   50 %   60 C  LM66100 CE=GND (drawn)   4.761      87.96      418.8   404.9     4.45  4.122         75.17       76.4     PASS
+            4.1 V   50 %   60 C        Schottky instead   4.761      87.96      418.8   404.9     4.45  4.223         75.45      76.69     PASS
+            4.1 V   20 %   25 C  LM66100 CE=GND (drawn)   4.712      35.61      167.8   180.6    4.436  4.107         22.78      51.78     PASS
+            4.1 V   20 %   25 C        Schottky instead   4.712      35.61      167.8   180.6    4.436  4.207         23.06      52.41     PASS
+            4.1 V   20 %   60 C  LM66100 CE=GND (drawn)   4.711      34.56      162.8   145.2    4.436  4.106         21.72      61.41     PASS
+            4.1 V   20 %   60 C        Schottky instead   4.711      34.56      162.8   145.2    4.436  4.207            22       62.2     PASS
+  harvest = cell charge power / panel MPP power.  The 3V3 load (13 mA) comes out of the panel first.
+
+                    case    cell         BAT_P-VSYS path   VSYS  BAT_P  charger BAT mA  LM66100 mA (BAT->SYS)  into cell mA                  criterion  verdict
+------------------------  ------  ----------------------  -----  -----  --------------  ---------------------  ------------  -------------------------  -------
+solar, charging disabled   3.7 V  LM66100 CE=GND (drawn)   3.75  3.737               0                 -169.7         169.6  P7: <= 1 mA into the cell     FAIL
+  USB, charging disabled   3.7 V  LM66100 CE=GND (drawn)  3.977  3.902               0                 -946.4         946.4  P7: <= 1 mA into the cell     FAIL
+           USB, charging   3.7 V  LM66100 CE=GND (drawn)  3.977  3.902               0                 -946.4         946.4     X5: ISET 497 mA +-10 %     FAIL
+           USB, charging  4.15 V  LM66100 CE=GND (drawn)  4.246   4.22               0                 -334.4         334.3     X5: ISET 497 mA +-10 %     PASS
+solar, charging disabled   3.7 V         LM66100 CE=VSYS   3.75  3.737               0                 -169.7         169.6  P7: <= 1 mA into the cell     FAIL
+  USB, charging disabled   3.7 V         LM66100 CE=VSYS  4.499    3.7               0                      0      -0.02484  P7: <= 1 mA into the cell     PASS
+           USB, charging   3.7 V         LM66100 CE=VSYS  4.305  3.807             497                      0           497     X5: ISET 497 mA +-10 %     PASS
+           USB, charging  4.15 V         LM66100 CE=VSYS  4.246   4.22               0                 -334.4         334.3     X5: ISET 497 mA +-10 %     PASS
+solar, charging disabled   3.7 V        Schottky instead  4.499    3.7               0                      0      -0.02205  P7: <= 1 mA into the cell     PASS
+  USB, charging disabled   3.7 V        Schottky instead  4.499    3.7               0                      0      -0.02205  P7: <= 1 mA into the cell     PASS
+           USB, charging   3.7 V        Schottky instead  4.305  3.807             497                      0           497     X5: ISET 497 mA +-10 %     PASS
+           USB, charging  4.15 V        Schottky instead   4.49   4.19           193.2                      0         193.2     X5: ISET 497 mA +-10 %     PASS
+  As drawn the LM66100 (CE = GND) is a closed switch between BAT_P and VSYS: SYS (regulated to 4.5 V, or
+  pulled down by the cell) charges the cell directly, outside the charger's ISET, CV, /CE and TS control;
+  only the BQ29700 (OVP 4.275 V after 1.25 s, OCC 4 A) still limits it.  With CE = VSYS the LM66100 only
+  turns off once VSYS is 35 mV (0-80 mV) above the cell, i.e. above ~0.44 A reverse; a weak source (the
+  panel) never gets there, so the cell still charges through it.  A Schottky in its place always blocks.
