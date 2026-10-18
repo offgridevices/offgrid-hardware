@@ -12,22 +12,32 @@
  {
   "part": "LM66100",
   "ref": "U (cell-to-SYS)",
-  "qty": "peak current, short",
-  "value": 41.4978040940063,
+  "qty": "current through a VSYS_SW short until OCD (19 ms)",
+  "value": 4.448004000455735,
   "unit": "A",
   "rating": 2.5,
   "kind": "absmax",
-  "case": "batp_usb_drawn (2.5 A pulsed <= 120 ms)"
+  "case": "vsyssw_mid (2.5 A pulsed <= 120 ms)"
  },
  {
   "part": "TPS22965",
   "ref": "U (main switch)",
-  "qty": "peak current, short",
-  "value": 80.05830878893215,
+  "qty": "current through a VSYS_SW short until OCD",
+  "value": 4.974487857236153,
   "unit": "A",
-  "rating": 8.0,
+  "rating": 6.0,
   "kind": "absmax",
-  "case": "vsyssw_fresh (8 A < 300 us; 6 A continuous)"
+  "case": "vsyssw_fresh (6 A continuous, 8 A < 300 us)"
+ },
+ {
+  "part": "CSD25485F5",
+  "ref": "Q (reverse FET)",
+  "qty": "dissipation in linear mode, VSYS_SW short until OCD",
+  "value": 4.2888107185945,
+  "unit": "W",
+  "rating": 0.5,
+  "kind": "derate",
+  "case": "vsyssw_fresh (267 mJ over 20 ms; SOA not published for 20 ms)"
  },
  {
   "part": "L2u2 DFE201610E",

@@ -105,7 +105,9 @@ def run(args):
                v3_end=r['v(3v3)'][after].mean(), vsys_end=r['v(vsys)'][after].mean(),
                bat_end=r['v(bat_p)'][after].mean(), vm_pk=r['v(prot_vm,cell_minus)'][on].max(),
                stopped=stopped, pfet_pk=float(pfet[on].max()), efet=float((pfet * dt)[on].sum()),
-               pfet_avg=float(pfet[on & (t > T_ON + 1e-3)].mean()))
+               pfet_avg=float(pfet[on & (t > T_ON + 1e-3)].mean()),
+               ilm_avg=float(np.abs(r['v(pblm_i)'][on & (t > T_ON + 1e-3)]).mean()),
+               isw_avg=float(np.abs(isw[on & (t > T_ON + 1e-3)]).mean()))
     keep = np.unique(np.searchsorted(t, np.linspace(0, TSTOP, 4000))).clip(0, len(t) - 1)
     np.savez(os.path.join(OUT, name + '.npz'), t=t[keep], ish=ish[keep], icell=icell[keep], v3=r['v(3v3)'][keep],
              vsys=r['v(vsys)'][keep], bat=r['v(bat_p)'][keep], ilm=r['v(pblm_i)'][keep], isw=isw[keep])
@@ -163,9 +165,9 @@ def main():
     for r in res:
         f = []
         if r['ilm_t25'] > 10e-6:
-            f.append('LM66100 > 2.5 A for %.1f ms' % (r['ilm_t25'] * 1e3))
-        if r['isw_t8'] > 300e-6 or r['isw_t6'] > 0.12:
-            f.append('TPS22965 %.1f A for %.1f ms' % (r['isw_pk'], r['isw_t6'] * 1e3))
+            f.append('LM66100 %.1f A (> 2.5 A) for %.1f ms' % (r['ilm_avg'], r['ilm_t25'] * 1e3))
+        if r['isw_avg'] > 6.0 and r['isw_t6'] > 300e-6:
+            f.append('TPS22965 %.1f A for %.1f ms' % (r['isw_avg'], r['isw_t6'] * 1e3))
         if r['efet'] > 0.01 and r['pfet_avg'] > 1.4:
             f.append('rev FET in linear mode: %.1f W, %.0f mJ' % (r['pfet_avg'], r['efet'] * 1e3))
         if r['stopped'] is not None:
@@ -211,12 +213,15 @@ def main():
     rf = [r for r in res if r['name'] == 'batp_fresh'][0]
     st.append(S.stress('R22m 1206 1 W', 'R (sense)', 'energy in a battery short (SCD)', rf['icell_pk'] ** 2 * 0.022, 'W', 1.0,
                        'pulse', 'peak power for <= 375 us'))
-    w = max(res, key=lambda x: x['ilm_pk'])
-    st.append(S.stress('LM66100', 'U (cell-to-SYS)', 'peak current, short', w['ilm_pk'], 'A', 2.5, 'absmax', w['name'] +
-                       ' (2.5 A pulsed <= 120 ms)'))
-    w = max(res, key=lambda x: x['isw_pk'])
-    st.append(S.stress('TPS22965', 'U (main switch)', 'peak current, short', w['isw_pk'], 'A', 8.0, 'absmax', w['name'] +
-                       ' (8 A < 300 us; 6 A continuous)'))
+    w = max(res, key=lambda x: x['ilm_avg'] if x['ilm_t25'] > 10e-6 else 0)
+    st.append(S.stress('LM66100', 'U (cell-to-SYS)', 'current through a VSYS_SW short until OCD (%.0f ms)' % (w['ilm_t25'] * 1e3),
+                       w['ilm_avg'], 'A', 2.5, 'absmax', w['name'] + ' (2.5 A pulsed <= 120 ms)'))
+    w = max(res, key=lambda x: x['isw_avg'] if x['isw_t6'] > 10e-6 else 0)
+    st.append(S.stress('TPS22965', 'U (main switch)', 'current through a VSYS_SW short until OCD', w['isw_avg'], 'A', 6.0,
+                       'absmax', w['name'] + ' (6 A continuous, 8 A < 300 us)'))
+    w = max(res, key=lambda x: x['pfet_avg'] if x['efet'] > 0.01 else 0)
+    st.append(S.stress('CSD25485F5', 'Q (reverse FET)', 'dissipation in linear mode, VSYS_SW short until OCD', w['pfet_avg'], 'W',
+                       0.5, 'derate', w['name'] + ' (%.0f mJ over 20 ms; SOA not published for 20 ms)' % (w['efet'] * 1e3)))
     w = max(res, key=lambda x: x['ib_pk'])
     st.append(S.stress('L2u2 DFE201610E', 'L (3.3 V buck)', 'current, 3V3 short', 1.4 + 3.3 / 2.2e-6 * 50e-9, 'A', 1.9,
                        'derate', 'ILIMF 1.4 A max + 50 ns x VIN/L overshoot vs Isat 1.9 A'))

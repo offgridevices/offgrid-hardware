@@ -130,7 +130,7 @@ def build(cfg, datfile):
     v0 = cl['ocv'] if (cl['present'] and not cl['reverse'] and cl['plug_t'] is None) else 0.0
     vs0 = 4.5 if c['usb'] else v0
     ns = dict(BATT_PLUS=v0, BAT_P_C=v0, BAT_P=v0, MUX_IN1=v0, PROT_BAT=v0, CELL_MINUS=0, PROT_DOUT=v0,
-              PROT_COUT=v0, PBval=1 if v0 > 1.5 else 0, VSYS=vs0, VSYS_SW=vs0, CHbuv=1 if v0 > 3.15 else 0,
+              PROT_COUT=v0, PBval=1 if v0 > 1.5 else 0, VSYS=vs0, VSYS_SW=vs0, CHbuv=1 if v0 > 3.0 else 0,
               PROT_D=0, PROT_S2=0)
     ns['3V3'] = max(0.0, min(3.3, vs0 - 0.02))
     ns['SRbon'] = 1 if vs0 > 1.8 else 0
@@ -139,5 +139,5 @@ def build(cfg, datfile):
     ctl = ['.nodeset ' + ' '.join('v(%s)=%g' % kv for kv in ns.items())]
     ctl += [c.get('opt', '.option method=gear reltol=2e-3 abstol=1e-9 vntol=1e-5 itl4=200'),
            '.tran 1u %g 0 %g%s' % (tstop, c['tmax'], ' uic' if c['uic'] else ''),
-           '.control', 'set filetype=binary', 'run', 'write %s %s' % (datfile, ' '.join(vecs)), '.endc', '.end']
+           '.control', 'set filetype=binary'] + ['stop when %s' % x for x in c.get('stop_on', [])] + ['run', 'write %s %s' % (datfile, ' '.join(vecs)), '.endc', '.end']
     return '\n'.join(s + [l for l in ctl if l]) + '\n'

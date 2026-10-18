@@ -23,11 +23,16 @@ Pass criteria, fixed before running (README):
 The highest PA level that passes every criterion is the supported transmit
 power for that cell.
 
+Each run stops at its first fatal event (TPS63810 reset, OCD/SCD or UVP
+trip), so minima reported for a failing run are those up to that moment.
+
 Outputs: results.txt, stress.json, burst.png, maxpower.png.
 Run: python3 run.py   (from mesh-radio/v1: tools/kd python3 sim/burst/run.py)
 """
-import copy
+import hashlib
+import json
 import os
+import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor
 
@@ -41,21 +46,51 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = S.scratch('burst')
 
 OCVS = [4.2, 3.7, 3.3, 3.1]
+NUMS = ['bat_min', 'vsys_min', 'v3_min', 'pain_min', 'vpa_min', 'vpa_max', 'icell_max', 'ilm_max', 'ilm_rev', 'ilm_fwd',
+        'isup_max', 'iin_chg_max', 'imux1_max', 'imux2_max', 'ibb_max', 'ipa_max', 'vm_max', 'icell_avg', 't_end']
 RINTS = [0.05, 0.15, 0.30]
 
 
+STOP_ON = ['v(bbrst) > 0.5', 'v(pbocd) > 0.5', 'v(pbuvp) > 0.5']
+
+
 def run_case(args):
+    """One burst.  The run stops at the first fatal event (TPS63810 reset,
+    BQ29700 OCD/SCD or UVP trip): the verdict is FAIL from there on and the
+    chattering that follows a collapsed supply is slow to simulate.  Results
+    are cached in sim/out/burst/<name>.json against a hash of the netlist."""
     name, cfg = args
     raw = name + '.raw'
+    # with no cell fitted the BQ29700 has nothing to protect (its flags are meaningless): stop on resets only
+    cfg['stop_on'] = STOP_ON if cfg['cell']['present'] else STOP_ON[:1]
+    cfg['opt'] = OPTS[0]
+    key = hashlib.sha1(B.build(cfg, raw).encode()).hexdigest()
+    cache = os.path.join(OUT, name + '.json')
+    if os.path.exists(cache) and os.path.exists(os.path.join(OUT, name + '.npz')):
+        d = json.load(open(cache))
+        if d.get('key') == key:
+            return d['res']
     stopped = None
+    timed_out = False
     for opt in OPTS:
         cfg['opt'] = opt
         try:
-            S.ngspice(B.build(cfg, raw), OUT, name)
+            S.ngspice(B.build(cfg, raw), OUT, name, timeout=900)
             stopped = None
             break
         except S.TimestepError as e:
             stopped = e.t
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            break
+    if timed_out:
+        res = dict(name=name, timed_out=True, stopped=None, pass_=False, vset=cfg['pa']['vset'])
+        res.update(dict((k, float('nan')) for k in NUMS))
+        res.update(ocd=False, uvp=False, buvlo=False, bbrst=False, mux_left_in1=False, mux_on_in2=False,
+                   ok_a=False, ok_b=False, ok_c=False)
+        res['pass'] = False
+        json.dump(dict(key=key, res=res), open(cache, 'w'))
+        return res
     r = S.rawread(os.path.join(OUT, raw))
     os.remove(os.path.join(OUT, raw))
     pa = cfg['pa']
@@ -63,6 +98,8 @@ def run_case(args):
     t_off = pa['t_rf'] + pa['burst']
     w = (t > pa['t_apc']) & (t < t_off)
     ws = (t > pa['t_rf'] + 0.5e-3) & (t < t_off)
+    if not w.any():           # stopped before the APC came on (start-up collapse)
+        w = t > 0
     g = lambda k, m=w: r[k][m]
     res = dict(
         name=name,
@@ -84,13 +121,20 @@ def run_case(args):
     # 1-second-burst average of the cell current (for ratings), from the steady part
     res['icell_avg'] = float(np.mean(r['i(vbt_am)'][ws])) if (cfg['cell']['present'] and ws.any()) else 0.0
     res['ok_a'] = res['v3_min'] >= 1.9
+    if not cfg['cell']['present']:
+        res['ocd'] = res['uvp'] = False
     res['ok_b'] = not (res['ocd'] or res['uvp'])
     res['ok_c'] = (not res['bbrst']) and res['vpa_min'] >= 0.95 * pa['vset']
-    res['pass'] = res['ok_a'] and res['ok_b'] and res['ok_c'] and stopped is None
+    res['pass'] = bool(res['ok_a'] and res['ok_b'] and res['ok_c'] and stopped is None)
+    res['timed_out'] = False
+    res['t_end'] = float(t[-1])
+    res = dict((k, (bool(v) if isinstance(v, (bool, np.bool_)) else (float(v) if isinstance(v, (float, np.floating)) else v)))
+               for k, v in res.items())
     # decimated waveform for plots
     keep = np.unique(np.searchsorted(t, np.linspace(0, t[-1], 4000)).clip(0, len(t) - 1))
     np.savez(os.path.join(OUT, name + '.npz'), **{k.replace('(', '_').replace(')', '').replace(',', '_'): v[keep]
                                                   for k, v in r.items()})
+    json.dump(dict(key=key, res=res), open(cache, 'w'))
     return res
 
 
@@ -116,8 +160,12 @@ def cfg_for(ocv, rint, lvl, burst=0.2, usb=None, lm='gnd', present=True, pr_low=
 
 def why(r):
     w = []
+    if r.get('timed_out'):
+        return 'solver crawled (supply chattering), stopped after 900 s: counted as FAIL'
     if r['stopped'] is not None:
         w.append('supply collapse (solver stopped at %.2f ms)' % (r['stopped'] * 1e3))
+    elif not r['pass'] and r['t_end'] < 0.15:
+        w.append('[run ends at the first fatal event, %.1f ms]' % (r['t_end'] * 1e3))
     if r['ocd']:
         w.append('OCD/SCD trip')
     if r['uvp']:
@@ -211,7 +259,7 @@ def main():
     S.write_results(HERE, L)
 
     # ---------------------------------------------------------------- stress for the derating table
-    allr = [r for r in res.values()]
+    allr = [r for r in res.values() if not r.get('timed_out')]
     passing = [r for r in allr if r['pass']]
     worst = lambda k, rs: max(rs, key=lambda x: x[k])
     st = []

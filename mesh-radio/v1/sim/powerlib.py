@@ -52,6 +52,29 @@ def latch(n, set_, reset, init_leak=True):
                  'B%s 0 %s I = (%s) ? 1e-3*(1-V(%s)) : ((%s) ? -1e-3*V(%s) : 0)' % (n, n, set_, n, reset, n))
 
 
+def latch_k(n, set_k='0', reset_k='0', t_rec=0.0):
+    """Latch driven by continuous 0..1 strengths (used where a timer sets or
+    resets it, so the latch's drive does not jump when the timer crosses).
+    It holds itself once past ~0.4 V (a fault stays latched when its timer
+    resets); reset wins."""
+    k = 'max(%s, max(0, min(1, (V(%s) - 0.3)*5)))' % (set_k, n)      # self-holding once past ~0.4
+    pre = ''
+    if t_rec:   # the release condition is only looked at after a recovery delay (BQ2970x note 1)
+        pre = timer(n + 'r', 'V(%s) > 0.5' % n, t_rec)
+        reset_k = '(%s)*%s' % (reset_k, expired(n + 'r'))
+    return pre + lines('C%s %s 0 1n' % (n, n), 'R%s %s 0 1e15' % (n, n),
+                 'B%s 0 %s I = 1e-3*((%s)*(1-V(%s))*(1-(%s)) - (%s)*V(%s))' % (n, n, k, n, reset_k, reset_k, n))
+
+
+def expired(n):
+    """Continuous 'timer n has expired' (0 below 1.0 V, 1 above 1.05 V)."""
+    return 'max(0, min(1, (V(%s) - 1)*20))' % n
+
+
+def b(cond):
+    return '((%s) ? 1 : 0)' % cond
+
+
 def timer(n, cond, tau):
     """Timer node n: ramps 0 -> 1.2 V at 1 V per tau while cond is true,
     resets in ~1 us when it is false.  'Expired' = V(n) > 1.  Timers are held
@@ -190,15 +213,15 @@ def battery_block(p, lm='gnd', prot=None, lm_ron=0.079, trace_bat=(0.006, 6e-9))
         'R%svm PROT_VM 0 2.2k' % k,
         latch(k + 'val', '%s > 1.5' % vb, '%s < 1.4' % vb),
         timer(k + 'tovp', '%s > %g' % (vb, q['ovp']), q['ovp_t']),
-        latch(k + 'ovp', 'V(%stovp) > 1' % k, '%s < %g' % (vb, q['ovp'] - 0.1)),
+        latch_k(k + 'ovp', expired(k + 'tovp'), b('%s < %g' % (vb, q['ovp'] - 0.1)), 12e-3),
         timer(k + 'tuvp', '%s < %g' % (vb, q['uvp']), q['uvp_t']),
-        latch(k + 'uvp', 'V(%stuvp) > 1' % k, '%s > %g && (%s - %s) > 1' % (vb, q['uvp'] + 0.1, vb, vm)),
-        timer(k + 'tocd', '%s > %g' % (vm, q['ocd']), q['ocd_t']),
-        timer(k + 'tscd', '%s > %g' % (vm, q['scd']), q['scd_t']),
-        latch(k + 'ocd', 'V(%stocd) > 1 || V(%stscd) > 1' % (k, k), '(%s - %s) > 1' % (vb, vm)),
-        latch(k + 'scdf', 'V(%stscd) > 1' % k, '0'),
+        latch_k(k + 'uvp', expired(k + 'tuvp'), b('%s > %g && (%s - %s) > 1' % (vb, q['uvp'] + 0.1, vb, vm)), 8e-3),
+        timer(k + 'tocd', '%s > %g && V(%socd) < 0.5' % (vm, q['ocd'], k), q['ocd_t']),
+        timer(k + 'tscd', '%s > %g && V(%socd) < 0.5' % (vm, q['scd'], k), q['scd_t']),
+        latch_k(k + 'ocd', 'max(%s, %s)' % (expired(k + 'tocd'), expired(k + 'tscd')), b('(%s - %s) > 1' % (vb, vm)), 8e-3),
+        latch_k(k + 'scdf', expired(k + 'tscd'), '0'),
         timer(k + 'tocc', '%s < %g' % (vm, q['occ']), q['occ_t']),
-        latch(k + 'occ', 'V(%stocc) > 1' % k, '%s > %g' % (vm, q['occ'] + 0.04)),
+        latch_k(k + 'occ', expired(k + 'tocc'), b('%s > %g' % (vm, q['occ'] + 0.04)), 8e-3),
         'B%sdo %s_do CELL_MINUS V = (V(%sval) > 0.5 && V(%suvp) < 0.5 && V(%socd) < 0.5) ? max(%s, 0) : 0'
         % (k, k, k, k, k, vb),
         'R%sdo %s_do PROT_DOUT 10k' % (k, k), 'C%sgd PROT_DOUT CELL_MINUS 2n' % k,
@@ -278,11 +301,11 @@ def bq25185(p, vin, sys, bat, cfg=None):
         latch(p + 'ok', '%s > 3.15 && %s > %s + 0.152 && %s < 18.5' % (V(vin), V(vin), V(bat), V(vin)),
               '%s < 2.95 || %s < %s + 0.082 || %s > 18.5' % (V(vin), V(vin), V(bat), V(vin))),
         timer(p + 'tbuv', '%s < %g' % (V(bat), c['buvlo']), c['buvlo_t']),
-        latch(p + 'buv', '%s > %g' % (V(bat), c['buvlo'] + c['buvlo_hys']), 'V(%stbuv) > 1' % p),
-        latch(p + 'buvf', 'V(%stbuv) > 1' % p, '0'),
+        latch_k(p + 'buv', b('%s > %g' % (V(bat), c['buvlo'] + c['buvlo_hys'])), expired(p + 'tbuv')),
+        latch_k(p + 'buvf', expired(p + 'tbuv'), '0'),
         timer(p + 'tocp', 'V(%s_isup) > %g' % (p, c['batocp']), 10e-6),
         timer(p + 'tocpr', 'V(%socp) > 0.5' % p, 0.25),
-        latch(p + 'ocp', 'V(%stocp) > 1' % p, 'V(%stocpr) > 1' % p),
+        latch_k(p + 'ocp', expired(p + 'tocp'), expired(p + 'tocpr')),
         latch(p + 'trk', '%s > 3.5' % V(bat), '%s < 3.4' % V(bat)),
         latch(p + 'lowv', '%s < 2.9' % V(bat), '%s > 3.0' % V(bat)),
         latch(p + 'bsc', '%s < 1.6' % V(bat), '%s > 1.8' % V(bat)),
@@ -448,7 +471,7 @@ def efuse(p, vin, vout, rt_uv, rb_uv, rt_ov, rb_ov, rilm, zleak=0.0, cdvdt=1e-9,
         'R%sot %s %s %g' % (p, vin, ov, rt_ov), 'R%sob %s 0 %g' % (p, ov, rb_ov), 'C%sov %s 0 5p' % (p, ov),
         latch(p + 'uv', '%s > 1.20' % V(en), '%s < 1.09' % V(en)),
         timer(p + 'tov', '%s > 1.20' % V(ov), 1.2e-6),
-        latch(p + 'ovl', 'V(%stov) > 1' % p, '%s < 1.09' % V(ov)),
+        latch_k(p + 'ovl', expired(p + 'tov'), b('%s < 1.09' % V(ov))),
         latch(p + 'uvp', '%s > 2.53' % V(vin), '%s < 2.42' % V(vin)),
         mon(p + '_ena', '%s*(1 - %s)*%s' % (sat('V(%suv)' % p), sat('V(%sovl)' % p), sat('V(%suvp)' % p))),
         'C%sramp %sramp 0 1n' % (p, p), 'R%sramp %sramp 0 1G' % (p, p),
