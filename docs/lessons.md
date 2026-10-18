@@ -88,6 +88,10 @@ board's `docs/` keeps its own dated checks).
   a shape's holes by area, not by its hole count. (KiCad 10.0.6)
 - **In KiCad's Python API, keep a reference to anything you remove** from a
   board, or Python frees it and KiCad crashes later. (KiCad 10.0.6)
+- **Outputs carry the KiCad build string.** Gerbers and drill files name
+  the exact build (`10.0.7-10.0.7~ubuntu24.04.1` from Ubuntu's package,
+  `10.0.7` in the official image), so committed outputs only match CI when
+  they are built in the same pinned image. (KiCad 10.0.7)
 - **Outputs carry timestamps.** Gerbers and drill files embed their creation
   date and STEP exports renumber their entities on every run. Compare
   outputs with the dates ignored, and do not diff STEP files.
