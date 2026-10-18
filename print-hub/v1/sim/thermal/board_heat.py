@@ -77,8 +77,10 @@ RTH_L = 30.0                             # winding -> pads of the moulded induct
                                          # maker's 40 K rise at ~8 A rated current on its test board)
 CORE_LOSS = 0.05                         # W, FXL0630 at 800 kHz, 0.7 A ripple (maker's curve, estimate)
 R_CONTACT = 0.030                        # ohm per USB-A contact, end of life (USB 2.0 spec, 30 mOhm max)
-ESP_W = 3.3 * 0.12                       # W, module average with Wi-Fi associated and serving the page
-I_3V3 = 0.14                             # A, average 3.3 V load (module + 5 amplifiers + pull-ups)
+ESP_W = 3.3 * 0.075                      # W, module average at 80 MHz (the firmware's clock): Espressif's
+                                         # 47 mA (modem-sleep, both cores running, peripherals on) + 10 mA
+                                         # flash + Wi-Fi beacons and traffic, rounded up
+I_3V3 = 0.080                            # A, average 3.3 V load (module + 5 amplifiers + pull-ups, NTC)
 LED_W = 0.01                             # W per WS2812B-2020: ~1 mA driver + one colour at 0x20 of 0xff (firmware)
 VF_OR = 0.40                             # V, B5819W at ~0.2 A
 X5R_MAX, X7R_MAX = 85.0, 125.0           # C, ceramic capacitor ratings
@@ -377,6 +379,7 @@ def main(argv=None):
     out.append('| room (C) | load | heat (W) | thermistor (C) | first part to its limit | its margin (K) | '
                'thermistor reading at that part\'s limit (C) |\n|---|---|---|---|---|---|---|')
     trip = []
+    min_none_margin = [999.0]
     for room in HOT_ROOMS:
         for load, ports in (('3 A', [1.5, 1.5, 0, 0, 0]), ('1.5 A', [1.5, 0, 0, 0, 0]), ('none', [0] * 5)):
             case = dict(room=room, ports=ports, clamp=True, desc='%s, %g C' % (load, room))
@@ -387,13 +390,18 @@ def main(argv=None):
             rows = sorted([x for x in r['rows'] if x['T_limit']], key=lambda x: x['T_limit'] - x['T_j'])
             first = rows[0]
             m = first['T_limit'] - first['T_j']
-            trip.append(ntc + m)            # the parts' rise over the thermistor holds as the room warms
+            if sum(ports):                  # with nothing on, turning ports down cannot help
+                trip.append(ntc + m)        # the parts' rise over the thermistor holds as the room warms
             print('  room %g, %s: heat %.2f W, thermistor %.1f C, %s %.1f/%g' % (
                 room, load, r['P'], ntc, first['name'], first['T_j'], first['T_limit']))
             out.append('| %g | %s | %.2f | %.1f | %s | %+.1f | %.1f |' % (room, load, r['P'], ntc, first['name'], m, ntc + m))
-    out.append('\nThe lowest thermistor reading at which some part reaches its limit: **%.1f C**. '
-               'The firmware switches every port off at a lower reading (TRIP_C) and starts turning them down '
-               'well before (DERATE_C).\n' % min(trip))
+            if not sum(ports) and room == HOT_ROOMS[-1]:
+                min_none_margin[0] = m
+    out.append('\nWith ports on, the lowest thermistor reading at which some part reaches its limit: **%.1f C**. '
+               'The firmware must have turned the ports down to a safe load before it (DERATE_C to DERATE_FULL_C) '
+               'and switch them all off by then (TRIP_C). With every port off the board only warms with the room: '
+               'the "none" rows show it stays inside every rating to a room of about %.0f C.\n'
+               % (min(trip), HOT_ROOMS[-1] + min_none_margin[0]))
     out.append('\n## Result\n')
     out.append('**%s**' % ('every part inside its limit, with the margins above' if not bad else
                            'OVER LIMIT: ' + '; '.join(bad)))
