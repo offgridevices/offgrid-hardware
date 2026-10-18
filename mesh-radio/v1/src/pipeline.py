@@ -259,7 +259,7 @@ def run(work, passes=40, from_routed=False):
         # rules and net classes there): without it KiCad, the DSN export
         # and the DRC fall back to KiCad's defaults
         pcb.copy_project(placed, routed)
-        n = route.route(placed, routed, passes=passes, rounds=2)
+        n = route.route(placed, routed, passes=passes, rounds=1)
         log('Freerouting: %d connections left, %d duplicate vias removed' % (n, pcb.dedupe_vias(routed)))
         write_rules(routed)
     finish_stage(routed, fin, work)

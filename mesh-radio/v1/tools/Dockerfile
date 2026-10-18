@@ -4,8 +4,8 @@
 #
 #   curl -fsSL -o out/freerouting-1.9.0.jar \
 #     https://github.com/freerouting/freerouting/releases/download/v1.9.0/freerouting-1.9.0.jar
-#   curl -fsSL -o out/freerouting-2.4.1-linux-x64.zip \
-#     https://github.com/freerouting/freerouting/releases/download/v2.4.1/freerouting-2.4.1-linux-x64.zip
+#   curl -fsSL -o out/freerouting-2.5.0-linux-x64.zip \
+#     https://github.com/freerouting/freerouting/releases/download/v2.5.0/freerouting-2.5.0-linux-x64.zip
 #   docker build -t ogkicad:10 -f mesh-radio/v1/tools/Dockerfile out
 #
 # then run make.py inside it (mesh-radio/v1/tools/kd does this).
@@ -35,10 +35,10 @@ ENV KICAD10_3DMODEL_DIR=/usr/share/kicad/3dmodels
 COPY freerouting-1.9.0.jar /opt/freerouting-1.9.0.jar
 # sha256 9084a4888937a7f31f857ecc12aa7a37407f51160e4d2892dff9c9bb47ae3102
 RUN echo "9084a4888937a7f31f857ecc12aa7a37407f51160e4d2892dff9c9bb47ae3102  /opt/freerouting-1.9.0.jar" | sha256sum -c -
-# Freerouting 2.4.1, the current release, as its official Linux bundle
+# Freerouting 2.5.0, the current release, as its official Linux bundle
 # (it carries the Java 25 runtime it needs; GitHub publishes its sha256)
-COPY freerouting-2.4.1-linux-x64.zip /opt/
-RUN echo "3ad5a956ab474b12f331d24195feadac90e8344b8e013c6a4ab26e203ce51519  /opt/freerouting-2.4.1-linux-x64.zip" | sha256sum -c - \
- && cd /opt && python3 -m zipfile -e freerouting-2.4.1-linux-x64.zip . && rm freerouting-2.4.1-linux-x64.zip \
- && chmod -R a+rx /opt/freerouting-2.4.1-linux-x64
-ENV FREEROUTING_JAR=/opt/freerouting-1.9.0.jar FREEROUTING2=/opt/freerouting-2.4.1-linux-x64/bin/freerouting PYTHONHASHSEED=0
+COPY freerouting-2.5.0-linux-x64.zip /opt/
+RUN echo "e8ffca14914e5307a2fa9aea723fb93d11b99bebda20d126472da5460c03196e  /opt/freerouting-2.5.0-linux-x64.zip" | sha256sum -c - \
+ && cd /opt && python3 -m zipfile -e freerouting-2.5.0-linux-x64.zip . && rm freerouting-2.5.0-linux-x64.zip \
+ && chmod -R a+rx /opt/freerouting-2.5.0-linux-x64
+ENV FREEROUTING_JAR=/opt/freerouting-1.9.0.jar FREEROUTING2=/opt/freerouting-2.5.0-linux-x64/bin/freerouting PYTHONHASHSEED=0
