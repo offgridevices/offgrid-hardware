@@ -42,10 +42,18 @@ POWER = ['VSYS', 'VSYS_SW', 'VIN_CHG', 'USB_VBUS', 'USB_5V', 'SOLAR_CONN', 'SOLA
 # 0.298 mm from the shell tab beside it: the drawing's own spacing, not a
 # placement choice.  JLCPCB's NPTH-to-copper minimum is 0.2 mm.
 RULES = pcb.POFV_RULES + """
+(rule "RF coplanar gap"
+  (condition "A.NetClass == 'RF' && B.Type == 'Zone'")
+  (constraint clearance (min %.2fmm)))
+""" % RF_GAP + """
 (rule "USB-C locating slot (Amphenol 12401610 drawing)"
   (condition "A.Type == 'Pad' && A.memberOfFootprint('J1') && B.memberOfFootprint('J1')")
   (constraint edge_clearance (min 0.25mm)))
 """
+
+
+# the QPA9510 paddle's ground vias, mm from its centre (0.55 mm grid)
+PA_VIAS = [(x, y) for x in (-0.55, 0, 0.55) for y in (-0.55, 0, 0.55)]
 
 
 def placement(replace=False):
@@ -93,6 +101,12 @@ def build(out, replace=False):
             p.SetNet(pcb.add_net(b, 'GND'))
         fp.Reference().SetLayer(pcbnew.F_Fab)
         b.Add(fp)
+    # the amplifier's nine paddle vias (footprints.qpa9510_fp: Qorvo's grid),
+    # its heat path into the planes; filled and capped
+    c = b.FindFootprintByReference([c.ref for c in comps if c.part == 'QPA9510'][0]).GetPosition()
+    for vx, vy in PA_VIAS:
+        v = pcb.via(b, c.x / 1e6 - pcb.CX + vx, c.y / 1e6 - pcb.CY + vy, 'GND', d=0.5, drill=0.3)
+        v.SetLocked(True)
     # the RF lines (layout.rf_tracks: drawn straight between the chain's pads)
     for net, pts, w in layout.rf_tracks(b, nodes):
         before = set(t.m_Uuid.AsString() for t in b.GetTracks())
@@ -105,6 +119,10 @@ def build(out, replace=False):
     full = [(-ex, -ey), (ex, -ey), (ex, ey), (-ex, ey)]
     pcb.zone(b, 'GND', pcbnew.In1_Cu, full, clearance=0.15, min_width=0.15, priority=0, name='GND plane')
     pcb.hole_keepouts(b, CU)
+    # and on F.Cu: no ground pour or via near the antenna (its feed line may pass)
+    x0, y0, x1, y1 = layout.ANT_BOX
+    pcb.rule_area(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], [pcbnew.F_Cu], tracks=False, vias=True,
+                  pads=False, pours=True, name='Bluetooth antenna: no pour')
     for poly, layers, name in layout.keepouts():
         pcb.rule_area(b, poly, [pcb.layer_id(l) for l in layers], tracks=True, vias=True, pads=False,
                       pours=True, name=name)

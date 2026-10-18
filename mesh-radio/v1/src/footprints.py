@@ -417,8 +417,9 @@ def qpa9510_fp():
     Ground vias in the paddle: Qorvo asks for "ground via holes ... under
     the backside paddle ... 0.203 to 0.330 mm finished hole, 0.5 to 1.2 mm
     grid".  Nine 0.30 mm holes on a 0.55 mm grid (the grid that keeps
-    0.25 mm of laminate between holes) with 0.50 mm lands, numbered 17 so
-    they are part of the paddle.  The amplifier dissipates watts while
+    0.25 mm of laminate between holes) with 0.50 mm lands: board vias, which
+    board.py places (PA_VIAS), not footprint pads, so they are drilled,
+    filled and capped as vias.  The amplifier dissipates watts while
     transmitting at 3 W; this is its heat path into the ground planes.
     THESE VIAS MUST BE FILLED AND CAPPED (POFV, which this board orders):
     open holes under the paddle wick the solder paste away and leave voids.
@@ -426,7 +427,7 @@ def qpa9510_fp():
     square, 75 %), so the part does not float on the paddle's solder."""
     name = 'QFN-16_3x3_QPA9510'
     fp = _new(name, 'Qorvo QPA9510 QFN-16 3x3 mm 0.5 mm pitch, EP 1.5 mm; Qorvo land pattern; '
-                    '9 filled 0.3 mm vias in the EP')
+                    '9 filled 0.3 mm vias in the EP (board vias, board.py)')
     A, B, P, R = (0.64, 0.28), (0.28, 0.64), 0.50, 1.30
     offs = [-0.75, -0.25, 0.25, 0.75]
     for i, o in enumerate(offs):
@@ -436,9 +437,8 @@ def qpa9510_fp():
         _smd_pad(fp, str(13 + i), -o, -R, *B)          # 13-16 top, right to left
     ep = _smd_pad(fp, '17', 0, 0, 1.50, 1.50)
     ep.SetLocalSolderPasteMargin(MM(-0.10))
-    for vx in (-0.55, 0, 0.55):
-        for vy in (-0.55, 0, 0.55):
-            _pth_pad(fp, '17', vx, vy, 0.50, 0.30, mask=False)
+    # (the nine paddle vias are board vias, placed by board.py at PA_VIAS:
+    # a fab fills and caps vias; holes drawn as footprint pads it may not)
     # body with the pin-1 corner chamfer, as on Qorvo's drawing
     c = 0.40
     pts = [(-1.5 + c, -1.5), (1.5, -1.5), (1.5, 1.5), (-1.5, 1.5), (-1.5, -1.5 + c)]

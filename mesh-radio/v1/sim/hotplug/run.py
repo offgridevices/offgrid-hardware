@@ -208,7 +208,7 @@ def main():
                              'OV nom V', 'OV min (1 % R)', 'OV max (1 % R)']))
     L.append('  With 2 uA the USB and drone UVLO (6.3 V) sits above their OV cut-off: those inputs would never switch on.')
     L.append('  USB sources may legally sit at up to 5.25 V (USB 2.0) / 5.5 V (Type-C vSafe5V); the USB OV cut-off is')
-    L.append('  5.22-5.57 V (comparator and 1 %% resistor tolerance): a 5.25-5.5 V charger can be refused.  Once tripped,')
+    L.append('  5.22-5.57 V (comparator and 1 % resistor tolerance): a 5.25-5.5 V charger can be refused.  Once tripped,')
     L.append('  OVLO only releases below 1.09 V on the pin, i.e. %.2f V on VBUS.' % (1.09 * (1 + USB['rt_ov'] / USB['rb_ov'])))
     L.append('')
     # zener-leak transient check (USB, 1 uA)
