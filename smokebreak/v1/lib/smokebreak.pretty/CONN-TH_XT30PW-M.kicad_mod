@@ -137,7 +137,7 @@
 	(fp_line (start -3.37 -5.40) (end -3.35 -5.44) (layer F.CrtYd) (width 0.05))
 	(fp_line (start -3.35 -5.44) (end -3.35 -5.44) (layer F.CrtYd) (width 0.05))
 	(fp_line (start -3.35 -5.44) (end -3.30 -5.54) (layer F.CrtYd) (width 0.05))
-	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/CONN-TH_XT30PW-M.wrl"
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/CONN-TH_XT30PW-M.stpZ"
 		(offset (xyz 0.000 0.000 0.000))
 		(scale (xyz 1 1 1))
 		(rotate (xyz 0 0 0))

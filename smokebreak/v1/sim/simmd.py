@@ -40,7 +40,7 @@ DMP10H400SE (DS37841), Vishay AC series (28730).
 | D3 SS2H10, D4/aux BAT46WJ, BAT54S | diodes | 100 V 2 A (IFSM 50 A ≈ 10 A²s); 100 V 150 mA; 30 V |
 | Probe Q6/Q7 AO3401A | `VDMOS pchan` | 30 V, breakdown at 33 V so exposure shows as current |
 | TVS D1 | `TVSBI` | SMBJ58CA: 1 µA @ 58 V, 64.4 (min)…71.2 (max) V @ 1 mA, 93.6 V @ 6.4 A (soft knee, Rd ≈ 3.3 Ω); max-Vbr corner for clamping, min for leakage |
-| RPRE | 2 × Vishay AC05 3.9 Ω | pulse capability ≈ 2.85 Ws/Ω → **≈ 11 J per resistor** (datasheet chart, single pulse) |
+| RPRE | 2 × Vishay D2TO020 3.9 Ω | pulse capability ≈ 2.85 Ws/Ω → **≈ 11 J per resistor** (datasheet chart, single pulse) |
 | Drone | per case | leads 2 × 75-100 nH + 2 mΩ; bulk 470/2200/5000 µF, 30 mΩ, 5 nH; VTX 10-15 W from 6 V UVLO; FC 1 W; ESC body diodes |
 
 Ceramics are entered at their effective value at 60 V (4.7 µF/100 V X7S 1210 ≈ 2 µF; 2.2 µF/100 V
@@ -73,15 +73,18 @@ def write_simmd(out, wall, REP, DESIGN, CASES):
          "decks, data and logs go to `work/` (scratch, git-ignored), plots to `plots/`. The runner retries a "
          "deck with more forgiving solver options if it does not converge.", "",
          "Circuit under test: [`src/circuit.py`](../src/circuit.py). References: "
-         "[ARCHITECTURE.md](../ARCHITECTURE.md), [SPEC.md](../../SPEC.md) §4-5.", ""]
+         "[architecture.md](../docs/architecture.md), [spec.md](../docs/spec.md) §4-5.", ""]
     n = len(REP.fails)
     L += ["## Result", "",
           f"**{len(REP.checks) - n} of {len(REP.checks)} checks PASS"
-          + (f", {n} FAIL" if n else ", none FAIL") + "** for the recommended design (circuit.py plus the "
-          "changes in *Design values chosen*). The board exactly as in circuit.py fails several cases; see "
-          "Findings.", "",
+          + (f", {n} FAIL" if n else ", none FAIL") + "**. **The board as built (src/circuit.py) is the *Q11 alternative network*:** Q11 "
+          "BSC070N10LS5 in the battery minus with a 4.7 MΩ gate and 12 V zener, 2 × 2.2 µF direct, 2 × 4.7 µF / "
+          "0.33 Ω damper, 2 × 4.7 µF / 0.47 Ω snubber, RISCP 40.2 kΩ, the 65 mV hard-short LMV331, the Cdvdt "
+          "network, the 15 V gate zener, a 43 mΩ pre-charge P-FET and 150 V probe and pre-charge driver parts. "
+          "Rows marked *pre-review* are the circuit before this simulation review, kept for comparison; they "
+          "fail as expected.", "",
           _table(["case", "check", "result", "detail"], [[c[0], c[1], _pf(c[2]), c[3] or ""] for c in REP.checks]), ""]
-    L += ["## Findings against src/circuit.py", "",
+    L += ["## Findings that shaped src/circuit.py", "",
           "1. **TPS48000 reverse rating verified:** VS, CS±, SRC to GND −65 V (datasheet §5.1). A reversed "
           "14S LiHV pack *at rest* is fine (SRC −60.6 V, VS −60.9 V). **The plug-in of a reversed pack rings:** "
           "SRC (which holds the most negative value through Q1's body diode) reaches −104 V with the 2 × 2.2 µF "
@@ -104,7 +107,7 @@ def write_simmd(out, wall, REP, DESIGN, CASES):
           "(9 A) with 300 nH drone leads, so keep both. A 0.22 Ω snubber fails the reversed drone-side plug-in "
           "(SRC −70 V), so 0.47 Ω. **The 47 kΩ gate resistor draws 1.04 mA from a plugged-in 14S pack** "
           "(SPEC: < 30 µA off): use 4.7 MΩ (10 µA, gate up in ≈ 10 ms; the body diode carries meanwhile).",
-          "3. **Dead short as built:** Q1 reaches its 100 V breakdown at 6S-14S and avalanches far above its "
+          "3. **Dead short pre-review:** Q1 reaches its 100 V breakdown at 6S-14S and avalanches far above its "
           "50 A IAS; SRC goes below −65 V; the AO3401A probe switches (30 V) break down whenever VOUT swings "
           "negative. Causes: the TPS48000's 4 µs SCP, the INA181's slew and the LMV331's delay in the peak path, "
           "no output snubber, no input damping.",
@@ -139,17 +142,17 @@ def write_simmd(out, wall, REP, DESIGN, CASES):
     gate = DESIGN.get("gate", "R1 100 kΩ + C1 22 nF")
     L += ["## Design values chosen", "",
           _table(["item", "value", "cost / note", "from"], [
-              ["RPRE", "2 × Vishay AC05 3.9 Ω in series (7.8 Ω), one bank for 1S-14S",
+              ["RPRE", "2 × Vishay D2TO020 3.9 Ω in series (7.8 Ω), one bank for 1S-14S",
                "as asked; fits the case", "1(a)"],
-              ["RPRE energy", f"worst normal attempt (14S LiHV, 5000 µF) {2*e_norm:.1f} J = **{e_norm:.1f} J per AC05**; "
-                              f"at a 15 J abort {e_abort:.1f} J each; AC05 3.9 Ω pulse capability ≈ {e_cap:.0f} J",
+              ["RPRE energy", f"worst normal attempt (14S LiHV, 5000 µF) {2*e_norm:.1f} J = **{e_norm:.1f} J per D2TO020**; "
+                              f"at a 15 J abort {e_abort:.1f} J each; D2TO020 3.9 Ω pulse capability ≈ {e_cap:.0f} J",
                "firmware abort budget **12 J** (6 J each, 55 %)", "1(c)"],
               ["Cdvdt", f"{gate}: C1 from GATE to **GND** in series with **R2 = 1 kΩ**; PU resistor 47 Ω → **100 kΩ**; "
                         "PD stays direct. Not gate→SRC (that only adds Ciss; in source-follower mode the output slew "
                         "is set by the gate-to-GND capacitance)", "+2 parts, ~$0.01", "1(b), 3"],
               ["Main-switch close rule", f"close only after the pre-charge has settled (VOUT within 1 % for 20 ms) and "
                                          f"VIN − VOUT ≤ {12:g} V; else report 'drone draws power at x V'", "firmware", "1(b)"],
-              ["RISCP", "**40.2 kΩ** → 99 mV = 99 A (≥ 78 A at −22 %), above the peak path's 52 A ceiling", "as built 15.4 kΩ = 50 A", "3"],
+              ["RISCP", "**40.2 kΩ** → 99 mV = 99 A (≥ 78 A at −22 %), above the peak path's 52 A ceiling", "pre-review 15.4 kΩ = 50 A", "3"],
               ["Gate-source zener", "**15 V (BZT52C15)**, cathode at GATE, anode at SRC; Vgs peak 12.3 V in the worst short "
                                     "(PU/PD-SRC max 19 V)", "~$0.01", "3"],
               ["Input network", "**1 µF effective directly on VIN** (keep one 2.2 µF/100 V, remove the second); "
@@ -193,9 +196,9 @@ def write_simmd(out, wall, REP, DESIGN, CASES):
         "**LMV331 delay is a typical-only datasheet figure** (no max); the model uses the slower 2.7 V table on "
         "the 3.3 V rail.",
         f"**6S at 3.5 V/cell with a 10 W VTX** (VTX stuck at its 6 V UVLO, gap 15 V) cannot be powered with 7.8 Ω "
-        f"inside the BSC040N10NS5 SOA; firmware refuses it. A 3.9 Ω tap (second pre-charge switch at the AC05 "
+        f"inside the BSC040N10NS5 SOA; firmware refuses it. A 3.9 Ω tap (second pre-charge switch at the D2TO020 "
         f"mid-point) powers every 2S-7S case.",
-        "**AC05 pulse rating** is a chart value (single pulse, ≈ 11 J at 3.9 Ω); confirm with Vishay for "
+        "**D2TO020 pulse rating** is a chart value (single pulse, ≈ 11 J at 3.9 Ω); confirm with Vishay for "
         "repeated attempts and set the NTC cool-down accordingly.",
         "**Ceramic DC-bias** values (4.7 µF → ~2 µF at 60 V) set the damper and snubber; check the chosen part's curve.",
         "**Lead parasitics** (250 nH battery, 2 × 75 nH drone, 0.3 nH shunt) and an ideal, bounce-free contact are "

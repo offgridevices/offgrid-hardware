@@ -26,7 +26,7 @@
 	(fp_line (start -1.50 -1.25) (end 1.50 -1.25) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 1.50 -1.25) (end 1.50 1.25) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 1.50 1.25) (end -1.50 1.25) (layer F.CrtYd) (width 0.05))
-	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/KEY-SMD_2P-L3.0-W2.5-H1.6-LS4.0.wrl"
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/KEY-SMD_2P-L3.0-W2.5-H1.6-LS4.0.stpZ"
 		(offset (xyz 0.000 0.000 0.000))
 		(scale (xyz 1 1 1))
 		(rotate (xyz 0 0 0))

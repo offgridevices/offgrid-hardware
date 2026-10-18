@@ -29,7 +29,7 @@
 	(fp_line (start -1.15 -1.00) (end 1.15 -1.00) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 1.15 -1.00) (end 1.15 1.00) (layer F.CrtYd) (width 0.05))
 	(fp_line (start 1.15 1.00) (end -1.15 1.00) (layer F.CrtYd) (width 0.05))
-	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/SSOP-8_L2.0-W2.3-P0.50-LS3.1-BR.wrl"
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/SSOP-8_L2.0-W2.3-P0.50-LS3.1-BR.stpZ"
 		(offset (xyz 0.000 0.000 0.000))
 		(scale (xyz 1 1 1))
 		(rotate (xyz 0 0 0))

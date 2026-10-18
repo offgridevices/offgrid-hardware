@@ -33,7 +33,7 @@ from cadquery import Vector as V
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(os.path.dirname(HERE), 'src')
 LIB3D = os.path.join(os.path.dirname(HERE), 'lib', 'smokebreak.3dshapes')
-FONT_VAR = os.path.join(os.path.dirname(os.path.dirname(HERE)), 'brand', 'fonts', 'InstrumentSans-VariableFont.ttf')
+FONT_VAR = os.path.join(os.path.dirname(HERE), 'fonts', 'InstrumentSans-VariableFont.ttf')
 OUT = os.path.join(HERE, 'out')
 sys.path.insert(0, SRC)
 import geometry as G  # noqa: E402

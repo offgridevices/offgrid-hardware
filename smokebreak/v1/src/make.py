@@ -307,26 +307,42 @@ def art_items():
     return top, bottom
 
 
-def add_art(b, work):
+def _art_key(it):
+    return '%s|%s|%.2f|%.2f' % (it.get('text', it['kind']), it['layer'], it.get('x', it.get('x0', 0)),
+                                it.get('y', it.get('y0', 0)))
+
+
+def add_art(b, work, settled=None):
     """Draw the art.  Fixed items stay exactly where they are drawn (a clash
     with a pad or a via is reported, not moved); the rest are nudged to the
-    nearest free spot."""
+    nearest free spot.  `settled` (key -> [dx, dy], or None for an item left
+    out) replays an earlier search exactly, so the art can be rebuilt on the
+    finished board without its stitching vias moving it; the search's
+    result is returned as the third item of each row and in `add_art.settled`."""
     top, bottom = art_items()
     obs = {'T': _obstacles(b, 'T'), 'B': _obstacles(b, 'B')}
     copper = {'T': _obstacles(b, 'T', courtyards=False), 'B': obs['B']}
     res = B.art(top + bottom, work)
     out = []
     placed = []
+    record = {}
+    add_art.settled = record
     for it, r in zip(top + bottom, res):
         side = 'B' if it['layer'].startswith('B.') else 'T'
         x0, y0, x1, y1 = r['bounds']
         if side == 'B':                                # to board coordinates
             x0, x1 = B.W - x1, B.W - x0
         dx = dy = 0.0
+        key = _art_key(it)
         if it.get('fixed'):
             hits = _count((x0, y0, x1, y1), copper[side])
             if hits:
                 print('  clash:', it.get('text', it['kind']), side, hits)
+        elif settled is not None:
+            if settled.get(key) is None:
+                record[key] = None
+                continue
+            dx, dy = settled[key]
         else:
             for dx, dy in sorted(((i * 0.25, j * 0.25) for i in range(-24, 25) for j in range(-16, 17)),
                                  key=lambda d: (d[0] ** 2 + d[1] ** 2, abs(d[1]))):
@@ -335,7 +351,10 @@ def add_art(b, work):
             else:
                 if not it.get('optional'):
                     print('  no room for', it.get('text'))
+                record[key] = None
                 continue
+        if not it.get('fixed'):
+            record[key] = [dx, dy]
         placed.append((x0 + dx - 0.3, y0 + dy - 0.3, x1 + dx + 0.3, y1 + dy + 0.3))
         polys = [dict(outer=[[x + (dx if side == 'T' else -dx), y + dy] for x, y in p['outer']],
                       holes=[[[x + (dx if side == 'T' else -dx), y + dy] for x, y in h] for h in p['holes']])

@@ -1,15 +1,20 @@
 """SmokeBreak v1: everything PCBWay needs, from the finished board.
 
-    python3 fab.py            ../smokebreak.kicad_pcb -> ../fab/
+    python3 fab.py            ../smokebreak.kicad_pcb -> ../production/, ../mechanical/, ../images/
+    python3 fab.py --no-3d    production files and the gates only (what CI runs)
 
+Gates (exit 1 on a failure): KiCad DRC 0 errors / 0 warnings / 0 unconnected,
+every pad's net equal to circuit.py.
+
+production/
   smokebreak-gerbers.zip       copper (6), mask, paste, silk, outline, drills (PTH + NPTH)
   smokebreak-bom-pcbway.csv    PCBWay's assembly BOM: designators, qty, manufacturer + MPN,
                                LCSC number, package, SMD/THT, notes
   smokebreak-cpl.csv           pick and place (top side, SMD only; through-hole parts are
                                hand-soldered and left out)
   smokebreak-netlist.csv       every pad and its net (checked against circuit.py here)
-  smokebreak.step              the assembled board in 3D
-  ../images/board-*.png        renders
+mechanical/smokebreak-step.zip the assembled board in 3D (STEP, zipped)
+images/board-*.png             renders (256-colour PNG)
 
 Upload the Gerber zip for the bare board, then the BOM and CPL for
 assembly.  PCBWay matches parts by manufacturer part number; the LCSC
@@ -29,7 +34,9 @@ import circuit
 import parts
 
 BOARD = os.path.join(B.V1, 'smokebreak.kicad_pcb')
-OUT = os.path.join(B.V1, 'fab')
+OUT = os.path.join(B.V1, 'production')
+MECH = os.path.join(B.V1, 'mechanical')
+WORK = os.path.join(B.HERE, 'out', 'fab')
 IMG = os.path.join(B.V1, 'images')
 NAME = 'smokebreak'
 
@@ -46,7 +53,7 @@ def natural(ref):
 
 
 def gerbers():
-    g = os.path.join(OUT, 'gerbers')
+    g = os.path.join(WORK, 'gerbers')
     shutil.rmtree(g, ignore_errors=True)
     os.makedirs(g)
     layers = 'F.Cu,In1.Cu,In2.Cu,In3.Cu,In4.Cu,B.Cu,F.Paste,B.Paste,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,Edge.Cuts'
@@ -123,28 +130,54 @@ def netlist(b):
     return bad
 
 
+def quantize(path):
+    """Renders as 256-colour PNG: about a third of the size, no visible change."""
+    from PIL import Image
+    Image.open(path).convert('RGB').quantize(256, method=Image.Quantize.MEDIANCUT).save(path, optimize=True)
+
+
 def renders():
     os.makedirs(IMG, exist_ok=True)
-    for side, extra in (('top', []), ('bottom', [])):
-        run(['kicad-cli', 'pcb', 'render', '--side', side, '--width', '2400', '--height', '1400', '--zoom', '1.5',
-             '--quality', 'high', '--background', 'opaque', '-o', os.path.join(IMG, f'board-{side}.png'), BOARD] + extra)
-    run(['kicad-cli', 'pcb', 'render', '--side', 'top', '--rotate', '-35,0,25', '--width', '2400', '--height', '1500',
-         '--zoom', '1.3', '--quality', 'high', '--background', 'opaque', '-o', os.path.join(IMG, 'board-iso.png'), BOARD])
+    jobs = [('board-top', ['--side', 'top', '--width', '2000', '--height', '1160', '--zoom', '1.5']),
+            ('board-bottom', ['--side', 'bottom', '--width', '2000', '--height', '1160', '--zoom', '1.5']),
+            ('board-iso', ['--side', 'top', '--rotate', '-35,0,25', '--width', '2000', '--height', '1250', '--zoom', '1.3'])]
+    for name, args in jobs:
+        out = os.path.join(IMG, name + '.png')
+        run(['kicad-cli', 'pcb', 'render'] + args + ['--quality', 'high', '--background', 'opaque', '-o', out, BOARD])
+        quantize(out)
 
 
 def step():
-    # kicad-cli exits non-zero when a part has no STEP model (it writes the
-    # board without that part); the file is still good for the case design
-    out = os.path.join(OUT, f'{NAME}.step')
-    r = subprocess.run(['kicad-cli', 'pcb', 'export', 'step', '--subst-models', '--force', '-o', out, BOARD],
+    """The board in 3D for the case design, zipped (a 3D model with no STEP
+    makes kicad-cli exit non-zero; it still writes the rest)."""
+    os.makedirs(WORK, exist_ok=True)
+    os.makedirs(MECH, exist_ok=True)
+    out = os.path.join(WORK, f'{NAME}.step')
+    r = subprocess.run(['kicad-cli', 'pcb', 'export', 'step', '--force', '-o', out, BOARD],
                        capture_output=True, text=True)
     if not os.path.exists(out):
         raise SystemExit('STEP export failed\n' + r.stdout + r.stderr)
+    with zipfile.ZipFile(os.path.join(MECH, f'{NAME}-step.zip'), 'w', zipfile.ZIP_DEFLATED) as z:
+        z.write(out, f'{NAME}.step')
+
+
+def drc():
+    """KiCad's DRC with the zones refilled: 0 errors, 0 warnings, 0 unconnected."""
+    import json
+    os.makedirs(WORK, exist_ok=True)
+    out = os.path.join(WORK, 'drc.json')
+    subprocess.run(['kicad-cli', 'pcb', 'drc', '--refill-zones', '--severity-all', '--format', 'json', '-o', out,
+                    BOARD], capture_output=True)
+    r = json.load(open(out))
+    return len([v for v in r['violations'] if v['severity'] == 'error']), \
+        len([v for v in r['violations'] if v['severity'] != 'error']), len(r['unconnected_items'])
 
 
 if __name__ == '__main__':
     import sys
     os.makedirs(OUT, exist_ok=True)
+    e, w, u = drc()
+    print(f'DRC      {e} errors, {w} warnings, {u} unconnected')
     b = pcbnew.LoadBoard(BOARD)
     print('gerbers ', gerbers())
     rows, cpl = bom_and_cpl(b)
@@ -155,5 +188,5 @@ if __name__ == '__main__':
         step()
         renders()
         print('step + renders done')
-    if bad:
+    if bad or e or w or u:
         raise SystemExit(1)

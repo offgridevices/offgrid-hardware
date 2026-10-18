@@ -24,7 +24,7 @@
 	(fp_line (start 1.35 0.80) (end -1.35 0.80) (layer F.CrtYd) (width 0.05))
 	(fp_poly (pts (xy -1.299997 -1.002411) (xy -1.299997 -0.632409) (xy -1.604797 -0.632409) (xy -1.604797 -1.002411) (xy -1.299997 -1.002411)) (stroke (width 0) (type solid)) (fill solid) (layer "F.SilkS"))
 	(fp_poly (pts (xy -1.299997 1.002411) (xy -1.299997 0.632409) (xy -1.604797 0.632409) (xy -1.604797 1.002411) (xy -1.299997 1.002411)) (stroke (width 0) (type solid)) (fill solid) (layer "F.SilkS"))
-	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/SOD-123_L2.7-W1.6-H1.4-LS3.7.wrl"
+	(model "${KIPRJMOD}/lib/smokebreak.3dshapes/SOD-123_L2.7-W1.6-H1.4-LS3.7.stpZ"
 		(offset (xyz 0.000 0.000 0.000))
 		(scale (xyz 1 1 1))
 		(rotate (xyz 0 0 180))

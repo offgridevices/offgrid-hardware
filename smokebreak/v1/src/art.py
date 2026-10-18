@@ -25,8 +25,8 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', '..', 'brand'))
-import mark as M                                         # noqa: E402
+sys.path.insert(0, HERE)
+import brand as M                                         # noqa: E402
 from shapely import affinity                             # noqa: E402
 from shapely.geometry import Polygon                     # noqa: E402
 from shapely.ops import unary_union                      # noqa: E402
