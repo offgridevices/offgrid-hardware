@@ -132,8 +132,10 @@ STATUS_LED = (21.0, -0.3)
 LEDS = [(x + PORT_LED_DX, PORT_LED_Y) for x in USBA_X] + [STATUS_LED]
 # Every part on the board, for the lid's heat pads and their check: read from
 # the routed board (courtyards, via pcbnew in a subprocess, every run), with
-# the height of each footprint type above the board's top face.  The first
-# matching name fragment wins; a footprint that matches none stops the build.
+# the height of each footprint type above the board's top face (the heat
+# brief's figures, raised where the board's 3D model is taller: SOD-123 1.45,
+# SOT-23-6 1.6, DFN 0.89).  The first matching name fragment wins; a
+# footprint that matches none stops the build.
 BOARD_PCB = os.path.join(REPO_V1, 'print-hub.kicad_pcb')
 PART_HEIGHTS = [
     ('USB-A-TH', 7.35),          # its region keeps the full ceiling
@@ -144,9 +146,10 @@ PART_HEIGHTS = [
     ('C_1206', 1.6),
     ('R_1206', 0.65),            # current shunts
     ('SMA_', 2.4),               # input TVS D1
-    ('SOD-123', 1.2),
+    ('SOD-123', 1.45),
+    ('SOT-23-6', 1.6),           # USBLC6-2SC6
     ('SOT-23', 1.2), ('SOT-25', 1.2),
-    ('QFN', 0.85), ('DFN', 0.85), ('WSON', 0.85),
+    ('QFN', 0.85), ('DFN', 0.9), ('WSON', 0.85),
     ('LED-SMD_4P-L2.2', 0.9),    # WS2812B-2020
     ('_0603_', 0.9),
     ('_0402_', 0.55),
@@ -201,6 +204,8 @@ LID_COLLAR_Z = 6.0           # ... from this height up (inside the heat pad abov
 # vertical, so the lid still lowers straight down over the parts.
 PAD_CLEAR = 0.6              # lid underside above the top of each part
 PAD_GROW = 0.5               # around each courtyard
+POCKET_GROW = {'USB-A-TH': 1.0, 'SW-SMD': 1.0}   # more round these, to keep the clearance they had
+                             # before the pads (1 mm round the USB-A shells and the buttons)
 PAD_MIN_GAP = 1.2            # lid underside above the bare board top
 # The base's floor sits BOTTOM_GAP under the board, with a recess for the
 # USB-A pins (down to the old floor, PIN_FLOOR_CLEAR under the pins)
@@ -383,7 +388,8 @@ def heat_pad_rects():
         if 'USB-A' in fpid:
             gap = ceiling                         # the receptacles keep the full ceiling
         gap = min(gap, ceiling)
-        r = clip((x0 - PAD_GROW, x1 + PAD_GROW, y0 - PAD_GROW, y1 + PAD_GROW))
+        g = max([PAD_GROW] + [v for frag, v in POCKET_GROW.items() if frag in fpid])
+        r = clip((x0 - g, x1 + g, y0 - g, y1 + g))
         if gap > PAD_MIN_GAP + 1e-6 and r:
             out.append(r + (round(gap, 3),))
     return out
