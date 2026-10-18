@@ -190,6 +190,19 @@ Every finding was fixed:
    saver.
 3. **Buttons and JST connectors rated to −25 °C are accepted for now.**
    Revisit if a contract asks for −40 °C.
+4. **3 W confirmed, at about $58 of parts per board** (a 1 W-only board
+   would be about $40).
+5. **Above 1 W:** the owner gets a ham licence before taking boards into
+   the field. Until then the boards stay in US mode, which caps them at 1 W.
+   The hardware does not change.
+6. **RF test gear:** to be bought later. Until it is, the test boards run
+   with the makers' reference values, untuned. They should work, but output
+   power, harmonics and the firmware gain table stay unproven, and nothing
+   above 1 W is used until they are measured.
+7. **Battery: 1-cell LiPo, 1,800 mAh or larger**, which handles the 3 W
+   bursts.
+8. **The node is on, on the mesh and charging while the drone carries it**
+   (the 14 Oct Cairn decision; Notion's 16 Sep note said off until release).
 
 Still open:
 
