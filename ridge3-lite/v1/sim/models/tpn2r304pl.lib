@@ -1,0 +1,42 @@
+* TPN2R304PL (Toshiba, 40 V 2.3 mOhm N-MOSFET, TSON Advance)
+* VDMOS fit to datasheet Rev 3.0 by ridge3-lite/v1/sim/fet_model/run.py.
+* NOT Toshiba's model.  Nodes: D G S.  Internal: di gi si (die).
+* rg = RG param (datasheet 0.5 typ, 1.0 max); package L estimated.
+* TT = body-diode transit time (stored charge = TT x IF): 1.5 ns default,
+* see sim/README.md on why this is the least certain parameter.
+
+.subckt TPN2R304PL_25C D G S params: RG=0.7 TT=1.5e-09
+Ld D di 0.15n
+Lg G gx 0.5n
+Rgi gx gi {RG}
+Ls si S 0.25n
+M1 di gi si QCORE_25C
+.model QCORE_25C VDMOS (vto=2.85 kp=190 lambda=0.003 ksubthres=0.2 rd=0.0009139 rs=0.00015 cgs=2.571e-09 cgdmax=1.058e-09 cgdmin=1e-11 a=0.2593 cjo=2.353e-09 m=0.5751 vj=2.251 is=4.6e-10 n=1.25 rb=0.0005 tt={TT})
+.ends
+
+.subckt TPN2R304PL_100C D G S params: RG=0.7 TT=1.5e-09
+Ld D di 0.15n
+Lg G gx 0.5n
+Rgi gx gi {RG}
+Ls si S 0.25n
+M1 di gi si QCORE_100C
+.model QCORE_100C VDMOS (vto=2.45 kp=135.7 lambda=0.003 ksubthres=0.2 rd=0.001304 rs=0.00015 cgs=2.571e-09 cgdmax=1.058e-09 cgdmin=1e-11 a=0.2593 cjo=2.353e-09 m=0.5751 vj=2.251 is=4.6e-10 n=1.25 rb=0.0005 tt={TT})
+.ends
+
+.subckt TPN2R304PL_150C D G S params: RG=0.7 TT=1.5e-09
+Ld D di 0.15n
+Lg G gx 0.5n
+Rgi gx gi {RG}
+Ls si S 0.25n
+M1 di gi si QCORE_150C
+.model QCORE_150C VDMOS (vto=2.15 kp=112.4 lambda=0.003 ksubthres=0.2 rd=0.001776 rs=0.00015 cgs=2.571e-09 cgdmax=1.058e-09 cgdmin=1e-11 a=0.2593 cjo=2.353e-09 m=0.5751 vj=2.251 is=4.6e-10 n=1.25 rb=0.0005 tt={TT})
+.ends
+
+.subckt TPN2R304PL_150Cmin D G S params: RG=0.7 TT=1.5e-09
+Ld D di 0.15n
+Lg G gx 0.5n
+Rgi gx gi {RG}
+Ls si S 0.25n
+M1 di gi si QCORE_150Cmin
+.model QCORE_150Cmin VDMOS (vto=1.6 kp=112.4 lambda=0.003 ksubthres=0.2 rd=0.001851 rs=0.00015 cgs=2.571e-09 cgdmax=1.058e-09 cgdmin=1e-11 a=0.2593 cjo=2.353e-09 m=0.5751 vj=2.251 is=4.6e-10 n=1.25 rb=0.0005 tt={TT})
+.ends

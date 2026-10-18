@@ -1,0 +1,42 @@
+Inductor ripple and peak current (2.2 MHz setting):
+ VIN  f MHz       L uH  dI p-p A  K % of 0.6 A  Ipk @0.35 A  Ipk @0.6 A
+----  -----  ---------  --------  ------------  -----------  ----------
+   6   2.10  8 (-20 %)    0.0496         8.267       0.3748      0.6248
+   6   2.10         10   0.03968         6.614       0.3698      0.6198
+   6   2.20  8 (-20 %)   0.04735         7.891       0.3737      0.6237
+   6   2.20         10   0.03788         6.313       0.3689      0.6189
+   9   2.10  8 (-20 %)    0.1323         22.05       0.4161      0.6661
+   9   2.10         10    0.1058         17.64       0.4029      0.6529
+   9   2.20  8 (-20 %)    0.1263         21.04       0.4131      0.6631
+   9   2.20         10     0.101         16.84       0.4005      0.6505
+12.6   2.10  8 (-20 %)    0.1795         29.92       0.4398      0.6898
+12.6   2.10         10    0.1436         23.94       0.4218      0.6718
+12.6   2.20  8 (-20 %)    0.1714         28.56       0.4357      0.6857
+12.6   2.20         10    0.1371         22.85       0.4185      0.6685
+17.4   2.10  8 (-20 %)    0.2121         35.35        0.456       0.706
+17.4   2.10         10    0.1697         28.28       0.4348      0.6848
+17.4   2.20  8 (-20 %)    0.2025         33.74       0.4512      0.7012
+17.4   2.20         10     0.162         26.99        0.431       0.681
+Worst peak at 0.6 A: 0.706 A vs high-side limit ISC 0.87 A min (margin 23 %), inductor Isat 2.4 A (parts.py; verify).
+Minimum on-time: at 17.4 V and 2.3 MHz D/f = 125 ns vs tON-MIN 80 ns max (margin 45 ns); pulse skipping/foldback would start above VIN = 27.2 V.
+Maximum duty at 2.3 MHz (tOFF-MIN 77 ns): 0.82 -> needs VIN >= 6.08 V before frequency foldback (dropout mode) takes over; the 5 V rail holds down to ~5.3-5.5 V in.
+Subharmonic limit L >= 1.5 x VOUT / fSW = 3.6 uH (have 10 uH, 8 uH at -20 %).
+Minimum ripple rule (>= 10 % of 0.6 A = 60 mA): 137 mA at 12.6 V, 38 mA at 6 V (typ L, f).
+Output capacitance: 2 x 22 uF rated (TI Table 8-1, 5 V at 1 MHz: nominal 2 x 22 uF, minimum 1 x 22 uF rated); ~13 uF each left at 5 V bias.  Ripple ~ dI/(8 f C) + dI ESR = 1.1 mV.
+At 1 MHz with the same 10 uH (8 uH worst): ripple 0.48 A p-p, peak 0.839 A at 0.6 A vs ISC 0.87 A min; L >= 8.1 uH for subharmonic stability.
+
+Loss-model fit to TI curves: tsw 3.4 ns, Csw 135 pF, Pfix 64 mW; residuals +13, +6, -26, -35, +17, +8, +19, -3 mW.
+f MHz  IOUT   VIN  P_IC mW (hot typ)  P_IC mW (RDS max +30 mW)  P_L mW  eff %  Tj C (board 100)  Tj C (worst)
+-----  ----  ----  -----------------  ------------------------  ------  -----  ----------------  ------------
+  1.0  0.35  12.6              173.8                     213.6   21.98  89.94             104.5         105.5
+  1.0  0.35  17.4              194.6                     233.9   22.49  88.96               105         106.1
+  1.0   0.6  12.6              319.1                     376.9   62.12  88.72             108.3         109.8
+  1.0   0.6  17.4              333.5                     389.3   62.63  88.34             108.6         110.1
+  2.2  0.35  12.6              213.9                     253.3   20.97  88.17             105.5         106.6
+  2.2  0.35  17.4              263.9                     302.6   21.07     86             106.8         107.8
+  2.2   0.6  12.6              372.1                     429.4    61.1  87.38             109.6         111.1
+  2.2   0.6  17.4              420.5                     475.7   61.21  86.16             110.9         112.3
+Limits: TJ 150 C (operating range; lifetime derated above 125 C); thermal shutdown 158 C min.
+sim VIN 17.4 V, 0.60 A, L 8 uH, 2.1 MHz: IL 0.491..0.711 A (220 mA p-p), VOUT ripple 1.1 mV p-p
+sim VIN 17.4 V, 0.35 A, L 8 uH, 2.1 MHz: IL 0.242..0.458 A (216 mA p-p), VOUT ripple 0.8 mV p-p
+sim VIN 9.0 V, 0.60 A, L 8 uH, 2.1 MHz: IL 0.539..0.661 A (123 mA p-p), VOUT ripple 0.5 mV p-p

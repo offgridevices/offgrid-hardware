@@ -1,0 +1,69 @@
+# OffGrid Ridge 3 Lite v1 -- Betaflight CLI setup after flashing the STOCK target TAKERG4AIO
+# Every name and value below was checked against Betaflight 2026.6.2 source
+# (src/main/cli/settings.c, cli.c, io/serial.c, io/beeper.c).  Paste into the
+# CLI tab; the board reboots on 'save'.
+# If you flashed the local RIDGE3LITE hex instead: paste everything EXCEPT the
+# three align_board_* lines (RIDGE3LITE has the rotation in its sensor
+# alignment and needs board alignment 0/0/0; 45 there would be 45 deg off).
+
+# ---------------------------------------------------------------------------
+# BOARD ALIGNMENT: leave it.  align_board_yaw = 45 is CORRECT for this board.
+# The gyro chip is deliberately placed rotated on the PCB so that TAKERG4AIO's
+# built-in GYRO_1_ALIGN CW270 plus its default board yaw 45 equal the quad's
+# own axes (firmware/gyro-orientation.md).  Configurator will show
+# "Board alignment yaw 45": that is expected.  Do NOT set it to 0, and do not
+# change the sensor alignment: the 3D model must tilt the way the quad does.
+# ---------------------------------------------------------------------------
+set align_board_roll = 0
+set align_board_pitch = 0
+set align_board_yaw = 45
+
+# Receiver: ELRS / Crossfire (CRSF) on UART2 (pads R2 <- receiver TX, T2 -> receiver RX).
+# serial <port> <functions> <msp baud> <gps baud> <telemetry baud> <blackbox baud>; 64 = serial RX
+serial UART2 64 115200 57600 0 115200
+feature RX_SERIAL
+feature TELEMETRY
+set serialrx_provider = CRSF
+set serialrx_inverted = OFF
+set serialrx_halfduplex = OFF
+
+# ESCs: four AM32 (GEN_64K_G071), DShot600 with bidirectional DShot (RPM telemetry -> RPM filter).
+set motor_pwm_protocol = DSHOT600
+set dshot_bidir = ON
+set dshot_edt = ON
+# iFlight XING2 1404 3800KV: 9N12P = 12 magnet poles (Betaflight's default 14 is wrong for it)
+set motor_poles = 12
+set motor_kv = 3800
+set rpm_filter_harmonics = 3
+
+# Battery monitoring (already TAKERG4AIO's defaults; listed so a 'diff' shows them checked).
+set vbat_scale = 110
+set ibata_scale = 120
+set current_meter = ADC
+set battery_meter = ADC
+
+# Beeper: active buzzer on BZ+/BZ- (low-side switch, high = on = BEEPER_INVERTED).
+set beeper_inversion = ON
+set beeper_od = OFF
+beeper RX_LOST
+beeper BAT_LOW
+beeper BAT_CRIT_LOW
+beeper RX_SET
+# DShot beacon (motors beep) when RX is lost and the buzzer is not fitted:
+set beeper_dshot_beacon_tone = 1
+
+# Arming angle: keep the default 25 deg (cannot arm when tipped over).  Set 180
+# only if you want to arm upside-down for crash-flip.
+set small_angle = 25
+
+# Blackbox: Ridge 3 Lite has NO on-board flash chip.  TAKERG4AIO defaults to
+# SPIFLASH, finds no chip and simply logs nothing; set NONE so nothing pretends.
+set blackbox_device = NONE
+# Optional: an OpenLager (serial logger) on pads T1/R1 (UART1, FC TX1 -> logger RX).
+# Uncomment both lines; 128 = blackbox function, last number = blackbox baud.
+# serial UART1 128 115200 57600 0 1000000
+# set blackbox_device = SERIAL
+
+set craft_name = RIDGE3LITE
+
+save
