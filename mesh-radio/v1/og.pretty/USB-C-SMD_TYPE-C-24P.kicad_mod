@@ -345,7 +345,7 @@
 	(embedded_fonts no)
 	(model "${KIPRJMOD}/og.3dshapes/USB-C-SMD_TYPE-C-24P.stpZ"
 		(offset
-			(xyz 0 0 0)
+			(xyz 0 -6.3 0)
 		)
 		(scale
 			(xyz 1 1 1)

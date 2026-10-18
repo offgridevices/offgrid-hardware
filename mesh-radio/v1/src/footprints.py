@@ -113,6 +113,7 @@ def _area(pts):
 #   'resize': {pad name: (w, h)} in the footprint's own axes (rotation 0)
 #   'trim':   {pad name: d} shortens a pad by d mm at its +y end
 #   'model':  a 3D model (in ../og.3dshapes) for a part EasyEDA has none for
+#   'model_offset': (x, y, z) mm for the 3D model (KiCad's 3D axes, y up)
 #   'skip':   kept in easyeda_raw/ for the record, not built (reason given)
 #
 # Every footprint below was checked pad by pad against the parts.py pin
@@ -179,6 +180,9 @@ FIXUPS = {
     'USB-C-SMD_TYPE-C-24P': {
         'resize': {p: (0.30, 0.70) for p in ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A12', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B9', 'B10', 'B11', 'B12']},
         'add': ['(pad "" np_thru_hole oval (at 3.60 -3.27) (size 0.95 0.65) (drill oval 0.95 0.65) (layers *.Cu *.Mask))'],
+        # EasyEDA's 3D body sits 6.3 mm behind the pads; moved so its front
+        # is 0.84 mm past the board edge, as on the drawing (3D y is up)
+        'model_offset': (0, -6.3, 0),
     },
 }
 
@@ -337,6 +341,8 @@ def clean_easyeda(path):
         m = re.search(r'(?:ee|lib)\.3dshapes/([^"]+)\.wrl', model[1])
         if m and os.path.exists(os.path.join(MODELS, m.group(1) + '.stpZ')):
             model[1] = '"${KIPRJMOD}/og.3dshapes/%s.stpZ"' % m.group(1)
+            if fx.get('model_offset'):
+                _get(model, 'offset')[1] = ['xyz'] + ['%.3f' % v for v in fx['model_offset']]
             out.append(model)
     open(os.path.join(LIB, name + '.kicad_mod'), 'w').write(_emit(out) + '\n')
     # round-trip through KiCad so the file is in its native format
