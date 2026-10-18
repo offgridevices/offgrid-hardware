@@ -19,8 +19,10 @@ LEN = float(os.environ.get("BOARD_LEN", 62.0))        # length (x)
 WID = 25.4                       # width (y): the Heltec V4's
 HX, HY = LEN / 2, WID / 2
 CORNER_R = 1.5                   # rounded corners
-# two M2 mounting holes on a diagonal (plated, ground)
-HOLES = [(-HX + 2.6, HY - 2.6), (HX - 2.6, -HY + 2.6)]
+# one M2 mounting hole in the antenna end's upper corner (plated, ground).
+# The lower corner holds the drone plug; the board is otherwise held by its
+# edges in the enclosure (as a Heltec V4 is) and by the USB-C opening.
+HOLES = [(HX - 2.6, -HY + 2.6)]
 HOLE_KEEPOUT_R = 2.4             # M2 screw head (3.8 mm) + clearance: no parts, no signal copper
 STD_FP = '/usr/share/kicad/footprints'
 

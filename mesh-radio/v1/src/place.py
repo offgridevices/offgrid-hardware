@@ -102,6 +102,28 @@ class Board:
             raise ValueError('%s does not fit at (%.2f, %.2f) rot %d %s' % (ref, x, y, rot, side))
         self.pl[ref] = (round(x, 3), round(y, 3), rot % 360, side)
         self.taken[side].append(self.rect(ref, x, y, rot, side))
+        # a through-hole pad (or an unplated hole) blocks the other side too
+        other = 'B' if side == 'T' else 'T'
+        for p in self.fp[ref].Pads():
+            if p.GetAttribute() in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH):
+                bb = p.GetBoundingBox()
+                self.taken[other].append((bb.GetLeft() / 1e6 - pcb.CX - 0.15, bb.GetTop() / 1e6 - pcb.CY - 0.15,
+                                          bb.GetRight() / 1e6 - pcb.CX + 0.15, bb.GetBottom() / 1e6 - pcb.CY + 0.15))
+
+    def remove(self, ref):
+        """Take a placed (surface-mount) part off the board again."""
+        x, y, rot, side = self.pl.pop(ref)
+        self.taken[side].remove(self.rect(ref, x, y, rot, side))
+
+    def footprint_at(self, ref):
+        """ref's footprint, moved to where ref is placed."""
+        x, y, rot, side = self.pl[ref]
+        fp = self.fp[ref]
+        if (side == 'B') != fp.IsFlipped():
+            fp.Flip(fp.GetPosition(), pcbnew.FLIP_DIRECTION_TOP_BOTTOM)
+        fp.SetPosition(pcb.P(x, y))
+        fp.SetOrientationDegrees(rot)
+        return fp
 
     def pad_xy(self, ref, pad):
         """Board position of a placed part's pad (centre)."""
@@ -137,84 +159,160 @@ def rotp(x, y, deg):
     return x * math.cos(a) + y * math.sin(a), -x * math.sin(a) + y * math.cos(a)
 
 
+def who(B, boxes):
+    """The placed parts (or 'keepout') behind courtyard boxes, for messages."""
+    out = []
+    for o in boxes:
+        hit = [r for r, v in B.pl.items() if not r.startswith('_') and v[3] in 'TB'
+               and all(abs(a - b) < 1e-6 for a, b in zip(B.rect(r, *v), o))]
+        out.append(hit[0] if hit else 'keepout %s' % [round(v, 2) for v in o])
+    return out
+
+
 def overlap(a, b, g=0.0):
     return not (a[2] + g <= b[0] or b[2] + g <= a[0] or a[3] + g <= b[1] or b[3] + g <= a[1])
 
 
 # ---------------------------------------------------------------- RF chains
-def chain(B, comps, start, nets, direction, side='T', pitch_gap=0.35, shunt_side=1, refs=None, alternate=False):
+PATH_NETS = set()        # every net that is a node of some RF path (layout.py fills it)
+
+def chain(B, comps, start, nets, direction, side='T', pitch_gap=0.25, shunt_side=1, refs=None, alternate=False):
     """Lay out an RF path.
 
-    start      (x, y) of the first node (usually the chip pad the path leaves)
+    start      (x, y) of the first node (usually just off the chip pad the
+               path leaves; the track from the pad to it is drawn later)
     nets       the nets in order along the path, first to last
-    direction  angle of travel in degrees (0 = +x, 90 = -y up the screen)
-    refs       optional: only these parts (else every part whose two pads
-               join consecutive nets, or join a node to GND/a supply)
-    The series part between two nodes sits on the line; each shunt part of
-    a node sits beside it, alternating sides (shunt_side first).
-    Returns the (x, y) of each node along the line, by net.
+    direction  angle of travel in degrees (0 = +x, 90 = up the screen)
+    The series part between two nodes sits on the line, its pads along it;
+    each shunt part of a node stands across the line beside the node, its
+    node pad nearest the line (shunt_side picks the side; alternate puts
+    them on both).  Every part is placed only where its courtyard is free:
+    a part that does not fit moves along the line until it does, and the
+    next node starts after it.  Returns each node's (x, y), by net.
     """
     a = math.radians(direction)
     ux, uy = math.cos(a), -math.sin(a)                 # along the path
-    nx, ny = -uy, ux                                   # across it
-    rot_series = direction % 180                        # pads 1-2 along the path
-    by = {c.ref: c for c in comps}
-    pool = [by[r] for r in refs] if refs else list(comps)
-    series = {}
-    for c in pool:
-        if c.ref in B.pl:
-            continue
-        ns = set(c.pins.values())
-        for k in range(len(nets) - 1):
-            if ns == {nets[k], nets[k + 1]}:
-                series.setdefault(k, []).append(c)
-    nodes = {}
-    pos = 0.0
+    nx, ny = -uy, ux                                   # across it (shunt_side 1)
+    pool = [B.comps[r] for r in refs] if refs else list(comps)
+    pool = [c for c in pool if c.ref not in B.pl]
     x0, y0 = start
-    sgn = shunt_side
+    pos = 0.0
+    nodes = {}
+
+    def at(t, s_=0.0):
+        return x0 + ux * t + nx * s_, y0 + uy * t + ny * s_
+
+    def try_put(c, rot, t, s_, pad_net):
+        """Place c with its pad on pad_net at along-line t, across-line s_
+        (pad position, not the part's centre).  True if it fits."""
+        px, py = at(t, s_)
+        # where that pad sits relative to the part origin at this rotation
+        (_, pads) = B.geom(c.ref, 0, 0, rot, side)
+        pad = [p for p, n in c.pins.items() if n == pad_net][0]
+        dx, dy = pads[pad]
+        cx, cy = px - dx, py - dy
+        if B.fits(c.ref, cx, cy, rot, side):
+            B.put(c.ref, cx, cy, rot, side)
+            return True
+        return False
+
+    def along_rot(c, first_net):
+        """Rotation putting c's pads along the line, first_net's pad first."""
+        for rot in (direction % 360, (direction + 180) % 360):
+            (_, pads) = B.geom(c.ref, 0, 0, rot, side)
+            p1 = [p for p, n in c.pins.items() if n == first_net][0]
+            p2 = [p for p, n in c.pins.items() if n != first_net][0]
+            d = (pads[p2][0] - pads[p1][0]) * ux + (pads[p2][1] - pads[p1][1]) * uy
+            if d > 0:
+                return rot, d
+        raise ValueError('cannot turn %s along %d' % (c.ref, direction))
+
+    def across_rot(c, node_net, sgn):
+        """Rotation standing c across the line, its node pad nearest the line."""
+        for rot in ((direction + 90) % 360, (direction + 270) % 360):
+            (_, pads) = B.geom(c.ref, 0, 0, rot, side)
+            p1 = [p for p, n in c.pins.items() if n == node_net][0]
+            p2 = [p for p, n in c.pins.items() if n != node_net][0]
+            d = (pads[p2][0] - pads[p1][0]) * nx + (pads[p2][1] - pads[p1][1]) * ny
+            if d * sgn > 0:
+                return rot
+        raise ValueError('cannot stand %s across %d' % (c.ref, direction))
+
     for k, net in enumerate(nets):
-        nx_, ny_ = x0 + ux * pos, y0 + uy * pos
-        nodes[net] = (nx_, ny_)
-        # shunts of this node: two-pad parts with this net and a net not in the chain
+        nodes[net] = at(pos) + (direction,)
+        path = set(nets) | set(PATH_NETS)
+        # shunts: parts from this node to ground, or to a supply off the path
+        # (a feed choke; the amplifier's big one is placed before the chain)
         sh = [c for c in pool if c.ref not in B.pl and len(c.pins) == 2 and net in c.pins.values()
-              and not (set(c.pins.values()) - {net}) & set(nets)]
-        sh.sort(key=lambda c: c.ref)
-        off = 0.0
+              and len(set(c.pins.values()) - {net}) == 1
+              and not (set(c.pins.values()) - {net}) & (set(nets) | set(PATH_NETS))]
+        # the longest shunt goes on shunt_side, the others alternate from the
+        # far side: a node's row of shunts stays short along the line
+        size = lambda c: max(B.size[c.ref][0][2] - B.size[c.ref][0][0], B.size[c.ref][0][3] - B.size[c.ref][0][1])
+        sh.sort(key=lambda c: ('GND' not in c.pins.values(), -size(c), c.ref))
+        sgn = shunt_side
+        reach = pos
         for c in sh:
-            (bx0, by0, bx1, by1), pads = B.size[c.ref]
-            L = bx1 - bx0
-            W = by1 - by0
-            # pad on the node side touches the line; the other end points away
-            pin_node = [p for p, n in c.pins.items() if n == net][0]
-            px, py = pads[pin_node]
-            # turn so the node pad faces the path: pads lie along x at rot 0
-            rot = (direction + (90 if sgn > 0 else -90)) % 360
-            if px > 0:
-                rot = (rot + 180) % 360
-            d = 0.25 + abs(px) + 0.1
-            cx = nx_ + nx * sgn * d + ux * off
-            cy = ny_ + ny * sgn * d + uy * off
-            B.put(c.ref, cx, cy, rot, side, check=False)
-            if alternate:
+            placed = False
+            for step in range(0, 60):                  # nearest the node first, either side
+                t = pos + step * 0.2
+                for sg in (sgn, -sgn):
+                    rot = across_rot(c, net, sg)
+                    for s_ in (sg * 0.55, sg * 0.75):
+                        if try_put(c, rot, t, s_, net):
+                            placed = True
+                            break
+                    if placed:
+                        break
+                if placed:
+                    break
+            if not placed:
+                px, py = at(pos, sgn * 0.55)
+                rot = across_rot(c, net, sgn)
+                r = B.rect(c.ref, px, py, rot, side)
+                hits = [o for o in B.taken[side] + B.keepouts[side] if overlap(r, o, GAP)]
+                raise ValueError('chain %s: no room for shunt %s near (%.2f, %.2f) box %s: %s'
+                                 % (net, c.ref, px, py, [round(v, 2) for v in r], who(B, hits[:4])))
+            bx = B.rect(c.ref, *B.pl[c.ref][:3], side)
+            reach = max(reach, max((bx[0] - x0) * ux + (bx[1] - y0) * uy, (bx[2] - x0) * ux + (bx[3] - y0) * uy,
+                                   (bx[0] - x0) * ux + (bx[3] - y0) * uy, (bx[2] - x0) * ux + (bx[1] - y0) * uy))
+            if alternate or len(sh) > 1:
                 sgn = -sgn
-                if sgn == shunt_side:
-                    off += W + 0.3
-            else:
-                off += W + 0.3
-        if k < len(nets) - 1:
-            for i, c in enumerate(series.get(k, [])):
-                (bx0, by0, bx1, by1), pads = B.size[c.ref]
-                L = bx1 - bx0
-                W = by1 - by0
-                p1 = [p for p, n in c.pins.items() if n == net][0]
-                rot = rot_series if pads[p1][0] < 0 else (rot_series + 180) % 360
-                # parallel parts (a trap's L and C) side by side across the path
-                o = (i - (len(series[k]) - 1) / 2) * (W + 0.2)
-                cx = x0 + ux * (pos + pitch_gap + L / 2) + nx * o
-                cy = y0 + uy * (pos + pitch_gap + L / 2) + ny * o
-                B.put(c.ref, cx, cy, rot, side, check=False)
-            Ls = [B.size[c.ref][0][2] - B.size[c.ref][0][0] for c in series.get(k, [])]
-            pos += pitch_gap * 2 + (max(Ls) if Ls else 0.6)
+        if k == len(nets) - 1:
+            break
+        ser = [c for c in pool if c.ref not in B.pl and set(c.pins.values()) == {net, nets[k + 1]}]
+        if not ser:
+            raise ValueError('chain: nothing joins %s and %s' % (net, nets[k + 1]))
+        far = pos
+        t0 = None
+        for i, c in enumerate(ser):
+            rot, span = along_rot(c, net)
+            placed = False
+            if i == 0:                                    # on the line
+                for step in range(0, 150):
+                    t = pos + pitch_gap + step * 0.1
+                    if try_put(c, rot, t, 0.0, net):
+                        placed = True; t0 = t
+                        break
+            else:                                         # a trap's other part: beside it, level with it
+                # level with the first part if at all possible: try every
+                # offset out to 2.4 mm on both sides before moving along
+                offs = [sg * (0.9 + 0.1 * j) for j in range(16) for sg in (-shunt_side, shunt_side)]
+                for step in range(0, 60):
+                    for off in offs:
+                        t = t0 + step * 0.1
+                        if try_put(c, rot, t, off, net):
+                            placed = True
+                            break
+                    if placed:
+                        break
+            if not placed:
+                px, py = at(pos + pitch_gap)
+                r = B.rect(c.ref, px, py, rot, side)
+                hits = [o for o in B.taken[side] + B.keepouts[side] if overlap(r, o, GAP)]
+                raise ValueError('chain: no room for series %s at (%.2f, %.2f): %s' % (c.ref, px, py, who(B, hits[:4])))
+            far = max(far, t + span)
+        pos = max(far + pitch_gap, reach - 0.2 if sh else far + pitch_gap)
     return nodes
 
 

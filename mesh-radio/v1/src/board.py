@@ -38,18 +38,32 @@ POWER = ['VSYS', 'VSYS_SW', 'VIN_CHG', 'USB_VBUS', 'USB_5V', 'SOLAR_CONN', 'SOLA
          'DRONE_5V_CONN', 'DRONE_5V_RAW', 'BUCK_SW', '3V3']
 
 
+# The USB-C's right locating slot sits where Amphenol's drawing puts it,
+# 0.298 mm from the shell tab beside it: the drawing's own spacing, not a
+# placement choice.  JLCPCB's NPTH-to-copper minimum is 0.2 mm.
+RULES = pcb.POFV_RULES + """
+(rule "USB-C locating slot (Amphenol 12401610 drawing)"
+  (condition "A.Type == 'Pad' && A.memberOfFootprint('J1') && B.memberOfFootprint('J1')")
+  (constraint edge_clearance (min 0.25mm)))
+"""
+
+
 def placement(replace=False):
     if replace or not os.path.exists(PLACEMENT):
         import layout
         pl = layout.place_all()
-        json.dump({k: list(v) for k, v in sorted(pl.items())}, open(PLACEMENT, 'w'), indent=0)
-    return {k: tuple(v) for k, v in json.load(open(PLACEMENT)).items()}
+        json.dump({k: (v if k == '_nodes' else list(v)) for k, v in sorted(pl.items())}, open(PLACEMENT, 'w'), indent=0)
+    d = json.load(open(PLACEMENT))
+    nodes = d.pop('_nodes', {})
+    return {k: tuple(v) for k, v in d.items()}, {k: tuple(v) for k, v in nodes.items()}
 
 
 def net_classes(b, comps):
     nets = set(n for c in comps for n in c.pins.values() if n)
-    pcb.netclass(b, 'RF', sorted(nets & set(RF_NETS)), RF_W, clearance=RF_GAP, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
-    pcb.netclass(b, 'Heavy', sorted(nets & set(HEAVY)), 0.6, clearance=0.15, via_d=0.5, via_drill=0.25)
+    # RF lines keep 0.1 mm to pads (the chips' 0.5 mm pitch needs it); their
+    # 0.18 mm gap to ground is the top pour's own clearance (RF_GAP)
+    pcb.netclass(b, 'RF', sorted(nets & set(RF_NETS)), RF_W, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    pcb.netclass(b, 'Heavy', sorted(nets & set(HEAVY)), 0.6, clearance=0.1, via_d=0.5, via_drill=0.25)
     pcb.netclass(b, 'Power', sorted(nets & set(POWER)), 0.3, clearance=0.12, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
     pcb.netclass(b, 'USB', ['USB_DP', 'USB_DM', 'NRF_DP', 'NRF_DM'], 0.2, clearance=0.12,
                  via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
@@ -59,7 +73,7 @@ def build(out, replace=False):
     import layout
     pcbnew.KIID.SeedGenerator(SEED)
     comps = circuit.build()
-    pl = placement(replace)
+    pl, nodes = placement(replace)
     b = pcb.new_board(pcb.NLAYERS)
     ds = b.GetDesignSettings()
     ds.m_TrackMinWidth = pcb.MM(0.1); ds.m_MinClearance = pcb.MM(0.1)
@@ -80,7 +94,7 @@ def build(out, replace=False):
         fp.Reference().SetLayer(pcbnew.F_Fab)
         b.Add(fp)
     # the RF lines (layout.rf_tracks: drawn straight between the chain's pads)
-    for net, pts, w in layout.rf_tracks(b):
+    for net, pts, w in layout.rf_tracks(b, nodes):
         before = set(t.m_Uuid.AsString() for t in b.GetTracks())
         pcb.track(b, pts, w, pcbnew.F_Cu, net)
         for t in b.GetTracks():
@@ -95,7 +109,7 @@ def build(out, replace=False):
         pcb.rule_area(b, poly, [pcb.layer_id(l) for l in layers], tracks=True, vias=True, pads=False,
                       pours=True, name=name)
     b.Save(out)
-    pcb.write_rules(out, pcb.POFV_RULES)
+    pcb.write_rules(out, RULES)
     pcb.set_stackup(out, inner_oz=0.5)
     return out
 
