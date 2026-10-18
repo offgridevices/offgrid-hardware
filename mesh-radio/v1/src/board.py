@@ -82,7 +82,7 @@ def build(out, replace=False):
     pcbnew.KIID.SeedGenerator(SEED)
     comps = circuit.build()
     pl, nodes = placement(replace)
-    b = pcb.new_board(pcb.NLAYERS)
+    b = pcb.new_board(pcb.NLAYERS, out)
     ds = b.GetDesignSettings()
     ds.m_TrackMinWidth = pcb.MM(0.1); ds.m_MinClearance = pcb.MM(0.1)
     ds.m_ViasMinSize = pcb.MM(VIA_PAD[0]); ds.m_MinThroughDrill = pcb.MM(VIA_PAD[1])
@@ -126,7 +126,7 @@ def build(out, replace=False):
     for poly, layers, name in layout.keepouts():
         pcb.rule_area(b, poly, [pcb.layer_id(l) for l in layers], tracks=True, vias=True, pads=False,
                       pours=True, name=name)
-    b.Save(out)
+    pcb.save_board(b, out)
     pcb.write_rules(out, RULES)
     pcb.set_stackup(out, inner_oz=0.5)
     return out

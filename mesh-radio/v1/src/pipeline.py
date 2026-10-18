@@ -36,11 +36,25 @@ def plane_fanout(path):
     outside it on a stub; exposed pads get a grid."""
     import fanout
     b = pcbnew.LoadBoard(path)
+    # no via within POFV's 0.45 mm of a part's drilled hole (the plug pegs,
+    # the header pins): a ring round each, for the fan-out only
+    tmp = []
+    rv = board.VIA_SIG[1] / 2
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetAttribute() not in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH):
+                continue
+            q = p.GetPosition()
+            r = max(p.GetDrillSize().x, p.GetDrillSize().y) / 2e6 + 0.46 + rv - board.VIA_SIG[0] / 2
+            tmp.append(pcb.rule_area(b, pcb.circle_poly(q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY, r), board.CU,
+                                     tracks=False, vias=True, pads=False, pours=False, name='hole ring'))
     ex, ey = pcb.HX - 0.45, pcb.HY - 0.45
     inpad = dict(d=board.VIA_SIG[0], drill=board.VIA_SIG[1], cl=0.13, hole_cl=0.2, hole_gap=0.25, min_pad=0.38)
     n, failed = fanout.fanout(b, set(PLANES), (-ex + pcb.CX, -ey + pcb.CY, ex + pcb.CX, ey + pcb.CY),
                               via_d=board.VIA_SIG[0], via_drill=board.VIA_SIG[1], clearance=0.13,
                               stub_w=0.2, ep_pitch=1.0, share=0.6, inpad=inpad, ep_join=0.2, ep_min_area=0.8)
+    for z in tmp:
+        pcb.remove(b, z)
     for t in b.GetTracks():
         if t.GetNetname() in PLANES:
             t.SetLocked(True)
@@ -191,6 +205,7 @@ def finish_stage(routed, fin, work):
     if k:
         b.Save(routed)
         log('removed %d router-made ground tracks and vias' % k)
+    pcb.copy_project(routed, fin)
     finish.finish_board(routed, fin, os.path.join(work, 'fin.json'), rules=w, clmap=cl, skip=PLANES)
     write_rules(fin)
     pcb.tidy_tracks(fin)
@@ -240,6 +255,10 @@ def run(work, passes=40, from_routed=False):
         plane_fanout(placed)
         fill(placed)
         setup_routers()
+        # every stage's board file gets the project (KiCad 10 keeps the
+        # rules and net classes there): without it KiCad, the DSN export
+        # and the DRC fall back to KiCad's defaults
+        pcb.copy_project(placed, routed)
         n = route.route(placed, routed, passes=passes, rounds=2)
         log('Freerouting: %d connections left, %d duplicate vias removed' % (n, pcb.dedupe_vias(routed)))
         write_rules(routed)

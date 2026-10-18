@@ -37,8 +37,18 @@ def load_fp(fpid):
     lib, name = fpid.split(':')
     return pcbnew.FootprintLoad(lib_path(lib), name)
 
-def new_board(layers=4):
-    b = pcbnew.BOARD()
+def new_board(layers=4, path=None):
+    """A new board.  With `path`, the board has its KiCad project
+    (path.kicad_pro, made fresh): KiCad 10 keeps the design rules and the
+    net classes there, not in the .kicad_pcb, so save it with save_board()."""
+    if path:
+        import os
+        for ext in ('.kicad_pro', '.kicad_prl'):
+            if os.path.exists(os.path.splitext(path)[0] + ext):
+                os.remove(os.path.splitext(path)[0] + ext)
+        b = pcbnew.NewBoard(path)
+    else:
+        b = pcbnew.BOARD()
     b.SetCopperLayerCount(layers)
     ds = b.GetDesignSettings()
     # JLCPCB multilayer capability: 0.09 mm (3.5 mil) tracks and gaps on
@@ -58,6 +68,18 @@ def new_board(layers=4):
     nc.SetClearance(MM(0.09)); nc.SetTrackWidth(MM(0.09))   # JLCPCB multilayer minimum
     nc.SetViaDiameter(MM(0.45)); nc.SetViaDrill(MM(0.25))
     return b
+
+def save_board(b, path):
+    """Save the board and its project (design rules, net classes)."""
+    if not pcbnew.SaveBoard(path, b):
+        raise SystemExit('could not save %s' % path)
+
+
+def copy_project(src, dst):
+    """Give the board file dst the project (rules, net classes) of src."""
+    import os, shutil
+    shutil.copy(os.path.splitext(src)[0] + '.kicad_pro', os.path.splitext(dst)[0] + '.kicad_pro')
+
 
 # KiCad 10's Python bindings: once an item taken off a board is garbage
 # collected, later LoadBoard() calls in the same process return broken
