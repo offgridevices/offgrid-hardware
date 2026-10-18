@@ -9,11 +9,14 @@ Run it in the ogkicad-printhub:1 image from this folder:
         -w /w/print-hub/v1/mechanical/enclosure ogkicad-printhub:1 python3 enclosure.py
 
 It writes, next to itself:
-    printhub-base.stl        base, in its print orientation (floor on the bed)
-    printhub-lid.stl         lid, in its print orientation (top face on the bed)
-    printhub-enclosure.step  both parts in their assembled position
-    printhub-preview.png     assembled iso view + exploded view
-    printhub-views.png       top, back and underside views
+    printhub-base.stl            base, in its print orientation (floor on the bed)
+    printhub-lid.stl             lid, in its print orientation (top face on the bed)
+    printhub-feet.stl            the four printed feet, upright
+    printhub-enclosure-step.zip  all parts in their assembled position (zipped STEP)
+    printhub-preview.png         assembled iso view + exploded view
+    printhub-views.png           top, back, underside and the lid's heat pads from below
+    case_gaps.json               the air gaps between the board and the case, for
+                                 sim/thermal/board_heat.py
 and runs the fit check (also on its own: python3 enclosure.py --check-only;
 --no-check skips it).
 The exit code is 1 if any fit-check line FAILs.
@@ -32,6 +35,11 @@ the board drops into it; the lid carries everything above the board and its
 connector cut-outs are notches open at its bottom edge, so it lowers straight
 down over the connectors.
 
+HEAT.  The lid's underside steps down to just above the parts (heat pads)
+and the base's floor sits 1 mm under the board, so the heat crosses thin air
+gaps to the case instead of 8 mm above and 4 mm below.  Printed feet keep the
+floor's outer face in free air.  The gaps go out in case_gaps.json.
+
 THE FRONT WALL.  The USB-A mouths sit only 0.5-0.6 mm past the board edge,
 and a plug's overmould has to reach within ~0.5 mm of the mouth.  A normal
 wall (outside the board edge plus fit clearance) would put the mouths 1.7 mm
@@ -40,7 +48,7 @@ outer face is MOUTH_SETBACK in front of the mouths and it is a full WALL thick
 above and below the board.  The board's front edge slips into a slot in it;
 only the strip directly in front of the board edge (FRONT_SKIN, ~0.6 mm) is
 thinner.  The strip of board under the wall carries nothing but the USB-A
-receptacles (layout.py), so the lid's wall can sit right on it.
+receptacles (layout.py), so the lid's wall presses right on it between them.
 """
 import gzip
 import math
@@ -969,9 +977,9 @@ def fit_check(base, lid):
     r.add(not hits, 'lid underside >= %.1f mm above every part' % PAD_CLEAR,
           '%d parts from the board file (courtyards, PART_HEIGHTS)%s' % (
               len(raised), ': TOO CLOSE ' + ', '.join(hits) if hits else ''))
-    near = min((s.distance_to(lid), ref) for ref, s in courtyard_boxes().items()
-               if 'USB-C' not in [p[1] for p in board_parts() if p[0] == ref][0])   # USB-C: own checks above
-    r.add(near[0] >= PAD_GROW - 0.01, 'lid clear of every part\'s courtyard',
+    pad = heat_pad()                        # the walls keep FIT from the board edge, as before
+    near = min((s.distance_to(pad), ref) for ref, s in courtyard_boxes().items())
+    r.add(near[0] >= PAD_GROW - 0.01, 'heat pads clear of every part\'s courtyard',
           'min %.2f mm (%s; the pads stop %.1f mm outside the courtyards)' % (near[0], near[1], PAD_GROW))
     pads = heat_pad_rects()
     r.info('heat pads: lid underside %.1f mm above the bare board, %d raised areas up to %.2f mm' % (
@@ -1317,7 +1325,7 @@ def render(base, lid, feet):
     size = '%.1f x %.1f x %.1f mm' % outer_size()
     sheet(os.path.join(HERE, 'printhub-preview.png'),
           [('Print Hub v1 enclosure, assembled (' + size + ')', closed, 30, -60),
-           ('Exploded: base, board, lid', exploded, 22, -60)], (13, 5.6))
+           ('Exploded: feet, base, board, lid', exploded, 22, -60)], (13, 5.6))
     sheet(os.path.join(HERE, 'printhub-views.png'),
           [('Top (front edge down)', [(lid, light_grey, 0, True)], 90, -90),
            ('Back: USB-C recesses, left vents', closed, 20, 122),
