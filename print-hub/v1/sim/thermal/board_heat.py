@@ -63,6 +63,7 @@ CASE_W, CASE_D, CASE_H = (pcb.W + 4.6) * 1e-3, (pcb.H + 3.2) * 1e-3, 18.0e-3
 WALL_T, K_PETG = 2.0e-3, 0.20            # m, W/mK (PETG 0.19-0.24)
 GAP_TOP = 8.4e-3                         # board top -> lid ceiling (LID_CEILING_Z 10 - board 1.6)
 GAP_BOT = 4.0e-3                         # board bottom -> floor (3 mm pins + 1 mm clearance)
+FLOOR_UNDER = 6.0e-3                     # the base's outer floor face below the board's bottom face
 EPS_CASE = 0.9                           # PETG, any colour, in the infrared
 EPS_PAIR = 1.0 / (1 / 0.9 + 1 / EPS_CASE - 1)     # board <-> wall, parallel faces
 PETG_MAX = 65.0                          # C: PETG softens near 75-80 C (HDT 0.45 MPa ~70 C)
@@ -200,9 +201,11 @@ def case_gaps(model, path=CASE_GAPS):
             m = (x >= r['x0']) & (x <= r['x1']) & (y >= r['y0']) & (y <= r['y1'])
             gap[m] = np.maximum(gap[m], r['gap_mm'])
         out.append(gap * 1e-3)
-    # the lid is solid from its top face down to its underside
+    # the lid is solid from its top face down to its underside (printed at
+    # 100 % infill); the floor is solid from FLOOR_UNDER below the board
     lid_t = c['wall_mm'] * 1e-3 + (GAP_TOP - out[0]).clip(0)
-    return out[0], out[1], lid_t, c
+    floor_t = (FLOOR_UNDER - out[1]).clip(c['wall_mm'] * 1e-3)
+    return out[0], out[1], lid_t, floor_t, c
 
 
 def enclose(model, gap_top, gap_bot, lid_t, floor_t=WALL_T):
@@ -218,7 +221,8 @@ def enclose(model, gap_top, gap_bot, lid_t, floor_t=WALL_T):
     g, nc, nL = model.g, model.nc, model.nL
     d = g.d * 1e-3
     A = d * d * model.fb
-    gap_top, gap_bot, lid_t = [np.broadcast_to(np.asarray(x, float), (nc,)).copy() for x in (gap_top, gap_bot, lid_t)]
+    gap_top, gap_bot, lid_t, floor_t = [np.broadcast_to(np.asarray(x, float), (nc,)).copy()
+                                        for x in (gap_top, gap_bot, lid_t, floor_t)]
     N0 = model.N
     lid, flo = N0 + np.arange(nc), N0 + nc + np.arange(nc)
     r, c, v = [], [], []
@@ -232,7 +236,7 @@ def enclose(model, gap_top, gap_bot, lid_t, floor_t=WALL_T):
         m = (ia >= 0) & (ib >= 0)
         a_, b_ = ia[m], ib[m]
         link(lid[a_], lid[b_], K_PETG * 0.5 * (lid_t[a_] + lid_t[b_]))
-        link(flo[a_], flo[b_], np.full(len(a_), K_PETG * floor_t))
+        link(flo[a_], flo[b_], K_PETG * 0.5 * (floor_t[a_] + floor_t[b_]))
     N = N0 + 2 * nc
     G = th.sp.coo_matrix((np.concatenate(v), (np.concatenate(r), np.concatenate(c))), shape=(N, N))
     G = G + G.T
@@ -248,7 +252,7 @@ def enclose(model, gap_top, gap_bot, lid_t, floor_t=WALL_T):
     ne = edges[act]
     extra = ne * d * (CASE_H / 2 + MARGIN)
     model.faces = [dict(idx=lid, area=A + extra, t=lid_t, up=True, name='lid'),
-                   dict(idx=flo, area=A + extra, t=np.full(nc, floor_t), up=False, name='floor')]
+                   dict(idx=flo, area=A + extra, t=floor_t, up=False, name='floor')]
     model.case = dict(lid=lid, floor=flo)
     model.L_case = (CASE_W * CASE_D) / (2 * (CASE_W + CASE_D))
 
@@ -319,8 +323,8 @@ def main(argv=None):
         if model is None:                   # the same parts and pads every case: one network
             model = th.Model(g, topo, P)
             if os.path.exists(CASE_GAPS) and not a.uniform:
-                gt, gb, lt, c = case_gaps(model)
-                enclose(model, gt, gb, lt)
+                gt, gb, lt, ft, c = case_gaps(model)
+                enclose(model, gt, gb, lt, ft)
                 how = ('the case from mechanical/enclosure/case_gaps.json: outside %.1f x %.1f x %.1f mm on %.0f mm '
                        'feet; air above the board %.1f-%.1f mm (the lid steps down over the low parts), below it '
                        '%.1f-%.1f mm' % (tuple(c['outside_mm']) + (c['feet_mm'], gt.min() * 1e3, gt.max() * 1e3,
