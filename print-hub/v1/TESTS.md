@@ -68,8 +68,8 @@ checked out. What it found, and what was done:
 
 | Check | Result |
 |---|---|
-| Fit: board, connectors, module, buttons, inductor inside the case with clearance; USB-A mouths within 0.5 mm of the outer face; screws clear of the antenna; walls 2 mm; printable without supports | **74 pass, 0 fail**; both STLs watertight |
-| `fit_board.py`: the assembled board's own STEP (every part's 3D model on its land, checked against the makers' drawings) against the case's STEP | **pass**: 365 board solids, no overlap with the base or the lid; tallest part 7.0 mm above the board (USB-A) |
+| Fit: board, connectors, module, buttons, inductor inside the case with clearance; USB-A mouths within 0.5 mm of the outer face; screws clear of the antenna; walls 2 mm; lid 0.6 mm or more over every part, floor 1 mm under the board, feet; printable without supports | **90 pass, 0 fail** (18 Oct 2026); the STLs watertight |
+| `fit_board.py`: the assembled board's own STEP (every part's 3D model on its land, checked against the makers' drawings) against the case's STEP | **pass**: 368 board solids against the base, lid and four feet, no overlap |
 
 ## Hardware (to fill in from built boards)
 
