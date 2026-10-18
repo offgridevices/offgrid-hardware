@@ -203,8 +203,8 @@ printhub --json status              printhub ota http://server/printhub.bin
   typical load, fan + light + two filters charging, is about 2.65 A.
 - **Heat**: hotter than that (a hotter room, the case in the sun, its feet or
   vents blocked), the thermistor by the buck turns the ports down from
-  75 C on the board, lowest priority first, and switches them all off at
-  100 C until the board is back under 85 C. `printhub status` shows the
+  74 C on the board (down to 1 A by 77 C), lowest priority first, and switches them all off at
+  80 C until the board is back under 70 C. `printhub status` shows the
   board's temperature.
 - **2.4 GHz Wi-Fi only.** Keep metal and the screws away from the antenna
   corner; the enclosure does.

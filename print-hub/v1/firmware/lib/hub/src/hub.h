@@ -53,10 +53,13 @@ constexpr uint16_t DEFAULT_EXPECT_MA = 500; // a port never seen on is assumed t
 constexpr int16_t NO_TEMP = INT16_MIN;      // no reading: sensor open, shorted or not read yet
 constexpr int16_t TEMP_MIN_C10 = -300;      // readings outside -30..150 C are a sensor fault
 constexpr int16_t TEMP_MAX_C10 = 1500;
-constexpr int16_t DERATE_C10 = 750;         // from here the budget falls ...
-constexpr int16_t DERATE_FULL_C10 = 900;    // ... linearly, to HOT_BUDGET_MA here
-constexpr int16_t TRIP_C10 = 1000;          // every port off ("hot")
-constexpr int16_t RESUME_C10 = 850;         // below this, after a trip, the boot_on ports come back
+// from sim/thermal/board_heat.md: at 3 A in a 35 C room the thermistor reads
+// 73 C with every part inside its rating; with ports on, the first part
+// reaches its rating at 77 C on the thermistor
+constexpr int16_t DERATE_C10 = 740;         // from here the budget falls ...
+constexpr int16_t DERATE_FULL_C10 = 770;    // ... linearly, to HOT_BUDGET_MA here
+constexpr int16_t TRIP_C10 = 800;           // every port off ("hot")
+constexpr int16_t RESUME_C10 = 700;         // below this, after a trip, the boot_on ports come back
 constexpr uint16_t HOT_BUDGET_MA = 1000;    // the budget when hot, or with no reading
 
 struct PortConfig {

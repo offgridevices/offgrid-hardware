@@ -32,10 +32,11 @@ dates given, on the commit that adds this file's results.
 
 ## Simulations (`sim/`)
 
-| Simulation | Why | Result (17 Oct 2026) |
+| Simulation | Why | Result (17-18 Oct 2026) |
 |---|---|---|
 | `power_budget.py`: buck ripple, peak current against the inductor's saturation, efficiency, junction temperature at 45 C air; port voltage at 1, 1.5 and 2.2 A worst case; switch and shunt heat; current-sense range and error; logic supply from the server's USB alone; budget per charger | every rating with its margin, from the datasheets | **20 pass, 0 fail**: 5.00-5.33 V rail; 95.8 % at 5 A; buck 68 C, switch 82 C at its limit (with 0.12 W of output clamp at the rail's highest corner); 4.81 V at a port at 1.5 A worst case; +-52 mA at 1.5 A |
 | `port_events.py` (ngspice): all five ports switched on together into real loads; then one port shorted while the others run | "never browns out" | **3 pass**: rail dips to 5.13 V at switch-on; the short pulls the other ports to 4.77 V for 2 us, then they hold 5.05 V |
+| `thermal/board_heat.py`: the routed board's copper (4 layers, every via), every part's loss at its pads, the DC current of every power path on the real copper, inside the case as `mechanical/enclosure/case_gaps.json` shapes it (lid 0.6 mm over the parts, floor 1 mm under, feet); conduction across the thin air, radiation, the plastic's own spreading, natural convection outside; no credit for the vents | "never burns out" in a closed box | **pass** (18 Oct 2026): at 3 A in a 35 C room (ports 1 and 2 at 1.5 A, rail at its highest corner) every part inside its rating, the closest a capacitor by the buck at 81 C of 85 C, the switches 88 C of 125 C, the case 64.5 C of PETG's 65 C; everyday load 0.99 W, 49.6 C at the hottest part in a 25 C room. With ports on, parts reach a rating only past 77 C on the thermistor: the firmware turns down from 74 C and switches off at 80 C. The first, plain 8.4 mm-air box ran the same capacitor at 96 C |
 
 ## Independent design review (17 Oct 2026)
 

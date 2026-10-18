@@ -34,7 +34,7 @@ constexpr float VIN_DIV = (100.0f + 15.0f) / 15.0f;
 constexpr float RAIL_DIV = (100.0f + 100.0f) / 100.0f;
 // board temperature: Murata NCP15XH103F03RC (10k at 25 C) under a 10k
 // pull-up from the 3.3 V rail.  B25/85 = 3434 K: the curve is fitted where
-// the thermal protection acts (75-100 C); at 25 C it reads ~0.3 K low
+// the thermal protection acts (74-80 C); at 25 C it reads ~0.3 K low
 constexpr float NTC_R0_OHM = 10000.0f;
 constexpr float NTC_B = 3434.0f;
 constexpr float NTC_PULLUP_OHM = 10000.0f;

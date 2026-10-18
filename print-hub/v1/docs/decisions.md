@@ -138,13 +138,18 @@ room. So:
   usual load (fan, light, two filters charging) is about 2.65 A.
 - **The case hugs the board**: the lid's underside steps down to 0.6 mm
   over the parts and the floor sits 1 mm under the board, on feet. Still
-  air conducts heat only across a thin gap: this halves the board's
-  temperature rise over the room for no cost but some plastic.
+  air conducts heat only across a thin gap: this takes the hottest
+  capacitor from 96 C to 81 C at 3 A in a 35 C room, for no cost but some
+  plastic (the lid is printed solid).
 - **A thermistor between the buck and its inductor** (Murata
   NCP15XH103F03RC, on an ADC1 pin): if the room is hotter, or the vents or
   feet are blocked, the firmware turns ports down (lowest priority first)
   before any part passes its rating, and switches them all off if the board
-  keeps heating. The thresholds come from the simulation.
+  keeps heating. The thresholds come from the simulation: at 3 A in a 35 C
+  room the thermistor reads 73 C with every part inside its rating, and
+  with ports on no part reaches its rating below 77 C on the thermistor; so
+  the budget falls from 3 A at 74 C to 1 A at 77 C, every port goes off at
+  80 C, and they come back under 70 C.
 - **The ESP32 runs at 80 MHz** (Wi-Fi needs no more), which takes a few
   tenths of a watt out of the case.
 - **Cheapest board**: green mask and lead-free HASL instead of black and

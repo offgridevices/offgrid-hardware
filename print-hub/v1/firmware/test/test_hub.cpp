@@ -204,20 +204,20 @@ int main() {
     Fake f; Hub h(f);
     f.budget = 4100;                           // a 30 W charger
     f.temp = 250;  CHECK(h.budget_ma() == 3000 && h.heat() == Heat::ok);
-    f.temp = 750;  CHECK(h.budget_ma() == 3000 && h.heat() == Heat::ok);
-    f.temp = 751;  CHECK(h.budget_ma() == 2987 && h.heat() == Heat::derating);
-    f.temp = 825;  CHECK(h.budget_ma() == 2000 && h.heat() == Heat::derating);
-    f.temp = 900;  CHECK(h.budget_ma() == 1000);
-    f.temp = 999;  CHECK(h.budget_ma() == HOT_BUDGET_MA && h.heat() == Heat::derating);
+    f.temp = 740;  CHECK(h.budget_ma() == 3000 && h.heat() == Heat::ok);
+    f.temp = 741;  CHECK(h.budget_ma() == 2934 && h.heat() == Heat::derating);
+    f.temp = 755;  CHECK(h.budget_ma() == 2000 && h.heat() == Heat::derating);
+    f.temp = 770;  CHECK(h.budget_ma() == 1000);
+    f.temp = 799;  CHECK(h.budget_ma() == HOT_BUDGET_MA && h.heat() == Heat::derating);
     // never more than the charger gives
     f.budget = 1500;
     f.temp = 250;  CHECK(h.budget_ma() == 1500);
-    f.temp = 825;  CHECK(h.budget_ma() == 1500);
-    f.temp = 870;  CHECK(h.budget_ma() == 1400);
+    f.temp = 755;  CHECK(h.budget_ma() == 1500);
+    f.temp = 764;  CHECK(h.budget_ma() == 1400);
     // the status reports it
-    f.temp = 825;
+    f.temp = 755;
     std::string s = cmd(h, "status", 0);
-    CHECK(s.find("\"temp_c\":82.5,\"heat\":\"derating\"") != std::string::npos);
+    CHECK(s.find("\"temp_c\":75.5,\"heat\":\"derating\"") != std::string::npos);
     CHECK(s.find("\"budget_ma\":1500") != std::string::npos);
   }
   // heat: when the budget falls under what is on, the lowest priority goes first
@@ -231,14 +231,14 @@ int main() {
     CHECK(ok(cmd(h, "on 1 2 3", now)));
     run_for(h, now, 2000);
     CHECK(n_on(f) == 3 && h.total_ma() == 2100);
-    f.temp = 825;                              // 2000 mA left: one too many
+    f.temp = 755;                              // 2000 mA left: one too many
     run_for(h, now, SHED_MS - 100);
     CHECK(n_on(f) == 3);                       // not at once
     run_for(h, now, 200);
     CHECK(f.en[0] && f.en[1] && !f.en[2] && h.state(2).last_off == Why::shed);
     run_for(h, now, 3 * SHED_MS);
     CHECK(f.en[0] && f.en[1]);                 // 1400 of 2000: nothing more to shed
-    f.temp = 900;                              // 1000 mA left
+    f.temp = 770;                              // 1000 mA left
     run_for(h, now, SHED_MS + 100);
     CHECK(f.en[0] && !f.en[1] && h.state(1).last_off == Why::shed);
     run_for(h, now, 3 * SHED_MS);
@@ -260,10 +260,10 @@ int main() {
     CHECK(ok(cmd(h, "on 5 for 1h", now)));
     run_for(h, now, 1000);
     CHECK(n_on(f) == 4);
-    f.temp = 999;
+    f.temp = 799;
     run_for(h, now, 100);
     CHECK(n_on(f) == 4);                       // derated to 1000: 800 is on, all stay
-    f.temp = 1000;
+    f.temp = 800;
     run_for(h, now, 10);
     CHECK(n_on(f) == 0 && h.heat() == Heat::hot && h.budget_ma() == 0);
     for (int p : {0, 1, 3, 4}) CHECK(h.state(p).last_off == Why::hot);
@@ -272,7 +272,7 @@ int main() {
     CHECK(!ok(r) && r.find("too hot") != std::string::npos);
     CHECK(cmd(h, "status", now).find("\"heat\":\"hot\"") != std::string::npos);
     // cooling, but not yet below RESUME_C10: still off
-    f.temp = 900; run_for(h, now, 2000);
+    f.temp = 770; run_for(h, now, 2000);
     f.temp = RESUME_C10; run_for(h, now, 2000);
     CHECK(n_on(f) == 0 && h.heat() == Heat::hot);
     CHECK(!ok(cmd(h, "on 3", now)));
@@ -282,11 +282,11 @@ int main() {
     // below RESUME_C10: the boot_on ports come back, one at a time
     f.temp = RESUME_C10 - 1;
     run_for(h, now, 10);
-    CHECK(n_on(f) == 1 && h.heat() == Heat::derating);
+    CHECK(n_on(f) == 1 && h.heat() == Heat::ok);
     run_for(h, now, 1000);
     CHECK(f.en[0] && f.en[3] && !f.en[1] && !f.en[4]);
     CHECK(h.state(1).last_off == Why::hot && h.state(4).last_off == Why::hot);
-    CHECK(h.budget_ma() == 1680);              // still derated at 84.9 C
+    CHECK(h.budget_ma() == 3000);              // 69.9 C: under DERATE_C10, the full budget
     CHECK(ok(cmd(h, "on 2", now)));            // and ports switch on by hand again
   }
   // heat: no reading, or one out of range, is a sensor fault: HOT_BUDGET_MA, no trip
@@ -322,10 +322,10 @@ int main() {
     f.budget = 1500;
     CHECK(ok(cmd(h, "budget 2500", 0)));
     f.temp = 250;  CHECK(h.budget_ma() == 2500);
-    f.temp = 825;  CHECK(h.budget_ma() == 2000);
-    f.temp = 900;  CHECK(h.budget_ma() == HOT_BUDGET_MA);
+    f.temp = 755;  CHECK(h.budget_ma() == 2000);
+    f.temp = 770;  CHECK(h.budget_ma() == HOT_BUDGET_MA);
     f.temp = NO_TEMP; CHECK(h.budget_ma() == HOT_BUDGET_MA);
-    f.temp = 1000; h.tick(10);
+    f.temp = 800; h.tick(10);
     CHECK(h.budget_ma() == 0 && h.heat() == Heat::hot);
     f.temp = 300; h.tick(20);
     CHECK(h.budget_ma() == 2500 && h.heat() == Heat::ok);
