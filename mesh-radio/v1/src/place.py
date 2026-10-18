@@ -29,10 +29,15 @@ class Board:
 
     def __init__(self, comps):
         self.comps = {c.ref: c for c in comps}
+        # footprints live on a scratch board: KiCad flips a footprint using
+        # its parent board's layer stack, and segfaults without one
+        self.board = pcbnew.BOARD()
+        self.board.SetCopperLayerCount(pcb.NLAYERS)
         self.fp = {}
         self.size = {}               # ref -> (w, h) of courtyard at rotation 0, and pad centres
         for c in comps:
             fp = pcb.load_fp(parts.PARTS[c.part]['fp'])
+            self.board.Add(fp)
             self.fp[c.ref] = fp
             self.size[c.ref] = box_of(fp)
         self.pl = {}                 # ref -> (x, y, rot, side)
@@ -62,6 +67,7 @@ class Board:
             fp.Flip(fp.GetPosition(), pcbnew.FLIP_DIRECTION_TOP_BOTTOM)
         fp.SetPosition(pcb.P(x, y))
         fp.SetOrientationDegrees(rot)
+        fp.BuildCourtyardCaches()
         xs, ys = [], []
         cl = pcbnew.B_CrtYd if side == 'B' else pcbnew.F_CrtYd
         cy = fp.GetCourtyard(cl)
@@ -108,6 +114,7 @@ def box_of(fp):
     centres, in mm."""
     fp.SetPosition(pcbnew.VECTOR2I(0, 0))
     fp.SetOrientationDegrees(0)
+    fp.BuildCourtyardCaches()
     xs, ys = [], []
     cy = fp.GetCourtyard(pcbnew.F_CrtYd)
     if cy.OutlineCount():
@@ -135,7 +142,7 @@ def overlap(a, b, g=0.0):
 
 
 # ---------------------------------------------------------------- RF chains
-def chain(B, comps, start, nets, direction, side='T', pitch_gap=0.35, shunt_side=1, refs=None):
+def chain(B, comps, start, nets, direction, side='T', pitch_gap=0.35, shunt_side=1, refs=None, alternate=False):
     """Lay out an RF path.
 
     start      (x, y) of the first node (usually the chip pad the path leaves)
@@ -171,6 +178,7 @@ def chain(B, comps, start, nets, direction, side='T', pitch_gap=0.35, shunt_side
         # shunts of this node: two-pad parts with this net and a net not in the chain
         sh = [c for c in pool if c.ref not in B.pl and len(c.pins) == 2 and net in c.pins.values()
               and not (set(c.pins.values()) - {net}) & set(nets)]
+        sh.sort(key=lambda c: c.ref)
         off = 0.0
         for c in sh:
             (bx0, by0, bx1, by1), pads = B.size[c.ref]
@@ -187,8 +195,11 @@ def chain(B, comps, start, nets, direction, side='T', pitch_gap=0.35, shunt_side
             cx = nx_ + nx * sgn * d + ux * off
             cy = ny_ + ny * sgn * d + uy * off
             B.put(c.ref, cx, cy, rot, side, check=False)
-            sgn = -sgn
-            if sgn == shunt_side:
+            if alternate:
+                sgn = -sgn
+                if sgn == shunt_side:
+                    off += W + 0.3
+            else:
                 off += W + 0.3
         if k < len(nets) - 1:
             for i, c in enumerate(series.get(k, [])):

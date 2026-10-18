@@ -1,0 +1,70 @@
+Subject: [PATCH] Mesh Radio v1: re-apply TX power limits on reconfigure; variant module defaults
+
+Against meshtastic/firmware v2.7.26.54e0d8d.  Apply from the firmware root:
+
+    git apply /path/to/mesh-radio/v1/firmware/patches/0001-offgrid-mesh-radio-core-backports.patch
+
+1. src/mesh/SX126xInterface.cpp - REQUIRED before US field use.
+   SX126xInterface::reconfigure() runs after every saved settings change
+   (AdminModule::saveChanges -> MeshService::reloadConfig -> configChanged).
+   It calls applyModemConfig(), which resets `power` to the raw tx_power
+   (30 for US), and then only clamps to SX126X_MAX_POWER: the region limit
+   and the TX_GAIN_LORA table are not applied.  On this board the SX1262 then
+   drives the amplifier at +20 dBm (~31.5 dBm out at 2.7 V, more at higher
+   supply) until the next reboot - above the 30 dBm US limit.  The fix calls
+   limitPower() as init() does.  Meshtastic develop has the same change
+   (checked at a12618f, 18 Oct 2026); this is a backport.
+
+2. src/mesh/NodeDB.cpp - optional (drone-port defaults).
+   variantDefaultModuleConfig() is called at the end of installDefaultConfig(),
+   but factoryReset() and loadFromDisk() run installDefaultModuleConfig()
+   afterwards, which memsets moduleConfig, so whatever a variant sets is lost.
+   Moved to the end of installDefaultModuleConfig().  Still present on develop
+   at a12618f; worth sending upstream.  With it, a fresh or factory-reset
+   board defaults the drone port (P0.15/P0.16) to the serial module in PROTO
+   mode at 38400 baud.
+
+---
+diff --git a/src/mesh/NodeDB.cpp b/src/mesh/NodeDB.cpp
+index 8b47c10..7c888bf 100644
+--- a/src/mesh/NodeDB.cpp
++++ b/src/mesh/NodeDB.cpp
+@@ -798,7 +798,6 @@ void NodeDB::installDefaultConfig(bool preserveKey = false)
+ 
+     initConfigIntervals();
+     variantDefaultConfig();
+-    variantDefaultModuleConfig();
+ }
+ 
+ void NodeDB::initConfigIntervals()
+@@ -944,6 +943,9 @@ void NodeDB::installDefaultModuleConfig()
+     moduleConfig.ambient_lighting.blue = myNodeInfo.my_node_num & 0x0000FF;
+ 
+     initModuleConfigIntervals();
++    // Called here, after the memset above, rather than from installDefaultConfig(): factoryReset() and loadFromDisk()
++    // install the module defaults after the config defaults, which wiped anything a variant set.
++    variantDefaultModuleConfig();
+ }
+ 
+ void NodeDB::installRoleDefaults(meshtastic_Config_DeviceConfig_Role role)
+diff --git a/src/mesh/SX126xInterface.cpp b/src/mesh/SX126xInterface.cpp
+index 073b87f..a393441 100644
+--- a/src/mesh/SX126xInterface.cpp
++++ b/src/mesh/SX126xInterface.cpp
+@@ -245,8 +245,14 @@ template <typename T> bool SX126xInterface<T>::reconfigure()
+     if (err != RADIOLIB_ERR_NONE)
+         RECORD_CRITICALERROR(meshtastic_CriticalErrorCode_INVALID_RADIO_SETTING);
+ 
+-    if (power > SX126X_MAX_POWER) // This chip has lower power limits than some
+-        power = SX126X_MAX_POWER;
++    // Re-apply the regional limit and the board's TX_GAIN_LORA table: applyModemConfig() (called by
++    // RadioLibInterface::reconfigure()) just reset 'power' to the raw configured tx_power, and without this a board with an
++    // external PA would transmit at SX126X_MAX_POWER after every settings change until the next reboot.
++    // (Backport of the same change on Meshtastic develop.)
++    limitPower(SX126X_MAX_POWER);
++    // Make sure we reach the minimum power supported to turn the chip on (-9dBm)
++    if (power < -9)
++        power = -9;
+ 
+     err = lora.setOutputPower(power);
+     if (err != RADIOLIB_ERR_NONE)

@@ -270,7 +270,7 @@ PARTS['JST_SH6'] = ic(
 
 PARTS['HDR_2x10'] = dict(
     mpn='(not fitted) 2 x 10 header, 2.54 mm', maker='', hq='', lcsc='', digikey='', value='EXPANSION',
-    fp='og:PinHeader_2x10_P2.54mm', desc='Expansion header footprint, 2.54 mm, fitted only when needed',
+    fp='og:Header_2x1x10_Rows20.32', desc='Expansion header footprint, 2.54 mm, fitted only when needed',
     sym='box', kind='J', dnp=True,
     symbol=dict(prefix='J', left=[str(i) for i in range(1, 21, 2)], right=[str(i) for i in range(2, 21, 2)],
                 pins={str(i): (str(i), P) for i in range(1, 21)}))

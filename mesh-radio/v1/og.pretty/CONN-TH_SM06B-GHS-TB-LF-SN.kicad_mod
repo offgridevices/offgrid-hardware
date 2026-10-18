@@ -1,0 +1,215 @@
+(footprint "CONN-TH_SM06B-GHS-TB-LF-SN"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "c58c8e91-27b3-43b7-9693-14738cd0da92")
+		(effects
+			(font
+				(size 0.5 0.5)
+				(thickness 0.08)
+			)
+		)
+	)
+	(property "Value" "CONN-TH_SM06B-GHS-TB-LF-SN"
+		(at 0 5.749 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "b02a2ee3-528b-4d63-9f32-ff36ce97e43a")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "eac4fe2a-e7c7-4c46-aedc-e17efa4b5d68")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "c0914184-abe3-47af-9e77-fc6738eeb129")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "LCSC Part" "C133065"
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "7b7ac90b-9ffd-42d8-aed8-b1ca3e30a2d2")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr smd)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_line
+		(start -5.57 -2.7)
+		(end 5.57 -2.7)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "1cdd47cf-a240-4ef5-ae92-b1cccb522de9")
+	)
+	(fp_line
+		(start -5.57 3.2)
+		(end -5.57 -2.7)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "11d7c690-46c1-43e6-aad2-d6442c3a70e2")
+	)
+	(fp_line
+		(start 5.57 -2.7)
+		(end 5.57 3.2)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "b6c307d9-5d13-4f9f-b694-bb30900f6abd")
+	)
+	(fp_line
+		(start 5.57 3.2)
+		(end -5.57 3.2)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "c8264533-6891-46ea-b4ce-0ec624cb6db3")
+	)
+	(fp_line
+		(start -5.38 -1.38)
+		(end 5.37 -1.38)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "952ba7d1-3b75-4563-85fe-25f20ce0918c")
+	)
+	(fp_line
+		(start -5.38 2.67)
+		(end -5.38 -1.38)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "c16fd358-54ba-40be-92be-62e62ddf0b28")
+	)
+	(fp_line
+		(start 5.37 -1.38)
+		(end 5.37 2.67)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "116c4966-6fd7-4fcb-a2a4-ce3b87b2cffd")
+	)
+	(fp_line
+		(start 5.37 2.67)
+		(end -5.38 2.67)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "ebee24b9-7366-4b4d-bec6-68b02d9fbfc5")
+	)
+	(fp_circle
+		(center -3.2 -1.8)
+		(end -3.125 -1.8)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "90fc198b-e7f4-49ac-9ed2-7f897388a31c")
+	)
+	(pad "1" smd rect
+		(at -3.13 -1.75)
+		(size 0.6 1.7)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "20cb7b70-c383-42eb-95f6-61b4ce9966be")
+	)
+	(pad "2" smd rect
+		(at -1.88 -1.75)
+		(size 0.6 1.7)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "2189009c-4563-41bd-9160-06eaea889009")
+	)
+	(pad "3" smd rect
+		(at -0.63 -1.75)
+		(size 0.6 1.7)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "ee4bf6ad-543c-46ec-8d3b-5f344ae83235")
+	)
+	(pad "4" smd rect
+		(at 0.62 -1.75)
+		(size 0.6 1.7)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "f0965cfd-ad2d-4aa4-86b0-f0ce1d991344")
+	)
+	(pad "5" smd rect
+		(at 1.87 -1.75)
+		(size 0.6 1.7)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "302b180d-3cd5-4ab3-a4c6-80fd93f91fea")
+	)
+	(pad "6" smd rect
+		(at 3.12 -1.75)
+		(size 0.6 1.7)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "d0d14cac-2b2b-47c2-bbf7-9f888888bf6f")
+	)
+	(pad "7" smd rect
+		(at -4.97 1.75)
+		(size 1 2.7)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "eb859915-7af9-4ab4-894f-7d6a60b21f9c")
+	)
+	(pad "8" smd rect
+		(at 4.97 1.75)
+		(size 1 2.7)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "363457e3-be6c-4fc5-9ad7-19c3c9f67d13")
+	)
+	(embedded_fonts no)
+	(model "${KIPRJMOD}/og.3dshapes/CONN-SMD_GH1.25-WS-6P.stpZ"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)
