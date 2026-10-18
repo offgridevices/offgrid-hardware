@@ -56,10 +56,10 @@ German maker.
 These are estimates from datasheets. They are measured on the built boards,
 and those measurements replace these numbers.
 
-| State | From the battery | vs RAK WisBlock (owner-measured) |
-|---|---|---|
-| Listening, Bluetooth off, LNA off | **about 7–9 mA** | about 20 mA |
-| Listening, LNA on (best range) | **about 12–14 mA** | about 20 mA |
+| State | From the battery | Hearing vs a RAK | RAK WisBlock (owner-measured) |
+|---|---|---|---|
+| Listening, receive amp on (**default**) | **about 12–14 mA** | about 4.5 dB better (~1.7x the range in open air) | about 20 mA |
+| Listening, receive amp off (battery saver) | **about 7–9 mA** | about 2.5 dB worse (~0.75x the range) | about 20 mA |
 | Bluetooth connected to the phone | about +0.2–1 mA | |
 | Transmitting at 1 W (30 dBm) | about 1.0 A while sending | about 0.12 A at 0.16 W |
 | Transmitting at 2.5 W (34 dBm) | about 2.0 A while sending | |
@@ -69,10 +69,19 @@ and those measurements replace these numbers.
 A message at LongFast lasts about 1 second on air. At 1 W that costs about
 0.3 mAh per message, so the battery is spent listening, not sending.
 
-**The 10 mA listening target (P1) is met only with the LNA off.** With it on,
-listening rises to about 13 mA. That is still below the RAK, and it buys
-about 4.5 dB of hearing, worth about as much range as 3 W of transmit power.
-Both modes are a firmware setting; see question 1.
+**Why the receive amp is on by default.** The 3 W stage puts an antenna
+switch and two filters between the antenna and the radio chip, a RAK has
+neither, and they cost about 3 dB of incoming signal. The receive amp
+(an Infineon chip in front of the radio, about 5 mA) more than makes that
+back.
+
+- **On:** the board hears weaker signals than a RAK, about 4.5 dB better,
+  while still drawing less than a RAK (about 13 mA against about 20 mA).
+- **Off:** it hears about 2.5 dB worse than a RAK.
+
+Off is only a battery saver, for nodes that are close together. It is a
+firmware setting. The 10 mA target (P1) is met only in that saver mode;
+the owner accepted about 13 mA in exchange for the range (18 Oct 2026).
 
 ## Cost
 
@@ -168,16 +177,25 @@ Every finding was fixed:
 | The first resistor of the 15.9 dB pad would run at 92 % of its rating at the radio's maximum drive | Firmware caps the radio chip at +20 dBm, which puts it at 58 % |
 | An unprotected battery-voltage pin on the expansion header | Removed (now ground) |
 
-## Questions for the owner
+## Owner decisions (18 Oct 2026)
 
-1. **Listening mode:** LNA on (about 13 mA, about 4.5 dB better hearing) or
-   off (about 8 mA) as the default? Both are a firmware setting.
-2. **Cost vs 3 W:** keep 3 W (about $58 of parts at 100), or make v1 a
-   1 W-only board (about $40)?
-3. **Battery polarity:** check the battery plug on a real Adafruit cell with
-   a meter before the order (the footprint drawing says pad 1 = +).
-4. **Mechanical parts rated to −25 °C**, not −40 °C (buttons, JST
-   connectors). Acceptable for Cairn's hot environment?
+1. **Keep 3 W.** One board, with power set in firmware or from the
+   Meshtastic app at any time:
+   - 1 W whenever the region is US;
+   - up to 2.5 W in licensed mode;
+   - 3 W opt-in for a known-good antenna.
+
+   Going between 1 W and 3 W is a setting change, never a hardware change.
+2. **Receive amp on by default** (see *Power*); off is a firmware battery
+   saver.
+3. **Buttons and JST connectors rated to −25 °C are accepted for now.**
+   Revisit if a contract asks for −40 °C.
+
+Still open:
+
+- **Battery polarity:** check the plug on a real Adafruit cell with a meter
+  before the order (the footprint drawing says pad 1 = +).
+- **Go-ahead for layout.**
 
 ## After approval
 
