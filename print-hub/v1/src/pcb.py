@@ -18,9 +18,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 V1 = os.path.normpath(os.path.join(HERE, '..'))
 MM = pcbnew.FromMM
 CX, CY = 100.0, 100.0            # board centre on KiCad's page
-W, H = 104.0, 66.0               # board size; square corners (brand: right angles only)
+W, H = 86.0, 50.0                # board size; square corners (brand: right angles only).  Under
+                                 # 100 mm a side: JLCPCB's prototype price ($8 for five 4-layer boards)
 HX, HY = W / 2, H / 2
-HOLES = [(-49.0, -30.0), (49.0, -30.0), (-49.0, 30.0), (49.0, 30.0)]
+# M3 holes: the back-left corner, and beside the ESP32 module (10 mm and
+# more from its antenna).  The front edge is held by the USB-A receptacles
+# in the enclosure's front wall and a ledge under the board.
+HOLES = [(-39.5, -21.5), (7.0, -2.5)]
 STD_FP = '/usr/share/kicad/footprints'
 
 # JLCPCB standard 4-layer: 0.127 mm track and gap is the floor; this board
@@ -251,12 +255,13 @@ def write_rules(board_path, extra=''):
 
 
 # JLCPCB's standard 4-layer 1.6 mm stackup (JLC04161H-7628), 1 oz outer,
-# 0.5 oz inner.  Mask and silk in the OffGrid brand colours: Pitch ground
-# (black mask), Bone type (white silk).
+# 0.5 oz inner.  Green mask, white silk and lead-free HASL: the cheapest
+# JLCPCB build (black mask adds $8 and ENIG $17 per order of five, and
+# black rules out the Economic assembly tier).
 STACKUP = """\t\t(stackup
 \t\t\t(layer "F.SilkS" (type "Top Silk Screen") (color "White"))
 \t\t\t(layer "F.Paste" (type "Top Solder Paste"))
-\t\t\t(layer "F.Mask" (type "Top Solder Mask") (color "Black") (thickness 0.01))
+\t\t\t(layer "F.Mask" (type "Top Solder Mask") (color "Green") (thickness 0.01))
 \t\t\t(layer "F.Cu" (type "copper") (thickness 0.035))
 \t\t\t(layer "dielectric 1" (type "prepreg") (color "FR4 natural") (thickness 0.2104) (material "7628") (epsilon_r 4.4) (loss_tangent 0.02))
 \t\t\t(layer "In1.Cu" (type "copper") (thickness 0.0152))
@@ -264,10 +269,10 @@ STACKUP = """\t\t(stackup
 \t\t\t(layer "In2.Cu" (type "copper") (thickness 0.0152))
 \t\t\t(layer "dielectric 3" (type "prepreg") (color "FR4 natural") (thickness 0.2104) (material "7628") (epsilon_r 4.4) (loss_tangent 0.02))
 \t\t\t(layer "B.Cu" (type "copper") (thickness 0.035))
-\t\t\t(layer "B.Mask" (type "Bottom Solder Mask") (color "Black") (thickness 0.01))
+\t\t\t(layer "B.Mask" (type "Bottom Solder Mask") (color "Green") (thickness 0.01))
 \t\t\t(layer "B.Paste" (type "Bottom Solder Paste"))
 \t\t\t(layer "B.SilkS" (type "Bottom Silk Screen") (color "White"))
-\t\t\t(copper_finish "ENIG")
+\t\t\t(copper_finish "HAL lead-free")
 \t\t\t(dielectric_constraints no)
 \t\t)
 """

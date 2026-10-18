@@ -20,14 +20,17 @@ import math
 import pcbnew
 from shapely.geometry import Point, LineString, Polygon, box
 from shapely.ops import unary_union
-import pcb
+import pcb, layout
+
+DX, DY = layout.PWR_DX, layout.PWR_DY      # the power stage's move from the first layout
 
 F, IN1, IN2, BK = pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu
 VIA_R = pcb.VIA[0] / 2
 CLR = 0.2                      # fanout clearance: a little over the 0.15 mm rule
 
 # In2: the 5 V plane (everywhere but the input stage and the logic at the back)
-VRAIL_PLANE = [(-pcb.HX + 0.5, -13.2), (-34.0, -13.2), (-34.0, -11.5), (pcb.HX - 0.5, -11.5),
+VRAIL_PLANE = [(-pcb.HX + 0.5, -13.2 + DY), (-34.0 + DX, -13.2 + DY), (-34.0 + DX, -11.5 + layout.LOG_DY),
+               (pcb.HX - 0.5, -11.5 + layout.LOG_DY),
                (pcb.HX - 0.5, pcb.HY - 0.5), (-pcb.HX + 0.5, pcb.HY - 0.5)]
 
 
@@ -35,13 +38,13 @@ def draw(b):
     pa = lambda ref, n: pcb.pad_at(b, ref, n)
     # ---- input: VBUS stubs, the bar, the 9 V pour
     va, vb = pa('J1', 'A4B9'), pa('J1', 'B4A9')
-    bar_y = -23.2
+    bar_y = va[1] + 2.73
     for (x, y) in (va, vb):
         pcb.track(b, [(x, y), (x, bar_y)], 0.6, F, 'VBUS_IN')
     pcb.track(b, [(min(va[0], vb[0]), bar_y), (max(va[0], vb[0]) + 0.6, bar_y)], 0.8, F, 'VBUS_IN')
     u2 = pcb.xy(b.FindFootprintByReference('U2').GetPosition())
-    vin = [(-36.6, bar_y - 0.4), (-30.8, bar_y - 0.4), (-30.8, -15.7), (-35.6, -15.7), (-35.6, -13.3),
-           (u2[0] + 1.0, -13.3), (u2[0] + 1.0, -15.7), (-36.6, -15.7)]
+    vin = [(-36.6 + DX, bar_y - 0.4), (-30.8 + DX, bar_y - 0.4), (-30.8 + DX, -15.7 + DY), (-35.6 + DX, -15.7 + DY),
+           (-35.6 + DX, -13.3 + DY), (u2[0] + 1.0, -13.3 + DY), (u2[0] + 1.0, -15.7 + DY), (-36.6 + DX, -15.7 + DY)]
     pcb.zone(b, 'VBUS_IN', F, vin, clearance=0.25, thermal=False, priority=2, name='9 V input')
     # ---- CC2: the contact between the two VBUS stubs on the far side
     # drops through a via just below the connector and goes on to the PD
@@ -75,10 +78,10 @@ def draw(b):
     pcb.via(b, i10[0] - 0.05, i10[1] - 0.95, 'GND')
     # ---- 5 V: the inductor output, the output capacitors, vias into In2
     # (down to the capacitors' 5 V pads: their ground pads stay outside)
-    out = pcb.rect(-pcb.HX + 0.4, -17.0, -41.4, -7.9)
+    out = pcb.rect(-pcb.HX + 0.4, -17.0 + DY, -41.4 + DX, -7.9 + DY)
     pcb.zone(b, 'VRAIL', F, out, clearance=0.25, thermal=False, priority=2, name='5 V buck output')
     for i in range(7):
-        pcb.via(b, -50.6 + i * 1.3, -11.7, 'VRAIL')
+        pcb.via(b, -pcb.HX + 1.2 + i * 1.2, -11.7 + DY, 'VRAIL')
     # ---- each port: switch OUT straight down onto the shunt, the shunt's
     # far end to the output capacitor and on to the USB-A's VBUS pin
     for c in b.GetFootprints():
@@ -93,11 +96,27 @@ def draw(b):
         cap = 'C%s05' % n                     # port output capacitor
         cp = pa(cap, '1')
         jv = pa('J%s01' % n, '1')
-        pcb.track(b, [out_pad, (out_pad[0], out_pad[1] + 0.5), s1], 0.5, F, 'PORT%s_SW' % n)
-        mid = (s2[0], cp[1])
-        pcb.track(b, [s2, mid, cp], 0.8, F, 'VBUS%s' % n)
-        pcb.track(b, [cp, jv], 0.8, F, 'VBUS%s' % n)
+        pcb.track(b, path45(out_pad, s1), 0.5, F, 'PORT%s_SW' % n)
+        pcb.track(b, path45(s2, cp), 0.8, F, 'VBUS%s' % n)
+        pcb.track(b, path45(cp, jv, diagonal_first=True), 0.8, F, 'VBUS%s' % n)
     return {('U2', '1'), ('U2', '10')}      # pads joined here: the fanout leaves them
+
+
+def path45(a, b, diagonal_first=False):
+    """a to b in two straight runs, one along an axis and one at 45 degrees,
+    so the bend between them is 45 degrees (the board's rule, miter.py)."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    sx, sy = math.copysign(1, dx), math.copysign(1, dy)
+    if min(abs(dx), abs(dy)) < 0.01 or abs(abs(dx) - abs(dy)) < 0.01:
+        return [a, b]
+    d = min(abs(dx), abs(dy))
+    if diagonal_first:
+        m = (a[0] + sx * d, a[1] + sy * d)
+    elif abs(dy) > abs(dx):
+        m = (a[0], b[1] - sy * d)
+    else:
+        m = (b[0] - sx * d, a[1])
+    return [a, m, b]
 
 
 def _pad_poly(p, layer=F):

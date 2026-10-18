@@ -7,7 +7,8 @@
 //
 // HTTP API (port 80)
 //   GET  /                 a small control page
-//   GET  /api/status       JSON, as the "status" command
+//   GET  /api/status       JSON, as the "status" command (ports, charger, budget,
+//                          board temperature "temp_c" and "heat")
 //   POST /api/cmd          body: one command line (see lib/hub/src/cmd.h); JSON reply
 // With a token set ("token SECRET" over USB), /api/* needs the header
 // "Authorization: Bearer SECRET".  The token is never sent back.
@@ -236,13 +237,19 @@ static void update_leds(uint32_t now) {
     else if (s.pending) c = 0x000020;                         // blue: about to come on
     else if (s.last_off == hub::Why::overcurrent || s.last_off == hub::Why::fault)
       c = ((now / 250) & 1) ? 0x200000 : 0;                   // red blink: tripped
-    else if (s.last_off == hub::Why::shed || s.last_off == hub::Why::no_power) c = 0x201000;  // amber
+    else if (s.last_off == hub::Why::shed || s.last_off == hub::Why::no_power || s.last_off == hub::Why::hot)
+      c = 0x201000;                                           // amber: off for lack of power, or heat
     else c = 0;
     board.set_led(hub::NPORTS - p, c);   // the chain runs status, USB5 ... USB1
   }
-  // the status LED: green on Wi-Fi, blue blink in setup mode, red when no charger
+  // the status LED: green on Wi-Fi, blue blink in setup mode, red when no
+  // charger; fast red blink too hot (ports off), amber turned down for heat
+  // (or no temperature reading)
   uint32_t st;
-  if (board.input_budget_ma() == 0) st = ((now / 500) & 1) ? 0x200000 : 0;
+  hub::Heat heat = hubv.heat();
+  if (heat == hub::Heat::hot) st = ((now / 250) & 1) ? 0x200000 : 0;
+  else if (board.input_budget_ma() == 0) st = ((now / 500) & 1) ? 0x200000 : 0;
+  else if (heat != hub::Heat::ok) st = 0x201000;
   else if (WiFi.status() == WL_CONNECTED) st = 0x002000;
   else if (ap_mode) st = ((now / 500) & 1) ? 0x000030 : 0;
   else st = 0x101000;
@@ -255,6 +262,11 @@ static std::string serial_line;
 
 void setup() {
   board.begin();                    // every port switch off first
+  // 80 MHz, not 240: tens of mA less from the 3.3 V rail, so less heat in
+  // the closed case, and plenty here (Wi-Fi needs 80 at least; the APB bus
+  // stays at 80 MHz, so the USB console, the ADC, I2C and the LEDs' RMT
+  // run as before)
+  setCpuFrequencyMhz(80);
   Serial.begin(115200);
   load_settings();
   start_wifi();

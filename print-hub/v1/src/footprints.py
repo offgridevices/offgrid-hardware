@@ -111,7 +111,10 @@ FIXUPS = {
     # sits 4.3 mm behind it, over the parts behind the receptacle
     # and 3.5 mm too low: its 7.0 mm body then sits on the board (drawing:
     # 7.00 tall), its legs 2.75 mm through
-    'USB-A-TH__USB-AF-90': dict(model_offset=(0.0, -4.3, 3.5)),
+    # Its courtyard is cut to +-8.45 mm (the shield-leg pads reach 8.55):
+    # the ports sit 17 mm apart, so neighbouring shield legs (all ground)
+    # may share copper; their holes are still 0.9 mm apart
+    'USB-A-TH__USB-AF-90': dict(model_offset=(0.0, -4.3, 3.5), courtyard_x=8.45),
 }
 
 def _fix_pad(name, p):
@@ -211,6 +214,9 @@ def clean_easyeda(path):
             out.append(c)
     x0 = min(b[0] for b in boxes) - 0.10; y0 = min(b[1] for b in boxes) - 0.10
     x1 = max(b[2] for b in boxes) + 0.10; y1 = max(b[3] for b in boxes) + 0.10
+    cx = FIXUPS.get(name, {}).get('courtyard_x')
+    if cx:
+        x0, x1 = max(x0, -cx), min(x1, cx)
     for a, b in (((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))):
         out.append(_line(a[0], a[1], b[0], b[1], 'F.CrtYd', 0.05))
     if model is None and FIXUPS.get(name, {}).get('model'):

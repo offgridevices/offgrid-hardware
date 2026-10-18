@@ -50,7 +50,7 @@ def planes(b):
     full = pcb.rect(-pcb.HX + e, -pcb.HY + e, pcb.HX - e, pcb.HY - e)
     pcb.zone(b, 'GND', IN1, full, name='GND plane', thermal=False)
     # In2: the 5 V rail everywhere the ports and the buck output are; ground
-    # behind the input stage and the logic (y < -20), so the 9 V input and
+    # behind the input stage and the logic (the back strip), so the 9 V input and
     # the USB data have ground on both sides
     pcb.zone(b, 'VRAIL', IN2, power.VRAIL_PLANE, name='5V rail plane',
              thermal=False, priority=1)

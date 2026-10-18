@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """printhub: switch the Print Hub's USB ports from the print server.
 
-    printhub status                     every port, the charger, the budget
+    printhub status                     every port, the charger, the budget, the board's temperature
     printhub on fan light               switch on
     printhub on filter1 for 2h          switch on for a while
     printhub off fan after 10m          switch off later
@@ -114,7 +114,14 @@ def table(r):
     print('Print Hub %s   charger: %s (%.2f V in)   5 V rail: %.2f V   %s' % (
         r.get('version', '?'), inp.get('contract') or 'none', inp.get('mv', 0) / 1000, r.get('rail_mv', 0) / 1000,
         ('Wi-Fi ' + r['ip']) if r.get('ip') else 'Wi-Fi not joined'))
-    print('Drawing %d mA of %d mA available (%s)\n' % (r.get('total_ma', 0), r.get('budget_ma', 0), r.get('budget')))
+    print('Drawing %d mA of %d mA available (%s)' % (r.get('total_ma', 0), r.get('budget_ma', 0), r.get('budget')))
+    t = r.get('temp_c')
+    print('Board %s   %s\n' % ('%.1f C' % t if t is not None else 'temperature unknown',
+                               {'ok': 'ok',
+                                'derating': 'warm: the power for the ports is turned down',
+                                'hot': 'TOO HOT: every port off until it cools',
+                                'sensor_fault': 'no temperature reading: the power for the ports is turned down'
+                                }.get(r.get('heat'), r.get('heat') or '')))
     print('  #  %-15s %-5s %7s %7s  %-4s %-4s  %s' % ('name', 'state', 'mA', 'limit', 'prio', 'boot', 'note'))
     for p in r.get('ports', []):
         state = 'ON' if p['on'] else ('...' if p['pending'] else 'off')
@@ -125,7 +132,8 @@ def table(r):
         if p.get('last_off') and not p['on']:
             note.append({'overcurrent': 'switched off: drew more than its limit',
                          'fault': 'switched off: short circuit or overheating',
-                         'shed': 'switched off: charger could not supply everything',
+                         'shed': 'switched off: not enough power (charger or heat)',
+                         'hot': 'switched off: the board was too hot',
                          'no_power': 'refused: not enough power left',
                          'timer': 'timer ran out'}.get(p['last_off'], p['last_off']))
         print('  %d  %-15s %-5s %7d %7d  %-4d %-4s  %s' % (p['port'], p['name'], state, p['ma'], p['limit_ma'],

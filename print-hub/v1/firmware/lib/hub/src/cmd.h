@@ -2,7 +2,10 @@
 // POST /api/cmd).  One command per line; every reply is one line of JSON,
 // {"ok":true,...} or {"ok":false,"error":"..."}.
 //
-//   status                         every port, the charger, the budget
+//   status                         every port, the charger, the budget, the
+//                                  board's temperature ("temp_c") and what it
+//                                  does to the budget ("heat": ok, derating,
+//                                  hot, sensor_fault)
 //   on fan light [for 10m]         switch on (optionally for a time)
 //   off fan [after 10m]            switch off (optionally later)
 //   on all / off all
@@ -11,7 +14,8 @@
 //   priority fan 1                 1 = switched off last when power runs short
 //   boot fan on|off                switch on at power-up
 //   budget 2500 | budget auto      override what the charger reports (only
-//                                  ever on top of a working 9 V supply)
+//                                  ever on top of a working 9 V supply, 3000
+//                                  at most, never above what the heat allows)
 //
 // Ports are named or numbered 1..5 (or usb1..usb5).  Times: 90, 90s, 10m,
 // 2h (a bare number is seconds).  Commands the port logic does not know

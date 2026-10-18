@@ -26,9 +26,10 @@ it to another network.
 ## Power: a USB-C PD charger, not the server's USB port
 
 A computer's USB-A port gives 0.5 A (USB 2) or 0.9 A (USB 3): about 4.5 W.
-The accessories together draw 3.7 A typical and 5 A worst case at 5 V (fan
-0.45 A, light up to 1 A, two filters charging up to 1 A each, a spare)
-(`sim/power_budget.md`). So the board takes its own charger:
+The accessories together draw about 2.65 A at 5 V (fan 0.45 A, light
+0.6 A, two filters charging 0.8 A each); the firmware allows 3 A
+(`sim/power_budget.md`, and *Heat* below). So the board takes its own
+charger:
 
 - **POWER IN is a USB-C port that asks a USB-PD charger for 9 V** (Hynetek
   HUSB238), and a buck (Silergy SY8368A, 8 A switches) makes 5.16 V for the
@@ -81,35 +82,96 @@ more than it should (a software limit, 1.5 A by default, set per port).
 **D+ joined to D-** on every USB-A (the BC1.2 "dedicated charging port"
 signal), so phones and battery devices take more than 500 mA.
 
-## 4 layers
+## 4 layers, under 100 mm
 
 Ground has its own unbroken layer (In1) and the 5 V rail its own plane
 (In2) under the ports. Every ground and 5 V pad drops straight into its
 plane through a via next to it; the two outer layers carry signals and a
-ground fill. JLCPCB's standard 4-layer price is a few dollars more for five
-boards than 2 layers, and it makes the buck quiet and the routing simple.
-Standard rules only (0.15 mm track and gap, 0.6 / 0.3 mm vias): no
-fine-line or small-via surcharge.
+ground fill. Standard rules only (0.15 mm track and gap, 0.6 / 0.3 mm
+vias): no fine-line or small-via surcharge.
+
+The price decides the size (JLCPCB's own calculator, live, 18 Oct 2026,
+five boards, green, lead-free HASL):
+
+| board | 2 layers | 4 layers | 6 layers (black, ENIG) |
+|---|---|---|---|
+| 104 × 66 mm (the first layout) | $7.40 | $29.30 | $88 |
+| anything up to 100 × 100 mm (calculator: up to 102 mm) | $4.00 | $8.00 | $82 |
+
+So the board had to come under 100 mm a side, and once under it, size no
+longer changes the price. Four layers cost $4 an order more than two and
+were kept: the two planes spread the buck's heat over the whole board (the
+heat simulation depends on it), keep the buck quiet, and let the parts sit
+closer. Six layers cost ten times more and are not needed: Freerouting
+routes the 86 × 50 mm board completely on the two outer layers.
+
+## 86 × 50 mm
+
+The first layout was 104 × 66 mm. The depth is now the USB-A receptacle
+(13.6 mm) + its port block packed into 9.2 mm + the ESP32 module (26.4 mm,
+its antenna at the back edge, over port 5's block); the width is five
+receptacles 17 mm apart (from 18): their shield legs, all ground, nearly
+touch, and two wide plugs still fit side by side. Two M3 holes instead of
+four (one in the back-left corner, one beside the module, both more than
+10 mm from the antenna); the USB-A receptacles hold the front edge in the
+case's front wall. Stacked (two-high) USB-A would have made it smaller
+still (about 65 × 50 mm) but the case 26 mm tall; one row was the owner's
+choice.
+
+Every track corner is cut to 45 degrees or less after routing
+(`src/miter.py`; a build gate checks it). The router's 90-degree corners
+are harmless electrically at these speeds (USB 2.0 full speed, slow edges
+everywhere else); the 45-degree corners keep acid traps out of the etch and
+look as intended.
+
+## Heat: 3 A in total, and a thermistor
+
+A board this small in a closed plastic case cannot shed what the buck can
+deliver. The heat simulation (`sim/thermal/board_heat.md`) solves the
+routed copper, every part's loss and the case around it: at the buck's
+full 5 A the parts by the buck would pass their ratings even in a cool
+room. So:
+
+- **3 A for all the ports together** (the firmware's MAX_BUDGET_MA): with
+  the two ports next to the buck at 1.5 A each, the rail at its highest
+  corner and the room at 35 C, every part stays inside its rating. The
+  usual load (fan, light, two filters charging) is about 2.65 A.
+- **The case hugs the board**: the lid's underside steps down to 0.6 mm
+  over the parts and the floor sits 1 mm under the board, on feet. Still
+  air conducts heat only across a thin gap: this halves the board's
+  temperature rise over the room for no cost but some plastic.
+- **A thermistor between the buck and its inductor** (Murata
+  NCP15XH103F03RC, on an ADC1 pin): if the room is hotter, or the vents or
+  feet are blocked, the firmware turns ports down (lowest priority first)
+  before any part passes its rating, and switches them all off if the board
+  keeps heating. The thresholds come from the simulation.
+- **The ESP32 runs at 80 MHz** (Wi-Fi needs no more), which takes a few
+  tenths of a watt out of the case.
+- **Cheapest board**: green mask and lead-free HASL instead of black and
+  ENIG save $25 an order of five, and green lets the order use JLCPCB's
+  Economic assembly.
 
 ## Through-hole USB-A
 
 The five USB-A receptacles are through-hole (Jing Extension 902-131A,
 30,000 in stock at JLCPCB, $0.06). Surface-mount ones were all under 600 in
-stock. Through-hole costs JLCPCB's THT assembly (Standard PCBA, not
-Economic), and the legs make the receptacles far harder to rip off when a
+stock. Through-hole costs JLCPCB's hand-soldering fee (Standard PCBA;
+JLCPCB's capability page now lists it for Economic too: check the
+quote), and the legs make the receptacles far harder to rip off when a
 plug is yanked sideways.
 
 ## Parts JLCPCB has
 
 Every part was picked from JLCPCB's assembly catalogue with its stock read
 live on 17 Oct 2026 (`docs/parts.md`), favouring basic parts (no setup fee).
-14 distinct extended parts at about $3 each per order: the fee is about
-$8 a board at five boards, half that at ten.
+15 distinct extended parts (the thermistor added on 18 Oct) at about $3
+each per order: the fee is about $9 a board at five boards, half that at
+ten.
 
 ## Brand
 
-Black mask, white silk, square corners (the brand allows right angles
-only), the OffGrid mark on the top and the lockup on the bottom, built from
+Green mask (the cheapest; the brand's black adds $8 an order), white silk,
+square corners (the brand allows right angles only), the OffGrid mark on the top and the lockup on the bottom, built from
 the brand's own geometry (offgrid-brand v3.2.2) by `src/brand.py`, which
 comes from Ridge 3 Lite.
 

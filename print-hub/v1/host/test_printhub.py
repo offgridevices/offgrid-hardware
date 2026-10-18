@@ -9,11 +9,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import printhub
 
 STATUS = {"ok": True, "version": "1.0.0", "input": {"mv": 9020, "contract": "9V 3A USB-PD"}, "rail_mv": 5150,
-          "budget_ma": 4100, "budget": "auto", "total_ma": 1050, "ip": "192.168.1.50",
+          "budget_ma": 2470, "budget": "auto", "total_ma": 1050, "temp_c": 78.7, "heat": "derating",
+          "ip": "192.168.1.50",
           "ports": [{"port": 1, "name": "fan", "on": True, "pending": False, "ma": 450, "limit_ma": 1500,
                      "priority": 1, "boot_on": False, "off_in_s": 600, "last_off": ""},
                     {"port": 2, "name": "light", "on": False, "pending": False, "ma": 0, "limit_ma": 1500,
-                     "priority": 5, "boot_on": False, "off_in_s": -1, "last_off": "overcurrent"}]}
+                     "priority": 5, "boot_on": False, "off_in_s": -1, "last_off": "overcurrent"},
+                    {"port": 3, "name": "filter1", "on": False, "pending": False, "ma": 0, "limit_ma": 1500,
+                     "priority": 5, "boot_on": True, "off_in_s": -1, "last_off": "hot"}]}
 
 
 class Fake(BaseHTTPRequestHandler):
@@ -82,10 +85,31 @@ class T(unittest.TestCase):
         self.assertIn('fan', out)
         self.assertIn('off in 10m00s', out)
         self.assertIn('drew more than its limit', out)
+        self.assertIn('Board 78.7 C', out)
+        self.assertIn('turned down', out)
+        self.assertIn('the board was too hot', out)
+
+    def test_status_table_no_temperature(self):
+        saved = dict(STATUS)
+        try:
+            STATUS.update(temp_c=None, heat='sensor_fault')
+            rc, out = self.run_cli('status')
+            self.assertEqual(rc, 0)
+            self.assertIn('temperature unknown', out)
+            self.assertIn('no temperature reading', out)
+            # an older board without the fields still prints
+            del STATUS['temp_c'], STATUS['heat']
+            rc, out = self.run_cli('status')
+            self.assertEqual(rc, 0)
+            self.assertIn('temperature unknown', out)
+        finally:
+            STATUS.clear()
+            STATUS.update(saved)
 
     def test_status_json(self):
         rc, out = self.run_cli('--json', 'status')
-        self.assertEqual(json.loads(out)['budget_ma'], 4100)
+        r = json.loads(out)
+        self.assertEqual((r['budget_ma'], r['temp_c'], r['heat']), (2470, 78.7, 'derating'))
 
     def test_token_header(self):
         Fake.token = 's3cret'

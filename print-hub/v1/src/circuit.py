@@ -110,6 +110,13 @@ def power_in():
     cap('C100N', 'BUCK_BS', 'BUCK_LX', B, 'buck bootstrap')
     cap('C1U_25', 'BUCK_VCC', GND, B, 'buck VCC')
     add('L', 'L2U2', {'1': 'BUCK_LX', '2': 'VRAIL'}, B, 'buck inductor', ref='L1')
+    # board temperature, beside the buck and its inductor (the hottest
+    # corner): 10k NTC to ground, 10k up to 3.3 V, into an ADC1 pin.  The
+    # firmware turns the ports down before anything passes its rating
+    # (sim/thermal/board_heat.md).
+    res('NTC10K', 'NTC', GND, B, 'board temperature NTC')
+    res('R10K', 'NTC', '+3V3', B, 'NTC pull-up')
+    cap('C100N', 'NTC', GND, B, 'NTC filter')
     res('R75K', 'VRAIL', 'BUCK_FB2', B, 'feedback top (75k of 76k)')
     res('R1K', 'BUCK_FB2', 'BUCK_FB', B, 'feedback top (1k of 76k)')
     res('R10K', 'BUCK_FB', GND, B, 'feedback bottom')
@@ -175,13 +182,13 @@ def logic():
         '14': 'USB_DP',      # IO20
         '15': None,          # IO3  strapping (JTAG source)
         '16': None,          # IO46 strapping
-        '17': 'EN1',         # IO9
+        '17': 'NTC',         # IO9  board temperature (ADC1)
         '18': 'EN2',         # IO10
         '19': 'EN3',         # IO11
         '20': 'EN4',         # IO12
         '21': 'EN5',         # IO13
         '22': 'FLT1',        # IO14
-        '23': None,          # IO21
+        '23': 'EN1',         # IO21
         '24': None,          # IO47
         '25': None,          # IO48
         '26': None,          # IO45 strapping (flash voltage)
@@ -261,7 +268,7 @@ def port(n):
 
 
 def mounting():
-    for i in range(4):
+    for i in range(2):
         add('H', 'HOLE', {}, 'mounting', 'M3 hole', ref='H%d' % (i + 1))
 
 

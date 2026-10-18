@@ -48,17 +48,17 @@ A dead short on a port: the switch holds it to 2.20 A at most and cycles on its 
 | from the 5 V rail | 4.54 V into the LDO |
 | WS2812B LED supply (3.3-5.3 V) | 4.30 .. 5.03 V |
 
-## Charger budget (what the firmware allows, firmware/src/board.cpp)
+## Charger budget (what the firmware allows, firmware/src/board.cpp and lib/hub)
 
 | charger | contract | ports may draw |
 |---|---|---|
 | 20 W | 9 V 2.00 A | 2.7 A |
 | 20 W, full 9 V offer | 9 V 2.22 A | 3.0 A |
-| 30 W | 9 V 3.00 A | 4.1 A |
-| 45 W and up | 9 V 3.00 A | 4.1 A |
+| 30 W | 9 V 3.00 A | 3.0 A |
+| 45 W and up | 9 V 3.00 A | 3.0 A |
 | 5 V only (no USB-PD) | 5 V 3.00 A | nothing: ports stay off |
 
-Typical load (fan 0.45 A, light 0.6 A, two filters charging 0.8 A each, spare 1 A): 3.65 A. A 30 W charger covers it; a 20 W one covers everything but the spare while both filters charge.
+The ports draw 3 A together at most (MAX_BUDGET_MA, firmware/lib/hub/src/hub.h): what the closed case sheds in a 35 C room (sim/thermal/board_heat.md); the buck itself is rated 5 A, the losses above are at that rating. Typical load (fan 0.45 A, light 0.6 A, two filters charging 0.8 A each): 2.65 A. A 20 W charger covers it.
 
 ## Checks
 

@@ -22,12 +22,20 @@ struct Fake : Hal {
   bool flt[NPORTS] = {};
   uint16_t draw[NPORTS] = {};   // what the device on each port would draw
   uint16_t budget = 3000;
+  int16_t temp = 250;           // board temperature, tenths of a degree C
   int enables = 0;
   void set_enable(int p, bool on) override { if (on && !en[p]) enables++; en[p] = on; }
   bool fault(int p) override { return flt[p]; }
   uint16_t port_ma(int p) override { return en[p] ? draw[p] : 0; }
   uint16_t input_budget_ma() override { return budget; }
+  int16_t board_temp_c10() override { return temp; }
 };
+
+static int n_on(const Fake &f) {
+  int n = 0;
+  for (int p = 0; p < NPORTS; p++) n += f.en[p];
+  return n;
+}
 
 static void run_for(Hub &h, uint32_t &now, uint32_t ms) {
   for (uint32_t t = 0; t < ms; t += 10) { now += 10; h.tick(now); }
@@ -150,14 +158,18 @@ int main() {
     CHECK(!ok(cmd(h, "on 4", now)));
     run_for(h, now, 20);
     CHECK(!f.en[0] && h.state(0).last_off == Why::no_power);
-    // manual budget override: only on top of a working supply, 5 A at most
-    CHECK(ok(cmd(h, "budget 4000", now)));
+    // manual budget override: only on top of a working supply, 3 A at most
+    CHECK(ok(cmd(h, "budget 2500", now)));
     CHECK(h.budget_ma() == 0);
     f.budget = 1500;
-    CHECK(h.budget_ma() == 4000);
+    CHECK(h.budget_ma() == 2500);
     CHECK(ok(cmd(h, "on 4", now)));
+    CHECK(!ok(cmd(h, "budget 3001", now)));
     CHECK(!ok(cmd(h, "budget 6000", now)));
     CHECK(ok(cmd(h, "budget auto", now)));
+    // the charger's own figure is capped at 3 A too (the case's heat)
+    f.budget = 4100;
+    CHECK(h.budget_ma() == MAX_BUDGET_MA && MAX_BUDGET_MA == 3000);
   }
   // boot_on ports come up after power-up, staggered, once there is a supply
   {
@@ -186,6 +198,137 @@ int main() {
     f.budget = 3000;
     run_for(h, now, 1000);
     CHECK(f.en[0] && f.en[3] && !f.en[1]);
+  }
+  // heat: the budget falls linearly from DERATE_C10 to DERATE_FULL_C10
+  {
+    Fake f; Hub h(f);
+    f.budget = 4100;                           // a 30 W charger
+    f.temp = 250;  CHECK(h.budget_ma() == 3000 && h.heat() == Heat::ok);
+    f.temp = 750;  CHECK(h.budget_ma() == 3000 && h.heat() == Heat::ok);
+    f.temp = 751;  CHECK(h.budget_ma() == 2987 && h.heat() == Heat::derating);
+    f.temp = 825;  CHECK(h.budget_ma() == 2000 && h.heat() == Heat::derating);
+    f.temp = 900;  CHECK(h.budget_ma() == 1000);
+    f.temp = 999;  CHECK(h.budget_ma() == HOT_BUDGET_MA && h.heat() == Heat::derating);
+    // never more than the charger gives
+    f.budget = 1500;
+    f.temp = 250;  CHECK(h.budget_ma() == 1500);
+    f.temp = 825;  CHECK(h.budget_ma() == 1500);
+    f.temp = 870;  CHECK(h.budget_ma() == 1400);
+    // the status reports it
+    f.temp = 825;
+    std::string s = cmd(h, "status", 0);
+    CHECK(s.find("\"temp_c\":82.5,\"heat\":\"derating\"") != std::string::npos);
+    CHECK(s.find("\"budget_ma\":1500") != std::string::npos);
+  }
+  // heat: when the budget falls under what is on, the lowest priority goes first
+  {
+    Fake f; Hub h(f); uint32_t now = 100;
+    f.budget = 4100;
+    for (int p = 0; p < NPORTS; p++) f.draw[p] = 700;
+    cmd(h, "priority 1 1", now);
+    cmd(h, "priority 2 3", now);
+    cmd(h, "priority 3 9", now);
+    CHECK(ok(cmd(h, "on 1 2 3", now)));
+    run_for(h, now, 2000);
+    CHECK(n_on(f) == 3 && h.total_ma() == 2100);
+    f.temp = 825;                              // 2000 mA left: one too many
+    run_for(h, now, SHED_MS - 100);
+    CHECK(n_on(f) == 3);                       // not at once
+    run_for(h, now, 200);
+    CHECK(f.en[0] && f.en[1] && !f.en[2] && h.state(2).last_off == Why::shed);
+    run_for(h, now, 3 * SHED_MS);
+    CHECK(f.en[0] && f.en[1]);                 // 1400 of 2000: nothing more to shed
+    f.temp = 900;                              // 1000 mA left
+    run_for(h, now, SHED_MS + 100);
+    CHECK(f.en[0] && !f.en[1] && h.state(1).last_off == Why::shed);
+    run_for(h, now, 3 * SHED_MS);
+    CHECK(f.en[0]);                            // 700 of 1000
+    std::string r = cmd(h, "on 4", now);       // 700 + 500 assumed > 1000
+    CHECK(!ok(r) && r.find("not enough power") != std::string::npos);
+  }
+  // heat: at TRIP_C10 every port goes off as "hot"; back below RESUME_C10
+  // only, and then the boot_on ones come back, staggered
+  {
+    Fake f; Hub h(f); uint32_t now = 0;
+    Config c = default_config();
+    c.port[0].boot_on = true; c.port[3].boot_on = true;
+    for (int p = 0; p < NPORTS; p++) { c.port[p].priority = 5; f.draw[p] = 200; }
+    h.load(c);
+    run_for(h, now, 1000);
+    CHECK(f.en[0] && f.en[3]);
+    CHECK(ok(cmd(h, "on 2", now)));            // by hand, not boot_on
+    CHECK(ok(cmd(h, "on 5 for 1h", now)));
+    run_for(h, now, 1000);
+    CHECK(n_on(f) == 4);
+    f.temp = 999;
+    run_for(h, now, 100);
+    CHECK(n_on(f) == 4);                       // derated to 1000: 800 is on, all stay
+    f.temp = 1000;
+    run_for(h, now, 10);
+    CHECK(n_on(f) == 0 && h.heat() == Heat::hot && h.budget_ma() == 0);
+    for (int p : {0, 1, 3, 4}) CHECK(h.state(p).last_off == Why::hot);
+    CHECK(h.state(2).last_off == Why::none);   // was off already
+    std::string r = cmd(h, "on 3", now);
+    CHECK(!ok(r) && r.find("too hot") != std::string::npos);
+    CHECK(cmd(h, "status", now).find("\"heat\":\"hot\"") != std::string::npos);
+    // cooling, but not yet below RESUME_C10: still off
+    f.temp = 900; run_for(h, now, 2000);
+    f.temp = RESUME_C10; run_for(h, now, 2000);
+    CHECK(n_on(f) == 0 && h.heat() == Heat::hot);
+    CHECK(!ok(cmd(h, "on 3", now)));
+    // the sensor lost while hot: stays off
+    f.temp = NO_TEMP; run_for(h, now, 1000);
+    CHECK(n_on(f) == 0 && h.heat() == Heat::hot);
+    // below RESUME_C10: the boot_on ports come back, one at a time
+    f.temp = RESUME_C10 - 1;
+    run_for(h, now, 10);
+    CHECK(n_on(f) == 1 && h.heat() == Heat::derating);
+    run_for(h, now, 1000);
+    CHECK(f.en[0] && f.en[3] && !f.en[1] && !f.en[4]);
+    CHECK(h.state(1).last_off == Why::hot && h.state(4).last_off == Why::hot);
+    CHECK(h.budget_ma() == 1680);              // still derated at 84.9 C
+    CHECK(ok(cmd(h, "on 2", now)));            // and ports switch on by hand again
+  }
+  // heat: no reading, or one out of range, is a sensor fault: HOT_BUDGET_MA, no trip
+  {
+    Fake f; Hub h(f); uint32_t now = 100;
+    f.budget = 4100;
+    for (int16_t t : {NO_TEMP, (int16_t)-301, (int16_t)1501, (int16_t)32767}) {
+      f.temp = t;
+      CHECK(h.heat() == Heat::sensor_fault && h.budget_ma() == HOT_BUDGET_MA);
+    }
+    f.temp = -300; CHECK(h.heat() == Heat::ok && h.budget_ma() == 3000);
+    f.draw[0] = 600; f.draw[1] = 600;
+    f.temp = NO_TEMP;
+    CHECK(ok(cmd(h, "on 1", now)));
+    run_for(h, now, 1000);
+    CHECK(f.en[0]);                            // not tripped
+    std::string r = cmd(h, "on 2", now);       // 600 + 500 assumed > 1000
+    CHECK(!ok(r));
+    f.temp = 1600;                             // a shorted sensor reads hot: not a trip
+    run_for(h, now, 1000);
+    CHECK(f.en[0] && h.heat() == Heat::sensor_fault);
+    std::string s = cmd(h, "status", now);
+    CHECK(s.find("\"heat\":\"sensor_fault\"") != std::string::npos);
+    f.temp = NO_TEMP;
+    s = cmd(h, "status", now);
+    CHECK(s.find("\"temp_c\":null,\"heat\":\"sensor_fault\"") != std::string::npos);
+    f.temp = -55;
+    CHECK(cmd(h, "status", now).find("\"temp_c\":-5.5,") != std::string::npos);
+  }
+  // heat: a budget override never goes above what the heat allows
+  {
+    Fake f; Hub h(f);
+    f.budget = 1500;
+    CHECK(ok(cmd(h, "budget 2500", 0)));
+    f.temp = 250;  CHECK(h.budget_ma() == 2500);
+    f.temp = 825;  CHECK(h.budget_ma() == 2000);
+    f.temp = 900;  CHECK(h.budget_ma() == HOT_BUDGET_MA);
+    f.temp = NO_TEMP; CHECK(h.budget_ma() == HOT_BUDGET_MA);
+    f.temp = 1000; h.tick(10);
+    CHECK(h.budget_ma() == 0 && h.heat() == Heat::hot);
+    f.temp = 300; h.tick(20);
+    CHECK(h.budget_ma() == 2500 && h.heat() == Heat::ok);
   }
   // names and settings
   {

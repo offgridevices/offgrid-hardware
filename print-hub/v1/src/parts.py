@@ -76,6 +76,8 @@ PARTS = {
                    maker='Changjiang', kind='D', desc='Schottky 40 V 1 A, SOD-123 (pad 1 cathode)'),
     'L2U2': dict(fp='ph:IND-SMD_L7.0-W6.6', lcsc='C167218', mpn='FXL0630-2R2-M', value='2.2uH',
                  maker='Changjiang', kind='L', desc='Inductor 2.2 uH, 10 A sat, 15 mOhm, molded 7 x 6.6'),
+    'NTC10K': R('10k NTC', 'C77131', 'NCP15XH103F03RC', maker='Murata',
+                desc='NTC thermistor 10k 1 %, B25/85 3434 K, 0402'),
     'SHUNT20M': R('20mR', 'C163047', 'RLS12FTCR020', fp=R1206, maker='TA-I Tech',
                   desc='Current shunt 20 mOhm 1 % 1 W, 1206'),
     # ------------------------------------------------------------ connectors, buttons

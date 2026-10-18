@@ -1,5 +1,6 @@
 #include "board.h"
 
+#include <math.h>
 #include <stdio.h>
 
 // The USB-PD sink controller (Hynetek HUSB238) on I2C: it asks the charger
@@ -37,6 +38,7 @@ void Board::begin() {
   }
   analogSetPinAttenuation(pins::VIN_SENSE, ADC_11db);
   analogSetPinAttenuation(pins::RAIL_SENSE, ADC_11db);
+  analogSetPinAttenuation(pins::NTC, ADC_11db);
   pinMode(pins::BUTTON, INPUT_PULLUP);
   Wire.begin(pins::I2C_SDA, pins::I2C_SCL, 100000);
   leds_.begin();
@@ -59,6 +61,30 @@ void Board::poll(uint32_t now) {
     read_pd();
     pd_at_ = now + 1000;
   }
+  if ((int32_t)(now - ntc_at_) >= 0) {
+    read_ntc();
+    ntc_at_ = now + 250;
+  }
+}
+
+void Board::read_ntc() {
+  // 8 samples averaged, 4 times a second: the board heats over minutes,
+  // so this only takes out the ADC's noise
+  uint32_t sum = 0;
+  for (int i = 0; i < 8; i++) sum += analogReadMilliVolts(pins::NTC);
+  float mv = sum / 8.0f;
+  // near 0 V the NTC is shorted; over 3.0 V (colder than -25 C) it is open
+  // or missing: the ADC reads no higher than about 3.1 V, so an open one
+  // cannot be told by 3.3 V.  150 C reads about 0.11 V
+  if (mv < 30.0f || mv > 3000.0f) {
+    temp_c10_ = hub::NO_TEMP;
+    return;
+  }
+  // the divider gives the NTC's resistance, the Beta equation its temperature
+  float r = scale::NTC_PULLUP_OHM * mv / (scale::NTC_SUPPLY_MV - mv);
+  float t = 1.0f / (1.0f / 298.15f + logf(r / scale::NTC_R0_OHM) / scale::NTC_B) - 273.15f;
+  t *= 10.0f;
+  temp_c10_ = t < -3000.0f ? -3000 : t > 3000.0f ? 3000 : (int16_t)lroundf(t);
 }
 
 static bool read_reg(uint8_t reg, uint8_t *v) {

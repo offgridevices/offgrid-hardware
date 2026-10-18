@@ -6,8 +6,9 @@ Used by make.py --reroute.
                         ground and 5 V pad (power.py)
   2. Freerouting 1.9   every other connection; ground and the 5 V rail
                         are left out (they are planes)
-  3. ground fill on F.Cu and B.Cu, stitched to the plane
-  4. KiCad DRC          must be 0 errors / 0 warnings / 0 unconnected
+  3. every track corner cut to 45 degrees or less (miter.py)
+  4. ground fill on F.Cu and B.Cu, stitched to the plane
+  5. KiCad DRC          must be 0 errors / 0 warnings / 0 unconnected
 
     python3 pipeline.py WORKDIR
 """
@@ -15,7 +16,7 @@ import os, sys, shutil
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import pcbnew
-import pcb, board, route, stitch
+import pcb, board, route, stitch, miter
 
 
 def log(s):
@@ -41,6 +42,9 @@ def run(work, passes=int(os.environ.get('PASSES', 40))):
     route.PRE_EXPORT = planes_only
     left = route.route(placed, routed, passes=passes, rounds=4)
     log('  unrouted after Freerouting: %d' % left)
+    log('== 45-degree corners')
+    done, failed, left = miter.miter(routed)
+    log('  %d corners cut; left at a joint or too tight: %s' % (done, left or 'none'))
     pcb.write_rules(routed)
     log('== ground fill')
     stitch.pour_and_stitch(routed)

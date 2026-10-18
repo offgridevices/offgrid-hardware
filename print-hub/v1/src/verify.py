@@ -66,11 +66,11 @@ def main():
         check(gpio_net.get(pins['EN'][i]) == 'EN%d' % (i + 1), 'USB%d enable: firmware GPIO%d is %s' % (i + 1, pins['EN'][i], gpio_net.get(pins['EN'][i])))
         check(gpio_net.get(pins['FLT'][i]) == 'FLT%d' % (i + 1), 'USB%d fault: firmware GPIO%d is %s' % (i + 1, pins['FLT'][i], gpio_net.get(pins['FLT'][i])))
         check(gpio_net.get(pins['ISENSE'][i]) == 'IS%d' % (i + 1), 'USB%d current: firmware GPIO%d is %s' % (i + 1, pins['ISENSE'][i], gpio_net.get(pins['ISENSE'][i])))
-    for name, net in (('VIN_SENSE', 'VIN_SENSE'), ('RAIL_SENSE', 'RAIL_SENSE'), ('LED_DATA', 'LED_DIN0'),
+    for name, net in (('VIN_SENSE', 'VIN_SENSE'), ('RAIL_SENSE', 'RAIL_SENSE'), ('NTC', 'NTC'), ('LED_DATA', 'LED_DIN0'),
                       ('I2C_SDA', 'SDA'), ('I2C_SCL', 'SCL'), ('BUTTON', 'BOOT')):
         check(gpio_net.get(pins[name]) == net, '%s: firmware GPIO%d is %s' % (name, pins[name], gpio_net.get(pins[name])))
     check(gpio_net.get(19) == 'USB_DN' and gpio_net.get(20) == 'USB_DP', 'native USB: GPIO19 = D-, GPIO20 = D+')
-    adc = list(pins['ISENSE']) + [pins['VIN_SENSE'], pins['RAIL_SENSE']]
+    adc = list(pins['ISENSE']) + [pins['VIN_SENSE'], pins['RAIL_SENSE'], pins['NTC']]
     check(all(g in ADC1 for g in adc), 'every analogue input on ADC1 (GPIO1-10): %s' % adc)
     check(all(gpio_net.get(g) is None for g in STRAPPING), 'strapping pins GPIO3, 45, 46 left open')
     check(len(set(gpio_net[g] for g in gpio_net if gpio_net[g])) == len([g for g in gpio_net if gpio_net[g]]),
@@ -92,6 +92,20 @@ def main():
     for name, net in (('VIN_DIV', 'VIN_SENSE'), ('RAIL_DIV', 'RAIL_SENSE')):
         fw = eval(scale[name].replace('f', ''))
         check(abs(fw - divider(net)) < 1e-6, '%s: firmware %.4f, circuit %.4f' % (name, fw, divider(net)))
+
+    # board temperature: the thermistor to ground, the pull-up to 3.3 V,
+    # and the firmware's curve from the same part
+    ntc = [c for c in comps if c.part == 'NTC10K']
+    up = [c for c in comps if c.part.startswith('R') and 'NTC' in c.pins.values() and '+3V3' in c.pins.values()]
+    check(len(ntc) == 1 and set(ntc[0].pins.values()) == {'NTC', 'GND'} and len(up) == 1,
+          'thermistor from the NTC pin to ground, one pull-up to 3.3 V')
+    import re as _re
+    b_part = float(_re.search(r'B25/85 (\d+) K', parts.PARTS['NTC10K']['desc']).group(1))
+    check(abs(eval(scale['NTC_B'].rstrip('f')) - b_part) < 1e-6 and
+          abs(eval(scale['NTC_R0_OHM'].rstrip('f')) - value_ohms(parts.PARTS['NTC10K']['value'].split()[0])) < 1e-6 and
+          abs(eval(scale['NTC_PULLUP_OHM'].rstrip('f')) - value_ohms(parts.PARTS[up[0].part]['value'])) < 1e-6,
+          'thermistor scaling: firmware B %s, R0 %s, pull-up %s; part B %g' % (
+              scale['NTC_B'], scale['NTC_R0_OHM'], scale['NTC_PULLUP_OHM'], b_part))
 
     # ---- LED chain: index k in the firmware is the k-th LED from the ESP32
     chain, net = [], 'LED_D0'

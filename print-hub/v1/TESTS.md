@@ -8,26 +8,27 @@ dates given, on the commit that adds this file's results.
 
 ## Build gates (`src/make.py`; CI)
 
-| Gate | Why | Result (17 Oct 2026) |
+| Gate | Why | Result (18 Oct 2026) |
 |---|---|---|
-| Every part has a footprint and an LCSC number; no single-pin net; every pin on its footprint, every pad in `circuit.py` | a wrong or missing pad is a dead board | pass, 136 parts |
+| Every part has a footprint and an LCSC number; no single-pin net; every pin on its footprint, every pad in `circuit.py` | a wrong or missing pad is a dead board | pass, 137 parts |
 | KiCad 10.0.6 DRC with JLCPCB's limits | the fab rejects or mis-builds what breaks its rules | 0 errors, 0 warnings, 0 unconnected |
 | Every pad's net on the routed board equals `src/circuit.py` | the copper is the circuit | pass |
-| BOM and CPL list exactly the assembled parts | nothing missing or extra on the assembly line | pass, 128 parts in 34 BOM lines |
+| Every track corner 45 degrees or less (`src/miter.py` cuts them after routing; a bend inside a pad, at a via or where a third track joins is not a corner) | the owner's rule; no acid traps in the etch | pass (34 corners cut on the last route) |
+| BOM and CPL list exactly the assembled parts | nothing missing or extra on the assembly line | pass, 131 parts in 35 BOM lines |
 | Committed Gerbers, drills, BOM, CPL, netlist, rules equal what `make.py` builds (`tools/check_outputs.py`) | someone orders from the committed files | pass |
 
 ## Design checks (`src/verify.py` -> `VERIFICATION.md`; CI)
 
 | Check | Why | Result |
 |---|---|---|
-| Firmware pin map (`firmware/src/board.h`) against the circuit: 5 enables, 5 faults, 5 current inputs, both voltage senses, LED data, I2C, BOOT, native USB | a pin mismatch is a port that never switches or a reading of the wrong port | pass |
-| Firmware scaling (shunt, gain, both dividers) against the parts | wrong scaling is a wrong current limit | pass |
+| Firmware pin map (`firmware/src/board.h`) against the circuit: 5 enables, 5 faults, 5 current inputs, both voltage senses, the thermistor, LED data, I2C, BOOT, native USB | a pin mismatch is a port that never switches or a reading of the wrong port | pass |
+| Firmware scaling (shunt, gain, both dividers, the thermistor's B, R0 and pull-up) against the parts | wrong scaling is a wrong current limit or a wrong temperature | pass |
 | LED chain order against the firmware's LED index | the right LED for the right port | pass |
 | Analogue inputs on ADC1 only; strapping pins left open | ADC2 stops while Wi-Fi is on; a strapping pin can stop the board booting | pass |
 | Every port: switch from the rail, enable pull-down, fault pull-up, 47k ILIM, amplifier across the shunt, D+ joined to D- | the same protection on every port | pass |
 | The server's USB reaches the logic only through a diode, never a port | the server's 5 V never powers an accessory | pass |
 | Proved to catch errors: two enable pins swapped and a wrong divider in `board.h` | a check that cannot fail is no check | caught all 3 |
-| Total | | **65 pass, 0 fail** |
+| Total | | **68 pass, 0 fail** |
 
 ## Simulations (`sim/`)
 
@@ -58,9 +59,9 @@ checked out. What it found, and what was done:
 
 | Test | Why | Result |
 |---|---|---|
-| `make -C firmware/test`: port logic and command language on the host (ASan, UBSan) | timers, limits, shedding, budget, no ports without a 9 V supply (boot, unplug, re-plug), names, durations, millis() wrap | **87 checks pass** |
-| `pio run` (Arduino core 3.3.12, pioarduino 55.03.312-1) | the firmware builds | pass: flash 38 %, RAM 17 % |
-| `python3 host/test_printhub.py`: the CLI against a fake board | commands, JSON, tokens, quoting, exit codes | **7 pass** |
+| `make -C firmware/test`: port logic and command language on the host (ASan, UBSan) | timers, limits, shedding, budget (3 A at most), no ports without a 9 V supply (boot, unplug, re-plug), heat (turning down from 75 C, shedding while it does, all off at 100 C, back under 85 C, sensor fault, override capped), names, durations, millis() wrap | **148 checks pass** |
+| `pio run` (Arduino core 3.3.12, pioarduino 55.03.312-1) | the firmware builds (1.1.0: port 1's enable on GPIO21, the thermistor on GPIO9, 80 MHz) | pass: flash 38 %, RAM 17 % |
+| `python3 host/test_printhub.py`: the CLI against a fake board | commands, JSON, tokens, quoting, exit codes, the board temperature line | **8 pass** |
 
 ## Enclosure (`mechanical/enclosure/enclosure.py`)
 
@@ -78,7 +79,8 @@ checked out. What it found, and what was done:
 | Current reading against a USB meter, each port | `printhub status` | not yet built |
 | Short on a port: others keep running, firmware shows "fault" | short a USB-A with a 1 ohm load or a shorting plug | not yet built |
 | Chargers: 20 W, 30 W, 5 V-only | `printhub status` contract and budget | not yet built |
-| Buck temperature at 5 A, case closed | thermocouple on L1 / U2 | not yet built |
+| Board temperature at 3 A (ports 1 and 2 at 1.5 A), case closed, against the simulation | thermocouple on L1 / U2 and C9-C12; `printhub status` temperature against it | not yet built |
+| Heat protection: warm the case (hair dryer) at 2-3 A: ports turn down from 75 C, all off at 100 C, back under 85 C | `printhub status`, the status LED | not yet built |
 | Wi-Fi range inside the case, beside the printer | RSSI in `status` | not yet built |
 | DATA only: current through the I2C pull-ups into the unpowered HUSB238; then plug POWER IN and check it negotiates 9 V | meter, `printhub status` | not yet built |
 | Plug-in with several chargers: no charger trips on the 21 uF input | plug in 10 times each | not yet built |

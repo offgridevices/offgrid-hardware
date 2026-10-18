@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 V1 = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import pcbnew
-import pcb, parts, circuit, fab, check_pins
+import pcb, parts, circuit, fab, check_pins, miter
 
 NAME = 'print-hub'
 BOARD = os.path.join(V1, NAME + '.kicad_pcb')
@@ -87,6 +87,8 @@ def build(reroute=False, art=False, pictures=True):
     gate(not e and not w and not u, 'KiCad DRC: %d errors, %d warnings, %d unconnected' % (len(e), len(w), len(u)))
     bad = fab.check_netlist(BOARD, None)
     gate(not bad, 'copper nets match circuit.py pad for pad %s' % (bad[:5] or ''))
+    sharp = [c for c in miter.corners(BOARD) if c[0] > miter.LIMIT]
+    gate(not sharp, 'every track corner 45 degrees or less %s' % ([(round(a), n, x, y) for a, n, _, x, y in sharp][:6] or ''))
     out = fab.produce(BOARD, None, NAME, V1, pictures=pictures)
     print('  wrote %s (%d files), %d parts in %d BOM lines, %d pads in the netlist'
           % (os.path.relpath(out['zip'], V1), len(out['gerber_files']), out['parts'], out['bom_lines'], out['pads']))

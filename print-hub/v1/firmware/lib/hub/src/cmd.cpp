@@ -49,12 +49,21 @@ static bool valid_name(const std::string &n) {
   return true;
 }
 
+// tenths of a degree as a JSON number, null with no reading
+static std::string temp_json(int16_t t) {
+  if (t == NO_TEMP) return "null";
+  char b[16];
+  snprintf(b, sizeof b, "%s%d.%d", t < 0 ? "-" : "", abs(t) / 10, abs(t) % 10);
+  return b;
+}
+
 std::string status_json(const Hub &h, uint32_t now, const Extra &x) {
   std::ostringstream o;
   o << "{\"ok\":true,\"version\":\"" << json_escape(x.version) << "\",\"input\":{\"mv\":" << x.input_mv
     << ",\"contract\":\"" << json_escape(x.contract) << "\"},\"rail_mv\":" << x.rail_mv
     << ",\"budget_ma\":" << h.budget_ma() << ",\"budget\":\"" << (h.config().budget_override_ma ? "manual" : "auto")
-    << "\",\"total_ma\":" << h.total_ma() << ",\"ip\":\"" << json_escape(x.ip) << "\",\"ports\":[";
+    << "\",\"total_ma\":" << h.total_ma() << ",\"temp_c\":" << temp_json(h.temp_c10()) << ",\"heat\":\""
+    << heat_str(h.heat()) << "\",\"ip\":\"" << json_escape(x.ip) << "\",\"ports\":[";
   for (int p = 0; p < NPORTS; p++) {
     const PortState &s = h.state(p);
     const PortConfig &c = h.config().port[p];
@@ -153,7 +162,7 @@ std::string run(Hub &h, const std::string &line, uint32_t now, const Extra &x, b
     if (lower(w[1]) == "auto") h.config_mut().budget_override_ma = 0;
     else {
       long v = strtol(w[1].c_str(), nullptr, 10);
-      if (v < 100 || v > MAX_BUDGET_MA) return err("budget: 100 to 5000 mA, or auto");
+      if (v < 100 || v > MAX_BUDGET_MA) return err("budget: 100 to " + std::to_string(MAX_BUDGET_MA) + " mA, or auto");
       h.config_mut().budget_override_ma = (uint16_t)v;
     }
     *changed = true;

@@ -143,17 +143,19 @@ def run():
     w('| WS2812B LED supply (3.3-5.3 V) | %.2f .. %.2f V |' % (v_pc, vout_hi - 0.3))
     check(3.3 <= v_pc and vout_hi - 0.3 <= 5.3, 'LED supply inside 3.3-5.3 V')
 
-    w('\n## Charger budget (what the firmware allows, firmware/src/board.cpp)\n')
+    w('\n## Charger budget (what the firmware allows, firmware/src/board.cpp and lib/hub)\n')
     w('| charger | contract | ports may draw |\n|---|---|---|')
     for name, v, i in (('20 W', 9, 2.0), ('20 W, full 9 V offer', 9, 2.22), ('30 W', 9, 3.0),
                        ('45 W and up', 9, 3.0), ('5 V only (no USB-PD)', 5, 3.0)):
         if v < 9:
             ma = 0
         else:
-            ma = min(5000, (v * i * 0.90 / 5.15 * 1000 - 150) * 0.9)
+            ma = min(3000, (v * i * 0.90 / 5.15 * 1000 - 150) * 0.9)
         w('| %s | %g V %.2f A | %s |' % (name, v, i, ('%.1f A' % (ma / 1000)) if ma else 'nothing: ports stay off'))
-    w('\nTypical load (fan 0.45 A, light 0.6 A, two filters charging 0.8 A each, spare 1 A): 3.65 A. '
-      'A 30 W charger covers it; a 20 W one covers everything but the spare while both filters charge.\n')
+    w('\nThe ports draw 3 A together at most (MAX_BUDGET_MA, firmware/lib/hub/src/hub.h): what the closed '
+      'case sheds in a 35 C room (sim/thermal/board_heat.md); the buck itself is rated 5 A, the losses above '
+      'are at that rating. Typical load (fan 0.45 A, light 0.6 A, two filters charging 0.8 A each): 2.65 A. '
+      'A 20 W charger covers it.\n')
 
     w('## Checks\n')
     for ok, what in checks:

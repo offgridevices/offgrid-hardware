@@ -1,8 +1,8 @@
 # Print Hub v1: design checks
 
-Written by `src/verify.py`. 65 passed, 0 failed.
+Written by `src/verify.py`. 68 passed, 0 failed.
 
-- PASS USB1 enable: firmware GPIO9 is EN1
+- PASS USB1 enable: firmware GPIO21 is EN1
 - PASS USB1 fault: firmware GPIO14 is FLT1
 - PASS USB1 current: firmware GPIO1 is IS1
 - PASS USB2 enable: firmware GPIO10 is EN2
@@ -19,18 +19,21 @@ Written by `src/verify.py`. 65 passed, 0 failed.
 - PASS USB5 current: firmware GPIO6 is IS5
 - PASS VIN_SENSE: firmware GPIO7 is VIN_SENSE
 - PASS RAIL_SENSE: firmware GPIO8 is RAIL_SENSE
+- PASS NTC: firmware GPIO9 is NTC
 - PASS LED_DATA: firmware GPIO38 is LED_DIN0
 - PASS I2C_SDA: firmware GPIO39 is SDA
 - PASS I2C_SCL: firmware GPIO40 is SCL
 - PASS BUTTON: firmware GPIO0 is BOOT
 - PASS native USB: GPIO19 = D-, GPIO20 = D+
-- PASS every analogue input on ADC1 (GPIO1-10): [1, 2, 4, 5, 6, 7, 8]
+- PASS every analogue input on ADC1 (GPIO1-10): [1, 2, 4, 5, 6, 7, 8, 9]
 - PASS strapping pins GPIO3, 45, 46 left open
 - PASS no two GPIOs on one net
 - PASS shunt: firmware 0.020f, part 0.02 ohm
 - PASS amplifier gain: INA180A2 is 50 V/V, firmware 50.0f
 - PASS VIN_DIV: firmware 7.6667, circuit 7.6667
 - PASS RAIL_DIV: firmware 2.0000, circuit 2.0000
+- PASS thermistor from the NTC pin to ground, one pull-up to 3.3 V
+- PASS thermistor scaling: firmware B 3434.0f, R0 10000.0f, pull-up 10000.0f; part B 3434
 - PASS LED chain from the ESP32: logic > USB5 > USB4 > USB3 > USB2 > USB1 (firmware: status, then USB5 .. USB1)
 - PASS firmware LED index: status 0, port p at NPORTS - p
 - PASS USB1: switch from the 5 V rail, enabled by EN1

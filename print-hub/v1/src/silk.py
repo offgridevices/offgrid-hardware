@@ -3,10 +3,10 @@
 brand faces (brand.py): words in Instrument Sans 500, numbers and codes in
 JetBrains Mono 500.  White silk on the black mask.
 
-  TOP     the port numbers by each port's LED, POWER IN / DATA, the
-          buttons, the test pads, "Print Hub" with its revision, and the
-          OffGrid mark
-  BOTTOM  the OffGrid lockup, what to plug in, the licence
+  TOP     the buttons, the test pads, "Print Hub" with its revision (the
+          lid carries the port numbers and POWER / DATA)
+  BOTTOM  each connector's name under it, the OffGrid lockup, what to
+          plug in, the licence
 
 Every label is placed where it touches no pad, hole or mask opening (the
 fab would clip it there), searched outwards from where it is meant to go.
@@ -15,7 +15,6 @@ import os
 import pcbnew
 from shapely.geometry import Point, box
 from shapely.ops import unary_union
-from shapely import affinity
 import pcb, brand, layout
 
 NAME = 'Print Hub'
@@ -26,7 +25,7 @@ CAP = 1.2              # cap height of the labels, mm
 # where the big artwork goes, kept free of stitching vias (stitch.py):
 # (x0, y0, x1, y1), board mm.  Top: the title and the mark, in the band
 # between the logic and the ports.  Bottom: the lockup and the notes.
-ART = [(-14.0, -9.5, 14.0, 1.0), (-22.0, -11.0, 22.0, 13.0)]
+ART = [(-24.0, -24.6, -8.0, -18.0), (-22.0, -12.0, 22.0, 9.0)]
 
 
 def strip(b):
@@ -87,29 +86,28 @@ def text(fam, s, cap=CAP):
 
 def draw(b):
     top = Placer(b, 'T')
-    # each port's number, right of its LED (and the LED's capacitor)
-    for i, x in enumerate(layout.PORT_X):
-        top.put(text('mono', str(i + 1), 1.8), x + 10.0, layout.USBA_Y - 4.4, search=2.0)
-    jy = layout.USBC_Y + 4.0
-    top.put(brand.line([('sans', 'Power in'), ('mono', 'PD 9V')], CAP)[0], layout.J1_X, jy + 1.6)
-    top.put(text('sans', 'Data'), layout.J2_X, jy + 1.6)
     for ref, label in (('SW1', 'Reset'), ('SW2', 'Boot')):
         x, y = pcb.xy(b.FindFootprintByReference(ref).GetPosition())
         top.put(text('sans', label), x - 4.6, y, anchor='r')
     for ref, label in (('TP1', 'TX'), ('TP2', 'RX'), ('TP3', 'GND'), ('TP4', '5V')):
         x, y = pcb.xy(b.FindFootprintByReference(ref).GetPosition())
         top.put(text('mono', label, 0.9), x, y + 1.9)
-    title = brand.line([('sans', NAME), ('mono', REV)], 2.4)[0]
-    top.put(title, 0.0, -1.5)
-    mk, clear = brand.mark_mm(5.0)
-    top.put(affinity.translate(mk, 0, 0), 0.0, -6.5)
+    # the title between the two USB-C receptacles (the mark is on the back)
+    title = brand.line([('sans', NAME), ('mono', REV)], 1.8)[0]
+    top.put(title, -16.0, -21.0)
 
     bot = Placer(b, 'B')
-    lk, _ = brand.lockup_mm(36.0)
-    bot.put(lk, 0.0, -6.0)
-    bot.put(brand.line([('sans', NAME), ('mono', REV)], 2.4)[0], 0.0, 1.0)
-    bot.put(text('sans', 'Power: a USB-C PD charger, 30 W or more'), 0.0, 5.5)
-    bot.put(text('sans', 'Data: the print server (USB) or Wi-Fi'), 0.0, 8.0)
+    lk, _ = brand.lockup_mm(24.0)        # between the vias (the board is dense)
+    # each port's number under its receptacle, ahead of the pins
+    for i, x in enumerate(layout.PORT_X):
+        bot.put(text('mono', str(i + 1), 1.8), x, layout.USBA_Y + 6.5, search=2.0)
+    jy = layout.USBC_Y + 3.0
+    bot.put(brand.line([('sans', 'Power in'), ('mono', 'PD 9V')], CAP)[0], layout.J1_X, jy)
+    bot.put(text('sans', 'Data'), layout.J2_X, jy)
+    bot.put(lk, 2.5, -13.0, search=2.0)
+    bot.put(brand.line([('sans', NAME), ('mono', REV)], 1.8)[0], 2.5, -8.0, search=8.0)
+    bot.put(text('sans', 'Power: a USB-C PD charger, 20 W or more', 1.0), -6.0, 3.0, search=10.0)
+    bot.put(text('sans', 'Data: the print server (USB) or Wi-Fi', 1.0), -6.0, 6.0, search=10.0)
     # the licence in the corner behind the antenna (silk is not copper)
-    bot.put(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 1.0)[0], 34.0, -28.5)
+    bot.put(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 1.0)[0], 31.0, -20.5)
     return top, bot
