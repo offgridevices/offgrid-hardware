@@ -13,7 +13,7 @@ Item #,Designator,Qty,Manufacturer,Mfg Part #,Description,Value,Package/Footprin
 12,"C50,C51,C52,C53",4,Samsung Electro-Mechanics,CL32B475KCJSNNE,Capacitor 4u7F 100V 1210 X7R/X5R,4u7F 100V,C_1210_3225Metric,SMD,,
 13,C54,1,Samsung Electro-Mechanics,CL05B223KB5NNNC,Capacitor 22nF 50V 0402 X7R/X5R,22nF 50V,C_0402_1005Metric,SMD,,
 14,C57,1,Samsung Electro-Mechanics,CL05C560JB5NNNC,Capacitor 56pF 50V 0402 X7R/X5R,56pF 50V,C_0402_1005Metric,SMD,,
-15,D1,1,Littelfuse,SMBJ64CA,"TVS bidirectional 58 V stand-off, 600 W, SMB",SMBJ64CA,SMB_L4.6-W3.6-LS5.3-BI,SMD,C151269,
+15,D1,1,Littelfuse,SMBJ64CA,"TVS bidirectional 64 V stand-off, 600 W, SMB",SMBJ64CA,SMB_L4.6-W3.6-LS5.3-BI,SMD,C151269,
 16,D2,1,Diodes Incorporated,BZT52C10-7-F,Zener 10 V (P-FET gate clamp),10 V,SOD-123_L2.7-W1.6-LS3.7-RD,SMD,C155227,
 17,D3,1,Vishay,SS2H10-E3/52T,"Schottky 100 V 2 A, SMA (pre-charge reverse block)",SS2H10,D_SMA,SMD,,
 18,"D4,D14,D16",3,Nexperia,"BAT46WJ,115","Schottky 100 V 250 mA, SOD-323F",BAT46WJ,SOD-323F_L2.0-W1.6-LS2.5-RD,SMD,C114696,

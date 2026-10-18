@@ -38,7 +38,7 @@ PARTS = {
     'INA181A2':  P('SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL', 'Texas Instruments', 'INA181A2IDBVR', 'C2058784',
                    'Current-sense amplifier, gain 50, -0.2..26 V CM (low side: CM ~0 V)'),
     'TVS64':     P('SMB_L4.6-W3.6-LS5.3-BI', 'Littelfuse', 'SMBJ64CA', 'C151269',
-                   'TVS bidirectional 58 V stand-off, 600 W, SMB'),
+                   'TVS bidirectional 64 V stand-off, 600 W, SMB'),
     'SUD50P10':  P('TO-252-3_L6.5-W5.8-P4.58-BR', 'Vishay Siliconix', 'SUD50P10-43L-E3', 'C913430',
                    'P-MOSFET 100 V 43 mOhm DPAK (pre-charge switch: ~7.5 A peak through RPRE)'),
     'MMBTA42':   P('SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR', 'onsemi', 'MMBTA42LT1G', 'C94389',
