@@ -1,4 +1,4 @@
-# The build toolchain for this board, pinned: KiCad 10.0.6 (pcbnew Python
+# The build toolchain for this board, pinned: KiCad 10.0.7 (pcbnew Python
 # module and kicad-cli), Freerouting 1.9.0, KiKit, ngspice and the Python
 # packages src/ uses.  Build from the repository root:
 #
@@ -9,8 +9,8 @@
 #   docker build -t ogkicad:10 -f mesh-radio/v1/tools/Dockerfile out
 #
 # then run make.py inside it (mesh-radio/v1/tools/kd does this).
-# The official KiCad 10.0.6 image, pinned by digest (Docker Hub, kicad/kicad:10.0.6)
-FROM kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
+# The official KiCad 10.0.7 image, pinned by digest (Docker Hub, kicad/kicad:10.0.7)
+FROM kicad/kicad:10.0.7@sha256:3224d1bf143185ecc1bd3a1082a36f37f0f4e59d707983a16515a845e3737fc6
 USER root
 RUN apt-get update -qq \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \

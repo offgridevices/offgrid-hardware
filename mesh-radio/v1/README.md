@@ -164,7 +164,7 @@ analyser, side by side with a RAK.
 ## How to rebuild the schematic
 
 ```
-mesh-radio/v1/tools/kd python3 src/sch.py     # from mesh-radio/v1, in the pinned KiCad 10.0.6 image
+mesh-radio/v1/tools/kd python3 src/sch.py     # from mesh-radio/v1, in the pinned KiCad 10.0.7 image
 ```
 
 It redraws `schematic/` from `src/circuit.py`, checks that KiCad's netlist

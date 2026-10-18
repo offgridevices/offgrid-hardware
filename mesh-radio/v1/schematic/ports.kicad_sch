@@ -4144,7 +4144,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "og:PinHeader_2x10_P2.54mm"
+		(property "Footprint" "og:Header_2x1x10_Rows20.32"
 			(at 256.54 60.96 0)
 			(effects
 				(font
