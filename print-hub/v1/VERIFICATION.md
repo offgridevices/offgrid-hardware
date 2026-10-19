@@ -1,0 +1,72 @@
+# Print Hub v1: design checks
+
+Written by `src/verify.py`. 68 passed, 0 failed.
+
+- PASS USB1 enable: firmware GPIO21 is EN1
+- PASS USB1 fault: firmware GPIO14 is FLT1
+- PASS USB1 current: firmware GPIO1 is IS1
+- PASS USB2 enable: firmware GPIO10 is EN2
+- PASS USB2 fault: firmware GPIO15 is FLT2
+- PASS USB2 current: firmware GPIO2 is IS2
+- PASS USB3 enable: firmware GPIO11 is EN3
+- PASS USB3 fault: firmware GPIO16 is FLT3
+- PASS USB3 current: firmware GPIO4 is IS3
+- PASS USB4 enable: firmware GPIO12 is EN4
+- PASS USB4 fault: firmware GPIO17 is FLT4
+- PASS USB4 current: firmware GPIO5 is IS4
+- PASS USB5 enable: firmware GPIO13 is EN5
+- PASS USB5 fault: firmware GPIO18 is FLT5
+- PASS USB5 current: firmware GPIO6 is IS5
+- PASS VIN_SENSE: firmware GPIO7 is VIN_SENSE
+- PASS RAIL_SENSE: firmware GPIO8 is RAIL_SENSE
+- PASS NTC: firmware GPIO9 is NTC
+- PASS LED_DATA: firmware GPIO38 is LED_DIN0
+- PASS I2C_SDA: firmware GPIO39 is SDA
+- PASS I2C_SCL: firmware GPIO40 is SCL
+- PASS BUTTON: firmware GPIO0 is BOOT
+- PASS native USB: GPIO19 = D-, GPIO20 = D+
+- PASS every analogue input on ADC1 (GPIO1-10): [1, 2, 4, 5, 6, 7, 8, 9]
+- PASS strapping pins GPIO3, 45, 46 left open
+- PASS no two GPIOs on one net
+- PASS shunt: firmware 0.020f, part 0.02 ohm
+- PASS amplifier gain: INA180A2 is 50 V/V, firmware 50.0f
+- PASS VIN_DIV: firmware 7.6667, circuit 7.6667
+- PASS RAIL_DIV: firmware 2.0000, circuit 2.0000
+- PASS thermistor from the NTC pin to ground, one pull-up to 3.3 V
+- PASS thermistor scaling: firmware B 3434.0f, R0 10000.0f, pull-up 10000.0f; part B 3434
+- PASS LED chain from the ESP32: logic > USB5 > USB4 > USB3 > USB2 > USB1 (firmware: status, then USB5 .. USB1)
+- PASS firmware LED index: status 0, port p at NPORTS - p
+- PASS USB1: switch from the 5 V rail, enabled by EN1
+- PASS USB1: enable pulled down (off during reset and flashing)
+- PASS USB1: fault line pulled up to 3.3 V
+- PASS USB1: 47k on ILIM (2.07 A)
+- PASS USB1: D+ joined to D- (BC1.2 charging port), VBUS from the shunt
+- PASS USB1: amplifier across the shunt, IN+ on the switch side, supplied from 3.3 V
+- PASS USB2: switch from the 5 V rail, enabled by EN2
+- PASS USB2: enable pulled down (off during reset and flashing)
+- PASS USB2: fault line pulled up to 3.3 V
+- PASS USB2: 47k on ILIM (2.07 A)
+- PASS USB2: D+ joined to D- (BC1.2 charging port), VBUS from the shunt
+- PASS USB2: amplifier across the shunt, IN+ on the switch side, supplied from 3.3 V
+- PASS USB3: switch from the 5 V rail, enabled by EN3
+- PASS USB3: enable pulled down (off during reset and flashing)
+- PASS USB3: fault line pulled up to 3.3 V
+- PASS USB3: 47k on ILIM (2.07 A)
+- PASS USB3: D+ joined to D- (BC1.2 charging port), VBUS from the shunt
+- PASS USB3: amplifier across the shunt, IN+ on the switch side, supplied from 3.3 V
+- PASS USB4: switch from the 5 V rail, enabled by EN4
+- PASS USB4: enable pulled down (off during reset and flashing)
+- PASS USB4: fault line pulled up to 3.3 V
+- PASS USB4: 47k on ILIM (2.07 A)
+- PASS USB4: D+ joined to D- (BC1.2 charging port), VBUS from the shunt
+- PASS USB4: amplifier across the shunt, IN+ on the switch side, supplied from 3.3 V
+- PASS USB5: switch from the 5 V rail, enabled by EN5
+- PASS USB5: enable pulled down (off during reset and flashing)
+- PASS USB5: fault line pulled up to 3.3 V
+- PASS USB5: 47k on ILIM (2.07 A)
+- PASS USB5: D+ joined to D- (BC1.2 charging port), VBUS from the shunt
+- PASS USB5: amplifier across the shunt, IN+ on the switch side, supplied from 3.3 V
+- PASS logic supply: VRAIL and VBUS_DATA each through a Schottky (anode) into VLOGIC (cathode)
+- PASS nothing joins the print server's VBUS to the port rail
+- PASS simulation power_budget.md: all its checks pass
+- PASS simulation port_events.md: all its checks pass
