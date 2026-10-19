@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """50 ohm line geometry for the RF tracks.
 
-Grounded coplanar waveguide on F.Cu over the In1 ground plane, JLCPCB's
-4-layer 1.6 mm stackup JLC04161H-7628: 0.2104 mm of 7628 prepreg between
-F.Cu and In1, er 4.4.  Closed-form quasi-static model (conformal mapping,
+Grounded coplanar waveguide on F.Cu over the In1 ground plane: the first
+dielectric of the board's stackup (pcb.DIELECTRIC; 6 layers, JLC06161H-2116B:
+0.1164 mm of 2116 prepreg, er 4.16).  Closed-form quasi-static model (conformal mapping,
 Wadell, Transmission Line Design Handbook, 4.4.3.1), copper thickness
 neglected (it lowers Z by about 1 ohm).
 
@@ -12,7 +12,8 @@ neglected (it lowers Z by about 1 ohm).
 import numpy as np
 from scipy.special import ellipk
 
-H, ER = 0.2104, 4.4
+import pcb
+H, ER = pcb.DIELECTRIC[pcb.NLAYERS][0][1], pcb.DIELECTRIC[pcb.NLAYERS][0][3]
 
 
 def _kr(k):

@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 """Route and finish the placed board, to a DRC-clean .kicad_pcb.
 
-  1. board.build()          parts, the RF lines (locked), In1 ground plane, rules
-  2. plane_fanout()         every ground pad takes its via into In1
+  1. board.build()          parts, the RF lines (locked), ground planes (In1, In4), rules
+  2. plane_fanout()         every ground pad takes its via into the planes
   3. Freerouting            every other signal and supply (rounds)
   4. finish (finish.py)     the maze router and rip-up repair for what is left
-  5. ground poured on F, In2 and B, stitched to In1; the RF lines keep
+  5. ground poured on the routing layers, stitched to the planes; the RF lines keep
      their 0.18 mm coplanar gap to it (board.RULES)
   6. KiCad DRC              must be 0 errors / 0 warnings / 0 unconnected
 
     kd python3 src/pipeline.py WORKDIR [--passes N] [--from-routed]
 
-Adapted from Ridge 3 Lite's pipeline: one plane (GND on In1), three
-routing layers (F, In2, B), and the RF lines kept clear of other copper.
+Adapted from Ridge 3 Lite's pipeline: ground planes on In1 (and In4 on 6
+layers), routing on the other layers, and the RF lines kept clear of other
+copper.
 """
 import os, sys, shutil
 from collections import Counter
@@ -30,7 +31,7 @@ def log(s):
 
 
 def plane_fanout(path):
-    """Every ground pad gets its via into In1 before routing (Freerouting
+    """Every ground pad gets its via into the planes before routing (Freerouting
     routes pad to pad; it does not drop a pad into a plane): in the pad
     itself where it is wide enough (filled and capped, POFV), otherwise just
     outside it on a stub; exposed pads get a grid."""
@@ -98,8 +99,8 @@ def routing_keepouts(b):
       - a strip along the outline (Freerouting keeps only its own
         clearance from it).
 
-    The In1 plane is marked a power layer (Freerouting routes nothing on
-    it; its vias pass through) and every pour is removed (Freerouting reads
+    The ground planes are marked power layers (Freerouting routes nothing on
+    them; its vias pass through) and every pour is removed (Freerouting reads
     a zone as its outline, overlapping the pads inside it)."""
     from shapely.geometry import LineString, Point
     from shapely.ops import unary_union
@@ -134,7 +135,8 @@ def routing_keepouts(b):
     for z in list(b.Zones()):
         if not z.GetIsRuleArea():
             pcb.remove(b, z)
-    b.SetLayerType(pcb.layer_id(pcb.INNER['gnd']), pcbnew.LT_POWER)
+    for gl in [pcb.INNER['gnd']] + ([pcb.INNER['gnd2']] if 'gnd2' in pcb.INNER else []):
+        b.SetLayerType(pcb.layer_id(gl), pcbnew.LT_POWER)
     hx, hy, w = pcb.HX, pcb.HY, EDGE
     for x0, y0, x1, y1 in ((-hx, -hy, hx, -hy + w), (-hx, hy - w, hx, hy), (-hx, -hy, -hx + w, hy),
                            (hx - w, -hy, hx, hy)):
@@ -161,7 +163,8 @@ def setup_routers():
     # ground is the plane; the RF lines are drawn already (locked)
     route.DROP_NETS = tuple(PLANES) + tuple(board.RF_NETS)
     route.AUTOROUTE = dict(via_costs=40, plane_via_costs=5, start_ripup_costs=100, fanout=False,
-                           directions={'F.Cu': 'horizontal', 'In2.Cu': 'vertical', 'B.Cu': 'horizontal'})
+                           directions={'F.Cu': 'horizontal', 'In2.Cu': 'vertical', 'In3.Cu': 'horizontal',
+                                       'B.Cu': 'vertical'})
 
 
 def widths(comps):

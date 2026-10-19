@@ -52,8 +52,8 @@ def anchors(comps):
         # ---- left end
         (R('USBC'), -HX + 5.48, 0.0, 270, 'T'),           # shell front 0.84 mm past the edge (Amphenol drawing)
         (R('SLIDE'), -HX + 5.6, -HY + 4.55, 180, 'T'),      # body edge on the board edge, lever over it
-        (R('B3U', 'reset'), -28.6, HY - 2.7, 90, 'T'),
-        (R('B3U', 'user'), -25.4, HY - 2.7, 90, 'T'),
+        (R('SKRP', 'reset'), -28.8, HY - 3.2, 90, 'T'),
+        (R('SKRP', 'user'), -25.0, HY - 3.2, 90, 'T'),
         # ---- processor and Bluetooth
         (R('NRF52840'), -12.0, 0.3, 180, 'T'),              # SPI side towards the SX1262, USB side towards USB-C
         (R('ANT2450'), -19.4, HY - 1.35, 180, 'T'),         # feed end towards the nRF52840
@@ -220,13 +220,13 @@ def place_all(log=print):
     tx_end = left['PA_TX']
     put_fit(B, sw, tx_end[0] - 1.1 - p11[0], tx_end[1] - p11[1], 180, (-0.1, 0))
     # the antenna: up from the switch through the filter to the U.FL
-    fl = ref(comps, 'LFCN1000')
+    fl = ref(comps, 'LFCG1000')
     B.put(fl, 0, 0, 90, 'T', check=False)
-    f1 = B.pad_xy(fl, '1')
+    f1 = B.pad_xy(fl, '8')
     B.pl.pop(fl); B.taken['T'].pop()
     p2 = B.pad_xy(sw, '2')
     put_fit(B, fl, p2[0] - f1[0], p2[1] - 1.0 - f1[1], 90, (0, -0.1))
-    fl3 = B.pad_xy(fl, '3')
+    fl3 = B.pad_xy(fl, '4')
     uf = ref(comps, 'UFL')
     # the U.FL beside the filter's top end, its signal pad facing the filter
     B.put(uf, 0, 0, 270, 'T', check=False)

@@ -24,9 +24,10 @@ VIA_SIG = (0.4, 0.2)
 VIA_PAD = (0.3, 0.15)
 
 # 50 ohm grounded coplanar waveguide on F.Cu over the In1 ground plane
-# (JLC04161H-7628: 0.21 mm of 7628 prepreg, er 4.4): 0.36 mm track with
-# 0.18 mm gaps to the ground pour is 50.5 ohm (src/impedance.py).
-RF_W, RF_GAP = 0.36, 0.18
+# (6 layers, JLC06161H-2116B: 0.1164 mm of 2116 prepreg, er 4.16): 0.22 mm
+# track with 0.18 mm gaps to the ground pour is 51.6 ohm by the closed form
+# (src/impedance.py), about 50.5 with the copper's 35 um thickness.
+RF_W, RF_GAP = 0.22, 0.18
 
 RF_NETS = ['LORA_RFO', 'LORA_TXA', 'LORA_TXB', 'LORA_TXC', 'LORA_TX50', 'PA_DRIVE', 'PA_RFIN',
            'PA_OUT', 'PA_M1', 'PA_M2', 'PA_M3', 'PA_TX', 'ANT_SW', 'ANT', 'RX_SW', 'LNA_INM', 'LNA_AI',
@@ -114,10 +115,11 @@ def build(out, replace=False):
         for t in b.GetTracks():
             if t.m_Uuid.AsString() not in before:
                 t.SetLocked(True)
-    # ground: In1 solid everywhere; F, In2 and B are poured after routing
+    # ground: In1 (and In4 on 6 layers) solid everywhere; the other layers are poured after routing
     ex, ey = pcb.HX - 0.3, pcb.HY - 0.3
     full = [(-ex, -ey), (ex, -ey), (ex, ey), (-ex, ey)]
-    pcb.zone(b, 'GND', pcbnew.In1_Cu, full, clearance=0.15, min_width=0.15, priority=0, name='GND plane')
+    for gl in [pcb.INNER['gnd']] + ([pcb.INNER['gnd2']] if 'gnd2' in pcb.INNER else []):
+        pcb.zone(b, 'GND', pcb.layer_id(gl), full, clearance=0.15, min_width=0.15, priority=0, name='GND plane')
     pcb.hole_keepouts(b, CU)
     # and on F.Cu: no ground pour or via near the antenna (its feed line may pass)
     x0, y0, x1, y1 = layout.ANT_BOX

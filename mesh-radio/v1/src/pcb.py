@@ -14,7 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 V1 = os.path.normpath(os.path.join(HERE, '..'))
 MM = pcbnew.FromMM
 CX, CY = 100.0, 100.0            # board centre on KiCad's page
-NLAYERS = int(os.environ.get("BOARD_LAYERS", 4))      # copper layers
+NLAYERS = int(os.environ.get("BOARD_LAYERS", 6))      # copper layers (owner, 19 Oct: 6; 4 did not route)
 LEN = float(os.environ.get("BOARD_LEN", 62.0))        # length (x)
 WID = 25.4                       # width (y): the Heltec V4's
 HX, HY = LEN / 2, WID / 2
@@ -484,13 +484,14 @@ def write_rules(board_path, extra=''):
 
 # Stackups, 1.6 mm, 1 oz outer copper; inner copper per board (the ESC's
 # inner planes carry the motor current: 1 oz; the FC: 0.5 oz).  4 layers:
-# JLCPCB's standard JLC04161H-7628.  6 layers: nominal figures for the fab's
-# standard 6-layer 1.6 mm build (nothing here needs controlled impedance).
+# JLCPCB's standard JLC04161H-7628.  6 layers: JLCPCB's JLC06161H-2116B
+# (1.6 mm; 2116 prepreg 0.1164 mm er 4.16 under each outer layer, so the RF
+# lines on F.Cu sit 0.12 mm over the In1 ground plane).
 # Mask and silk colours follow the OffGrid brand: Pitch ground (black
 # mask), Bone type (white silk); ENIG keeps the QFN pads flat.
 DIELECTRIC = {4: [('prepreg', 0.2104, '7628', 4.4), ('core', 1.065, 'FR4', 4.6), ('prepreg', 0.2104, '7628', 4.4)],
-              6: [('prepreg', 0.1, 'FR4', 4.4), ('core', 0.4, 'FR4', 4.6), ('prepreg', 0.45, 'FR4', 4.4),
-                  ('core', 0.4, 'FR4', 4.6), ('prepreg', 0.1, 'FR4', 4.4)],
+              6: [('prepreg', 0.1164, '2116', 4.16), ('core', 0.5, 'FR4', 4.6), ('prepreg', 0.0764, '1080', 3.91),
+                  ('core', 0.5, 'FR4', 4.6), ('prepreg', 0.1164, '2116', 4.16)],
               8: [('prepreg', 0.1, 'FR4', 4.4), ('core', 0.2, 'FR4', 4.6), ('prepreg', 0.2, 'FR4', 4.4),
                   ('core', 0.2, 'FR4', 4.6), ('prepreg', 0.2, 'FR4', 4.4), ('core', 0.2, 'FR4', 4.6),
                   ('prepreg', 0.1, 'FR4', 4.4)]}
@@ -536,6 +537,10 @@ def set_stackup(path, inner_oz=0.5):
 # The copper layers by job.  4 layers (JLC04161H-7628): F parts, RF and
 # signals; In1 a solid ground plane, 0.21 mm under F (the RF lines' reference);
 # In2 power and signals, ground fill elsewhere; B parts and signals.
+# 6 layers (JLC06161H-2116B): F parts, RF and signals; In1 solid ground
+# 0.12 mm under F; In2, In3 signals and power with ground fill; In4 solid
+# ground (B's reference and the amplifier's second heat-spreading plane);
+# B parts and signals.
 INNER = {4: dict(gnd='In1.Cu', sig=['In2.Cu']),
          6: dict(gnd='In1.Cu', sig=['In2.Cu', 'In3.Cu'], gnd2='In4.Cu')}[NLAYERS]
 
