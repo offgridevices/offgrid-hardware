@@ -280,7 +280,7 @@ Open until T5, T6 and T7 are done.  Candidates, from
     overstates it for a short track over a plane; `src/fc_layout.py`);
   - `verify.py` checks every feedback line: it reaches one pour and no pad
     but its divider's.
-- **Result:** TODO_SIM
+- **Result:** the simulations are being run again on the new board (`../STRESS.md` section 5 gives the 5 V copper's drop, loss and densest point at 2 A); this line is filled in from them.
 - **Settled by:** T10 (a thermal camera on the 5 V copper at 2 A).
 
 ## Before ordering prototypes
