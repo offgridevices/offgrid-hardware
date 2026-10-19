@@ -13,7 +13,7 @@ import pcbnew
 JAR = os.environ.get('FREEROUTING_JAR', os.path.expanduser('~/freerouting-1.9.0.jar'))
 # Freerouting 2.4 (tools/Dockerfile installs it): used when set
 FR2 = os.environ.get('FREEROUTING2')
-THREADS = 3
+THREADS = int(os.environ.get("FR_THREADS", 3))
 
 # A board may add routing-only constraints (keepouts) to the copy exported
 # for Freerouting: PRE_EXPORT(board) is called before the DSN is written.
