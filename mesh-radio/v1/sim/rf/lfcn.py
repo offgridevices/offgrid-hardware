@@ -77,3 +77,49 @@ def fit():
 if __name__ == '__main__':
     if '--fit' in sys.argv:
         print(fit())
+
+
+# ----------------------------------------------------------------------------- LFCG-1000+
+# Mini-Circuits LFCG-1000+ (0805 LTCC, case GE0805C-2), typical table at 25 C from its data sheet:
+# frequency (MHz), insertion loss (dB), return loss (dB).  Used by followup.py (6f-10f fix).
+G_F_TAB = np.array([10, 100, 1000, 1370, 1450, 1510, 1550, 1750, 1900, 2000, 2500, 3000, 4000, 5000, 6000, 7000,
+                    7500, 8000, 9000, 10000]) * 1e6
+G_IL_TAB = np.array([0.12, 0.18, 0.74, 3.39, 9.47, 20.39, 31.51, 42.02, 59.59, 52.69, 49.74, 44.29, 38.87, 37.65, 37.95,
+                     37.04, 49.61, 48.29, 45.40, 40.34])
+G_RL_TAB = np.array([39.37, 30.94, 23.43, 11.65, 7.28, 4.42, 3.12, 1.00, 0.65, 0.53, 0.32, 0.24, 0.14, 0.09, 0.11, 0.24,
+                     0.27, 0.29, 0.32, 0.32])
+G_FIT = None    # filled from fit_lfcg() output below
+
+
+def fit_table(ftab, iltab, vswrtab, lo_le=0.02e-9, hi_le=1e-9, seed=1, n=40):
+    from scipy.optimize import least_squares
+
+    def resid(lp):
+        S = response(ftab, p=np.exp(lp))
+        il = -R.db20(S[:, 1, 0])
+        g = np.abs(S[:, 0, 0])
+        vs = (1 + g) / (1 - g)
+        r1 = (il - iltab) * np.where(ftab < 1.3e9, 6.0, 1.0) / np.where(iltab > 10, 4, 0.5)
+        r2 = np.log(vs / vswrtab) * np.where(ftab < 1.3e9, 8, 0.3)
+        return np.concatenate([r1, r2])
+
+    lo = np.log([0.2e-12, 1e-9, 0.05e-12, 0.2e-12, 1e-9, 0.05e-12, 0.2e-12, 1e-9, 0.05e-12, 0.2e-12, lo_le, 15])
+    hi = np.log([10e-12, 30e-9, 3e-12, 15e-12, 30e-9, 3e-12, 15e-12, 30e-9, 3e-12, 10e-12, hi_le, 200])
+    p0 = np.log([2.5e-12, 7e-9, 0.6e-12, 5e-12, 9e-9, 0.4e-12, 5e-12, 7e-9, 0.6e-12, 2.5e-12, 0.05e-9, 40])
+    rng = np.random.default_rng(seed)
+    best = None
+    for i in range(n):
+        r = least_squares(resid, np.clip(p0 + (rng.normal(0, 0.3, len(p0)) if i else 0), lo + 1e-9, hi - 1e-9),
+                          bounds=(lo, hi))
+        if best is None or r.cost < best.cost:
+            best = r
+    return list(np.exp(best.x))
+
+
+def fit_lfcg():
+    g = 10 ** (-G_RL_TAB / 20)
+    return fit_table(G_F_TAB, G_IL_TAB, (1 + g) / (1 - g))
+
+
+if __name__ == '__main__' and '--fit-lfcg' in sys.argv:
+    print(fit_lfcg())
