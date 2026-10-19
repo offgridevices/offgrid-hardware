@@ -7,7 +7,7 @@
 .include lib/board.lib
 
 .param ncell=14 vcell=4.35 lser=250n rcell=3m cin=2u cd=1p rd=1
-.param tvs_vrwm=64 tvs_vbr=78.6 tvs_vc=103 tvs_ipp=5.8 q3byp=1m csn=1p rsn=1 rq3g=47k
+.param tvs_vrwm=64 tvs_vbr=78.6 tvs_vc=103 tvs_ipp=5.8 q3byp=1m csn=1p rsn=1 rq3g=4.7Meg
 
 XB bp bneg BATT ncell={ncell} vcell={vcell} rcell={rcell} lser={lser} rlead=3m
 Sw bp bsw ctl 0 SWC
@@ -16,7 +16,7 @@ Vib bsw vin 0
 Vctl ctl 0 PWL(0 0 1u 0 1.001u 1)
 Rg0 gnd 0 1u
 * optional new Q11: 100 V N-FET in the battery B- lead (source GND, drain BNEG),
-* gate from VIN through rq3g (47 k), 12 V zener; q3byp=1m: not fitted (as built)
+* gate from VIN through rq3g (4.7 M, as on the board), 12 V zener; q3byp=1m: not fitted (no-Q11 network)
 Vq3 bneg q3d 0
 MQ3 q3d q3g gnd QMAIN
 Rq3g vin q3g {q3byp>1 ? rq3g : 1e12}

@@ -4,7 +4,7 @@
 * Sources: input pack (nin x vin_c, negative = reversed; rin=1G open)
 *          drone-side pack (nout x vout_c; rbo=1G open)
 *          drone (ESC body diodes + FC + VTX) when rdr=1m
-* Options: q3byp=1m no B- FET (as built), 1G = new Q11 in the input B- lead
+* Options: q3byp=1m no B- FET (no-Q11 network), 1G = Q11 in the input B- lead (as on the board)
 *          dbyp: 1m = no extra diode in the pre-charge 47k leg (as built), 1G = fitted
 *          pon=1: board powered (+3V3 = 3.3 V, MCU drives pins); pon=0: rails dead
 * MCU pins (PRE_ON, GUARD_OPEN) modelled as a driver behind 50 Ohm when powered
@@ -16,7 +16,7 @@
 .include lib/board.lib
 
 .param nin=14 vin_c=-4.35 rin=1m nout=4 vout_c=4.2 rbo=1G rdr=1G
-.param q3byp=1m dbyp=1m pon=0 pen=0 inp=0 pbv=33 rq3g=47k
+.param q3byp=1m dbyp=1m pon=0 pen=0 inp=0 pbv=33 rq3g=4.7Meg
 
 XBI bip bin BATTR ncell={nin} vcell={vin_c} rcell=3m lser=250n rlead=3m tramp=1m
 Vbi bip bic 0
