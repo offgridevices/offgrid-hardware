@@ -27,12 +27,12 @@ PRECISION = 0.012          # 0.1 % 0603 thin-film resistors (per piece, 100+)
 # Not on LCSC, or bought outside the board order.  (USD per unit at ~100)
 OTHER = {
     'TOGGLE': (10.20, 'C&K 7107SYCQE, Digi-Key/Mouser 100+ (E-Switch 100SP5T1B1M2QE, same ON-OFF-(ON) and footprint: ~3)'),
-    'TFT1901': (2.90, '1.9" 170x320 ST7789 IPS with 30-pin FPC, AliExpress/LCSC-class suppliers'),
+    'TFT225': (2.60, 'EastRising ER-TFT2.25-1, BuyDisplay CNY 16.12 at 100 (Oct 2026) + shipping'),
 }
 FIXED = [
-    ('PCB, 6 layers 94 x 52 mm, black mask, ENIG, PCBWay, 100 pcs (estimate)', 2.50),
+    ('PCB, 6 layers 91.6 x 50.6 mm, 1 oz inner, black mask, ENIG, PCBWay, 100 pcs (estimate)', 2.50),
     ('PCBWay SMT assembly (one side), setup + stencil spread over 100', 1.60),
-    ('3D-printed case + guard (PETG/PC, ~45 g at $20/kg) + magnet 6x3 N52 + 4 screws + feet', 1.35),
+    ('3D-printed case, guard, rocker, inlays (~45 g at $20/kg) + magnet 6x3 N52 + 3 screws, 3 inserts, 2 dowels, 4 feet', 1.45),
     ('Light pipe ring, Limit paddle (printed), toggle nut/boss hardware', 0.25),
     ('Freight + duties on the PCBA and parts (~8 %)', None),
 ]

@@ -5,6 +5,17 @@ Every BOM line with an LCSC number looked up in JLCPCB/LCSC's catalogue
 ordering. Lines without an LCSC number are generic Yageo resistors and
 Samsung capacitors that PCBWay buys by manufacturer part number.
 
+## Found and fixed in this check
+
+- **D3 (SS2H10-E3/52T) is an SMB (DO-214AA) part**, as Vishay's
+  datasheet and Digi-Key give it. The board had an SMA footprint. It now
+  has the SMB footprint, re-routed locally, DRC 0 / 0 / 0 (19 Oct 2026).
+- **D3 and U10 had no LCSC numbers.** They are now C435843 (SS2H10-E3/52T,
+  3029 in stock) and C7484 (SN74AHCT1G125DBVR, 50 793 in stock).
+- **The display (X1, ER-TFT2.25-1)** is bought from BuyDisplay: CNY 16.12
+  each at 100. Its product page names an NV3023B controller, while the
+  firmware assumes an ST7789P3; confirm before ordering (README *Next steps*).
+
 ## Needs action before ordering
 
 | Designator | Part | LCSC | Stock | What to do |

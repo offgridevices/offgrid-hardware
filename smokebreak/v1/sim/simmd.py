@@ -23,7 +23,7 @@ MODELS = """\
 
 Topology and part values follow `../src/circuit.py` (TPS48000, low-side 1 mΩ shunt RS1 in the drone
 return, INA181A2 + LMV331 (open drain, 10 kΩ) + SN74LVC1G74 latch + 74LVC1G11 into INP, pre-charge
-Q3/D3/RPRE, AO3401A probe switches, BAT46WJ aux OR, SMBJ58CA, 2 × 2.2 µF input). Note: circuit.py carries
+Q3/D3/RPRE, probe switches, BAT46WJ aux OR, SMBJ64CA, 2 × 2.2 µF input; the pre-review rows keep the parts the circuit had before this review). Note: circuit.py carries
 the INA181A2 and LMV331, not the INA240A2/TLV7011 named in the brief; this run models what circuit.py has. Decks include `lib/smokebreak.lib` (devices,
 behavioural parts) and `lib/board.lib` (board blocks). Datasheets read for this run: TI TPS4800-Q1
 (SLUSEZ1B, Mar 2026), Infineon BSC040N10NS5 (Rev 2.4), TI INA181 (2023), TI LMV331 (SLCS136V), Diodes
@@ -39,8 +39,9 @@ DMP10H400SE (DS37841), Vishay AC series (28730).
 | Pre-charge driver | circuit.py | D2 10 V, 100 kΩ G-S, 47 kΩ, Q4/Q5 BC817 (Gummel-Poon, no breakdown model: Vce/Vcb reported against 45/50 V) |
 | D3 SS2H10, D4/aux BAT46WJ, BAT54S | diodes | 100 V 2 A (IFSM 50 A ≈ 10 A²s); 100 V 150 mA; 30 V |
 | Probe Q6/Q7 AO3401A | `VDMOS pchan` | 30 V, breakdown at 33 V so exposure shows as current |
-| TVS D1 | `TVSBI` | SMBJ58CA: 1 µA @ 58 V, 64.4 (min)…71.2 (max) V @ 1 mA, 93.6 V @ 6.4 A (soft knee, Rd ≈ 3.3 Ω); max-Vbr corner for clamping, min for leakage |
-| RPRE | 2 × Vishay D2TO020 3.9 Ω | pulse capability ≈ 2.85 Ws/Ω → **≈ 11 J per resistor** (datasheet chart, single pulse) |
+| TVS D1 | `TVSBI` | SMBJ64CA (the board's): 64 V stand-off, 71.1 (min)…78.6 (max) V @ 1 mA, 103 V @ 5.8 A; the max-Vbr corner is used for clamping |
+| Q11 (battery-minus FET) | `VDMOS` (BSC040N10NS5 model) | the fitted BSC070N10LS5 is the same 100 V SuperSO8 class; avalanche judged against its 50 A / 55 mJ single-pulse rating (datasheet Rev 2.2); gate from VIN through 4.7 MΩ + 12 V zener |
+| RPRE | 2 × Vishay D2TO020 3.9 Ω | pulse capability **≈ 10 J per resistor** (datasheet single-pulse curve at 100 ms) |
 | Drone | per case | leads 2 × 75-100 nH + 2 mΩ; bulk 470/2200/5000 µF, 30 mΩ, 5 nH; VTX 10-15 W from 6 V UVLO; FC 1 W; ESC body diodes |
 
 Ceramics are entered at their effective value at 60 V (4.7 µF/100 V X7S 1210 ≈ 2 µF; 2.2 µF/100 V
@@ -100,13 +101,14 @@ def write_simmd(out, wall, REP, DESIGN, CASES):
           "12 µF damper) leave < 1 V reversed-plug margin at tolerance or < 5 V Vds margin, so they were "
           "rejected." % DESIGN.get("rev_rec", (0, 0)),
           "2a. **Q11 alternative (smaller board area), also passes the full suite:** Q11 in the battery B− lead "
-          "(gate VIN → 47 kΩ, 12 V zener) + **2 × 2.2 µF direct (keep both)** + 2 × 4.7 µF/0.33 Ω damper + "
+          "(gate VIN → 4.7 MΩ, 12 V zener) + **2 × 2.2 µF direct (keep both)** + 2 × 4.7 µF/0.33 Ω damper + "
           "2 × 4.7 µF/**0.47 Ω** snubber, 65 mV hard-short, RISCP 40.2 kΩ. 14S short at max INP delay: Q1 Vds "
-          "≤ 90 V including 300 nH leads; reversed plug-in: Q11 avalanches ≈ 28 A for < 1 µs (BSC034N10LS5 "
-          "EAS 301 mJ @ 50 A). With only **one** 2.2 µF direct it passes the standard cases but Q1 avalanches "
+          "≤ 90 V including 300 nH leads; reversed plug-in: Q11 avalanches ≈ 28 A for < 1 µs (fitted "
+          "BSC070N10LS5: 50 A / 55 mJ single pulse). With only **one** 2.2 µF direct it passes the standard cases but Q1 avalanches "
           "(9 A) with 300 nH drone leads, so keep both. A 0.22 Ω snubber fails the reversed drone-side plug-in "
-          "(SRC −70 V), so 0.47 Ω. **The 47 kΩ gate resistor draws 1.04 mA from a plugged-in 14S pack** "
-          "(SPEC: < 30 µA off): use 4.7 MΩ (10 µA, gate up in ≈ 10 ms; the body diode carries meanwhile).",
+          "(SRC −70 V), so 0.47 Ω. **The gate is 4.7 MΩ, not 47 kΩ:** 47 kΩ would draw 1.04 mA from a "
+          "plugged-in 14S pack (SPEC: < 30 µA off); 4.7 MΩ draws 10 µA and brings the gate up in ≈ 10 ms, the "
+          "body diode carrying meanwhile. This run simulates the 4.7 MΩ.",
           "3. **Dead short pre-review:** Q1 reaches its 100 V breakdown at 6S-14S and avalanches far above its "
           "50 A IAS; SRC goes below −65 V; the AO3401A probe switches (30 V) break down whenever VOUT swings "
           "negative. Causes: the TPS48000's 4 µs SCP, the INA181's slew and the LMV331's delay in the peak path, "
@@ -162,14 +164,12 @@ def write_simmd(out, wall, REP, DESIGN, CASES):
                                  "with SRC rated −65 V; it is also what lets the short pass without Q11", "≈ $0.50", "3, 5"],
               ["Hard-short comparator", "**second LMV331 on the shunt Kelvin pads, fixed 65 mV** (58-72 A with offset), "
                                         "open drain onto PEAK_OK (clears the latch). 80 mV also passes, with less margin", "≈ $0.10", "3, 9"],
-              ["TVS", "SMBJ64CA instead of SMBJ58CA (stand-off ≥ 60.9 V; no simulated peak depends on it)", "same price", "2, 3, 4"],
+              ["TVS", "SMBJ64CA instead of SMBJ58CA (stand-off ≥ 60.9 V); every case now runs at its maximum-breakdown corner", "same price", "2, 3, 4"],
               ["B− reverse FET (Q11)", "**not fitted** in the recommended design. Space-saving alternative (full suite "
-                                       "passes): Q11 **Infineon BSC034N10LS5** (LCSC C534326; 100 V, 3.4 mΩ @ 10 V, "
-                                       "4.6 mΩ max / 3.5 typ @ 4.5 V, Vth 1.1-2.3 V, EAS 301 mJ, SuperSO8 = BSC040N10NS5 "
-                                       "footprint; ≈ $2.28 @ 100, only 224 in stock) in the B− lead, gate VIN → **4.7 MΩ** "
-                                       "(not 47 kΩ: 1 mA standby) + 12 V zener; 2 × 2.2 µF direct + 2 × 4.7 µF/0.33 Ω "
-                                       "damper + 2 × 4.7 µF/0.47 Ω snubber. No ≤ 4 mΩ-max @ 4.5 V 100 V 5×6 part found "
-                                       "at LCSC; fallback BSC070N10LS5 (C3278731, 8.5 mΩ @ 4.5 V, ≈ $1.15, 2742 stock)",
+                                       "passes, **fitted on the board**): Q11 **Infineon BSC070N10LS5** (LCSC C3278731; 100 V, 7 mΩ @ 10 V, "
+                                       "8.5 mΩ @ 4.5 V, 50 A / 55 mJ single-pulse avalanche, SuperSO8; ≈ $1.15 @ 100) "
+                                       "in the B− lead, gate VIN → **4.7 MΩ** (not 47 kΩ: 1 mA standby) + 12 V zener; "
+                                       "2 × 2.2 µF direct + 2 × 4.7 µF/0.33 Ω damper + 2 × 4.7 µF/0.47 Ω snubber",
                "≈ $2.70 vs ≈ $1.10 for the no-Q11 network", "2-7"],
               ["Pre-charge FET", "DMP10H400SE is at 112 % of derated SOA → ≤ 50 mΩ 100 V P-FET in DPAK/PowerPAK "
                                  "(e.g. Vishay SUD50P10-43L class; check LCSC stock), uses ≈ 40 %; D3 SS2H10 adequate",

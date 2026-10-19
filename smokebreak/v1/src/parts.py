@@ -63,8 +63,8 @@ PARTS = {
                    'P-MOSFET -100 V 250 mOhm, SOT-223 (pre-charge switch)'),
     'RPRE22':    P('RES-TH_BD7.5-L18.0-P22.00-D1.0', 'Vishay', 'AC05000002209JAC00', 'C1364873',
                    'Resistor 22 Ohm 5 W cemented wirewound, pulse rated (pre-charge)', fit='tht'),
-    'SS2H10':    P('Diode_SMD:D_SMA', 'Vishay', 'SS2H10-E3/52T', None,
-                   'Schottky 100 V 2 A, SMA (pre-charge reverse block)'),
+    'SS2H10':    P('Diode_SMD:D_SMB', 'Vishay', 'SS2H10-E3/52T', 'C435843',
+                   'Schottky 100 V 2 A, SMB / DO-214AA (pre-charge reverse block)'),
     # ---------------------------------------------------------- aux supply
     'LMR36506':  P('VQFN-9_L2.1-W2.1-P0.50-TL', 'Texas Instruments', 'LMR36506R5RPER', 'C2866484',
                    'Buck 3.6-65 V in, 5 V fixed, 600 mA (pin-compatible with LMR36503R5)'),
@@ -88,7 +88,7 @@ PARTS = {
                    'Comparator, open drain, ~200 ns (peak current)'),
     'LVC1G74':   P('SSOP-8_L2.0-W2.3-P0.50-LS3.1-BR', 'Texas Instruments', 'SN74LVC1G74DCUR', 'C70285',
                    'D flip-flop with clear (peak-trip latch)'),
-    'AHCT1G125': P('Package_TO_SOT_SMD:SOT-23-5', 'Texas Instruments', 'SN74AHCT1G125DBVR', None,
+    'AHCT1G125': P('Package_TO_SOT_SMD:SOT-23-5', 'Texas Instruments', 'SN74AHCT1G125DBVR', 'C7484',
                    'Buffer 5 V, TTL inputs (LED data level shift)'),
     # ---------------------------------------------------------- small discretes
     'BAT46WJ':   P('SOD-323F_L2.0-W1.6-LS2.5-RD', 'Nexperia', 'BAT46WJ,115', 'C114696',
@@ -120,12 +120,8 @@ PARTS = {
     'FH12_8':    P('Connector_FFC-FPC:Hirose_FH12-8S-0.5SH_1x08-1MP_P0.50mm_Horizontal', 'Hirose', 'FH12-8S-0.5SH(55)',
                    'C597995', 'FPC connector 8 pin 0.5 mm, bottom contact, 2.0 mm high (display)'),
     'TFT225':    P(None, 'EastRising (BuyDisplay)', 'ER-TFT2.25-1', None,
-                   'Display 2.25" 76x284 ST7789P3 4-wire SPI, 8-pin 0.5 mm FPC (plugs into J7); order the IPS '
-                   'variant, confirm controller and panel type with the vendor', fit='off'),
-    'FH34_30':   P('FFC-SMD_30P-P0.50_FH34SRJ-30S-0.5SH', 'Hirose', 'FH34SRJ-30S-0.5SH(50)', 'C324727',
-                   'FPC connector 30 pin 0.5 mm, dual contact (display)'),
-    'TFT1901':   P(None, 'QDtech', 'TFT1901', None,
-                   'Display 1.9" IPS 170x320 ST7789, 30-pin FPC (plugs into J7)', fit='off'),
+                   'Display 2.25" 76x284 IPS, 4-wire SPI, 8-pin 0.5 mm FPC (plugs into J7). The firmware assumes '
+                   'an ST7789P3; BuyDisplay lists an NV3023B for this bare module: confirm before ordering', fit='off'),
     # ---------------------------------------------------------- connectors
     'XT60M':     P('CONN-TH_XT60PW-M', 'Amass', 'XT60PW-M', 'C98732', 'XT60 male, PCB horizontal (battery)', fit='tht'),
     'XT30M':     P('CONN-TH_XT30PW-M', 'Amass', 'XT30PW-M30.G.Y', 'C431092', 'XT30 male, PCB horizontal (battery)', fit='tht'),

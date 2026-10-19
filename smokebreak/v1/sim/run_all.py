@@ -139,14 +139,14 @@ VSCP_REC = "%.4f" % (2e-6 * RISCP_REC + 0.019)
 K_REC = "recommended, no Q11 (1 µF + 16 µF/0.33 Ω damper, 12 µF/0.22 Ω snubber)"
 K_Q11 = "Q11 alternative network (2 × 2.2 µF + 4 µF/0.33 Ω damper, 4 µF/0.47 Ω snubber)"
 NET_Q11C = dict(cin="1u", cd="4u", rd=0.33, csn="4u", rsn=0.47)              # coordinator's: one 2.2 uF direct
-Q11_GATE = "47 kΩ from VIN + 12 V zener"
-Q11_PART = "Infineon BSC034N10LS5 (LCSC C534326)"
+Q11_GATE = "4.7 MΩ from VIN + 12 V zener"
+Q11_PART = "Infineon BSC070N10LS5 (LCSC C3278731; 50 A / 55 mJ single-pulse avalanche, datasheet Rev 2.2)"
 K_NOQ3 = "first no-Q11 try (0.1 µF + 8 µF/0.47 Ω damper, 4 µF/0.47 Ω snubber)"
 NETS = {"pre-review (2 × 2.2 µF, no snubber)": NET_ASBUILT, K_REC: NET_REC, K_Q11: NET_Q11, K_NOQ3: NET_NOQ3}
 COST = {"pre-review (2 × 2.2 µF, no snubber)": "$0 (reference)",
         K_REC: "≈ $1.10: 14 × 4.7 µF/100 V X7S 1210 (~$0.08) + 0.33 Ω and 0.22 Ω 1206; "
                "one of the two existing 2.2 µF removed; no Q11",
-        K_Q11: "≈ $0.40 for the caps + Q11 BSC034N10LS5 ≈ $2.28 (LCSC, 100 pcs) ≈ $2.70",
+        K_Q11: "≈ $0.40 for the caps + Q11 BSC070N10LS5 ≈ $1.15 (LCSC, 100 pcs) ≈ $1.55",
         K_NOQ3: "≈ $0.42 (fails the 10S/14S short, case 3)"}
 
 
@@ -413,10 +413,12 @@ def case2():
          "negative value (body diode = peak detector). Static reversed 14S LiHV puts SRC at −60.2 V "
          "(4.8 V margin); the plug-in ring must stay inside that. The recommended network is also run "
          "with its damper capacitance −20 % and the direct capacitance +20 % (X7S bias/tolerance). "
-         "TVS SMBJ58CA modelled at its max breakdown (71.2 V) for clamping.\n"]
+         "TVS SMBJ64CA (the board's) at its maximum breakdown (78.6 V) and 103 V clamp at 5.8 A. Q11 is "
+         "modelled with the BSC040N10NS5 VDMOS (same 100 V SuperSO8 class) and judged against the fitted "
+         "BSC070N10LS5's 50 A / 55 mJ avalanche rating.\n"]
     variants = {k: dict(v) for k, v in NETS.items()}
     variants[K_REC + ", tolerance: damper C −20 %, direct C +20 %"] = dict(NET_REC, cin="1.2u", cd="12.8u")
-    variants[K_Q11 + " + Q11"] = dict(NET_Q11, q3byp="1G")
+    variants[K_Q11 + " + Q11"] = dict(NET_Q11, q3byp="1G", rq3g="4.7Meg")      # the board's gate network
     jobs = {}
     for vk, vv in variants.items():
         jobs[(vk, "+")] = POOL.submit(run, "case2_hotplug.cir", f"c2p_{len(jobs)}", dict(vv, vcell=4.35))
@@ -443,9 +445,9 @@ def case2():
                       "VIN %.1f V, Q11 %.0f A" % (a["vin"], b["iq3"]))
         elif vk == K_NOQ3:
             REP.note(2, "first no-Q11 try: forward and reversed hot plug", okf and okr, "SRC %.1f V" % b["srcm"])
-    istb = (60.9 - 12.0) / 47e3
+    istb = (60.9 - 12.0) / 4.7e6
     REP.note(2, "Q11 gate network standby current at 14S LiHV (SPEC: < 30 µA off)", istb < 30e-6,
-             "%.2f mA through the 47 kΩ; 4.7 MΩ gives 10 µA" % (istb * 1e3))
+             "%.1f µA through the 4.7 MΩ (47 kΩ would draw 1.04 mA)" % (istb * 1e6))
     rr = res[(K_REC, "-")]
     rt = res[(K_REC + ", tolerance: damper C −20 %, direct C +20 %", "-")]
     REP.check(2, "recommended (no Q11): forward 14S LiHV hot plug < 90 V, reversed keeps SRC/VS ≥ −65 V, "
@@ -633,7 +635,7 @@ def case3():
 # ===========================================================================
 VARIANTS = {"pre-review": dict(q3byp="1m", dbyp="1m", pbv=33),
             "+Dser (1N4148WS in the 47k leg), 150 V probe switch": dict(q3byp="1m", dbyp="1G", pbv=160),
-            "+Q11 (new B− reverse FET)": dict(q3byp="1G", dbyp="1G", pbv=160)}
+            "+Q11 (new B− reverse FET)": dict(q3byp="1G", dbyp="1G", pbv=160, rq3g="4.7Meg")}
 REC_VAR = "+Dser (1N4148WS in the 47k leg), 150 V probe switch"
 Q11_VAR = "+Q11 (new B− reverse FET)"
 PATHS = [("i_bat_in", "input pack, total"), ("i_bat_out", "drone-side pack, total"), ("i_q1", "Q1"),

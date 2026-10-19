@@ -11,7 +11,7 @@
 
 .param ncell=14 vcell=4.35 rcell=3m cin=2u cd=1p rd=1 c1=1p rz=1G csn=1p rsn=1
 .param vscp=49.8m tsc=4u tpd_inp=0.36u thr_a=60 lout=150n rshort=10m tstop=40u
-.param tvs_vbr=71.2 tvs_vrwm=58 tvs_vc=93.6 tvs_ipp=6.4 slew=2e6 wp=1.319e6 gain=50 hsv=10 pbv=33 vio2=0 vio1=0
+.param tvs_vbr=78.6 tvs_vrwm=64 tvs_vc=103 tvs_ipp=5.8 slew=2e6 wp=1.319e6 gain=50 hsv=10 pbv=33 vio2=0 vio1=0
 .param vb={ncell*vcell}
 
 XB vin gnd BATT ncell={ncell} vcell={vcell} rcell={rcell} lser=250n rlead=3m

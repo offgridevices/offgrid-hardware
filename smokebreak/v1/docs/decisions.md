@@ -23,7 +23,7 @@ was made from are in [`design/`](design/) (see its README).
   80 % full and could not be placed, so it grew to 56 mm.
 - **Cost.** The original spec said "no price target, the best on the
   market" (10 Oct). The owner's later target was $20–22 landed (11 Oct).
-  v1 lands at about $52.50 at 100 units. Most of the gap is the two
+  v1 lands at about $55.60 at 100 units, display included. Most of the gap is the two
   pre-charge resistors (about $14.70) and the C&K toggle (about $10.20).
   This decision is still open (README *Next steps*).
 

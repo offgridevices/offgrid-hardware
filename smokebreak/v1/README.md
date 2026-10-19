@@ -63,17 +63,22 @@ What the owner set, and where v1 stands.
 | One rocker; text only "2S…6S" and "LIMIT" | ✅ multi-colour inlays, 2.5 mm caps, strokes ≥ 0.44 mm |
 | Orderable from PCBWay, SMD parts assembled on one side | ✅ `production/` |
 | Case printable on a multi-material printer | ✅ `enclosure/print/`: watertight STLs, fit check passes |
-| Landed cost $20–22 (owner, 11 Oct 2026) | ❌ about **$52.50** at 100 units (`tools/cost.py`): the two flat pre-charge resistors (≈ $14.70) and the toggle (≈ $10.20) are most of the gap (*Next steps*) |
+| Landed cost $20–22 (owner, 11 Oct 2026) | ❌ about **$55.60** at 100 units (`tools/cost.py`, display included): the two flat pre-charge resistors (≈ $14.70) and the toggle (≈ $10.20) are most of the gap (*Next steps*) |
 | 15 A continuous in the closed case | ⏳ not yet checked for heat (*Limits*) |
 
 ## Next steps
 
-1. **Decide on cost.** Either accept about $52.50, or look at cheaper
+1. **Decide on cost.** Either accept about $55.60, or look at cheaper
    alternatives: same-footprint pre-charge resistors, and a short-lever toggle
    (which would also make the guard lower). Either part change re-runs the
    routing and every check.
-2. **Confirm with EastRising** that the ER-TFT2.25-1 is the IPS version
-   with the ST7789P3 controller. Check its FPC's contact side against J7.
+2. **Confirm the display's controller with EastRising.** The firmware
+   model and the screens assume an ST7789P3. BuyDisplay's own page lists an
+   **NV3023B** for the bare ER-TFT2.25-1, and the ST7789P3 for the
+   ER-TFTM2.25-1 (the same panel on a breakout board). Ask which controller
+   the bare module ships with. If it is the NV3023B, the firmware needs its
+   driver (same pins, different init). Check the FPC's contact side against
+   J7 too.
 3. **Order 5 prototypes** (*Ordering*) and print one case (*Printing*).
 4. **Bring them up** (*Bring-up*). Then measure what the simulations
    predict: pre-charge time and resistor heat, short cut-off time, and the

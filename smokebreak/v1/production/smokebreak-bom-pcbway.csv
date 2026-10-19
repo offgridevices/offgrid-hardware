@@ -15,7 +15,7 @@ Item #,Designator,Qty,Manufacturer,Mfg Part #,Description,Value,Package/Footprin
 14,C57,1,Samsung Electro-Mechanics,CL05C560JB5NNNC,Capacitor 56pF 50V 0402 X7R/X5R,56pF 50V,C_0402_1005Metric,SMD,,
 15,D1,1,Littelfuse,SMBJ64CA,"TVS bidirectional 64 V stand-off, 600 W, SMB",SMBJ64CA,SMB_L4.6-W3.6-LS5.3-BI,SMD,C151269,
 16,D2,1,Diodes Incorporated,BZT52C10-7-F,Zener 10 V (P-FET gate clamp),10 V,SOD-123_L2.7-W1.6-LS3.7-RD,SMD,C155227,
-17,D3,1,Vishay,SS2H10-E3/52T,"Schottky 100 V 2 A, SMA (pre-charge reverse block)",SS2H10,D_SMA,SMD,,
+17,D3,1,Vishay,SS2H10-E3/52T,"Schottky 100 V 2 A, SMB / DO-214AA (pre-charge reverse block)",SS2H10,D_SMB,SMD,C435843,
 18,"D4,D14,D16",3,Nexperia,"BAT46WJ,115","Schottky 100 V 250 mA, SOD-323F",BAT46WJ,SOD-323F_L2.0-W1.6-LS2.5-RD,SMD,C114696,
 19,D5,1,Nexperia,"BAT54S,215",Dual series Schottky 30 V (ADC clamp),BAT54S,SOT-23-3_L3.0-W1.7-P0.95-LS2.9-BR,SMD,C47546,
 20,"D6,D7,D8,D9,D10,D11,D15,D17,D19",9,Jiangsu Changjing (CJ),1N4148WS,"Switching diode 100 V / 75 V working, SOD-323 (supply and balance OR)",1N4148WS,SOD-323_L1.8-W1.3-LS2.5-RD,SMD,C2128,
@@ -83,7 +83,7 @@ Item #,Designator,Qty,Manufacturer,Mfg Part #,Description,Value,Package/Footprin
 82,U7,1,Nexperia,"74LVC1G11GW,125",3-input AND gate (switch enable),74LVC1G11,SC-88-6_L2.0-W1.3-P0.65-LS2.1-BL,SMD,C282348,
 83,"U8,U12",2,Texas Instruments,LMV331IDBVR,"Comparator, open drain, ~200 ns (peak current)",LMV331,SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR,SMD,C34731,
 84,U9,1,Texas Instruments,SN74LVC1G74DCUR,D flip-flop with clear (peak-trip latch),SN74LVC1G74,SSOP-8_L2.0-W2.3-P0.50-LS3.1-BR,SMD,C70285,
-85,U10,1,Texas Instruments,SN74AHCT1G125DBVR,"Buffer 5 V, TTL inputs (LED data level shift)",SN74AHCT1G125,SOT-23-5,SMD,,
+85,U10,1,Texas Instruments,SN74AHCT1G125DBVR,"Buffer 5 V, TTL inputs (LED data level shift)",SN74AHCT1G125,SOT-23-5,SMD,C7484,
 86,U11,1,STMicroelectronics,USBLC6-2SC6,USB ESD protection,USBLC6-2SC6,SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL,SMD,C7519,
 87,J1,1,Amass,XT60PW-M,"XT60 male, PCB horizontal (battery)",XT60 male,CONN-TH_XT60PW-M,THT,C98732,"Through-hole: supplied loose, hand-soldered by OffGrid (do not fit)"
 88,J2,1,Amass,XT30PW-M30.G.Y,"XT30 male, PCB horizontal (battery)",XT30 male,CONN-TH_XT30PW-M,THT,C431092,"Through-hole: supplied loose, hand-soldered by OffGrid (do not fit)"
@@ -95,4 +95,4 @@ Item #,Designator,Qty,Manufacturer,Mfg Part #,Description,Value,Package/Footprin
 94,J11,1,JST,B4B-XH-A(LF)(SN),JST-XH 4 pin top entry (3S balance),JST-XH 3S,JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical_Tight,THT,C144395,"Through-hole: supplied loose, hand-soldered by OffGrid (do not fit)"
 95,J12,1,JST,B3B-XH-A(LF)(SN),JST-XH 3 pin top entry (2S balance),JST-XH 2S,JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical_Tight,THT,C144394,"Through-hole: supplied loose, hand-soldered by OffGrid (do not fit)"
 96,SW1,1,C&K,7107SYCQE,"Toggle ON-OFF-(ON), 1/4-40, PC pins (alternates: NKK MN19SS1W03, E-Switch 100SP5T1B1M2QEH)",ON-OFF-(ON),SW_Toggle_SPDT_P4.70mm_THT,THT,,"Through-hole: supplied loose, hand-soldered by OffGrid (do not fit)"
-97,X1,1,EastRising (BuyDisplay),ER-TFT2.25-1,"Display 2.25"" 76x284 ST7789P3 4-wire SPI, 8-pin 0.5 mm FPC (plugs into J7); order the IPS variant, confirm controller and panel type with the vendor",ER-TFT2.25-1 (plugs into J7),,-,,Not on the board: supplied loose (plugs into J7)
+97,X1,1,EastRising (BuyDisplay),ER-TFT2.25-1,"Display 2.25"" 76x284 IPS, 4-wire SPI, 8-pin 0.5 mm FPC (plugs into J7). The firmware assumes an ST7789P3; BuyDisplay lists an NV3023B for this bare module: confirm before ordering",ER-TFT2.25-1 (plugs into J7),,-,,Not on the board: supplied loose (plugs into J7)

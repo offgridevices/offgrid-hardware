@@ -20,7 +20,7 @@
 * ---------------------------------------------------------------------
 .subckt PPATH vin src gate vout gnd dneg inp scp params: cin=2u cd=1p rd=1 rpu=47
 + c1=1p r2=1k rz=1G csn=1p rsn=1 vscp=49.8m tsc=4u tpd_inp=0.36u
-+ tvs_vrwm=58 tvs_vbr=71.2 tvs_vc=93.6 tvs_ipp=6.4
++ tvs_vrwm=64 tvs_vbr=78.6 tvs_vc=103 tvs_ipp=5.8
 * input capacitors
 Cin vin ci {cin}
 Rci ci ci2 3m
