@@ -411,11 +411,15 @@
     "netclass_patterns": [
       {
         "netclass": "PWR_050_015",
+        "pattern": "+9V"
+      },
+      {
+        "netclass": "PWR_050_015",
         "pattern": "VBAT_VTX"
       },
       {
-        "netclass": "PWR_040_015",
-        "pattern": "+9V"
+        "netclass": "PWR_050_015",
+        "pattern": "+5V"
       },
       {
         "netclass": "PWR_040_015",
@@ -438,10 +442,6 @@
         "pattern": "BUCK3_SW"
       },
       {
-        "netclass": "PWR_030_015",
-        "pattern": "+5V"
-      },
-      {
         "netclass": "PWR_025_015",
         "pattern": "BUCK5_CB"
       },
@@ -456,6 +456,18 @@
       {
         "netclass": "PWR_015_010",
         "pattern": "+3V3_GYRO"
+      },
+      {
+        "netclass": "PWR_050_015",
+        "pattern": "+9V~tap"
+      },
+      {
+        "netclass": "Default",
+        "pattern": "+3V3~tap"
+      },
+      {
+        "netclass": "PWR_050_015",
+        "pattern": "+5V~tap"
       }
     ]
   },
