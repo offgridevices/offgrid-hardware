@@ -17,6 +17,8 @@
  *  - US (unlicensed) mode is capped at 30 dBm conducted by the region limit
  *    plus the TX_GAIN_LORA table below.  The table is PROVISIONAL (a model,
  *    not a measurement) and errs towards too little power.
+ *  - Temperature, the cell and the antenna detector can lower that further
+ *    (or switch the amplifier off) per packet: variant.cpp, patch part 3.
  *  - Meshtastic v2.7.26 applies the table only at radio init, not after a
  *    settings change (SX126xInterface::reconfigure); until the board reboots
  *    the SX1262 then runs at SX126X_MAX_POWER.  Apply
@@ -31,6 +33,30 @@
 #define VARIANT_MCK (64000000ul)
 
 #define USE_LFXO // 32.768 kHz crystal fitted (XL1/XL2)
+
+/*
+ * 32.768 kHz crystal accuracy, as declared to the SoftDevice.
+ *
+ * The Adafruit core hard-codes NRF_CLOCK_LF_ACCURACY_20_PPM for USE_LFXO in
+ * AdafruitBluefruit::begin() (libraries/Bluefruit52Lib/src/bluefruit.cpp)
+ * and has no option for it.  This crystal drifts about -150 ppm at -40 C and
+ * -130 ppm at +85 C (sim/thermal, study 3), so declared as 20 ppm the
+ * SoftDevice opens its receive windows too narrowly and Bluetooth
+ * connections drop when the node is cold or hot.  Declare 250 ppm instead
+ * (the SoftDevice then widens its windows; costs a little current in a
+ * connection).
+ *
+ * How: every file that includes Arduino.h includes this header, bluefruit.cpp
+ * included.  nrf_sdm.h is pulled in here first (its include guard then keeps
+ * it from being read again), and the name the core uses is redefined to the
+ * 250 ppm value.  Check with the -E output of bluefruit.cpp (firmware/README.md).
+ */
+#define OFFGRID_LFXO_ACCURACY_PPM 250
+#ifndef __ASSEMBLER__
+#include "nrf_sdm.h"
+#undef NRF_CLOCK_LF_ACCURACY_20_PPM
+#define NRF_CLOCK_LF_ACCURACY_20_PPM NRF_CLOCK_LF_ACCURACY_250_PPM // see above: the crystal is a 250 ppm one here
+#endif
 
 /*----------------------------------------------------------------------------
  *        Headers
@@ -66,13 +92,15 @@ extern "C" {
 
 /*
  * Analog pins.  analogRead() takes the GPIO number; the core maps it to AINx.
- * A0 = battery sense.  A1-A4 = expansion header IO1-IO4.
+ * A0 = battery sense.  A1-A2 = expansion header IO1-IO2.  A3 = the
+ * missing-antenna detector, A4 = the charger's battery NTC (both on the
+ * board only; header pins 14 and 15, which were IO3/IO4, are not connected).
  */
 #define PIN_A0 (5)  // P0.05 / AIN3  VBAT_SENSE
 #define PIN_A1 (28) // P0.28 / AIN4  IO1 (expansion)
 #define PIN_A2 (29) // P0.29 / AIN5  IO2 (expansion)
-#define PIN_A3 (30) // P0.30 / AIN6  IO3 (expansion)
-#define PIN_A4 (31) // P0.31 / AIN7  IO4 (expansion)
+#define PIN_A3 (30) // P0.30 / AIN6  REFL_DET (missing-antenna detector)
+#define PIN_A4 (31) // P0.31 / AIN7  CHG_TS (charger TS/MR pin, battery NTC)
 #define PIN_A5 (0xff)
 #define PIN_A6 (0xff)
 #define PIN_A7 (0xff)
@@ -87,7 +115,7 @@ static const uint8_t A6 = PIN_A6;
 static const uint8_t A7 = PIN_A7;
 #define ADC_RESOLUTION 14
 
-// P0.02/AIN0 is PA_VSEL here, so there is no usable external reference pin.
+// P0.02/AIN0 is PA_SRC_SYS here, so there is no usable external reference pin.
 #define PIN_AREF (0xff)
 static const uint8_t AREF = PIN_AREF;
 
@@ -203,33 +231,37 @@ static const uint8_t SCK = PIN_SPI_SCK;
  * only; licensed (ham) mode skips it and the configured tx_power goes to the
  * SX1262 directly (capped at SX126X_MAX_POWER).
  *
- * Derived from a model (firmware/tools/pa_gain_table.py): 18 dB small-signal
- * gain from the SX1262 pin to the antenna (QPA9510 33.8 dB - 15.9 dB pad),
- * Rapp compression towards ~35 dBm (the 4.0 V amplifier supply, the least
- * compressed case), rounded up.  So in the model a request is never exceeded
- * at any amplifier supply, and the US maximum (30 dBm) sets the SX1262 to
- * +12 dBm: ~29.1 dBm at 2.7 V, ~29.8 dBm at 4.0 V.  The lowest possible
- * output is ~9 dBm (SX1262 minimum -9 dBm).
+ * Derived from a model (firmware/tools/pa_gain_table.py): 16.8 dB small-signal
+ * gain from the SX1262 pin to the U.FL (QPA9510 33.8 dB - 15.9 dB pad -
+ * 1.1 dB amplifier-to-U.FL loss from sim/rf), Rapp compression towards
+ * ~35 dBm (the 4.0 V amplifier supply, the least compressed case), rounded
+ * up.  So in the model a request is never exceeded at any amplifier supply,
+ * and the US maximum (30 dBm) sets the SX1262 to +13 dBm: ~29.0 dBm at
+ * 2.7 V, ~29.6 dBm at 4.0 V.  The lowest possible output is ~8 dBm (SX1262
+ * minimum -9 dBm).  variant.cpp uses the same table to turn a power cap into
+ * a highest SX1262 setting.
  */
 #define NUM_PA_POINTS 22
-#define TX_GAIN_LORA 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 17, 17, 16, 16, 15, 14
+#define TX_GAIN_LORA 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 16, 16, 15, 15, 14
 
 /*
  * Amplifier power (see variant.cpp for the sequence)
  *
- * PA_PWR_EN (P1.01) high: TPS2121 power mux on (battery first, charger SYS
- *   when there is no cell) and TPS63810 buck-boost enabled.  1 M pull-down:
- *   off until firmware wants it.  The TPS63810 starts at 3.3 V (VOUT1 reset
- *   value) and loses its registers whenever its input goes away, so the
- *   variant writes VOUT1 after every enable and re-checks it every
- *   OFFGRID_PA_CHECK_MS.
- * PA_VSEL (P0.02): selects VOUT1 (low) / VOUT2 (high).  Held low.
+ * PA_PWR_EN (P1.01) high: TPS2121 power mux on and TPS63810 buck-boost
+ *   enabled.  1 M pull-down: off until firmware wants it.  The TPS63810
+ *   starts at 3.3 V (VOUT1 reset value) and loses its registers whenever its
+ *   input goes away, so the variant writes VOUT1 after every enable and
+ *   re-checks it every OFFGRID_PA_CHECK_MS.  Its VSEL is tied to GND: VOUT1.
+ * PA_SRC_SYS (P0.02, 1 M pull-down): low = the mux takes the battery first
+ *   (down to 2.60 V); high = an N-FET pulls the mux's PR1 low and it takes
+ *   charger SYS.  Driven high with no cell fitted, or with USB in and a cell
+ *   too weak for 1 W (sim/burst).
  *
  * Amplifier supply (VPA) set points, mV.  VOUT1 code = (V - 1.8 V) / 25 mV.
  */
 #define PIN_PA_PWR_EN (32 + 1) // P1.01 PA_PWR_EN
-#define PIN_PA_VSEL (2)        // P0.02 PA_VSEL
-#define PIN_PA_EN SX126X_TXEN  // P1.07 PA_EN (amplifier control-voltage LDO)
+#define PIN_PA_EN SX126X_TXEN  // P1.07 PA_EN (amplifier control-voltage LDO), 100 k pull-down
+#define PIN_PA_SRC_SYS (2)     // P0.02 PA_SRC_SYS (was PA_VSEL before the 19 Oct power-path rework)
 
 #define TPS63810_ADDR 0x75
 #define TMP1075_ADDR 0x48
@@ -246,21 +278,134 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #undef OFFGRID_PA_VOUT_LICENSED_MV
 #define OFFGRID_PA_VOUT_LICENSED_MV 4000
 #endif
-#ifndef OFFGRID_PA_VOUT_HOT_MV
-#define OFFGRID_PA_VOUT_HOT_MV OFFGRID_PA_VOUT_US_MV // supply while TEMP_ALERT is active
-#endif
 #ifndef OFFGRID_PA_CHECK_MS
-#define OFFGRID_PA_CHECK_MS 2000 // how often the main loop re-checks the TPS63810 and TMP1075
+#define OFFGRID_PA_CHECK_MS 2000 // how often the main loop re-checks the TPS63810, TMP1075 and charger NTC
+#endif
+
+/*
+ * Power caps (variant.cpp).  Each is a ceiling on the power at the U.FL in
+ * dBm; the lowest one in force wins.  A cap lowers both the SX1262 setting
+ * for each packet (through the TX_GAIN_LORA table, needs patch 0001 part 3)
+ * and the amplifier supply (Psat(VPA) = cap, never below 2.7 V).  In US mode
+ * the request is already 30 dBm at most, so only "amplifier off" changes it.
+ *
+ * Board temperature (TMP1075 beside the amplifier), from sim/thermal's
+ * follow-up table for the 6-layer board with the heat fixes and the gap pad.
+ * Going back up needs OFFGRID_TCAP_HYST_C of cooling.
+ *   up to 45 C   the configured maximum
+ *   45-60 C      33 dBm (2 W)
+ *   60-75 C      30 dBm (1 W)
+ *   above 75 C   amplifier off: supply at its minimum, PA_EN held low; packets
+ *                still go out, but only what leaks through the switched-off
+ *                amplifier (there is no bypass path).  Back on below 70 C.
+ * The TMP1075's own ALERT output (comparator, 75 C / 70 C) does the same,
+ * so the cut-off holds even if the I2C reading fails.  No reading at all:
+ * 30 dBm.
+ */
+#ifndef OFFGRID_TCAP_WARM_C
+#define OFFGRID_TCAP_WARM_C 45
+#endif
+#ifndef OFFGRID_TCAP_WARM_DBM
+#define OFFGRID_TCAP_WARM_DBM 33
+#endif
+#ifndef OFFGRID_TCAP_HOT_C
+#define OFFGRID_TCAP_HOT_C 60
+#endif
+#ifndef OFFGRID_TCAP_HOT_DBM
+#define OFFGRID_TCAP_HOT_DBM 30
+#endif
+#ifndef OFFGRID_TCAP_HYST_C
+#define OFFGRID_TCAP_HYST_C 3
 #endif
 
 // TMP1075 beside the amplifier: ALERT (open drain, active low, comparator
-// mode) asserts at OFFGRID_PA_TEMP_HIGH_C and clears below OFFGRID_PA_TEMP_LOW_C.
+// mode) asserts at OFFGRID_PA_TEMP_HIGH_C and clears below
+// OFFGRID_PA_TEMP_LOW_C.  While it is asserted the amplifier is off.
 #define PIN_TEMP_ALERT (6) // P0.06 TEMP_ALERT, 100 k pull-up
 #ifndef OFFGRID_PA_TEMP_HIGH_C
-#define OFFGRID_PA_TEMP_HIGH_C 80
+#define OFFGRID_PA_TEMP_HIGH_C 75
 #endif
 #ifndef OFFGRID_PA_TEMP_LOW_C
 #define OFFGRID_PA_TEMP_LOW_C 70
+#endif
+
+/*
+ * Battery caps (variant.cpp): sim/burst/results.txt, the highest level that
+ * runs without a brown-out, a protector trip or a TPS63810 reset, by cell
+ * voltage (idle, between packets), cell temperature and the cell's R_int at
+ * 25 C (estimated from the sag under each packet of 40 ms or more at 29 dBm or
+ * more; 150 mOhm assumed until then).  Where the table says not even 1 W, the
+ * amplifier is off - unless USB is in, when PA_SRC_SYS moves it to charger
+ * SYS at OFFGRID_SYS_CAP_DBM (1.6 W and up exceed the charger's 1.05 A input).
+ */
+#ifndef OFFGRID_SYS_CAP_DBM
+#define OFFGRID_SYS_CAP_DBM 30
+#endif
+#ifndef OFFGRID_BATT_PATH_MOHM
+#define OFFGRID_BATT_PATH_MOHM 90 // plug + leads, reverse FET, protector FETs and sense: not part of the table's R_int
+#endif
+
+/*
+ * No-cell detection and the reverse-FET latch (sim/README.md, residual risk).
+ * With external power in, /CE is held high for OFFGRID_CELL_TEST_MS; with no
+ * cell, BAT_P falls (below OFFGRID_NOCELL_MV) and the latch clears.  Run when
+ * external power appears, when STAT2 toggles (the charger's no-battery
+ * signature), and every OFFGRID_NOCELL_RETEST_MS while there is no cell.
+ */
+#ifndef OFFGRID_CELL_TEST_MS
+#define OFFGRID_CELL_TEST_MS 1000
+#endif
+#ifndef OFFGRID_NOCELL_MV
+#define OFFGRID_NOCELL_MV 2000
+#endif
+#ifndef OFFGRID_NOCELL_RETEST_MS
+#define OFFGRID_NOCELL_RETEST_MS 60000
+#endif
+#ifndef OFFGRID_EXT_IN_MIN_MV
+#define OFFGRID_EXT_IN_MIN_MV 4000 // solar / drone input counts as present above this (MAX17608 UVLO 4.0 V)
+#endif
+
+/*
+ * Missing-antenna detector (sim/rf/coupler.txt): a printed coupler beside the
+ * U.FL feed, a BAT15 diode, 1 nF || 100 k, into P0.30/AIN6.  It reads the
+ * reflected wave, so the threshold scales with the power sent.
+ * The SAADC samples it OFFGRID_REFL_SAMPLE_US after the transmission starts
+ * (it settles ~0.3 ms after PA_EN; sample at 0.5-1 ms), 40 us acquisition.
+ * Threshold at the U.FL power P (dBm): V30 at 30 dBm, V35 at 35 dBm,
+ * interpolated in dB (log of the voltage, linear in dBm), plus
+ * OFFGRID_REFL_TC_UV_PER_C per degree C of board temperature above 25 C.
+ * Worst cases (-40..85 C, 902-928 MHz, every phase): VSWR-2 antenna 0.24 V,
+ * missing 0.52 V at 30 dBm; 0.47 / 1.12 V at 35 dBm.
+ * Not checked below OFFGRID_REFL_MIN_DBM, where a missing antenna harms nothing.
+ * Above the threshold: amplifier off at once, for this packet and the ones
+ * after; one try at 1 W after OFFGRID_ANT_RETRY_MS, doubling up to
+ * OFFGRID_ANT_RETRY_MAX_MS while the fault stays.
+ */
+#define PIN_REFL_DET (30) // P0.30 / AIN6 REFL_DET
+#define REFL_DET_AIN 7     // SAADC PSELP value for AIN6 (AINx = x + 1)
+#ifndef OFFGRID_REFL_SAMPLE_US
+#define OFFGRID_REFL_SAMPLE_US 750
+#endif
+#ifndef OFFGRID_REFL_V30_MV
+#define OFFGRID_REFL_V30_MV 350
+#endif
+#ifndef OFFGRID_REFL_V35_MV
+#define OFFGRID_REFL_V35_MV 730
+#endif
+#ifndef OFFGRID_REFL_TC_UV_PER_C
+#define OFFGRID_REFL_TC_UV_PER_C 1400
+#endif
+#ifndef OFFGRID_REFL_MIN_DBM
+#define OFFGRID_REFL_MIN_DBM 27
+#endif
+#ifndef OFFGRID_ANT_RETRY_MS
+#define OFFGRID_ANT_RETRY_MS 30000
+#endif
+#ifndef OFFGRID_ANT_RETRY_MAX_MS
+#define OFFGRID_ANT_RETRY_MAX_MS 600000
+#endif
+#ifndef OFFGRID_ANT_PROBE_DBM
+#define OFFGRID_ANT_PROBE_DBM 30 // the retry runs at 1 W
 #endif
 
 /*
@@ -286,8 +431,38 @@ static const uint8_t SCK = PIN_SPI_SCK;
 // latched fault, which this simple test also reads as "charging".
 #define EXT_CHRG_DETECT PIN_CHG_STAT2
 #define EXT_CHRG_DETECT_VALUE LOW
-#define PIN_SOLAR_OK (4)     // P0.04 solar eFuse AUXOFF ("input good"), 1 M pull-up
-#define PIN_DRONE_OK (3)     // P0.03 drone 5 V eFuse AUXOFF, 1 M pull-up
+// SOLAR_OK / DRONE_OK: the input voltage / 16 (1.5 M / 100 k) for the ADC,
+// read to tell whether external power is in (5 V -> 0.31 V, 10 V -> 0.63 V)
+#define PIN_SOLAR_OK (4)     // P0.04 / AIN2 SOLAR_OK
+#define PIN_DRONE_OK (3)     // P0.03 / AIN1 DRONE_OK
+
+/*
+ * Charging window (variant.cpp).  The NTC (10 k, B 3380, beside the battery
+ * plug) sits on the charger's TS/MR pin, which the BQ25185 biases with
+ * ITSMR = 38 uA while an input is present: V = 38 uA x R_NTC, so 1.07 V at
+ * 0 C, 0.38 V at 25 C, 0.19 V at 45 C, 0.12 V at 60 C.  P0.31/AIN7 reads it.
+ * Firmware holds /CE high (charging off) below OFFGRID_CHG_MIN_C and above
+ * OFFGRID_CHG_MAX_C, and lets it go again OFFGRID_CHG_HYST_C inside the
+ * window.  The charger's own window (about 1-60 C) stays as the backstop,
+ * and is all there is while the processor is off.
+ */
+#define PIN_CHG_TS (31)   // P0.31 / AIN7 CHG_TS
+#define CHG_TS_AIN 8      // SAADC PSELP value for AIN7
+#ifndef OFFGRID_TS_VALID_MIN_MV
+#define OFFGRID_TS_VALID_MIN_MV 50 // below: no TS bias (no input), or a cell above ~80 C
+#endif
+#ifndef OFFGRID_CHG_MIN_C
+#define OFFGRID_CHG_MIN_C 0
+#endif
+#ifndef OFFGRID_CHG_MAX_C
+#define OFFGRID_CHG_MAX_C 45
+#endif
+#ifndef OFFGRID_CHG_HYST_C
+#define OFFGRID_CHG_HYST_C 3
+#endif
+#define OFFGRID_NTC_R25 10000.0f  // ohm
+#define OFFGRID_NTC_BETA 3380.0f  // K (Murata NCP15XH103F03RC, B25/50)
+#define OFFGRID_TS_BIAS_UA 38.0f  // BQ25185 ITSMR, adapter present (36.5-39.5 uA)
 
 // USB VBUS detection through the nRF52840 POWER peripheral (VBUS = USB_5V)
 #define NRF_APM
@@ -311,12 +486,12 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #define BATTERY_LPCOMP_THRESHOLD NRF_LPCOMP_REF_SUPPLY_11_16
 
 /*
- * Expansion header spare pins
+ * Expansion header spare pins: IO1 (pin 12), IO2 (13), IO5 (16), IO6 (17).
+ * Pins 14 and 15 (IO3/IO4 before) are not connected: P0.30 and P0.31 now
+ * read the antenna detector and the charger's NTC on the board.
  */
 #define PIN_IO1 (28)      // P0.28 / AIN4
 #define PIN_IO2 (29)      // P0.29 / AIN5
-#define PIN_IO3 (30)      // P0.30 / AIN6
-#define PIN_IO4 (31)      // P0.31 / AIN7
 #define PIN_IO5 (32 + 2)  // P1.02
 #define PIN_IO6 (10)      // P0.10 (NFC2)
 

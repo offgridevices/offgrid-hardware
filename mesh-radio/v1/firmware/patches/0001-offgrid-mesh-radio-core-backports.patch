@@ -1,4 +1,4 @@
-Subject: [PATCH] Mesh Radio v1: re-apply TX power limits on reconfigure; variant module defaults
+Subject: [PATCH] Mesh Radio v1: re-apply TX power limits on reconfigure; variant module defaults; per-packet TX hooks
 
 Against meshtastic/firmware v2.7.26.54e0d8d.  Apply from the firmware root:
 
@@ -24,6 +24,26 @@ Against meshtastic/firmware v2.7.26.54e0d8d.  Apply from the firmware root:
    board defaults the drone port (P0.15/P0.16) to the serial module in PROTO
    mode at 38400 baud.
 
+3. src/mesh/RadioLibInterface.{h,cpp}, src/mesh/SX126xInterface.{h,cpp} -
+   REQUIRED for the power caps, the missing-antenna cut-off and the battery
+   reading under load (variant.cpp).  New board hooks, weak no-ops for every
+   other board:
+     variantLimitTxPower(power)  SX126xInterface::configHardwareForSend(),
+                                 radio in standby before each packet: the
+                                 variant returns the SX1262 setting for this
+                                 packet (it can only lower it; -9 dBm floor).
+                                 Written to the chip only when it changes
+                                 (txPowerSet, also updated by init() and
+                                 reconfigure()).
+     variantTxStarted()          RadioLibInterface::startSend(), right after
+                                 startTransmit() succeeded (PA_EN is high):
+                                 the variant samples its antenna detector.
+     variantTxDone()             RadioLibInterface::completeSending(), when a
+                                 packet has gone (also when a send is cut
+                                 short by setStandby()).
+   Board-specific; not for upstream as is (a FEM-style interface in core would
+   be the general form).
+
 ---
 diff --git a/src/mesh/NodeDB.cpp b/src/mesh/NodeDB.cpp
 index 8b47c10..7c888bf 100644
@@ -47,11 +67,78 @@ index 8b47c10..7c888bf 100644
  }
  
  void NodeDB::installRoleDefaults(meshtastic_Config_DeviceConfig_Role role)
+diff --git a/src/mesh/RadioLibInterface.cpp b/src/mesh/RadioLibInterface.cpp
+index 335e76a..bdec6b3 100644
+--- a/src/mesh/RadioLibInterface.cpp
++++ b/src/mesh/RadioLibInterface.cpp
+@@ -16,6 +16,14 @@
+ #include "meshUtils.h"
+ #endif
+ 
++// Board hooks around each transmission (see RadioLibInterface.h); a variant may define them.
++__attribute__((weak)) int8_t variantLimitTxPower(int8_t power)
++{
++    return power;
++}
++__attribute__((weak)) void variantTxStarted() {}
++__attribute__((weak)) void variantTxDone() {}
++
+ void LockingArduinoHal::spiBeginTransaction()
+ {
+     spiLock->lock();
+@@ -514,6 +522,8 @@ void RadioLibInterface::completeSending()
+ #endif
+ 
+     if (p) {
++        variantTxDone();
++
+         // Packet has been sent, count it toward our TX airtime utilization.
+         uint32_t xmitMsec = getPacketTime(p);
+         airTime->logAirtime(TX_LOG, xmitMsec);
+@@ -691,6 +701,7 @@ bool RadioLibInterface::startSend(meshtastic_MeshPacket *txp)
+             // Must be done AFTER, starting transmit, because startTransmit clears (possibly stale) interrupt pending register
+             // bits
+             enableInterrupt(isrTxLevel0);
++            variantTxStarted();
+             lastTxStart = millis();
+             printPacket("Started Tx", txp);
+ #ifdef LED_LORA
+diff --git a/src/mesh/RadioLibInterface.h b/src/mesh/RadioLibInterface.h
+index cfbfbe1..5c2f591 100644
+--- a/src/mesh/RadioLibInterface.h
++++ b/src/mesh/RadioLibInterface.h
+@@ -16,6 +16,18 @@
+ 
+ #define RADIOLIB_PIN_TYPE uint32_t
+ 
++/*
++ * Board hooks around each transmission.  Weak no-ops in RadioLibInterface.cpp; a variant with an external amplifier
++ * defines them to cap the power per packet and to watch the amplifier (e.g. a missing-antenna detector).
++ *   variantLimitTxPower(power)  radio in standby, before the packet: returns the radio's output setting for this packet
++ *                               (it can only lower `power`; SX126x only)
++ *   variantTxStarted()          right after the radio was told to transmit
++ *   variantTxDone()             when the packet has gone (TX done handled), before the next radio operation
++ */
++int8_t variantLimitTxPower(int8_t power);
++void variantTxStarted();
++void variantTxDone();
++
+ // In addition to the default Rx flags, we need the PREAMBLE_DETECTED flag to detect whether we are actively receiving
+ #define MESHTASTIC_RADIOLIB_IRQ_RX_FLAGS (RADIOLIB_IRQ_RX_DEFAULT_FLAGS | (1 << RADIOLIB_IRQ_PREAMBLE_DETECTED))
+ 
 diff --git a/src/mesh/SX126xInterface.cpp b/src/mesh/SX126xInterface.cpp
-index 073b87f..a393441 100644
+index 073b87f..1fc0dfa 100644
 --- a/src/mesh/SX126xInterface.cpp
 +++ b/src/mesh/SX126xInterface.cpp
-@@ -245,8 +245,14 @@ template <typename T> bool SX126xInterface<T>::reconfigure()
+@@ -92,6 +92,7 @@ template <typename T> bool SX126xInterface<T>::init()
+         power = -9;
+ 
+     int res = lora.begin(getFreq(), bw, sf, cr, syncWord, power, preambleLength, tcxoVoltage, useRegulatorLDO);
++    txPowerSet = power;
+ 
+ #ifdef SX126X_PA_RAMP_US
+     // Set custom PA ramp time for boards requiring longer stabilization (e.g., T-Beam 1W needs >800us)
+@@ -245,13 +246,20 @@ template <typename T> bool SX126xInterface<T>::reconfigure()
      if (err != RADIOLIB_ERR_NONE)
          RECORD_CRITICALERROR(meshtastic_CriticalErrorCode_INVALID_RADIO_SETTING);
  
@@ -68,3 +155,40 @@ index 073b87f..a393441 100644
  
      err = lora.setOutputPower(power);
      if (err != RADIOLIB_ERR_NONE)
+         LOG_ERROR("SX126X setOutputPower %s%d", radioLibErr, err);
+     assert(err == RADIOLIB_ERR_NONE);
++    txPowerSet = power;
+ 
+     startReceive(); // restart receiving
+ 
+@@ -305,6 +313,18 @@ template <typename T> void SX126xInterface<T>::addReceiveMetadata(meshtastic_Mes
+  */
+ template <typename T> void SX126xInterface<T>::configHardwareForSend()
+ {
++    // Board hook: the variant may lower the output for this packet (temperature, battery, antenna fault)
++    int8_t want = variantLimitTxPower(power);
++    if (want > power)
++        want = power;
++    if (want < -9)
++        want = -9;
++    if (want != txPowerSet) {
++        if (lora.setOutputPower(want) == RADIOLIB_ERR_NONE)
++            txPowerSet = want;
++        else
++            LOG_ERROR("SX126X setOutputPower(%d) for this packet failed", want);
++    }
+     setTransmitEnable(true);
+     RadioLibInterface::configHardwareForSend();
+ }
+diff --git a/src/mesh/SX126xInterface.h b/src/mesh/SX126xInterface.h
+index b7d3675..4f544ed 100644
+--- a/src/mesh/SX126xInterface.h
++++ b/src/mesh/SX126xInterface.h
+@@ -35,6 +35,7 @@ template <class T> class SX126xInterface : public RadioLibInterface
+   protected:
+     float currentLimit = 140; // Higher OCP limit for SX126x PA
+     float tcxoVoltage = 0.0;
++    int8_t txPowerSet = 0; // output setting last written to the chip (power, or the board's per-packet limit)
+ 
+     /**
+      * Specific module instance
