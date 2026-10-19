@@ -1,0 +1,133 @@
+Mesh Radio v1 - RF follow-up (sim/rf/followup.py), board as committed in 6cb9185
+
+====================================================================================================
+A. R41 = Vishay RCS080568R0FKEA (RCS e3 anti-surge, 0805, 1 %, +-100 ppm/C)
+====================================================================================================
+Rating: LCSC lists 0.4 W; DigiKey and Vishay's 2023 RCS e3 release give 0.5 W at 70 C; Vishay derates linearly
+to 0 W at 155 C.  The 0.4 W figure is used (conservative).  Powers from study 3 (worst PA-input phase).
+   25 C rating 400 mW:  +20 dBm 19 %  +21 dBm 23 %  +22 dBm 29 %  +23 dBm 37 %
+   60 C rating 400 mW:  +20 dBm 19 %  +21 dBm 23 %  +22 dBm 29 %  +23 dBm 37 %
+   85 C rating 329 mW:  +20 dBm 23 %  +21 dBm 28 %  +22 dBm 36 %  +23 dBm 45 %
+  -> R41 RCS080568R0FKEA: PASS  [36 % of its 85 C rating at +22 dBm, 45 % at +23 dBm (0.4 W basis); 23 % at +20 dBm]
+
+====================================================================================================
+B. Antenna missing: L15 (3.6 nH output match) and L18 (47 nH ESD shunt), 1 s bursts
+====================================================================================================
+RF dissipation from run.py's saturated-PA model (model A, worst phase of the open, 902-928 MHz); the 50-ohm-source
+model cannot see inside the PA match.  Thermal data are ESTIMATES (see THERM in followup.py): R part->pads / pads->
+ambient, C part / board: L15 35 / 65 K/W, 0.016 / 0.25 J/K; L18 200 / 220 K/W, 0.001 / 0.08 J/K.  Criterion: part
+<= 125 C (Murata operating maximum) PASS; pads (solder joint) must stay below 200 C.  The PA's own heat raises the
+local board above ambient; that is not included (the thermal study of the routed board adds it).
+  dissipation (W), matched / antenna missing:
+   VPA 2.7 V:  L15 0.076 / 0.698    L18 0.006 / 0.049
+   VPA 3.6 V:  L15 0.135 / 1.242    L18 0.010 / 0.087
+   VPA 4.0 V:  L15 0.166 / 1.533    L18 0.012 / 0.108
+
+  peak temperatures, part / pads (C):  single 1 s burst | 1 s every 4 s (25 % duty), periodic steady state
+   L15 VPA 2.7 V  25 C ambient, 0.70 W:      46 /    27   |      56 /    37
+   L15 VPA 2.7 V  60 C ambient, 0.70 W:      81 /    62   |      91 /    72
+   L15 VPA 3.6 V  25 C ambient, 1.24 W:      62 /    29   |      81 /    46
+   L15 VPA 3.6 V  60 C ambient, 1.24 W:      97 /    64   |     116 /    81
+   L15 VPA 4.0 V  25 C ambient, 1.53 W:      71 /    30   |      94 /    51
+   L15 VPA 4.0 V  60 C ambient, 1.53 W:     106 /    65   |     129 /    86
+   L18 VPA 2.7 V  25 C ambient, 0.05 W:      35 /    26   |      38 /    28
+   L18 VPA 2.7 V  60 C ambient, 0.05 W:      70 /    61   |      73 /    63
+   L18 VPA 3.6 V  25 C ambient, 0.09 W:      43 /    26   |      47 /    30
+   L18 VPA 3.6 V  60 C ambient, 0.09 W:      78 /    61   |      82 /    65
+   L18 VPA 4.0 V  25 C ambient, 0.11 W:      47 /    26   |      52 /    31
+   L18 VPA 4.0 V  60 C ambient, 0.11 W:      82 /    61   |      87 /    66
+  -> L15 antenna missing, 1 W, VPA 2.7 V, 60 C: PASS  [single 1 s burst 81 C, 25 % duty 91 C (pads 72 C); limit 125 C]
+  -> L15 antenna missing, ~2.5 W, VPA 3.6 V, 60 C: PASS  [single 1 s burst 97 C, 25 % duty 116 C (pads 81 C); limit 125 C]
+  -> L15 antenna missing, 3 W, VPA 4.0 V, 60 C: FAIL  [single 1 s burst 106 C, 25 % duty 129 C (pads 86 C); limit 125 C]
+  -> L18 antenna missing, 1 W, VPA 2.7 V, 60 C: PASS  [single 1 s burst 70 C, 25 % duty 73 C (pads 63 C); limit 125 C]
+  -> L18 antenna missing, ~2.5 W, VPA 3.6 V, 60 C: PASS  [single 1 s burst 78 C, 25 % duty 82 C (pads 65 C); limit 125 C]
+  -> L18 antenna missing, 3 W, VPA 4.0 V, 60 C: PASS  [single 1 s burst 82 C, 25 % duty 87 C (pads 66 C); limit 125 C]
+  sensitivity, L15 at 4.0 V, 60 C, 25 % duty: R1 25 / Rtot 70 K/W -> 112 C, R1 35 / Rtot 100 K/W -> 129 C, R1 50 / Rtot 145 K/W -> 151 C
+
+  Missing-antenna detector (3 parts + copper), first-order estimate (no EM model of the routed board):
+   a ~10 mm line edge-coupled (0.15 mm gap) to the U.FL feed after the LFCN; coupled-port end ->
+   BAT15-02EL Schottky -> 1 nF to an nRF analog pin; other end -> 49.9 R to ground.  Coupling k~0.15 over
+   beta*l = 0.35 rad: C ~ 20log(k sin(beta l)) ~ -26 dB; directivity of a short microstrip coupler ~10-15 dB.
+   30 dBm, good antenna (RL 20 dB)  coupled reverse wave  -7.4 dBm
+   30 dBm, poor antenna (VSWR 2)    coupled reverse wave  -3.9 dBm
+   30 dBm, antenna missing          coupled reverse wave  +4.3 dBm
+   35 dBm, good antenna (RL 20 dB)  coupled reverse wave  -2.4 dBm
+   35 dBm, poor antenna (VSWR 2)    coupled reverse wave  +1.1 dBm
+   35 dBm, antenna missing          coupled reverse wave  +9.3 dBm
+   -> >= 8 dB between a missing and a VSWR-2 antenna whatever the cable length (it measures |Gamma|, not the
+      voltage at one point); a detector diode at +0..+10 dBm gives ~0.3-1.5 V.  Firmware: read it ~1 ms after
+      PA_EN in every burst; above threshold drop VPA to 2.7 V and SX1262 drive, flag "no antenna".
+
+====================================================================================================
+C. Harmonics 6f-10f with the PA at -45 dBc above 3f (ASSUMED, as before)
+====================================================================================================
+Two reflective filters with a switch between them interact: the result depends on the trace lengths.  Every
+variant is evaluated at the nominal 2 mm traces and over a sweep of
+the three inter-block traces (1, 3, 5, 8, 12 mm each, 125 layouts, 50-ohm model): the worst layout is reported.
+Neither LTCC model is credited with more rejection than its maker's typical table (LFCN-1000+ to 7 GHz, LFCG-1000+
+to 10 GHz; above the LFCN table its 7 GHz value, 18.6 dB, is assumed).  Margins in dB (positive passes),
+FCC restricted bands at -41.2 dBm EIRP, 2f/7f at -20 dBc, Part 97 at -43 dBc.
+
+  base: as committed (discrete LPF + LFCN-1000+)
+   35 dBm 6.00 dBi nominal  2f   60.2 3f   15.1 4f   26.2 5f   25.6 6f    3.6 7f   39.3 8f   -0.2 9f   -1.7 10f   -4.4
+   35 dBm 6.00 dBi worst    2f   59.8 3f   15.0 4f   14.1 5f   18.2 6f   -0.9 7f   32.6 8f   -1.3 9f   -7.1 10f   -6.1
+   35 dBm 6.00 dBi PA-src   2f   60.4 3f   14.2 4f   11.7 5f   17.7 6f   -8.6 7f   32.3 8f   -0.2 9f   -1.0 10f   -1.2   (sensitivity, not the verdict)
+   30 dBm 2.15 dBi nominal  2f   64.6 3f   31.7 4f   39.2 5f   39.5 6f   16.8 7f   46.9 8f   23.6 9f   14.2 10f    6.9
+   30 dBm 2.15 dBi worst    2f   63.5 3f   31.5 4f   23.1 5f   27.7 6f    9.3 7f   33.3 8f   13.3 9f    2.9 10f    4.2
+   30 dBm 2.15 dBi PA-src   2f   65.2 3f   27.0 4f   20.6 5f   27.1 6f    0.4 7f   33.1 8f   24.0 9f   22.6 10f   21.1   (sensitivity, not the verdict)
+   loss PA -> U.FL 1.12 dB, PA load RL 27.2 dB
+
+  a: LFCG-1000+ in place of the 7-part discrete LPF
+   35 dBm 6.00 dBi nominal  2f   60.5 3f   15.4 4f   28.1 5f   26.9 6f    4.4 7f   39.6 8f   -0.1 9f   -0.8 10f   -1.0
+   35 dBm 6.00 dBi worst    2f   60.5 3f   15.4 4f   27.0 5f   24.3 6f    3.2 7f   38.0 8f   -0.5 9f   -1.0 10f   -1.3
+   35 dBm 6.00 dBi PA-src   2f   60.5 3f   15.4 4f   28.0 5f   21.8 6f  -27.3 7f   26.2 8f   -0.2 9f   -0.8 10f   -1.0   (sensitivity, not the verdict)
+   30 dBm 2.15 dBi nominal  2f   65.5 3f   34.3 4f   51.2 5f   48.5 6f   22.7 7f   56.0 8f   33.4 9f   38.4 10f   32.0
+   30 dBm 2.15 dBi worst    2f   65.5 3f   34.2 4f   41.8 5f   36.2 6f   17.0 7f   43.4 8f   17.4 9f   23.6 10f   28.3
+   30 dBm 2.15 dBi PA-src   2f   65.5 3f   34.3 4f   48.7 5f   32.1 6f  -18.5 7f   26.4 8f   23.7 9f   39.4 10f   42.1   (sensitivity, not the verdict)
+   loss PA -> U.FL 1.79 dB, PA load RL 13.4 dB
+
+  b: LFCG-1000+ in place of the LFCN-1000+
+   35 dBm 6.00 dBi nominal  2f   64.6 3f   22.2 4f   20.2 5f   11.5 6f   17.8 7f   57.9 8f   23.9 9f   27.2 10f   22.5
+   35 dBm 6.00 dBi worst    2f   63.8 3f   21.8 4f    7.7 5f   11.0 6f   13.1 7f   50.7 8f   22.1 9f   21.8 10f   14.6
+   35 dBm 6.00 dBi PA-src   2f   66.8 3f   22.2 4f    4.5 5f   -0.7 6f    4.9 7f   51.0 8f   23.9 9f   27.8 10f   23.7   (sensitivity, not the verdict)
+   30 dBm 2.15 dBi nominal  2f   65.9 3f   41.0 4f   30.6 5f   20.7 6f   29.4 7f   64.0 8f   50.4 9f   44.4 10f   37.6
+   30 dBm 2.15 dBi worst    2f   64.9 3f   37.8 4f   16.6 5f   20.1 6f   22.7 7f   51.4 8f   35.4 9f   31.8 10f   23.9
+   30 dBm 2.15 dBi PA-src   2f   69.4 3f   40.8 4f   13.4 5f    8.1 6f   13.8 7f   51.7 8f   48.6 9f   52.8 10f   52.8   (sensitivity, not the verdict)
+   loss PA -> U.FL 1.10 dB, PA load RL 23.8 dB
+
+  c: LFCG-1000+ added after the LFCN-1000+
+   35 dBm 6.00 dBi nominal  2f  112.0 3f   67.2 4f   68.1 5f   56.6 6f   39.7 7f   77.2 8f   19.9 9f   42.3 10f   39.6
+   35 dBm 6.00 dBi worst    2f   99.0 3f   67.0 4f   56.0 5f   51.0 6f   34.9 7f   69.1 8f   18.9 9f   36.4 10f   32.9
+   35 dBm 6.00 dBi PA-src   2f  112.3 3f   66.4 4f   54.1 5f   48.4 6f   26.3 7f   70.7 8f   19.9 9f   42.9 10f   43.8   (sensitivity, not the verdict)
+   30 dBm 2.15 dBi nominal  2f  116.3 3f   83.7 4f   81.0 5f   70.0 6f   50.8 7f   83.6 8f   42.8 9f   59.4 10f   50.4
+   30 dBm 2.15 dBi worst    2f   99.0 3f   83.4 4f   65.0 5f   60.4 6f   44.6 7f   69.6 8f   34.2 9f   46.3 10f   42.1
+   30 dBm 2.15 dBi PA-src   2f  117.0 3f   79.2 4f   63.0 5f   57.7 6f   35.2 7f   71.5 8f   43.2 9f   66.0 10f   65.7   (sensitivity, not the verdict)
+   loss PA -> U.FL 1.87 dB, PA load RL 16.5 dB
+
+  LFCG-1000+ power: rated 5.5 W at 25 C, derated linearly to 1 W at 125 C (CW, passband).  No pulse rating is
+  published; a 1 s burst is long against the thermal time constant of an 0805 part, so it counts as CW at the
+  local board temperature (the 25 % duty only lowers that temperature).  VPA 2.7 V = the US 1 W setting.
+   a    at the PA output     VPA 2.7 V 1.29 W: 23%/33%/46%  VPA 3.6 V 3.47 W: 63%/88%/124%  VPA 4.0 V 4.27 W: 78%/109%/152%   (25 / 60 / 85 C)
+   b/c  at the antenna side  VPA 2.7 V 1.10 W: 20%/28%/39%  VPA 3.6 V 2.69 W: 49%/69%/96%  VPA 4.0 V 3.31 W: 60%/84%/118%   (25 / 60 / 85 C)
+
+  -> harmonics 2f-10f, as committed (discrete LPF + LFCN-1000+): FAIL  [worst over layouts -7.1 dB at 35 dBm / 6 dBi, 2.9 dB at 30 dBm / 2.15 dBi; loss 1.12 dB]
+  -> harmonics 2f-10f, LFCG-1000+ in place of the 7-part discrete LPF: FAIL  [worst over layouts -1.3 dB at 35 dBm / 6 dBi, 17.0 dB at 30 dBm / 2.15 dBi; loss 1.79 dB]
+  -> harmonics 2f-10f, LFCG-1000+ in place of the LFCN-1000+: PASS  [worst over layouts 7.7 dB at 35 dBm / 6 dBi, 16.6 dB at 30 dBm / 2.15 dBi; loss 1.10 dB]
+  -> harmonics 2f-10f, LFCG-1000+ added after the LFCN-1000+: PASS  [worst over layouts 18.9 dB at 35 dBm / 6 dBi, 34.2 dB at 30 dBm / 2.15 dBi; loss 1.87 dB]
+  -> default US setting (30 dBm, 2.15 dBi) as committed: MARGINAL  [nominal layout worst 6.9 dB; worst layout 2.9 dB]
+
+====================================================================================================
+SUMMARY
+====================================================================================================
+  R41 RCS080568R0FKEA                                            PASS      36 % of its 85 C rating at +22 dBm, 45 % at +23 dBm (0.4 W basis); 23 % at +20 dBm
+  L15 antenna missing, 1 W, VPA 2.7 V, 60 C                      PASS      single 1 s burst 81 C, 25 % duty 91 C (pads 72 C); limit 125 C
+  L15 antenna missing, ~2.5 W, VPA 3.6 V, 60 C                   PASS      single 1 s burst 97 C, 25 % duty 116 C (pads 81 C); limit 125 C
+  L15 antenna missing, 3 W, VPA 4.0 V, 60 C                      FAIL      single 1 s burst 106 C, 25 % duty 129 C (pads 86 C); limit 125 C
+  L18 antenna missing, 1 W, VPA 2.7 V, 60 C                      PASS      single 1 s burst 70 C, 25 % duty 73 C (pads 63 C); limit 125 C
+  L18 antenna missing, ~2.5 W, VPA 3.6 V, 60 C                   PASS      single 1 s burst 78 C, 25 % duty 82 C (pads 65 C); limit 125 C
+  L18 antenna missing, 3 W, VPA 4.0 V, 60 C                      PASS      single 1 s burst 82 C, 25 % duty 87 C (pads 66 C); limit 125 C
+  harmonics 2f-10f, as committed (discrete LPF + LFCN-1000+)     FAIL      worst over layouts -7.1 dB at 35 dBm / 6 dBi, 2.9 dB at 30 dBm / 2.15 dBi; loss 1.12 dB
+  harmonics 2f-10f, LFCG-1000+ in place of the 7-part discrete LPF FAIL      worst over layouts -1.3 dB at 35 dBm / 6 dBi, 17.0 dB at 30 dBm / 2.15 dBi; loss 1.79 dB
+  harmonics 2f-10f, LFCG-1000+ in place of the LFCN-1000+        PASS      worst over layouts 7.7 dB at 35 dBm / 6 dBi, 16.6 dB at 30 dBm / 2.15 dBi; loss 1.10 dB
+  harmonics 2f-10f, LFCG-1000+ added after the LFCN-1000+        PASS      worst over layouts 18.9 dB at 35 dBm / 6 dBi, 34.2 dB at 30 dBm / 2.15 dBi; loss 1.87 dB
+  default US setting (30 dBm, 2.15 dBi) as committed             MARGINAL  nominal layout worst 6.9 dB; worst layout 2.9 dB

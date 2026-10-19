@@ -413,6 +413,13 @@ PARTS['HDR_2x10']['assembled'] = False
 # same footprint and rating unless the note says otherwise.  Parts added after the audit have no
 # DigiKey number yet (docs/part-audit.md lists them).
 DIGIKEY = {
+    'L3.6nH_0805': '490-16042-1-ND',  # sim/rf fixes, checked 19 Oct
+    'L3.2nH_0805': '490-16041-1-ND',  # sim/rf fixes, checked 19 Oct
+    'HV2.0pF': '490-8124-1-ND',  # sim/rf fixes, checked 19 Oct
+    'HV3.6pF': '490-8127-1-ND',  # sim/rf fixes, checked 19 Oct
+    'HV0.9pF': '490-GQM1875C2ER90BB12DCT-ND',  # sim/rf fixes, checked 19 Oct
+    'RF0.8pF_W': '490-11253-1-ND',  # sim/rf fixes, checked 19 Oct
+    'R68_0805_AS': '541-10549-1-ND',  # sim/rf fixes, checked 19 Oct
     'UFL': '26-U.FL-R-SMT-1(80)CT-ND',
     'ANT2450': '712-2450AT18A0100001ECT-ND',
     'B3U': 'SW1020CT-ND',
@@ -528,6 +535,7 @@ DIGIKEY = {
     'XTAL32M': '535-13900-1-ND',
 }
 SECOND = {
+    'HV1.3pF': 'Johanson QSCP251Q1R3B1GV001T (0603 1.3pF 250V high-Q) DK 712-QSCP251Q1R3B1GV001TCT-ND stock 40,828 (Murata GQM1875C2E1R3BB12D: not stocked at DigiKey, 21-week lead; LCSC C3901219 11,726).',
     'C100n': 'Murata GRM155R71C104KA88J (0402 100nF 16V X7R) DK 490-6328-1-ND stock 7,440,307 $0.025@10 $0.0141@100',
     'C10u': 'Taiyo Yuden EMK107BBJ106MA-T (0603 10uF 16V X5R) DK 587-3238-1-ND stock 703,701 $0.185@10 $0.119@100',
     'C10u25': 'KYOCERA AVX KGM21AR51E106KU (0805 10uF 25V X5R) DK 478-KGM21AR51E106KUCT-ND stock 5,472 $0.386@10 $0.2584@100.',

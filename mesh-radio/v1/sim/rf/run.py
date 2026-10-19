@@ -246,8 +246,9 @@ def study1():
     # ---- harmonics
     out('1e Harmonics.  PA levels at the EVB plane (into 50 ohm): 2f %.1f dBc, 3f %.1f dBc (data sheet), 4f-10f %.0f dBc'
         ' (ASSUMED).' % (harm_dbc_pa(2), harm_dbc_pa(3), HARM_DBC_PA_ASSUMED))
-    out('   Rejection = worse of (a) 50-ohm insertion loss PA_M2 -> U.FL and (b) PA die source through this board\'s')
-    out('   output match + chain, relative to the same source into 50 ohm at the EVB plane.  Switch self-generated')
+    out('   Rejection used = 50-ohm insertion loss PA_M2 -> U.FL (how the data-sheet harmonics were measured).  Shown')
+    out('   for sensitivity only: the PA die as the source through the output match (internal values guessed), which')
+    out('   the reflective filters can make 10-35 dB worse above 5 GHz.  Switch self-generated')
     out('   harmonics (ASSUMED -65/-60/-70 dBc for 2f/3f/other at +35 dBm on RF1) filtered by the LFCN only.')
     rej = harmonic_rejection(b, pa)
     hres = harmonic_table(rej, b)
@@ -274,14 +275,15 @@ def harmonic_rejection(b, pa, nsamp=1, lines=None):
     b.add_parts(cs, B.NETS_ANT)
     Ss = cs.sparams(fh, ['SW1', 'ANT'], nsamp=nsamp)
     rejsw = -R.db20(Ss[:, :, 1, 0])
-    # The fitted LFCN model has deep notches the data sheet does not show; never credit it with more
-    # rejection than Mini-Circuits' typical table (linear interpolation; 18.6 dB, the 7 GHz value, beyond)
-    excess = np.maximum(0.0, -R.db20(lfcn.response(fh)[:, 1, 0]) - lfcn_table_rej(fh))
-    rej50, rejpa, rejsw = rej50 - excess, rejpa - excess, rejsw - excess
+    # The fitted LFCN model has notches and a re-entry the data sheet does not show, and no data exist above 7 GHz:
+    # its rejection is replaced by Mini-Circuits' typical table (linear interpolation; the 7 GHz value, 18.6 dB,
+    # ASSUMED beyond), keeping the model's phase and mismatch.
+    corr = -R.db20(lfcn.response(fh)[:, 1, 0]) - lfcn_table_rej(fh)
+    rej50, rejpa, rejsw = rej50 - corr, rejpa - corr, rejsw - corr
     res = {}
     for k, n in enumerate(NH):
         sl = slice(3 * k, 3 * k + 3)
-        res[n] = dict(r50=rej50[:, sl], rpa=rejpa[:, sl], r=np.minimum(rej50[:, sl], rejpa[:, sl]), rsw=rejsw[:, sl])
+        res[n] = dict(r50=rej50[:, sl], rpa=rejpa[:, sl], r=rej50[:, sl], rsw=rejsw[:, sl])
     return res
 
 
@@ -577,19 +579,24 @@ def study3():
     out()
     out('  derated rating: ' + ', '.join('%d C %.0f mW' % (t, 1e3 * r0805_rating(t)) for t in TEMPS))
     r1 = refs[0]
+    def p70(r):
+        mpn = B.parts.PARTS[B.BY_REF[r].part]['mpn']
+        return 0.4 if mpn.startswith('RCS0805') else (0.5 if mpn.startswith('ERJ-P06') else 0.125)
+    out('  ratings at 70 C: ' + ', '.join('%s %s %.3f W' % (r, B.parts.PARTS[B.BY_REF[r].part]['mpn'], p70(r)) for r in refs)
+        + ' (Vishay RCS e3: LCSC 0.4 W, Vishay 2023 release 0.5 W; 0.4 W used); all derate linearly to 0 W at 155 C')
     tab = {}
     for pset, pw, pin in res:
-        tab[pset] = {t: 100 * max(pw.values()) / r0805_rating(t) for t in TEMPS}
-    out('  worst resistor, %% of derated rating:      ' + ''.join('%7d C' % t for t in TEMPS))
+        tab[pset] = {t: max(100 * pw[r] / r0805_rating(t, p70=p70(r)) for r in refs) for t in TEMPS}
+    out('  worst resistor, % of its derated rating:  ' + ''.join('%7d C' % t for t in TEMPS))
     for pset in tab:
         out('    SX1262 %+5.1f dBm                       ' % pset + ''.join('%8.0f%%' % tab[pset][t] for t in TEMPS))
     p20, p22 = tab[20.0][85], tab[22.0][85]
     v = lambda x: 'PASS' if x <= 70 else ('MARGINAL' if x <= 100 else 'FAIL')
     summ('3', 'pad power at +20 dBm (firmware cap), 85 C', v(tab[21.0][85]),
-         'first 68 R %.0f mW = %.0f %% of its 85 C rating (%.0f %% with +1 dB SX1262 spread); %.0f %% at 60 C'
-         % (1e3 * max(res[0][1].values()), p20, tab[21.0][85], tab[21.0][60]))
-    summ('3', 'pad power at +22 dBm, 85 C', v(p22), '%.0f mW = %.0f %% of rating (%.0f %% at +23 dBm)'
-         % (1e3 * max(res[2][1].values()), p22, tab[23.0][85]))
+         'worst resistor %.0f %% of its 85 C rating (%.0f %% with +1 dB SX1262 spread); first 68 R takes %.0f mW'
+         % (p20, tab[21.0][85], 1e3 * max(res[0][1].values())))
+    summ('3', 'pad power at +22 dBm, 85 C', v(p22), 'worst resistor %.0f %% of its rating (%.0f %% at +23 dBm); first 68 R %.0f mW'
+         % (p22, tab[23.0][85], 1e3 * max(res[2][1].values())))
     # attenuation over tolerance and temperature (into 50 ohm)
     att = []
     for T in TEMPS:
@@ -1123,7 +1130,8 @@ def fixes(s1):
     """Re-run the affected checks with the proposed changes (overrides only; src/ unchanged)."""
     out()
     out('=' * 100)
-    out('FIXES  re-checked with the proposed values (overrides in run.py; src/ unchanged)')
+    out('FIXES  proposed 18 Oct and applied to src/ in 6cb9185 (so the studies above already include them); this section')
+    out('       re-applies them as overrides, which is now a no-op apart from R41 shown as the ERJ-P06 alternative')
     out('=' * 100)
     ov = fix_overrides()
     for r, p in sorted(ov.items(), key=lambda t: int(t[0][1:])):

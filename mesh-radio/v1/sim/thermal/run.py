@@ -252,13 +252,20 @@ def ref(part, note=None):
     return m[0]
 
 
+def between(a, b, prefix):
+    """The one part (R, L, C...) whose two pins are on nets a and b."""
+    m = [c.ref for c in COMPS if c.ref.startswith(prefix) and sorted(n for n in c.pins.values() if n) == sorted([a, b])]
+    assert len(m) == 1, (a, b, prefix, m)
+    return m[0]
+
+
 # body sizes (mm) used to spread a part's heat and to average the board under it
 SIZE = {'QPA9510': (3, 3), 'TPS63810': (2.2, 1.4), 'L470n': (2.5, 2.0), 'TPS2121': (2, 2), 'BQ25185': (2.2, 2.0),
         'RB060MM': (3.5, 1.8), 'TPS259470A': (2, 2), 'TPS62840': (1.4, 1.0), 'L2u2': (2.0, 1.6),
         'SX1262': (4, 4), 'NRF52840': (7, 7), 'CSD25485F5': (1.5, 0.8), 'SSM10N954L': (2.0, 1.4),
         'R22m': (3.2, 1.6), 'JST_PH2': (6.0, 4.0), 'SKY13330': (2, 2), 'LFCN1000': (3.2, 1.6),
-        'L8.1nH_PA': (2.5, 2.3), 'L3.6nH_0603': (1.6, 0.8), 'L5.1nH': (1.0, 0.5), 'L4.7nH_0603': (1.6, 0.8),
-        'R68_0805': (2.0, 1.25), 'R150_0805': (2.0, 1.25), 'BGA7L1BN6': (1.1, 0.7), 'TLV75528': (1, 1),
+        'L8.1nH_PA': (2.5, 2.3), 'L3.6nH_0805': (2.0, 1.25), 'L3.2nH_0805': (2.0, 1.25),
+        'R68_0805': (2.0, 1.25), 'R68_0805_AS': (2.0, 1.25), 'R150_0805': (2.0, 1.25), 'BGA7L1BN6': (1.1, 0.7), 'TLV75528': (1, 1),
         'TMP1075': (1.6, 1.2), 'NTC10K': (1.0, 0.5), 'LM66100': (2, 2.1), 'TPS22965': (2, 2), 'TPS22916': (0.8, 0.8),
         'BQ29700': (1.5, 1.5), 'XTAL32K': (3.2, 1.5), 'XTAL32M': (2.0, 1.6), 'TCXO32': (2.0, 1.6),
         'B3U': (3.0, 2.5), 'SLIDE': (6.7, 2.6), 'USBC': (8.9, 7.3), 'UFL': (3, 2.6), 'JST_GH6': (9, 4.3),
@@ -289,7 +296,7 @@ R_PROT = 0.0036      # SSM10N954L 2.75 mOhm max x1.3 hot
 R_SENSE = 0.022      # R22m
 R_JST = 0.020        # JST PH contacts, 2 x 10 mOhm initial, ASSUMED half of the heat on the board side
 R_CHOKE = 0.008      # 0908SQ-8N1 DCR (< 10 mOhm, Coilcraft) ASSUMED
-IL_DB = dict(match=0.15, lpf=0.30, switch=0.35, lfcn=0.70)   # dB: match/LPF ASSUMED; SKY13330 0.35 max (p.3); LFCN-1000+ ~0.7 dB at 915 MHz (typ. table)
+IL_DB = dict(match=0.10, lpf=0.40, switch=0.30, lfcn=0.67)   # dB: sim/rf/results.txt (LPF 0.40, SKY13330 0.30 typ, LFCN 0.67 typ); match 0.10 ASSUMED
 I_CHG = 0.497        # A, ISET 604 R (sim/README)
 V_USB = 5.0          # V at the charger input (user's case: covers a 5.25 V port minus the Schottky)
 VF_D4 = 0.33         # V, RB060MM-30 at 0.5 A (p.1: 0.40 typ at 1 A)
@@ -336,22 +343,21 @@ def chg_sources(vbat):
 
 def build_maps():
     """source name -> list of (ref, fraction); metric name -> (ref, psi, source name)."""
-    lpf = [ref('L5.1nH'), ref('L4.7nH_0603')]
+    lpf = [between('PA_M2', 'PA_M3', 'L'), between('PA_M3', 'PA_TX', 'L')]
     src = {
         'U_PA': [('U11', 1.0)], 'U_BB': [(ref('TPS63810'), 1.0)], 'U_MUX': [(ref('TPS2121'), 1.0)],
         'Q_REV': [(ref('CSD25485F5'), 1.0)], 'Q_PROT': [(ref('SSM10N954L'), 1.0)], 'R_SENSE': [(ref('R22m'), 1.0)],
         'J_BAT': [(ref('JST_PH2'), 1.0)], 'L_CHOKE': [(ref('L8.1nH_PA'), 1.0)],
-        'RF_match': [(ref('L3.6nH_0603'), 1.0)], 'RF_lpf': [(lpf[0], 0.5), (lpf[1], 0.5)],
+        'RF_match': [(between('PA_OUT', 'PA_M1', 'L'), 1.0)], 'RF_lpf': [(lpf[0], 0.5), (lpf[1], 0.5)],
         'RF_switch': [(ref('SKY13330'), 1.0)], 'RF_lfcn': [(ref('LFCN1000'), 1.0)],
         'U_SX': [(ref('SX1262'), 1.0)], 'U_BUCK': [(ref('TPS62840'), 0.7), (ref('L2u2'), 0.3)],
         'U_NRF': [(ref('NRF52840'), 1.0)], 'U_APC': [(ref('TLV75528'), 1.0)], 'U_LNA': [(ref('BGA7L1BN6'), 1.0)],
         'U_CHG': [(ref('BQ25185'), 1.0)], 'D_USB': [(ref('RB060MM', 'USB into the charger'), 1.0)],
         'U_EFUSE': [(ref('TPS259470A', 'USB eFuse'), 1.0)],
     }
-    pads = [c.ref for c in COMPS if c.part in ('R68_0805', 'R150_0805')]
-    pads.sort(key=lambda r: PLACEMENT[r][0])
-    src['R_PAD1'] = [(pads[0], 1.0)]; src['R_PAD2'] = [(ref('R150_0805'), 1.0)]
-    src['R_PAD3'] = [([r for r in pads if r != pads[0] and r != ref('R150_0805')][0], 1.0)]
+    src['R_PAD1'] = [(between('LORA_TX50', 'GND', 'R'), 1.0)]
+    src['R_PAD2'] = [(between('LORA_TX50', 'PA_DRIVE', 'R'), 1.0)]
+    src['R_PAD3'] = [(between('PA_DRIVE', 'GND', 'R'), 1.0)]
     # junction metrics: Tj = board under the part + psi_JB x its own power
     met = {
         'QPA9510 Tj': ('U11', None, 'U_PA'),             # handled specially (case + theta_jc)
@@ -1133,7 +1139,12 @@ RATING = {
     'ZENER4V7': (None, 150, 'junction Tj (storage -55)', 'Rohm UDZV series', 'd'),
     'RF0.5pF': (-55, 125, 'C0G class', 'Murata GJM series', 'd'),
 }
-for _k in ('RF0.8pF', 'RF1.0pF', 'RF1.5pF', 'RF1.8pF', 'RF10pF', 'RF15pF', 'RF2.4pF', 'RF27pF', 'RF3.0pF', 'RF39pF',
+RATING['R68_0805_AS'] = (-55, 155, 'operating', 'Vishay RCS0805 series', 'd')
+RATING['L3.2nH_0805'] = (-55, 125, 'operating', 'Murata LQW2BAN series', 'd')
+RATING['L3.6nH_0805'] = (-55, 125, 'operating', 'Murata LQW2BAN series', 'd')
+for _k in ('HV2.0pF', 'HV3.6pF', 'HV1.3pF', 'HV0.9pF'):
+    RATING[_k] = (-55, 125, 'C0G class', 'Murata GQM series', 'd')
+for _k in ('RF0.8pF_W', 'RF0.8pF', 'RF1.0pF', 'RF1.5pF', 'RF1.8pF', 'RF10pF', 'RF15pF', 'RF2.4pF', 'RF27pF', 'RF3.0pF', 'RF39pF',
            'RF47pF', 'RF5.6pF'):
     RATING[_k] = (-55, 125, 'C0G class', 'Murata GJM series', 'd')
 
@@ -1165,6 +1176,10 @@ def study2_3():
     fails = []
     for k in used:
         pd = parts.PARTS[k]
+        if k not in RATING:
+            out('  %-12s %-28s NO RATING ENTRY: add it to RATING in run.py' % (k, pd.get('mpn', '')))
+            fails.append((k, [c.ref for c in COMPS if c.part == k], '?', '?'))
+            continue
         lo, hi, what, srcs, vflag = RATING[k]
         refs = [c.ref for c in COMPS if c.part == k]
         ok = True

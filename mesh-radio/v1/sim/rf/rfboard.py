@@ -44,7 +44,7 @@ def _refs(pred):
     return [c.ref for c in COMPS if pred(c)]
 
 
-PAD_REFS = _refs(lambda c: c.part in ('R68_0805', 'R150_0805'))
+PAD_REFS = _refs(lambda c: parts.PARTS[c.part]['kind'] == 'R' and set(c.pins.values()) <= {'LORA_TX50', 'PA_DRIVE', 'GND'})
 DCBLOCK_PA = _refs(lambda c: set(c.pins.values()) == {'PA_DRIVE', 'PA_RFIN'})[0]
 DCBLOCK_OUT = _refs(lambda c: set(c.pins.values()) == {'PA_M1', 'PA_M2'})[0]
 
