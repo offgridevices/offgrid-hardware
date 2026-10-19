@@ -1,0 +1,537 @@
+<title>Canary v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..900&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a datasheet that runs. A yellow PCB band opens it; the live bench
+   (the firmware's own detector logic) is the centrepiece; the sheet follows. */
+:root {
+  --canary: #F3D21C;       /* the solder mask */
+  --silk: #15140F;         /* the silkscreen */
+  --bg: #F2F3EF;
+  --panel: #FFFFFF;
+  --fg: #1A1B16;
+  --muted: #5D5F55;
+  --line: #D7D9D0;
+  --ok: #278A4C;
+  --warn: #C98207;
+  --alarm: #CC3A22;
+  --chart-grid: #E3E5DD;
+  --gas: #B7791F;
+  --co2: #2F6FA8;
+  --heat: #C43C26;
+  --display: "Archivo", "Arial Narrow", Arial, sans-serif;
+  --body: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11120F; --panel: #191A16; --fg: #ECEDE5; --muted: #9C9E93; --line: #2C2E27;
+    --ok: #4CC07A; --warn: #F0B23A; --alarm: #F0654A; --chart-grid: #24261F;
+    --gas: #E3A84A; --co2: #6BA8E0; --heat: #F07A5C; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11120F; --panel: #191A16; --fg: #ECEDE5; --muted: #9C9E93; --line: #2C2E27;
+  --ok: #4CC07A; --warn: #F0B23A; --alarm: #F0654A; --chart-grid: #24261F;
+  --gas: #E3A84A; --co2: #6BA8E0; --heat: #F07A5C; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 16px/1.55 var(--body); margin: 0; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(28px, 4vw, 40px); font-stretch: 85%; font-weight: 800; letter-spacing: -0.01em; }
+h3 { font-size: 15px; font-family: var(--mono); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+p { margin: 0; max-width: 65ch; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+a { color: inherit; text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--alarm); outline-offset: 2px; }
+
+/* hero: the board's own colours, both themes */
+.hero { background: var(--canary); color: var(--silk); padding-block: 44px 0; overflow: hidden; }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 24px; align-items: end; }
+.eyebrow { font: 600 13px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+.hero h1 { font-size: clamp(64px, 11vw, 132px); line-height: .86; font-stretch: 70%; font-weight: 900; letter-spacing: -0.02em; margin-block: 14px 18px; }
+.hero .lede { font-size: clamp(18px, 2.1vw, 21px); line-height: 1.45; max-width: 30ch; }
+.hero .copy { display: grid; gap: 4px; padding-bottom: 44px; }
+.hero .facts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; font: 500 13px/1.3 var(--mono); }
+.hero .facts span { border-top: 2px solid var(--silk); padding-top: 6px; }
+.hero img { display: block; width: 100%; height: auto; margin-bottom: -6%; filter: drop-shadow(0 18px 24px rgba(40, 32, 0, .28)); }
+
+section { padding-block: 56px; border-bottom: 1px solid var(--line); }
+.head { display: grid; gap: 10px; margin-bottom: 26px; }
+
+/* the bench */
+.bench { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; }
+.board { position: relative; border-radius: 14px; background: var(--silk); padding: 18px; }
+.board img { display: block; width: 100%; height: auto; border-radius: 6px; }
+.led { position: absolute; width: 4.2%; aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: screen; opacity: 0; transition: opacity .08s linear; }
+.ring { position: absolute; border: 3px solid var(--alarm); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; opacity: 0; }
+.status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 14px; }
+.pill { font: 800 22px/1 var(--display); font-stretch: 80%; letter-spacing: .06em; padding: 9px 16px 8px; border-radius: 999px; color: #fff; background: var(--ok); min-width: 128px; text-align: center; }
+.pill[data-st="WARN"] { background: var(--warn); color: var(--silk); }
+.pill[data-st="ALARM"] { background: var(--alarm); }
+.pill[data-st="WARM-UP"] { background: var(--muted); }
+.clock { font: 600 15px/1 var(--mono); color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: transparent; color: var(--fg); font: 600 13px/1 var(--mono); padding: 8px 11px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); }
+.controls { display: grid; gap: 14px; align-content: start; }
+.events { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ev { text-align: left; border: 1px solid var(--line); background: var(--panel); color: var(--fg); border-radius: 10px; padding: 11px 12px; cursor: pointer; font: inherit; display: grid; gap: 2px; }
+.ev:hover { border-color: var(--fg); }
+.ev b { font: 600 15px/1.2 var(--body); }
+.ev small { color: var(--muted); font-size: 12.5px; line-height: 1.3; }
+.ev.vent { background: var(--silk); color: var(--canary); border-color: var(--silk); }
+.ev.vent small { color: #D9D5B8; }
+.row2 { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { border: 1px solid var(--fg); background: transparent; color: var(--fg); border-radius: 8px; padding: 8px 14px; font: 600 14px/1 var(--body); cursor: pointer; }
+.btn.hush { background: var(--fg); color: var(--bg); }
+.evidence { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.evi { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--panel); display: grid; gap: 6px; }
+.evi .k { font: 600 12px/1 var(--mono); letter-spacing: .1em; color: var(--muted); }
+.evi .v { font: 800 18px/1 var(--display); font-stretch: 85%; letter-spacing: .04em; }
+.evi[data-l="1"] .v { color: var(--warn); }
+.evi[data-l="2"] .v { color: var(--alarm); }
+.evi .bar { height: 6px; border-radius: 3px; background: var(--chart-grid); overflow: hidden; }
+.evi .bar i { display: block; height: 100%; width: 0; background: var(--muted); }
+.evi[data-l="1"] .bar i { width: 50%; background: var(--warn); }
+.evi[data-l="2"] .bar i { width: 100%; background: var(--alarm); }
+.charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 20px; }
+.chart { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 10px 12px 8px; min-width: 0; }
+.chart header { display: flex; justify-content: space-between; gap: 8px; font: 600 12px/1.2 var(--mono); color: var(--muted); letter-spacing: .06em; }
+.chart header b { color: var(--fg); font-weight: 600; }
+.chart canvas { display: block; width: 100%; height: 110px; margin-top: 6px; }
+.log { margin-top: 12px; font: 13px/1.6 var(--mono); color: var(--muted); max-height: 130px; overflow-y: auto; border-left: 2px solid var(--line); padding-left: 12px; }
+.log b { color: var(--fg); font-weight: 600; }
+.note { font-size: 13.5px; color: var(--muted); margin-top: 14px; }
+
+/* real run */
+.run { border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 14px; overflow-x: auto; }
+.run canvas { display: block; width: 100%; min-width: 560px; height: 340px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font: 12.5px/1.2 var(--mono); color: var(--muted); margin-top: 10px; }
+.legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 6px; }
+
+/* sheet */
+.sheet { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px 40px; }
+table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+td, th { text-align: left; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 12px/1.2 var(--mono); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+td.ref { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+.checks { display: grid; gap: 10px; }
+.check { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: start; }
+.tick { width: 24px; height: 24px; border-radius: 50%; background: var(--ok); position: relative; }
+.tick::after { content: ""; position: absolute; left: 8px; top: 4px; width: 6px; height: 11px; border: solid var(--bg); border-width: 0 3px 3px 0; transform: rotate(45deg); }
+.check b { display: block; font-family: var(--mono); font-size: 14px; }
+.check span { color: var(--muted); font-size: 14px; }
+ol.steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; counter-reset: s; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; }
+ol.steps li::before { content: counter(s); font: 900 30px/1 var(--display); font-stretch: 70%; color: var(--fg); }
+ol.steps code, td code { font: 13px var(--mono); background: var(--chart-grid); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.limits { display: grid; gap: 10px; }
+.limits p { padding-left: 14px; border-left: 3px solid var(--warn); }
+footer { padding-block: 40px 56px; font: 13px/1.6 var(--mono); color: var(--muted); }
+
+@media (max-width: 860px) {
+  .hero .wrap, .bench, .sheet { grid-template-columns: minmax(0, 1fr); }
+  .hero .copy { padding-bottom: 0; }
+  .charts { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 460px) {
+  .events { grid-template-columns: minmax(0, 1fr); }
+  .evidence { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .led, .ring { transition: none; } }
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="copy">
+      <div class="eyebrow">Open hardware · rev v1 · KiCad 10.0.6</div>
+      <h1>CANARY</h1>
+      <p class="lede">A first-vent detector for the lithium battery charging in your hallway. It listens for a failing cell's solvent vapour and CO₂, before there is any smoke.</p>
+      <div class="facts"><span>60 × 40 mm</span><span>2 layers</span><span>USB-C 5 V</span><span>100 dB sounder</span><span>PCBWay-ready</span></div>
+    </div>
+    <img src="{{HERO}}" alt="3D render of the Canary v1 board: yellow solder mask, USB-C at the left, a black sounder, an ATmega328P, a white SCD41 CO2 sensor, and a slotted sensor head at the right.">
+  </div>
+</header>
+
+<main>
+<section>
+  <div class="wrap">
+    <div class="head">
+      <h3>The bench</h3>
+      <h2>Try to set it off</h2>
+      <p>This runs the detector from the firmware (<span class="mono">detect.c</span>, ported line for line) against a simulated pack and room. Spray cleaner, breathe on it, warm the room: each is one kind of evidence and gets amber. Vent a cell and gas and CO₂ arrive together.</p>
+    </div>
+    <div class="bench">
+      <div>
+        <div class="board" id="board">
+          <img src="{{TOP}}" alt="Top view of the Canary v1 board with the three status LEDs at the top edge.">
+          <div class="led" id="ledG" style="left:64.3%;top:6.5%;background:radial-gradient(circle,#B6FF9C 0,#3BD16F 35%,transparent 70%)"></div>
+          <div class="led" id="ledA" style="left:71.3%;top:6.5%;background:radial-gradient(circle,#FFF1A8 0,#FFB31A 35%,transparent 70%)"></div>
+          <div class="led" id="ledR" style="left:78.3%;top:6.5%;background:radial-gradient(circle,#FFC2B2 0,#FF3B1F 35%,transparent 70%)"></div>
+          <div class="ring" id="ring1" style="left:41.7%;top:16.5%"></div>
+          <div class="ring" id="ring2" style="left:41.7%;top:16.5%"></div>
+        </div>
+        <div class="status">
+          <div class="pill" id="pill" data-st="NORMAL" role="status" aria-live="polite">NORMAL</div>
+          <div class="clock" id="clock">t = 120 s</div>
+          <div class="seg" role="group" aria-label="Simulation speed">
+            <button id="sp1" aria-pressed="false">1×</button><button id="sp10" aria-pressed="true">10×</button><button id="sp60" aria-pressed="false">60×</button>
+          </div>
+          <button class="btn" id="sound" aria-pressed="false">Sound off</button>
+        </div>
+      </div>
+      <div class="controls">
+        <div class="events">
+          <button class="ev" data-ev="spray"><b>Spray cleaner</b><small>solvent in the air, nothing else</small></button>
+          <button class="ev" data-ev="breath"><b>Breathe on it</b><small>CO₂ spike, a trace of VOC</small></button>
+          <button class="ev" data-ev="warm"><b>Warm the room</b><small>pack drifts up a few degrees</small></button>
+          <button class="ev" data-ev="fault"><b>Charger fault</b><small>pack heats 4 °C a minute</small></button>
+          <button class="ev vent" data-ev="vent" style="grid-column:1/-1"><b>Vent a cell</b><small>solvent vapour and CO₂ together, then self-heating</small></button>
+        </div>
+        <div class="row2">
+          <button class="btn hush" id="hush">TEST / HUSH</button>
+          <button class="btn" id="reset">Reset</button>
+        </div>
+        <div class="evidence">
+          <div class="evi" id="eGas" data-l="0"><div class="k">GAS · SGP40</div><div class="v">NONE</div><div class="bar"><i></i></div></div>
+          <div class="evi" id="eCo2" data-l="0"><div class="k">CO₂ · SCD41</div><div class="v">NONE</div><div class="bar"><i></i></div></div>
+          <div class="evi" id="eHeat" data-l="0"><div class="k">HEAT · NTC</div><div class="v">NONE</div><div class="bar"><i></i></div></div>
+        </div>
+        <div class="log" id="log" aria-live="polite"></div>
+      </div>
+    </div>
+    <div class="charts">
+      <div class="chart"><header><span>SGP40 RAW</span><b id="vGas">30000</b></header><canvas id="cGas"></canvas></div>
+      <div class="chart"><header><span>CO₂ PPM</span><b id="vCo2">550</b></header><canvas id="cCo2"></canvas></div>
+      <div class="chart"><header><span>PACK °C</span><b id="vHeat">24.0</b></header><canvas id="cHeat"></canvas></div>
+    </div>
+    <p class="note">The room and pack here are a model with stated assumptions, the same ones the hardware-in-the-loop tests use. The thresholds have not yet been checked against a real cell venting beside the board.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="head">
+      <h3>The real firmware, recorded</h3>
+      <h2>A vent at 400 s. Alarm 7.6 s later.</h2>
+      <p>Not the port above: this is the compiled <span class="mono">canary.elf</span> running on simavr's ATmega328P, with virtual Sensirion sensors answering its I²C commands with their datasheet framing and CRCs. The traces are what the firmware printed on its serial pin, one line a second.</p>
+    </div>
+    <div class="run"><canvas id="run" role="img" aria-label="Chart of the recorded run: the SGP40 raw signal drops sharply at 400 seconds, CO2 climbs in 5-second steps, the state goes from NORMAL to WARN to ALARM at 407.6 seconds, and the pack starts heating."></canvas></div>
+    <div class="legend"><span><i style="background:var(--gas)"></i>SGP40 raw (scaled)</span><span><i style="background:var(--co2)"></i>CO₂ ppm (scaled)</span><span><i style="background:var(--heat)"></i>pack °C (scaled)</span><span>band: firmware state</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap sheet">
+    <div>
+      <div class="head"><h3>Bill of materials, the parts that matter</h3></div>
+      <table>
+        <thead><tr><th>Ref</th><th>Part</th><th>Job</th></tr></thead>
+        <tbody>
+          <tr><td class="ref">U3</td><td>Sensirion SGP40</td><td>MOX gas sensor, solvent vapour</td></tr>
+          <tr><td class="ref">U5</td><td>Sensirion SCD41</td><td>photoacoustic CO₂, every 5 s</td></tr>
+          <tr><td class="ref">U4</td><td>Sensirion SHT40</td><td>humidity and air temperature</td></tr>
+          <tr><td class="ref">TH1</td><td>Murata NCU18XH103F60RB</td><td>1 % NTC on the thermal tab</td></tr>
+          <tr><td class="ref">J3</td><td>JST S2B-PH-SM4-TB</td><td>remote probe for packs in a frame</td></tr>
+          <tr><td class="ref">U2</td><td>Microchip ATmega328P-AU</td><td>runs the detector, 8 MHz</td></tr>
+          <tr><td class="ref">BZ1</td><td>Same Sky CMT-8504</td><td>100 dB at 10 cm, 4 kHz</td></tr>
+          <tr><td class="ref">Q1, D2</td><td>AO3400A, B5819W</td><td>sounder switch and clamp</td></tr>
+          <tr><td class="ref">U1</td><td>Diodes AP2112K-3.3</td><td>3.3 V from USB</td></tr>
+          <tr><td class="ref">J1</td><td>GCT USB4125-GF-A-0190</td><td>USB-C, power only</td></tr>
+        </tbody>
+      </table>
+      <p class="note">43 placements, 27 unique parts, all on the top side. Every part checked active at DigiKey/LCSC on 14 Oct 2026; one NRND thermistor was replaced.</p>
+    </div>
+    <div>
+      <div class="head"><h3>Checked on every build</h3></div>
+      <div class="checks">
+        <div class="check"><div class="tick"></div><div><b>ERC · 0 violations</b><span>schematic generated from the circuit code</span></div></div>
+        <div class="check"><div class="tick"></div><div><b>DRC · 0 errors · 0 warnings · 0 unconnected</b><span>with schematic parity, against PCBWay 2-layer limits</span></div></div>
+        <div class="check"><div class="tick"></div><div><b>27 nets · 11 MCU pins · 0 mismatches</b><span>schematic = circuit = board = firmware pin map</span></div></div>
+        <div class="check"><div class="tick"></div><div><b>HIL · {{HILOK}} / {{HILN}} checks · 9 scenarios</b><span>vent alarm in 7.6 s; spray and breath never alarm</span></div></div>
+        <div class="check"><div class="tick"></div><div><b>SPICE · drain clamped at 5.4 V</b><span>sounder driver on the 5 V rail, coil 0.5 to 4 mH</span></div></div>
+        <div class="check"><div class="tick"></div><div><b>Gerbers rebuild byte-identical</b><span>and read back by gerbv, an independent viewer</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap sheet">
+    <div>
+      <div class="head"><h3>Order one</h3><h2>From PCBWay, assembled</h2></div>
+      <ol class="steps">
+        <li><div>Upload <code>production/canary-gerbers.zip</code>: 2 layers, 1.6 mm, 6/6 mil, 0.3 mm holes, yellow mask, black silk, ENIG.</div></li>
+        <li><div>Add assembly, top side only, with <code>canary-bom-pcbway.csv</code> and <code>canary-cpl.csv</code>. Ask for no washing on the Sensirion parts.</div></li>
+        <li><div>Ask them to flash <code>canary.hex</code> through the Tag-Connect pads, fuses <code>E2 / D9 / FD</code>.</div></li>
+        <li><div>Plug it into any USB-C charger. Green blinks through a 90 s warm-up, then breathes.</div></li>
+      </ol>
+    </div>
+    <div>
+      <div class="head"><h3>Limits</h3><h2>What it is not, yet</h2></div>
+      <div class="limits">
+        <p>Not a certified safety device. Keep your smoke alarm.</p>
+        <p>The thresholds follow how venting cells are known to behave, but no real cell has vented beside this board yet. That test is next, and the numbers in <span class="mono">detect.h</span> may move.</p>
+        <p>No battery backup: when the outlet is dead, so is Canary.</p>
+        <p>No board has been assembled yet. Status: designed and verified in simulation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">Canary v1 · OffGrid Devices · CERN-OHL-S v2 · source: <a href="https://github.com/offgridevices/offgrid-hardware/tree/canary-v1/canary/v1">offgrid-hardware/canary/v1</a></div>
+</footer>
+
+<script>
+(() => {
+"use strict";
+/* ---------------------------------------------------------- detect.c port */
+const K = { WARMUP_S: 90, GAS_WEAK: 700, GAS_STRONG: 2500, CO2_RATE_WEAK: 250, CO2_RATE_STRONG: 1200,
+  CO2_EXCESS_STRONG: 4000, T_WEAK: 500, T_STRONG: 650, DTDT_WEAK: 10, DTDT_STRONG: 30, DTDT_MIN_T: 350,
+  DTDT_STRONG_MIN: 300, PERSIST_S: 3, ALARM_HOLD_S: 60, HUSH_S: 120 };
+const ST = { WARMUP: 0, NORMAL: 1, WARN: 2, ALARM: 3 };
+const NAMES = ["WARM-UP", "NORMAL", "WARN", "ALARM"];
+const LV = ["NONE", "WEAK", "STRONG"];
+const tdiv = (a, b) => Math.trunc(a / b);
+function detInit() {
+  return { t: 0, state: 0, gasBase: 0, gasInit: false, gasDev: 0, co2: new Array(13).fill(0), co2n: 0, co2i: 0,
+    co2Base: 0, co2Rate: 0, co2Ex: 0, th: new Array(7).fill(0), tn: 0, ti: 0, dtdt: 0, eg: 0, ec: 0, eh: 0,
+    persist: 0, alarmSince: 0, clearAt: 0, hushUntil: 0, hushed: false, atHush: 0 };
+}
+function gasUpdate(d, sraw) {
+  const s = sraw << 8;
+  if (!d.gasInit) { d.gasBase = s; d.gasInit = true; }
+  else if (d.t < K.WARMUP_S) d.gasBase += (s - d.gasBase) >> 2;
+  else if (s > d.gasBase) d.gasBase += (s - d.gasBase) >> 3;
+  else if (d.gasDev < K.GAS_WEAK) d.gasBase -= (d.gasBase - s) >> 11;
+  const dev = (d.gasBase >> 8) - sraw;
+  d.gasDev = dev < 0 ? 0 : Math.min(dev, 60000);
+}
+function co2Update(d, ppm) {
+  d.co2[d.co2i] = ppm; d.co2i = (d.co2i + 1) % 13; if (d.co2n < 13) d.co2n++;
+  if (d.co2n === 1) d.co2Base = ppm << 4;
+  const oldest = d.co2n < 13 ? 0 : d.co2i, span = (d.co2n - 1) * 5;
+  d.co2Rate = span ? tdiv((ppm - d.co2[oldest]) * 60, span) : 0;
+  const p = ppm << 4;
+  if (p < d.co2Base) d.co2Base += (p - d.co2Base) >> 2;
+  else if (d.co2Ex < 1000) d.co2Base += (p - d.co2Base) >> 9;
+  const ex = ppm - (d.co2Base >> 4);
+  d.co2Ex = ex < 0 ? 0 : Math.min(ex, 30000);
+}
+function heatUpdate(d, t) {
+  if (d.t % 10 !== 0 && d.tn) return;
+  d.th[d.ti] = t; d.ti = (d.ti + 1) % 7; if (d.tn < 7) d.tn++;
+  const oldest = d.tn < 7 ? 0 : d.ti, span = (d.tn - 1) * 10;
+  d.dtdt = span ? tdiv((t - d.th[oldest]) * 60, span) : 0;
+}
+const grade = (v, w, s) => v >= s ? 2 : v >= w ? 1 : 0;
+function detStep(d, inp) {
+  d.t++;
+  gasUpdate(d, inp.sraw);
+  if (inp.co2New) co2Update(d, inp.co2);
+  heatUpdate(d, inp.tp);
+  const tp = inp.tp;
+  d.eg = d.t < K.WARMUP_S ? 0 : grade(d.gasDev, K.GAS_WEAK, K.GAS_STRONG);
+  d.ec = Math.max(grade(d.co2Rate, K.CO2_RATE_WEAK, K.CO2_RATE_STRONG), grade(d.co2Ex, 1500, K.CO2_EXCESS_STRONG));
+  let b = grade(d.dtdt, K.DTDT_WEAK, K.DTDT_STRONG);
+  if (b === 2 && tp < K.DTDT_STRONG_MIN) b = 1;
+  if (b === 1 && tp < K.DTDT_MIN_T) b = 0;
+  d.eh = Math.max(grade(tp, K.T_WEAK, K.T_STRONG), b);
+  const g = d.eg, c = d.ec, h = d.eh;
+  const alarm = (g && c && (g === 2 || c === 2)) || h === 2 || (h && (g || c)) || (g === 2 && c === 2);
+  const warn = g || c || h, sum = g + c + h;
+  d.persist = alarm ? Math.min(d.persist + 1, 255) : 0;
+  if (d.state === ST.ALARM) {
+    if (alarm) d.clearAt = d.t + K.ALARM_HOLD_S;
+    if (inp.button && !d.hushed) { d.hushed = true; d.hushUntil = d.t + K.HUSH_S; d.atHush = sum; }
+    else if (d.hushed && (d.t >= d.hushUntil || sum > d.atHush)) d.hushed = false;
+    if (!alarm && d.t >= d.clearAt) { d.hushed = false; d.state = warn ? ST.WARN : ST.NORMAL; }
+    return;
+  }
+  if (d.persist >= K.PERSIST_S) { d.state = ST.ALARM; d.alarmSince = d.t; d.clearAt = d.t + K.ALARM_HOLD_S; d.hushed = false; return; }
+  d.state = d.t < K.WARMUP_S ? ST.WARMUP : warn ? ST.WARN : ST.NORMAL;
+}
+
+/* ------------------------------------------------------------ the world */
+let seed = 7;
+const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+const gauss = () => { let u = 0; for (let i = 0; i < 6; i++) u += rnd(); return u - 3; };
+let det, t, events, hist, buttonQueued, co2Last, logLines, alarmStartMs = 0;
+function world(t) {
+  let sraw = 30000 + gauss() * 15, co2 = 550 + gauss() * 10, tp = 24 + gauss() * 0.03;
+  for (const e of events) {
+    const dt = t - e.t0; if (dt < 0) continue;
+    if (e.k === "spray") sraw -= 4000 * (1 - Math.exp(-dt / 5)) * Math.exp(-dt / 120);
+    if (e.k === "breath") { co2 += 2500 * (Math.min(dt, 20) / 20) * Math.exp(-Math.max(dt - 20, 0) / 30); sraw -= 300 * Math.exp(-dt / 60); }
+    if (e.k === "warm") tp += 9 * (1 - Math.exp(-dt / 600));
+    if (e.k === "fault") tp += 4 / 60 * dt;
+    if (e.k === "vent") {
+      sraw -= 8000 * (1 - Math.exp(-dt / 8));
+      co2 += 6000 * (1 - Math.exp(-dt / 25));
+      tp += 0.3 / 60 * dt + 0.5 * (Math.exp(Math.min(dt, 900) / 120) - 1);
+    }
+  }
+  return { sraw: Math.max(0, Math.round(sraw)), co2: Math.max(0, Math.round(co2)), tp: Math.min(tp, 160) };
+}
+function log(s) {
+  logLines.unshift(`<b>t=${t}s</b> ${s}`);
+  logLines.length = Math.min(logLines.length, 40);
+  $("log").innerHTML = logLines.join("<br>");
+}
+function reset() {
+  det = detInit(); t = 0; events = []; hist = []; buttonQueued = false; co2Last = 550; logLines = [];
+  for (let i = 0; i < 120; i++) tick();           // learned baselines, past warm-up
+  log("watching. baselines learned.");
+}
+function tick() {
+  t++;
+  const w = world(t);
+  const co2New = t % 5 === 0;
+  if (co2New) co2Last = w.co2;
+  const before = det.state, wasHushed = det.hushed;
+  detStep(det, { sraw: w.sraw, co2: co2Last, co2New, tp: Math.round(w.tp * 10), button: buttonQueued });
+  buttonQueued = false;
+  if (det.state === ST.ALARM && before !== ST.ALARM) alarmStartMs = performance.now();
+  hist.push([t, w.sraw, co2Last, w.tp]);
+  if (hist.length > 320) hist.shift();
+  if (logLines && det.state !== before && t > 120) {
+    const why = `gas ${LV[det.eg]}, CO₂ ${LV[det.ec]}, heat ${LV[det.eh]}`;
+    log(`<span style="color:var(--${["muted","ok","warn","alarm"][det.state]})">${NAMES[det.state]}</span> · ${why}`);
+  }
+  if (logLines && det.hushed !== wasHushed) log(det.hushed ? "hushed for 120 s" : "hush over, sounding");
+}
+
+/* ------------------------------------------------------------- the page */
+const $ = (id) => document.getElementById(id);
+let speed = 10, acc = 0, last = performance.now(), sound = false, actx = null, osc = null, gain = null;
+const sp = { 1: $("sp1"), 10: $("sp10"), 60: $("sp60") };
+for (const [v, el] of Object.entries(sp)) el.addEventListener("click", () => {
+  speed = +v; for (const e of Object.values(sp)) e.setAttribute("aria-pressed", e === el ? "true" : "false");
+});
+document.querySelectorAll(".ev").forEach((b) => b.addEventListener("click", () => {
+  events.push({ k: b.dataset.ev, t0: t });
+  log(b.querySelector("b").textContent.toLowerCase());
+}));
+$("hush").addEventListener("click", () => { buttonQueued = true; if (det.state !== ST.ALARM) log("self-test: lights, beep, SGP40 ok"); selfTestUntil = performance.now() + 900; });
+$("reset").addEventListener("click", reset);
+$("sound").addEventListener("click", () => {
+  sound = !sound;
+  $("sound").textContent = sound ? "Sound on" : "Sound off";
+  $("sound").setAttribute("aria-pressed", String(sound));
+  if (sound && !actx) {
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      osc = actx.createOscillator(); gain = actx.createGain();
+      osc.type = "square"; osc.frequency.value = 4000; gain.gain.value = 0;
+      osc.connect(gain).connect(actx.destination); osc.start();
+    } catch (e) { actx = null; }
+  }
+});
+let selfTestUntil = 0;
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function chart(id, idx, lo, hi, color, fmt, vid) {
+  const c = $(id), r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (c.width !== Math.round(r.width * dpr)) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); }
+  const g = c.getContext("2d"), W = c.width, H = c.height;
+  g.clearRect(0, 0, W, H);
+  g.strokeStyle = css("--chart-grid"); g.lineWidth = dpr;
+  for (let i = 1; i < 4; i++) { g.beginPath(); g.moveTo(0, H * i / 4); g.lineTo(W, H * i / 4); g.stroke(); }
+  if (!hist.length) return;
+  const t1 = hist[hist.length - 1][0], t0 = t1 - 300;
+  const lo2 = Math.min(lo, ...hist.map((h) => h[idx])), hi2 = Math.max(hi, ...hist.map((h) => h[idx]));
+  const X = (tt) => (tt - t0) / 300 * W, Y = (v) => H - 4 * dpr - (v - lo2) / (hi2 - lo2) * (H - 8 * dpr);
+  g.beginPath();
+  hist.forEach((h, i) => i ? g.lineTo(X(h[0]), Y(h[idx])) : g.moveTo(X(h[0]), Y(h[idx])));
+  g.lineTo(X(t1), H); g.lineTo(X(hist[0][0]), H); g.closePath();
+  g.fillStyle = color + "22"; g.fill();
+  g.beginPath();
+  hist.forEach((h, i) => i ? g.lineTo(X(h[0]), Y(h[idx])) : g.moveTo(X(h[0]), Y(h[idx])));
+  g.strokeStyle = color; g.lineWidth = 2 * dpr; g.stroke();
+  const lh = hist[hist.length - 1];
+  g.fillStyle = color; g.beginPath(); g.arc(X(lh[0]) - 3 * dpr, Y(lh[idx]), 3.5 * dpr, 0, 7); g.fill();
+  $(vid).textContent = fmt(lh[idx]);
+}
+const t3 = (ms) => { const p = ms % 4000; return p < 3000 && (p % 1000) < 500; };
+function frame(now) {
+  const dt = Math.min(now - last, 250); last = now;
+  acc += dt / 1000 * speed;
+  while (acc >= 1) { tick(); acc -= 1; }
+  const ms = now, st = det.state, name = NAMES[st];
+  let g = 0, a = 0, r = 0;
+  if (now < selfTestUntil) { const p = (selfTestUntil - now) / 900; g = p > .66 ? 1 : 0; a = p > .33 && p <= .66 ? 1 : 0; r = p <= .33 ? 1 : 0; }
+  else if (st === ST.NORMAL) { const p = ms % 4000; g = 0.25 + 0.75 * (p < 2000 ? p / 2000 : (4000 - p) / 2000); }
+  else if (st === ST.WARMUP) g = (ms % 1000) < 500 ? 0.8 : 0;
+  else if (st === ST.WARN) a = (ms % 1000) < 250 ? 1 : 0.08;
+  else if (st === ST.ALARM) r = (ms % 250) < 125 ? 1 : 0.05;
+  $("ledG").style.opacity = g; $("ledA").style.opacity = a; $("ledR").style.opacity = r;
+  const sounding = st === ST.ALARM && !det.hushed && t3(now - alarmStartMs);
+  const tone = sounding || (now < selfTestUntil && r > 0);
+  const W = $("board").clientWidth;
+  [["ring1", 0], ["ring2", 0.5]].forEach(([id, ph]) => {
+    const el = $(id), f = ((ms / 700) + ph) % 1;
+    el.style.opacity = tone ? (1 - f) : 0;
+    const d = (0.06 + f * 0.22) * W; el.style.width = d + "px"; el.style.height = d + "px";
+  });
+  if (gain) gain.gain.setTargetAtTime(sound && tone ? 0.04 : 0, actx.currentTime, 0.005);
+  const pill = $("pill");
+  if (pill.textContent !== (det.hushed ? "HUSHED" : name)) { pill.textContent = det.hushed ? "HUSHED" : name; pill.dataset.st = name; }
+  $("clock").textContent = `t = ${t} s`;
+  [["eGas", det.eg], ["eCo2", det.ec], ["eHeat", det.eh]].forEach(([id, l]) => {
+    const el = $(id); if (el.dataset.l !== String(l)) { el.dataset.l = l; el.querySelector(".v").textContent = LV[l]; }
+  });
+  chart("cGas", 1, 29000, 30100, css("--gas"), (v) => v.toFixed(0), "vGas");
+  chart("cCo2", 2, 400, 900, css("--co2"), (v) => v.toFixed(0), "vCo2");
+  chart("cHeat", 3, 22, 30, css("--heat"), (v) => v.toFixed(1), "vHeat");
+  requestAnimationFrame(frame);
+}
+
+/* ---------------------------------------------------- the recorded run */
+const RUN = {{VENT}};
+function drawRun() {
+  const c = $("run"), r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
+  const g = c.getContext("2d"), W = c.width, H = c.height, padL = 44 * dpr, padB = 26 * dpr, padT = 30 * dpr;
+  const t0 = RUN[0][0], t1 = RUN[RUN.length - 1][0];
+  const X = (t) => padL + (t - t0) / (t1 - t0) * (W - padL - 10 * dpr);
+  const band = 14 * dpr, plotH = H - padB - padT - band - 8 * dpr;
+  g.font = `${11 * dpr}px ${css("--mono") || "monospace"}`;
+  g.fillStyle = css("--muted"); g.strokeStyle = css("--chart-grid"); g.lineWidth = dpr;
+  for (let tt = Math.ceil(t0 / 50) * 50; tt <= t1; tt += 50) {
+    g.beginPath(); g.moveTo(X(tt), padT); g.lineTo(X(tt), padT + plotH); g.stroke();
+    g.fillText(`${tt} s`, X(tt) - 14 * dpr, H - 8 * dpr);
+  }
+  const series = [[1, css("--gas"), 21000, 31000, true], [2, css("--co2"), 0, 7000, false], [3, css("--heat"), 200, 900, false]];
+  for (const [i, col, lo, hi] of series) {
+    g.beginPath();
+    RUN.forEach((row, k) => {
+      const y = padT + plotH - (Math.max(lo, Math.min(hi, row[i])) - lo) / (hi - lo) * plotH;
+      k ? g.lineTo(X(row[0]), y) : g.moveTo(X(row[0]), y);
+    });
+    g.strokeStyle = col; g.lineWidth = 2 * dpr; g.stroke();
+  }
+  const sc = [css("--muted"), css("--ok"), css("--warn"), css("--alarm"), css("--warn")];
+  RUN.forEach((row, k) => {
+    if (k === RUN.length - 1) return;
+    g.fillStyle = sc[row[4]]; g.fillRect(X(row[0]), padT + plotH + 8 * dpr, X(RUN[k + 1][0]) - X(row[0]) + 1, band);
+  });
+  const mark = (tt, label, col, dy = 0) => {
+    g.strokeStyle = col; g.setLineDash([4 * dpr, 4 * dpr]); g.beginPath(); g.moveTo(X(tt), padT - 6 * dpr); g.lineTo(X(tt), padT + plotH); g.stroke(); g.setLineDash([]);
+    g.fillStyle = col; g.font = `600 ${12 * dpr}px ${css("--mono") || "monospace"}`; g.fillText(label, X(tt) + 5 * dpr, padT - 10 * dpr + dy * dpr);
+  };
+  mark(400, "VENT", css("--fg"));
+  mark(407.6, "ALARM +7.6 s", css("--alarm"), 22);
+}
+
+reset();
+drawRun();
+window.addEventListener("resize", drawRun);
+try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawRun); } catch (e) {}
+new MutationObserver(drawRun).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+requestAnimationFrame(frame);
+})();
+</script>

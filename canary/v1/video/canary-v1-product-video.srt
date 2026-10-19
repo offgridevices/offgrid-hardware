@@ -1,0 +1,184 @@
+1
+00:00:00,600 --> 00:00:01,380
+This is Canary.
+
+2
+00:00:01,900 --> 00:00:09,080
+A small yellow board that sits beside a lithium battery while it charges, and notices trouble before there is any smoke.
+
+3
+00:00:12,033 --> 00:00:16,333
+E-bike and scooter batteries get charged in hallways and bedrooms, often overnight.
+
+4
+00:00:16,033 --> 00:00:19,433
+When a cell fails, it does not start with smoke.
+
+5
+00:00:19,133 --> 00:00:21,233
+It starts with a vent:
+
+6
+00:00:20,933 --> 00:00:25,033
+the electrolyte boils off as solvent vapour and carbon dioxide.
+
+7
+00:00:24,733 --> 00:00:28,713
+Then the cell heats itself, runs away, and burns.
+
+8
+00:00:28,673 --> 00:00:36,133
+A smoke alarm only reacts at the very end of that chain, when the fire may already be between you and the door.
+
+9
+00:00:38,600 --> 00:00:44,260
+Grid storage batteries and electric car packs already carry off-gas detectors for exactly this.
+
+10
+00:00:43,960 --> 00:00:46,860
+The battery in your hallway has nothing.
+
+11
+00:00:46,560 --> 00:00:49,640
+So I designed one you can order fully assembled.
+
+12
+00:00:52,233 --> 00:00:52,853
+Here it is.
+
+13
+00:00:53,193 --> 00:01:00,353
+Sixty by forty millimetres, two copper layers, and every part on the top side, so the factory assembles it in a single pass.
+
+14
+00:01:01,033 --> 00:01:03,993
+Power comes in over USB-C, from any phone charger.
+
+15
+00:01:09,233 --> 00:01:12,013
+An At-mega three twenty-eight P runs the firmware.
+
+16
+00:01:12,553 --> 00:01:17,513
+On the right, behind a slot that keeps the board's own warmth away, is the sensor head:
+
+17
+00:01:17,653 --> 00:01:25,153
+a Sensirion SGP40 metal-oxide gas sensor, which reacts to solvent vapour, and an SHT40 for humidity and air temperature.
+
+18
+00:01:24,853 --> 00:01:30,353
+In the middle sits a Sensirion SCD41, a photoacoustic carbon dioxide sensor.
+
+19
+00:01:30,053 --> 00:01:39,233
+Bottom left is the thermal tab, another island cut free by slots, with copper on both faces and a one percent thermistor.
+
+20
+00:01:38,933 --> 00:01:43,113
+Lay the board on the pack, and the tab reads the pack's skin temperature.
+
+21
+00:01:42,813 --> 00:01:48,573
+If the pack charges inside the frame, a remote probe plugs into the connector beside it.
+
+22
+00:01:48,273 --> 00:01:49,053
+Up top:
+
+23
+00:01:48,753 --> 00:01:54,453
+a one hundred decibel sounder, three status lights, and a test and hush button.
+
+24
+00:01:57,567 --> 00:01:59,967
+The firmware never trusts a single sensor.
+
+25
+00:02:00,407 --> 00:02:02,387
+Cleaning spray trips the gas sensor.
+
+26
+00:02:02,727 --> 00:02:05,387
+Someone breathing nearby raises carbon dioxide.
+
+27
+00:02:06,227 --> 00:02:07,927
+A warm room warms the pack.
+
+28
+00:02:08,307 --> 00:02:12,087
+Each of those is one kind of evidence, and earns an amber warning at most.
+
+29
+00:02:12,727 --> 00:02:15,127
+A venting cell is different.
+
+30
+00:02:14,827 --> 00:02:19,887
+Solvent vapour and carbon dioxide arrive together, and then the pack starts to heat.
+
+31
+00:02:20,367 --> 00:02:27,167
+Two kinds of evidence at once, or a pack heating faster than three degrees a minute, and Canary goes to full alarm.
+
+32
+00:02:29,433 --> 00:02:41,793
+To prove the firmware, I ran the real compiled binary on a simulated At-mega chip, with virtual Sensirion sensors on its I2C bus, speaking their datasheet commands, and played scenarios into it.
+
+33
+00:02:42,073 --> 00:02:45,373
+Here a cell vents at the four hundred second mark.
+
+34
+00:02:45,073 --> 00:02:56,673
+The gas signal plunges, carbon dioxide climbs, and seven and a half seconds later the red light flashes, and the sounder starts the three-pulse pattern that smoke alarms use, at four kilohertz.
+
+35
+00:02:58,700 --> 00:03:01,380
+Everything is generated from code, and checked.
+
+36
+00:03:01,940 --> 00:03:05,860
+The schematic passes the electrical rules check with zero violations.
+
+37
+00:03:06,580 --> 00:03:16,040
+The board passes design rules with zero errors, zero warnings and zero unconnected pads, against P C B Way's own limits.
+
+38
+00:03:15,740 --> 00:03:22,800
+Sixty-five hardware-in-the-loop checks pass across nine scenarios, and a SPICE model shows the sounder driver stays clamped just above the supply.
+
+39
+00:03:25,500 --> 00:03:37,760
+To get one, upload the Gerber zip, the bill of materials and the placement file to P C B Way, ask them to flash the included firmware, and plug it into a USB charger.
+
+40
+00:03:37,460 --> 00:03:39,240
+One honest caveat.
+
+41
+00:03:38,940 --> 00:03:47,200
+The thresholds follow how venting cells are known to behave, but they have not yet been tested against a real cell venting beside this board.
+
+42
+00:03:46,900 --> 00:03:49,240
+That test comes next.
+
+43
+00:03:49,220 --> 00:03:53,220
+Until then, Canary is an early warning, not a certified alarm.
+
+44
+00:03:52,920 --> 00:03:53,760
+Keep your smoke alarm.
+
+45
+00:03:56,000 --> 00:03:56,620
+Canary.
+
+46
+00:03:56,700 --> 00:03:59,300
+Hear the battery, before you smell the smoke.
+
