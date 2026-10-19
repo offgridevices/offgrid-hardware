@@ -4957,7 +4957,7 @@
 		)
 		(uuid "082fe06c-c116-89d1-8c9a-51b3ad2feaf6")
 	)
-	(global_label "IO3"
+	(global_label "REFL_DET"
 		(shape passive)
 		(at 74.93 116.84 0)
 		(fields_autoplaced yes)
@@ -4967,7 +4967,7 @@
 			)
 			(justify left)
 		)
-		(uuid "1c074a5a-baac-b8e3-6e7e-ca8c95f078c1")
+		(uuid "63519405-b0ab-1e4a-3367-dbec92f38dc8")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 74.93 116.84 0)
 			(effects
@@ -4990,7 +4990,7 @@
 		)
 		(uuid "c71e6abb-ddaf-165d-df50-bd0834884848")
 	)
-	(global_label "IO4"
+	(global_label "CHG_TS"
 		(shape passive)
 		(at 74.93 119.38 0)
 		(fields_autoplaced yes)
@@ -5000,7 +5000,7 @@
 			)
 			(justify left)
 		)
-		(uuid "73a83ba2-4688-1556-212c-0761807a7bb7")
+		(uuid "c99eb0e7-7cda-61c8-2784-dbfba16341cc")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 74.93 119.38 0)
 			(effects
@@ -9213,6 +9213,15 @@
 			)
 		)
 		(property "Manufacturer" "Murata"
+			(at 241.3 203.2 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "490-11253-1-ND"
 			(at 241.3 203.2 0)
 			(effects
 				(font

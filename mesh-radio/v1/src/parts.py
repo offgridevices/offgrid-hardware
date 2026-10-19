@@ -124,11 +124,15 @@ PARTS['BGA7L1BN6'] = ic(
     [('1', 'GND', PI), ('2', 'VCC', PI), ('3', 'AO', P), ('4', 'GND', PI), ('5', 'AI', P), ('6', 'C', I)],
     left=['5', '2', '6'], right=['3', '1', '4'])
 
-PARTS['LFCN1000'] = ic(
-    'LFCN-1000+', ('Mini-Circuits', US), 'C879868', '', 'og:FILTER-SMD_1206-4P-L3.2-W1.6-L',
-    'Low-pass filter DC-1000 MHz, 10 W, LTCC 1206',
-    [('1', 'RF IN', P), ('2', 'GND', PI), ('3', 'RF OUT', P), ('4', 'GND', PI)],
-    left=['1'], right=['3', '2', '4'], prefix='FL')
+# the same filter in 0805 with 8 pads (sim/rf: no stop-band re-entry 5.5-10 GHz,
+# where the LFCN-1000+ lets the 6th-10th harmonics through); 5.5 W at 25 C,
+# derating to 1 W at 125 C.  Pads: Mini-Circuits case GE0805C-2.
+PARTS['LFCG1000'] = ic(
+    'LFCG-1000+', ('Mini-Circuits', US), 'C4989745', '', 'og:FILTER-SMD_8P-L2.0-W1.3-BL_LFCG-XX',
+    'Low-pass filter DC-1000 MHz, 5.5 W, LTCC 0805',
+    [('8', 'RF IN', P), ('4', 'RF OUT', P), ('1', 'GND', PI), ('2', 'GND', PI), ('3', 'GND', PI),
+     ('5', 'GND', PI), ('6', 'GND', PI), ('7', 'GND', PI)],
+    left=['8'], right=['4', '1', '2', '3', '5', '6', '7'], prefix='FL')
 
 PARTS['UFL'] = ic(
     'U.FL-R-SMT-1(80)', ('Hirose Electric', JP), 'C88374', '', 'og:RF-SMD_FRF05002-JSS103M',
@@ -341,6 +345,7 @@ for v, code, lc in [('0R', '0R', 'C106231'), ('22R', '22R', 'C114765'), ('330R',
                     ('267k', '267K', 'C327360'), ('301k', '301K', 'C171693'), ('330k', '330K', 'C138006'), ('383k', '383K', 'C163468'),
                     ('510k', '510K', 'C137961'), ('562k', '562K', 'C273337'), ('1M', '1M', 'C138033'), ('1.5M', '1M5', 'C138034')]:
     res('R' + v, v, '0402', 'RC0402FR-07%sL' % code, lc)
+res('R49.9R', '49.9R', '0402', 'RC0402FR-0749R9L', 'C87044')
 res('R68_0805', '68R', '0805', 'RC0805FR-0768RL', 'C137498')
 # the pad's first resistor takes the most power (sim/rf: 118 mW at +22 dBm drive)
 res('R68_0805_AS', '68R', '0805', 'RCS080568R0FKEA', 'C2114866', VISHAY, '1% 0.4 W anti-surge')
@@ -367,6 +372,10 @@ _two('FB', 'FB120', 'BLM15AG100SN1D', MURATA, 'C76882', 'og:L_0402', '10R@100MHz
 # diodes, LEDs, discretes
 _two('D', 'RB060MM', 'RB060MM-30TR', ROHM, 'C308720', 'og:SOD-123FL', 'RB060MM-30', 'Schottky 30 V 2 A, SOD-123FL',
      ('Device', 'D_Schottky'), {'K': '1', 'A': '2'})
+# the missing-antenna detector's diode (zero-bias RF Schottky, pin 1 cathode)
+_two('D', 'BAT15', 'BAT1502ELE6327XTMA1', ('Infineon Technologies', 'Germany'), 'C533619',
+     'og:TSLP-2-19_L1.0-W0.6-P0.65-RD', 'BAT15-02EL', 'RF Schottky detector diode, TSLP-2', ('Device', 'D_Schottky'),
+     {'K': '1', 'A': '2'})
 _two('D', 'ZENER4V7', 'UDZVTE-174.7B', ROHM, 'C209560', 'og:SOD-323FL', '4.7V', 'Zener 4.7 V 200 mW, SOD-323FL',
      ('Device', 'D_Zener'), {'K': '1', 'A': '2'})
 PARTS['LM66100'] = ic('LM66100DCKR', TI, 'C2869734', '', 'og:SC-70-6',
@@ -413,6 +422,9 @@ PARTS['HDR_2x10']['assembled'] = False
 # same footprint and rating unless the note says otherwise.  Parts added after the audit have no
 # DigiKey number yet (docs/part-audit.md lists them).
 DIGIKEY = {
+    'LFCG1000': '3157-LFCG-1000+CT-ND',
+    'BAT15': 'BAT1502ELE6327XTMA1CT-ND',
+    'R49.9R': '311-49.9LRCT-ND',
     'L3.6nH_0805': '490-16042-1-ND',  # sim/rf fixes, checked 19 Oct
     'L3.2nH_0805': '490-16041-1-ND',  # sim/rf fixes, checked 19 Oct
     'HV2.0pF': '490-8124-1-ND',  # sim/rf fixes, checked 19 Oct
@@ -466,7 +478,6 @@ DIGIKEY = {
     'LED_B': '160-1647-1-ND',
     'LED_G': '160-1446-1-ND',
     'LED_R': '160-1447-1-ND',
-    'LFCN1000': '3157-LFCN-1000+CT-ND',
     'NMOS': 'SSM3K56ACTL3FCT-ND',
     'NRF52840': '4823-NRF52840-QIAA-F-R7CT-ND',
     'NTC10K': '490-4801-1-ND',

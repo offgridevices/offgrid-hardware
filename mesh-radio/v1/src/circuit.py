@@ -253,7 +253,7 @@ def mcu():
         'AD10': 'DRONE_RX', 'AC11': 'DRONE_TX', 'AD12': 'GPS_PPS', 'AC13': 'NRF_RESET',
         'AC15': 'GPS_RX', 'AD16': 'GPS_TX', 'AC17': 'DRONE_CTS', 'AD18': 'DRONE_RTS', 'AC19': 'GPS_EN',
         'AD20': 'CHG_STAT1', 'AC21': 'CHG_STAT2', 'G1': 'DISP_DC', 'H2': 'DISP_RST',
-        'B11': 'IO1', 'A10': 'IO2', 'B9': 'IO3', 'A8': 'IO4',
+        'B11': 'IO1', 'A10': 'IO2', 'B9': 'REFL_DET', 'A8': 'CHG_TS',
         'AD22': 'BTN_USER', 'Y23': 'PA_PWR_EN', 'W24': 'IO5', 'V23': 'LED_GREEN', 'U24': 'LED_BLUE',
         'T23': 'LNA_EN', 'R24': 'LORA_NRESET', 'P23': 'PA_EN', 'P2': 'DISP_BL', 'R1': 'GPS_RESET',
         'A20': 'LORA_NSS', 'B19': 'LORA_SCK', 'B17': 'LORA_MOSI', 'A16': 'LORA_MISO', 'B15': 'LORA_BUSY',
@@ -367,8 +367,15 @@ def frontend():
                           '1': GND, '3': GND, '4': GND, '6': GND, '10': GND, '12': GND, '13': GND}, note='antenna switch')
     R('R220k', '3V3', 'RF_SW_EN'); R('R330k', 'RF_SW_EN')
     C('C100p', '3V3'); C('C10n', '3V3')
-    # antenna path: LFCN-1000+ low-pass, 47 nH shunt to ground (ESD, ~transparent at 915 MHz), U.FL
-    add('FL', 'LFCN1000', {'1': 'ANT_SW', '3': 'ANT', '2': GND, '4': GND}, note='antenna low-pass')
+    # antenna path: LFCG-1000+ low-pass, 47 nH shunt to ground (ESD, ~transparent at 915 MHz), U.FL
+    add('FL', 'LFCG1000', {'8': 'ANT_SW', '4': 'ANT', '1': GND, '2': GND, '3': GND, '5': GND, '6': GND, '7': GND},
+        note='antenna low-pass')
+    # missing-antenna detector: a printed line beside the ANT line (layout.py),
+    # terminated in 49.9 R at its filter end; at its U.FL end the reflected
+    # wave is rectified into REFL_DET (P0.30, AIN6).  With the antenna off, firmware
+    # sees it ~1 ms into a packet and cuts the amplifier (sim/rf follow-up).
+    R('R49.9R', 'REFL_CPL'); add('D', 'BAT15', {'2': 'REFL_CPL', '1': 'REFL_DET'}, note='reflected-wave detector')
+    C('C1n', 'REFL_DET'); R('R100k', 'REFL_DET')
     L('L47nH', 'ANT', GND, note='antenna ESD shunt')
     add('J', 'UFL', {'1': 'ANT', '2': GND, '3': GND}, note='LoRa antenna')
     # LNA: DC block, 11 nH input match; C high = gain, low = bypass
@@ -443,10 +450,11 @@ def ports():
                             '6': None, '7': None, '9': None, '10': None}, note='GPS ESD')
     add('U', 'TPS22916', {'A2': '3V3', 'B2': 'GPS_EN', 'A1': '3V3_GPS', 'B1': GND}, note='GPS power switch')
     R('R1M', 'GPS_EN'); C('C1u', '3V3_GPS')
-    # Expansion header (fitted only when needed): a generic SPI display, I2C, six spare pins
+    # Expansion header (fitted only when needed): a generic SPI display, I2C, four
+    # spare pins (P0.30 / P0.31 read the antenna detector and the charger's NTC)
     add('J', 'HDR_2x10', {'1': '3V3', '2': GND, '3': 'I2C_SDA', '4': 'I2C_SCL', '5': 'DISP_SCK', '6': 'DISP_MOSI',
                           '7': 'DISP_MISO', '8': 'DISP_CS', '9': 'DISP_DC', '10': 'DISP_RST', '11': 'DISP_BL',
-                          '12': 'IO1', '13': 'IO2', '14': 'IO3', '15': 'IO4', '16': 'IO5', '17': 'IO6',
+                          '12': 'IO1', '13': 'IO2', '14': None, '15': None, '16': 'IO5', '17': 'IO6',
                           '18': GND, '19': GND, '20': '3V3'}, note='expansion header')
     # Buttons (by the USB-C, as on the Heltec V4) and LEDs (active high, as RAK4631)
     add('SW', 'B3U', {'1': 'NRF_RESET', '2': GND}, note='reset')

@@ -4659,8 +4659,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "5c10783a-3824-40b6-a3f7-5762a5d2d148")
-		(property "Reference" "R46"
+		(uuid "bb553619-ae3a-7acc-7cd7-150c0b33be9d")
+		(property "Reference" "R48"
 			(at 27.2 103.14 0)
 			(effects
 				(font
@@ -4735,7 +4735,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "R46")
+					(reference "R48")
 					(unit 1)
 				)
 			)
@@ -4828,8 +4828,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "6502bf76-3a2a-f692-1819-d83cc4fa9d63")
-		(property "Reference" "R47"
+		(uuid "7c9ba605-9d4e-9489-2841-04502ad388b5")
+		(property "Reference" "R49"
 			(at 39.9 108.22 0)
 			(effects
 				(font
@@ -4904,7 +4904,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "R47")
+					(reference "R49")
 					(unit 1)
 				)
 			)
@@ -4997,8 +4997,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "bb553619-ae3a-7acc-7cd7-150c0b33be9d")
-		(property "Reference" "R48"
+		(uuid "e9b217e4-f7f2-3586-74e4-e3c903078cca")
+		(property "Reference" "R50"
 			(at 52.6 103.14 0)
 			(effects
 				(font
@@ -5073,7 +5073,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "R48")
+					(reference "R50")
 					(unit 1)
 				)
 			)
@@ -5166,8 +5166,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "7c9ba605-9d4e-9489-2841-04502ad388b5")
-		(property "Reference" "R49"
+		(uuid "157294fb-f2c7-3545-eedf-8f017057b152")
+		(property "Reference" "R51"
 			(at 65.3 108.22 0)
 			(effects
 				(font
@@ -5242,7 +5242,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "R49")
+					(reference "R51")
 					(unit 1)
 				)
 			)
@@ -5335,8 +5335,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "6cb93f92-24c9-8ec1-32f1-d958d5eca183")
-		(property "Reference" "C87"
+		(uuid "fc7949ea-e7bc-b943-98ce-54c9c809a72b")
+		(property "Reference" "C88"
 			(at 78 108.22 0)
 			(effects
 				(font
@@ -5411,7 +5411,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C87")
+					(reference "C88")
 					(unit 1)
 				)
 			)
@@ -5504,8 +5504,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "fc7949ea-e7bc-b943-98ce-54c9c809a72b")
-		(property "Reference" "C88"
+		(uuid "1bb145b5-888b-b9af-f0a7-f86fedbe5909")
+		(property "Reference" "C89"
 			(at 90.7 103.14 0)
 			(effects
 				(font
@@ -5580,7 +5580,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C88")
+					(reference "C89")
 					(unit 1)
 				)
 			)
@@ -5686,8 +5686,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "1bb145b5-888b-b9af-f0a7-f86fedbe5909")
-		(property "Reference" "C89"
+		(uuid "7dc01fb6-8791-9895-d401-744b22c53048")
+		(property "Reference" "C90"
 			(at 103.4 103.14 0)
 			(effects
 				(font
@@ -5762,7 +5762,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C89")
+					(reference "C90")
 					(unit 1)
 				)
 			)
@@ -5868,8 +5868,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "7dc01fb6-8791-9895-d401-744b22c53048")
-		(property "Reference" "C90"
+		(uuid "6dcfe78f-12b9-786a-b442-7d7b8568134a")
+		(property "Reference" "C91"
 			(at 116.1 103.14 0)
 			(effects
 				(font
@@ -5935,7 +5935,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C90")
+					(reference "C91")
 					(unit 1)
 				)
 			)
@@ -6041,8 +6041,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "6dcfe78f-12b9-786a-b442-7d7b8568134a")
-		(property "Reference" "C91"
+		(uuid "68873397-b9b6-76f0-9b72-8d5323f0f0e9")
+		(property "Reference" "C92"
 			(at 128.8 103.14 0)
 			(effects
 				(font
@@ -6108,7 +6108,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C91")
+					(reference "C92")
 					(unit 1)
 				)
 			)
@@ -6214,8 +6214,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "e9b217e4-f7f2-3586-74e4-e3c903078cca")
-		(property "Reference" "R50"
+		(uuid "9d812529-1372-7c42-1185-ddb87bdf8669")
+		(property "Reference" "R52"
 			(at 141.5 110.76 0)
 			(effects
 				(font
@@ -6290,7 +6290,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "R50")
+					(reference "R52")
 					(unit 1)
 				)
 			)
@@ -6383,8 +6383,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "157294fb-f2c7-3545-eedf-8f017057b152")
-		(property "Reference" "R51"
+		(uuid "e1a18525-f51c-c3f4-9017-8e0a8fcd0f09")
+		(property "Reference" "R53"
 			(at 154.2 108.22 0)
 			(effects
 				(font
@@ -6459,7 +6459,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "R51")
+					(reference "R53")
 					(unit 1)
 				)
 			)
@@ -6552,8 +6552,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "68873397-b9b6-76f0-9b72-8d5323f0f0e9")
-		(property "Reference" "C92"
+		(uuid "a25538ad-ed12-a2ee-5d7c-0eba66df2824")
+		(property "Reference" "C93"
 			(at 166.9 103.14 0)
 			(effects
 				(font
@@ -6628,7 +6628,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C92")
+					(reference "C93")
 					(unit 1)
 				)
 			)
@@ -6734,8 +6734,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "a25538ad-ed12-a2ee-5d7c-0eba66df2824")
-		(property "Reference" "C93"
+		(uuid "82e92b7f-8999-3cb4-2dda-b54fca31292d")
+		(property "Reference" "C94"
 			(at 179.6 103.14 0)
 			(effects
 				(font
@@ -6810,7 +6810,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C93")
+					(reference "C94")
 					(unit 1)
 				)
 			)
@@ -6916,8 +6916,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "82e92b7f-8999-3cb4-2dda-b54fca31292d")
-		(property "Reference" "C94"
+		(uuid "f11282d5-1025-a9c7-928c-450d9c150bf4")
+		(property "Reference" "C95"
 			(at 192.3 103.14 0)
 			(effects
 				(font
@@ -6992,7 +6992,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C94")
+					(reference "C95")
 					(unit 1)
 				)
 			)
@@ -7098,8 +7098,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "f11282d5-1025-a9c7-928c-450d9c150bf4")
-		(property "Reference" "C95"
+		(uuid "8a5b9ec8-6d65-4893-5913-d2efcf6abb3d")
+		(property "Reference" "C96"
 			(at 205 103.14 0)
 			(effects
 				(font
@@ -7174,7 +7174,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C95")
+					(reference "C96")
 					(unit 1)
 				)
 			)
@@ -7280,8 +7280,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "8a5b9ec8-6d65-4893-5913-d2efcf6abb3d")
-		(property "Reference" "C96"
+		(uuid "57575833-ffdc-f072-3a91-f58a205fc800")
+		(property "Reference" "C97"
 			(at 217.7 103.14 0)
 			(effects
 				(font
@@ -7356,7 +7356,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C96")
+					(reference "C97")
 					(unit 1)
 				)
 			)
@@ -7462,8 +7462,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "57575833-ffdc-f072-3a91-f58a205fc800")
-		(property "Reference" "C97"
+		(uuid "c090c44f-34b5-d8db-8ec5-592efa8aff99")
+		(property "Reference" "C98"
 			(at 230.4 108.22 0)
 			(effects
 				(font
@@ -7538,7 +7538,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C97")
+					(reference "C98")
 					(unit 1)
 				)
 			)
@@ -7631,8 +7631,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "9d812529-1372-7c42-1185-ddb87bdf8669")
-		(property "Reference" "R52"
+		(uuid "0594c18d-3854-0e58-cdbf-c8b942b865a7")
+		(property "Reference" "R54"
 			(at 243.1 108.22 0)
 			(effects
 				(font
@@ -7707,7 +7707,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "R52")
+					(reference "R54")
 					(unit 1)
 				)
 			)
@@ -7800,8 +7800,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "c090c44f-34b5-d8db-8ec5-592efa8aff99")
-		(property "Reference" "C98"
+		(uuid "edfac054-a76d-8a4b-a382-627a57e9805b")
+		(property "Reference" "C99"
 			(at 255.8 103.14 0)
 			(effects
 				(font
@@ -7876,7 +7876,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "C98")
+					(reference "C99")
 					(unit 1)
 				)
 			)
@@ -7982,8 +7982,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "e1a18525-f51c-c3f4-9017-8e0a8fcd0f09")
-		(property "Reference" "R53"
+		(uuid "b8b7ed7e-6d6f-f716-bc93-96d3bf509d61")
+		(property "Reference" "R55"
 			(at 268.5 103.14 0)
 			(effects
 				(font
@@ -8058,7 +8058,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "R53")
+					(reference "R55")
 					(unit 1)
 				)
 			)
@@ -8151,8 +8151,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "0594c18d-3854-0e58-cdbf-c8b942b865a7")
-		(property "Reference" "R54"
+		(uuid "01debdc3-1605-3616-36b9-324ee47e4837")
+		(property "Reference" "R56"
 			(at 281.2 103.14 0)
 			(effects
 				(font
@@ -8227,7 +8227,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "R54")
+					(reference "R56")
 					(unit 1)
 				)
 			)
@@ -8320,8 +8320,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "b8b7ed7e-6d6f-f716-bc93-96d3bf509d61")
-		(property "Reference" "R55"
+		(uuid "92e65275-ac17-b52f-f1b2-619481e8721a")
+		(property "Reference" "R57"
 			(at 293.9 103.14 0)
 			(effects
 				(font
@@ -8396,7 +8396,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/2b2c8bd9-9e70-fab2-afb8-de35f83d5714"
-					(reference "R55")
+					(reference "R57")
 					(unit 1)
 				)
 			)
