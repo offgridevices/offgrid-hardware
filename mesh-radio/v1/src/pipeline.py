@@ -93,9 +93,10 @@ def _simple(g):
 def routing_keepouts(b):
     """Rule areas added only to the copy of the board handed to Freerouting:
 
-      - the RF lines' coplanar ground strip on F.Cu (the line's 0.18 mm gap
-        plus room for the ground pour beside it): no tracks or vias of
-        other nets, so the pour after routing runs along every RF line;
+      - the RF lines' coplanar ground strip on F.Cu (the line's gap plus
+        room for the ground pour beside it): no tracks or vias of other
+        nets, so the pour after routing runs along every RF line; other
+        nets' pins keep a 0.7 mm way out through it;
       - a strip along the outline (Freerouting keeps only its own
         clearance from it).
 
@@ -118,12 +119,16 @@ def routing_keepouts(b):
         if t.GetNetname() in board.RF_NETS + board.RF_EXTRA:
             band.append(line.buffer(t.GetWidth() / 2e6 + board.RF_GAP + 0.3))
         holes.append(line.buffer(t.GetWidth() / 2e6 + 0.12))
+    rf = set(board.RF_NETS + board.RF_EXTRA + ['GND'])
     for fp in b.GetFootprints():
         for p in fp.Pads():
             if p.IsOnLayer(pcbnew.F_Cu):
                 g = fanout.pad_poly(p, pcbnew.F_Cu)
                 if g is not None:
-                    holes.append(g.buffer(0.12))
+                    # another net's pin keeps a way out (0.7 mm round it): a
+                    # chip's supply or control pin beside an RF line would
+                    # otherwise be walled in (30 were, with 0.12)
+                    holes.append(g.buffer(0.12 if p.GetNetname() in rf or not p.GetNetname() else 0.7))
     keep = unary_union(band).difference(unary_union(holes))
     k = 0
     for q in _simple(keep):
