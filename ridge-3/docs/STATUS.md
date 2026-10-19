@@ -8,7 +8,7 @@ and simulation with this revision's result is in [`../TESTS.md`](../TESTS.md),
 the hardware tests' procedure in [`TEST_PLAN.md`](TEST_PLAN.md), and how to
 apply a decision to the design is in [`CHANGING.md`](CHANGING.md).
 
-## Where it stands (2026-10-14)
+## Where it stands (2026-10-19)
 
 | | State |
 |---|---|
@@ -392,3 +392,19 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
   check is now marginal (1.76 V on the die at 150 °C; D2, D6, T5): rev 2
   has 19 checks passing, 1 marginal, 3 failing.  Decisions D1-D11 open.
   Nothing ordered.
+- **2026-10-17** A question about trace corners: corner shape (miters,
+  arcs, Euler bends) matters to neither board's signals or currents (edges
+  of 1.7 ns or slower on traces a few centimetres long; at DC a corner
+  moves a track's resistance by under half a milliohm), but the review
+  found the 5 V rail's whole 2 A in its 0.2 mm feedback line: opened as
+  D12.  The copper solver's strip and ring check, claimed and not in the
+  repository, written (`../sim/selfcheck.py`): the solver is exact; the
+  grid draws a track one 0.05 mm cell wider than it is.
+- **2026-10-19** D10, D11 and D12 fixed, on the owner's word, in one change
+  to the FC: a third 3.3 V output capacitor, the 5 V BEC's enable divider,
+  feedback lines joined to their pours and hidden from the routers, 5 V and
+  9 V at 0.5 mm.  The FC placed and routed again (DRC 0 / 0 / 0, every
+  gate); `verify.py` 260 passed with every source.  The branch merged
+  `main` (Print Hub, SmokeBreak).  Every simulation is being run again on
+  the new FC.  REVISION stays 2.0: nothing of it was ordered.  Decisions D1-D9
+  open.  Nothing ordered.
