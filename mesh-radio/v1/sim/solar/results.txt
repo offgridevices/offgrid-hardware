@@ -1,62 +1,99 @@
-Study 5: 6 V 1 W panel through VINDPM (P5); charge-path control (P7, X5).
-Panel 12 cells, 7.2 V Voc, 0.185 A Isc at full sun; cell 100 mOhm; 3V3 load 13 mA.  Last 10 ms of 40 ms averaged.
+Study 5: 6 V 1 W panel through VINDPM (P5); charge-path control (P7, X5); ambient -40 .. 85 C.
+Panel 12 cells, 7.2 V Voc, 0.185 A Isc at full sun, cells at ambient + 25 C x sun; cell 100 mOhm at 25 C;
+3V3 load 13 mA.  Last 10 ms of 40 ms averaged.  Charging is allowed only between 0 and 45 C (firmware /CE
+inside the NTC window): at 25 C the criterion is P5 (the cell charges); at -40 / -20 / 0 / 60 / 85 C it is
+P7 (<= 1 mA into the cell).  The BQ25185 thermal regulation (TREG 100 C, 68.3 C/W) is in the model.
 
-               cell    sun  panel         BAT_P-VSYS path  Vpanel  Ipanel mA  Ppanel mW  MPP mW  VIN_CHG   VSYS  into cell mA  harvest %  verdict
--------------------  -----  -----  ----------------------  ------  ---------  ---------  ------  -------  -----  ------------  ---------  -------
-  3.0 V (precharge)  100 %   25 C  LM66100 CE=GND (drawn)   3.958      183.8      727.6    1046    3.609  3.053         169.6      49.29     PASS
-  3.0 V (precharge)  100 %   25 C        Schottky instead   6.808      111.2      757.1    1046    6.486  4.494         99.38      28.73     PASS
-  3.0 V (precharge)  100 %   60 C  LM66100 CE=GND (drawn)   3.958      182.8      723.5   868.3    3.609  3.052         168.6         59     PASS
-  3.0 V (precharge)  100 %   60 C        Schottky instead   5.841      111.2      649.6   868.3    5.519  4.494         99.38       34.6     PASS
-  3.0 V (precharge)   50 %   25 C  LM66100 CE=GND (drawn)   3.917      91.38      357.9   494.5    3.604  3.024         77.15      47.08     PASS
-  3.0 V (precharge)   50 %   25 C        Schottky instead   3.917      91.38      357.9   494.5    3.604  3.126         77.15      47.08     PASS
-  3.0 V (precharge)   50 %   60 C  LM66100 CE=GND (drawn)   3.917      90.92      356.1   404.9    3.604  3.024         76.69      57.15     PASS
-  3.0 V (precharge)   50 %   60 C        Schottky instead   3.917      90.92      356.1   404.9    3.604  3.125         76.69      57.15     PASS
-  3.0 V (precharge)   20 %   25 C  LM66100 CE=GND (drawn)   3.877      35.91      139.2   180.6    3.602  3.007         21.68      36.08     PASS
-  3.0 V (precharge)   20 %   25 C        Schottky instead   3.877      35.91      139.2   180.6    3.602  3.107         21.68      36.08     PASS
-  3.0 V (precharge)   20 %   60 C  LM66100 CE=GND (drawn)   3.877      35.75      138.6   145.2    3.602  3.007         21.52      44.53     PASS
-  3.0 V (precharge)   20 %   60 C        Schottky instead   3.877      35.75      138.6   145.2    3.602  3.107         21.52      44.53     PASS
-3.0 V (fast charge)  100 %   25 C  LM66100 CE=GND (drawn)   3.958      183.8      727.6    1046    3.609  3.053         169.6      49.29     PASS
-3.0 V (fast charge)  100 %   25 C        Schottky instead   3.958      183.8      727.6    1046    3.609  3.156         169.6      49.29     PASS
-3.0 V (fast charge)  100 %   60 C  LM66100 CE=GND (drawn)   3.958      182.8      723.5   868.3    3.609  3.052         168.6         59     PASS
-3.0 V (fast charge)  100 %   60 C        Schottky instead   3.958      182.8      723.5   868.3    3.609  3.156         168.6         59     PASS
-3.0 V (fast charge)   50 %   25 C  LM66100 CE=GND (drawn)   3.917      91.38      357.9   494.5    3.604  3.024         77.15      47.08     PASS
-3.0 V (fast charge)   50 %   25 C        Schottky instead   3.917      91.38      357.9   494.5    3.604  3.126         77.15      47.08     PASS
-3.0 V (fast charge)   50 %   60 C  LM66100 CE=GND (drawn)   3.917      90.92      356.1   404.9    3.604  3.024         76.69      57.15     PASS
-3.0 V (fast charge)   50 %   60 C        Schottky instead   3.917      90.92      356.1   404.9    3.604  3.125         76.69      57.15     PASS
-3.0 V (fast charge)   20 %   25 C  LM66100 CE=GND (drawn)   3.877      35.91      139.2   180.6    3.602  3.007         21.68      36.08     PASS
-3.0 V (fast charge)   20 %   25 C        Schottky instead   3.877      35.91      139.2   180.6    3.602  3.107         21.68      36.08     PASS
-3.0 V (fast charge)   20 %   60 C  LM66100 CE=GND (drawn)   3.877      35.75      138.6   145.2    3.602  3.007         21.52      44.53     PASS
-3.0 V (fast charge)   20 %   60 C        Schottky instead   3.877      35.75      138.6   145.2    3.602  3.107         21.52      44.53     PASS
-              4.1 V  100 %   25 C  LM66100 CE=GND (drawn)   4.824      183.1      883.4    1046    4.474  4.149         170.4       67.4     PASS
-              4.1 V  100 %   25 C        Schottky instead   4.824      183.1      883.4    1046    4.474  4.253         170.7      67.51     PASS
-              4.1 V  100 %   60 C  LM66100 CE=GND (drawn)   4.819      176.2        849   868.3    4.473  4.147         163.4      77.82     PASS
-              4.1 V  100 %   60 C        Schottky instead   4.819      176.2        849   868.3    4.473  4.251         163.7      77.95     PASS
-              4.1 V   50 %   25 C  LM66100 CE=GND (drawn)   4.763      90.96      433.2   494.5    4.451  4.123         78.17      65.07     PASS
-              4.1 V   50 %   25 C        Schottky instead   4.763      90.96      433.2   494.5    4.451  4.224         78.45       65.3     PASS
-              4.1 V   50 %   60 C  LM66100 CE=GND (drawn)   4.761      87.96      418.8   404.9     4.45  4.122         75.17       76.4     PASS
-              4.1 V   50 %   60 C        Schottky instead   4.761      87.96      418.8   404.9     4.45  4.223         75.45      76.69     PASS
-              4.1 V   20 %   25 C  LM66100 CE=GND (drawn)   4.712      35.61      167.8   180.6    4.436  4.107         22.78      51.78     PASS
-              4.1 V   20 %   25 C        Schottky instead   4.712      35.61      167.8   180.6    4.436  4.207         23.06      52.41     PASS
-              4.1 V   20 %   60 C  LM66100 CE=GND (drawn)   4.711      34.56      162.8   145.2    4.436  4.106         21.72      61.41     PASS
-              4.1 V   20 %   60 C        Schottky instead   4.711      34.56      162.8   145.2    4.436  4.207            22       62.2     PASS
+ cell    sun  ambient  rule         BAT_P-VSYS path  Vpanel  Ipanel mA  Ppanel mW  MPP mW  VIN_CHG   VSYS  into cell mA  harvest %  verdict
+-----  -----  -------  ----  ----------------------  ------  ---------  ---------  ------  -------  -----  ------------  ---------  -------
+3.0 V  100 %    -40 C    P7  LM66100 CE=GND (drawn)   4.046      183.9      743.9    1254    3.609  3.182         169.6       42.9     FAIL
+3.0 V  100 %    -40 C    P7        Schottky instead   8.227       11.8       97.1    1254     7.88  4.499       -0.0245   -0.00586     PASS
+3.0 V   20 %    -40 C    P7  LM66100 CE=GND (drawn)   3.977      35.89      142.8   242.6    3.602  3.023         21.66      26.99     FAIL
+3.0 V   20 %    -40 C    P7        Schottky instead   8.628       11.8      101.8   242.6    8.281  4.499       -0.0245    -0.0303     PASS
+4.1 V  100 %    -40 C    P7  LM66100 CE=GND (drawn)   5.046      183.6      926.4    1254    4.609  4.281         171.2       58.3     FAIL
+4.1 V  100 %    -40 C    P7        Schottky instead   8.227       11.8       97.1    1254     7.88  4.499      -0.02505  -0.008188     PASS
+4.1 V   20 %    -40 C    P7  LM66100 CE=GND (drawn)    4.83      35.66      172.2   242.6    4.454  4.124         22.87      38.88     FAIL
+4.1 V   20 %    -40 C    P7        Schottky instead   8.628       11.8      101.8   242.6    8.281  4.499      -0.02505   -0.04234     PASS
+3.0 V  100 %    -20 C    P7  LM66100 CE=GND (drawn)   4.018      183.9      738.9    1149    3.609  3.116         169.6      45.83     FAIL
+3.0 V  100 %    -20 C    P7        Schottky instead   7.697       11.8      90.84    1149    7.384  4.499      -0.02447  -0.006388     PASS
+3.0 V   20 %    -20 C    P7  LM66100 CE=GND (drawn)   3.946       35.9      141.7   221.8    3.602  3.015         21.67      29.45     FAIL
+3.0 V   20 %    -20 C    P7        Schottky instead   8.089       11.8      95.47   221.8    7.775  4.499      -0.02447    -0.0331     PASS
+4.1 V  100 %    -20 C    P7  LM66100 CE=GND (drawn)   4.951      183.5      908.5    1149    4.541  4.214           171      62.52     FAIL
+4.1 V  100 %    -20 C    P7        Schottky instead   7.697       11.8      90.84    1149    7.384  4.499      -0.02502  -0.008927     PASS
+4.1 V   20 %    -20 C    P7  LM66100 CE=GND (drawn)    4.79      35.67      170.8   221.8    4.445  4.115         22.86       42.4     FAIL
+4.1 V   20 %    -20 C    P7        Schottky instead   8.089       11.8      95.47   221.8    7.775  4.499      -0.02502   -0.04626     PASS
+3.0 V  100 %      0 C    P7  LM66100 CE=GND (drawn)   3.991      183.8      733.6    1046    3.609  3.067         169.6      49.54     FAIL
+3.0 V  100 %      0 C    P7        Schottky instead   7.168       11.8      84.58    1046    6.887  4.499      -0.02424  -0.006955     PASS
+3.0 V   20 %      0 C    P7  LM66100 CE=GND (drawn)   3.915      35.91      140.6   201.1    3.602  3.009         21.68      32.41     FAIL
+3.0 V   20 %      0 C    P7        Schottky instead    7.55       11.8      89.11   201.1     7.27  4.499      -0.02424   -0.03616     PASS
+4.1 V  100 %      0 C    P7  LM66100 CE=GND (drawn)   4.873      183.1      891.9    1046    4.491  4.164         170.4      67.65     FAIL
+4.1 V  100 %      0 C    P7        Schottky instead   7.168       11.8      84.58    1046    6.887  4.499      -0.02479  -0.009721     PASS
+4.1 V   20 %      0 C    P7  LM66100 CE=GND (drawn)   4.752      35.67      169.5   201.1    4.439  4.109         22.84      46.64     FAIL
+4.1 V   20 %      0 C    P7        Schottky instead    7.55       11.8      89.11   201.1     7.27  4.499      -0.02479   -0.05055     PASS
+3.0 V  100 %     25 C    P5  LM66100 CE=GND (drawn)   3.956      183.4      725.4   918.5    3.609  3.052         169.2      55.97     PASS
+3.0 V  100 %     25 C    P5        Schottky instead   3.956      183.4      725.4   918.5    3.609  3.156         169.2      55.97     PASS
+3.0 V   20 %     25 C    P5  LM66100 CE=GND (drawn)   3.876      35.91      139.2   175.5    3.602  3.007         21.68      37.12     PASS
+3.0 V   20 %     25 C    P5        Schottky instead   3.876      35.91      139.2   175.5    3.602  3.107         21.68      37.12     PASS
+4.1 V  100 %     25 C    P5  LM66100 CE=GND (drawn)    4.82        180      867.3   918.5    4.474  4.148         167.2      75.29     PASS
+4.1 V  100 %     25 C    P5        Schottky instead    4.82        180      867.3   918.5    4.474  4.252         167.5      75.42     PASS
+4.1 V   20 %     25 C    P5  LM66100 CE=GND (drawn)    4.71      35.58      167.6   175.5    4.436  4.107         22.74       53.2     PASS
+4.1 V   20 %     25 C    P5        Schottky instead    4.71      35.58      167.6   175.5    4.436  4.207         23.02      53.84     PASS
+3.0 V  100 %     60 C    P7  LM66100 CE=GND (drawn)   3.904      178.4      696.5   744.9    3.608  3.051         164.2       66.9     FAIL
+3.0 V  100 %     60 C    P7        Schottky instead   5.578      11.84      66.06   744.9      5.4  4.499       0.02004    0.00807     PASS
+3.0 V   20 %     60 C    P7  LM66100 CE=GND (drawn)    3.82      35.71      136.4   140.2    3.602  3.007         21.48      46.04     FAIL
+3.0 V   20 %     60 C    P7        Schottky instead   5.936      11.84       70.3   140.2    5.758  4.499       0.02004    0.04288     PASS
+4.1 V  100 %     60 C    P7  LM66100 CE=GND (drawn)    4.75      151.9      721.4   744.9    4.464   4.14         139.1      77.08     FAIL
+4.1 V  100 %     60 C    P7        Schottky instead   5.578      11.84      66.06   744.9      5.4  4.499       0.01946    0.01071     PASS
+4.1 V   20 %     60 C    P7  LM66100 CE=GND (drawn)   4.652       34.3      159.6   140.2    4.436  4.106         21.47      62.85     FAIL
+4.1 V   20 %     60 C    P7        Schottky instead   5.936      11.84       70.3   140.2    5.758  4.499       0.01946    0.05691     PASS
+3.0 V  100 %     85 C    P7  LM66100 CE=GND (drawn)   3.861        161      621.7     625    3.608  3.047         146.8      71.22     FAIL
+3.0 V  100 %     85 C    P7        Schottky instead   4.916      12.03      59.13     625    4.779  4.499         0.209     0.1003     PASS
+3.0 V   20 %     85 C    P7  LM66100 CE=GND (drawn)   3.778      34.82      131.6   115.6    3.602  3.007         20.59       53.5     FAIL
+3.0 V   20 %     85 C    P7        Schottky instead   5.261      12.03      63.29   115.6    5.124  4.499         0.209     0.5423     PASS
+4.1 V  100 %     85 C    P7  LM66100 CE=GND (drawn)   4.659      77.91        363     625    4.446  4.119         65.11      42.85     FAIL
+4.1 V  100 %     85 C    P7        Schottky instead   4.916      12.03      59.13     625    4.779  4.499        0.2082     0.1366     PASS
+4.1 V   20 %     85 C    P7  LM66100 CE=GND (drawn)   4.605      29.56      136.1   115.6    4.435  4.105         16.73      59.37     FAIL
+4.1 V   20 %     85 C    P7        Schottky instead   5.261      12.03      63.29   115.6    5.124  4.499        0.2082     0.7385     PASS
   harvest = cell charge power / panel MPP power.  The 3V3 load (13 mA) comes out of the panel first.
 
-                    case    cell         BAT_P-VSYS path   VSYS  BAT_P  charger BAT mA  LM66100 mA (BAT->SYS)  into cell mA                  criterion  verdict
-------------------------  ------  ----------------------  -----  -----  --------------  ---------------------  ------------  -------------------------  -------
-solar, charging disabled   3.7 V  LM66100 CE=GND (drawn)   3.75  3.737               0                 -169.7         169.6  P7: <= 1 mA into the cell     FAIL
-  USB, charging disabled   3.7 V  LM66100 CE=GND (drawn)  3.977  3.902               0                 -946.4         946.4  P7: <= 1 mA into the cell     FAIL
-           USB, charging   3.7 V  LM66100 CE=GND (drawn)  3.977  3.902               0                 -946.4         946.4     X5: ISET 497 mA +-10 %     FAIL
-           USB, charging  4.15 V  LM66100 CE=GND (drawn)  4.246   4.22               0                 -334.4         334.3     X5: ISET 497 mA +-10 %     PASS
-solar, charging disabled   3.7 V         LM66100 CE=VSYS   3.75  3.737               0                 -169.7         169.6  P7: <= 1 mA into the cell     FAIL
-  USB, charging disabled   3.7 V         LM66100 CE=VSYS  4.499    3.7               0                      0      -0.02484  P7: <= 1 mA into the cell     PASS
-           USB, charging   3.7 V         LM66100 CE=VSYS  4.305  3.807             497                      0           497     X5: ISET 497 mA +-10 %     PASS
-           USB, charging  4.15 V         LM66100 CE=VSYS  4.246   4.22               0                 -334.4         334.3     X5: ISET 497 mA +-10 %     PASS
-solar, charging disabled   3.7 V        Schottky instead  4.499    3.7               0                      0      -0.02205  P7: <= 1 mA into the cell     PASS
-  USB, charging disabled   3.7 V        Schottky instead  4.499    3.7               0                      0      -0.02205  P7: <= 1 mA into the cell     PASS
-           USB, charging   3.7 V        Schottky instead  4.305  3.807             497                      0           497     X5: ISET 497 mA +-10 %     PASS
-           USB, charging  4.15 V        Schottky instead   4.49   4.19           193.2                      0         193.2     X5: ISET 497 mA +-10 %     PASS
+                   case  ambient    cell         BAT_P-VSYS path   VSYS  BAT_P  charger BAT mA  LM66100 mA (BAT->SYS)  into cell mA                                  criterion  verdict
+-----------------------  -------  ------  ----------------------  -----  -----  --------------  ---------------------  ------------  -----------------------------------------  -------
+                    USB    -40 C   3.7 V  LM66100 CE=GND (drawn)  4.133  4.109               0                 -409.5         409.5                  P7: <= 1 mA into the cell     FAIL
+                    USB    -40 C   3.7 V         LM66100 CE=VSYS  4.142  4.109               0                 -409.5         409.5                  P7: <= 1 mA into the cell     FAIL
+                    USB    -40 C   3.7 V        Schottky instead  4.499    3.7               0                      0      -0.02485                  P7: <= 1 mA into the cell     PASS
+                    USB    -20 C   3.7 V  LM66100 CE=GND (drawn)  4.101  4.062               0                 -600.6         600.6                  P7: <= 1 mA into the cell     FAIL
+                    USB    -20 C   3.7 V         LM66100 CE=VSYS  4.499    3.7               0                      0      -0.02485                  P7: <= 1 mA into the cell     PASS
+                    USB    -20 C   3.7 V        Schottky instead  4.499    3.7               0                      0      -0.02482                  P7: <= 1 mA into the cell     PASS
+                    USB      0 C   3.7 V  LM66100 CE=GND (drawn)  4.034  3.971               0                 -881.3         881.3                  P7: <= 1 mA into the cell     FAIL
+                    USB      0 C   3.7 V         LM66100 CE=VSYS  4.499    3.7               0                      0      -0.02485                  P7: <= 1 mA into the cell     PASS
+                    USB      0 C   3.7 V        Schottky instead  4.499    3.7               0                      0      -0.02459                  P7: <= 1 mA into the cell     PASS
+                    USB     25 C   3.7 V  LM66100 CE=GND (drawn)  3.977  3.902               0                 -948.8         948.8  X5: <= ISET 497 mA +10 %, via the charger     FAIL
+                    USB     25 C   3.7 V         LM66100 CE=VSYS  4.307  3.807             497                      0           497  X5: <= ISET 497 mA +10 %, via the charger     PASS
+                    USB     25 C   3.7 V        Schottky instead  4.307  3.807             497                      0           497  X5: <= ISET 497 mA +10 %, via the charger     PASS
+                    USB     60 C   3.7 V  LM66100 CE=GND (drawn)  3.972  3.887               0                 -937.1         937.1                  P7: <= 1 mA into the cell     FAIL
+                    USB     60 C   3.7 V         LM66100 CE=VSYS  4.499    3.7               0                      0      -0.02464                  P7: <= 1 mA into the cell     PASS
+                    USB     60 C   3.7 V        Schottky instead  4.499    3.7               0                      0       0.01969                  P7: <= 1 mA into the cell     PASS
+                    USB     85 C   3.7 V  LM66100 CE=GND (drawn)  3.975  3.884               0                 -922.3         922.3                  P7: <= 1 mA into the cell     FAIL
+                    USB     85 C   3.7 V         LM66100 CE=VSYS  4.499    3.7               0                      0      -0.02355                  P7: <= 1 mA into the cell     PASS
+                    USB     85 C   3.7 V        Schottky instead  4.499    3.7               0                      0        0.2086                  P7: <= 1 mA into the cell     PASS
+solar, /CE high at 25 C     25 C   3.7 V  LM66100 CE=GND (drawn)   3.75  3.736               0                 -168.4         168.3                  P7: <= 1 mA into the cell     FAIL
+  USB, /CE high at 25 C     25 C   3.7 V  LM66100 CE=GND (drawn)  3.977  3.902               0                 -948.8         948.8                  P7: <= 1 mA into the cell     FAIL
+ USB, 4.15 V cell, 25 C     25 C  4.15 V  LM66100 CE=GND (drawn)  4.247   4.22               0                 -337.9         337.9  X5: <= ISET 497 mA +10 %, via the charger     PASS
+solar, /CE high at 25 C     25 C   3.7 V         LM66100 CE=VSYS   3.75  3.736               0                 -168.4         168.3                  P7: <= 1 mA into the cell     FAIL
+  USB, /CE high at 25 C     25 C   3.7 V         LM66100 CE=VSYS  4.499    3.7               0                      0      -0.02484                  P7: <= 1 mA into the cell     PASS
+ USB, 4.15 V cell, 25 C     25 C  4.15 V         LM66100 CE=VSYS  4.247   4.22               0                 -337.9         337.9  X5: <= ISET 497 mA +10 %, via the charger     PASS
+solar, /CE high at 25 C     25 C   3.7 V        Schottky instead  4.499    3.7               0                      0      -0.02205                  P7: <= 1 mA into the cell     PASS
+  USB, /CE high at 25 C     25 C   3.7 V        Schottky instead  4.499    3.7               0                      0      -0.02205                  P7: <= 1 mA into the cell     PASS
+ USB, 4.15 V cell, 25 C     25 C  4.15 V        Schottky instead   4.49   4.19           193.2                      0         193.2  X5: <= ISET 497 mA +10 %, via the charger     PASS
   As drawn the LM66100 (CE = GND) is a closed switch between BAT_P and VSYS: SYS (regulated to 4.5 V, or
   pulled down by the cell) charges the cell directly, outside the charger's ISET, CV, /CE and TS control;
   only the BQ29700 (OVP 4.275 V after 1.25 s, OCC 4 A) still limits it.  With CE = VSYS the LM66100 only
   turns off once VSYS is 35 mV (0-80 mV) above the cell, i.e. above ~0.44 A reverse; a weak source (the
   panel) never gets there, so the cell still charges through it.  A Schottky in its place always blocks.
+
+Verdict per ambient (solar rows: worst of the 3.0 / 4.1 V cell, 100 / 20 % sun; USB row: 3.7 V cell):
+       BAT_P-VSYS path                  -40 C                  -20 C                    0 C                   25 C                   60 C                   85 C
+----------------------  ---------------------  ---------------------  ---------------------  ---------------------  ---------------------  ---------------------
+LM66100 CE=GND (drawn)  solar FAIL / USB FAIL  solar FAIL / USB FAIL  solar FAIL / USB FAIL  solar PASS / USB FAIL  solar FAIL / USB FAIL  solar FAIL / USB FAIL
+       LM66100 CE=VSYS     solar - / USB FAIL     solar - / USB PASS     solar - / USB PASS     solar - / USB PASS     solar - / USB PASS     solar - / USB PASS
+      Schottky instead  solar PASS / USB PASS  solar PASS / USB PASS  solar PASS / USB PASS  solar PASS / USB PASS  solar PASS / USB PASS  solar PASS / USB PASS

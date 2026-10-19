@@ -205,6 +205,81 @@ If a part must change:
   family. It would cut the 1 W of charger heat to about 0.2 W. Its stock
   has not been checked.
 
+## Follow-up, 19 Oct: data-sheet efficiency, 6 layers, power per board option
+
+`followup.py` uses the same model and the same pass criteria as `run.py`,
+with h = 10 W/m²K and no charging. It writes `results_followup.txt` and
+`power_table.png`.
+
+```
+tools/kd python3 sim/thermal/followup.py     # about 20 min on 3 cores
+```
+
+### The amplifier's efficiency
+
+**Nominal case: the QPA9510 data sheet (23 Jun 2025), p.4, "PAE vs.
+Average Output Power".** PAE is the power-added efficiency: the share of
+supply power that becomes RF. The curve used is the 915 MHz one, measured
+at:
+
+- VCC = 3.6 V and VAPC = 2.8 V;
+- quiescent current 215 mA, 25 °C, 50 Ω;
+- GSM bursts: Pin +4.5 dBm at 37.5 % duty (p.3).
+
+Read off that curve:
+
+- PAE is 31.5 % at 30 dBm, 45 % at 33 dBm, 56 % at 35 dBm, and peaks at
+  57.5 % at 35.5 dBm.
+- That cross-checks with p.3: 35.4 dBm at 1.7 A from 3.6 V is 56.7 %.
+- The current at 3.6 V is 0.88 A at 30 dBm, 1.23 A at 33 dBm and 1.57 A at
+  35 dBm.
+
+How the curve is applied:
+
+- The amplifier must deliver the antenna power plus 1.1 dB, the loss to
+  the U.FL found by `sim/rf`.
+- Firmware sets VPA so the amplifier works at its 35 dBm-equivalent point,
+  within 2.7–4.0 V. This assumes a saturated amplifier keeps its PAE when
+  VCC and the output scale together.
+- On that basis the amplifier gives off **1.36 / 1.43 / 2.02 / 2.54 /
+  3.13 W** at 30 / 31.5 / 33 / 34 / 35 dBm at the antenna.
+
+**Pessimistic case: the plan's supply power.** The amplifier then gives off
+1.41 / 1.88 / 2.62 / 3.96 / 5.13 W.
+
+### Highest dBm at the antenna that passes
+
+Each cell is the nominal / pessimistic result. "–" means not even 30 dBm
+passes. A storm is 1 s on and 3 s off.
+
+{{FUTABLE}}
+
+### Which fix helps most
+
+Starting from the plain 6-layer board, the case peak at 25 °C (34 dBm, one
+1 s packet a minute) changes as follows:
+
+| Change | Case peak |
+|---|---|
+| Plain 6-layer board | 70 °C |
+| Join the pad to the top pour | 60 °C (−10) |
+| Copper-filled pad vias | 59 °C (−11) |
+| Dense stitching vias and 85 % pours | −1 °C |
+| 2 oz outer copper on its own | −1 °C |
+| All the fixes together | 52 °C |
+| All the fixes with 2 oz outer copper | 47 °C |
+| All of that plus the gap pad | 43 °C |
+
+The gap pad helps most in storms: at 60 °C and 30 dBm, the case drops from
+84 to 71 °C. The two pad fixes help only together with copper to spread
+the heat into. On its own, 6 layers is worth 8–9 °C over 4 layers as
+placed. The 4-layer board with fixes and 2 oz outer / 1 oz inner copper
+matches the 6-layer board with 2 oz outer copper (45 °C).
+
+### The charger again, 4-layer as placed
+
+{{FUCHG}}
+
 ## Model
 
 - **Copper layers.** Four sheets: F 35 µm at 70 % coverage, In1 15 µm at
@@ -273,3 +348,4 @@ If a part must change:
 | `max_duty.png` | Highest allowed duty against ambient |
 | `charging.png` | Charger junction and throttling against ambient |
 | `fixes.png` | Effect of each fix on the amplifier case |
+| `followup.py`, `results_followup.txt`, `power_table.png` | The 19 Oct follow-up: data-sheet efficiency, 6-layer options, the power table, the charger at lower current |

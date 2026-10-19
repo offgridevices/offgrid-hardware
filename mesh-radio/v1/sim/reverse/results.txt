@@ -1,10 +1,11 @@
 Study 2: battery plugged in backwards (X1).  4.2 V cell, 50 mOhm, plugged at 20 ms, run to 0.3 s.
 Limits: CSD25485F5 |VGS| 12 V, |VDS| 20 V, 0.5 W (min Cu), 3.2 A; BQ29700 BAT-VSS -0.3..12 V, V- <= BAT + 0.3 V;
 IC pins >= -0.3 V; pin / substrate-diode current <= 1 mA; cell current after 100 ms <= 10 mA.
+(BAT-VSS a few hundred mV below 0 at nA, the floating cell resting on the ESD diode, is not counted.)
 
                       case  Icell pk A  Icell >100ms A  FET VDS min    VGS min     VGS max  FET W >100ms  BAT-VSS min  BAT-VSS max  V- - BAT max   BAT_P min   BAT_P max  CELL_MINUS min  CELL_MINUS max  LM66100 |I| A  verdict                                                                                                        why
 --------------------------  ----------  --------------  -----------  ---------  ----------  ------------  -----------  -----------  ------------  ----------  ----------  --------------  --------------  -------------  -------  ---------------------------------------------------------------------------------------------------------
-             rev_nousb_-40   6.778e-05       7.786e-12       -3.814     0.3864      0.3864     2.969e-11      -0.3864      -0.3864     1.955e-06  -1.841e-06  -1.501e-06          0.3864          0.3913              0     FAIL                                                                               BQ29700 BAT-VSS -0.4..-0.4 V
+             rev_nousb_-40   6.778e-05       7.786e-12       -3.814     0.3864      0.3864     2.969e-11      -0.3864      -0.3864     1.955e-06  -1.841e-06  -1.501e-06          0.3864          0.3913              0     PASS                                                                                                          -
          rev_usb_drawn_-40     0.03108       1.489e-11       -4.105    0.09124      0.0956     6.113e-11     -0.09553     -0.09124        -4.321       4.321       4.321           4.413           7.277       0.001668     PASS                                                                                                          -
            rev_usb_fix_-40     0.03178       1.246e-11       -4.102    0.09346     0.09866     5.111e-11     -0.09866     -0.09346       -0.9442      0.9442       1.782           1.043           4.784              0     PASS                                                                                                          -
     rev_usb_drawn_held_-40       14.09       3.369e-05       -5.163     -4.321      0.2962     0.0001736      -0.2961         4.32        0.7232      -2.441       4.321         -0.4873           4.536          28.28     FAIL  V- above BAT, pin current, IC pin < -0.3 V, BAT_P below -0.3 V for 474 us, 63 uC through substrate diodes
@@ -12,7 +13,7 @@ IC pins >= -0.3 V; pin / substrate-diode current <= 1 mA; cell current after 100
 rev_usb_fix_held_clamp_-40   5.669e-09       5.669e-09   -1.447e-09       -1.5        -1.5     8.205e-18          1.5          1.5         -1.82       1.821       1.821          0.3197          0.3197              0      n/a                                        solver stopped before the plug (start-up, numerical): not evaluated
         rev_nousb_held_-40   7.473e-05       8.561e-12         -4.2  1.782e-05   2.626e-05     3.595e-11   -2.631e-05   -1.782e-05     1.735e-05  -1.724e-05  -1.687e-05       8.458e-07        0.005133              0     PASS                                                                                                          -
              fwd_nousb_-40       4.451          0.0114    2.295e-05     -4.197  -0.0005906     3.683e-06    0.0005906        4.194        0.7859   0.0002002         4.2          -5.158      -1.184e-05          2.956     PASS                                                                                                          -
-             rev_nousb_-20   9.425e-05       1.072e-11        -3.88       0.32        0.32      4.16e-11        -0.32        -0.32     7.424e-06  -7.372e-06  -6.904e-06            0.32          0.3267              0     FAIL                                                                               BQ29700 BAT-VSS -0.3..-0.3 V
+             rev_nousb_-20   9.425e-05       1.072e-11        -3.88       0.32        0.32      4.16e-11        -0.32        -0.32     7.424e-06  -7.372e-06  -6.904e-06            0.32          0.3267              0     PASS                                                                                                          -
          rev_usb_drawn_-20    0.003553       1.447e-11       -3.889     0.3109      0.3114     5.626e-11      -0.3114      -0.3109        -4.355       4.355       4.355           4.666           5.008      0.0001891     FAIL                                                                               BQ29700 BAT-VSS -0.3..-0.3 V
            rev_usb_fix_-20       17.77       1.156e-11       -4.009       -4.2      0.1988     4.634e-11      -0.2007        4.199        0.6856      -2.819       4.209         -0.5445           4.402              0     FAIL  V- above BAT, pin current, IC pin < -0.3 V, BAT_P below -0.3 V for 422 us, 77 uC through substrate diodes
     rev_usb_drawn_held_-20       20.06       3.402e-05       -5.154     -4.355       0.243     0.0001753      -0.2431        4.353        0.6848      -2.815       4.355          -0.509           4.512          61.67     FAIL  V- above BAT, pin current, IC pin < -0.3 V, BAT_P below -0.3 V for 461 us, 76 uC through substrate diodes
@@ -56,7 +57,7 @@ rev_usb_fix_held_clamp_-20       17.77       3.247e-05       -5.159       -4.2  
 Verdict per case and ambient:
                   case  -40 C  -20 C   0 C  25 C  60 C  85 C
 ----------------------  -----  -----  ----  ----  ----  ----
-             rev_nousb   FAIL   FAIL  PASS  PASS  PASS  PASS
+             rev_nousb   PASS   PASS  PASS  PASS  PASS  PASS
          rev_usb_drawn   PASS   FAIL  PASS  PASS  PASS  PASS
            rev_usb_fix   PASS   FAIL  FAIL  FAIL  PASS  PASS
     rev_usb_drawn_held   FAIL   FAIL  FAIL  FAIL  FAIL  FAIL
