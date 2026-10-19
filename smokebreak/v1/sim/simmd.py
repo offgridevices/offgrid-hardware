@@ -170,7 +170,7 @@ def write_simmd(out, wall, REP, DESIGN, CASES):
                                        "8.5 mΩ @ 4.5 V, 50 A / 55 mJ single-pulse avalanche, SuperSO8; ≈ $1.15 @ 100) "
                                        "in the B− lead, gate VIN → **4.7 MΩ** (not 47 kΩ: 1 mA standby) + 12 V zener; "
                                        "2 × 2.2 µF direct + 2 × 4.7 µF/0.33 Ω damper + 2 × 4.7 µF/0.47 Ω snubber",
-               "≈ $2.70 vs ≈ $1.10 for the no-Q11 network", "2-7"],
+               "≈ $1.55 vs ≈ $1.10 for the no-Q11 network", "2-7"],
               ["Pre-charge FET", "DMP10H400SE is at 112 % of derated SOA → ≤ 50 mΩ 100 V P-FET in DPAK/PowerPAK "
                                  "(e.g. Vishay SUD50P10-43L class; check LCSC stock), uses ≈ 40 %; D3 SS2H10 adequate",
                "≈ +$0.3", "1(c)"],
