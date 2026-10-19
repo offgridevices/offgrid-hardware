@@ -106,6 +106,13 @@ board's `docs/` keeps its own dated checks).
 - **Outputs carry timestamps.** Gerbers and drill files embed their creation
   date and STEP exports renumber their entities on every run. Compare
   outputs with the dates ignored, and do not diff STEP files.
+- **Simulate longer than the clock's first overflow.** Canary's first
+  firmware turned timer ticks into milliseconds with `ticks * 2048 / 1000`;
+  the 32-bit product overflowed after 71.6 minutes and detection stopped
+  while the LEDs kept breathing. Every simulation was shorter than that;
+  the review caught it. Count time in the unit you compare in, and run one
+  hardware-in-the-loop scenario past every wrap point. Gate the shipped
+  firmware image against its build, too. (Canary v1)
 - **Parse firmware configs fully:** a `#define` with no value still enables a
   feature; a parser that only reads `NAME VALUE` pairs misses it.
 - **KiCad's rotation: a standard two-terminal part at 90 degrees has pad 1
