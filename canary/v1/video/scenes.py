@@ -177,7 +177,7 @@ def problem(t, D):
 def gap(t, D):
     S = 'gap'
     X = [880, 1920, 2960]
-    t1, t2, t3, t4 = LEAD + 0.0, cue(S, 'electric'), cue(S, 'battery'), cue(S, 'designed')
+    t1, t2, t3, t4 = LEAD + 0.0, cue(S, 'electric'), cue(S, 'battery'), cue(S, 'design')
     cv = Canvas()
     a4 = A(t, t4, 0.8)
     if a4 > 0.02:
