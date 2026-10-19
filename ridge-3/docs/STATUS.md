@@ -13,7 +13,7 @@ apply a decision to the design is in [`CHANGING.md`](CHANGING.md).
 | | State |
 |---|---|
 | Design | **Revision 2.0**, both boards.  KiCad DRC 0 errors / 0 warnings / 0 unconnected; the copper matches `src/circuit.py` pad for pad; `../VERIFICATION.md` checks the design against independent sources |
-| Simulation | Done: `../STRESS.md` (switching, battery line, stack lead, copper, heat at 25 / 50 / 60 °C), and [`RELIABILITY.md`](RELIABILITY.md) (variants, a crash, a punch), with every report it quotes committed in `../sim/results/` |
+| Simulation | Being run again on the FC as routed on 2026-10-19 (D10-D12).  Until then `../STRESS.md` and `../sim/results/` describe the earlier FC routing: their section 5 shows the 5 V rail in its feedback line, the defect D12 fixed, and their heat results carry the earlier FC's copper.  The ESC's copper, switching and battery-line results do not depend on the FC.  [`RELIABILITY.md`](RELIABILITY.md) has the variants, a crash and a punch |
 | Fabrication files | Committed in `../fc/production/` and `../esc/production/`, single boards and 3 × 2 panels.  CI (the `ridge-3` job) rebuilds them from the committed board files on every pull request into `main` and every push to `main`, and fails if they differ |
 | Test record | [`../TESTS.md`](../TESTS.md): every build gate, design check and simulation with revision 2.0's result and date; the hardware rows not run |
 | Prototypes | **Not ordered.**  No board has been built or measured |
