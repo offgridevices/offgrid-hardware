@@ -32,8 +32,9 @@ import pcbnew
 import pcb, circuit, parts, place
 
 HX, HY = pcb.HX, pcb.HY
-HDR_X0 = -7.5                      # expansion header: pin 1 / pin 11 x
-ANT_BOX = (-22.6, 8.9, -11.9, HY)  # Bluetooth antenna keepout (x0, y0, x1, y1)
+HDR_X0 = -7.0                      # expansion header: pin 1 / pin 11 x
+NRF_X, SX_X = -12.6, -5.4          # the nRF52840 and the SX1262 (the TX line grows right from the SX1262)
+ANT_BOX = (-HX + 8.4, 8.9, -HX + 19.1, HY)  # Bluetooth antenna keepout (x0, y0, x1, y1)
 
 
 def ref(comps, part, note=None):
@@ -52,61 +53,64 @@ def anchors(comps):
         # ---- left end
         (R('USBC'), -HX + 5.48, 0.0, 270, 'T'),           # shell front 0.84 mm past the edge (Amphenol drawing)
         (R('SLIDE'), -HX + 5.6, -HY + 4.55, 180, 'T'),      # body edge on the board edge, lever over it
-        (R('SKRP', 'reset'), -28.8, HY - 3.2, 90, 'T'),
-        (R('SKRP', 'user'), -25.0, HY - 3.2, 90, 'T'),
+        # the user button on top; reset (rarely needed) under the same corner,
+        # where the Bluetooth antenna leaves no room for a second one on top
+        (R('SKRP', 'user'), -HX + 2.2, HY - 3.2, 90, 'T'),
+        (R('SKRP', 'reset'), -HX + 2.2, HY - 3.2, 90, 'B'),
         # ---- processor and Bluetooth
-        (R('NRF52840'), -12.0, 0.3, 180, 'T'),              # SPI side towards the SX1262, USB side towards USB-C
-        (R('ANT2450'), -19.4, HY - 1.35, 180, 'T'),         # feed end towards the nRF52840
+        (R('NRF52840'), NRF_X, 0.3, 180, 'T'),              # SPI side towards the SX1262, USB side towards USB-C
+        (R('ANT2450'), -HX + 11.6, HY - 1.35, 180, 'T'),         # feed end towards the nRF52840
         (R('HDR_2x10'), HDR_X0, 0.0, 0, 'T'),
         # ---- LoRa radio: RF pins face +x (top to bottom VR_PA, RFO, RFI_N, RFI_P)
-        (R('SX1262'), -3.4, -4.4, 180, 'T'),
+        (R('SX1262'), SX_X, -4.4, 180, 'T'),
         (R('TCXO32'), 2.0, -4.5, 0, 'B'),                   # beside the SX1262, underneath (no room on top)
         # ---- bottom: connectors
         # JST side-entry plugs: the opening is on the fitting-nail side (JST
         # PH / SH / GH drawings, "end face of wafer on the mating side"), so
         # the nails face the edge, their copper 0.35 mm inside it
-        (R('JST_PH2'), -13.0, -HY + 4.98, 0, 'B'),          # battery, opening at the upper long edge
-        (R('JST_SH2'), -25.4, -HY + 3.19, 0, 'B'),          # solar, between the slide switch's pegs
-        (R('JST_GH6'), 22.6, HY - 3.45, 180, 'B'),          # drone port, opening at the lower long edge
+        (R('JST_PH2'), -12.4, -HY + 4.98, 0, 'B'),          # battery, opening at the upper long edge
+        (R('JST_SH2'), -HX + 5.6, -HY + 3.19, 0, 'B'),          # solar, between the slide switch's pegs
+        (R('JST_GH6'), HX - 6.4, HY - 3.65, 180, 'B'),          # drone port, opening at the lower long edge
         (R('JST_SH6'), HX - 3.29, 0.0, 270, 'B'),           # GPS, on the antenna end's short edge
         # ---- bottom: inputs.  USB: behind the USB-C, under the board's left
         # end; solar beside its plug; drone beside the drone plug
-        (R('TVS2200', 'USB surge clamp'), -19.8, 0.6, 0, 'B'),
-        (R('TPS259470A', 'USB eFuse'), -19.6, 3.8, 0, 'B'),
-        (R('RB060MM', 'USB into the charger'), -22.2, 7.6, 90, 'B'),
-        (R('TPD4E05U06', 'USB ESD'), -18.8, -6.0, 90, 'T'),
-        (R('RB060MM', 'solar reverse block'), -19.8, -10.1, 90, 'B'),
-        (R('TVS2200', 'solar surge clamp'), -19.8, -6.3, 0, 'B'),
-        (R('TPS259470A', 'SOL eFuse'), -19.8, -3.5, 0, 'B'),
-        (R('RB060MM', 'drone 5 V reverse block'), 12.4, 4.6, 0, 'B'),
-        (R('TVS2200', 'drone 5 V surge clamp'), 8.6, 4.8, 0, 'B'),
-        (R('TPS259470A', 'DRN eFuse'), 9.4, 1.6, 0, 'B'),
-        (R('TPD4E05U06', 'drone ESD'), 22.6, 4.9, 0, 'B'),
+        (R('TVS2200', 'USB surge clamp'), -HX + 11.2, 0.6, 0, 'B'),
+        (R('TPS259470A', 'USB eFuse'), -HX + 11.4, 3.8, 0, 'B'),
+        (R('RB060MM', 'USB into the charger'), -HX + 8.8, 7.6, 90, 'B'),
+        (R('TPD4E05U06', 'USB ESD'), -HX + 12.2, -6.0, 90, 'T'),
+        (R('SMF33CA', 'SOL surge clamp'), -HX + 11.5, -10.0, 90, 'T'),    # beside the slide switch, on top
+        (R('MAX17608', 'SOL 60 V current limiter'), -HX + 10.5, -6.0, 0, 'B'),
+        (R('SMF33CA', 'DRN surge clamp'), 12.4, 4.6, 0, 'B'),
+        (R('MAX17608', 'DRN 60 V current limiter'), 8.6, 1.6, 0, 'B'),
+        (R('TPD4E05U06', 'drone ESD'), HX - 9.2, 5.3, 0, 'B'),
         # ---- bottom: charger and battery protection, by the battery plug
-        (R('CSD25485F5'), -3.8, -5.6, 0, 'B'),
+        (R('CSD25310Q2'), -3.8, -5.6, 0, 'B'),
         (R('BQ29700'), -6.6, -5.6, 0, 'B'),
-        (R('SSM10N954L'), -6.6, -7.9, 0, 'B'),
-        (R('R22m'), -2.4, -7.8, 0, 'B'),
-        (R('BQ25185'), -11.2, -1.2, 0, 'B'),
-        (R('NTC10K'), -14.0, -1.8, 0, 'B'),
-        (R('LM66100'), -6.4, -2.5, 0, 'B'),
-        # ---- bottom: power switch and 3.3 V
-        (R('TPS22965'), -29.4, -6.9, 0, 'B'),
+        (R('SSM10N954L'), -5.6, -8.4, 0, 'B'),
+        (R('R15m'), 0.6, -7.4, 0, 'B'),
+        # the charger away from the battery plug (sim/thermal: its heat reached
+        # the NTC and the cell); the NTC right by the plug, reading the cell
+        (R('BQ25185'), -10.6, 2.2, 0, 'B'),
+        (R('NTC10K'), -10.2, -2.0, 0, 'B'),
+        (R('TPS22950'), -6.4, -2.5, 0, 'B'),
+        (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -2.4, 0, 'B'),
+        # ---- bottom: 3.3 V
         (R('TPS62840'), -5.6, 3.0, 0, 'B'),
         (R('L2u2'), -5.6, 5.0, 0, 'B'),
         # ---- bottom: the amplifier's power, under the amplifier
         (R('TPS2121'), 9.6, -4.0, 0, 'B'),
-        (R('NMOS'), 9.6, -1.6, 0, 'B'),
+        (R('NMOS', 'mux on with the amplifier'), 9.6, -1.6, 0, 'B'),
         (R('TPS63810'), 13.8, -3.4, 90, 'B'),
         (R('L470n'), 13.8, -0.4, 90, 'B'),
-        (R('TMP1075'), 19.6, -9.6, 0, 'B'),
+        (R('TMP1075'), HX - 10.4, -9.6, 0, 'B'),
         # ---- bottom: GPS power switch and ESD by its plug
-        (R('TPS22916'), 23.4, -6.6, 0, 'B'),
-        (R('TPD4E05U06', 'GPS ESD'), 26.6, -6.5, 0, 'B'),
+        (R('TPS22916'), HX - 7.6, -6.6, 0, 'B'),
+        (R('TPD4E05U06', 'GPS ESD'), HX - 4.4, -6.5, 0, 'B'),
         # ---- top: indicators, the amplifier's control-voltage LDO
-        (R('LED_R'), -29.4, 6.4, 0, 'T'),
-        (R('LED_G'), -26.7, 6.4, 0, 'T'),
-        (R('LED_B'), -24.0, 6.4, 0, 'T'),
+        # LEDs in a row between the slide switch and the USB-C
+        (R('LED_R'), -HX + 1.8, -5.95, 0, 'T'),
+        (R('LED_G'), -HX + 4.6, -5.95, 0, 'T'),
+        (R('LED_B'), -HX + 7.4, -5.95, 0, 'T'),
     ]
 
 
@@ -193,13 +197,14 @@ def place_all(log=print):
     outs = [escape(B, pa, p) for p in ('9', '10', '11', '12')]
     xo = outs[0][0] + 2.0
     # the collector choke straight up from the output line's top, its supply
-    # end's 47 pF (the RF ground the choke needs), 1 nF and 4.7 uF beside it
+    # end's 47 pF (the RF ground the choke needs) and 1 nF beside it (the
+    # 4.7 uF bulk goes with the other decoupling, by the supply pins)
     ck = ref(comps, 'L8.1nH_PA')
     top = min(e[1] for e in outs)
     put_pad(B, ck, 'PA_OUT', (xo, top - 0.9), (-0.1, 0), 'VPA', (0, -1), tries=9)   # its pad is 2 mm wide
     vp = B.pad_xy(ck, [p for p, n in B.comps[ck].pins.items() if n == 'VPA'][0])
     i = [c.ref for c in comps].index(ck)
-    for k, c in enumerate(comps[i + 1:i + 4][::-1]):          # 47 pF nearest
+    for k, c in enumerate(comps[i + 2:i + 4][::-1]):          # 47 pF nearest
         assert c.pins.get('1') == 'VPA' or 'VPA' in c.pins.values(), c.ref
         put_pad(B, c.ref, 'VPA', (vp[0] - 1.9 - 1.1 * k, vp[1]), (-0.1, 0), 'GND', (0, -1))
     down = place.chain(B, comps, (xo, max(e[1] for e in outs) + 0.9), PA_OUT[:3], 270, shunt_side=1,
@@ -225,32 +230,34 @@ def place_all(log=print):
     f1 = B.pad_xy(fl, '8')
     B.pl.pop(fl); B.taken['T'].pop()
     p2 = B.pad_xy(sw, '2')
-    put_fit(B, fl, p2[0] - f1[0], p2[1] - 1.0 - f1[1], 90, (0, -0.1))
+    put_fit(B, fl, p2[0] - f1[0], p2[1] - 2.1 - f1[1], 90, (0, -0.1))
     fl3 = B.pad_xy(fl, '4')
     uf = ref(comps, 'UFL')
     # the antenna line runs straight out of the filter's top end to the U.FL,
     # its signal pad facing the filter; along it the missing-antenna
-    # detector's coupled line (sim/rf/coupler.py: 5.5 mm, 0.10 mm gap, on the
-    # filter side), its 49.9 R at the filter end, the diode at the U.FL end;
-    # the 47 nH ESD shunt stands on the other side, by the U.FL
+    # detector's coupled line (sim/rf/coupler.py: 5.5 mm, 0.10 mm gap), its
+    # 49.9 R at the filter end, the diode at the U.FL end; the 47 nH ESD
+    # shunt stands on the other side, by the U.FL
+    # (towards +x, into the strip between the amplifier and its harmonic
+    # filter; the receive line's corridor is to the left)
     ya = fl3[1]
     xa = fl3[0] + 0.9                                   # the coupled run starts clear of the filter pad
     xb = xa + CPL_LEN
     B.put(uf, 0, 0, 270, 'T', check=False)
     sig = B.pad_xy(uf, '1')
     B.pl.pop(uf); B.taken['T'].pop()
-    put_fit(B, uf, xb + 0.9 - sig[0], ya - sig[1], 270, (0.1, 0))
+    put_fit(B, uf, xb + 1.6 - sig[0], ya - sig[1], 270, (0.1, 0), tries=40)
     NODES['ANT'] = (fl3[0], ya, 0)
-    yc = ya + RF_PITCH_CPL                               # the coupled line, below the antenna line
+    yc = ya - RF_PITCH_CPL                               # the coupled line, above the antenna line
     term = ref(comps, 'R49.9R')
-    put_pad(B, term, 'REFL_CPL', (xa, yc + 1.0), (-0.1, 0), 'GND', (0, 1))
+    put_pad(B, term, 'REFL_CPL', (xa, yc - 1.0), (0, -0.1), 'GND', (0, -1), tries=5)
     det = ref(comps, 'BAT15')
-    put_pad(B, det, 'REFL_CPL', (xb, yc + 1.0), (0.1, 0), 'REFL_DET', (0, 1))
+    put_pad(B, det, 'REFL_CPL', (xb, yc - 1.0), (0, -0.1), 'REFL_DET', (0, -1), tries=5)
     ta = B.pad_xy(term, [p for p, n in B.comps[term].pins.items() if n == 'REFL_CPL'][0])
     da = B.pad_xy(det, [p for p, n in B.comps[det].pins.items() if n == 'REFL_CPL'][0])
     NODES['_cpl'] = [ta, (ta[0], yc), (da[0], yc), da]
     esd = [c.ref for c in comps if c.part == 'L47nH' and set(c.pins.values()) == {'ANT', 'GND'}][0]
-    put_pad(B, esd, 'ANT', (xb - 0.6, ya - 0.55), (-0.1, 0), 'GND', (0, -1))
+    put_pad(B, esd, 'ANT', (xb - 0.6, ya + 0.55), (-0.1, 0), 'GND', (0, 1), tries=10)
     # receive: from the switch's RX port (down) left along the board, the
     # LNA there; its output line runs on along the corridor to the balun
     rx = B.pad_xy(sw, '5')
@@ -293,7 +300,7 @@ def place_all(log=print):
     prefer = {r_: 'B' for r_ in todo if r_.startswith('TP')}
     gnd_tp = [c.ref for c in comps if c.part == 'TP' and c.pins['1'] == 'GND']
     for k, r_ in enumerate(gnd_tp):
-        put_fit(B, r_, -29.6, 1.4 + 1.6 * k, 0, (0, 0.2), side='B')
+        put_fit(B, r_, -HX + 1.4, 1.4 + 1.6 * k, 0, (0, 0.2), side='B')
     todo = [r_ for r_ in todo if r_ not in gnd_tp]
     left = place.pack(B, sorted(todo, key=key), prefer=prefer)
     left = place.pack(B, left)                 # parts whose anchor was placed after them
@@ -341,7 +348,11 @@ def put_fit(B, r_, x, y, rot, step, side='T', tries=60):
         if B.fits(r_, x + step[0] * k, y + step[1] * k, rot, side):
             B.put(r_, x + step[0] * k, y + step[1] * k, rot, side)
             return
-    raise ValueError('no room for %s near (%.2f, %.2f)' % (r_, x, y))
+    r = B.rect(r_, x, y, rot, side)
+    hits = [o for o in B.taken[side] + B.keepouts[side] if place.overlap(r, o, place.GAP)]
+    edge = r[0] < -pcb.HX + 0.25 or r[2] > pcb.HX - 0.25 or r[1] < -pcb.HY + 0.25 or r[3] > pcb.HY - 0.25
+    raise ValueError('no room for %s near (%.2f, %.2f): %s%s' % (r_, x, y, place.who(B, hits[:4]),
+                                                            ' (and the board edge)' if edge else ''))
 
 
 def overlaps(B):

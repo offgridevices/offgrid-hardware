@@ -6,4 +6,5 @@ ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
 REL=$(pwd | sed "s|^$ROOT||")
 SUDO=$( [ -w /var/run/docker.sock ] || echo sudo )
 exec $SUDO docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONHASHSEED=0 \
+  -e BOARD_LEN -e BOARD_LAYERS \
   -v "$ROOT":/w -w "/w$REL" ogkicad:10 "$@"
