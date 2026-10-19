@@ -440,7 +440,7 @@ _two('Y', 'XTAL32M', 'ABM11W-32.0000MHZ-8-D1X-T3', ABRACON, 'C5189005', 'og:CRYS
      lie=False)
 _two('Y', 'XTAL32K', 'ABS07-32.768KHZ-7-T', ABRACON, 'C276424', 'og:ABS07', '32.768kHz', 'Crystal 32.768 kHz CL 7 pF, 3.2 x 1.5',
      ('Device', 'Crystal'), None)
-_two('TH', 'NTC10K', 'NCP15XH103F03RC', MURATA, 'C77131', 'og:R_0402', '10k NTC', 'Thermistor NTC 10 k B3380, 0402',
+_two('TH', 'NTC10K', 'NCU15XH103F60RC', MURATA, 'C237326', 'og:R_0402', '10k NTC', 'Thermistor NTC 10 k B3380, 0402',
      ('Device', 'Thermistor_NTC'))
 # buttons: -40 to +90 C (Alps spec KRP-703; the B3U was -25..+70 C, and sim/thermal
 # puts the buttons at 61-68 C in a 60 C box).  Pads 1-2 are one contact, 3-4 the
@@ -536,7 +536,7 @@ DIGIKEY = {
     'LED_R': '160-1447-1-ND',
     'NMOS': 'SSM3K56ACTL3FCT-ND',
     'NRF52840': '4823-NRF52840-QIAA-F-R7CT-ND',
-    'NTC10K': '490-4801-1-ND',
+    'NTC10K': '490-18149-1-ND',  # NCU15XH103F60RC (the NCP15XH103F03RC is Not For New Designs)
     'QPA9510': '2312-QPA9510TR7CT-ND',
     'R0R': '311-0.0LRCT-ND',
     'R1.5M': '13-RC0402FR-071M5LCT-ND',
@@ -612,28 +612,47 @@ DIGIKEY = {
     'R15m': 'WSLP-.015CT-ND',               # stock 125,506
     'R20k': '311-20.0KLRCT-ND',             # stock 1,793,976
     'R374k': 'YAG3136CT-ND',                # stock 48,246
+    # DigiKey numbers added by the 19 Oct 2026 re-audit
+    'TCXO32': '50-ECS-TXO-20CSMV4-320-AP-TRCT-ND',  # stock 2,765, $1.6708@100 (LCSC/JLC: 0)
+    'C22u16': '490-10747-1-ND',             # Murata GRM21BR61C226ME44L: 0 in stock, 3,000 due 15 Feb 2027 (see SECOND)
+    'HV1.3pF': '490-GQM1875C2E1R3BB12DCT-ND',  # Murata: 0 in stock, 21 wk lead (see SECOND)
+    'R287k': 'YAG3088CT-ND',                # stock 51,464
     'USBC': '12401610E4#2ACT-ND',
     'XTAL32K': '535-9543-1-ND',
     'XTAL32M': '535-13900-1-ND',
 }
 SECOND = {
-    'HV1.3pF': 'Johanson QSCP251Q1R3B1GV001T (0603 1.3pF 250V high-Q) DK 712-QSCP251Q1R3B1GV001TCT-ND stock 40,828 (Murata GQM1875C2E1R3BB12D: not stocked at DigiKey, 21-week lead; LCSC C3901219 11,726).',
-    'C100n': 'Murata GRM155R71C104KA88J (0402 100nF 16V X7R) DK 490-6328-1-ND stock 7,440,307 $0.025@10 $0.0141@100',
-    'C10u': 'Taiyo Yuden EMK107BBJ106MA-T (0603 10uF 16V X5R) DK 587-3238-1-ND stock 703,701 $0.185@10 $0.119@100',
-    'C10u25': 'KYOCERA AVX KGM21AR51E106KU (0805 10uF 25V X5R) DK 478-KGM21AR51E106KUCT-ND stock 5,472 $0.386@10 $0.2584@100.',
-    'C12p': 'Murata GRM1555C1H120JA01D (0402 12pF 50V C0G) DK 490-5924-1-ND stock 2,493 $0.023@10 $0.0129@100.',
-    'C1u25': 'TDK CGA3E1X7R1E105K080AC (0603 1uF 25V X7R) DK 445-6931-1-ND stock 867,741 $0.095@10 $0.0582@100.',
-    'C47n': 'KEMET C0402C473K3RACTU (0402 47nF 25V X7R) DK 399-C0402C473K3RACTUCT-ND stock 276,448 $0.073@10 $0.0434@100.',
-    'C47u': 'Murata GRT31CC80J476KE13L (1206 47uF 6.3V X6S) DK 490-12401-2-ND stock 97,690; LCSC has 0 of the TDK part (C2167997) on 19 Oct: test boards need it consigned or a stocked 1206 47 uF.',
-    'C4u7': 'TDK C1608X5R1E475K080AC (0603 4.7uF 25V X5R) DK 445-9050-1-ND stock 641,155 $0.145@10 $0.0914@100.',
-    'L470n': 'TDK TFM252012ALMAR47MTAA (2520 0.47uH 4.9A/24mOhm) DK 445-181489-1-ND stock 940 $0.468@10 $0.3845@100; or Bourns SRP2512TMA-R47M (2.5x2.0x1.2, 6.2A/18mOhm) DK 118-SRP2512TMA-R47MCT-ND stock 1,750 $0.2',
-    'NTC10K': 'NCU15XH103F60RC (0402 10k NTC B3380K) DK 490-18149-1-ND stock 45,468 $0.065@10 $0.0527@100. Check B-value vs firmware table (NCP15XH103 is B3380 also).',
-    'R1.5M': 'Stackpole RMCF0402FT1M50 DK RMCF0402FT1M50CT-ND stock 33,358 $0.023@10 $0.0107@100. | DK stock 34',
+    # Re-audited 19 Oct 2026.  Every entry is from a non-Chinese maker.  DigiKey stock is for that
+    # exact MPN; where DigiKey shows no quantity for a part (backorder), it is treated as 0.
+    'HV0.9pF': 'Johanson QSCP251Q0R9B1GV001T (0603 0.9pF 250V high-Q) DK 712-QSCP251Q0R9B1GV001TCT-ND stock 69,420 $0.158@10 $0.0998@100 (Murata part: 0 at DigiKey, 21 wk; Vishay VJ0603D0R9BXPAJ not stocked). JLC/LCSC: 0, consign.',
+    'HV1.3pF': 'Johanson QSCP251Q1R3B1GV001T (0603 1.3pF 250V high-Q) DK 712-QSCP251Q1R3B1GV001TCT-ND stock 40,828 $0.377@10 $0.2556@100 (Murata GQM1875C2E1R3BB12D: 0 at DigiKey, 21 wk lead; LCSC C3901219 11,685). JLC/LCSC has 0 of the Johanson part, so a JLC build uses the Murata C3901219.',
+    'HV5.6pF': 'Vishay VJ0603D5R6CXPAJ (0603 5.6pF +-0.25pF 250V C0G) DK 720-1322-1-ND stock 117,926 $0.307@10 $0.2037@100 (Murata part: 143 at DigiKey). JLC C2241545 has 45.',
+    'C100n': 'Murata GRM155R71C104KA88J (0402 100nF 16V X7R) DK 490-6328-1-ND stock 7,438,959 $0.025@10 $0.0141@100',
+    'C10u': 'Taiyo Yuden EMK107BBJ106MA-T (0603 10uF 16V X5R) DK 587-3238-1-ND stock 703,792 $0.185@10 $0.119@100',
+    'C10u25': 'KYOCERA AVX KGM21AR51E106KU (0805 10uF 25V X5R) DK 478-KGM21AR51E106KUCT-ND stock 4,559 $0.386@10 $0.2584@100.',
+    'C12p': 'KEMET C0402C120J5GACTU (0402 12pF 50V C0G) DK 399-C0402C120J5GACTUCT-ND stock 980,151 $0.069@10 $0.0408@100; JLC C2649548 21,568. (Murata GRM1555C1H120JA01D is now 0 at DigiKey, 10k due 13 Nov; TDK C1005C0G1H120J050BA is obsolete.)',
+    'C1u25': 'TDK CGA3E1X7R1E105K080AC (0603 1uF 25V X7R) DK 445-6931-1-ND stock 854,261 $0.095@10 $0.0582@100.',
+    'C22u16': 'Samsung CL21A226MOQNNNE (0805 22uF 16V X5R) DK 1276-2909-1-ND stock 2,888 $0.19@10 $0.1225@100; JLC C98190 613,316. (Murata GRM21BR61C226ME44L: 0 at DigiKey, 3,000 due 15 Feb 2027; TDK C2012X5R1C226M125AC and Taiyo Yuden EMK212BBJ226MG-T also 0, due 25 Jan / 23 Oct.)',
+    'C47n': 'KEMET C0402C473K3RACTU (0402 47nF 25V X7R) DK 399-C0402C473K3RACTUCT-ND stock 276,348 $0.073@10 $0.0434@100.',
+    'C47u': 'No X7S drop-in found in stock. JLC/LCSC have 0 of the TDK part (C2167997), so consign it from DigiKey (445-8037-1-ND, 29,829). X5R fallback, same 1206: Samsung CL31A476MQHNNNE (JLC C68361 801,128; DK 1276-1167-1-ND only 72) - re-run the DC-bias sim first. Murata GRT31CC80J476KE13L (X6S): DigiKey shows no quantity (97,690 is listed under its -K twin, which shows 0), so do not rely on it.',
+    'C4u7': 'TDK C1608X5R1E475K080AC (0603 4.7uF 25V X5R) DK 445-9050-1-ND stock 641,155 $0.145@10 $0.0914@100 (17 Oct; not re-read). The Samsung part has 13,446 at DigiKey on 19 Oct, so no second source is needed now.',
+    'L2u2': 'TDK TFM201610GHM-2R2MTAA (2016, 2.2uH, 1.9A/2.4A, 152 mOhm max, 1.0 mm high) DK 445-173104-1-ND stock 5,582 $0.369@10 $0.303@100; JLC C136243 796. Murata DFE201610E-2R2M=P2 shows no DigiKey quantity (the 88,238 is the TDK part). Check DCR/Isat against the buck sim.',
+    'L2.7nH': 'Murata LQW15AN2N7B00D (0402, +-0.1nH) DK 490-6799-1-ND stock 38,938 $0.102@10 $0.0836@100; JLC C91239 50,922. Same series and footprint as the C-tolerance part (DK 126).',
+    'L4.7nH': 'Bourns CW100505-4N7J (0402 wirewound 4.7nH) DK CW100505-4N7JCT-ND stock 171,521 $0.207@10 $0.1699@100 (Q lower than the LQW15: re-check the match); Wurth 744765047A (DK listing $0.44, stock not read). LQW15AN4N7C00D: DK 17, LCSC 0, JLC 87.',
+    'L470n': 'Bourns SRP2512TMA-R47M (2.5x2.0x1.2, 6.2A, 18 mOhm max) DK 118-SRP2512TMA-R47MCT-ND stock 1,750 $0.245@10 $0.2018@100; JLC C19190866 has 0. (TDK TFM252012ALMAR47MTAA shows no DigiKey quantity.) Check the land pattern.',
+    'L8.1nH_PA': 'Same part (no other maker has this air-core 8.1 nH): not sold at DigiKey (search returns nothing, 19 Oct). Buy from Coilcraft direct (0908SQ-8N1JLB cut tape, JLC full reel 0908SQ-8N1JLC; G = 2% is 0908SQ-8N1GLB, listed by Farnell). Mouser: not confirmed (site unreachable). LCSC C19191636 has 73 at $1.2865@100.',
+    'NTC10K': 'Murata NCU15XH103F60RC (0402 10k NTC B25/50 3380K) DK 490-18149-1-ND stock 40,000 $0.065@10 $0.0527@100. NCP15XH103F03RC is Not For New Designs.',
+    'NMOS': 'No exact stocked drop-in. Toshiba SSM3K56CT,L3F (same CST3 package) DK SSM3K56CTL3FCT-ND is out of stock too, 9,022 due 21 Oct. onsemi NTNS3164NZT5G (SOT-883 1x0.6, 20V) DK NTNS3164NZT5GOSCT-ND stock 25,686 $0.345@10 $0.2191@100, but Id only 361 mA and Rds(on) 0.7 ohm at 4.5V: check the 3 gate-drive uses (cell-polarity check, two amplifier-mux gates). JLC has the Toshiba part (C146308, 8,201).',
+    'R1.5M': 'KOA RK73H1ETTP1504F (0402 1.5M 1%) DK 2019-RK73H1ETTP1504FCT-ND stock 69,039 $0.028@10 $0.0137@100; JLC C159956 14,595. (Panasonic ERJ-2RKF1504X is not listed at DigiKey; the Stackpole part shows no quantity.)',
+    'R2.21k': 'Vishay CRCW04022K21FKED (0402 2.21k 1%) DK 541-2.21KLCT-ND stock 306,497 $0.032@10 $0.0157@100; JLC C844505 8,802. For JLC, Panasonic ERJ-2RKF2211X (C416496, 28,686). Yageo RC0402FR-132K21L: DK 16,964, JLC 0.',
+    # not on the board since 19 Oct, kept from the 17 Oct audit
     'R301k': 'Panasonic ERJ-2RKF3013X (0402 301k 1%) DK P301KLCT-ND stock 246,107 $0.033@10 $0.0164@100. (RC0402FR-13301KL also 0.) JLC C171693 has 4,857.',
-    'R4.7k': 'Yageo RC0402FR-134K7L (same part, 10k reel code) DK 13-RC0402FR-134K7LCT-ND stock 769,461 $0.022@10 $0.0103@100.',
     'R510k': 'Yageo RC0402FR-13510KL DK 13-RC0402FR-13510KLCT-ND stock ~43,759 (read from page) $0.022@10 $0.0103@100. (Panasonic ERJ-2RKF5103X also 0.)',
-    'TPD4E05U06': 'Diodes Inc DT1240-04LP-7 (U-DFN2510-10, same 2.5x1.0 10-pin flow-through, 5.5V) DK DT1240-04LP-7DICT-ND stock 127,377 $0.296@10 $0.1868@100 - confirm pinout. Beware GOODWORK clone listing at DK.',
-    'XTAL32M': 'Abracon ABM11N-32.0000MHZ-8-D1X-T3 (2016, 8pF, 50 ohm) DK 535-ABM11N-32.0000MHZ-8-D1X-T3CT-ND stock 1,000 $0.553@10 $0.4803@100',
+    'R4.7k': 'Yageo RC0402FR-134K7L (same part, 10k reel code) DK 13-RC0402FR-134K7LCT-ND stock 68,336 $0.022@10 $0.0103@100.',
+    'R68_0805_AS': 'Panasonic ERJ-P06F68R0V (0805 68R 1% 0.5W anti-surge) DK 10-ERJ-P06F68R0VCT-ND stock 19,204 $0.095@10 $0.0542@100; JLC C543529 has 0. Vishay part: DK 21,541 but LCSC 195 / JLC 198, so consign for a JLC build above ~190 boards.',
+    'SKRP': 'C&K PTS810 SJS 250 SMTR LFS (same land pattern, -40..+85 C, 600 gf) DK CKN10878CT-ND stock 44,489 $0.611@10 $0.5076@100; JLC C221897 16. Alps SKRPADE010 shows no DigiKey quantity (0; 20 wk lead).',
+    'TPD4E05U06': 'TI TPD4E05U06QDQARQ1 (automotive version, same USON-10 2.5x1.0 DQA package, TI) DK 296-40696-1-ND stock 137,744 $0.876@10 $0.5787@100; JLC C81353 3,280. The Diodes DT1240-04LP-7 named on 17 Oct has no DigiKey stock (the 127,377 was this TI part). The standard part is back 7 Jan 2027.',
+    'XTAL32M': 'Abracon ABM11N-32.0000MHZ-8-D1X-T3 (2016, 8pF, 50 ohm) DK 535-ABM11N-32.0000MHZ-8-D1X-T3CT-ND stock 1,000 $0.553@10 $0.4803@100. The ABM11W is due 23 Oct (3,000).',
 }
 for _k, _pn in DIGIKEY.items():
     if _k in PARTS:
