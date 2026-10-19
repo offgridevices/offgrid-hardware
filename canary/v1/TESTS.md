@@ -48,7 +48,7 @@ recorded firmware inputs (one telemetry line a second) through the page's JS
 port of `detect.c` and compares state, gas deviation, CO₂ rate and dT/dt
 every second: **0 mismatches over 6,691 seconds, 8 scenarios** (a CI gate).
 
-**Case.** `mechanical/canary-v1-bumper.stl`: one watertight body (trimesh),
+**Case.** `enclosure/print/canary-v1-bumper.stl`: one watertight body (trimesh),
 64.3 × 44.3 × 5.0 mm.
 
 ## Analog and power

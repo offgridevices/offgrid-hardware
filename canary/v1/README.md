@@ -78,7 +78,7 @@ a vent at 400 s (alarm 7.6 s later) — `sim/hil/`:
 
 ## Case
 
-`mechanical/canary-v1-bumper.stl` is an optional printed frame (PLA/PETG, no
+`enclosure/print/canary-v1-bumper.stl` is an optional printed frame (PLA/PETG, no
 supports, 64 × 44 × 5 mm). The board presses in from below; its underside
 stays flush with the frame's so the thermal tab still lies on the pack, and
 the USB-C, probe connector and the sensor head's air path stay open.
@@ -127,7 +127,8 @@ the USB-C, probe connector and the sensor head's air path stay open.
 | `sim/spice/`, `sim/analysis/` | sounder driver SPICE, NTC/power/I²C analyses |
 | `video/` | the product video and the scripts that build it |
 | `web/` | the interactive bench page (`build_page.py` → one HTML file); its detector is a port of `detect.c` checked equal to the firmware second by second |
-| `mechanical/` | STEP model (zipped) and a 3D-printable bumper (`bumper.scad`, `canary-v1-bumper.stl`) |
+| `mechanical/` | STEP model (zipped) |
+| `enclosure/` | 3D-printable bumper: `bumper.scad`, and `print/canary-v1-bumper.stl` |
 | `TESTS.md`, `docs/decisions.md` | every test with results; the trade-offs |
 
 ## How to build
