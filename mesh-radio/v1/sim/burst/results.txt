@@ -2,370 +2,281 @@ Study 4: transmit bursts from a worn cell (P2, X4), at ambient -40 / -20 / 0 / 2
 Criteria: P2-a 3V3 >= 1.9 V; P2-b no BQ29700 trip (OCD/SCD/UVP); P2-c TPS63810 never in UVLO and VPA >= 95 % of
 its setting.  BUVLO reported, not failed.  R_int is the 25 C value; it is scaled x9 / x5 / x2 / x1 / x0.8 / x0.75
 at -40 / -20 / 0 / 25 / 60 / 85 C (powerlib.rint_k).  Cell = OCV behind R_int (pure resistance), + 2 x 20 mOhm leads.
-drawn = LM66100 CE = GND, PR1 562 k / 301 k (as in src/circuit.py); fixed = Schottky RB060MM in place of the
-LM66100 and PR1 562 k / 374 k.
+Circuit: src/circuit.py as changed on 19 Oct (TPS22950 cell-to-SYS bypass, PR1 562 k / 374 k, CSD25310Q2,
+2 x 47 uF 1206 X7S on VPA).
 
-Highest PA level that passes, battery only (R_int at 25 C in the header):
+Highest PA level that passes, battery only (R_int at 25 C in the header) = the firmware cap:
 variant  ambient    OCV         50 mOhm        150 mOhm        300 mOhm
 -------  -------  -----  --------------  --------------  --------------
-  drawn    -40 C  4.2 V    33 dBm (2 W)            none            none
-  drawn    -40 C  3.7 V    30 dBm (1 W)            none            none
-  drawn    -40 C  3.3 V            none            none            none
-  drawn    -40 C  3.1 V            none            none            none
-  drawn    -20 C  4.2 V  34 dBm (2.5 W)    30 dBm (1 W)            none
-  drawn    -20 C  3.7 V  32 dBm (1.6 W)            none            none
-  drawn    -20 C  3.3 V            none            none            none
-  drawn    -20 C  3.1 V            none            none            none
-  drawn      0 C  4.2 V    35 dBm (3 W)  34 dBm (2.5 W)  32 dBm (1.6 W)
-  drawn      0 C  3.7 V  34 dBm (2.5 W)  32 dBm (1.6 W)            none
-  drawn      0 C  3.3 V    30 dBm (1 W)            none            none
-  drawn      0 C  3.1 V            none            none            none
-  drawn     25 C  4.2 V    35 dBm (3 W)    35 dBm (3 W)  34 dBm (2.5 W)
-  drawn     25 C  3.7 V    35 dBm (3 W)    33 dBm (2 W)  32 dBm (1.6 W)
-  drawn     25 C  3.3 V  32 dBm (1.6 W)    30 dBm (1 W)            none
-  drawn     25 C  3.1 V            none            none            none
-  drawn     60 C  4.2 V    35 dBm (3 W)    35 dBm (3 W)  34 dBm (2.5 W)
-  drawn     60 C  3.7 V    35 dBm (3 W)    33 dBm (2 W)  32 dBm (1.6 W)
-  drawn     60 C  3.3 V  32 dBm (1.6 W)    30 dBm (1 W)            none
-  drawn     60 C  3.1 V            none            none            none
-  drawn     85 C  4.2 V    35 dBm (3 W)    35 dBm (3 W)  34 dBm (2.5 W)
-  drawn     85 C  3.7 V    35 dBm (3 W)    33 dBm (2 W)  32 dBm (1.6 W)
-  drawn     85 C  3.3 V  32 dBm (1.6 W)    30 dBm (1 W)            none
-  drawn     85 C  3.1 V            none            none            none
-  fixed    -40 C  4.2 V    33 dBm (2 W)            none            none
-  fixed    -40 C  3.7 V    30 dBm (1 W)            none            none
-  fixed    -40 C  3.3 V            none            none            none
-  fixed    -40 C  3.1 V            none            none            none
-  fixed    -20 C  4.2 V    35 dBm (3 W)    30 dBm (1 W)            none
-  fixed    -20 C  3.7 V    33 dBm (2 W)            none            none
-  fixed    -20 C  3.3 V    30 dBm (1 W)            none            none
-  fixed    -20 C  3.1 V            none            none            none
-  fixed      0 C  4.2 V    35 dBm (3 W)  34 dBm (2.5 W)  32 dBm (1.6 W)
-  fixed      0 C  3.7 V    35 dBm (3 W)    33 dBm (2 W)    30 dBm (1 W)
-  fixed      0 C  3.3 V    33 dBm (2 W)    30 dBm (1 W)            none
-  fixed      0 C  3.1 V    30 dBm (1 W)            none            none
-  fixed     25 C  4.2 V    35 dBm (3 W)    35 dBm (3 W)  34 dBm (2.5 W)
-  fixed     25 C  3.7 V    35 dBm (3 W)  34 dBm (2.5 W)  32 dBm (1.6 W)
-  fixed     25 C  3.3 V  34 dBm (2.5 W)  32 dBm (1.6 W)    30 dBm (1 W)
-  fixed     25 C  3.1 V  32 dBm (1.6 W)            none            none
-  fixed     60 C  4.2 V    35 dBm (3 W)    35 dBm (3 W)  34 dBm (2.5 W)
-  fixed     60 C  3.7 V    35 dBm (3 W)  34 dBm (2.5 W)    33 dBm (2 W)
-  fixed     60 C  3.3 V  34 dBm (2.5 W)  32 dBm (1.6 W)    30 dBm (1 W)
-  fixed     60 C  3.1 V  32 dBm (1.6 W)    30 dBm (1 W)            none
-  fixed     85 C  4.2 V    35 dBm (3 W)    35 dBm (3 W)  34 dBm (2.5 W)
-  fixed     85 C  3.7 V    35 dBm (3 W)  34 dBm (2.5 W)    33 dBm (2 W)
-  fixed     85 C  3.3 V    33 dBm (2 W)  32 dBm (1.6 W)    30 dBm (1 W)
-  fixed     85 C  3.1 V  32 dBm (1.6 W)    30 dBm (1 W)            none
+    new    -40 C  4.2 V    33 dBm (2 W)            none            none
+    new    -40 C  3.7 V  32 dBm (1.6 W)            none            none
+    new    -40 C  3.3 V            none            none            none
+    new    -40 C  3.1 V            none            none            none
+    new    -20 C  4.2 V    35 dBm (3 W)  32 dBm (1.6 W)            none
+    new    -20 C  3.7 V    33 dBm (2 W)            none            none
+    new    -20 C  3.3 V    30 dBm (1 W)            none            none
+    new    -20 C  3.1 V            none            none            none
+    new      0 C  4.2 V    35 dBm (3 W)  34 dBm (2.5 W)  32 dBm (1.6 W)
+    new      0 C  3.7 V    35 dBm (3 W)    33 dBm (2 W)    30 dBm (1 W)
+    new      0 C  3.3 V    33 dBm (2 W)    30 dBm (1 W)            none
+    new      0 C  3.1 V  32 dBm (1.6 W)            none            none
+    new     25 C  4.2 V    35 dBm (3 W)    35 dBm (3 W)  34 dBm (2.5 W)
+    new     25 C  3.7 V    35 dBm (3 W)    35 dBm (3 W)    33 dBm (2 W)
+    new     25 C  3.3 V    35 dBm (3 W)    33 dBm (2 W)    30 dBm (1 W)
+    new     25 C  3.1 V    33 dBm (2 W)    30 dBm (1 W)            none
+    new     60 C  4.2 V    35 dBm (3 W)    35 dBm (3 W)    35 dBm (3 W)
+    new     60 C  3.7 V    35 dBm (3 W)    35 dBm (3 W)    33 dBm (2 W)
+    new     60 C  3.3 V    35 dBm (3 W)    33 dBm (2 W)    30 dBm (1 W)
+    new     60 C  3.1 V    33 dBm (2 W)    30 dBm (1 W)            none
+    new     85 C  4.2 V    35 dBm (3 W)    35 dBm (3 W)    35 dBm (3 W)
+    new     85 C  3.7 V    35 dBm (3 W)    35 dBm (3 W)    33 dBm (2 W)
+    new     85 C  3.3 V    35 dBm (3 W)    33 dBm (2 W)    30 dBm (1 W)
+    new     85 C  3.1 V    33 dBm (2 W)    30 dBm (1 W)            none
 
-Grid detail, drawn, 25 C, 0.2 s bursts, battery only:
+Corner summary: PASS = the level runs from that cell; otherwise the firmware cap for it (the highest
+level that passes, or "no TX": below 1 W nothing was simulated).  A capped level is not a hardware fault:
+trying it browns the board out or trips the protector, nothing is damaged.
+                           case    -40 C  -20 C      0 C  25 C  60 C  85 C
+-------------------------------  -------  -----  -------  ----  ----  ----
+3 W, fresh cell 4.2 V / 50 mOhm  cap 2 W   PASS     PASS  PASS  PASS  PASS
+ 3 W, mid cell 3.7 V / 150 mOhm    no TX  no TX  cap 2 W  PASS  PASS  PASS
+ 1 W, mid cell 3.7 V / 150 mOhm    no TX  no TX     PASS  PASS  PASS  PASS
+1 W, worn cell 3.3 V / 300 mOhm    no TX  no TX    no TX  PASS  PASS  PASS
+
+Grid detail, new, 25 C, 0.2 s bursts, battery only:
 cell (R at 25 C)        PA level  Icell max A  BAT_P min  VSYS min  3V3 min  PA_IN min  VPA min  BUVLO  verdict                                                                        why
 ----------------  --------------  -----------  ---------  --------  -------  ---------  -------  -----  -------  -------------------------------------------------------------------------
- 4.2 V / 50 mOhm    30 dBm (1 W)       0.8206      4.069     4.063    3.274      4.024    2.646     no     PASS                                                                          -
- 4.2 V / 50 mOhm  32 dBm (1.6 W)        1.186       4.01     4.005    3.274      3.942     3.03     no     PASS                                                                          -
- 4.2 V / 50 mOhm    33 dBm (2 W)        1.515      3.957     3.951    3.274      3.868    3.267     no     PASS                                                                          -
- 4.2 V / 50 mOhm  34 dBm (2.5 W)        2.106      3.859     3.853    3.274      3.733    3.493     no     PASS                                                                          -
- 4.2 V / 50 mOhm    35 dBm (3 W)        2.764       3.75     3.744    3.274      3.581    3.877     no     PASS                                                                          -
-4.2 V / 150 mOhm    30 dBm (1 W)       0.8374      3.982     3.976    3.274      3.936    2.646     no     PASS                                                                          -
-4.2 V / 150 mOhm  32 dBm (1.6 W)        1.225      3.879     3.873    3.274      3.808     3.03     no     PASS                                                                          -
-4.2 V / 150 mOhm    33 dBm (2 W)        1.586      3.783     3.776    3.274      3.689    3.267     no     PASS                                                                          -
-4.2 V / 150 mOhm  34 dBm (2.5 W)         2.27      3.597     3.591    3.274       3.46    3.493     no     PASS                                                                          -
-4.2 V / 150 mOhm    35 dBm (3 W)        3.109      3.364     3.357    3.259      3.173    3.877     no     PASS                                                                          -
-4.2 V / 300 mOhm    30 dBm (1 W)       0.8686      3.841     3.835    3.274      3.794    2.646     no     PASS                                                                          -
-4.2 V / 300 mOhm  32 dBm (1.6 W)        1.301      3.659     3.653    3.274      3.584     3.03     no     PASS                                                                          -
-4.2 V / 300 mOhm    33 dBm (2 W)        1.726      3.478     3.472    3.274      3.376    3.267     no     PASS                                                                          -
-4.2 V / 300 mOhm  34 dBm (2.5 W)        2.699      3.049     3.043    2.944      2.885    3.493     no     PASS                                                                          -
-4.2 V / 300 mOhm    35 dBm (3 W)        2.882      2.991     2.999    3.024      1.853        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.7 V / 50 mOhm    30 dBm (1 W)       0.9411      3.542     3.536    3.274       3.49    2.646     no     PASS                                                                          -
- 3.7 V / 50 mOhm  32 dBm (1.6 W)        1.369      3.469     3.462    3.274       3.39     3.03     no     PASS                                                                          -
- 3.7 V / 50 mOhm    33 dBm (2 W)        1.765        3.4     3.394    3.274      3.296    3.267     no     PASS                                                                          -
- 3.7 V / 50 mOhm  34 dBm (2.5 W)        2.506       3.27     3.264    3.165      3.118    3.493     no     PASS                                                                          -
- 3.7 V / 50 mOhm    35 dBm (3 W)        3.389       3.11     3.104    3.005      2.902    3.877     no     PASS                                                                          -
-3.7 V / 150 mOhm    30 dBm (1 W)        0.965       3.44     3.433    3.274      3.386    2.646     no     PASS                                                                          -
-3.7 V / 150 mOhm  32 dBm (1.6 W)        1.431      3.311     3.304    3.206      3.227     3.03     no     PASS                                                                          -
-3.7 V / 150 mOhm    33 dBm (2 W)        1.886      3.183     3.176    3.078       3.07    3.267     no     PASS                                                                          -
-3.7 V / 150 mOhm  34 dBm (2.5 W)        2.575      2.993     2.991    2.929      1.857        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 150 mOhm    35 dBm (3 W)        2.612      2.988     2.999    3.083      1.843        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm    30 dBm (1 W)        1.009      3.273     3.266    3.168      3.217    2.646     no     PASS                                                                          -
-3.7 V / 300 mOhm  32 dBm (1.6 W)        1.559      3.032     3.026    2.927      2.941     3.03     no     PASS                                                                          -
-3.7 V / 300 mOhm    33 dBm (2 W)        1.675      2.988     2.989    2.949      1.861        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm  34 dBm (2.5 W)        1.696      2.982     2.993    3.074      1.869        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm    35 dBm (3 W)        1.779      2.949     2.962    3.099       1.77        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm    30 dBm (1 W)        1.056      3.113     3.106    3.008      3.054    2.646     no     PASS                                                                          -
- 3.3 V / 50 mOhm  32 dBm (1.6 W)        1.565       3.02     3.014    2.915      2.928     3.03     no     PASS                                                                          -
- 3.3 V / 50 mOhm    33 dBm (2 W)        1.752      2.988     2.988    2.939      1.862        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm  34 dBm (2.5 W)        1.744      2.986     2.994    2.972      1.879        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm    35 dBm (3 W)        1.771      2.981      2.99    2.977      1.851        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm    30 dBm (1 W)        1.095      2.993     2.983    2.884      2.931    2.646    yes     PASS                                                                      BUVLO
-3.3 V / 150 mOhm  32 dBm (1.6 W)        1.128      2.985     2.987    2.944      1.876        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm    33 dBm (2 W)        1.142       2.98     2.985    2.952      1.883        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm  34 dBm (2.5 W)        1.143       2.98     2.987     2.96      1.858        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm    35 dBm (3 W)        1.151      2.977     2.985    2.961      1.848        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm    30 dBm (1 W)       0.7374      2.983     2.982    2.927      1.882        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm  32 dBm (1.6 W)       0.7436       2.98     2.982    2.936      1.877        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm    33 dBm (2 W)         0.75      2.978      2.98    2.936      1.863        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm  34 dBm (2.5 W)       0.7604      2.973     2.977    2.936      1.855        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm    35 dBm (3 W)       0.7709      2.969     2.972    2.933      1.876        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm    30 dBm (1 W)       0.6404      2.982     2.977    2.899      1.881        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm  32 dBm (1.6 W)        0.638      2.982     2.977      2.9      1.876        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm    33 dBm (2 W)       0.6478      2.981     2.976    2.898      1.864        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm  34 dBm (2.5 W)       0.6473      2.981     2.976    2.898      1.863        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm    35 dBm (3 W)       0.6538      2.979     2.974    2.896      1.859        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.1 V / 150 mOhm    30 dBm (1 W)       0.4162      2.982     2.975    2.887      1.882        0    yes     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm  32 dBm (1.6 W)       0.4177      2.982     2.974    2.883      1.877        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm    33 dBm (2 W)       0.4174      2.982     2.973    2.879      1.871        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm  34 dBm (2.5 W)       0.4137      2.983     2.974    2.877      1.867        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm    35 dBm (3 W)       0.4152      2.983     2.974     2.88        1.9        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 300 mOhm    30 dBm (1 W)       0.6241       2.83     2.851    3.059          0        0     no     FAIL         [run ends at the first fatal event, 3.0 ms], TPS63810 UVLO (reset)
-3.1 V / 300 mOhm  32 dBm (1.6 W)       0.6241       2.83     2.851    3.059          0        0     no     FAIL         [run ends at the first fatal event, 3.0 ms], TPS63810 UVLO (reset)
-3.1 V / 300 mOhm    33 dBm (2 W)       0.6241       2.83     2.851    3.059          0        0     no     FAIL         [run ends at the first fatal event, 3.0 ms], TPS63810 UVLO (reset)
-3.1 V / 300 mOhm  34 dBm (2.5 W)       0.6241       2.83     2.851    3.059          0        0     no     FAIL         [run ends at the first fatal event, 3.0 ms], TPS63810 UVLO (reset)
-3.1 V / 300 mOhm    35 dBm (3 W)       0.6241       2.83     2.851    3.059          0        0     no     FAIL         [run ends at the first fatal event, 3.0 ms], TPS63810 UVLO (reset)
-  (every other ambient: sim/out/burst/g<d|f>_<T>_<OCV>_<mOhm>_<level>.json)
+ 4.2 V / 50 mOhm    30 dBm (1 W)       0.8185      4.093     4.078    3.274      4.048    2.646     no     PASS                                                                          -
+ 4.2 V / 50 mOhm  32 dBm (1.6 W)        1.179      4.045      4.03    3.274      3.977     3.03     no     PASS                                                                          -
+ 4.2 V / 50 mOhm    33 dBm (2 W)        1.502      4.002     3.987    3.274      3.914    3.267     no     PASS                                                                          -
+ 4.2 V / 50 mOhm  34 dBm (2.5 W)        2.078      3.926      3.91    3.274      3.801    3.493     no     PASS                                                                          -
+ 4.2 V / 50 mOhm    35 dBm (3 W)        2.702      3.843     3.826    3.274      3.678    3.877     no     PASS                                                                          -
+4.2 V / 150 mOhm    30 dBm (1 W)       0.8322      4.007     3.992    3.274      3.961    2.646     no     PASS                                                                          -
+4.2 V / 150 mOhm  32 dBm (1.6 W)        1.212      3.918     3.903    3.274      3.849     3.03     no     PASS                                                                          -
+4.2 V / 150 mOhm    33 dBm (2 W)        1.563      3.836      3.82    3.274      3.744    3.267     no     PASS                                                                          -
+4.2 V / 150 mOhm  34 dBm (2.5 W)        2.215      3.682     3.665    3.274      3.549    3.493     no     PASS                                                                          -
+4.2 V / 150 mOhm    35 dBm (3 W)        2.978        3.5     3.483    3.274      3.318    3.877     no     PASS                                                                          -
+4.2 V / 300 mOhm    30 dBm (1 W)       0.8623       3.87     3.854    3.274      3.823    2.646     no     PASS                                                                          -
+4.2 V / 300 mOhm  32 dBm (1.6 W)        1.284      3.707     3.691    3.274      3.633     3.03     no     PASS                                                                          -
+4.2 V / 300 mOhm    33 dBm (2 W)        1.693      3.548     3.531    3.274      3.448    3.267     no     PASS                                                                          -
+4.2 V / 300 mOhm  34 dBm (2.5 W)        2.557      3.208     3.191    3.095      3.053    3.493     no     PASS                                                                          -
+4.2 V / 300 mOhm    35 dBm (3 W)        4.116      2.569     2.274    2.198      1.857        0    yes     FAIL  [run ends at the first fatal event, 4.6 ms], TPS63810 UVLO (reset), BUVLO
+ 3.7 V / 50 mOhm    30 dBm (1 W)        0.937      3.574     3.557    3.274      3.522    2.646     no     PASS                                                                          -
+ 3.7 V / 50 mOhm  32 dBm (1.6 W)        1.358      3.516     3.499    3.274      3.438     3.03     no     PASS                                                                          -
+ 3.7 V / 50 mOhm    33 dBm (2 W)         1.74      3.464     3.447    3.274      3.361    3.267     no     PASS                                                                          -
+ 3.7 V / 50 mOhm  34 dBm (2.5 W)        2.429      3.369     3.352    3.256      3.222    3.493     no     PASS                                                                          -
+ 3.7 V / 50 mOhm    35 dBm (3 W)        3.219      3.258     3.241    3.145      3.061    3.877     no     PASS                                                                          -
+3.7 V / 150 mOhm    30 dBm (1 W)       0.9564      3.474     3.458    3.274      3.422    2.646     no     PASS                                                                          -
+3.7 V / 150 mOhm  32 dBm (1.6 W)        1.409      3.366      3.35    3.253      3.285     3.03     no     PASS                                                                          -
+3.7 V / 150 mOhm    33 dBm (2 W)        1.839      3.263     3.246     3.15      3.154    3.267     no     PASS                                                                          -
+3.7 V / 150 mOhm  34 dBm (2.5 W)        2.694      3.054     3.036    2.939       2.89    3.493     no     PASS                                                                          -
+3.7 V / 150 mOhm    35 dBm (3 W)        3.903      2.751     2.436     2.34      2.509    3.877    yes     PASS                                                                      BUVLO
+3.7 V / 300 mOhm    30 dBm (1 W)        0.998      3.313     3.296      3.2      3.258    2.646     no     PASS                                                                          -
+3.7 V / 300 mOhm  32 dBm (1.6 W)        1.522      3.107     3.088    2.992      3.018     3.03     no     PASS                                                                          -
+3.7 V / 300 mOhm    33 dBm (2 W)        2.086      2.881     2.567    2.471      2.756    3.267    yes     PASS                                                                      BUVLO
+3.7 V / 300 mOhm  34 dBm (2.5 W)        2.747      2.612     3.107    3.057      1.865        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 300 mOhm    35 dBm (3 W)        2.773      2.598     3.215    3.165      1.848        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+ 3.3 V / 50 mOhm    30 dBm (1 W)        1.043      3.155     3.138    3.042      3.096    2.646     no     PASS                                                                          -
+ 3.3 V / 50 mOhm  32 dBm (1.6 W)        1.532      3.086     3.067    2.971      2.996     3.03     no     PASS                                                                          -
+ 3.3 V / 50 mOhm    33 dBm (2 W)        1.988      3.021     3.002    2.906      2.902    3.267     no     PASS                                                                          -
+ 3.3 V / 50 mOhm  34 dBm (2.5 W)        2.854      2.896     2.581    2.485      2.721    3.493    yes     PASS                                                                      BUVLO
+ 3.3 V / 50 mOhm    35 dBm (3 W)        3.927      2.737     2.423    2.326      2.494    3.877    yes     PASS                                                                      BUVLO
+3.3 V / 150 mOhm    30 dBm (1 W)        1.079       3.04     3.022    2.926       2.98    2.646     no     PASS                                                                          -
+3.3 V / 150 mOhm  32 dBm (1.6 W)        1.625      2.906     2.592    2.496      2.811     3.03    yes     PASS                                                                      BUVLO
+3.3 V / 150 mOhm    33 dBm (2 W)        2.174       2.77     2.456    2.359      2.639    3.267    yes     PASS                                                                      BUVLO
+3.3 V / 150 mOhm  34 dBm (2.5 W)        2.781      2.614     2.936    2.885      1.858        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.3 V / 150 mOhm    35 dBm (3 W)        2.779      2.609     2.993    2.943       1.84        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.3 V / 300 mOhm    30 dBm (1 W)        1.146      2.849     2.535    2.439      2.784    2.646    yes     PASS                                                                      BUVLO
+3.3 V / 300 mOhm  32 dBm (1.6 W)         1.84      2.567     2.254    2.158      2.458     3.03    yes     FAIL                                                            UVP trip, BUVLO
+3.3 V / 300 mOhm    33 dBm (2 W)        1.749      2.604     2.896    2.844      1.864        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.3 V / 300 mOhm  34 dBm (2.5 W)        1.772      2.593     2.943    2.891      1.856        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.3 V / 300 mOhm    35 dBm (3 W)          1.8      2.583     2.948    2.897      1.847        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+ 3.1 V / 50 mOhm    30 dBm (1 W)        1.112      2.942     2.628    2.532      2.879    2.646    yes     PASS                                                                      BUVLO
+ 3.1 V / 50 mOhm  32 dBm (1.6 W)        1.648      2.865     2.551    2.454      2.767     3.03    yes     PASS                                                                      BUVLO
+ 3.1 V / 50 mOhm    33 dBm (2 W)        2.157       2.79     2.476     2.38       2.66    3.267    yes     PASS                                                                      BUVLO
+ 3.1 V / 50 mOhm  34 dBm (2.5 W)        3.163      2.638     2.325    2.229      2.444    3.493    yes     FAIL                                                            UVP trip, BUVLO
+ 3.1 V / 50 mOhm    35 dBm (3 W)        3.297      2.608     2.593    2.538      1.854        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.1 V / 150 mOhm    30 dBm (1 W)        1.158      2.818     2.504    2.407      2.752    2.646    yes     PASS                                                                      BUVLO
+3.1 V / 150 mOhm  32 dBm (1.6 W)        1.773      2.663     2.349    2.253      2.558     3.03    yes     FAIL                                                            UVP trip, BUVLO
+3.1 V / 150 mOhm    33 dBm (2 W)         2.18       2.56     2.388    2.335       1.87        0    yes     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 150 mOhm  34 dBm (2.5 W)        1.996      2.601     2.536    2.482      1.849        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 150 mOhm    35 dBm (3 W)        2.012      2.595     2.543    2.489      1.839        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 300 mOhm    30 dBm (1 W)        1.247      2.604      2.29    2.194      2.532    2.646    yes     FAIL                                                            UVP trip, BUVLO
+3.1 V / 300 mOhm  32 dBm (1.6 W)        1.367      2.554      2.44    2.385      1.877        0    yes     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 300 mOhm    33 dBm (2 W)        1.367      2.553     2.472    2.417      1.887        0    yes     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 300 mOhm  34 dBm (2.5 W)        1.388      2.545     2.486    2.431      1.856        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 300 mOhm    35 dBm (3 W)        1.407      2.537     2.487    2.432      1.849        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+  (every other ambient: sim/out/burst/gn_<T>_<OCV>_<mOhm>_<level>.json)
 
-Grid detail, fixed, 25 C, 0.2 s bursts, battery only:
-cell (R at 25 C)        PA level  Icell max A  BAT_P min  VSYS min  3V3 min  PA_IN min  VPA min  BUVLO  verdict                                                                        why
-----------------  --------------  -----------  ---------  --------  -------  ---------  -------  -----  -------  -------------------------------------------------------------------------
- 4.2 V / 50 mOhm    30 dBm (1 W)       0.8205      4.069     4.054    3.274      4.024    2.646     no     PASS                                                                          -
- 4.2 V / 50 mOhm  32 dBm (1.6 W)        1.185       4.01     3.995    3.274      3.942     3.03     no     PASS                                                                          -
- 4.2 V / 50 mOhm    33 dBm (2 W)        1.514      3.957     3.941    3.274      3.868    3.267     no     PASS                                                                          -
- 4.2 V / 50 mOhm  34 dBm (2.5 W)        2.106      3.859     3.843    3.274      3.732    3.493     no     PASS                                                                          -
- 4.2 V / 50 mOhm    35 dBm (3 W)        2.764       3.75     3.733    3.274      3.581    3.877     no     PASS                                                                          -
-4.2 V / 150 mOhm    30 dBm (1 W)       0.8377      3.981     3.966    3.274      3.935    2.646     no     PASS                                                                          -
-4.2 V / 150 mOhm  32 dBm (1.6 W)        1.225      3.879     3.863    3.274      3.808     3.03     no     PASS                                                                          -
-4.2 V / 150 mOhm    33 dBm (2 W)        1.586      3.782     3.766    3.274      3.689    3.267     no     PASS                                                                          -
-4.2 V / 150 mOhm  34 dBm (2.5 W)         2.27      3.597      3.58    3.274       3.46    3.493     no     PASS                                                                          -
-4.2 V / 150 mOhm    35 dBm (3 W)        3.109      3.364     3.347    3.248      3.173    3.877     no     PASS                                                                          -
-4.2 V / 300 mOhm    30 dBm (1 W)        0.869      3.841     3.825    3.274      3.794    2.646     no     PASS                                                                          -
-4.2 V / 300 mOhm  32 dBm (1.6 W)        1.302      3.659     3.642    3.274      3.584     3.03     no     PASS                                                                          -
-4.2 V / 300 mOhm    33 dBm (2 W)        1.726      3.478     3.461    3.274      3.376    3.267     no     PASS                                                                          -
-4.2 V / 300 mOhm  34 dBm (2.5 W)        2.699      3.049     3.032    2.934      2.885    3.493     no     PASS                                                                          -
-4.2 V / 300 mOhm    35 dBm (3 W)          3.7      2.616     3.191    3.141      1.856        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.7 V / 50 mOhm    30 dBm (1 W)       0.9409      3.542     3.525    3.274       3.49    2.646     no     PASS                                                                          -
- 3.7 V / 50 mOhm  32 dBm (1.6 W)        1.369      3.469     3.452    3.274       3.39     3.03     no     PASS                                                                          -
- 3.7 V / 50 mOhm    33 dBm (2 W)        1.765        3.4     3.383    3.274      3.296    3.267     no     PASS                                                                          -
- 3.7 V / 50 mOhm  34 dBm (2.5 W)        2.506       3.27     3.253    3.155      3.118    3.493     no     PASS                                                                          -
- 3.7 V / 50 mOhm    35 dBm (3 W)        3.389       3.11     3.094    2.995      2.902    3.877     no     PASS                                                                          -
-3.7 V / 150 mOhm    30 dBm (1 W)        0.965       3.44     3.423    3.274      3.386    2.646     no     PASS                                                                          -
-3.7 V / 150 mOhm  32 dBm (1.6 W)        1.431      3.311     3.294    3.195      3.227     3.03     no     PASS                                                                          -
-3.7 V / 150 mOhm    33 dBm (2 W)        1.886      3.183     3.166    3.067       3.07    3.267     no     PASS                                                                          -
-3.7 V / 150 mOhm  34 dBm (2.5 W)        2.846      2.903     2.594    2.496      2.729    3.493    yes     PASS                                                                      BUVLO
-3.7 V / 150 mOhm    35 dBm (3 W)        3.857       2.62     3.047    2.998       1.85        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm    30 dBm (1 W)        1.009      3.273     3.256    3.157      3.217    2.646     no     PASS                                                                          -
-3.7 V / 300 mOhm  32 dBm (1.6 W)        1.559      3.032     3.015    2.917      2.941     3.03     no     PASS                                                                          -
-3.7 V / 300 mOhm    33 dBm (2 W)        2.197      2.742     2.433    2.334      2.609    3.267    yes     FAIL                                                            UVP trip, BUVLO
-3.7 V / 300 mOhm  34 dBm (2.5 W)        2.548       2.61     3.149    3.097      1.854        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm    35 dBm (3 W)        2.611      2.588     3.217    3.167      1.866        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm    30 dBm (1 W)        1.056      3.113     3.096    2.997      3.054    2.646     no     PASS                                                                          -
- 3.3 V / 50 mOhm  32 dBm (1.6 W)        1.565       3.02     3.003    2.905      2.928     3.03     no     PASS                                                                          -
- 3.3 V / 50 mOhm    33 dBm (2 W)        2.051       2.93     2.621    2.522      2.807    3.267    yes     PASS                                                                      BUVLO
- 3.3 V / 50 mOhm  34 dBm (2.5 W)        3.033       2.74     2.432    2.333      2.555    3.493    yes     PASS                                                                      BUVLO
- 3.3 V / 50 mOhm    35 dBm (3 W)        3.778      2.619     2.951    2.901      1.852        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm    30 dBm (1 W)        1.095      2.993     2.684    2.586      2.931    2.646    yes     PASS                                                                      BUVLO
-3.3 V / 150 mOhm  32 dBm (1.6 W)        1.672      2.824     2.516    2.417      2.726     3.03    yes     PASS                                                                      BUVLO
-3.3 V / 150 mOhm    33 dBm (2 W)        2.289      2.637     2.328    2.229      2.499    3.267    yes     FAIL                                                            UVP trip, BUVLO
-3.3 V / 150 mOhm  34 dBm (2.5 W)        2.424      2.616     2.958    2.907      1.859        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm    35 dBm (3 W)        2.487      2.598     2.985    2.934      1.844        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm    30 dBm (1 W)        1.169       2.79     2.481    2.382      2.723    2.646    yes     PASS                                                                      BUVLO
-3.3 V / 300 mOhm  32 dBm (1.6 W)        1.583      2.609     2.748    2.691      1.879        0    yes     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
-3.3 V / 300 mOhm    33 dBm (2 W)          1.6      2.607     2.899    2.846      1.867        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm  34 dBm (2.5 W)        1.679      2.573     2.931    2.877      1.851        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm    35 dBm (3 W)        1.688       2.57      2.94    2.889      1.853        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm    30 dBm (1 W)         1.13      2.893     2.584    2.485      2.829    2.646    yes     PASS                                                                      BUVLO
- 3.1 V / 50 mOhm  32 dBm (1.6 W)        1.695      2.785     2.476    2.378      2.685     3.03    yes     PASS                                                                      BUVLO
- 3.1 V / 50 mOhm    33 dBm (2 W)        2.254      2.675     2.367    2.268      2.539    3.267    yes     FAIL                                                            UVP trip, BUVLO
- 3.1 V / 50 mOhm  34 dBm (2.5 W)        2.904      2.563     2.497    2.445      1.848        0     no     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm    35 dBm (3 W)        2.651      2.606     2.559    2.506      1.851        0     no     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.1 V / 150 mOhm    30 dBm (1 W)         1.18       2.76     2.452    2.353      2.693    2.646    yes     FAIL                                                            UVP trip, BUVLO
-3.1 V / 150 mOhm  32 dBm (1.6 W)        1.843      2.559      2.25    2.153      1.879        0    yes     FAIL  [run ends at the first fatal event, 4.5 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm    33 dBm (2 W)        1.899      2.555     2.473    2.419      1.867        0    yes     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm  34 dBm (2.5 W)        1.916       2.55     2.516    2.462      1.859        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm    35 dBm (3 W)        1.761      2.595     2.537    2.481       1.86        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 300 mOhm    30 dBm (1 W)        1.226      2.555     2.253    2.163      1.883        0    yes     FAIL  [run ends at the first fatal event, 4.4 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 300 mOhm  32 dBm (1.6 W)        1.257      2.549     2.444    2.388      1.879        0    yes     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 300 mOhm    33 dBm (2 W)        1.262      2.547     2.464    2.408      1.868        0    yes     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 300 mOhm  34 dBm (2.5 W)        1.263      2.548      2.48    2.423      1.857        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 300 mOhm    35 dBm (3 W)        1.287      2.537     2.478    2.422      1.853        0    yes     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-  (every other ambient: sim/out/burst/g<d|f>_<T>_<OCV>_<mOhm>_<level>.json)
-
-Grid detail, drawn, -20 C, 0.2 s bursts, battery only:
-cell (R at 25 C)        PA level  Icell max A  BAT_P min  VSYS min  3V3 min  PA_IN min  VPA min  BUVLO  verdict                                                                 why
-----------------  --------------  -----------  ---------  --------  -------  ---------  -------  -----  -------  ------------------------------------------------------------------
- 4.2 V / 50 mOhm    30 dBm (1 W)       0.8419      3.902     3.897    3.274      3.863    2.646     no     PASS                                                                   -
- 4.2 V / 50 mOhm  32 dBm (1.6 W)        1.244      3.757     3.752    3.274      3.698     3.03     no     PASS                                                                   -
- 4.2 V / 50 mOhm    33 dBm (2 W)         1.63      3.618     3.612    3.274      3.538    3.267     no     PASS                                                                   -
- 4.2 V / 50 mOhm  34 dBm (2.5 W)          2.4      3.333     3.328    3.247      3.212    3.493     no     PASS                                                                   -
- 4.2 V / 50 mOhm    35 dBm (3 W)        3.306      2.997     2.993     2.93      1.836        0     no     FAIL  [run ends at the first fatal event, 4.4 ms], TPS63810 UVLO (reset)
-4.2 V / 150 mOhm    30 dBm (1 W)       0.9684      3.365      3.36    3.274      3.321    2.646     no     PASS                                                                   -
-4.2 V / 150 mOhm  32 dBm (1.6 W)        1.399      2.988     2.985    2.923      1.872        0     no     FAIL  [run ends at the first fatal event, 4.4 ms], TPS63810 UVLO (reset)
-4.2 V / 150 mOhm    33 dBm (2 W)        1.409      2.985     2.989     2.97      1.872        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 150 mOhm  34 dBm (2.5 W)        1.422      2.978     2.984    3.088      1.855        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 150 mOhm    35 dBm (3 W)        1.444       2.96     2.967    3.123      1.843        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 300 mOhm    30 dBm (1 W)       0.7534      2.983     2.982    2.935      1.883        0     no     FAIL  [run ends at the first fatal event, 4.4 ms], TPS63810 UVLO (reset)
-4.2 V / 300 mOhm  32 dBm (1.6 W)       0.7616      2.972     2.976    3.003       1.87        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 300 mOhm    33 dBm (2 W)       0.7667      2.965     2.968    3.051      1.884        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 300 mOhm  34 dBm (2.5 W)       0.7905      2.927     2.931    3.075      1.845        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 300 mOhm    35 dBm (3 W)       0.7932      2.923     2.929    3.094      1.836        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
- 3.7 V / 50 mOhm    30 dBm (1 W)        0.973      3.348     3.342    3.262      3.303    2.646     no     PASS                                                                   -
- 3.7 V / 50 mOhm  32 dBm (1.6 W)        1.467      3.164     3.159    3.078      3.093     3.03     no     PASS                                                                   -
- 3.7 V / 50 mOhm    33 dBm (2 W)        1.932      2.991     2.986     2.91      1.875        0     no     FAIL  [run ends at the first fatal event, 4.4 ms], TPS63810 UVLO (reset)
- 3.7 V / 50 mOhm  34 dBm (2.5 W)        1.967      2.985     2.991    3.044      1.843        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.7 V / 50 mOhm    35 dBm (3 W)        1.997      2.974     2.983    3.094      1.845        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 150 mOhm    30 dBm (1 W)       0.8269      2.984     2.982     2.93      1.878        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 150 mOhm  32 dBm (1.6 W)       0.8362      2.977     2.981    2.989      1.873        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 150 mOhm    33 dBm (2 W)       0.8617      2.954     2.961    3.006      1.861        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 150 mOhm  34 dBm (2.5 W)       0.8833      2.933     2.947    3.028      1.873        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.7 V / 150 mOhm    35 dBm (3 W)        0.869      2.949     2.953     3.04      1.854        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm    30 dBm (1 W)       0.4441      2.982     2.985    2.942      1.882        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm  32 dBm (1.6 W)       0.4552      2.964     2.966     2.94      1.891        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm    33 dBm (2 W)       0.4593      2.958     2.959    2.936      1.861        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm  34 dBm (2.5 W)       0.4558      2.963     2.965    2.943      1.856        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm    35 dBm (3 W)       0.4582      2.959     2.961    2.933      1.851        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm    30 dBm (1 W)       0.8585      2.984     2.982    2.929      1.882        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm  32 dBm (1.6 W)       0.8688       2.98     2.981    2.944      1.875        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm    33 dBm (2 W)       0.8708      2.979     2.981    2.947      1.881        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm  34 dBm (2.5 W)       0.8801      2.974     2.978    2.948      1.853        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm    35 dBm (3 W)        0.887      2.973     2.976     2.95      1.849        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm    30 dBm (1 W)       0.3682      2.979     2.977     2.91      1.883        0     no     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm  32 dBm (1.6 W)       0.3677       2.98     2.976    2.906      1.873        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm    33 dBm (2 W)       0.3661      2.981     2.977      2.9       1.87        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm  34 dBm (2.5 W)       0.3648      2.983     2.978    2.902      1.872        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm    35 dBm (3 W)       0.3652      2.983     2.978    2.905      1.883        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm    30 dBm (1 W)       0.1967      2.982     2.978    2.907      1.888        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm  32 dBm (1.6 W)       0.1981      2.979     2.976    2.908      1.896        0     no     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm    33 dBm (2 W)        0.361      2.716     2.722    3.185          0        0     no     FAIL  [run ends at the first fatal event, 2.9 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm  34 dBm (2.5 W)        0.361      2.716     2.722    3.185          0        0     no     FAIL  [run ends at the first fatal event, 2.9 ms], TPS63810 UVLO (reset)
-3.3 V / 300 mOhm    35 dBm (3 W)        0.361      2.716     2.722    3.185          0        0     no     FAIL  [run ends at the first fatal event, 2.9 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm    30 dBm (1 W)       0.7243      2.831     2.842    3.062          0        0     no     FAIL  [run ends at the first fatal event, 3.0 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm  32 dBm (1.6 W)       0.7243      2.831     2.842    3.062          0        0     no     FAIL  [run ends at the first fatal event, 3.0 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm    33 dBm (2 W)       0.7243      2.831     2.842    3.062          0        0     no     FAIL  [run ends at the first fatal event, 3.0 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm  34 dBm (2.5 W)       0.7243      2.831     2.842    3.062          0        0     no     FAIL  [run ends at the first fatal event, 3.0 ms], TPS63810 UVLO (reset)
- 3.1 V / 50 mOhm    35 dBm (3 W)       0.7243      2.831     2.842    3.062          0        0     no     FAIL  [run ends at the first fatal event, 3.0 ms], TPS63810 UVLO (reset)
-3.1 V / 150 mOhm    30 dBm (1 W)       0.3519      2.794       2.8    3.042          0        0     no     FAIL  [run ends at the first fatal event, 3.2 ms], TPS63810 UVLO (reset)
-3.1 V / 150 mOhm  32 dBm (1.6 W)       0.3519      2.794       2.8    3.042          0        0     no     FAIL  [run ends at the first fatal event, 3.2 ms], TPS63810 UVLO (reset)
-3.1 V / 150 mOhm    33 dBm (2 W)       0.3519      2.794       2.8    3.042          0        0     no     FAIL  [run ends at the first fatal event, 3.2 ms], TPS63810 UVLO (reset)
-3.1 V / 150 mOhm  34 dBm (2.5 W)       0.3519      2.794       2.8    3.042          0        0     no     FAIL  [run ends at the first fatal event, 3.2 ms], TPS63810 UVLO (reset)
-3.1 V / 150 mOhm    35 dBm (3 W)       0.3519      2.794       2.8    3.042          0        0     no     FAIL  [run ends at the first fatal event, 3.2 ms], TPS63810 UVLO (reset)
-3.1 V / 300 mOhm    30 dBm (1 W)       0.2088      2.762     2.765    3.012          0        0     no     FAIL  [run ends at the first fatal event, 3.3 ms], TPS63810 UVLO (reset)
-3.1 V / 300 mOhm  32 dBm (1.6 W)       0.2088      2.762     2.765    3.012          0        0     no     FAIL  [run ends at the first fatal event, 3.3 ms], TPS63810 UVLO (reset)
-3.1 V / 300 mOhm    33 dBm (2 W)       0.2088      2.762     2.765    3.012          0        0     no     FAIL  [run ends at the first fatal event, 3.3 ms], TPS63810 UVLO (reset)
-3.1 V / 300 mOhm  34 dBm (2.5 W)       0.2088      2.762     2.765    3.012          0        0     no     FAIL  [run ends at the first fatal event, 3.3 ms], TPS63810 UVLO (reset)
-3.1 V / 300 mOhm    35 dBm (3 W)       0.2088      2.762     2.765    3.012          0        0     no     FAIL  [run ends at the first fatal event, 3.3 ms], TPS63810 UVLO (reset)
-  (every other ambient: sim/out/burst/g<d|f>_<T>_<OCV>_<mOhm>_<level>.json)
-
-Grid detail, fixed, -20 C, 0.2 s bursts, battery only:
+Grid detail, new, -20 C, 0.2 s bursts, battery only:
 cell (R at 25 C)        PA level  Icell max A  BAT_P min  VSYS min  3V3 min  PA_IN min  VPA min  BUVLO  verdict                                                                                    why
 ----------------  --------------  -----------  ---------  --------  -------  ---------  -------  -----  -------  -------------------------------------------------------------------------------------
- 4.2 V / 50 mOhm    30 dBm (1 W)       0.8422      3.902     3.889    3.274      3.863    2.646     no     PASS                                                                                      -
- 4.2 V / 50 mOhm  32 dBm (1.6 W)        1.245      3.757     3.744    3.274      3.698     3.03     no     PASS                                                                                      -
- 4.2 V / 50 mOhm    33 dBm (2 W)         1.63      3.618     3.604    3.274      3.538    3.267     no     PASS                                                                                      -
- 4.2 V / 50 mOhm  34 dBm (2.5 W)          2.4      3.333     3.319    3.238      3.212    3.493     no     PASS                                                                                      -
- 4.2 V / 50 mOhm    35 dBm (3 W)        3.594      2.874       2.5    2.419      2.689    3.877    yes     PASS                                                                                  BUVLO
-4.2 V / 150 mOhm    30 dBm (1 W)       0.9684      3.365     3.352    3.271      3.321    2.646     no     PASS                                                                                      -
-4.2 V / 150 mOhm  32 dBm (1.6 W)        1.713      2.699     2.325    2.244      2.615     3.03    yes     FAIL                                                                        UVP trip, BUVLO
-4.2 V / 150 mOhm    33 dBm (2 W)        1.831      2.608      3.07    3.029      1.867        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 150 mOhm  34 dBm (2.5 W)        1.874      2.582     3.308    3.258      1.838        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 150 mOhm    35 dBm (3 W)        1.918      2.548     3.419    3.274      1.858        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 300 mOhm    30 dBm (1 W)       0.9799      2.606     2.581    2.536      1.885        0    yes     FAIL              [run ends at the first fatal event, 4.5 ms], TPS63810 UVLO (reset), BUVLO
-4.2 V / 300 mOhm  32 dBm (1.6 W)        0.994      2.593      3.14    3.096      1.877        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 300 mOhm    33 dBm (2 W)         1.02      2.554     3.214    3.176      1.866        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 300 mOhm  34 dBm (2.5 W)        1.038      2.526     3.278    3.237      1.859        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-4.2 V / 300 mOhm    35 dBm (3 W)        1.075      2.466     3.298    3.254      1.839        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
- 3.7 V / 50 mOhm    30 dBm (1 W)        0.973      3.348     3.334    3.253      3.303    2.646     no     PASS                                                                                      -
- 3.7 V / 50 mOhm  32 dBm (1.6 W)        1.467      3.164      3.15     3.07      3.093     3.03     no     PASS                                                                                      -
- 3.7 V / 50 mOhm    33 dBm (2 W)        1.978       2.97     2.596    2.515      2.872    3.267    yes     PASS                                                                                  BUVLO
- 3.7 V / 50 mOhm  34 dBm (2.5 W)        2.908      2.616     2.889    2.848      1.856        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
- 3.7 V / 50 mOhm    35 dBm (3 W)        2.973      2.612     3.195    3.152      1.859        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 150 mOhm    30 dBm (1 W)         1.21      2.636     2.261    2.181      2.578    2.646    yes     FAIL                                                                        UVP trip, BUVLO
-3.7 V / 150 mOhm  32 dBm (1.6 W)        1.259      2.605     3.015    2.971      1.875        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 150 mOhm    33 dBm (2 W)        1.284      2.586     3.102    3.058      1.862        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 150 mOhm  34 dBm (2.5 W)        1.361       2.52     3.141    3.103       1.85        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 150 mOhm    35 dBm (3 W)        1.336      2.542     3.165    3.127      1.852        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm    30 dBm (1 W)       0.6824      2.593     2.901    2.856      1.884        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm  32 dBm (1.6 W)       0.6926      2.578     2.967     2.92      1.873        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm    33 dBm (2 W)        0.711      2.549     2.968     2.93      1.864        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm  34 dBm (2.5 W)       0.7223       2.53     2.987    2.948      1.847        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.7 V / 300 mOhm    35 dBm (3 W)       0.7335      2.512     2.969     2.93      1.856        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm    30 dBm (1 W)        1.113      2.886     2.512    2.431      2.834    2.646    yes     PASS                                                                                  BUVLO
- 3.3 V / 50 mOhm  32 dBm (1.6 W)        1.753      2.637     2.263    2.182       2.55     3.03    yes     FAIL                                                                        UVP trip, BUVLO
- 3.3 V / 50 mOhm    33 dBm (2 W)        1.861      2.607     2.875    2.831      1.863        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm  34 dBm (2.5 W)        1.965       2.57     2.939    2.897      1.866        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
- 3.3 V / 50 mOhm    35 dBm (3 W)        1.932      2.583     2.952    2.909      1.852        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-3.3 V / 150 mOhm    30 dBm (1 W)        0.802      2.599      2.74    2.695       1.88        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
-3.3 V / 150 mOhm  32 dBm (1.6 W)       0.8282      2.576     2.791    2.746      1.879        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
-3.3 V / 150 mOhm    33 dBm (2 W)       0.8253      2.579     2.779     2.74      1.867        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.3 V / 150 mOhm  34 dBm (2.5 W)       0.8357       2.57     2.777    2.738      1.856        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.3 V / 150 mOhm    35 dBm (3 W)       0.8838      2.528     2.673    2.634      1.845        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.3 V / 300 mOhm    30 dBm (1 W)        0.473      2.531     2.455    2.403      1.884        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
-3.3 V / 300 mOhm  32 dBm (1.6 W)       0.4793      2.521     2.435    2.386      1.874        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.3 V / 300 mOhm    33 dBm (2 W)       0.4887      2.505     2.427    2.383      1.867        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.3 V / 300 mOhm  34 dBm (2.5 W)       0.4913      2.501      2.41     2.37      1.861        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.3 V / 300 mOhm    35 dBm (3 W)       0.5014      2.484     2.382    2.344      1.859        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
- 3.1 V / 50 mOhm    30 dBm (1 W)        1.208      2.642     2.268    2.187      2.585    2.646    yes     FAIL                                                                        UVP trip, BUVLO
- 3.1 V / 50 mOhm  32 dBm (1.6 W)        1.455      2.553     2.352    2.307      1.869        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
- 3.1 V / 50 mOhm    33 dBm (2 W)        1.487      2.541     2.399    2.354      1.872        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
- 3.1 V / 50 mOhm  34 dBm (2.5 W)        1.494       2.54     2.421    2.375      1.853        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
- 3.1 V / 50 mOhm    35 dBm (3 W)        1.485      2.543     2.428    2.382       1.85        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm    30 dBm (1 W)        0.633      2.544     2.283    2.233      1.886        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm  32 dBm (1.6 W)       0.6396      2.538     2.283    2.233      1.866        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm    33 dBm (2 W)       0.6407      2.538     2.282    2.232      1.868        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm  34 dBm (2.5 W)        0.657      2.523     2.276    2.226      1.863        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 150 mOhm    35 dBm (3 W)       0.6365      2.538     2.265    2.212      1.864        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-3.1 V / 300 mOhm    30 dBm (1 W)       0.7802      1.836     1.845   0.5678          0        0    yes     FAIL  [run ends at the first fatal event, 2.6 ms], TPS63810 UVLO (reset), 3V3 0.57 V, BUVLO
-3.1 V / 300 mOhm  32 dBm (1.6 W)       0.7802      1.836     1.845   0.5678          0        0    yes     FAIL  [run ends at the first fatal event, 2.6 ms], TPS63810 UVLO (reset), 3V3 0.57 V, BUVLO
-3.1 V / 300 mOhm    33 dBm (2 W)       0.7802      1.836     1.845   0.5678          0        0    yes     FAIL  [run ends at the first fatal event, 2.6 ms], TPS63810 UVLO (reset), 3V3 0.57 V, BUVLO
-3.1 V / 300 mOhm  34 dBm (2.5 W)       0.7802      1.836     1.845   0.5678          0        0    yes     FAIL  [run ends at the first fatal event, 2.6 ms], TPS63810 UVLO (reset), 3V3 0.57 V, BUVLO
-3.1 V / 300 mOhm    35 dBm (3 W)       0.7802      1.836     1.845   0.5678          0        0    yes     FAIL  [run ends at the first fatal event, 2.6 ms], TPS63810 UVLO (reset), 3V3 0.57 V, BUVLO
-  (every other ambient: sim/out/burst/g<d|f>_<T>_<OCV>_<mOhm>_<level>.json)
+ 4.2 V / 50 mOhm    30 dBm (1 W)       0.8371      3.925     3.912    3.274      3.887    2.646     no     PASS                                                                                      -
+ 4.2 V / 50 mOhm  32 dBm (1.6 W)        1.232      3.794     3.781    3.274      3.735     3.03     no     PASS                                                                                      -
+ 4.2 V / 50 mOhm    33 dBm (2 W)        1.607       3.67     3.656    3.274      3.591    3.267     no     PASS                                                                                      -
+ 4.2 V / 50 mOhm  34 dBm (2.5 W)        2.334      3.427     3.413    3.274      3.309    3.493     no     PASS                                                                                      -
+ 4.2 V / 50 mOhm    35 dBm (3 W)        3.316      3.092     3.077    2.998      2.922    3.877     no     PASS                                                                                      -
+4.2 V / 150 mOhm    30 dBm (1 W)       0.9592      3.402     3.388    3.274      3.358    2.646     no     PASS                                                                                      -
+4.2 V / 150 mOhm  32 dBm (1.6 W)        1.634      2.832     2.453    2.374      2.751     3.03    yes     PASS                                                                                  BUVLO
+4.2 V / 150 mOhm    33 dBm (2 W)        1.892       2.61     3.028    2.987       1.86        0     no     FAIL                     [run ends at the first fatal event, 4.4 ms], TPS63810 UVLO (reset)
+4.2 V / 150 mOhm  34 dBm (2.5 W)        1.853      2.639     3.377    3.274       2.53        0     no     FAIL                         supply collapse (solver stopped at 4.27 ms), VPA 0.00 V < 95 %
+4.2 V / 150 mOhm    35 dBm (3 W)        1.963      2.548     3.419    3.274      1.855        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+4.2 V / 300 mOhm    30 dBm (1 W)        1.034      2.554     2.396    2.352      1.884        0    yes     FAIL              [run ends at the first fatal event, 4.5 ms], TPS63810 UVLO (reset), BUVLO
+4.2 V / 300 mOhm  32 dBm (1.6 W)        1.008      2.597     3.136    3.093      1.871        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+4.2 V / 300 mOhm    33 dBm (2 W)         1.02      2.578     3.218    3.178      1.868        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+4.2 V / 300 mOhm  34 dBm (2.5 W)        1.043       2.54     3.283    3.242      1.854        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+4.2 V / 300 mOhm    35 dBm (3 W)        1.088      2.467       3.3    3.255       1.84        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+ 3.7 V / 50 mOhm    30 dBm (1 W)       0.9648       3.38     3.366    3.274      3.335    2.646     no     PASS                                                                                      -
+ 3.7 V / 50 mOhm  32 dBm (1.6 W)        1.444      3.219     3.205    3.126      3.149     3.03     no     PASS                                                                                      -
+ 3.7 V / 50 mOhm    33 dBm (2 W)        1.923      3.056     3.041    2.962       2.96    3.267     no     PASS                                                                                      -
+ 3.7 V / 50 mOhm  34 dBm (2.5 W)         3.03      2.672     2.294    2.215      2.517    3.493    yes     FAIL                                                                        UVP trip, BUVLO
+ 3.7 V / 50 mOhm    35 dBm (3 W)        3.194      2.612     3.181     3.14      1.858        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 150 mOhm    30 dBm (1 W)        1.179       2.71     2.331    2.252      2.654    2.646    yes     FAIL                                                                        UVP trip, BUVLO
+3.7 V / 150 mOhm  32 dBm (1.6 W)        1.303      2.604     3.005    2.963      1.874        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 150 mOhm    33 dBm (2 W)        1.303      2.604     3.105    3.062      1.864        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 150 mOhm  34 dBm (2.5 W)        1.358      2.557     3.146    3.108      1.834        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 150 mOhm    35 dBm (3 W)        1.385      2.534     3.165    3.127      1.844        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+3.7 V / 300 mOhm    30 dBm (1 W)       0.6917      2.599       2.9    2.855      1.875        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 300 mOhm  32 dBm (1.6 W)       0.7115      2.566      2.96    2.915      1.872        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 300 mOhm    33 dBm (2 W)       0.8161      2.396     2.971    2.933      1.868        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 300 mOhm  34 dBm (2.5 W)       0.8134      2.399     2.989    2.951      1.848        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+3.7 V / 300 mOhm    35 dBm (3 W)       0.7185      2.556     2.977    2.939      1.806        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+ 3.3 V / 50 mOhm    30 dBm (1 W)        1.097      2.931     2.552    2.473      2.879    2.646    yes     PASS                                                                                  BUVLO
+ 3.3 V / 50 mOhm  32 dBm (1.6 W)        1.697      2.725     2.346    2.267      2.641     3.03    yes     FAIL                                                                        UVP trip, BUVLO
+ 3.3 V / 50 mOhm    33 dBm (2 W)        2.022      2.611     2.822    2.781       1.87        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+ 3.3 V / 50 mOhm  34 dBm (2.5 W)        1.774      2.686     2.989    2.952      2.583        0     no     FAIL                         supply collapse (solver stopped at 4.24 ms), VPA 0.00 V < 95 %
+ 3.3 V / 50 mOhm    35 dBm (3 W)        2.097      2.577     2.971     2.93      1.845        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+3.3 V / 150 mOhm    30 dBm (1 W)       0.8272      2.604     2.738    2.694      1.881        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 150 mOhm  32 dBm (1.6 W)       0.8514      2.584     2.794     2.75      1.881        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 150 mOhm    33 dBm (2 W)       0.8698      2.568     2.805    2.761      1.868        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 150 mOhm  34 dBm (2.5 W)       0.8899      2.551       2.8    2.762      1.854        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 150 mOhm    35 dBm (3 W)       0.8656      2.572     2.692    2.654       1.85        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 300 mOhm    30 dBm (1 W)       0.4817      2.533     2.458    2.407      1.884        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 300 mOhm  32 dBm (1.6 W)       0.4909      2.518     2.434    2.387      1.886        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 300 mOhm    33 dBm (2 W)       0.4941      2.513     2.417    2.373      1.864        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 300 mOhm  34 dBm (2.5 W)       0.5133      2.482     2.411    2.373      1.863        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 300 mOhm    35 dBm (3 W)       0.5193      2.473     2.389    2.352      1.859        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+ 3.1 V / 50 mOhm    30 dBm (1 W)        1.184      2.697     2.319     2.24      2.641    2.646    yes     FAIL                                                                        UVP trip, BUVLO
+ 3.1 V / 50 mOhm  32 dBm (1.6 W)        1.589      2.557      2.31    2.264      1.874        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+ 3.1 V / 50 mOhm    33 dBm (2 W)          1.6      2.551     2.403    2.358      1.866        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+ 3.1 V / 50 mOhm  34 dBm (2.5 W)        1.598      2.551      2.43    2.385      1.849        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+ 3.1 V / 50 mOhm    35 dBm (3 W)        1.646      2.534     2.434    2.389      1.853        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 150 mOhm    30 dBm (1 W)       0.6563      2.547     2.288    2.238      1.882        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 150 mOhm  32 dBm (1.6 W)       0.6706      2.535      2.29    2.242      1.873        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 150 mOhm    33 dBm (2 W)       0.6831      2.525     2.282    2.234      1.868        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 150 mOhm  34 dBm (2.5 W)       0.6788      2.528     2.284    2.235      1.861        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 150 mOhm    35 dBm (3 W)       0.6809      2.526     2.267    2.218      1.856        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 300 mOhm    30 dBm (1 W)       0.7783      1.847   0.01789        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.5 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 300 mOhm  32 dBm (1.6 W)       0.7783      1.847   0.01789        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.5 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 300 mOhm    33 dBm (2 W)       0.7783      1.847   0.01789        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.5 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 300 mOhm  34 dBm (2.5 W)       0.7783      1.847   0.01789        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.5 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 300 mOhm    35 dBm (3 W)       0.7783      1.847   0.01789        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.5 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+  (every other ambient: sim/out/burst/gn_<T>_<OCV>_<mOhm>_<level>.json)
+
+Grid detail, new, -40 C, 0.2 s bursts, battery only:
+cell (R at 25 C)        PA level  Icell max A  BAT_P min  VSYS min  3V3 min  PA_IN min  VPA min  BUVLO  verdict                                                                                    why
+----------------  --------------  -----------  ---------  --------  -------  ---------  -------  -----  -------  -------------------------------------------------------------------------------------
+ 4.2 V / 50 mOhm    30 dBm (1 W)       0.8737      3.739     3.727    3.274      3.703    2.646     no     PASS                                                                                      -
+ 4.2 V / 50 mOhm  32 dBm (1.6 W)        1.323        3.5     3.487    3.274      3.442     3.03     no     PASS                                                                                      -
+ 4.2 V / 50 mOhm    33 dBm (2 W)        1.795      3.247     3.235    3.163      3.166    3.267     no     PASS                                                                                      -
+ 4.2 V / 50 mOhm  34 dBm (2.5 W)        3.041      2.564     2.168    2.106      1.844        0    yes     FAIL              [run ends at the first fatal event, 4.6 ms], TPS63810 UVLO (reset), BUVLO
+ 4.2 V / 50 mOhm    35 dBm (3 W)        2.963      2.607     3.354    3.274      1.845        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+4.2 V / 150 mOhm    30 dBm (1 W)        1.143      2.555     2.158    2.096      1.892        0    yes     FAIL              [run ends at the first fatal event, 4.6 ms], TPS63810 UVLO (reset), BUVLO
+4.2 V / 150 mOhm  32 dBm (1.6 W)         1.11      2.605     3.103    3.064      1.873        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+4.2 V / 150 mOhm    33 dBm (2 W)        1.123      2.585     3.216    3.176      1.864        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+4.2 V / 150 mOhm  34 dBm (2.5 W)        1.184      2.497     3.279    3.242      1.847        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+4.2 V / 150 mOhm    35 dBm (3 W)         1.22      2.441     3.306    3.262      1.847        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+4.2 V / 300 mOhm    30 dBm (1 W)       0.4003      3.086     3.906    3.297          0        0     no     FAIL                         supply collapse (solver stopped at 1.39 ms), VPA 0.00 V < 95 %
+4.2 V / 300 mOhm  32 dBm (1.6 W)       0.4003      3.086     3.906    3.297          0        0     no     FAIL                         supply collapse (solver stopped at 1.39 ms), VPA 0.00 V < 95 %
+4.2 V / 300 mOhm    33 dBm (2 W)       0.4003      3.086     3.906    3.297          0        0     no     FAIL                         supply collapse (solver stopped at 1.39 ms), VPA 0.00 V < 95 %
+4.2 V / 300 mOhm  34 dBm (2.5 W)       0.4003      3.086     3.901    3.297          0        0     no     FAIL                         supply collapse (solver stopped at 1.40 ms), VPA 0.00 V < 95 %
+4.2 V / 300 mOhm    35 dBm (3 W)       0.4003      3.086     3.901    3.297          0        0     no     FAIL                         supply collapse (solver stopped at 1.40 ms), VPA 0.00 V < 95 %
+ 3.7 V / 50 mOhm    30 dBm (1 W)        1.018      3.159     3.146    3.075      3.116    2.646     no     PASS                                                                                      -
+ 3.7 V / 50 mOhm  32 dBm (1.6 W)        1.618      2.835     2.428    2.357      2.762     3.03    yes     PASS                                                                                  BUVLO
+ 3.7 V / 50 mOhm    33 dBm (2 W)        2.011      2.619     2.907    2.873       2.52        0    yes     FAIL                  supply collapse (solver stopped at 4.32 ms), VPA 0.00 V < 95 %, BUVLO
+ 3.7 V / 50 mOhm  34 dBm (2.5 W)        2.074      2.585     3.152    3.114      1.845        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+ 3.7 V / 50 mOhm    35 dBm (3 W)        2.135       2.55     3.186    3.152      1.856        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 150 mOhm    30 dBm (1 W)        0.767      2.597     2.878    2.838      1.878        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 150 mOhm  32 dBm (1.6 W)       0.7902      2.564      2.98    2.939      1.866        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 150 mOhm    33 dBm (2 W)       0.7989       2.55     2.994    2.958      1.859        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+3.7 V / 150 mOhm  34 dBm (2.5 W)       0.8202       2.52     3.008    2.974      1.848        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+3.7 V / 150 mOhm    35 dBm (3 W)       0.8606       2.46     2.998    2.964      1.842        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+3.7 V / 300 mOhm    30 dBm (1 W)       0.4092      2.559     2.804    2.761      1.879        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+3.7 V / 300 mOhm  32 dBm (1.6 W)        0.408      2.563      2.81    2.768      1.872        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.7 V / 300 mOhm    33 dBm (2 W)       0.4128      2.549     2.798     2.76      1.858        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.7 V / 300 mOhm  34 dBm (2.5 W)       0.4377      2.479     2.783    2.749      1.855        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.7 V / 300 mOhm    35 dBm (3 W)       0.4092      2.557     2.752    2.717      1.852        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+ 3.3 V / 50 mOhm    30 dBm (1 W)         1.19       2.66     2.253    2.182      2.609    2.646    yes     FAIL                                                                        UVP trip, BUVLO
+ 3.3 V / 50 mOhm  32 dBm (1.6 W)        1.286      2.607     2.829    2.789      1.857        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+ 3.3 V / 50 mOhm    33 dBm (2 W)        1.311      2.594     2.874    2.834      1.842        0     no     FAIL                     [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
+ 3.3 V / 50 mOhm  34 dBm (2.5 W)        1.324      2.587     2.897    2.859      1.887        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+ 3.3 V / 50 mOhm    35 dBm (3 W)        1.428      2.523     2.892    2.854      1.816        0     no     FAIL                     [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+3.3 V / 150 mOhm    30 dBm (1 W)       0.5339      2.532     2.459    2.413      1.889        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 150 mOhm  32 dBm (1.6 W)       0.5445      2.516      2.42    2.377      1.873        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 150 mOhm    33 dBm (2 W)       0.5684      2.481     2.406     2.37      1.872        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 150 mOhm  34 dBm (2.5 W)       0.5745      2.472     2.397    2.363      1.856        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 150 mOhm    35 dBm (3 W)        0.567      2.483     2.374    2.339      1.853        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.3 V / 300 mOhm    30 dBm (1 W)       0.3966      2.189   0.01389        0          0        0    yes     FAIL      supply collapse (solver stopped at 0.36 ms), VPA 0.00 V < 95 %, 3V3 0.00 V, BUVLO
+3.3 V / 300 mOhm  32 dBm (1.6 W)       0.3966      2.189   0.01389        0          0        0    yes     FAIL      supply collapse (solver stopped at 0.36 ms), VPA 0.00 V < 95 %, 3V3 0.00 V, BUVLO
+3.3 V / 300 mOhm    33 dBm (2 W)       0.3966      2.189   0.01389        0          0        0    yes     FAIL      supply collapse (solver stopped at 0.36 ms), VPA 0.00 V < 95 %, 3V3 0.00 V, BUVLO
+3.3 V / 300 mOhm  34 dBm (2.5 W)       0.3966      2.189   0.01389        0          0        0    yes     FAIL      supply collapse (solver stopped at 0.36 ms), VPA 0.00 V < 95 %, 3V3 0.00 V, BUVLO
+3.3 V / 300 mOhm    35 dBm (3 W)       0.3966      2.189   0.01389        0          0        0    yes     FAIL      supply collapse (solver stopped at 0.36 ms), VPA 0.00 V < 95 %, 3V3 0.00 V, BUVLO
+ 3.1 V / 50 mOhm    30 dBm (1 W)        1.012      2.554     2.219    2.174      1.886        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+ 3.1 V / 50 mOhm  32 dBm (1.6 W)        1.043      2.537     2.322     2.28      1.886        0    yes     FAIL              [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+ 3.1 V / 50 mOhm    33 dBm (2 W)        1.044      2.537     2.331    2.289      1.865        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+ 3.1 V / 50 mOhm  34 dBm (2.5 W)        1.069      2.523      2.34    2.299      1.854        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+ 3.1 V / 50 mOhm    35 dBm (3 W)        1.081      2.516     2.334    2.292      1.848        0    yes     FAIL              [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
+3.1 V / 150 mOhm    30 dBm (1 W)       0.7694      1.985   0.01894        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.4 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 150 mOhm  32 dBm (1.6 W)       0.7694      1.985   0.01894        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.4 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 150 mOhm    33 dBm (2 W)       0.7694      1.985   0.01894        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.4 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 150 mOhm  34 dBm (2.5 W)       0.7694      1.985   0.01894        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.4 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 150 mOhm    35 dBm (3 W)       0.7694      1.985   0.01894        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.4 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 300 mOhm    30 dBm (1 W)        0.539      1.586   0.01894        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.7 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 300 mOhm  32 dBm (1.6 W)        0.539      1.586   0.01894        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.7 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 300 mOhm    33 dBm (2 W)        0.539      1.586   0.01894        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.7 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 300 mOhm  34 dBm (2.5 W)        0.539      1.586   0.01894        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.7 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+3.1 V / 300 mOhm    35 dBm (3 W)        0.539      1.586   0.01894        0          0        0    yes     FAIL  [run ends at the first fatal event, 2.7 ms], TPS63810 UVLO (reset), 3V3 0.00 V, BUVLO
+  (every other ambient: sim/out/burst/gn_<T>_<OCV>_<mOhm>_<level>.json)
 
 Showcase 1 s bursts and USB cases (25 C):
-              case  ambient  Icell max  BAT_P min  VSYS min  3V3 min  PA_IN min  VPA min  LM66100 fwd A  LM66100 rev A  BATFET A    IN A   mux IN2 A  into cell idle mA  verdict                                                                        why
-------------------  -------  ---------  ---------  --------  -------  ---------  -------  -------------  -------------  --------  ------  ----------  -----------------  -------  -------------------------------------------------------------------------
-     s_fresh_3W_1s     25 C      2.764       3.75     3.744    3.274      3.581    3.877         0.1689        0.01905    0.1027       0           0             -11.39     PASS                                                                          -
-     s_fresh_1W_1s     25 C     0.8206      4.069     4.063    3.274      4.024    2.646        0.09306        -0.0193   0.05655       0           0             -11.39     PASS                                                                          -
-       s_mid_3W_1s     25 C      2.612      2.988     2.999    3.083      1.843        0         0.6602          0.261    0.4012       0           0             -13.33     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-      s_worn_1W_1s     25 C     0.6241       2.83     2.851    3.059          0        0         0.2534          1.365         0       0           0              -13.9     FAIL         [run ends at the first fatal event, 3.0 ms], TPS63810 UVLO (reset)
- s_fixed_mid_3W_1s     25 C      3.857       2.62     3.047    2.998       1.85        0              0             -0     1.008       0           0             -13.34     FAIL         [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset)
-s_fixed_worn_1W_1s     25 C      1.226      2.555     2.253    2.163      1.883        0              0             -0         0       0           0             -13.43     FAIL  [run ends at the first fatal event, 4.4 ms], TPS63810 UVLO (reset), BUVLO
- u_37_150_3W_drawn     25 C      2.455      3.019     3.091    2.993      2.803    3.877        -0.5052          1.159         0    1.05           0              904.7     PASS                                                                          -
-   u_37_150_3W_fix     25 C      3.817      2.621     4.232    3.274      1.861        0              0             -0         0  0.6094           0              496.6     FAIL  [run ends at the first fatal event, 4.4 ms], TPS63810 UVLO (reset), BUVLO
- u_31_300_1W_drawn     25 C    0.01164      3.095     3.168    3.069      3.035    2.646        -0.8086          1.025         0    1.05           0               1038     PASS                                                                      BUVLO
-   u_31_300_1W_fix     25 C     0.9921      2.661     4.232    3.274      2.592    2.646              0             -0         0  0.6093           0              496.6     FAIL                                                            UVP trip, BUVLO
- u_31_300_3W_drawn     25 C     0.3042      2.968     3.062    3.115      1.848        0        -0.4539          1.387         0    1.05           0               1038     FAIL  [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset), BUVLO
-   u_31_300_3W_fix     25 C       1.24      2.564     4.232    3.274      1.861        0              0             -0         0  0.6093           0              496.6     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
-        n_1W_drawn     25 C          0      4.017     4.073    3.274      3.971    2.646       0.001667         0.7119         0  0.8281  1.898e-133                  0     PASS                                                                      BUVLO
-          n_1W_fix     25 C          0      1.766     4.233    3.274      1.887        0              0             -0         0  0.6091       0.138                  0     FAIL  [run ends at the first fatal event, 4.4 ms], TPS63810 UVLO (reset), BUVLO
-       n_1W_fix_pr     25 C          0      1.766     3.993    3.274       3.95    2.646              0             -0   0.04943   0.839      0.7169                  0     PASS                                                        mux left IN1, BUVLO
-       n_2W5_drawn     25 C          0      2.963     3.055    3.135       1.86        0      -0.006364          1.447         0    1.05  5.186e-134                  0     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
-      n_2W5_fix_pr     25 C          0      1.768      2.51    2.986      1.859        0              0             -0     0.255    1.05       1.825                  0     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
-  u_ = USB present (5 V, 1 m cable) + cell; n_ = no cell, USB only; _drawn = as drawn; _fix = Schottky in
-  place of the LM66100 and PR1 562 k / 374 k; _pr = PR1 pulled low by a GPIO FET (mux forced to IN2)
-  when no cell is fitted.  s_fixed_ = the fixed variant.
+           case  ambient  Icell max  BAT_P min  VSYS min  3V3 min  PA_IN min  VPA min  bypass fwd A  bypass rev A  BATFET A    IN A  mux IN2 A  into cell idle mA  verdict                                                                        why
+---------------  -------  ---------  ---------  --------  -------  ---------  -------  ------------  ------------  --------  ------  ---------  -----------------  -------  -------------------------------------------------------------------------
+  s_fresh_3W_1s     25 C      2.702      3.843     3.826    3.274      3.678    3.877     6.122e-06    -3.599e-07    0.2417       0          0             -11.44     PASS                                                                          -
+  s_fresh_1W_1s     25 C     0.8185      4.093     4.078    3.274      4.048    2.646     3.026e-06    -9.025e-07    0.1432       0          0             -11.44     PASS                                                                          -
+   s_mid_2W5_1s     25 C      2.694      3.054     3.036    2.939       2.89    3.493      1.53e-05     2.764e-06    0.4002       0          0             -12.98     PASS                                                                          -
+   s_worn_1W_1s     25 C      1.146      2.849     2.535    2.439      2.784    2.646        0.2586     2.329e-07    0.1292       0          0             -13.09     PASS                                                                      BUVLO
+    u_37_150_3W     25 C      3.197      2.929     4.382    3.274      2.706    3.877    -1.015e-12     1.016e-12         0  0.4086          0              299.9     PASS                                                                      BUVLO
+    u_31_300_1W     25 C      1.016      2.697     4.382    3.274      2.629    2.646    -1.015e-12     1.016e-12         0  0.4086          0              299.5     FAIL                                                            UVP trip, BUVLO
+    u_31_300_3W     25 C      1.244      2.603     4.382    3.274      1.851        0    -1.015e-12     1.016e-12         0  0.4086          0              299.5     FAIL         [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset)
+u_31_300_1W_sys     25 C   -0.04825      3.119     3.295    3.199      3.244    2.646    -1.016e-12     1.016e-12         0    1.05     0.8714              299.9     PASS                                                               mux left IN1
+           n_1W     25 C          0      1.766     3.993    3.274       3.95    2.646     4.089e-05      0.000457   0.05206  0.8427      0.719                  0     PASS                                                        mux left IN1, BUVLO
+      n_1W_nofw     25 C          0      1.766     4.383    3.274      1.886        0    -6.108e-10     9.448e-10         0  0.4076     0.1383                  0     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+          n_1W6     25 C          0      1.765     2.547    2.546      1.871        0     4.175e-05     0.0004201   0.08485    1.05      1.307                  0     FAIL  [run ends at the first fatal event, 4.5 ms], TPS63810 UVLO (reset), BUVLO
+          n_2W5     25 C          0      1.769     2.521    2.986      1.859        0     3.461e-05     0.0003939    0.2533    1.05       1.82                  0     FAIL  [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO
+  u_ = USB present (5 V, 1 m cable) + cell; n_ = no cell, USB only, firmware has set PA_SRC_SYS (PR1
+  pulled low, the mux takes charger SYS); n_1W_nofw = the same without it (firmware forgot).  The USB-only
+  ceiling is the charger: 1.05 A input limit at 5 V.  u_31_300_1W_sys: a cell too weak for 1 W with USB
+  in - firmware sets PA_SRC_SYS and the amplifier runs from charger SYS instead.
 
 Cold start at -40 C: slide switch on at 1 ms, PA enabled at 10 ms, first burst (0.2 s) at 13 ms.
 Extra criterion: 3V3 >= 3.0 V before the PA is enabled (the board boots).
-              case  ambient  3V3 before PA  Icell max  BAT_P min  VSYS min  3V3 min  PA_IN min  VPA min  LM66100 fwd A  LM66100 rev A  BATFET A  IN A  mux IN2 A  into cell idle mA  verdict                                                                         why
-------------------  -------  -------------  ---------  ---------  --------  -------  ---------  -------  -------------  -------------  --------  ----  ---------  -----------------  -------  --------------------------------------------------------------------------
-c_3.7_150_1W_drawn    -40 C          3.297     0.4967      2.974     2.975    2.941      1.885        0         0.2146          0.112    0.1304     0          0             -12.98     FAIL         [run ends at the first fatal event, 13.3 ms], TPS63810 UVLO (reset)
-c_3.7_150_1W_fixed    -40 C          3.297     0.7498        2.6     2.882    2.841      1.881        0              0             -0    0.3822     0          0             -12.99     FAIL         [run ends at the first fatal event, 13.3 ms], TPS63810 UVLO (reset)
-c_3.7_150_3W_drawn    -40 C          3.297     0.4957      2.975     2.978    2.957      1.838        0         0.2117         0.1771    0.1287     0          0             -12.98     FAIL         [run ends at the first fatal event, 13.2 ms], TPS63810 UVLO (reset)
-c_3.7_150_3W_fixed    -40 C          3.297     0.8372      2.474     2.993    2.959      1.843        0              0             -0    0.1065     0          0             -12.99     FAIL         [run ends at the first fatal event, 13.2 ms], TPS63810 UVLO (reset)
-c_3.7_300_1W_drawn    -40 C          3.297     0.2589      2.972     2.969    2.917      1.877        0         0.1331         0.0273   0.08088     0          0             -13.04     FAIL  [run ends at the first fatal event, 13.3 ms], TPS63810 UVLO (reset), BUVLO
-c_3.7_300_1W_fixed    -40 C          3.297      0.393      2.593     2.813    2.769       1.88        0              0             -0    0.2467     0          0             -13.04     FAIL  [run ends at the first fatal event, 13.3 ms], TPS63810 UVLO (reset), BUVLO
-c_3.7_300_3W_drawn    -40 C          3.297     0.2563      2.979     2.976    2.915      1.868        0         0.1328       -0.01241   0.08069     0          0             -13.04     FAIL  [run ends at the first fatal event, 13.2 ms], TPS63810 UVLO (reset), BUVLO
-c_3.7_300_3W_fixed    -40 C          3.297     0.4184      2.521     2.748    2.713      1.856        0              0             -0   0.06411     0          0             -13.04     FAIL  [run ends at the first fatal event, 13.2 ms], TPS63810 UVLO (reset), BUVLO
-c_4.2_300_1W_drawn    -40 C          3.297     0.4371      2.972     2.973    2.952      1.877        0         0.2048         0.1346    0.1245     0          0             -11.47     FAIL         [run ends at the first fatal event, 13.3 ms], TPS63810 UVLO (reset)
-c_4.2_300_1W_fixed    -40 C          3.297     0.5691      2.598      3.02    2.978      1.877        0              0             -0    0.3178     0          0             -11.47     FAIL         [run ends at the first fatal event, 13.3 ms], TPS63810 UVLO (reset)
-c_4.2_300_3W_drawn    -40 C          3.297     0.4582      2.913     2.917    3.037      1.848        0         0.1677         0.3979    0.1019     0          0             -11.47     FAIL         [run ends at the first fatal event, 13.2 ms], TPS63810 UVLO (reset)
-c_4.2_300_3W_fixed    -40 C          3.297     0.6564      2.355     3.182    3.147      1.846        0              0             -0   0.09989     0          0             -11.47     FAIL         [run ends at the first fatal event, 13.2 ms], TPS63810 UVLO (reset)
-  c_<OCV>_<R_int at 25 C, mOhm>_<1W|3W>_<variant>; at -40 C R_int is x9 (150 -> 1.35 Ohm, 300 -> 2.7 Ohm).
+        case  ambient  3V3 before PA  Icell max  BAT_P min  VSYS min  3V3 min  PA_IN min  VPA min  bypass fwd A  bypass rev A  BATFET A  IN A  mux IN2 A  into cell idle mA  verdict                                                                         why
+------------  -------  -------------  ---------  ---------  --------  -------  ---------  -------  ------------  ------------  --------  ----  ---------  -----------------  -------  --------------------------------------------------------------------------
+ c_4.2_50_1W    -40 C          3.297     0.8737      3.739     3.727    3.274      3.703    2.646     4.766e-07    -3.754e-07    0.1889     0          0             -11.45     PASS                                                                           -
+ c_4.2_50_3W    -40 C          3.297      2.955      2.612     3.355    3.274      1.857        0     2.503e-05     1.683e-06    0.8536     0          0             -11.45     FAIL         [run ends at the first fatal event, 13.3 ms], TPS63810 UVLO (reset)
+c_3.7_150_1W    -40 C          3.297     0.7654      2.599      2.88    2.839      1.877        0     9.077e-06     4.698e-07    0.3908     0          0             -13.03     FAIL         [run ends at the first fatal event, 13.3 ms], TPS63810 UVLO (reset)
+c_3.7_150_3W    -40 C          3.297     0.7981      2.552     3.001    2.967      1.851        0     9.229e-06     3.377e-06    0.1083     0          0             -13.03     FAIL         [run ends at the first fatal event, 13.2 ms], TPS63810 UVLO (reset)
+c_3.7_300_1W    -40 C          3.297     0.3989      2.588     2.812    2.769      1.881        0     5.916e-06     1.149e-06    0.2494     0          0             -13.09     FAIL  [run ends at the first fatal event, 13.3 ms], TPS63810 UVLO (reset), BUVLO
+c_3.7_300_3W    -40 C          3.297     0.4315      2.496     2.752    2.718      1.855        0     6.284e-06     2.547e-06   0.06482     0          0             -13.09     FAIL  [run ends at the first fatal event, 13.2 ms], TPS63810 UVLO (reset), BUVLO
+c_4.2_300_1W    -40 C          3.297     0.5758      2.595     3.017    2.976      1.879        0     7.891e-06     6.512e-07    0.3219     0          0             -11.52     FAIL         [run ends at the first fatal event, 13.3 ms], TPS63810 UVLO (reset)
+c_4.2_300_3W    -40 C          3.297     0.6454      2.399     3.185    3.151      1.836        0     6.783e-06     4.919e-06    0.1002     0          0             -11.52     FAIL         [run ends at the first fatal event, 13.2 ms], TPS63810 UVLO (reset)
+  c_<OCV>_<R_int at 25 C, mOhm>_<1W|3W>; at -40 C R_int is x9 (50 -> 0.45, 150 -> 1.35, 300 -> 2.7 Ohm).
 
 Hot: 85 C ambient, USB in, cell NTC out of the charger window (TS hot: the charger must not charge),
 three 0.3 s bursts every 0.5 s.  Extra criterion (P7): <= 1 mA into the cell between bursts.
-           case  ambient  Icell max  BAT_P min  VSYS min  3V3 min  PA_IN min  VPA min  LM66100 fwd A  LM66100 rev A  BATFET A    IN A  mux IN2 A  into cell idle mA  verdict                                               why
----------------  -------  ---------  ---------  --------  -------  ---------  -------  -------------  -------------  --------  ------  ---------  -----------------  -------  ------------------------------------------------
-    h_3.7_drawn     85 C    -0.1395      3.733     3.824    3.274      3.672    2.646        -0.8477          0.963         0    1.05          0              893.1     FAIL  cell charged at 893 mA with charging disabled; -
-    h_4.1_drawn     85 C    0.09613      4.078     4.139    3.274      4.022    2.646        -0.5055         0.6253         0   0.738          0              524.3     FAIL  cell charged at 524 mA with charging disabled; -
-h_3.7_2W5_drawn     85 C      1.485      3.334     3.424    3.274      3.146    3.493        -0.7565           1.07         0    1.05          0              893.1     FAIL  cell charged at 893 mA with charging disabled; -
-    h_3.7_fixed     85 C     0.8424      3.495     4.495    3.274      3.429    2.646              0             -0         0  0.1075          0             0.2086     PASS                                                 -
-    h_4.1_fixed     85 C     0.7479      3.925     4.495    3.274      3.866    2.646              0             -0         0  0.1072          0             0.2082     PASS                                                 -
-h_3.7_2W5_fixed     85 C      2.698      3.017     4.495    3.274      2.806    3.493              0             -0         0  0.1074          0             0.2086     PASS                                                 -
+     case  ambient  Icell max  BAT_P min  VSYS min  3V3 min  PA_IN min  VPA min  bypass fwd A  bypass rev A  BATFET A    IN A  mux IN2 A  into cell idle mA  verdict    why
+---------  -------  ---------  ---------  --------  -------  ---------  -------  ------------  ------------  --------  ------  ---------  -----------------  -------  -----
+ h_3.7_1W     85 C     0.8369       3.53     4.495    3.274      3.464    2.646    -1.016e-12     1.016e-12         0   0.107          0           -0.07224     PASS      -
+ h_4.1_1W     85 C     0.7449      3.951     4.495    3.274      3.893    2.646    -1.015e-12     1.016e-12         0  0.1066          0           -0.07324     PASS      -
+h_3.7_2W5     85 C      2.546      3.172     4.495    3.274      2.973    3.493    -1.016e-12     1.016e-12         0  0.1068          0           -0.07224     PASS      -
+ h_3.7_3W     85 C      3.652      2.932     4.495    3.274      2.647    3.877    -1.015e-12     1.016e-12         0  0.1066          0           -0.07224     PASS  BUVLO

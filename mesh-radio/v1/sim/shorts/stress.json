@@ -1,52 +1,52 @@
 [
  {
-  "part": "R22m 1206 1 W",
+  "part": "R15m 1206 1 W",
   "ref": "R (sense)",
   "qty": "energy in a battery short (SCD)",
-  "value": 17.085341919113606,
+  "value": 12.230870249133508,
   "unit": "W",
   "rating": 1.0,
   "kind": "pulse",
   "case": "peak power for <= 375 us"
  },
  {
-  "part": "LM66100",
+  "part": "TPS22950",
   "ref": "U (cell-to-SYS)",
-  "qty": "current through a VSYS_SW short until OCD (20 ms)",
-  "value": 12.186780655429878,
+  "qty": "current through a VSYS short (its own limit)",
+  "value": 1.0156057828594556,
   "unit": "A",
-  "rating": 2.5,
+  "rating": 4.1,
   "kind": "absmax",
-  "case": "vsyssw_fresh_25 (2.5 A pulsed <= 120 ms)"
+  "case": "vsys_usb_85 (4.1 A pulsed abs max; thermal shutdown then cycles it)"
  },
  {
-  "part": "TPS22965",
-  "ref": "U (main switch)",
-  "qty": "current through a VSYS_SW short until OCD",
-  "value": 19.838006660837625,
-  "unit": "A",
-  "rating": 6.0,
-  "kind": "absmax",
-  "case": "vsyssw_fresh_85 (6 A continuous, 8 A < 300 us)"
- },
- {
-  "part": "CSD25485F5",
+  "part": "CSD25310Q2",
   "ref": "Q (reverse FET)",
-  "qty": "dissipation in linear mode, VSYS_SW short until OCD",
-  "value": 13.320328733418592,
+  "qty": "dissipation during a short (until the protector or a limit acts)",
+  "value": 14.712793082138939,
   "unit": "W",
-  "rating": 0.5,
-  "kind": "derate",
-  "case": "vsyssw_fresh_60 (269 mJ over 20 ms; SOA not published for 20 ms)"
+  "rating": 2.9,
+  "kind": "pulse",
+  "case": "batp_fresh_85 (5.3 mJ; fully on, RDS(on) x I^2; 2.9 W continuous)"
+ },
+ {
+  "part": "CSD25310Q2",
+  "ref": "Q (reverse FET)",
+  "qty": "peak drain current in a short (< 0.4 ms)",
+  "value": 28.555058219906222,
+  "unit": "A",
+  "rating": 48.0,
+  "kind": "absmax",
+  "case": "batp_fresh_85 (IDM 48 A pulsed)"
  },
  {
   "part": "L2u2 DFE201610E",
   "ref": "L (3.3 V buck)",
-  "qty": "current, 3V3 short",
+  "qty": "current, 3V3 short (a fault: against saturation)",
   "value": 1.4749999999999999,
   "unit": "A",
   "rating": 1.9,
-  "kind": "derate",
+  "kind": "absmax",
   "case": "ILIMF 1.4 A max + 50 ns x VIN/L overshoot vs Isat 1.9 A"
  }
 ]

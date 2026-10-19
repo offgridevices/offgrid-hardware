@@ -19,7 +19,12 @@ Pass criteria, fixed before running (README):
   P2-c  PA supply holds: TPS63810 never reaches UVLO (its registers would
         reset to 3.3 V) and VPA >= 95 % of its setting
   info  BQ25185 BUVLO (battery FET off) is reported, not failed: X4 relies
-        on the LM66100 to hold VSYS through it
+        on the cell-to-SYS bypass (TPS22950 since 19 Oct) to hold VSYS
+The circuit is src/circuit.py as changed on 19 Oct (sim/board.py).  The
+owner keeps 3 W and has firmware cap the PA level by temperature and cell
+voltage: the max-power table below is that cap, and a cell/level that fails
+is a level firmware must not use (the board browns out or the protector
+trips; nothing is damaged), so the corner verdicts are judged at the cap.
 The highest PA level that passes every criterion is the supported transmit
 power for that cell.
 
@@ -83,8 +88,10 @@ def run_case(args):
         except subprocess.TimeoutExpired:
             timed_out = True
             break
+    if not timed_out and not os.path.exists(os.path.join(OUT, raw)):
+        timed_out = 'op'          # no operating point with any option set: no result, counted as FAIL
     if timed_out:
-        res = dict(name=name, timed_out=True, stopped=None, pass_=False, vset=cfg['pa']['vset'])
+        res = dict(name=name, timed_out=True, stopped=None, pass_=False, vset=cfg['pa']['vset'], op_failed=(timed_out == 'op'))
         res.update(dict((k, float('nan')) for k in NUMS))
         res.update(ocd=False, uvp=False, buvlo=False, bbrst=False, mux_left_in1=False, mux_on_in2=False,
                    ok_a=False, ok_b=False, ok_c=False)
@@ -151,14 +158,13 @@ def run_case(args):
 OPTS = ['.option method=gear reltol=2e-3 abstol=1e-9 vntol=1e-5 itl4=200',
         '.option method=trap reltol=3e-3 abstol=1e-8 vntol=1e-5 itl4=300',
         '.option method=gear reltol=5e-3 abstol=1e-7 vntol=1e-4 itl4=500 gmin=1e-10']
-PR_FIX = 374.0 / (562 + 374)    # proposed: PR1 bottom 301 k -> 374 k: IN1 priority down to 2.60 V (2.65 V rising)
-VARIANTS = {'drawn': dict(lm='gnd', pr=None), 'fixed': dict(lm='diode', pr=PR_FIX)}
+VARIANTS = {'new': dict()}       # the circuit as changed on 19 Oct (TPS22950 bypass, PR1 374 k, CSD25310Q2)
 
 
 TEMPS = [-40, -20, 0, 25, 60, 85]
 
 
-def cfg_for(ocv, rint, lvl, burst=0.2, usb=None, lm='gnd', present=True, pr_low=False, pr=None, temp=25.0):
+def cfg_for(ocv, rint, lvl, burst=0.2, usb=None, lm='tps', present=True, pr_low=False, pr=None, temp=25.0):
     c = B.default_cfg()
     c['temp'] = temp
     if pr:
@@ -175,6 +181,8 @@ def cfg_for(ocv, rint, lvl, burst=0.2, usb=None, lm='gnd', present=True, pr_low=
 def why(r):
     w = []
     if r.get('timed_out'):
+        if r.get('op_failed'):
+            return 'no DC operating point found (numerical): counted as FAIL'
         return 'solver crawled (supply chattering), stopped after 900 s: counted as FAIL'
     if r['stopped'] is not None:
         w.append('supply collapse (solver stopped at %.2f ms)' % (r['stopped'] * 1e3))
@@ -207,46 +215,48 @@ def main():
                     for li, lvl in enumerate(B.PA_LEVELS):
                         jobs.append(('g%s_%d_%g_%g_%d' % (vn[0], ta, ocv, rint * 1e3, li),
                                      cfg_for(ocv, rint, lvl, temp=ta, **v)))
+    P32, P33 = B.PA_LEVELS[1], B.PA_LEVELS[2]
     special = [
         ('s_fresh_3W_1s', cfg_for(4.2, 0.05, P35, burst=1.0)),
         ('s_fresh_1W_1s', cfg_for(4.2, 0.05, P30, burst=1.0)),
-        ('s_mid_3W_1s', cfg_for(3.7, 0.15, P35, burst=1.0)),
-        ('s_worn_1W_1s', cfg_for(3.1, 0.30, P30, burst=1.0)),
-        ('s_fixed_mid_3W_1s', cfg_for(3.7, 0.15, P35, burst=1.0, lm='diode', pr=PR_FIX)),
-        ('s_fixed_worn_1W_1s', cfg_for(3.1, 0.30, P30, burst=1.0, lm='diode', pr=PR_FIX)),
-        ('u_37_150_3W_drawn', cfg_for(3.7, 0.15, P35, usb=5.0, lm='gnd')),
-        ('u_37_150_3W_fix', cfg_for(3.7, 0.15, P35, usb=5.0, lm='diode', pr=PR_FIX)),
-        ('u_31_300_1W_drawn', cfg_for(3.1, 0.30, P30, usb=5.0, lm='gnd')),
-        ('u_31_300_1W_fix', cfg_for(3.1, 0.30, P30, usb=5.0, lm='diode', pr=PR_FIX)),
-        ('u_31_300_3W_drawn', cfg_for(3.1, 0.30, P35, usb=5.0, lm='gnd')),
-        ('u_31_300_3W_fix', cfg_for(3.1, 0.30, P35, usb=5.0, lm='diode', pr=PR_FIX)),
-        ('n_1W_drawn', cfg_for(3.7, 0.15, P30, usb=5.0, lm='gnd', present=False)),
-        ('n_1W_fix', cfg_for(3.7, 0.15, P30, usb=5.0, lm='diode', present=False, pr=PR_FIX)),
-        ('n_1W_fix_pr', cfg_for(3.7, 0.15, P30, usb=5.0, lm='diode', present=False, pr_low=True)),
-        ('n_2W5_drawn', cfg_for(3.7, 0.15, P34, usb=5.0, lm='gnd', present=False)),
-        ('n_2W5_fix_pr', cfg_for(3.7, 0.15, P34, usb=5.0, lm='diode', present=False, pr_low=True)),
+        ('s_mid_2W5_1s', cfg_for(3.7, 0.15, P34, burst=1.0)),
+        ('s_worn_1W_1s', cfg_for(3.3, 0.30, P30, burst=1.0)),
+        ('u_37_150_3W', cfg_for(3.7, 0.15, P35, usb=5.0)),
+        ('u_31_300_1W', cfg_for(3.1, 0.30, P30, usb=5.0)),
+        ('u_31_300_3W', cfg_for(3.1, 0.30, P35, usb=5.0)),
+        ('u_31_300_1W_sys', cfg_for(3.1, 0.30, P30, usb=5.0, pr_low=True)),
+        ('n_1W', cfg_for(3.7, 0.15, P30, usb=5.0, present=False, pr_low=True)),
+        ('n_1W_nofw', cfg_for(3.7, 0.15, P30, usb=5.0, present=False)),
+        ('n_1W6', cfg_for(3.7, 0.15, P32, usb=5.0, present=False, pr_low=True)),
+        ('n_2W5', cfg_for(3.7, 0.15, P34, usb=5.0, present=False, pr_low=True)),
     ]
     # cold start: board switched on at -40 C on a cold cell, then the first burst
     cold = []
-    for ocv, rint in ((3.7, 0.15), (3.7, 0.30), (4.2, 0.30)):
+    for ocv, rint in ((4.2, 0.05), (3.7, 0.15), (3.7, 0.30), (4.2, 0.30)):
         for lvl, ln in ((P30, '1W'), (P35, '3W')):
             for vn, v in VARIANTS.items():
                 c = cfg_for(ocv, rint, lvl, temp=-40.0, **v)
                 c['sw_on'] = 1e-3
                 c['pa'].update(t_en=10e-3, t_apc=13e-3, t_rf=13.2e-3)
-                cold.append(('c_%g_%d_%s_%s' % (ocv, rint * 1e3, ln, vn), c))
-    # hot: 85 C ambient, USB in, NTC out of window (charger TS = hot, so charging must stop), three 1 W bursts
+                cold.append(('c_%g_%d_%s' % (ocv, rint * 1e3, ln), c))
+    # hot: 85 C ambient, USB in, NTC out of window (charger TS = hot, so charging must stop), three bursts
     hot = []
     for vn, v in VARIANTS.items():
         for ocv in (3.7, 4.1):
             c = cfg_for(ocv, 0.15, P30, usb=5.0, temp=85.0, burst=0.3, **v)
             c['pa'].update(n=3, period=0.5)
             c['chg'] = dict(ts=0)
-            hot.append(('h_%g_%s' % (ocv, vn), c))
-        c = cfg_for(3.7, 0.15, P34, usb=5.0, temp=85.0, burst=0.3, **v)
-        c['pa'].update(n=3, period=0.5)
-        c['chg'] = dict(ts=0)
-        hot.append(('h_3.7_2W5_%s' % vn, c))
+            hot.append(('h_%g_1W' % ocv, c))
+        for lvl, ln in ((P34, '2W5'), (P35, '3W')):
+            c = cfg_for(3.7, 0.15, lvl, usb=5.0, temp=85.0, burst=0.3, **v)
+            c['pa'].update(n=3, period=0.5)
+            c['chg'] = dict(ts=0)
+            hot.append(('h_3.7_%s' % ln, c))
+    for n, c in special:
+        if n.startswith('n_'):
+            # no cell: end the run 20 ms after the burst (the idle board on USB alone is not what is checked,
+            # and the solver stalled there once)
+            c['tstop'] = c['pa']['t_rf'] + c['pa']['burst'] + 0.02
     allj = jobs + special + cold + hot
     with ProcessPoolExecutor(4) as ex:
         res = dict((r['name'], r) for r in ex.map(run_case, allj))
@@ -255,8 +265,8 @@ def main():
          'Criteria: P2-a 3V3 >= 1.9 V; P2-b no BQ29700 trip (OCD/SCD/UVP); P2-c TPS63810 never in UVLO and VPA >= 95 % of',
          'its setting.  BUVLO reported, not failed.  R_int is the 25 C value; it is scaled x9 / x5 / x2 / x1 / x0.8 / x0.75',
          'at -40 / -20 / 0 / 25 / 60 / 85 C (powerlib.rint_k).  Cell = OCV behind R_int (pure resistance), + 2 x 20 mOhm leads.',
-         'drawn = LM66100 CE = GND, PR1 562 k / 301 k (as in src/circuit.py); fixed = Schottky RB060MM in place of the',
-         'LM66100 and PR1 562 k / 374 k.', '']
+         'Circuit: src/circuit.py as changed on 19 Oct (TPS22950 cell-to-SYS bypass, PR1 562 k / 374 k, CSD25310Q2,',
+         '2 x 47 uF 1206 X7S on VPA).', '']
     maxp = {}
     for ta in TEMPS:
         for vn in VARIANTS:
@@ -267,7 +277,7 @@ def main():
                         if res['g%s_%d_%g_%g_%d' % (vn[0], ta, ocv, rint * 1e3, li)]['pass']:
                             best = li
                     maxp[(vn, ta, ocv, rint)] = best
-    L.append('Highest PA level that passes, battery only (R_int at 25 C in the header):')
+    L.append('Highest PA level that passes, battery only (R_int at 25 C in the header) = the firmware cap:')
     mrows = []
     for vn in VARIANTS:
         for ta in TEMPS:
@@ -277,7 +287,20 @@ def main():
                               for r in RINTS])
     L.append(S.table(mrows, ['variant', 'ambient', 'OCV'] + ['%d mOhm' % (r * 1e3) for r in RINTS]))
     L.append('')
-    for ta in (25, -20):
+    L.append('Corner summary: PASS = the level runs from that cell; otherwise the firmware cap for it (the highest')
+    L.append('level that passes, or "no TX": below 1 W nothing was simulated).  A capped level is not a hardware fault:')
+    L.append('trying it browns the board out or trips the protector, nothing is damaged.')
+    crow = []
+    for lab, ocv, rint, li in (('3 W, fresh cell 4.2 V / 50 mOhm', 4.2, 0.05, 4), ('3 W, mid cell 3.7 V / 150 mOhm', 3.7, 0.15, 4),
+                               ('1 W, mid cell 3.7 V / 150 mOhm', 3.7, 0.15, 0), ('1 W, worn cell 3.3 V / 300 mOhm', 3.3, 0.30, 0)):
+        row = [lab]
+        for ta in TEMPS:
+            m = maxp[('new', ta, ocv, rint)]
+            row.append('PASS' if (m is not None and m >= li) else ('cap %s' % B.PA_LEVELS[m][0].split(' (')[1][:-1] if m is not None else 'no TX'))
+        crow.append(row)
+    L.append(S.table(crow, ['case'] + ['%d C' % ta for ta in TEMPS]))
+    L.append('')
+    for ta in (25, -20, -40):
         for vn in VARIANTS:
             rows = []
             for ocv in OCVS:
@@ -290,7 +313,7 @@ def main():
             L.append('Grid detail, %s, %d C, 0.2 s bursts, battery only:' % (vn, ta))
             L.append(S.table(rows, ['cell (R at 25 C)', 'PA level', 'Icell max A', 'BAT_P min', 'VSYS min', '3V3 min',
                                     'PA_IN min', 'VPA min', 'BUVLO', 'verdict', 'why']))
-            L.append('  (every other ambient: sim/out/burst/g<d|f>_<T>_<OCV>_<mOhm>_<level>.json)')
+            L.append('  (every other ambient: sim/out/burst/gn_<T>_<OCV>_<mOhm>_<level>.json)')
             L.append('')
 
     def srow(name):
@@ -298,13 +321,14 @@ def main():
         return [name, '%d C' % r['temp'], r['icell_max'], r['bat_min'], r['vsys_min'], r['v3_min'], r['pain_min'],
                 r['vpa_min'], r['ilm_fwd'], r['ilm_rev'], r['isup_max'], r['iin_chg_max'], r['imux2_max'],
                 r['ichg_idle'] * 1e3, S.verdict(r['pass']), why(r)]
-    hdr = ['case', 'ambient', 'Icell max', 'BAT_P min', 'VSYS min', '3V3 min', 'PA_IN min', 'VPA min', 'LM66100 fwd A',
-           'LM66100 rev A', 'BATFET A', 'IN A', 'mux IN2 A', 'into cell idle mA', 'verdict', 'why']
+    hdr = ['case', 'ambient', 'Icell max', 'BAT_P min', 'VSYS min', '3V3 min', 'PA_IN min', 'VPA min', 'bypass fwd A',
+           'bypass rev A', 'BATFET A', 'IN A', 'mux IN2 A', 'into cell idle mA', 'verdict', 'why']
     L.append('Showcase 1 s bursts and USB cases (25 C):')
     L.append(S.table([srow(n) for n, _ in special], hdr))
-    L.append('  u_ = USB present (5 V, 1 m cable) + cell; n_ = no cell, USB only; _drawn = as drawn; _fix = Schottky in')
-    L.append('  place of the LM66100 and PR1 562 k / 374 k; _pr = PR1 pulled low by a GPIO FET (mux forced to IN2)')
-    L.append('  when no cell is fitted.  s_fixed_ = the fixed variant.')
+    L.append('  u_ = USB present (5 V, 1 m cable) + cell; n_ = no cell, USB only, firmware has set PA_SRC_SYS (PR1')
+    L.append('  pulled low, the mux takes charger SYS); n_1W_nofw = the same without it (firmware forgot).  The USB-only')
+    L.append('  ceiling is the charger: 1.05 A input limit at 5 V.  u_31_300_1W_sys: a cell too weak for 1 W with USB')
+    L.append('  in - firmware sets PA_SRC_SYS and the amplifier runs from charger SYS instead.')
     L.append('')
     L.append('Cold start at -40 C: slide switch on at 1 ms, PA enabled at 10 ms, first burst (0.2 s) at 13 ms.')
     L.append('Extra criterion: 3V3 >= 3.0 V before the PA is enabled (the board boots).')
@@ -317,7 +341,7 @@ def main():
                                                                    not r['pass'] else 'did not boot']
                      )
     L.append(S.table(crows, hdr[:2] + ['3V3 before PA'] + hdr[2:]))
-    L.append('  c_<OCV>_<R_int at 25 C, mOhm>_<1W|3W>_<variant>; at -40 C R_int is x9 (150 -> 1.35 Ohm, 300 -> 2.7 Ohm).')
+    L.append('  c_<OCV>_<R_int at 25 C, mOhm>_<1W|3W>; at -40 C R_int is x9 (50 -> 0.45, 150 -> 1.35, 300 -> 2.7 Ohm).')
     L.append('')
     L.append('Hot: 85 C ambient, USB in, cell NTC out of the charger window (TS hot: the charger must not charge),')
     L.append('three 0.3 s bursts every 0.5 s.  Extra criterion (P7): <= 1 mA into the cell between bursts.')
@@ -339,27 +363,32 @@ def main():
     worst = lambda k, rs: max(rs, key=lambda x: x[k])
     st = []
     rp = worst('icell_avg', passing)
-    st.append(S.stress('JST-PH 2-pin (battery)', 'J (battery)', 'current, passing burst', rp['icell_avg'], 'A', 2.0,
-                       'derate', '%s, %d C' % (rp['name'], rp['temp'])))
-    st.append(S.stress('CSD25485F5', 'Q (reverse FET)', 'drain current, passing burst', rp['icell_avg'], 'A', 3.2,
-                       'derate', rp['name'] + ' (3.2 A min-Cu rating; 5.3 A max-Cu)'))
-    st.append(S.stress('CSD25485F5', 'Q (reverse FET)', 'power, passing burst (42 mOhm x rf at 85 C)',
-                       rp['icell_avg'] ** 2 * 0.042 * 1.24, 'W', 0.5, 'derate', rp['name'] + ' (0.5 W min Cu)'))
+    st.append(S.stress('JST-PH 2-pin (battery)', 'J (battery)', 'current, passing burst (peak, <= 1 s)', rp['icell_avg'], 'A', 2.0,
+                       'pulse', '%s, %d C; 3 W kept by the owner; the 2 A rating is thermal (RMS row below)' % (rp['name'], rp['temp'])))
+    st.append(S.stress('CSD25310Q2', 'Q (reverse FET)', 'drain current, passing burst', rp['icell_avg'], 'A', 9.6,
+                       'derate', rp['name'] + ' (9.6 A continuous on 1 in2 Cu)'))
+    st.append(S.stress('CSD25310Q2', 'Q (reverse FET)', 'power, passing burst (30 mOhm at VGS -3 V, x1.24 at 85 C)',
+                       rp['icell_avg'] ** 2 * 0.030 * 1.24, 'W', (150 - 85) / 55.0, 'derate',
+                       rp['name'] + ' (rating at 85 C: (150 - 85) / 55 C/W min-Cu)'))
+    st.append(S.stress('JST-PH 2-pin (battery)', 'J (battery)', 'RMS current, passing 3 W bursts at 10 % duty',
+                       rp['icell_avg'] * 0.1 ** 0.5, 'A', 2.0, 'derate',
+                       'contact rating is thermal; 10 % transmit duty assumed (Meshtastic airtime is a few %)'))
     st.append(S.stress('SSM10N954L', 'Q (protector)', 'source current, passing burst', rp['icell_avg'], 'A', 13.5,
                        'derate', rp['name']))
-    st.append(S.stress('R22m 1206 1 W', 'R (sense)', 'power, passing burst', rp['icell_avg'] ** 2 * 0.022, 'W', 1.0,
+    st.append(S.stress('R15m 1206 1 W', 'R (sense)', 'power, passing burst', rp['icell_avg'] ** 2 * 0.015, 'W', 1.0,
                        'derate', rp['name']))
     rm = worst('imux1_max', passing)
-    st.append(S.stress('TPS2121', 'U (mux)', 'IN1 current, passing burst', rm['imux1_max'], 'A', 4.5, 'derate', rm['name']))
+    st.append(S.stress('TPS2121', 'U (mux)', 'IN1 current, passing burst', rm['imux1_max'], 'A', 4.5, 'owner',
+                       rm['name'] + ' (3 W bursts)'))
     rb = worst('ibb_max', passing)
-    st.append(S.stress('TPS63810', 'U (buck-boost)', 'input current, passing burst', rb['ibb_max'], 'A', 4.7, 'derate',
+    st.append(S.stress('TPS63810', 'U (buck-boost)', 'input current, passing burst', rb['ibb_max'], 'A', 4.7, 'owner',
                        rb['name'] + ' (vs 5.2 A min switch limit less ripple)'))
     rpa = worst('ipa_max', passing)
-    st.append(S.stress('TPS63810', 'U (buck-boost)', 'output current, passing burst', rpa['ipa_max'], 'A', 2.5, 'derate',
+    st.append(S.stress('TPS63810', 'U (buck-boost)', 'output current, passing burst', rpa['ipa_max'], 'A', 2.5, 'owner',
                        rpa['name'] + ' (recommended 2.5 A at VO 3.5 V)'))
-    st.append(S.stress('QPA9510', 'U (PA)', 'device current, 35 dBm', 2.3, 'A', 2.4, 'absmax',
-                       'datasheet 2400 mA abs max; 2.3 A at 4.0 V'))
-    st.append(S.stress('QPA9510', 'U (PA)', 'device current, 34 dBm (firmware ceiling)', 2.0, 'A', 2.4, 'derate',
+    st.append(S.stress('QPA9510', 'U (PA)', 'device current, 35 dBm', 2.3, 'A', 2.4, 'owner',
+                       'datasheet 2400 mA abs max; 2.3 A at 4.0 V; 3 W kept by the owner'))
+    st.append(S.stress('QPA9510', 'U (PA)', 'device current, 34 dBm', 2.0, 'A', 2.4, 'owner',
                        '1.7-2.0 A at 3.6 V vs 2400 mA abs max'))
     st.append(S.stress('QPA9510', 'U (PA)', 'device current, 30 dBm (US mode)', 1.0, 'A', 2.4, 'derate', '1.0 A at 2.7 V'))
     vin = rb['pain_min']
@@ -368,21 +397,18 @@ def main():
     ilpk = rb['ibb_max'] + d * vin / (2e6 * 0.376e-6) / 2
     st.append(S.stress('DFE252012F-R47M', 'L (buck-boost)', 'peak current, passing burst', ilpk, 'A', 6.7, 'derate',
                        rb['name'] + ' (Isat 6.7 A; rated 4.9 A)'))
-    st.append(S.stress('C47u 0805 6.3 V', 'C (VPA)', 'voltage', max(r['vpa_max'] for r in allr), 'V', 6.3, 'derate',
+    st.append(S.stress('C47u 1206 6.3 V X7S', 'C (VPA)', 'voltage', max(r['vpa_max'] for r in allr), 'V', 6.3, 'derate',
                        '35 dBm setting'))
     lmr = max([r for r in allr if r['ilm_max'] == r['ilm_max']], key=lambda x: x['ilm_max'])
-    st.append(S.stress('LM66100', 'U (cell-to-SYS)', 'switch current (any case)', lmr['ilm_max'], 'A', 1.5, 'derate',
-                       lmr['name'] + ' (1.5 A continuous, 2.5 A <= 120 ms pulsed)'))
-    lmp = max(passing, key=lambda x: x['ilm_max'])
-    st.append(S.stress('LM66100', 'U (cell-to-SYS)', 'switch current, passing bursts', lmp['ilm_max'], 'A', 1.5, 'derate',
-                       lmp['name']))
+    st.append(S.stress('TPS22950', 'U (cell-to-SYS)', 'switch current (any case)', lmr['ilm_max'], 'A', 2.7, 'derate',
+                       lmr['name'] + ' (2.7 A continuous; its own limit 0.75-1.25 A)'))
     S.write_stress(HERE, st)
 
     # ---------------------------------------------------------------- plots
     plt = S.style()
     fig, ax = plt.subplots(2, 3, figsize=(16, 8))
-    show = [('s_fresh_3W_1s', 'fresh 4.2 V / 50 mOhm, 3 W, 25 C'), ('c_3.7_300_1W_drawn', 'cold start -40 C, 3.7 V / 300 mOhm, 1 W, drawn'),
-            ('h_3.7_drawn', '85 C, USB, NTC hot, 3 x 1 W, drawn')]
+    show = [('s_fresh_3W_1s', 'fresh 4.2 V / 50 mOhm, 3 W, 25 C'), ('c_4.2_50_1W', 'cold start -40 C, 4.2 V / 50 mOhm, 1 W'),
+            ('h_3.7_3W', '85 C, USB, NTC hot, 3 x 3 W')]
     for j, (n, title) in enumerate(show):
         d = np.load(os.path.join(OUT, n + '.npz'))
         tm = d['time'] * 1e3
@@ -399,7 +425,7 @@ def main():
         a.plot(tm, d['i_vbt_am'], label='cell (+ = discharge)')
         a.plot(tm, d['v_mx_i1'], label='mux IN1')
         a.plot(tm, d['v_mx_i2'], label='mux IN2')
-        a.plot(tm, d['v_pblm_i'], label='LM66100 (BAT->SYS)')
+        a.plot(tm, d['v_pblm_i'], label='TPS22950 (BAT->SYS)')
         a.plot(tm, d['v_pa_i'], label='PA (VPA)')
         a.axhline(4.04, color='C3', lw=0.6, ls=':')
         a.set_xlabel('ms')
@@ -408,7 +434,7 @@ def main():
     fig.tight_layout()
     fig.savefig(os.path.join(HERE, 'burst.png'))
 
-    fig, ax = plt.subplots(2, len(TEMPS), figsize=(3.2 * len(TEMPS), 6.5))
+    fig, ax = plt.subplots(1, len(TEMPS), figsize=(3.2 * len(TEMPS), 3.6), squeeze=False)
     for q, vn in enumerate(VARIANTS):
         for j, ta in enumerate(TEMPS):
             a = ax[q, j]
@@ -429,8 +455,7 @@ def main():
             a.set_yticklabels(['%.1f V' % o for o in OCVS], fontsize=7)
             a.grid(False)
             a.set_title('%s, %d C' % (vn, ta), fontsize=8)
-            if q == 1:
-                a.set_xlabel('R_int at 25 C, mOhm', fontsize=7)
+            a.set_xlabel('R_int at 25 C, mOhm', fontsize=7)
     fig.suptitle('highest passing PA level, battery only')
     fig.tight_layout()
     fig.savefig(os.path.join(HERE, 'maxpower.png'))

@@ -53,7 +53,7 @@ def TP(net, note=''):
 GND = 'GND'
 
 # Nets drawn as power ports on the schematic (everything else gets a label)
-POWER_NETS = ['GND', '3V3', 'VSYS', 'VSYS_SW', 'BAT_P', 'VPA', 'PA_IN', 'USB_5V', 'VIN_CHG', '3V3_GPS']
+POWER_NETS = ['GND', '3V3', 'VSYS', 'BAT_P', 'VPA', 'PA_IN', 'USB_5V', 'VIN_CHG', '3V3_GPS']
 
 BLOCKS = [
     ('inputs', 'Power in: USB-C, solar, drone 5 V (each surge-clamped and fused)'),
@@ -67,19 +67,20 @@ BLOCKS = [
 ]
 
 BLOCK_NOTES = {
-    'inputs': 'Every input: 22 V flat-clamp TVS (solar and drone behind a reverse-blocking Schottky), then a\n'
-              'TPS259470A eFuse. Cut-offs: USB 5.4 V / 1.5 A, drone 5.8 V / 1.3 A, solar 10 V / 1.3 A. All survive 20 V.',
+    'inputs': 'USB: 22 V flat-clamp TVS, a 4.7 uF + 1 R snubber and a TPS259470A eFuse (cut-off 5.4 V, 1.5 A).\n'
+              'Solar and drone: 33 V TVS and a 60 V MAX17608 (cut-off 10 V, 0.71 A, blocks -60 V and reverse current).',
     'charger': 'Battery plug wired the Adafruit/SparkFun way (pad 1 = +). Cell protection on the minus side\n'
-               '(OCD ~4.1 A, SCD ~21 A, OV 4.275 V, UV 2.8 V); reverse-battery P-FET on the plus side.',
-    'system': 'The slide switch only drives the load switch enable; charging works with the board switched off.',
+               '(OCD ~5.8 A, SCD ~29 A, OV 4.275 V, UV 2.8 V); reverse-battery P-FET on the plus side, on only\n'
+               'when the cell is the right way round. Charge 300 mA. Current-limited cell-to-SYS bypass.',
+    'system': 'The slide switch drives only enables (3.3 V buck, cell bypass); charging works with the board off.',
     'mcu': 'nRF52840 in normal-voltage mode: VDD = VDDH = the 3.3 V rail, so its pins and the SX1262 share one\n'
            'logic level. REG1 DC/DC on (10 uH + 15 nH). Nordic reference circuit, aQFN73.',
     'radio': 'Semtech SX1262MB2CAS (915 MHz) reference values. TCXO on DIO3 (set 2.2 V in firmware), DIO2 drives\n'
              'the antenna switch.',
     'frontend': 'Drive: SX1262 +11 dBm -> 30 dBm (1 W), +17 dBm -> ~35 dBm (3 W). The 15.9 dB pad keeps the\n'
                 'amplifier input below its +13 dBm limit even at the SX1262 maximum (+22 dBm -> +6 dBm).',
-    'pa_power': 'Amplifier runs from the battery through a power mux (charger SYS only when no battery), then a\n'
-                'TPS63810 buck-boost set over I2C (0x75): ~2.7 V for 1 W, up to 4.0 V for 3 W.',
+    'pa_power': 'Amplifier runs from the battery through a power mux (battery first down to 2.6 V; firmware selects\n'
+                'charger SYS when no cell is fitted), then a TPS63810 buck-boost (I2C 0x75): 2.7 V for 1 W, 4.0 V for 3 W.',
     'ports': 'Drone port wired as Pixhawk TELEM (pins from the autopilot side): 1 5V, 2 TX, 3 RX, 4 CTS, 5 RTS,\n'
              '6 GND. Series resistors and ESD on every external signal.',
 }
@@ -108,27 +109,63 @@ def nets(comps=None):
 
 
 # =====================================================================
-def efuse(name, raw, out, uv_bottom, ov_bottom, ilm, ok_net):
-    """TPS259470A: UVLO/OVLO = 1.20 V x (1 M + Rb) / Rb (1 M tops: the
-    datasheet asks for >= 350 k where the input can exceed 5 V or reverse),
-    ILIM = 3334 / RILM, DVDT 1 nF (2 V/ms), ITIMER 1 nF.  A 4.7 V zener
-    holds EN/UVLO inside its 6.5 V rating with 20 V on the input (the
-    divider alone would put 5.5-6.8 V there); it draws nothing near the
-    1.2 V threshold.  AUXOFF ("input good") goes to the processor through a
-    1 M pull-up (a dead input's AUXOFF can sit near 1 V; 1 M keeps a clean
-    low); FLT is left open because on an OR-ed input it also flags normal
-    reverse blocking."""
-    add('U', 'TPS259470A', {'5': raw, '6': out, '1': name + '_UV', '2': name + '_OV', '7': name + '_DVDT',
-                            '9': name + '_ILM', '10': name + '_TMR', '3': ok_net, '4': None, '8': GND},
-        note=name + ' eFuse')
-    R('R1M', raw, name + '_UV'); R(uv_bottom, name + '_UV')
-    add('D', 'ZENER4V7', {'1': name + '_UV', '2': GND}, note='EN clamp')
-    R('R1M', raw, name + '_OV'); R(ov_bottom, name + '_OV')
-    R(ilm, name + '_ILM')
-    C('C1n', name + '_DVDT'); C('C1n', name + '_TMR')
-    C('C1u25', raw, note='eFuse input, 25 V')
-    if ok_net:
-        R('R1M', ok_net, '3V3', note='input-good pull-up')
+def usb_efuse(raw, out):
+    """TPS259470A on USB: UVLO = 1.20 V x (20 k + 7.68 k) / 7.68 k = 4.33 V,
+    OVLO = 1.20 V x (1 M + 287 k) / 287 k = 5.38 V (the nRF52840's VBUS is
+    5.5 V max), ILIM = 3334 / 2.21 k = 1.51 A, DVDT 1 nF (2 V/ms), ITIMER
+    1 nF.  A 5.6 V zener holds EN/UVLO inside its 6.5 V rating with 20 V
+    on the input (5.9 V at most, hot).  The EN divider is low-impedance
+    (20 k on top) and the zener is far below its knee at the 1.2 V
+    threshold (1 uA max even at 2.5 V), so its leakage cannot move UVLO;
+    with the 4.7 V zener (2 uA at 1 V) and 1 M on top, UVLO could rise
+    above OVLO and USB would never turn on (sim/hotplug).  AUXOFF and FLT
+    are left open (firmware reads USB on VBUS)."""
+    add('U', 'TPS259470A', {'5': raw, '6': out, '1': 'USB_UV', '2': 'USB_OV', '7': 'USB_DVDT',
+                            '9': 'USB_ILM', '10': 'USB_TMR', '3': None, '4': None, '8': GND}, note='USB eFuse')
+    R('R20k', raw, 'USB_UV'); R('R7.68k', 'USB_UV')
+    add('D', 'ZENER5V6', {'1': 'USB_UV', '2': GND}, note='EN clamp')
+    R('R1M', raw, 'USB_OV'); R('R287k', 'USB_OV')
+    # 100 pF on OVLO (22 us with the divider): a 5 V plug-in rings VBUS to
+    # ~5.5 V for a few us, enough to trip OVLO (5.22-5.57 V), and OVLO only
+    # releases below 4.89 V, so USB stayed off until unplugged (sim/reverse);
+    # a real over-voltage still cuts off within ~2 us
+    C('C100p', 'USB_OV', note='OVLO ring filter')
+    R('R2.21k', 'USB_ILM')
+    C('C1n', 'USB_DVDT'); C('C1n', 'USB_TMR')
+    C('C1u50', raw, note='eFuse input, 50 V')
+    # Snubber: a 20 V source plugged in through 1 m of cable rings the input
+    # toward 40 V; the TVS2200 alone clamped it at 27.4-28.2 V, against the
+    # eFuse's 28 V rating (hot).  4.7 uF + 1 R damps the ring to 23.3 V and
+    # the TVS no longer conducts (sim/hotplug).  4.7 + 1 uF stays inside the
+    # USB sink's 10 uF.
+    C('C4u7_50', raw, 'USB_SNB', note='snubber')
+    R('R1R_0805', 'USB_SNB', GND, note='snubber, pulse-proof')
+
+
+def hv_input(name, conn, ok_net):
+    """MAX17608 (60 V, -60 V reverse, blocks reverse current) on the solar
+    and drone inputs: OVLO = 1.5 V x (1.5 M + 267 k) / 267 k = 9.93 V; the
+    UVLO pin is tied up to IN through 1 M so only the internal UVLO (4.0 V
+    rising / 3.5 V falling) applies: the charger pulls a panel down to
+    VINDPM (3.6 V with a flat cell) and a higher UVLO would cut it off.
+    SETI 2.1 k = 0.71 A (67 % of its 1.1 A DC rating; charging at 300 mA
+    plus the system needs ~0.5 A, so it only limits a no-cell transmit from
+    drone or solar power); CLMODE to GND = continuous current limit (with
+    auto-retry it would hiccup against the charger's own input limit).  EN
+    open (internal pull-up), FLAG and UVOV open: they float when the input
+    is absent.  Instead <name>_OK reads the input
+    voltage on an ADC pin: 1.5 M / 100 k = 1/16 (5 V -> 0.31 V, 10 V ->
+    0.63 V; a 20 V plug-in ring to 38 V -> 2.3 V, under the pin's 3.6 V).
+    33 V bidirectional TVS at the connector."""
+    add('D', 'SMF33CA', {'1': conn, '2': GND}, note=name + ' surge clamp')
+    add('U', 'MAX17608', {'1': conn, '2': conn, '3': name + '_OV', '4': name + '_UV', '5': None, '6': GND, '7': GND,
+                          '8': name + '_SETI', '9': None, '10': None, '11': 'VIN_CHG', '12': 'VIN_CHG', '13': GND},
+        note=name + ' 60 V current limiter')
+    R('R1.5M', conn, name + '_OV'); R('R267k', name + '_OV')
+    R('R1M', conn, name + '_UV', note='UVLO pin held high: internal 4 V UVLO')
+    R('R2.1k', name + '_SETI')
+    C('C1u50', conn, note='input, 50 V')
+    R('R1.5M', conn, ok_net); R('R100k', ok_net, note='input voltage / 16 to the ADC')
 
 
 def inputs():
@@ -144,42 +181,46 @@ def inputs():
                             '6': None, '7': None, '9': None, '10': None}, note='USB ESD')
     add('D', 'TVS2200', {'4': 'USB_VBUS', '5': 'USB_VBUS', '6': 'USB_VBUS', '1': GND, '2': GND, '3': GND, '7': GND},
         note='USB surge clamp')
-    efuse('USB', 'USB_VBUS', 'USB_5V', 'R383k', 'R287k', 'R2.21k', None)   # OV 5.4 V: nRF VBUS 5.5 V max
+    usb_efuse('USB_VBUS', 'USB_5V')
     # USB_5V feeds the nRF52840 VBUS pin (USB detect and its USB PHY) and,
-    # through a Schottky, the charger.  The 47 k drains Schottky leakage so
-    # VBUS never reads "present" from solar or drone power.
-    R('R47k', 'USB_5V', note='VBUS bleed')
+    # through a Schottky, the charger.  The bleed drains that Schottky's
+    # reverse leakage when solar or drone power holds VIN_CHG up to 10 V
+    # and USB is out: ~0.4 mA typical at 85 C (sim/hotplug), which 47 k
+    # turned into 10 V on VBUS (5.8 V max); 2.2 k holds it under 1 V
+    # typical, 4 V at the diode's maximum leakage.  Costs 2.3 mA from USB.
+    R('R2.2k', 'USB_5V', note='VBUS bleed')
+    # 22 R into the nRF52840's VBUS, with its 4.7 uF in mcu() and one more
+    # here (~200 us): the eFuse takes ~2 us to cut off a 5 -> 20 V step, in
+    # which USB_5V follows the input to ~15 V; VBUS (5.8 V abs max, a few
+    # mA) sees ~0.2 V of it (sim/hotplug)
+    R('R22R', 'USB_5V', 'NRF_VBUS', note='VBUS filter')
+    C('C4u7', 'NRF_VBUS', note='VBUS filter')
     add('D', 'RB060MM', {'2': 'USB_5V', '1': 'VIN_CHG'}, note='USB into the charger')
 
-    # Solar panel, 5-6 V nominal; the eFuse cuts off above 10 V and the
-    # parts survive at least 20 V (a 12 V panel open-circuit is ~21 V).
-    # A series Schottky blocks a reversed panel (30 V); the TVS2200 behind
-    # it clamps surges below the eFuse's 28 V rating.
+    # Solar panel, 5-6 V nominal, on its own JST-SH: cut off above 10 V; a
+    # 12 V panel (26 V open circuit at -40 C) or a reversed panel is harmless.
     add('J', 'JST_SH2', {'1': 'SOLAR_CONN', '2': GND, '3': None, '4': None}, note='solar input')
-    add('D', 'RB060MM', {'2': 'SOLAR_CONN', '1': 'SOLAR_RAW'}, note='solar reverse block')
-    add('D', 'TVS2200', {'4': 'SOLAR_RAW', '5': 'SOLAR_RAW', '6': 'SOLAR_RAW', '1': GND, '2': GND, '3': GND, '7': GND},
-        note='solar surge clamp')
-    efuse('SOL', 'SOLAR_RAW', 'VIN_CHG', 'R510k', 'R137k', 'R2.49k', 'SOLAR_OK')
-
+    hv_input('SOL', 'SOLAR_CONN', 'SOLAR_OK')
     # Drone 5 V from the JST-GH drone port (charges the cell while carried),
     # protected the same way
-    add('D', 'RB060MM', {'2': 'DRONE_5V_CONN', '1': 'DRONE_5V_RAW'}, note='drone 5 V reverse block')
-    add('D', 'TVS2200', {'4': 'DRONE_5V_RAW', '5': 'DRONE_5V_RAW', '6': 'DRONE_5V_RAW', '1': GND, '2': GND, '3': GND,
-                         '7': GND}, note='drone 5 V surge clamp')
-    efuse('DRN', 'DRONE_5V_RAW', 'VIN_CHG', 'R383k', 'R261k', 'R2.49k', 'DRONE_OK')
+    hv_input('DRN', 'DRONE_5V_CONN', 'DRONE_OK')
 
 
 def charger():
     _block[0] = 'charger'
-    # BQ25185: ISET 604 R -> 500 mA charge (300 A.ohm / R); ILIM/VSET 13 k ->
+    # BQ25185: ISET 1 k -> 300 mA charge (300 A.ohm / R); ILIM/VSET 13 k ->
     # 4.2 V and 1.1 A input limit (datasheet table 6-1); NTC on TS, hot/cold
-    # cut-off at about 60 C / 0 C, placed at the battery plug.
+    # cut-off at about 60 C / 0 C, placed beside the battery plug and also
+    # read by the processor (CHG_TS on P0.31/AIN7).
     add('U', 'BQ25185', {'10': 'VIN_CHG', '1': 'VSYS', '2': 'BAT_P', '4': 'CHG_CE_N', '6': 'CHG_TS',
                          '7': 'CHG_ILIM', '8': 'CHG_ISET', '9': 'CHG_STAT1', '3': 'CHG_STAT2', '5': GND, '11': GND},
         note='charger')
-    C('C1u25', 'VIN_CHG'); C('C10u25', 'VIN_CHG')
+    # 1 uF only on IN (it had 1 + 10 uF): a weak panel (20 % sun, 37 mA) could
+    # not charge 11 uF through the MAX17608's ~1 ms turn-on ramp without
+    # sagging under its 3.5 V UVLO, so the input hiccupped (sim/solar)
+    C('C1u25', 'VIN_CHG')
     C('C10u25', 'VSYS'); C('C10u25', 'BAT_P')
-    R('R604R', 'CHG_ISET'); R('R13k', 'CHG_ILIM')
+    R('R1k', 'CHG_ISET'); R('R13k', 'CHG_ILIM')
     add('TH', 'NTC10K', {'1': 'CHG_TS', '2': GND}, note='battery temperature')
     # /CE: pulled low = charging on, also when the board is switched off.
     # The processor can stop charging (firmware holds the cell to 0-45 C
@@ -197,16 +238,31 @@ def charger():
     # (from the footprint geometry against Adafruit's; check with a meter on a
     # real Adafruit cell before ordering, docs/plan.md)
     add('J', 'JST_PH2', {'1': 'BATT_PLUS', '2': 'CELL_MINUS', '3': None, '4': None}, note='battery')
-    # Reverse battery: P-FET on the plus side, its gate pulled to the cell's
-    # own minus terminal (not board ground, which a charger can hold up):
-    # a cell plugged in backwards pulls the gate to its + and the FET stays
-    # off whatever powers the board.
-    add('Q', 'CSD25485F5', {'3': 'BATT_PLUS', '2': 'BAT_P', '1': 'REV_G'}, note='reverse-battery FET')
-    R('R100k', 'REV_G', 'CELL_MINUS')
+    # Reverse battery: P-FET on the plus side, held off (gate pulled up to
+    # BAT_P) unless a small N-FET, whose gate is the cell's + and source the
+    # cell's -, sees the cell the right way round and pulls the gate down to
+    # the cell's minus.  With the gate simply tied to the cell's minus, USB
+    # power (charger on BAT_P) wakes the protector, which pulls the cell's
+    # minus to ground, so a cell then plugged in backwards turned the FET
+    # on: ~33 A through the cell and IC substrate diodes (sim/reverse).
+    # The 1 M across the plug keeps the N-FET off with no cell fitted; its
+    # gate is filtered (100 k / 100 nF, 10 ms) so neither the plug-in ring of
+    # the cell leads nor BAT_P rising at a USB plug-in (coupled onto the empty
+    # pad by the FET's capacitance) can turn it on: either would latch the
+    # FET on (sim/reverse).  Bigger FET than before: 3 W bursts draw up to
+    # 4.1 A (sim/burst).
+    add('Q', 'CSD25310Q2', {'4': 'BATT_PLUS', '8': 'BATT_PLUS', '1': 'BAT_P', '2': 'BAT_P', '5': 'BAT_P', '6': 'BAT_P',
+                            '7': 'BAT_P', '3': 'REV_G'}, note='reverse-battery FET')
+    R('R1M', 'REV_G', 'BAT_P', note='off unless the cell is the right way round')
+    add('Q', 'NMOS', {'3': 'REV_G', '2': 'CELL_MINUS', '1': 'POL_G'}, note='cell-polarity check')
+    R('R1M', 'BATT_PLUS', 'CELL_MINUS', note='no cell: polarity check off')
+    R('R100k', 'BATT_PLUS', 'POL_G'); C('C100n', 'POL_G', 'CELL_MINUS', note='polarity check filter')
     # Cell protection for unprotected cells: BQ29700 on the minus side, two
-    # back-to-back FETs, 22 mOhm sense so OCD = 100 mV / 24.2 mOhm = 4.1 A
-    # and SCD = 500 mV / 24.2 mOhm = 21 A.  Its supply comes from BAT_P
-    # (after the reverse FET) so a reversed cell never reaches its BAT pin.
+    # back-to-back FETs, 15 mOhm sense so OCD = 100 mV / 17.2 mOhm = 5.8 A
+    # (4.8-6.7 A over tolerance and temperature) and SCD = 500 mV / 17.2 mOhm
+    # = 29 A (22-35 A); with 22 mOhm, OCD could trip at 3.3 A, inside a 3 W
+    # burst (sim/shorts).  Its supply comes from BAT_P (after the reverse
+    # FET) so a reversed cell never reaches its BAT pin.
     add('U', 'BQ29700', {'5': 'PROT_BAT', '4': 'CELL_MINUS', '6': 'PROT_VM', '3': 'PROT_DOUT', '2': 'PROT_COUT',
                          '1': None}, note='cell protector')
     R('R330R', 'BAT_P', 'PROT_BAT'); C('C100n', 'PROT_BAT', 'CELL_MINUS')
@@ -214,12 +270,20 @@ def charger():
     add('Q', 'SSM10N954L', {'3': 'PROT_DOUT', '1': 'CELL_MINUS', '2': 'CELL_MINUS', '4': 'CELL_MINUS', '5': 'CELL_MINUS',
                             '8': 'PROT_COUT', '6': 'PROT_S2', '7': 'PROT_S2', '9': 'PROT_S2', '10': 'PROT_S2'},
         note='protection FETs')
-    R('R22m', 'PROT_S2', GND, note='current sense')
-    # Ideal diode from the cell to VSYS: a 3 W burst can sag a worn cell
-    # below the charger's 3.0 V battery-disconnect (60 us), which would drop
-    # SYS and reset the board; this keeps the system rail on the cell.  It
-    # conducts only while VSYS is below the cell (no charging path).
-    add('U', 'LM66100', {'1': 'BAT_P', '6': 'VSYS', '3': GND, '2': GND, '5': None, '4': None}, note='cell-to-SYS ideal diode')
+    R('R15m', 'PROT_S2', GND, note='current sense')
+    # Cell-to-SYS bypass: a 3 W burst can sag a worn cell below the
+    # charger's 3.0 V battery-disconnect (60 us), which would drop SYS and
+    # reset the board; this keeps the system rail on the cell.  TPS22950
+    # (on with the power switch, current limit 1.0 A: RILIM 1.15 k, 0.75-
+    # 1.25 A, so a short on VSYS is limited) then a Schottky, which blocks
+    # SYS from charging the cell.  The LM66100 that was here let SYS charge
+    # the cell at ~0.9 A outside the charger's control; the TPS22950's own
+    # reverse blocking acts only above ~1 A (44 mV), so a weak source such
+    # as a panel still charged the cell through it (sim/solar).  FLT open.
+    add('U', 'TPS22950', {'B1': 'BAT_P', 'B2': 'BYP_OUT', 'A1': 'PWR_ON', 'C2': 'BYP_ILIM', 'C1': GND, 'A2': None},
+        note='cell-to-SYS bypass')
+    R('R1.15k', 'BYP_ILIM')
+    add('D', 'RB060MM', {'2': 'BYP_OUT', '1': 'VSYS'}, note='bypass: no charging from SYS')
     # Battery voltage for the firmware: 1 M / 1.5 M as on the RAK4631
     # (ADC multiplier 1.667), 1.7 uA
     R('R1M', 'BAT_P', 'VBAT_SENSE'); R('R1.5M', 'VBAT_SENSE'); C('C100n', 'VBAT_SENSE')
@@ -229,15 +293,15 @@ def system():
     _block[0] = 'system'
     add('SW', 'SLIDE', {'2': 'PWR_ON', '1': 'VSYS', '3': None}, note='power switch')
     R('R1M', 'PWR_ON', note='off when the switch is open')
-    # TPS22965: CT 1 nF -> ~1.5 ms soft start; VBIAS from VSYS
-    add('U', 'TPS22965', {'1': 'VSYS', '2': 'VSYS', '4': 'VSYS', '3': 'PWR_ON', '6': 'SW_CT', '7': 'VSYS_SW',
-                          '8': 'VSYS_SW', '5': GND, '9': GND}, note='main power switch')
-    C('C1n', 'SW_CT'); C('C1u25', 'VSYS'); C('C10u', 'VSYS_SW')
-    # TPS62840: VSET 267 k -> 3.3 V; 100 % mode below 3.3 V in
-    add('U', 'TPS62840', {'B1': 'VSYS_SW', 'C1': 'VSYS_SW', 'C2': 'BUCK_VSET', 'B2': 'BUCK_SW', 'A2': '3V3', 'A1': GND},
+    # The switch enables the buck directly (no load switch: a short at the
+    # buck input is a short on VSYS, which the charger and the current-
+    # limited cell bypass both limit).
+    C('C1u25', 'VSYS'); C('C10u', 'VSYS')
+    # TPS62840: VSET 267 k -> 3.3 V; 100 % mode below 3.3 V in; EN = switch
+    add('U', 'TPS62840', {'B1': 'VSYS', 'C1': 'PWR_ON', 'C2': 'BUCK_VSET', 'B2': 'BUCK_SW', 'A2': '3V3', 'A1': GND},
         note='3.3 V buck')
     R('R267k', 'BUCK_VSET')
-    C('C4u7', 'VSYS_SW')
+    C('C4u7', 'VSYS')
     L('L2u2', 'BUCK_SW', '3V3')
     C('C10u', '3V3'); C('C10u', '3V3')
     TP('3V3', 'test pad'); TP(GND, 'test pad'); TP('VSYS', 'test pad')
@@ -247,7 +311,7 @@ def mcu():
     _block[0] = 'mcu'
     gpio = {
         'D2': 'XL1', 'F2': 'XL2',
-        'A12': 'PA_VSEL', 'B13': 'DRONE_OK', 'J1': 'SOLAR_OK', 'K2': 'VBAT_SENSE',
+        'A12': 'PA_SRC_SYS', 'B13': 'DRONE_OK', 'J1': 'SOLAR_OK', 'K2': 'VBAT_SENSE',
         'L1': 'TEMP_ALERT', 'M2': 'DISP_SCK', 'N1': 'DISP_MOSI', 'L24': 'CHG_CE_N', 'J24': 'IO6',
         'T2': 'DISP_MISO', 'U1': 'DISP_CS', 'AD8': 'I2C_SDA', 'AC9': 'I2C_SCL',
         'AD10': 'DRONE_RX', 'AC11': 'DRONE_TX', 'AD12': 'GPS_PPS', 'AC13': 'NRF_RESET',
@@ -267,7 +331,7 @@ def mcu():
         # normal-voltage mode: VDDH tied to VDD, REG0 unused (DCCH open)
         'Y2': '3V3', 'B1': '3V3', 'W1': '3V3', 'AD14': '3V3', 'AD23': '3V3', 'A22': '3V3', 'AB2': None,
         'B3': 'NRF_DCC', 'B5': 'NRF_DEC4', 'E24': 'NRF_DEC4', 'C1': 'NRF_DEC1', 'A18': None, 'D23': 'NRF_DEC3',
-        'N24': 'NRF_DEC5', 'AD2': 'USB_5V', 'AC5': 'NRF_DECUSB', 'AD6': 'NRF_DP', 'AD4': 'NRF_DM',
+        'N24': 'NRF_DEC5', 'AD2': 'NRF_VBUS', 'AC5': 'NRF_DECUSB', 'AD6': 'NRF_DP', 'AD4': 'NRF_DM',
         'B24': 'XC1', 'A23': 'XC2', 'H23': 'NRF_ANT', 'AA24': 'SWDCLK', 'AC24': 'SWDIO',
         'B7': GND, '0': GND, 'F23': GND,
     })
@@ -281,7 +345,7 @@ def mcu():
     C('C1u', 'NRF_DEC4'); C('C47n', 'NRF_DEC4')
     C('C100n', 'NRF_DEC1'); C('C100p', 'NRF_DEC3'); C('C820p', 'NRF_DEC5', note='DEC5: needed only on older build codes; harmless')
     # USB: on-chip PHY and pull-up; 22 R pads as on Adafruit's Feather
-    C('C4u7', 'USB_5V', note='VBUS'); C('C4u7', 'NRF_DECUSB')
+    C('C4u7', 'NRF_VBUS', note='VBUS'); C('C4u7', 'NRF_DECUSB')
     R('R22R', 'USB_DP', 'NRF_DP'); R('R22R', 'USB_DM', 'NRF_DM')
     # 32 MHz crystal, CL 8 pF: 2 x 8 - 3 - 1 = 12 pF
     add('Y', 'XTAL32M', {'1': 'XC1', '3': 'XC2', '2': GND}, note='32 MHz')
@@ -387,33 +451,40 @@ def frontend():
 
 def pa_power():
     _block[0] = 'pa_power'
-    # TPS2121: IN1 (battery) has priority above 3.04 V (PR1 562 k / 301 k);
-    # IN2 = charger SYS.  OV1/OV2 pulled up = both inputs off; the N-FET pulls
+    # TPS2121: IN1 (battery) has priority above 2.65 V, falling 2.60 V (PR1
+    # 562 k / 374 k): at 3.04 V (301 k) a worn or cold cell's sag in a burst
+    # switched the mux over, and its 100 us gap reset the TPS63810
+    # (sim/burst).  IN2 = charger SYS.  With no cell fitted the charger
+    # holds BAT_P up and the mux would pick it: firmware then sets
+    # PA_SRC_SYS (P0.02), whose N-FET pulls PR1 low so IN2 is used.  OV1/OV2 pulled up = both inputs off; the N-FET pulls
     # them low while the amplifier is enabled (PA_PWR_EN), so its 0.3 mA runs
     # only when firmware wants the amplifier.  ILM 22.1 k -> 4.5 A; ST unused
     # (grounded, per the datasheet).
     add('U', 'TPS2121', {'7': 'BAT_P', '2': 'VSYS', '6': 'MUX_PR1', '5': 'MUX_OFF', '4': 'MUX_OFF', '3': GND,
                          '1': 'PA_IN', '8': 'PA_IN', '9': GND, '10': 'MUX_ILM', '11': 'MUX_SS', '12': GND},
         note='amplifier power mux')
-    R('R562k', 'BAT_P', 'MUX_PR1'); R('R301k', 'MUX_PR1')
+    R('R562k', 'BAT_P', 'MUX_PR1'); R('R374k', 'MUX_PR1')
+    add('Q', 'NMOS', {'3': 'MUX_PR1', '2': GND, '1': 'PA_SRC_SYS'}, note='amplifier from SYS (no cell)')
+    R('R1M', 'PA_SRC_SYS', note='battery first unless firmware says otherwise')
     R('R1M', 'BAT_P', 'MUX_OFF')
     add('Q', 'NMOS', {'3': 'MUX_OFF', '2': GND, '1': 'PA_PWR_EN'}, note='mux on with the amplifier')
     R('R22.1k', 'MUX_ILM'); C('C10n', 'MUX_SS')
     C('C1u25', 'BAT_P'); C('C1u25', 'VSYS')
     C('C22u16', 'PA_IN'); C('C22u16', 'PA_IN')
-    # TPS63810 buck-boost: I2C 0x75; VOUT = 1.8 V + 25 mV x code; boots at 3.3 V
+    # TPS63810 buck-boost: I2C 0x75; VOUT = 1.8 V + 25 mV x code (VSEL tied
+    # low: VOUT1 only, as firmware always used it); boots at 3.3 V
     # and loses its registers when the mux removes its input, so firmware
     # writes them after every enable.  EN from the processor (1 M down: off
     # until firmware wants it).  Firmware ceiling 3.6 V (~34 dBm): the QPA9510
     # is rated for a 10:1 mismatch (a missing antenna) at 3.6 V only; 4.0 V
     # (~35 dBm) is an opt-in setting for a known-good antenna.
-    add('U', 'TPS63810', {'A2': 'PA_IN', 'A3': 'PA_IN', 'A1': 'PA_PWR_EN', 'B1': 'PA_VSEL', 'D1': 'I2C_SCL',
+    add('U', 'TPS63810', {'A2': 'PA_IN', 'A3': 'PA_IN', 'A1': 'PA_PWR_EN', 'B1': GND, 'D1': 'I2C_SCL',
                           'E1': 'I2C_SDA', 'B2': 'PA_LX1', 'B3': 'PA_LX1', 'D2': 'PA_LX2', 'D3': 'PA_LX2',
                           'E2': 'VPA', 'E3': 'VPA', 'C1': GND, 'C2': GND, 'C3': GND}, note='amplifier buck-boost')
-    R('R1M', 'PA_PWR_EN'); R('R1M', 'PA_VSEL')
+    R('R1M', 'PA_PWR_EN')
     C('C10u25', 'PA_IN')
     L('L470n', 'PA_LX1', 'PA_LX2')
-    C('C47u', 'VPA'); C('C47u', 'VPA'); C('C100n', 'VPA')
+    C('C47u', 'VPA', note='1206 X7S'); C('C47u', 'VPA', note='1206 X7S'); C('C100n', 'VPA')
     # amplifier control voltage: 2.8 V only while transmitting (EN = PA_EN, the
     # firmware's TXEN); both APC pins at 0 V = amplifier standby (58 uA)
     add('U', 'TLV75528', {'4': '3V3', '3': 'PA_EN', '1': 'PA_APC', '2': GND, '5': GND}, note='APC supply')

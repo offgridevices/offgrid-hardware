@@ -146,6 +146,18 @@ FIXUPS = {
     'VQFN-HR-12_L2.5-W2.0-P0.50-BL': {'as': 'VQFN-12_TPS2121RUX'},
     # TI TPS22916CYFP, C2680319 (checked above)
     'DSBGA-4_L0.8-W0.8-R2-C2-P0.40-BL': {'as': 'DSBGA-4_TPS22916'},
+    # ADI MAX17608ATC+T, C2155884 (TDFN-12 3 x 3, 0.5 mm): pads 1-6 along one
+    # side and 7-12 back along the other, counter-clockwise from the top as
+    # on ADI's "TOP VIEW"; pad 13 = the exposed pad (GND)
+    # TI TPS22950YBHR, C3230039 (YBH DSBGA-6, 0.4 mm pitch both ways, as on
+    # TI's YBH0006-C02 drawing): pads named by ball, A1 ON, A2 FLT, B1 VIN,
+    # B2 VOUT, C1 GND, C2 ILIM
+    # TI CSD25310Q2(T), C2871649: EasyEDA files it under CSD17571Q2's land,
+    # the same DQK 2 x 2 SON.  Checked against TI's DQK drawing (4210192/B)
+    # and the CSD25310Q2 top view: 1, 2, 5, 6 source, 3 gate, 4 drain; pad 7
+    # (the large exposed pad, by pins 1 and 6) is source, pad 8 (the small
+    # one, by pins 3 and 4) is drain
+    'WSON-6_L2.0-W2.0-P0.65-BL_CSD17571Q2': {'as': 'WSON-6_DQK_CSD25310Q2'},
     # Abracon ABM11W 2016 crystal, C5189005: pads 2 and 4 are both the lid
     # (ground).  circuit.py names the ground pin '2' only (the symbol has
     # one ground pin), so pad 4 is numbered 2 as well: both are then the
@@ -507,6 +519,7 @@ STD = {
     'C_0402': ('Capacitor_SMD', 'C_0402_1005Metric'),
     'C_0603': ('Capacitor_SMD', 'C_0603_1608Metric'),
     'C_0805': ('Capacitor_SMD', 'C_0805_2012Metric'),
+    'C_1206': ('Capacitor_SMD', 'C_1206_3216Metric'),
     'R_0402': ('Resistor_SMD', 'R_0402_1005Metric'),
     'R_0603': ('Resistor_SMD', 'R_0603_1608Metric'),
     'R_0805': ('Resistor_SMD', 'R_0805_2012Metric'),

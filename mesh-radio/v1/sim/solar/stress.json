@@ -3,21 +3,21 @@
   "part": "BQ25185",
   "ref": "U (charger)",
   "qty": "dissipation, 6 V panel",
-  "value": 0.10376995111478783,
+  "value": 0.10510066315050373,
   "unit": "W",
-  "rating": 1.1,
+  "rating": 1.171303074670571,
   "kind": "derate",
-  "case": "pv_25_3_100_diode (vs (125-60) C / 68.3 C/W = 0.95 W at 60 C ambient; 1.1 W shown as TJ 135 C)"
+  "case": "pv_25_3_100_tps (charging only up to 45 C: (125 - 45) C / 68.3 C/W)"
  },
  {
   "part": "BQ25185",
   "ref": "U (charger)",
-  "qty": "dissipation, USB charging 3.7 V cell (CE=VSYS)",
-  "value": 0.3576599318834399,
+  "qty": "dissipation, USB charging 3.7 V cell",
+  "value": 0.2565773399987874,
   "unit": "W",
-  "rating": 0.95,
+  "rating": 1.171303074670571,
   "kind": "derate",
-  "case": "(125 - 60 C) / 68.3 C/W JEDEC"
+  "case": "(125 - 45 C) / 68.3 C/W JEDEC; charging stops above 45 C"
  },
  {
   "part": "BQ25185",
@@ -33,10 +33,20 @@
   "part": "BQ25185",
   "ref": "U (charger)",
   "qty": "dissipation, 12 V panel at ~10 V (just under solar OV), 3.0 V cell",
-  "value": 2.3362416,
+  "value": 2.16837,
   "unit": "W",
-  "rating": 0.95,
+  "rating": 1.171303074670571,
+  "kind": "info",
+  "case": "would be; its thermal regulation (TREG 100 C) cuts the charge current to hold Tj at 100 C"
+ },
+ {
+  "part": "MAX17608",
+  "ref": "U (solar / drone)",
+  "qty": "IN current at its limit (RSETI 2.1 k: 0.71 A +3 %)",
+  "value": 0.7357142857142858,
+  "unit": "A",
+  "rating": 1.1,
   "kind": "derate",
-  "case": "Isc 0.33 A; thermal regulation (TREG 100 C) would cut it back"
+  "case": "1.1 A DC abs max; reached only by a no-cell transmit from solar / drone power"
  }
 ]

@@ -151,7 +151,7 @@ PARTS['TPS259470A'] = ic(
     'TPS259470ARPWR', TI, 'C3662799', '', 'og:VQFN-10_L2.0-W2.0-P0.45-TL',
     'eFuse 2.7-23 V, adjustable over-voltage and current limit, reverse blocking, auto-retry, QFN-10 2 x 2',
     [('1', 'EN/UVLO', I), ('2', 'OVLO', I), ('3', 'PG', OC), ('4', 'FLT', OC), ('5', 'IN', PI),
-     ('6', 'OUT', P), ('7', 'DVDT', P), ('8', 'GND', PI), ('9', 'ILM', P), ('10', 'ITIMER', P)],
+     ('6', 'OUT', PO), ('7', 'DVDT', P), ('8', 'GND', PI), ('9', 'ILM', P), ('10', 'ITIMER', P)],
     left=['5', '1', '2', '7', '9', '10'], right=['6', '3', '4', '8'])
 
 PARTS['BQ25185'] = ic(
@@ -236,6 +236,34 @@ PARTS['TVS2200'] = ic(
      ('7', 'GND (EP)', P)],
     left=['4', '5', '6'], right=['1', '2', '3', '7'], prefix='D')
 
+# Solar and drone inputs (sim/hotplug, 19 Oct): 60 V, so a 12 V panel's cold
+# open-circuit voltage (26 V at -40 C) and a 20 V fault need no clamp, and it
+# blocks a reversed input (to -60 V) and reverse current, so neither input
+# needs a Schottky.  Chosen over TPS26600 (HTSSOP-16) for size.
+PARTS['MAX17608'] = ic(
+    'MAX17608ATC+T', ('Analog Devices', US), 'C2155884', '', 'og:TDFN-12_L3.0-W3.0-P0.50-BL-EP',
+    'Current limiter 4.5-60 V, 1 A, OV/UV, reverse voltage (-60 V) and reverse current blocking, TDFN-12 3 x 3',
+    [('1', 'IN', PI), ('2', 'IN', PI), ('3', 'OVLO', I), ('4', 'UVLO', I), ('5', 'EN', I), ('6', 'CLMODE', I),
+     ('7', 'GND', PI), ('8', 'SETI', P), ('9', 'FLAG', OC), ('10', 'UVOV', OC), ('11', 'OUT', P), ('12', 'OUT', P),   # OUT passive: OR-ed onto VIN_CHG
+     ('13', 'GND (EP)', PI)],
+    left=['1', '2', '3', '4', '5', '6'], right=['11', '12', '8', '9', '10', '7', '13'])
+
+# Cell-to-system bypass (sim/burst, sim/shorts): current-limited and blocking
+# reverse current, in place of the LM66100, which let the charger's SYS rail
+# charge the cell outside the charger's control
+PARTS['TPS22950'] = ic(
+    'TPS22950YBHR', TI, 'C3230039', '', 'og:DSBGA-6_L1.2-W0.8-R2-C3-P0.40-BL',
+    'Load switch 1.8-5.5 V, 34 mOhm, adjustable current limit 0.05-3.5 A, reverse current blocking, WCSP-6',
+    [('A1', 'ON', I), ('A2', 'FLT', OC), ('B1', 'VIN', PI), ('B2', 'VOUT', P), ('C1', 'GND', PI), ('C2', 'ILIM', P)],   # VOUT passive: shares SYS with the charger
+    left=['B1', 'A1', 'C2'], right=['B2', 'A2', 'C1'])
+
+PARTS['CSD25310Q2'] = ic(
+    'CSD25310Q2T', TI, 'C2871649', '', 'og:WSON-6_DQK_CSD25310Q2',
+    'P-MOSFET -20 V, 19.9 mOhm at -4.5 V, 9.6 A, SON 2 x 2 (reverse-battery FET)',
+    [('1', 'S', P), ('2', 'S', P), ('5', 'S', P), ('6', 'S', P), ('7', 'S (EP)', P), ('3', 'G', I),
+     ('4', 'D', P), ('8', 'D (EP)', P)],
+    left=['4', '8', '3'], right=['1', '2', '5', '6', '7'], prefix='Q')
+
 # =================================================================== connectors and controls
 PARTS['USBC'] = ic(
     '12401610E4#2A', ('Amphenol ICC', US), 'C5119948', '', 'og:USB-C-SMD_TYPE-C-24P',
@@ -289,6 +317,7 @@ SAMSUNG, MURATA, YAGEO, TDK, ROHM, LITEON, ABRACON, PANASONIC, COILCRAFT, CK, OM
     ('Samsung Electro-Mechanics', KR), ('Murata', JP), ('Yageo', TW), ('TDK', JP), ('Rohm', JP),
     ('Lite-On', TW), ('Abracon', US), ('Panasonic', JP), ('Coilcraft', US), ('C&K', US),
     ('Omron (Aratas)', JP), ('Littelfuse', US), ('Vishay Dale', US))
+TAIYO = ('Taiyo Yuden', JP)
 
 FP = {'0402': 'og:C_0402', '0603': 'og:C_0603', '0805': 'og:C_0805', '1206': 'og:R_1206'}
 
@@ -314,7 +343,12 @@ cap('C4u7', '4.7uF', '0603', '10V X5R', 'CL10A475KP8NNNC', 'C1705')
 cap('C10u', '10uF', '0603', '10V X5R', 'CL10A106KP8NNNC', 'C19702')
 cap('C10u25', '10uF', '0805', '25V X5R', 'CL21A106KAYNNNE', 'C15850')
 cap('C22u16', '22uF', '0805', '16V X5R', 'GRM21BR61C226ME44L', 'C86817', MURATA)
-cap('C47u', '47uF', '0805', '6.3V X5R', 'CL21A476MQYNNNE', 'C16780')
+# amplifier rail (VPA up to 4.0 V = 63 % of 6.3 V); X7S, 1206: more capacitance left at 4 V and 85 C
+# than the 0805 X5R it replaces (sim/thermal)
+cap('C47u', '47uF', '1206', '6.3V X7S', 'C3216X7S0J476M160AC', 'C2167997', TDK)
+# raw input side of the USB eFuse (20 V fault = 40 % of 50 V); the 4.7 uF + 1 R damps the cable ring (sim/hotplug)
+cap('C1u50', '1uF', '0603', '50V X5R', 'UMK107BJ105KA-T', 'C92848', TAIYO)
+cap('C4u7_50', '4.7uF', '1206', '50V X7R', 'CL31B475KBHNNNE', 'C51205')
 cap('C47n', '47nF', '0402', '16V X7R', 'CL05B473KO5NNNC', 'C307434')
 cap('C10n', '10nF', '0402', '50V X7R', 'CL05B103KB5NNNC', 'C15195')
 cap('C1n', '1nF', '0402', '50V C0G', 'GRM1555C1H102JA01D', 'C76947', MURATA)
@@ -351,6 +385,14 @@ res('R68_0805', '68R', '0805', 'RC0805FR-0768RL', 'C137498')
 res('R68_0805_AS', '68R', '0805', 'RCS080568R0FKEA', 'C2114866', VISHAY, '1% 0.4 W anti-surge')
 res('R150_0805', '150R', '0805', 'RC0805FR-07150RL', 'C114523')
 res('R22m', '22mR', '1206', 'ERJ-8BWFR022V', 'C2075813', PANASONIC, '1% 1 W')
+# cell-protector sense since 19 Oct: OCD 4.8-6.7 A clears 3 W bursts (3.6-4.1 A), which 22 mOhm (3.3-4.9 A) did not
+res('R15m', '15mR', '1206', 'WSLP1206R0150FEA', 'C844911', VISHAY, '1% 1 W metal strip')
+# power-path fixes (sim/, 19 Oct)
+for v, code, lc in [('1.15k', '1K15', 'C477191'), ('2.1k', '2K1', 'C163473'), ('7.68k', '7K68', 'C155695'),
+                    ('20k', '20K', 'C93942'), ('374k', '374K', 'C185423')]:
+    res('R' + v, v, '0402', 'RC0402FR-07%sL' % code, lc)
+# USB input snubber: takes ~1 mJ in a few us when a 20 V source is plugged in
+res('R1R_0805', '1R', '0805', 'CRCW08051R00FKEAHP', 'C313850', VISHAY, '1% 0.5 W pulse-proof')
 
 ind('L10u', '10uH', '0805', 'MLZ2012M100WT000', 'C88173', TDK, 'nRF52840 DC/DC')
 ind('L15u', '15uH', '0805', 'MLZ2012M150WT000', 'C383402', TDK, 'SX1262 DC/DC')
@@ -372,11 +414,19 @@ _two('FB', 'FB120', 'BLM15AG100SN1D', MURATA, 'C76882', 'og:L_0402', '10R@100MHz
 # diodes, LEDs, discretes
 _two('D', 'RB060MM', 'RB060MM-30TR', ROHM, 'C308720', 'og:SOD-123FL', 'RB060MM-30', 'Schottky 30 V 2 A, SOD-123FL',
      ('Device', 'D_Schottky'), {'K': '1', 'A': '2'})
+# solar and drone inputs: bidirectional (a reversed input is blocked by the MAX17608, not shorted by the clamp);
+# 33 V stand-off clears a 12 V panel at -40 C (26 V), 53 V clamp is under the MAX17608's 60 V
+_two('D', 'SMF33CA', 'SMF33CA', LITTELFUSE, 'C1851347', 'og:SOD-123FL', 'SMF33CA',
+     'TVS 33 V bidirectional 200 W, SOD-123FL', ('Device', 'D_TVS'))
 # the missing-antenna detector's diode (zero-bias RF Schottky, pin 1 cathode)
 _two('D', 'BAT15', 'BAT1502ELE6327XTMA1', ('Infineon Technologies', 'Germany'), 'C533619',
      'og:TSLP-2-19_L1.0-W0.6-P0.65-RD', 'BAT15-02EL', 'RF Schottky detector diode, TSLP-2', ('Device', 'D_Schottky'),
      {'K': '1', 'A': '2'})
 _two('D', 'ZENER4V7', 'UDZVTE-174.7B', ROHM, 'C209560', 'og:SOD-323FL', '4.7V', 'Zener 4.7 V 200 mW, SOD-323FL',
+     ('Device', 'D_Zener'), {'K': '1', 'A': '2'})
+# USB eFuse EN clamp since 19 Oct: 1 uA at 2.5 V (the 4.7 V part: 2 uA at 1 V), so its leakage at the
+# 1.2 V EN threshold no longer moves the USB UVLO (sim/hotplug); clamps EN to ~5.9 V hot, under 6.5 V
+_two('D', 'ZENER5V6', 'UDZVTE-175.6B', ROHM, 'C79630', 'og:SOD-323FL', '5.6V', 'Zener 5.6 V 200 mW, SOD-323FL',
      ('Device', 'D_Zener'), {'K': '1', 'A': '2'})
 PARTS['LM66100'] = ic('LM66100DCKR', TI, 'C2869734', '', 'og:SC-70-6',
                       'Ideal diode 1.5-5.5 V 1.5 A, 79 mOhm, SC-70-6 (cell to system rail)',
@@ -455,7 +505,7 @@ DIGIKEY = {
     'C1u25': '1276-1184-1-ND',
     'C470n': '1276-CL05A474KO5NNNCCT-ND',
     'C47n': '1276-1077-1-ND',
-    'C47u': '1276-1852-1-ND',
+    'C47u': '445-8037-1-ND',                # TDK C3216X7S0J476M160AC, stock 29,829 (LCSC 0)
     'C4u7': '1276-1044-1-ND',
     'C820p': '490-3242-1-ND',
     'CSD25485F5': '296-47760-1-ND',
@@ -547,6 +597,21 @@ DIGIKEY = {
     'TPS62840': '296-TPS62840YBGRCT-ND',
     'TPS63810': '296-TPS63810YFFRCT-ND',
     'TVS2200': '296-52187-1-ND',
+    # power-path fixes (sim/), DigiKey read 19 Oct 2026
+    'MAX17608': '175-MAX17608ATC+TCT-ND',   # stock 5,872 (LCSC 2: buy at DigiKey)
+    'TPS22950': '296-TPS22950YBHRCT-ND',    # stock 6,273
+    'CSD25310Q2': '296-50290-1-ND',         # CSD25310Q2T, stock 11,868
+    'SMF33CA': '18-SMF33CACT-ND',           # stock 5,506
+    'C1u50': '587-2400-1-ND',               # stock 176,196
+    'C4u7_50': '1276-2789-1-ND',            # stock 9,103
+    'R1R_0805': '541-1.00TCT-ND',           # stock 8,399
+    'R1.15k': 'YAG3033CT-ND',               # stock 111,866
+    'R2.1k': 'YAG3098CT-ND',                # stock 114,724
+    'R7.68k': 'YAG3237CT-ND',               # stock 41,149
+    'ZENER5V6': 'UDZVTE-175.6BCT-ND',       # stock 52,738
+    'R15m': 'WSLP-.015CT-ND',               # stock 125,506
+    'R20k': '311-20.0KLRCT-ND',             # stock 1,793,976
+    'R374k': 'YAG3136CT-ND',                # stock 48,246
     'USBC': '12401610E4#2ACT-ND',
     'XTAL32K': '535-9543-1-ND',
     'XTAL32M': '535-13900-1-ND',
@@ -559,7 +624,7 @@ SECOND = {
     'C12p': 'Murata GRM1555C1H120JA01D (0402 12pF 50V C0G) DK 490-5924-1-ND stock 2,493 $0.023@10 $0.0129@100.',
     'C1u25': 'TDK CGA3E1X7R1E105K080AC (0603 1uF 25V X7R) DK 445-6931-1-ND stock 867,741 $0.095@10 $0.0582@100.',
     'C47n': 'KEMET C0402C473K3RACTU (0402 47nF 25V X7R) DK 399-C0402C473K3RACTUCT-ND stock 276,448 $0.073@10 $0.0434@100.',
-    'C47u': 'Samsung CL21A476MQYNNNG (same part, different packaging code) DK 1276-6467-1-ND stock 19,300 $0.204@10 $0.1321@100.',
+    'C47u': 'Murata GRT31CC80J476KE13L (1206 47uF 6.3V X6S) DK 490-12401-2-ND stock 97,690; LCSC has 0 of the TDK part (C2167997) on 19 Oct: test boards need it consigned or a stocked 1206 47 uF.',
     'C4u7': 'TDK C1608X5R1E475K080AC (0603 4.7uF 25V X5R) DK 445-9050-1-ND stock 641,155 $0.145@10 $0.0914@100.',
     'L470n': 'TDK TFM252012ALMAR47MTAA (2520 0.47uH 4.9A/24mOhm) DK 445-181489-1-ND stock 940 $0.468@10 $0.3845@100; or Bourns SRP2512TMA-R47M (2.5x2.0x1.2, 6.2A/18mOhm) DK 118-SRP2512TMA-R47MCT-ND stock 1,750 $0.2',
     'NTC10K': 'NCU15XH103F60RC (0402 10k NTC B3380K) DK 490-18149-1-ND stock 45,468 $0.065@10 $0.0527@100. Check B-value vs firmware table (NCP15XH103 is B3380 also).',

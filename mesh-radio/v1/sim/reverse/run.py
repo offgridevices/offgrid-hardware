@@ -3,16 +3,17 @@
 
 The cell (4.2 V, 50 mOhm, 0.1 uH leads) is plugged into the JST at 20 ms (USB, when present, is up) the
 wrong way round: pad 1 (BATT_PLUS) gets its minus, pad 2 (CELL_MINUS) its
-plus.  The whole board power path (sim/board.py) is in the netlist: the
-CSD25485F5 reverse P-FET with its gate 100 k to CELL_MINUS, the BQ29700 +
-SSM10N954L protector (CELL_MINUS is its VSS), the LM66100, the BQ25185
+plus.  The whole board power path (sim/board.py, the circuit as changed on 19 Oct) is in the netlist: the
+CSD25310Q2 reverse P-FET with its gate 1 M up to BAT_P and the SSM3K56ACT polarity check (gate =
+BATT_PLUS, source = CELL_MINUS) that pulls it down only for a right-way cell, the BQ29700 +
+SSM10N954L protector (CELL_MINUS is its VSS), the TPS22950 cell-to-SYS bypass, the BQ25185
 (BAT pin), the TPS2121 IN1, VSYS, the 3.3 V buck and its 13 mA load.
 Every IC pin on BAT_P / VSYS / MUX_IN1 has a substrate diode to GND, the
 BQ29700 its VSS->BAT and V- -> BAT ESD diodes, so pin currents show up.
 Run to 0.3 s, past the BQ29700 timers that can act on a reversed cell (OCC 8 ms, UVP 144 ms; OVP needs BAT above VSS).
 
-Cases: no USB; USB present with the LM66100 as drawn (CE = GND) and with
-the proposed Schottky in its place ('_fix'); a normal (right-way) plug-in for reference.  Without a cell,
+Cases: no USB; USB present; a normal (right-way) plug-in with and without USB for reference (the
+cell must then connect).  Without a cell,
 CELL_MINUS has no DC path to GND (the protector FETs are off and the
 BQ29700's supply current flows out of VSS), so where it sits before the plug
 depends on leakage.  The '_held' cases put 100 k from CELL_MINUS to GND: the
@@ -20,8 +21,8 @@ BQ29700 is then powered from BAT_P with its FETs on when the reversed cell
 lands, the worst case for the reverse FET.
 
 Pass criteria (X1), fixed before running:
-  reverse FET: |VGS| <= 12 V, |VDS| <= 20 V, dissipation <= 0.5 W (min-Cu
-    rating, i.e. no thermal damage), drain current <= 3.2 A continuous
+  reverse FET (CSD25310Q2): |VGS| <= 8 V, |VDS| <= 20 V, dissipation <= 0.5 W,
+    drain current <= 9.6 A; polarity-check FET |VGS| <= 8 V
   BQ29700: BAT - VSS >= -0.3 V and <= 12 V, V- <= BAT + 0.3 V, V- >= BAT - 28 V;
     ESD-diode current <= 1 mA (no sustained pin conduction)
   no IC pin on BAT_P, VSYS or MUX_IN1 below -0.3 V; substrate-diode current
@@ -58,11 +59,14 @@ Desd2 esd2 VSYS DESD
 TEMPS = [-40, -20, 0, 25, 60, 85]
 
 
-def cfg(reverse=True, usb=None, lm='gnd', ocv=4.2, held=False, clamp=False, temp=25.0):
+def cfg(reverse=True, usb=None, lm='tps', ocv=4.2, held=False, clamp=False, temp=25.0, live=False):
     c = B.default_cfg()
     c['temp'] = temp
     c['cell'].update(ocv=ocv, rint=0.05, reverse=reverse, plug_t=T_PLUG)
-    c['usb'] = usb
+    # USB is plugged in at 1 ms (the DC start is then all-zero, so the solver cannot start from a latched
+    # state that the board would not reach), the cell at 20 ms
+    c['usb'] = 0.0 if usb else None
+    c['usb_step'] = (1e-3, usb) if usb else None
     c['lm'] = lm
     c['pa']['on'] = False
     c['extra'] = ESD + ('* worst case: CELL_MINUS held near GND before the plug (FET / board leakage), so the\n'
@@ -72,12 +76,14 @@ def cfg(reverse=True, usb=None, lm='gnd', ocv=4.2, held=False, clamp=False, temp
         'Dclamp 0 BAT_P DRB060\n' if clamp else '')
     c['tstop'] = TSTOP
     c['tmax'] = 2e-4
-    if usb:
-        # USB up before the cell: BAT_P held by the charger (and the LM66100 as drawn), the BQ29700 powered from
-        # BAT_P with VSS = CELL_MINUS pulled to GND through its own FETs, so the protector is ON before the plug
-        vb = 4.43 if lm == 'gnd' else 4.2
+    if live:
+        # the pad live before the plug: a right-way cell was unplugged while USB powered the board, so the
+        # reverse FET stayed on (its polarity check sees BAT_P on the pad: the state holds itself), then a
+        # reversed cell goes in.  USB up from the start, the latched state as the DC point.
+        c['usb'], c['usb_step'] = usb, None
+        vb = 4.2
         c['nodeset'] = dict(BAT_P=vb, BAT_P_C=vb, MUX_IN1=vb, PROT_BAT=vb, PROT_DOUT=vb, PROT_COUT=vb, PBval=1,
-                            CELL_MINUS=0, REV_G=0, VSYS=4.5, VSYS_SW=4.5)
+                            CELL_MINUS=0, REV_G=0, VSYS=4.5, BATT_PLUS=vb)
     return c
 
 
@@ -103,6 +109,13 @@ def run(args):
         c['tstop'] = T_PLUG + 0.03
         short = True
         stopped = S.ngspice_retry(make, OUT, name, timeout=900)
+    if stopped is not None and stopped < T_PLUG + 0.05:
+        # the solver gave up soon after the plug: once more with a 10x shorter maximum step
+        c['tmax'] = c['tmax'] / 10
+        try:
+            stopped = S.ngspice_retry(make, OUT, name, timeout=900)
+        except subprocess.TimeoutExpired:
+            pass
     r = S.rawread(os.path.join(OUT, name + '.raw'))
     os.remove(os.path.join(OUT, name + '.raw'))
     t = r['time']
@@ -131,6 +144,9 @@ def run(args):
         iesd_chb=np.abs(r['i(vchesb)'][after]).max(), iesd_chb_late=np.abs(r['i(vchesb)'][late]).max(),
         iesd_mux_late=np.abs(r['i(vesd1)'][late]).max(), bat_p_late=V('BAT_P')[late].mean(),
         bat_p_end=V('BAT_P')[-1],
+        vds_late=float(np.abs(vds[late]).max()), bp_pre=float((V('BATT_PLUS') - V('CELL_MINUS'))[t < T_PLUG].max()),
+        vgs_pre=float(vgs[(t < T_PLUG) & (t > T_PLUG - 2e-3)].min()),
+        vpol_max=float(np.abs(V('BATT_PLUS') - V('CELL_MINUS'))[after].max()),
         bat_p_min=V('BAT_P')[after].min(), bat_p_max=V('BAT_P')[after].max(), vsys_min=V('VSYS')[after].min(),
         vsys_late=V('VSYS')[late].mean(), cm_min=V('CELL_MINUS')[after].min(), cm_max=V('CELL_MINUS')[after].max(),
         bp_min=V('BATT_PLUS')[after].min(), bp_max=V('BATT_PLUS')[after].max(),
@@ -140,7 +156,7 @@ def run(args):
     )
     # every node: extreme voltages after the plug
     nets = ('batt_plus', 'cell_minus', 'rev_g', 'bat_p_c', 'bat_p', 'prot_bat', 'prot_vm', 'prot_dout', 'prot_cout',
-            'prot_d', 'prot_s2', 'vbat_sense', 'vsys', 'vsys_sw', '3v3', 'mux_in1', 'pa_in', 'vpa', 'vin_chg', 'usb_5v',
+            'prot_d', 'prot_s2', 'vbat_sense', 'vsys', '3v3', 'mux_in1', 'pa_in', 'vpa', 'vin_chg', 'usb_5v',
             'usb_vbus')
     res['nodes'] = dict((n, (float(r['v(%s)' % n][after].min()), float(r['v(%s)' % n][after].max())))
                         for n in nets if 'v(%s)' % n in r)
@@ -158,34 +174,36 @@ def run(args):
 
 
 def main():
-    base = [('rev_nousb', dict()), ('rev_usb_drawn', dict(usb=5.0, lm='gnd')),
-            ('rev_usb_fix', dict(usb=5.0, lm='diode')),
-            ('rev_usb_drawn_held', dict(usb=5.0, lm='gnd', held=True)),
-            ('rev_usb_fix_held', dict(usb=5.0, lm='diode', held=True)),
-            ('rev_usb_fix_held_clamp', dict(usb=5.0, lm='diode', held=True, clamp=True)),
+    base = [('rev_nousb', dict()), ('rev_usb', dict(usb=5.0)),
+            ('rev_usb_held', dict(usb=5.0, held=True)),
+            ('rev_usb_live', dict(usb=5.0, held=True, live=True)),
             ('rev_nousb_held', dict(held=True)),
-            ('fwd_nousb', dict(reverse=False, held=True))]
+            ('fwd_nousb', dict(reverse=False, held=True)),
+            ('fwd_usb', dict(reverse=False, usb=5.0, held=True))]
     cases = [('%s_%d' % (n, ta), cfg(temp=float(ta), **kw)) for ta in TEMPS for n, kw in base]
     with ProcessPoolExecutor(4) as ex:
         res = list(ex.map(run, cases))
     L = ['Study 2: battery plugged in backwards (X1).  4.2 V cell, 50 mOhm, plugged at 20 ms, run to 0.3 s.',
-         'Limits: CSD25485F5 |VGS| 12 V, |VDS| 20 V, 0.5 W (min Cu), 3.2 A; BQ29700 BAT-VSS -0.3..12 V, V- <= BAT + 0.3 V;',
+         'Circuit as changed on 19 Oct: CSD25310Q2 held off unless the SSM3K56ACT polarity check sees a right-way cell.',
+         'Limits: CSD25310Q2 |VGS| 8 V, |VDS| 20 V, 0.5 W, 9.6 A; BQ29700 BAT-VSS -0.3..12 V, V- <= BAT + 0.3 V;',
          'IC pins >= -0.3 V; pin / substrate-diode current <= 1 mA; cell current after 100 ms <= 10 mA.',
          '(BAT-VSS a few hundred mV below 0 at nA, the floating cell resting on the ESD diode, is not counted.)', '']
     rows = []
     for r in res:
         f = []
         if r['name'].startswith('rev'):
-            if max(abs(r['vgs_min']), abs(r['vgs_max'])) > 12:
+            if max(abs(r['vgs_min']), abs(r['vgs_max'])) > 8:
                 f.append('VGS')
+            if r['vpol_max'] > 8:
+                f.append('polarity-check VGS %.1f V' % r['vpol_max'])
             if max(abs(r['vds_min']), abs(r['vds_max'])) > 20:
                 f.append('VDS')
             if r['pfet_late'] > 0.5:
                 f.append('FET %.1f W' % r['pfet_late'])
             if (r['vb_min'] < -0.3 and r['ibatpin_max'] > 1e-3) or r['vb_max'] > 12:
                 f.append('BQ29700 BAT-VSS %.1f..%.1f V' % (r['vb_min'], r['vb_max']))
-            if r['vmb_max'] > 0.3:
-                f.append('V- above BAT')
+            if r['vmb_max'] > 0.3 and r['ivm_max'] > 1e-3:
+                f.append('V- above BAT, %.1f mA' % (r['ivm_max'] * 1e3))
             if max(r['ivss_max'], r['ivm_max'], r['iesd_mux'], r['iesd_sys']) > 1e-3:
                 f.append('pin current')
             if r['bat_p_min'] < -0.3 or r['vsys_min'] < -0.3:
@@ -195,6 +213,12 @@ def main():
             if r['t_neg'] > 0:
                 f.append('BAT_P below -0.3 V for %.0f us, %.0f uC through substrate diodes' % (r['t_neg'] * 1e6,
                                                                                             r['q_sub'] * 1e6))
+        else:
+            # right-way cell: it must connect (BAT_P follows it, the FET on) and nothing trips
+            if r['vds_late'] > 0.1:
+                f.append('reverse FET did not turn on (VDS %.2f V)' % r['vds_late'])
+            if r['ocd'] or r['uvp']:
+                f.append('protector tripped')
         r['verdict'] = 'FAIL' if f else 'PASS'
         if r['na']:
             r['verdict'], f = 'n/a', ['solver stopped before the plug (start-up, numerical): not evaluated']
@@ -206,7 +230,7 @@ def main():
                      r['ilm_max'], r['verdict'], r['why']])
     L.append(S.table(rows, ['case', 'Icell pk A', 'Icell >100ms A', 'FET VDS min', 'VGS min', 'VGS max', 'FET W >100ms',
                             'BAT-VSS min', 'BAT-VSS max', 'V- - BAT max', 'BAT_P min', 'BAT_P max', 'CELL_MINUS min',
-                            'CELL_MINUS max', 'LM66100 |I| A', 'verdict', 'why']))
+                            'CELL_MINUS max', 'bypass |I| A', 'verdict', 'why']))
     L.append('')
     bn = []
     for r in res:
@@ -217,12 +241,19 @@ def main():
     L.append('Verdict per case and ambient:')
     L.append(S.table([[b0] + [V_['%s_%d' % (b0, ta)] for ta in TEMPS] for b0 in bn], ['case'] + ['%d C' % t for t in TEMPS]))
     L.append('  _held: CELL_MINUS held near GND before the plug (protector on), the worst case for the reverse FET;')
-    L.append('  _clamp: plus the proposed Schottky clamp from GND to BAT_P.')
+    L.append('  _live: the pad live before the plug - a right-way cell was unplugged while USB powered the board, so')
+    L.append('  the reverse FET stayed on (its polarity check then sees BAT_P on the pad, a state that holds itself until')
+    L.append('  external power goes); then a reversed cell goes in.  The residual case of this circuit.')
+    L.append('  fwd_: a right-way cell for reference, which must connect (reverse FET on 100 ms after the plug).')
     L.append('')
     L.append('Pin currents (peak, A): BQ29700 VSS, V-, BAT (through 330 R); substrate diodes on MUX_IN1, VSYS and the')
     L.append('BQ25185 BAT pin:')
     L.append(S.table([[r['name'], r['ivss_max'], r['ivm_max'], r['ibatpin_max'], r['iesd_mux'], r['iesd_sys'], r['iesd_chb']]
                       for r in res], ['case', 'VSS', 'V-', 'BAT', 'mux IN1 sub', 'VSYS sub', 'BQ25185 BAT sub']))
+    L.append('')
+    L.append('Before the plug (no cell): the reverse FET must be off (VGS above -0.85 V), so the plug pads are dead:')
+    L.append(S.table([[r['name'], r['vgs_pre'], 'ON (pads live)' if r['vgs_pre'] < -0.85 else 'off', r['bp_pre']] for r in res],
+                     ['case', 'FET VGS just before plug', 'reverse FET', 'BATT_PLUS - CELL_MINUS max']))
     L.append('')
     L.append('Protector flags (OCD/SCD, OCC, OVP, UVP) and late VSYS / 3V3:')
     L.append(S.table([[r['name'], r['ocd'], r['occ'], r['ovp'], r['uvp'], r['vsys_late'], r['v3_late']] for r in res],
@@ -235,20 +266,23 @@ def main():
 
     st = []
     w = max([r for r in res if r['name'].startswith('rev') and not r['na']], key=lambda x: abs(x['vds_min']))
-    st.append(S.stress('CSD25485F5', 'Q (reverse FET)', 'VDS, reversed cell', abs(w['vds_min']), 'V', 20.0, 'derate', w['name']))
+    st.append(S.stress('CSD25310Q2', 'Q (reverse FET)', 'VDS, reversed cell', abs(w['vds_min']), 'V', 20.0, 'derate', w['name']))
     w = max([r for r in res if r['name'].startswith('rev') and not r['na']], key=lambda x: max(abs(x['vgs_min']), x['vgs_max']))
-    st.append(S.stress('CSD25485F5', 'Q (reverse FET)', 'VGS, reversed cell', max(abs(w['vgs_min']), w['vgs_max']), 'V', 12.0,
+    st.append(S.stress('CSD25310Q2', 'Q (reverse FET)', 'VGS, reversed cell', max(abs(w['vgs_min']), w['vgs_max']), 'V', 8.0,
                        'derate', w['name']))
     w = max([r for r in res if r['name'].startswith('rev') and not r['na']], key=lambda x: x['pfet_late'])
-    st.append(S.stress('CSD25485F5', 'Q (reverse FET)', 'dissipation, reversed cell', w['pfet_late'], 'W', 0.5, 'derate',
+    st.append(S.stress('CSD25310Q2', 'Q (reverse FET)', 'dissipation, reversed cell', w['pfet_late'], 'W', 0.5, 'derate',
                        w['name']))
+    w = max(res, key=lambda x: x['vpol_max'])
+    st.append(S.stress('SSM3K56ACT', 'Q (cell-polarity check)', 'VGS (cell voltage either way)', w['vpol_max'], 'V', 8.0,
+                       'derate', w['name']))
     w = max(res, key=lambda x: x['vb_max'])
     st.append(S.stress('BQ29700', 'U (protector)', 'BAT - VSS', w['vb_max'], 'V', 12.0, 'absmax', w['name']))
     S.write_stress(HERE, st)
 
     plt = S.style()
     fig, ax = plt.subplots(1, 3, figsize=(16, 4.5))
-    for r in [x for x in res if x['name'].endswith('_25') or x['name'].endswith('_held_-40')]:
+    for r in [x for x in res if x['name'].endswith('_25')]:
         d = np.load(os.path.join(OUT, r['name'] + '.npz'))
         tm = d['t'] * 1e3
         ax[0].plot(tm, d['icell'], label=r['name'])

@@ -3,14 +3,17 @@
 powerlib.py and switched by a configuration dict, for the burst, shorts,
 solar and reverse studies.
 
-  USB-C -- 1 m cable -- TVS2200 -- TPS259470A -- USB_5V --RB060MM--+
-  solar panel -- lead -- RB060MM -- TVS2200 -- TPS259470A ---------+-- VIN_CHG
-                                                                    |
-                                                         BQ25185 (IN, SYS = VSYS, BAT = BAT_P)
-  cell -- leads -- JST -- CSD25485F5 -- BAT_P ----LM66100----------- VSYS -- TPS22965 -- VSYS_SW -- TPS62840 -- 3V3
-     (- side: BQ29700 + SSM10N954L + 22 mOhm to GND)                 |
-  BAT_P --IN1-- TPS2121 --IN2-- VSYS                                 |
-                  OUT = PA_IN -- TPS63810 -- VPA -- QPA9510
+The circuit as changed on 19 Oct (src/circuit.py):
+
+  USB-C -- 1 m cable -- TVS2200 + snubber -- TPS259470A -- USB_5V --RB060MM--+
+  solar panel -- lead -- SMF33CA -- MAX17608 --------------------------------+-- VIN_CHG
+                                                                              |
+                                                         BQ25185 (IN, SYS = VSYS, BAT = BAT_P), 300 mA
+  cell -- leads -- JST -- CSD25310Q2 -- BAT_P --TPS22950--RB060MM-- VSYS -- TPS62840 (EN = switch) -- 3V3
+     (gate: off unless the SSM3K56ACT polarity check sees the cell the right way round;
+      - side: BQ29700 + SSM10N954L + 22 mOhm to GND)
+  BAT_P --IN1-- TPS2121 --IN2-- VSYS   (PR1 562 k / 374 k; a GPIO FET can pull PR1 low)
+                  OUT = PA_IN -- TPS63810 -- VPA (2 x 47 uF 1206 X7S) -- QPA9510
 
 PCB parasitics are estimates for a board that is not routed yet (README):
 they are the TRACE_* values below and are replaced by extracted values when
@@ -41,13 +44,14 @@ def default_cfg():
     return dict(
         temp=25.0,                      # ambient = component temperature (powerlib.set_temp)
         cell=dict(ocv=3.7, rint=0.15, reverse=False, plug_t=None, present=True),   # rint at 25 C
-        lm='gnd',                       # 'gnd' as drawn, 'vout' = CE to VSYS
+        lm='tps',                       # cell-to-SYS: 'tps' TPS22950 (since 19 Oct); old: 'gnd'/'vout' LM66100, 'diode'
+        rev='v2',                       # reverse FET drive: 'v2' polarity-checked (since 19 Oct), 'v1' gate to CELL_MINUS
         usb=None,                       # source voltage, or None
         usb_step=None,                  # (t, v2): USB source steps to v2 at t
         solar=None,                     # dict(voc, isc, ncell, temp_c)
         chg={},                         # BQ25185 overrides
         mux={}, bb={}, prot={},
-        pr_force_low=False,             # proposed fix: a GPIO FET pulls PR1 low
+        pr_force_low=False,             # firmware sets PA_SRC_SYS: its FET pulls PR1 low (no cell fitted)
         pa=dict(vset=4.0, inom=2.3, t_en=1e-3, t_apc=4e-3, t_rf=4.2e-3, burst=1.0, on=True, n=1, period=1.0),
         sw_on=None,                     # slide switch closes at this time (None: already on)
         i3v3_idle=0.013, i3v3_tx=0.130,
@@ -81,7 +85,8 @@ def build(cfg, datfile):
                         reverse=cl['reverse'], llead=cl.get('llead', 0.1e-6)))
     else:
         s.append('Rnob1 BATT_PLUS 0 10Meg\nRnob2 CELL_MINUS 0 10Meg\n')
-    s.append(P.battery_block('PB', lm=c['lm'], prot=c['prot'], trace_bat=TRACE_BAT))
+    sw = 'time > %g' % c['sw_on'] if c.get('sw_on') is not None else '1'
+    s.append(P.battery_block('PB', lm=c['lm'], prot=c['prot'], trace_bat=TRACE_BAT, rev=c.get('rev', 'v2'), on=sw))
     s.append(P.cap('cbat1', 'BAT_P', '0', 7e-6))      # C10u25 at BAT (charger)
     s.append(P.cap('cbat2', 'BAT_P', '0', 0.8e-6))    # C1u25 at mux IN1
     # ---------------------------------------------------------------- inputs
@@ -94,25 +99,25 @@ def build(cfg, datfile):
         s.append(P.rl('cab', 'usb_src', 'usb_conn', *CABLE_USB))
         s.append(P.rl('tusb', 'usb_conn', 'USB_VBUS', *TRACE_USB))
         s.append(P.tvs2200('tvsu', 'USB_VBUS'))
-        s.append(P.cap('cvb', 'USB_VBUS', '0', 0.9e-6))
-        s.append(P.efuse('FU', 'USB_VBUS', 'USB_5V', 1e6, 383e3, 1e6, 287e3, 2210))
-        s.append(P.cap('c5v', 'USB_5V', '0', 2.5e-6) + 'R5vb USB_5V 0 47k\n')
+        s.append(P.cap('cvb', 'USB_VBUS', '0', 0.9e-6))                    # C1u50 (1 uF 50 V X5R) at 5 V
+        s.append(P.cap('csnb', 'USB_VBUS', 'usb_snb', 4.4e-6) + 'Rsnb usb_snb 0 1\n')   # 4.7 uF 50 V X7R + 1 R
+        s.append(P.efuse('FU', 'USB_VBUS', 'USB_5V', 20e3, 7.68e3, 1e6, 287e3, 2210, cov=100e-12))
+        s.append('R5vb USB_5V 0 2.2k\nC5vs USB_5V 0 1n\nR22v USB_5V NRF_VBUS 22\n' + P.cap('c5v', 'NRF_VBUS', '0', 5.0e-6))
         s.append(P.schottky('dusb', 'USB_5V', 'VIN_CHG'))
     if c['solar']:
         so = c['solar']
         s.append(P.panel('PV', 'pv_p0', '0', so['voc'], so['isc'], so['ncell'], so.get('temp_c', 25.0)))
         s.append('Vpvam pv_p0 pv_p 0\n')
         s.append(P.rl('pvl', 'pv_p', 'SOLAR_CONN', *LEAD_PANEL))
-        s.append(P.schottky('dsol', 'SOLAR_CONN', 'SOLAR_RAW'))
-        s.append(P.tvs2200('tvss', 'SOLAR_RAW'))
-        s.append(P.cap('csr', 'SOLAR_RAW', '0', 0.8e-6))
-        s.append(P.efuse('FS', 'SOLAR_RAW', 'VIN_CHG', 1e6, 510e3, 1e6, 137e3, 2490))
-    s.append(P.cap('cvc1', 'VIN_CHG', '0', 0.9e-6) + P.cap('cvc2', 'VIN_CHG', '0', 8e-6) + 'Rvcl VIN_CHG 0 1Meg\n')
+        s.append(P.smf33ca('tvss', 'SOLAR_CONN'))
+        s.append(P.cap('csr', 'SOLAR_CONN', '0', 0.9e-6))
+        s.append(P.max17608('FS', 'SOLAR_CONN', 'VIN_CHG', ok='SOLAR_OK'))
+    s.append(P.cap('cvc1', 'VIN_CHG', '0', 0.9e-6) + 'Rvcl VIN_CHG 0 1Meg\n')     # 1 uF only since 19 Oct (was 1 + 10 uF)
     s.append(P.bq25185('CH', 'VIN_CHG', 'VSYS', 'BAT_P', c['chg']))
     # ---------------------------------------------------------------- system rail
     tx = _win(pa['t_apc'], t_off + 0.1e-3, nb, per) if pa['on'] else '0'
     s.append(P.system_rail('SR', iload='(%g + %s*%g)' % (c['i3v3_idle'], tx, c['i3v3_tx'] - c['i3v3_idle']),
-                           t_on=c.get('sw_on')))
+                           t_on=c.get('sw_on'), loadsw=c.get('loadsw', False)))
     # ---------------------------------------------------------------- amplifier supply
     en = _any(pa['t_en'], t_off + 1e-3, nb, per) if pa['on'] else '0'
     s.append(P.rl('tm1', 'BAT_P', 'MUX_IN1', *TRACE_MUX1))
@@ -124,7 +129,8 @@ def build(cfg, datfile):
     s.append(P.rl('tpi', 'PA_IN', 'BB_IN', *TRACE_PAIN))
     s.append(P.cap('cpa3', 'BB_IN', '0', 7e-6))
     s.append(P.tps63810('BB', 'BB_IN', 'BB_OUT', en, pa['vset'], c['bb']))
-    s.append(P.cap('cvp1', 'BB_OUT', '0', 19e-6) + P.cap('cvp2', 'BB_OUT', '0', 19e-6))
+    # 2 x 47 uF 1206 X7S (C3216X7S0J476M160AC): ~25 uF each left at 4 V (TDK DC-bias curve, read roughly)
+    s.append(P.cap('cvp1', 'BB_OUT', '0', 25e-6) + P.cap('cvp2', 'BB_OUT', '0', 25e-6))
     s.append(P.rl('tvp', 'BB_OUT', 'VPA', *TRACE_VPA))
     s.append(P.cap('cvp3', 'VPA', '0', 2.8e-6) + P.cap('cvp4', 'VPA', '0', 2.8e-6))
     apc = _win(pa['t_apc'], t_off + 0.1e-3, nb, per) if pa['on'] else '0'
@@ -132,11 +138,11 @@ def build(cfg, datfile):
     s.append(P.qpa9510('PA', 'VPA', apc, rf, pa['vset'], pa['inom']))
     # DC paths for nodes that only see caps and B current sources (10 Meg: < 0.5 uA)
     s.append(''.join('Rdc%d %s 0 10Meg\n' % (i, n) for i, n in enumerate(
-        ['PA_IN', 'BB_IN', 'BB_OUT', 'VPA', 'VSYS', 'VSYS_SW', '3V3', 'BAT_P'])))
+        ['PA_IN', 'BB_IN', 'BB_OUT', 'VPA', 'VSYS', '3V3', 'BAT_P'] + (['VSYS_SW'] if c.get('loadsw') else []))))
     s.append(c['extra'])
     # ---------------------------------------------------------------- analysis
     tstop = c['tstop'] or (t_off + (nb - 1) * per + 0.05)
-    vecs = ['v(bat_p)', 'v(vsys)', 'v(vsys_sw)', 'v(3v3)', 'v(pa_in)', 'v(vpa)', 'v(vin_chg)',
+    vecs = ['v(bat_p)', 'v(vsys)', 'v(3v3)', 'v(pa_in)', 'v(vpa)', 'v(vin_chg)',
             'i(vbt_am)' if cl['present'] else 'v(batt_plus)', 'v(pblm_i)', 'v(ch_isup)', 'v(ch_ichg)', 'v(ch_iin)',
             'v(mx_i1)', 'v(mx_i2)', 'v(mx_sel)', 'v(bb_iin)', 'v(pa_i)', 'v(pbocd)', 'v(pbuvp)', 'v(chbuvf)',
             'v(bbrst)', 'v(prot_vm,cell_minus)', 'v(prot_bat,cell_minus)', 'v(cell_minus)'] + c['save']
@@ -145,11 +151,13 @@ def build(cfg, datfile):
     v0 = cl['ocv'] if (cl['present'] and not cl['reverse'] and cl['plug_t'] is None) else 0.0
     vs0 = 4.5 if c['usb'] else v0
     ns = dict(BATT_PLUS=v0, BAT_P_C=v0, BAT_P=v0, MUX_IN1=v0, PROT_BAT=v0, CELL_MINUS=0, PROT_DOUT=v0,
-              PROT_COUT=v0, PBval=1 if v0 > 1.5 else 0, VSYS=vs0, VSYS_SW=vs0, CHbuv=1 if v0 > 3.0 else 0,
-              PROT_D=0, PROT_S2=0)
+              PROT_COUT=v0, PBval=1 if v0 > 1.5 else 0, VSYS=vs0, CHbuv=1 if v0 > 3.0 else 0,
+              PROT_D=0, PROT_S2=0, REV_G=0 if v0 > 1.5 else max(v0, 4.2 if c['usb'] else 0.0))
+    if c.get('loadsw'):
+        ns['VSYS_SW'] = vs0
     ns['3V3'] = max(0.0, min(3.3, vs0 - 0.02)) if c.get('sw_on') is None else 0.0
     ns['SRbon'] = 1 if (vs0 > 1.8 and c.get('sw_on') is None) else 0
-    if c.get('sw_on') is not None:
+    if c.get('sw_on') is not None and c.get('loadsw'):
         ns['VSYS_SW'] = 0.0
     ns['CHok'] = 1 if c['usb'] else 0
     if c['usb']:

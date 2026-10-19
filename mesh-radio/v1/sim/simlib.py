@@ -73,7 +73,7 @@ def ngspice(netlist, workdir, name, timeout=900):
     bad = ('Error:', 'error:', 'Timestep too small', 'singular matrix', 'aborted',
            'doAnalyses: TRAN:')
     for line in out.splitlines():
-        if 'Timestep too small' in line:
+        if 'timestep too small' in line.lower():
             import re
             m = re.search(r'time = ([0-9.eE+-]+)', line)
             raise TimestepError('ngspice stopped on %s: %s' % (name, line.strip()), float(m.group(1)) if m else 0.0)
