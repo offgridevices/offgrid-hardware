@@ -497,7 +497,7 @@ def verify(t, D):
     rows = [(cue(S, 'electrical'), 'ERC', f'{erc} violations', erc == 0),
             (cue(S, 'design'), 'DRC', f'{drc} errors  ·  0 warnings  ·  0 unconnected' if drc == 0 else f'{drc} items', drc == 0),
             (cue(S, 'pcb'), 'RULES', "PCBWay 2-layer limits", True),
-            (cue(S, '56', default=cue(S, 'hardware')), 'HIL', f'{ok} / {n} checks  ·  {ns} scenarios', ok == n),
+            (cue(S, '65', default=cue(S, 'hardware')), 'HIL', f'{ok} / {n} checks  ·  {ns} scenarios', ok == n),
             (cue(S, 'spice'), 'SPICE', f'drain clamp {vds:.1f} V on a 5 V rail', vds < 8)]
     cv = Canvas()
     for i, (tc, *_ ) in enumerate(rows):

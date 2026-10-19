@@ -58,7 +58,7 @@ SEGMENTS = [
      "The schematic passes the electrical rules check with zero violations. "
      "The board passes design rules with zero errors, zero warnings and zero unconnected pads, "
      "against P C B Way's own limits. "
-     "Fifty-six hardware-in-the-loop checks pass across eight scenarios, "
+     "Sixty-five hardware-in-the-loop checks pass across nine scenarios, "
      "and a SPICE model shows the sounder driver stays clamped just above the supply."),
     ('order',
      "To get one, upload the Gerber zip, the bill of materials and the placement file to P C B Way, "
