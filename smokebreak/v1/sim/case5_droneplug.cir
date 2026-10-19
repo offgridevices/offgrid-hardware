@@ -1,0 +1,38 @@
+* SmokeBreak v1 - Case 5 (transient): a pack hot-plugged into the DRONE-side
+* connector (normal or reversed polarity, vcell<0), nothing on the input.
+* 150 nH lead. Board per src/circuit.py; optional output snubber (csn, rsn).
+* Run from sim/:  ngspice -b case5_droneplug.cir
+.include lib/smokebreak.lib
+.include lib/board.lib
+
+.param ncell=14 vcell=-4.35 csn=1p rsn=1 cin=2u cd=1p rd=1 pbv=33
+
+XB bp bn BATT ncell={ncell} vcell={vcell} rcell=3m lser=150n rlead=3m
+Sw bp bsw ctl 0 SWC
+Vib bsw vout 0
+Rbn bn dneg 1m
+.model SWC SW(Ron=1m Roff=1G Vt=0.5 Vh=0.1)
+Vctl ctl 0 PWL(0 0 1u 0 1.001u 1)
+Rg0 gnd 0 1u
+V33 v33 gnd 0
+Rv33 v33 gnd 1k
+XPP vin src gate vout gnd dneg inp scp PPATH cin={cin} cd={cd} rd={rd} csn={csn} rsn={rsn}
+XPR vin vout gnd preon guard PRECH
+XAX vin vout gnd aux v33 vlo AUXSENSE
+XPRB vout gnd v33 p0 p0 PROBE pbv={pbv}
+Vp0 p0 0 0
+Vinp inp gnd 0
+Vpre preon gnd 0
+Vguard guard gnd 0
+
+.options method=gear reltol=1e-3 abstol=1e-6 vntol=1e-4 chgtol=1e-12 itl4=200
+.tran 1n 40u 0 5n uic
+.control
+set wr_singlescale
+set wr_vecnames
+option numdgt=7
+run
+let vprobe = v(v33,xprb.pb)
+wrdata work/c5p.dat v(vout,dneg) v(src) v(vin) i(vib) vprobe v(aux)
+.endc
+.end

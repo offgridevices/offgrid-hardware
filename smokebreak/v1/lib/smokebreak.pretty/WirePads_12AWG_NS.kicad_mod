@@ -1,0 +1,13 @@
+(footprint "WirePads_12AWG_NS"
+	(version 20241229)
+	(generator "smokebreak")
+	(layer "F.Cu")
+	(descr "Solder pads for a 12 AWG pigtail, + (square) and -, 6.0 mm apart; strain relief is in the case")
+	(attr through_hole exclude_from_pos_files)
+	(property "Reference" "J**" (at 0 -6.20 0) (layer "F.SilkS") (hide yes) (effects (font (size 1 1) (thickness 0.15))))
+	(property "Value" "WirePads_12AWG_NS" (at 0 6.20 0) (layer "F.Fab") (effects (font (size 1 1) (thickness 0.15))))
+	(fp_rect (start -2.40 -5.40) (end 2.40 5.40) (stroke (width 0.05) (type solid)) (fill no) (layer "F.CrtYd"))
+	(fp_rect (start -2.40 -5.40) (end 2.40 5.40) (stroke (width 0.05) (type solid)) (fill no) (layer "B.CrtYd"))
+	(pad "1" thru_hole rect (at 0 -3.00) (size 4.2 4.2) (drill 2.4) (layers "*.Cu" "*.Mask") (remove_unused_layers no))
+	(pad "2" thru_hole circle (at 0 3.00) (size 4.2 4.2) (drill 2.4) (layers "*.Cu" "*.Mask") (remove_unused_layers no))
+)

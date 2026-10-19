@@ -23,7 +23,8 @@ One folder per product, named after it; one folder per revision inside
 docs/                       how we build boards (this folder)
 ```
 
-A board may add folders it needs (`firmware/`, `fonts/`), but keeps these
+A board may add folders it needs (`firmware/`, `fonts/`, `enclosure/` for a
+printed case: its code and `print/` STLs), but keeps these
 names for the ones above. (`packet-logger-carrier/v1` predates this layout
 and stays as it was ordered.)
 
