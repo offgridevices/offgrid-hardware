@@ -29,9 +29,19 @@ def cue(seg, word, after=0.0, default=None):
     for s, t0, t1 in WORDS[seg]:
         if re.sub(r'[^a-z0-9%]', '', s.lower()).startswith(w) and t0 + LEAD >= after:
             return t0 + LEAD
-    if default is None:
-        raise KeyError(f'{seg}: no word {word!r} after {after}')
-    return default
+    if default is not None:
+        return default
+    # Whisper misheard it (Piper's voice varies run to run): take the word's
+    # place in the script and the time of the heard word at the same place.
+    from script import SEGMENTS
+    said = [re.sub(r'[^a-z0-9%]', '', s.lower()) for s in dict(SEGMENTS)[seg].split()]
+    heard = WORDS[seg]
+    for i, s in enumerate(said):
+        if s.startswith(w):
+            t0 = heard[min(len(heard) - 1, round(i * len(heard) / len(said)))][1] + LEAD
+            if t0 >= after:
+                return t0
+    raise KeyError(f'{seg}: no word {word!r} after {after}')
 
 
 def A(t, t0, d=0.6):
