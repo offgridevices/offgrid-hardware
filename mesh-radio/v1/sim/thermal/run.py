@@ -109,14 +109,16 @@ class Board:
         self.X, self.Y = X, Y
         N = nx * ny
         self.N = N
-        self.case = 4 * N
-        n = 4 * N + 1
+        L = len(p['t_cu'])
+        self.L = L
+        self.case = L * N
+        n = L * N + 1
         A = self.dxm * self.dym
         # copper coverage maps
         cov = [np.full((ny, nx), c, float) for c in p['cov']]
         x0, y0, x1, y1 = ANT_BOX
         ant = (X > x0) & (X < x1) & (Y > y0) & (Y < y1)
-        for l in range(4):
+        for l in range(L):
             cov[l][ant] = 0.0
         # amplifier paddle cells (F): an island of solid copper
         pa = self.part_xy('U11')
@@ -128,7 +130,7 @@ class Board:
         self.cov = cov
         # FR-4 thickness lumped into each copper node
         td = p['t_diel']
-        share = [td[0] / 2, td[0] / 2 + td[1] / 2, td[1] / 2 + td[2] / 2, td[2] / 2]
+        share = [(td[l - 1] / 2 if l > 0 else 0.0) + (td[l] / 2 if l < L - 1 else 0.0) for l in range(L)]
         rows, cols, vals = [], [], []
 
         def link(i, j, g):
@@ -137,7 +139,7 @@ class Board:
 
         idx = np.arange(N).reshape(ny, nx)
         Cap = np.zeros(n)
-        for l in range(4):
+        for l in range(L):
             S = p['k_cu'] * p['t_cu'][l] * cov[l] + p['k_fr4_xy'] * share[l]   # sheet conductance W/K
             base = l * N
             # x neighbours
@@ -164,11 +166,11 @@ class Board:
         a_fill = math.pi * (p['pa_via_drill'] / 2 - p['plating']) ** 2
         self.via = dict(a_barrel_stitch=a_bar, a_barrel_pa=a_pa)
         npad = self.pad.sum()
-        for l in range(3):
+        for l in range(L - 1):
             t = p['t_diel'][l] + (p['t_cu'][l] + p['t_cu'][l + 1]) / 2
             g = p['k_fr4_z'] * A / p['t_diel'][l] * np.ones((ny, nx))
             gvia = p['via_density'] * 1e4 * A * p['k_cu'] * a_bar / t
-            g = g + gvia * np.minimum(cov[0] > 0, cov[3] > 0)
+            g = g + gvia * np.minimum(cov[0] > 0, cov[L - 1] > 0)
             gpa = p['pa_vias'] * (p['k_cu'] * a_pa + p['k_via_fill'] * a_fill) / t
             g = g + np.where(self.pad, gpa / npad, 0.0)
             ia = idx.ravel() + l * N
@@ -191,10 +193,11 @@ class Board:
             h_rad = 0.0
         self.h_rad = h_rad
         gamb = np.zeros(n)
-        for l in (0, 3):
+        for l in (0, L - 1):
             gamb[l * N:(l + 1) * N] = (h_conv + h_rad) * A
         for (sx0, sy0, sx1, sy1, sl, hs) in p['sinks']:
             m = ((X > sx0) & (X < sx1) & (Y > sy0) & (Y < sy1)).ravel()
+            sl = sl if sl >= 0 else L + sl         # -1 = bottom copper
             gamb[sl * N + np.nonzero(m)[0]] += hs * A
         G = sp.coo_matrix((vals, (rows, cols)), shape=(n, n)).tocsc()
         G = G + sp.diags(gamb)
@@ -223,7 +226,7 @@ class Board:
         x = max(x, self.x0 + self.p['dx'])                 # parts cut off (study 4) sit at the new edge
         if rot % 180 == 90:
             w, h = h, w
-        return self.rect_weights(x, y, w, h, 0 if side == 'T' else 3)
+        return self.rect_weights(x, y, w, h, 0 if side == 'T' else self.L - 1)
 
     def lu(self, dt):
         if dt not in self._lu:
@@ -398,8 +401,8 @@ DT_ON = [0.005] * 4 + [0.02] * 4 + [0.05] * 18          # 1.0 s burst
 DT_OFF1 = DT_ON                                         # first second after the burst
 
 
-def schedule(t_off):
-    s = [(dt, 1) for dt in DT_ON]
+def schedule(t_off, t_on=1):
+    s = [(dt, 1) for dt in DT_ON] + [(0.05, 1)] * int(round((t_on - 1) / 0.05))
     if t_off > 0:
         s += [(dt, 0) for dt in DT_OFF1]
         s += [(1.0, 0)] * int(round(t_off - 1))
@@ -471,7 +474,7 @@ class Case:
     def periodic(self, powers, t_off, max_periods=8, tol=0.1):
         return self.periodic_multi([powers], t_off, max_periods, tol)[0]
 
-    def periodic_multi(self, plist, t_off, max_periods=8, tol=0.1):
+    def periodic_multi(self, plist, t_off, max_periods=8, tol=0.1, t_on=1):
         """TX pattern only (one column per power set): 1 s on, t_off s off, run to
         a periodic state.  Returns per column: peak, mean, min per metric, the time
         trace, and the field at the end of the last burst."""
@@ -481,9 +484,9 @@ class Case:
             th = self.B.steady(Q)
             m = self.M @ th + own
             return [dict(peak=m[:, k], mean=m[:, k], min=m[:, k], trace=None, field=th[:, k]) for k in range(len(plist))]
-        duty = 1.0 / (1.0 + t_off)
+        duty = t_on / (t_on + t_off)
         th = self.B.steady(Q * duty)
-        sch = schedule(t_off)
+        sch = schedule(t_off, t_on)
         C = self.B.C[:, None]
         last = None
         for it in range(max_periods):
@@ -496,7 +499,7 @@ class Case:
                 t += dt
                 tr_t.append(t)
                 tr.append(self.M @ th + (own if on else 0.0))
-                if on and abs(t - 1.0) < 1e-9:
+                if on and abs(t - t_on) < 1e-9:
                     field = th.copy()
             tr = np.array(tr)                    # steps x metrics x k
             pk = tr.max(axis=0)
@@ -599,7 +602,7 @@ def _work(p, h, ta, offs):
 
 ALL_FIXES = {'pa_island': False, 'k_via_fill': 385.0, 't_cu': [70e-6, 35e-6, 35e-6, 70e-6],
              'cov': [0.85, 1.0, 0.8, 0.85], 'via_density': 25.0}
-PAD_SINK = [(15.0, -12.7, 25.0, -2.7, 3, 3000.0)]
+PAD_SINK = [(15.0, -12.7, 25.0, -2.7, -1, 3000.0)]
 
 
 def _maxduty_variant(ch, tambs, offs):
@@ -896,8 +899,8 @@ def main():
         ('PA paddle joined to the top pour (no island)', {'pa_island': False}),
         ('copper-filled paddle vias (VIPPO Cu)', {'k_via_fill': 385.0}),
         ('stitching vias 25 /cm2 round the PA end', {'via_density': 25.0}),
-        ('thermal pad 10x10 mm under PA end to a metal case wall', {'sinks': [(15.0, -12.7, 25.0, -2.7, 3, 3000.0)]}),
-        ('M2 screw at the PA-end hole to a metal standoff/wall', {'sinks': [(26.4, -12.1, 30.4, -8.1, 3, 1500.0)]}),
+        ('thermal pad 10x10 mm under PA end to a metal case wall', {'sinks': [(15.0, -12.7, 25.0, -2.7, -1, 3000.0)]}),
+        ('M2 screw at the PA-end hole to a metal standoff/wall', {'sinks': [(26.4, -12.1, 30.4, -8.1, -1, 1500.0)]}),
         ('board 52 mm (10 mm off the USB end)', {'x_cut': 10.0}),
         ('board 72 mm (10 mm longer at the USB end)', {'_shift': 5.0}),
         ('board 42 mm (20 mm off the USB end)', {'x_cut': 20.0}),
@@ -949,7 +952,7 @@ def plot_field(cs, r, fn, title):
     th = r['field']
     fig, axs = plt.subplots(2, 1, figsize=(8, 6.2))
     vmax = cs.tamb + th.max()
-    for ax, l, nm in ((axs[0], 0, 'top (F.Cu)'), (axs[1], 3, 'bottom (B.Cu), seen from the top')):
+    for ax, l, nm in ((axs[0], 0, 'top (F.Cu)'), (axs[1], B.L - 1, 'bottom (B.Cu), seen from the top')):
         T = cs.tamb + th[l * B.N:(l + 1) * B.N].reshape(B.ny, B.nx)
         im = ax.imshow(T, origin='upper', extent=[B.xc[0], B.xc[-1], B.yc[-1], B.yc[0]], cmap=SEQ, vmin=cs.tamb, vmax=vmax,
                        aspect='equal')

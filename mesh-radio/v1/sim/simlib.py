@@ -41,7 +41,7 @@ OPTS = ['.option method=gear reltol=2e-3 abstol=1e-9 vntol=1e-5 itl4=200',
         '.option method=gear reltol=5e-3 abstol=1e-7 vntol=1e-4 itl4=500 gmin=1e-10']
 
 
-def ngspice_retry(make, workdir, name):
+def ngspice_retry(make, workdir, name, timeout=900):
     """Run make(option_line) through ngspice with each of OPTS until one
     finishes.  Returns None, or the time at which the last attempt stopped
     with 'timestep too small' (its rawfile holds the data up to there: the
@@ -49,7 +49,7 @@ def ngspice_retry(make, workdir, name):
     stopped = None
     for o in OPTS:
         try:
-            ngspice(make(o), workdir, name)
+            ngspice(make(o), workdir, name, timeout=timeout)
             return None
         except TimestepError as e:
             stopped = e.t

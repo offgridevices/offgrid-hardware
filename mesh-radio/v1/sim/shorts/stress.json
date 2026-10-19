@@ -3,7 +3,7 @@
   "part": "R22m 1206 1 W",
   "ref": "R (sense)",
   "qty": "energy in a battery short (SCD)",
-  "value": 14.169248411891841,
+  "value": 17.085341919113606,
   "unit": "W",
   "rating": 1.0,
   "kind": "pulse",
@@ -12,32 +12,32 @@
  {
   "part": "LM66100",
   "ref": "U (cell-to-SYS)",
-  "qty": "current through a VSYS_SW short until OCD (19 ms)",
-  "value": 4.448004000455735,
+  "qty": "current through a VSYS_SW short until OCD (20 ms)",
+  "value": 12.186780655429878,
   "unit": "A",
   "rating": 2.5,
   "kind": "absmax",
-  "case": "vsyssw_mid (2.5 A pulsed <= 120 ms)"
+  "case": "vsyssw_fresh_25 (2.5 A pulsed <= 120 ms)"
  },
  {
   "part": "TPS22965",
   "ref": "U (main switch)",
   "qty": "current through a VSYS_SW short until OCD",
-  "value": 4.974487857236153,
+  "value": 19.838006660837625,
   "unit": "A",
   "rating": 6.0,
   "kind": "absmax",
-  "case": "vsyssw_fresh (6 A continuous, 8 A < 300 us)"
+  "case": "vsyssw_fresh_85 (6 A continuous, 8 A < 300 us)"
  },
  {
   "part": "CSD25485F5",
   "ref": "Q (reverse FET)",
   "qty": "dissipation in linear mode, VSYS_SW short until OCD",
-  "value": 4.2888107185945,
+  "value": 13.320328733418592,
   "unit": "W",
   "rating": 0.5,
   "kind": "derate",
-  "case": "vsyssw_fresh (267 mJ over 20 ms; SOA not published for 20 ms)"
+  "case": "vsyssw_fresh_60 (269 mJ over 20 ms; SOA not published for 20 ms)"
  },
  {
   "part": "L2u2 DFE201610E",

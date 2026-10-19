@@ -3,40 +3,40 @@
   "part": "CSD25485F5",
   "ref": "Q (reverse FET)",
   "qty": "VDS, reversed cell",
-  "value": 5.15617650999139,
+  "value": 5.1647006151997354,
   "unit": "V",
   "rating": 20.0,
   "kind": "derate",
-  "case": "rev_usb_drawn_held"
+  "case": "rev_usb_fix_held_85"
  },
  {
   "part": "CSD25485F5",
   "ref": "Q (reverse FET)",
   "qty": "VGS, reversed cell",
-  "value": 4.4291682853848675,
+  "value": 4.499463144422692,
   "unit": "V",
   "rating": 12.0,
   "kind": "derate",
-  "case": "rev_usb_drawn_held"
+  "case": "rev_usb_drawn_held_85"
  },
  {
   "part": "CSD25485F5",
   "ref": "Q (reverse FET)",
   "qty": "dissipation, reversed cell",
-  "value": 0.00017913004853164298,
+  "value": 0.00018408797499577117,
   "unit": "W",
   "rating": 0.5,
   "kind": "derate",
-  "case": "rev_usb_drawn_held"
+  "case": "rev_usb_drawn_held_85"
  },
  {
   "part": "BQ29700",
   "ref": "U (protector)",
   "qty": "BAT - VSS",
-  "value": 4.4278487075612185,
+  "value": 4.498145982361975,
   "unit": "V",
   "rating": 12.0,
   "kind": "absmax",
-  "case": "rev_usb_drawn_held"
+  "case": "rev_usb_drawn_held_85"
  }
 ]

@@ -4,10 +4,13 @@ Electrical studies of the power path in `src/circuit.py` (blocks `inputs()`,
 `charger()`, `system()`, `pa_power()`) against README requirements P1-P8,
 X1-X7 and E4: hot plug and over-voltage on the three inputs, a reversed
 cell, short circuits and the cell protector's trip timing, 3 W bursts from
-a worn cell, charging from a 6 V panel, and a derating table.
+a worn cell (with a cold start at -40 C and a hot USB-charging case at
+85 C), charging from a 6 V panel, and a derating table.  Every study runs
+at ambient -40, -20, 0, 25, 60 and 85 C.  (`rf/` and `thermal/` in this
+folder are separate studies with their own results.)
 
 ```
-sim/run_all.sh                         # everything, ~1-1.5 h on 4 cores (the burst grid is most of it)
+sim/run_all.sh                         # everything, ~1.5-2 h on 4 cores (runs are cached in sim/out/)
 tools/kd python3 sim/burst/run.py      # or one study, from mesh-radio/v1, in the pinned container
 tools/kd sh sim/run_all.sh             # everything in the container
 ```
@@ -68,6 +71,24 @@ microsecond, so currents never jump discontinuously (`powerlib.py`).
 | 3V3 load | current | 13 mA listening; 130 mA transmitting (SX1262 at its +20 dBm firmware cap, APC LDO 9 mA, nRF52840) | brown-out: nRF52840 POF / SX1262 1.7-1.8 V, criterion 1.9 V |
 | cell | OCV behind a resistance | OCV 3.1-4.2 V, R_int 50 / 150 / 300 mOhm | purely resistive (no RC recovery): the droop after ~5 ms is the 1 s value, conservative |
 | solar panel | single-diode equation | 6 V 1 W: 12 cells, Voc 7.2 V, Isc 0.185 A; 12 V: 36 cells, Voc 21 V, Isc 0.33 A; -2.2 mV/C per cell | n = 1.3, 10 mOhm per cell, 20 nF |
+
+### Temperature
+
+Every component sits at the ambient of the run (`powerlib.set_temp`):
+
+| quantity | over temperature | source |
+|---|---|---|
+| cell R_int | x9 / x5 / x2 / x1 / x0.8 / x0.75 at -40 / -20 / 0 / 25 / 60 / 85 C | rise reported by Ji, Zhang & Wang, *Li-ion cell operation at low temperatures*, J. Electrochem. Soc. 160 (4) A636 (2013), doi 10.1149/2.047304jes (measured to -20 C), extrapolated below; hot side kept conservative |
+| cell OCV | unchanged (the runs set the state of charge by OCV) | capacity loss in the cold (~50-70 % at -20 C) is a runtime question, not modelled |
+| MOSFET / switch RDS(on) | +0.4 %/C from 25 C (reverse FET, protector FETs, LM66100, TPS2121, TPS22965, TPS62840, eFuse, BQ25185 FETs) | level-1 MOSFETs pinned at 25 C (`temp=25`) with KP / (1 + 0.004 dT) |
+| TPS63810 efficiency | 8 % loss at 25 C scaled with RDS(on): 90.1 % at 85 C, 94.1 % at -40 C | assumption |
+| TVS2200 breakdown | +6.5 mV/C | datasheet VCLAMP 27.7 V (27 C) vs 28.35 V (125 C) |
+| RB060MM | ngspice diode with EG 0.69 eV, XTI 2: VF about -1.2 mV/C, leakage x~100 from 25 to 85 C | typical Schottky values; datasheet curves not digitised |
+| UDZV4.7B | VZ taken as flat (a 4.7 V zener's TC is near zero); leakage doubling every 10 C (analytic table) | the datasheet gives IR at 25 C only |
+| eFuse / charger / protector / mux thresholds | the datasheet min/max already hold over -40..125 C, so the min/max analysis is the same at every corner | |
+| ceramic capacitors | x0.85 at -40 and 85 C, x0.9 at -20 C, x0.95 at 0 and 60 C, on top of the bias derating | typical X5R/X7R |
+| BQ25185 TREG | charge current cut so 68.3 C/W x P keeps the die at 100 C (static) | datasheet 6.3.7.6 |
+| NTC / firmware charge window | charging allowed only 0-45 C (firmware /CE inside the NTC's 0-60 C): off at -40/-20/0/60/85 C | src/circuit.py charger() |
 
 Capacitors are their values left at the working DC bias (derated from the
 makers' bias curves, typical X5R/X7R): C47u 6.3 V 0805 at 4 V 19 uF;
