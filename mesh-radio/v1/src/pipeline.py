@@ -115,7 +115,7 @@ def routing_keepouts(b):
             continue
         s_, e_ = t.GetStart(), t.GetEnd()
         line = LineString([(s_.x / 1e6, s_.y / 1e6), (e_.x / 1e6, e_.y / 1e6)])
-        if t.GetNetname() in board.RF_NETS:
+        if t.GetNetname() in board.RF_NETS + board.RF_EXTRA:
             band.append(line.buffer(t.GetWidth() / 2e6 + board.RF_GAP + 0.3))
         holes.append(line.buffer(t.GetWidth() / 2e6 + 0.12))
     for fp in b.GetFootprints():
@@ -161,7 +161,7 @@ def setup_routers():
     route.PRE_EXPORT = routing_keepouts
     route.EXTRA = []
     # ground is the plane; the RF lines are drawn already (locked)
-    route.DROP_NETS = tuple(PLANES) + tuple(board.RF_NETS)
+    route.DROP_NETS = tuple(PLANES) + tuple(board.RF_NETS) + tuple(board.RF_EXTRA)
     route.AUTOROUTE = dict(via_costs=40, plane_via_costs=5, start_ripup_costs=100, fanout=False,
                            directions={'F.Cu': 'horizontal', 'In2.Cu': 'vertical', 'In3.Cu': 'horizontal',
                                        'B.Cu': 'vertical'})

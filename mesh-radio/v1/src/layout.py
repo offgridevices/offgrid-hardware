@@ -228,12 +228,29 @@ def place_all(log=print):
     put_fit(B, fl, p2[0] - f1[0], p2[1] - 1.0 - f1[1], 90, (0, -0.1))
     fl3 = B.pad_xy(fl, '4')
     uf = ref(comps, 'UFL')
-    # the U.FL beside the filter's top end, its signal pad facing the filter
+    # the antenna line runs straight out of the filter's top end to the U.FL,
+    # its signal pad facing the filter; along it the missing-antenna
+    # detector's coupled line (sim/rf/coupler.py: 5.5 mm, 0.10 mm gap, on the
+    # filter side), its 49.9 R at the filter end, the diode at the U.FL end;
+    # the 47 nH ESD shunt stands on the other side, by the U.FL
+    ya = fl3[1]
+    xa = fl3[0] + 0.9                                   # the coupled run starts clear of the filter pad
+    xb = xa + CPL_LEN
     B.put(uf, 0, 0, 270, 'T', check=False)
     sig = B.pad_xy(uf, '1')
     B.pl.pop(uf); B.taken['T'].pop()
-    flc = B.pl[fl][:2]
-    put_fit(B, uf, fl3[0] + 1.4 - sig[0], flc[1] - sig[1], 270, (0.1, 0))
+    put_fit(B, uf, xb + 0.9 - sig[0], ya - sig[1], 270, (0.1, 0))
+    NODES['ANT'] = (fl3[0], ya, 0)
+    yc = ya + RF_PITCH_CPL                               # the coupled line, below the antenna line
+    term = ref(comps, 'R49.9R')
+    put_pad(B, term, 'REFL_CPL', (xa, yc + 1.0), (-0.1, 0), 'GND', (0, 1))
+    det = ref(comps, 'BAT15')
+    put_pad(B, det, 'REFL_CPL', (xb, yc + 1.0), (0.1, 0), 'REFL_DET', (0, 1))
+    ta = B.pad_xy(term, [p for p, n in B.comps[term].pins.items() if n == 'REFL_CPL'][0])
+    da = B.pad_xy(det, [p for p, n in B.comps[det].pins.items() if n == 'REFL_CPL'][0])
+    NODES['_cpl'] = [ta, (ta[0], yc), (da[0], yc), da]
+    esd = [c.ref for c in comps if c.part == 'L47nH' and set(c.pins.values()) == {'ANT', 'GND'}][0]
+    put_pad(B, esd, 'ANT', (xb - 0.6, ya - 0.55), (-0.1, 0), 'GND', (0, -1))
     # receive: from the switch's RX port (down) left along the board, the
     # LNA there; its output line runs on along the corridor to the balun
     rx = B.pad_xy(sw, '5')
@@ -282,7 +299,8 @@ def place_all(log=print):
     left = place.pack(B, left)                 # parts whose anchor was placed after them
     if left:
         log('no room for: %s' % left)
-    B.pl['_nodes'] = {k: [round(v[0], 3), round(v[1], 3), v[2]] for k, v in NODES.items()}
+    B.pl['_nodes'] = {k: ([[round(p[0], 3), round(p[1], 3)] for p in v] if k == '_cpl'
+                          else [round(v[0], 3), round(v[1], 3), v[2]]) for k, v in NODES.items()}
     clashes = overlaps(B)
     for a_, b_ in clashes:
         log('overlap: %s %s' % (a_, b_))
@@ -389,7 +407,9 @@ def plot(pl, path, comps=None):
     img.save(path)
 
 
-ESCAPE = 0.35   # mm past a chip pad's outer end: a 0.36 mm line's edge then clears the row by 0.17 mm
+ESCAPE = 0.25   # mm past a chip pad's outer end: the line's edge then clears the pin row by ~0.17 mm
+CPL_LEN = 5.5   # the missing-antenna detector's coupled run (sim/rf/coupler.py)
+RF_PITCH_CPL = 0.27   # centre to centre: 0.17 mm lines, 0.10 mm gap
 
 
 def _rf_pads(fps, net_of):
@@ -469,12 +489,16 @@ def rf_paths(pads, nodes):
         t = (p[0] - h[0]) * ux + (p[1] - h[1]) * uy
         return t, (round(h[0] + ux * t, 4), round(h[1] + uy * t, 4))
 
+    if '_cpl' in nodes:                                  # the detector's coupled line, as drawn
+        cp = [tuple(p) for p in nodes['_cpl']]
+        for a_, b_ in zip(cp, cp[1:]):
+            add('REFL_CPL', a_, b_)
     for n, pp in sorted(by.items()):
         starts = []
         for pt, e in pp:
             if e:
                 for a_, b_ in zip([pt] + e, e):          # the narrow escape
-                    add(n, a_, b_, 0.2)
+                    add(n, a_, b_, min(0.2, BD.RF_W))
             starts.append(e[-1] if e else pt)
         hubs = [tuple(nodes[k]) for k in (n, n + 'b') if k in nodes]
         if n == 'LNA_OUT' and hubs:

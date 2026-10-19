@@ -3,7 +3,10 @@
 
 Grounded coplanar waveguide on F.Cu over the In1 ground plane: the first
 dielectric of the board's stackup (pcb.DIELECTRIC; 6 layers, JLC06161H-2116B:
-0.1164 mm of 2116 prepreg, er 4.16).  Closed-form quasi-static model (conformal mapping,
+0.1164 mm of 2116 prepreg, er 4.16).  This closed form leaves out the
+copper's thickness and the solder mask, which on this thin dielectric
+lower Z by ~8 ohm: board.RF_W / RF_GAP come from the field solve in
+sim/rf/coupler.py; this script is a quick cross-check only.  Closed-form quasi-static model (conformal mapping,
 Wadell, Transmission Line Design Handbook, 4.4.3.1), copper thickness
 neglected (it lowers Z by about 1 ohm).
 

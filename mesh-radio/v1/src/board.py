@@ -24,14 +24,19 @@ VIA_SIG = (0.4, 0.2)
 VIA_PAD = (0.3, 0.15)
 
 # 50 ohm grounded coplanar waveguide on F.Cu over the In1 ground plane
-# (6 layers, JLC06161H-2116B: 0.1164 mm of 2116 prepreg, er 4.16): 0.22 mm
-# track with 0.18 mm gaps to the ground pour is 51.6 ohm by the closed form
-# (src/impedance.py), about 50.5 with the copper's 35 um thickness.
-RF_W, RF_GAP = 0.22, 0.18
+# (6 layers, JLC06161H-2116B: 0.1164 mm of 2116 prepreg, er 4.16).  A 2-D
+# field solve with the 35 um copper and the solder mask (sim/rf/coupler.py)
+# gives 49.9 ohm for 0.17 mm with 0.25 mm gaps to the ground pour; the
+# closed form in impedance.py ignores both and reads ~8 ohm high on this
+# thin dielectric.
+RF_W, RF_GAP = 0.17, 0.25
 
 RF_NETS = ['LORA_RFO', 'LORA_TXA', 'LORA_TXB', 'LORA_TXC', 'LORA_TX50', 'PA_DRIVE', 'PA_RFIN',
            'PA_OUT', 'PA_M1', 'PA_M2', 'PA_M3', 'PA_TX', 'ANT_SW', 'ANT', 'RX_SW', 'LNA_INM', 'LNA_AI',
            'LNA_OUT', 'LORA_RFI_P', 'LORA_RFI_N', 'NRF_ANT', 'BLE_50R', 'BLE_T', 'BLE_FEED']
+# the missing-antenna detector's coupled line: drawn with the RF lines
+# (layout.rf_paths), same width and gap to the pour
+RF_EXTRA = ['REFL_CPL']
 # the amplifier's supply and the battery path carry up to ~2.5 A in bursts
 HEAVY = ['VPA', 'PA_IN', 'PA_LX1', 'PA_LX2', 'BAT_P', 'BATT_PLUS', 'CELL_MINUS', 'PROT_S2',
          'PA_VCC1', 'PA_VCC2', 'PA_V1F', 'PA_V2F']
@@ -71,7 +76,8 @@ def net_classes(b, comps):
     nets = set(n for c in comps for n in c.pins.values() if n)
     # RF lines keep 0.1 mm to pads (the chips' 0.5 mm pitch needs it); their
     # 0.18 mm gap to ground is the top pour's own clearance (RF_GAP)
-    pcb.netclass(b, 'RF', sorted(nets & set(RF_NETS)), RF_W, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    pcb.netclass(b, 'RF', sorted(nets & set(RF_NETS + RF_EXTRA)), RF_W, clearance=0.1, via_d=VIA_SIG[0],
+                 via_drill=VIA_SIG[1])
     pcb.netclass(b, 'Heavy', sorted(nets & set(HEAVY)), 0.6, clearance=0.1, via_d=0.5, via_drill=0.25)
     pcb.netclass(b, 'Power', sorted(nets & set(POWER)), 0.3, clearance=0.12, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
     pcb.netclass(b, 'USB', ['USB_DP', 'USB_DM', 'NRF_DP', 'NRF_DM'], 0.2, clearance=0.12,
