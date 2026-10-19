@@ -63,6 +63,11 @@ def scenario(name):
         w[200]['button'] = 1                      # self-test press
         S = dict(world=w, desc='Normal overnight-style charge: pack warms 22 -> 34 C slowly; '
                  'self-test button at 200 s.')
+    elif name == 'late_vent':
+        w = base_world(6500, 9); charging_heat(w, 0, 12.0, 1800.0)
+        vent(w, 6000)
+        S = dict(world=w, desc='Long charge, cell vents at 100 min: past the 71.6 min at which '
+                 'a 32-bit tick-to-ms product would overflow.', onset=6000)
     elif name == 'cleaning_spray':
         w = base_world(900, 2); charging_heat(w)
         for r in w:
@@ -185,12 +190,12 @@ def checks(S):
         chk('back to NORMAL afterwards', sts[-1][1] == 1)
     if n == 'breath':
         chk('no ALARM for a breath', all(s != 3 for t, s in sts))
-    if n in ('vent', 'overheat', 'hush', 'probe'):
+    if n in ('vent', 'overheat', 'hush', 'probe', 'late_vent'):
         ta = first(S, 3)
         lat = None if ta is None else round(ta - S['onset'], 1)
         S['latency'] = lat
         chk('ALARM raised', ta is not None, ta)
-        limit = {'vent': 30, 'hush': 30, 'overheat': 120, 'probe': 120}[n]
+        limit = {'vent': 30, 'hush': 30, 'late_vent': 30, 'overheat': 120, 'probe': 120}[n]
         chk(f'ALARM within {limit} s of onset', lat is not None and lat <= limit, lat)
         chk('no ALARM before onset', all(s != 3 for t, s in sts if t < S['onset']))
         if ta:
@@ -205,6 +210,10 @@ def checks(S):
         chk('red LED keeps flashing while hushed', max(r['red'] for r in quiet) > 0.3)
         loud = [r for r in io if 470 <= r['t'] <= 540]
         chk('siren returns when heat joins (it got worse)', sum(r['tone_on'] for r in loud) > 5)
+    if n == 'late_vent':
+        tt = [int(d['t']) for d in S['tel'] if 't' in d and 'st' in d]
+        chk('telemetry every second to the end (firmware clock keeps running)',
+            len(tt) > 6400 and all(b - a == 1 for a, b in zip(tt, tt[1:])), len(tt))
     if n == 'sensor_fault':
         tf = first(S, 4, after=200)
         chk('FAULT within 3 s of the sensor going silent', tf is not None and tf - 200 <= 3, tf)
@@ -246,7 +255,8 @@ def plot(S):
     plt.close(fig)
 
 
-ALL = ['normal_charge', 'cleaning_spray', 'breath', 'vent', 'overheat', 'hush', 'sensor_fault', 'probe']
+ALL = ['normal_charge', 'cleaning_spray', 'breath', 'vent', 'overheat', 'hush', 'sensor_fault', 'probe',
+       'late_vent']
 
 
 def one(name):

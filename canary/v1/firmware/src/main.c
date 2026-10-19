@@ -19,20 +19,28 @@
 #define FW_VERSION "1.0.0"
 
 /* ------------------------------------------------------------- timebase */
-/* Timer2 fast PWM, /64: overflow at 8 MHz / 64 / 256 = 488.28 Hz */
-static volatile uint32_t ticks;
+/* Timer2 fast PWM, /64: overflow at 8 MHz / 64 / 256 = 488.28 Hz, every
+ * 2.048 ms. The ISR keeps milliseconds itself (2 ms plus 48 us carried), so
+ * the count runs over all 32 bits and wraps cleanly after 49.7 days, where
+ * every (int32_t)(a - b) comparison still holds. Converting a tick count
+ * with t * 2048 / 1000 instead overflows the product after 71.6 minutes. */
+static volatile uint32_t ms_count;
+static uint16_t us_carry;
 static volatile uint8_t btn_low_ms, btn_event;
 
 static uint32_t now_ms(void)
 {
     uint32_t t;
-    cli(); t = ticks; sei();
-    return (t * 2048UL) / 1000UL;
+    cli(); t = ms_count; sei();
+    return t;
 }
 
 ISR(TIMER2_OVF_vect)
 {
-    ticks++;
+    uint32_t m = ms_count + 2;
+    us_carry += 48;
+    if (us_carry >= 1000) { us_carry -= 1000; m++; }
+    ms_count = m;
     /* button: PD2 low = pressed; event on release after >= 30 ms */
     if (!(PIND & _BV(PIN_BTN))) {
         if (btn_low_ms < 250) btn_low_ms++;

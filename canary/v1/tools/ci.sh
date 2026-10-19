@@ -27,7 +27,8 @@ tools/kd python3 src/check_geometry.py canary.kicad_pcb
 echo "== fab outputs, pin map; committed files must equal the build"
 python3 src/fab.py --no-renders
 git diff --stat --exit-code -- canary.kicad_sch production/canary-gerbers.zip \
-  production/canary-bom-pcbway.csv production/canary-cpl.csv production/canary-netlist.csv
+  production/canary-bom-pcbway.csv production/canary-cpl.csv production/canary-netlist.csv \
+  production/canary.hex
 
 echo "== simulations"
 if [ ! -f /opt/simavr/simavr/obj-x86_64-linux-gnu/libsimavr.a ]; then
