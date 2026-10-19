@@ -173,3 +173,49 @@ jobs:
 
       - name: Firmware host tests
         run: make -C firmware/test
+
+  smokebreak-v1:
+    # SmokeBreak (smokebreak/v1).  The routed board is the design of record:
+    # Freerouting is not deterministic and the last joins were finished by
+    # script (src/touchup.py), so routing is not re-run.  Everything after it
+    # is: the silkscreen art from src/ (brand.py, art.py, make.art_items),
+    # KiCad DRC (0 / 0 / 0), the net check against circuit.py, then the
+    # Gerbers, BOM, CPL and netlist, which must equal the committed ones.
+    # Runs in the official KiCad image the board's toolchain pins
+    # (smokebreak/v1/tools/Dockerfile), by digest.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 30
+    container:
+      image: kicad/kicad:10.0.7@sha256:3224d1bf143185ecc1bd3a1082a36f37f0f4e59d707983a16515a845e3737fc6
+      options: --user root
+    defaults:
+      run:
+        working-directory: smokebreak/v1
+    env:
+      HOME: /tmp
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Python packages tools/Dockerfile installs that these steps use.
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git > /dev/null
+          pip3 install --break-system-packages -q numpy shapely Pillow matplotlib uharfbuzz fonttools pytest
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Rebuild the silkscreen art (src/artwork.py)
+        working-directory: smokebreak/v1/src
+        run: python3 artwork.py
+
+      # DRC 0 / 0 / 0 and every pad's net against circuit.py are gates here.
+      - name: DRC, net check and production files (src/fab.py)
+        working-directory: smokebreak/v1/src
+        run: python3 fab.py --no-3d
+
+      - name: Committed production files match the build
+        run: python3 tools/check_outputs.py
+
+      - name: Firmware model tests
+        run: python3 -m pytest -q firmware/tests
