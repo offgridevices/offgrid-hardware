@@ -74,7 +74,17 @@ Highest transmit duty that passes, on the board as placed with 1-second
 messages and no charging (`max_duty.png`). The battery-at-60-°C limit is
 left out, because the box sets it:
 
-{{DUTY}}
+| Ambient | 1 W | 2.5 W | 3 W |
+|---|---|---|---|
+| −40 °C | 50 % | 1 msg / 15 s | none |
+| −20 °C | 50 % (h=5: 25 %) | 1 msg / min | none |
+| 0 °C | 25 % | none | none |
+| 25 °C | 1 msg / 6 s (17 %) | none | none |
+| 60 °C | none | none | none |
+| 85 °C | none | none | none |
+
+With all of the board fixes (fix 2 below): 1 W runs at 50 % at 25 °C and one message every 15 s at 60 °C; 2.5 W gets one message every 15 s at 25 °C.
+With the board fixes and a thermal pad to a metal wall (fixes 2 and 3): 1 W runs continuously at 25 °C and at 50 % at 60 °C; 2.5 W runs at 50 % and 3 W at 25 %, but only at 25 °C. Nothing above 1 W passes at 60 °C.
 
 The amplifier heat path, with its data-sheet values:
 
@@ -99,10 +109,10 @@ The amplifier heat path, with its data-sheet values:
 | Item | Verdict | Detail |
 |---|---|---|
 | ICs, crystals, TCXO, passives | **PASS** | All cover −40 to +85 °C; the data sheet for each is cited in `results.txt` |
-| Omron B3U buttons (SW2, SW3) | **FAIL** | −25 to **+70 °C**. The owner accepted the cold end, but the hot end is under E1's 85 °C and only 10 °C above the 60 °C box. |
+| Omron B3U buttons (SW2, SW3) | **FAIL** | −25 to **+70 °C**. The owner accepted the cold end, but the hot end is under E1's 85 °C. In a 60 °C box they reach 61–68 °C. |
 | JST PH/GH/SH (J2, J3, J5, J6) | accepted | −25 to +85 °C (owner decision 3) |
 | Amphenol USB-C | unverified | Distributor listings say −40 or −20 °C |
-| X5R capacitors | MARGINAL | Rated to 85 °C exactly. Those near the amplifier pass 85 °C in storms. |
+| X5R capacitors | MARGINAL | Rated to 85 °C exactly. The ones on the amplifier rails (C60, C70, C92, C93, C94) reach 82 °C in a 1 W, 25 % storm at 60 °C, and 120 °C at 2.5 W. |
 | Charger NTC window | MARGINAL | The hardware stops charging below about +1.4 °C typical, but a worst-case part charges down to −0.6 °C. It stops above about 59.5 °C (55.6 to 63.8 °C), **not at 45 °C**. |
 | 45 °C charging rule | **FAIL as built** | Only firmware enforces it, but the processor cannot read the NTC: CHG_TS goes nowhere else. The NTC is on the board, not on the cell. |
 
@@ -115,9 +125,9 @@ The amplifier heat path, with its data-sheet values:
 | 32.768 kHz crystal start-up | **PASS** | ESR 70 kΩ against a 100 kΩ limit |
 | 32.768 kHz accuracy | MARGINAL | Off by −152 ppm at −40 °C and −130 ppm at +85 °C. The Adafruit core declares it a 20 ppm crystal, so Bluetooth connections can drop when the node is cold or hot. |
 | TCXO (−AP code) | **PASS** | −40 to +105 °C, 2 ms start-up |
-| TPS63810 loop capacitance | **PASS** | At least 30 µF effective at −40 °C, worst tolerance, against 16 µF needed |
+| TPS63810 loop capacitance | **PASS** | 29.8 µF effective at −40 °C, worst tolerance, against 16 µF needed |
 | TPS63810 input capacitance | **PASS** | 24 µF against 5 µF needed |
-| TPS62840 loop | **PASS** | Output 12 µF (allowed 3–40 µF); input 6 µF (1 µF needed) |
+| TPS62840 loop | **PASS** | Output 13 µF (allowed 3–40 µF); input 5.7 µF (1 µF needed) |
 | Battery at −40 °C | note | A LiPo cannot deliver 2–3 A bursts below about −20 °C |
 | U.FL, 0908SQ choke, WLCSP solder joints | MARGINAL (shock, not cold) | Stake the U.FL and the choke. Consider underfill for the field build. At 2.5 W, the amplifier swings about 90 °C with every burst. |
 
@@ -131,9 +141,10 @@ The amplifier heat path, with its data-sheet values:
 ## Fixes, layout and values first
 
 1. **A firmware limit on power and duty (E3).**
-   - Below 25 °C at 1 W, allow up to one message every 6 seconds.
-   - Above 1 W, allow nothing unless fixes 2 and 3 are made.
-   - With the board fixes, use the duty table in `results.txt`.
+   - At 25 °C or below, at 1 W, allow up to one message every 6 seconds.
+   - Above 1 W, and in a hot box, allow nothing unless fixes 2 and 3 are
+     made.
+   - With the board fixes, use the duty table above.
    - The TMP1075 should block transmitting when it reads above
      (85 °C − the burst spike) for the power in use: 49 °C at 1 W on this
      board.
@@ -153,7 +164,8 @@ The amplifier heat path, with its data-sheet values:
    - With fix 2, the case drops to **96 °C**.
    - At 25 °C, 1 W is then allowed **continuously**, 2.5 W up to 50 % and
      3 W up to 25 %.
-   - In a 60 °C box, 1 W passes at one message a minute (case 72 °C).
+   - In a 60 °C box, 1 W passes up to 50 %: one message a minute gives a
+     72 °C case. Nothing above 1 W passes in a 60 °C box.
 4. **Charger.**
    - Move TH1 onto the cell, or use a cell with a 10 k NTC lead.
    - Route CHG_TS to a spare nRF52840 analog input, so firmware can apply

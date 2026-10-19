@@ -552,7 +552,7 @@ def inherent_fails(cs, listen_m):
     """Criteria that already fail while only listening: set by the ambient (a cell in a
     60 C box is at 60 C), not by transmitting; the duty tables leave them out."""
     rows, ov = verdict_rows(cs, cs.tamb + listen_m, False, 0.0)
-    return set(r[0] for r in rows if r[2] == 'FAIL')
+    return set(r[0] for r in rows if r[2] == 'FAIL' and 'QPA9510' not in r[0])
 
 
 def duty_ok(rows, inherent):
@@ -760,6 +760,17 @@ def main():
                                v['TPS2121 Tj'], v['CSD25485F5 Tj'], v['BQ25185 Tj'] if chg else float('nan'),
                                v['battery plug J3'], v['NTC TH1'], ov, note))
                         summary[(h, ta, pw, off, chg)] = (ov, rows, v, frac)
+
+    out()
+    out('--- Temperature-rated parts closest to their limit (board under the part, peak), h = 10, no charging')
+    for ta, pw, off in ((25, '1W', 3), (25, '1W', 59), (60, '1W', 59), (60, '1W', 3), (25, '2.5W', 59), (60, '2.5W', 3)):
+        cs = keep[(10.0, ta)]
+        tot, frac = combine(cs, res[(10.0, ta, pw, off)], res[(10.0, ta, 'listen')], res[(10.0, ta, 'chg')], None, False)
+        v = dict(zip(names, tot))
+        lst = sorted(((lim - v[r], lab, v[r], lim) for r, (lab, lim) in cs.amb.items()))[:6]
+        x5r = max((v[r], lab) for r, (lab, lim) in cs.amb.items() if lab.startswith('X5R'))
+        out('  %3d C %-5s %-11s: %s | hottest X5R %s %.0f C' % (ta, pw, NAMED[off], ', '.join('%s %.0f/%d' % (lab, t, lim) for m, lab, t, lim in lst),
+                                                                x5r[1], x5r[0]))
 
     # ---- maximum duty cycle that passes, per ambient (firmware throttle table)
     out()
