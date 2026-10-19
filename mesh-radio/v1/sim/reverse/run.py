@@ -9,7 +9,7 @@ SSM10N954L protector (CELL_MINUS is its VSS), the LM66100, the BQ25185
 (BAT pin), the TPS2121 IN1, VSYS, the 3.3 V buck and its 13 mA load.
 Every IC pin on BAT_P / VSYS / MUX_IN1 has a substrate diode to GND, the
 BQ29700 its VSS->BAT and V- -> BAT ESD diodes, so pin currents show up.
-Run to 2 s, past the BQ29700's slowest timer (OVP 1.25 s).
+Run to 0.3 s, past the BQ29700 timers that can act on a reversed cell (OCC 8 ms, UVP 144 ms; OVP needs BAT above VSS).
 
 Cases: no USB; USB present with the LM66100 as drawn (CE = GND) and with
 the proposed Schottky in its place ('_fix'); a normal (right-way) plug-in for reference.  Without a cell,
@@ -44,7 +44,7 @@ import simlib as S
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = S.scratch('reverse')
 T_PLUG = 20e-3
-TSTOP = 2.0
+TSTOP = 0.3
 
 ESD = """* substrate diodes of the ICs on these nets (pin abs min -0.3 V)
 Vesd1 esd1 0 0
@@ -145,7 +145,7 @@ def main():
     cases = [('%s_%d' % (n, ta), cfg(temp=float(ta), **kw)) for ta in TEMPS for n, kw in base]
     with ProcessPoolExecutor(4) as ex:
         res = list(ex.map(run, cases))
-    L = ['Study 2: battery plugged in backwards (X1).  4.2 V cell, 50 mOhm, plugged at 20 ms, run to 2 s.',
+    L = ['Study 2: battery plugged in backwards (X1).  4.2 V cell, 50 mOhm, plugged at 20 ms, run to 0.3 s.',
          'Limits: CSD25485F5 |VGS| 12 V, |VDS| 20 V, 0.5 W (min Cu), 3.2 A; BQ29700 BAT-VSS -0.3..12 V, V- <= BAT + 0.3 V;',
          'IC pins >= -0.3 V; pin / substrate-diode current <= 1 mA; cell current after 100 ms <= 10 mA.', '']
     rows = []
