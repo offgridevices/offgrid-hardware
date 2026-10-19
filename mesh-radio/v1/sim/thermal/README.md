@@ -252,7 +252,24 @@ How the curve is applied:
 Each cell is the nominal / pessimistic result. "–" means not even 30 dBm
 passes. A storm is 1 s on and 3 s off.
 
-{{FUTABLE}}
+| Board option | 25 °C: 1 s/min | 25 °C: 2 s/min | 25 °C: storm | 45 °C: 1 s/min | 45 °C: 2 s/min | 45 °C: storm | 60 °C: 1 s/min | 60 °C: 2 s/min | 60 °C: storm |
+|---|---|---|---|---|---|---|---|---|---|
+| 4-layer as placed | 34/33 | 33/31.5 | 31.5/30 | 31.5/30 | –/– | –/– | –/– | –/– | –/– |
+| 4-layer as placed + pad | 34/33 | 33/31.5 | 34/33 | 31.5/30 | 31.5/30 | 31.5/30 | –/– | –/– | –/– |
+| 4-layer + fixes (2/1 oz) | 35/35 | 35/35 | 34/33 | 35/34 | 35/33 | 31.5/31.5 | 34/31.5 | 33/31.5 | –/– |
+| 4-layer + fixes + pad | 35/35 | 35/35 | 35/35 | 35/35 | 35/34 | 35/34 | 34/33 | 34/31.5 | 33/31.5 |
+| 6-layer + fixes, 1 oz outer | 35/35 | 35/34 | 33/31.5 | 35/33 | 34/33 | 31.5/30 | 31.5/31.5 | 31.5/30 | –/– |
+| 6-layer + fixes, 1 oz outer + pad | 35/35 | 35/35 | 35/35 | 35/33 | 35/33 | 35/33 | 33/31.5 | 31.5/31.5 | 31.5/31.5 |
+| 6-layer + fixes, 2 oz outer | 35/35 | 35/35 | 34/33 | 35/34 | 35/33 | 31.5/31.5 | 33/31.5 | 31.5/31.5 | –/– |
+| 6-layer + fixes, 2 oz outer + pad | 35/35 | 35/35 | 35/35 | 35/34 | 35/34 | 35/34 | 34/33 | 33/31.5 | 33/31.5 |
+
+In this table:
+
+- "fixes" means the pad joined to the top pour, copper-filled pad vias,
+  stitching vias at 25 per cm² and 85 % outer pours;
+- "pad" is the 10 × 10 mm gap pad to a metal wall;
+- at 60 °C the cell-at-60 °C criterion is left out, because the box sets
+  it.
 
 ### Which fix helps most
 
@@ -278,7 +295,23 @@ matches the 6-layer board with 2 oz outer copper (45 °C).
 
 ### The charger again, 4-layer as placed
 
-{{FUCHG}}
+Lower charge current and moving the NTC both help, but neither fixes the
+45 °C rule:
+
+- **At 25 °C**, 300 mA removes the throttling. The charger's junction is
+  80 °C (115 °C at 497 mA from a 3.0 V cell).
+- **The moved NTC** reads 44–51 °C at 25 °C, under the earliest
+  hot-stop point of 55.6 °C. As placed it reads 50–60 °C.
+- **The board under J3** is still 45 °C at 300 mA from a 3.0 V cell, and
+  39 °C from a 3.7 V cell.
+- **At 45 °C ambient** the board round J3 and the moved NTC reach 58–65 °C
+  at any current: the NTC trips and the cell is over 45 °C. Charging at
+  45 °C ambient needs firmware to stop it (the 45 °C rule).
+- **What is left to do:**
+  - put the charger farther from J3;
+  - give firmware a reading of a sensor on the cell itself.
+  - ISET 400 mA (750 Ω) is enough at 25 °C with a 3.7 V cell, but 300 mA
+    (1.0 kΩ) is needed for a nearly flat 3.0 V cell.
 
 ## Model
 

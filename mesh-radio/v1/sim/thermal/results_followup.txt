@@ -210,7 +210,7 @@ B. Which fix helps most (nominal PAE): QPA9510 case / junction peak, C
 ====================================================================================================
 D. Charger: ISET 497 / 400 / 300 mA, NTC (TH1) as placed and moved beside J3 at (-17.5, -8.5) mm bottom
 ====================================================================================================
-  TS hot stop: NTC at 59.5 C typ (63.8 C worst-case low); resumes ~5 C lower.  TREG 100 C.  Listening, h = 10, 4-layer as placed.
+  TS hot stop: NTC at 59.5 C typ (as low as 55.6 C over the tolerances; verdict uses this); resumes ~5 C lower.  TREG 100 C.  Listening, h = 10, 4-layer as placed.
   ISET = 300 A.ohm / ICHG (SLUSF65B): 604 R -> 497 mA, 750 R -> 400 mA, 1.00 k -> 300 mA.  Loss scaled with current from the 497 mA solution.
   Ta   VBAT  ICHG    | Tj unthr.  charge%  cell C   NTC as pl. NTC moved  | verdict
   25   3.0   497 mA  | 115        83       53       60         51         | throttled, NTC ok, cell > 45
@@ -219,12 +219,12 @@ D. Charger: ISET 497 / 400 / 300 mA, NTC (TH1) as placed and moved beside J3 at 
   25   3.7   497 mA  | 85         100      48       54         47         | TREG ok, NTC ok, cell > 45
   25   3.7   400 mA  | 74         100      44       48         43         | TREG ok, NTC ok, cell ok
   25   3.7   300 mA  | 62         100      39       43         39         | TREG ok, NTC ok, cell ok
-  45   3.0   497 mA  | 133        62       65       70         64         | throttled, NTC ok, cell > 45
-  45   3.0   400 mA  | 116        77       65       70         64         | throttled, NTC ok, cell > 45
-  45   3.0   300 mA  | 98         100      64       69         63         | TREG ok, NTC ok, cell > 45
+  45   3.0   497 mA  | 133        62       65       70         64         | throttled, NTC trips, cell > 45
+  45   3.0   400 mA  | 116        77       65       70         64         | throttled, NTC trips, cell > 45
+  45   3.0   300 mA  | 98         100      64       69         63         | TREG ok, NTC trips, cell > 45
   45   3.7   497 mA  | 104        93       65       71         65         | throttled, NTC trips, cell > 45
-  45   3.7   400 mA  | 93         100      63       67         62         | TREG ok, NTC ok, cell > 45
-  45   3.7   300 mA  | 81         100      59       62         58         | TREG ok, NTC ok, cell > 45
+  45   3.7   400 mA  | 93         100      63       67         62         | TREG ok, NTC trips, cell > 45
+  45   3.7   300 mA  | 81         100      59       62         58         | TREG ok, NTC trips, cell > 45
   (moved NTC: on the board 1.5 mm from J3; it still reads the board, not the cell itself)
 
-run time 1176 s
+run time 1577 s
