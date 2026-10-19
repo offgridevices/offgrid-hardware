@@ -61,6 +61,17 @@ board's `docs/` keeps its own dated checks).
 - **Fine rules and small vias cost more.** They are fab capability tiers:
   check the quote, and use them only where the density needs them.
 
+- **A switch node on an inner pad needs a pour, not a track.** Some small
+  bucks (Silergy SY8368A, QFN 3x3) put LX on a pad boxed in by the ground
+  pads; a track through the gap is a long thin neck carrying the inductor
+  current. Draw a pour: the fill takes the whole gap and widens at once.
+  (Print Hub v1)
+- **Never let a saved setting or a power-up default switch a load on
+  without checking the supply first.** On Print Hub the "on at power-up"
+  ports came on with no charger at all; the review caught it. Gate every
+  switch-on on the supply being there, and switch everything off when it
+  goes. (Print Hub v1)
+
 ## Tools
 
 - **Autorouters stall on the last few connections.** Budget for finishing
@@ -97,6 +108,17 @@ board's `docs/` keeps its own dated checks).
   outputs with the dates ignored, and do not diff STEP files.
 - **Parse firmware configs fully:** a `#define` with no value still enables a
   feature; a parser that only reads `NAME VALUE` pairs misses it.
+- **KiCad's rotation: a standard two-terminal part at 90 degrees has pad 1
+  at the bottom** (y down on screen), not the top. Check a placement plot
+  coloured by net before drawing power copper by hand. (KiCad 10.0.6)
+- **Keep the autorouter off the planes:** mark the inner plane layers as
+  power layers (`SetLayerType(..., LT_POWER)`) in the copy exported for
+  Freerouting, or it routes signals through them. (Freerouting 1.9.0)
+- **Freerouting 2.5.0 stalled** with a dozen connections left on Print Hub
+  (after a few passes, no progress, no end); 1.9.0 finished the same board.
+- **EasyEDA's 3D models can sit off their own land** (the HRO
+  TYPE-C-31-M-12 by 2.55 mm). Look at a render before trusting the STEP for
+  an enclosure; correct it with a model offset in the footprint.
 
 ## Mechanical
 
