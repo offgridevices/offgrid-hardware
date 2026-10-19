@@ -121,7 +121,7 @@ def board_stage(board_name, placed, src, work, passes, log=print):
     _copy_project(placed, fin)
     if board_name == 'fc':
         pcb.tidy_tracks(fin)             # the maze router's near-duplicate ends and segments
-        protect = planes + list(widths)
+        protect = planes + list(widths) + finish.hidden_taps(pcbnew.LoadBoard(fin))
     else:
         protect = list(planes)          # (rev 1 also kept its +3V3, BUCK_LX and GVDD; rev 2's ESC has none)
     # rip-up and re-route for anything the routers left, then the
@@ -179,6 +179,13 @@ def run(board_name, work, passes=None, log=print):
     placed = os.path.join(work, board_name + '.kicad_pcb')
     fin = os.path.join(work, board_name + '_fin.kicad_pcb')
     L.build(placed)
+    if hasattr(L, 'taps'):
+        # the supplies' feedback lines out of every router's reach until
+        # _final puts them back (finish.hide_taps)
+        b = pcbnew.LoadBoard(placed)
+        log('%s: %d supply taps hidden from the routers' % (board_name, finish.hide_taps(b, L.taps(
+            circuit.build(board_name)))))
+        b.Save(placed)
     pcb.write_rules(placed, EXTRA_RULES)
     setup_routers(L)
     if getattr(L, 'CHANNELS', None) and hasattr(L, 'channel_parts'):
@@ -222,7 +229,14 @@ def finish_run(board_name, work, log=print):
 
 
 def _final(board_name, L, fin, work, log):
-    """Artwork, stackup and the final DRC on the routed board `fin`."""
+    """The supply taps back on their nets (hide_taps), then artwork,
+    stackup and the final DRC on the routed board `fin`."""
+    b = pcbnew.LoadBoard(fin)
+    k = finish.show_taps(b)
+    if k:
+        pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+        b.Save(fin)
+        log('%s: %d supply taps back on their nets' % (board_name, k))
     if os.environ.get('NO_ARTWORK') == '1':
         pcb.set_stackup(fin, getattr(L, 'INNER_OZ', 0.5))
         e, w, u = pcb.drc(fin, os.path.join(work, board_name + '_final_drc.json'))

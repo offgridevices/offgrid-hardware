@@ -1380,6 +1380,19 @@ def check_power():
              'below that the rail stays off instead of browning out' % (t / 1e3, b / 1e3, v, er[0] * (1 + t / b),
                                                                      er[2] * (1 + t / b), er[0], er[2], ef[1] * (1 + t / b)),
           5.5 <= v <= 6.5)
+    # the 5 V BEC's own divider: on USB power alone the USB diode feeds +5V
+    # and the BEC's high-side body diode back-feeds VBAT at about 4.1-4.6 V
+    # (docs/STATUS.md D11); EN must stay below its lowest falling threshold
+    # there, or the BEC starts with its output above its input and, in
+    # forced PWM, runs backwards into VBAT (SNVSC40E 8.4.2, 9.3)
+    t, b = value(find('fc', '5V BEC UVLO top')[0].part), value(find('fc', '5V BEC UVLO bottom')[0].part)
+    reg5 = find('fc', '5V BEC')[0]
+    off_min, backfeed = ef[0] * (1 + t / b), 4.6
+    check(S, '5 V BEC enable divider %gk/%gk on its VIN: on above %.2f V (%.2f-%.2f V), off below %.2f V at the '
+             'lowest EN falling threshold (%g V), above the %.1f V VBAT that USB power back-feeds through the BEC'
+          % (t / 1e3, b / 1e3, er[1] * (1 + t / b), er[0] * (1 + t / b), er[2] * (1 + t / b), off_min, ef[0], backfeed),
+          off_min > backfeed and reg5.pins.get('2') == find('fc', '5V BEC UVLO top')[0].pins.get('2')
+          and set(find('fc', '5V BEC UVLO top')[0].pins.values()) == {reg5.pins.get('3'), reg5.pins.get('2')})
     a, ex = fig('lmr_rt')
     for c in [x for x in fc if x.part == 'LMR38020F']:
         p = roles(c, LMR38020_DDA)
@@ -1743,6 +1756,17 @@ def check_power():
         check(S, 'ESC %d MCU: 100 nF at VDD; at VDDA 1 uF 0402, Artery\'s 100 nF + 1 uF (AT32F421 figure 8) in one '
                  'case (its impedance the 100 nF\'s or lower at every frequency)' % n, ok,
               '%s %s' % ([x.part for x in vdd], [x.part for x in vdda]))
+    # the 3.3 V buck's output capacitance at 3.3 V, close to the device:
+    # TI asks at least 8 uF effective in compensation 1 (SLUSEC8C
+    # recommended conditions, table 8-1) and at most 200 uF (8.3.2).  The
+    # capacitance each part keeps at 3.3 V DC bias, read off Murata's
+    # curves (docs/STATUS.md D10)
+    at_bias = {'C4U7_X7R': 3.6e-6, 'C10U25_X7R': 8.4e-6}
+    outs = [x for x in fc if x.note.startswith('3.3V buck output')]
+    eff = sum(at_bias.get(x.part, 0) for x in outs)
+    check(S, '3.3 V buck output: %s, %.1f uF at 3.3 V (TPS628501 compensation 1: 8-200 uF effective)'
+          % (' + '.join(x.part for x in outs), eff * 1e6),
+          8e-6 <= eff <= 200e-6 and all(x.part in at_bias and set(x.pins.values()) == {'+3V3', 'GND'} for x in outs))
     figs_check(S, ['lmr_vref', 'lmr_en_rise', 'lmr_en_fall', 'lmr_ihs', 'lmr_vin', 'lmr_rt', 'tps_vfb', 'tps_vfb_acc', 'tps_iout', 'tps_ilim', 'blm03',
                    'tmp390_h20', 'drv_vm', 'drv_vi', 'drv_idvdd', 'drv_dvdd', 'drv_vih', 'drv_iih', 'drv_rpd', 'drv_vgsh',
                    'drv_vgsh6', 'drv_idrive', 'drv_vds_hiz', 'at32_vdd', 'at32_idd', 'at32_fta', 'at32_fta_max', 'ina186_iq', 'ina186_vs',
@@ -1975,6 +1999,28 @@ def check_board(board, name):
               not bad and not extra, ', '.join(bad + ['%s not fitted' % r for r in extra]) or '%d parts' % len(fitted))
     for f in ('-bom-jlcpcb.csv', '-cpl-jlcpcb.csv', '-bom-pcbway.csv', '-assembly.pdf', '-netlist.csv'):
         check(S, 'production/%s%s present' % (name, f), os.path.exists(os.path.join(prod, name + f)))
+    # the supply taps (a converter's feedback top): each joined to its
+    # net's output pour and to no load, so none of the rail's current runs
+    # through a sense line (rev 2.0's 5 V did: docs/STATUS.md D12)
+    if board == 'fc':
+        import fc_layout
+        pads_ = {(fp.GetReference(), p.GetNumber()): p for fp in b.GetFootprints() for p in fp.Pads()}
+        for (ref, num), w in sorted(fc_layout.taps(list(comps_.values())).items()):
+            pad = pads_[(ref, num)]
+            stub, others, poured = pcb.tap_stub(b, pad)
+            part = comps_[ref]
+            partner = lambda o: (len(list(o.GetParentFootprint().Pads())) == 2 and all(
+                q.GetNetname() in set(part.pins.values()) for q in o.GetParentFootprint().Pads()))
+            on_pour = {z.m_Uuid.AsString() for z in poured}
+            stray = [o for o in others if not ({z.m_Uuid.AsString() for z in pcb.pad_zones(b, o)} & on_pour
+                                               or partner(o))]
+            check(S, 'supply tap %s.%s (%s, %s): %.1f mm of copper to its net\'s pour, no other pad on it but '
+                     'its divider\'s; the rail\'s current never runs through it'
+                  % (ref, num, part.note, pad.GetNetname(), sum(t.GetLength() / 1e6 for t in stub
+                                                                if t.GetClass() != 'PCB_VIA')),
+                  len(poured) == 1 and not stray,
+                  'pours %d; pads off its pour: %s' % (len(poured), ', '.join(
+                      '%s.%s' % (o.GetParentFootprint().GetReference(), o.GetNumber()) for o in stray) or 'none'))
 
 
 # ------------------------------------------------------------------ solder pads, 3D models
@@ -2402,7 +2448,8 @@ def check_options():
                                            or 'none'))
             # each supply's source: the parts that make it, the last of them on the net
             sources = {'fc': {'VBAT': ['J_ESC'], 'GND': ['J_ESC'], '+5V': ['U_BUCK5', 'L_5V'],
-                              '+3V3': ['U_BUCK3', 'L_3V3'], '+3V3_GYRO': ['R21']},
+                              '+3V3': ['U_BUCK3', 'L_3V3'],
+                              '+3V3_GYRO': [c.ref for c in comps if c.note == 'gyro supply filter']},
                        'esc': dict({'VBAT': ['P_BAT+'], 'GND': ['P_BAT-'], 'DRV_EN': ['R5'], 'ESC_3V3': ['P_L3V']},
                                    **{'M%d_DVDD' % n: ['U_GD%d' % n] for n in (1, 2, 3, 4)},
                                    **{'M%d_3V3' % n: ['FB%d' % n] for n in (1, 2, 3, 4)})}[board]

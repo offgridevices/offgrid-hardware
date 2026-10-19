@@ -60,6 +60,9 @@ Board revision labels: both boards print **REV 2.0**.
 | OSD crystal: Hosonic E3SB27E00000DE (-20..70 °C) | **Abracon ABM8AIG-27.000MHZ-12-2Z-T3**, -40..+125 °C, AEC-Q200, same land | 70 °C was the board's lowest rating.  JLC stock 1: JLC global sourcing or PCBWay (DigiKey).  JLC-stocked alternative on the same land: SCTF SX3B27.000F1010G30 (105 °C) |
 | LEDs: Lite-On LTST-C191KRKT (85 °C) / LTST-C191TBKT (80 °C) | **Rohm SML-D15UWT86** red / **SMLD12BN1WT86** blue, -40..+100 °C | Rohm's 110 °C AEC-Q102 LEDs had no stock |
 | X5R capacitors (regulator inputs and outputs, MCU, OSD) | X7R everywhere (125 °C) | 85 °C dielectric on a hot board |
+| – | **3.3 V buck output: a 10 µF 0805** (Murata GRM21BZ71E106KE15L, already the buck's input capacitor) beside its two 4.7 µF 0603 | 15.6 µF effective at 3.3 V against TI's 8 µF minimum; the two 0603 alone had 7.2 µF (`STATUS.md`, D10) |
+| – | **5 V BEC enable on a divider** from its input, 100 kΩ / 24.9 kΩ as on the 9 V BEC | With EN on VIN, USB power alone could start it backwards into the battery line (`STATUS.md`, D11) |
+| 5 V and 9 V tracks 0.3 / 0.4 mm; the 5 V feedback line joined to the nearest load's pad | **0.5 mm**; each supply's feedback line joined straight to its output pour and kept out of the autorouter's reach | The first routing fed every 5 V load (2 A) through the 0.2 mm feedback line (`STATUS.md`, D12) |
 
 ## Both boards
 

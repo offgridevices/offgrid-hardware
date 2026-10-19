@@ -154,17 +154,22 @@ def fc_power():
     # over 3S-6S (0.12-0.3 A on 2S, under TI's rule of thumb of 10 % of the
     # 2 A rating below about 6.9 V: SNVSC40E 9.2.2.4).  Output: 2 x 22 uF X7R 1210, about 36 uF
     # at 5 V (table 9-1: 2 x 22 uF minimum).  Loaded to about 1 A: the
-    # 3.3 V buck, receiver, camera, LED strip.  EN is tied to VIN: on USB
-    # power the back-fed VBAT (about 4.1-4.6 V) can start it with its output
-    # above its input, and in forced PWM it then runs backwards (SNVSC40E
-    # 8.4.2, 9.3).  Open: docs/STATUS.md D11 (an EN divider like the 9 V
-    # BEC's).
-    add('U', 'LMR38020F', {'1': GND, '2': 'VBAT', '3': 'VBAT', '4': 'BUCK5_RT', '5': 'BUCK5_FB',
+    # 3.3 V buck, receiver, camera, LED strip.  EN on a divider from VIN,
+    # as the 9 V BEC's (100k / 24.9k: on above 5.5-7.0 V, off below
+    # 4.8-6.1 V, SNVSC40E equations 13 and 14): on USB power alone the USB
+    # diode feeds +5V and the buck's high-side body diode back-feeds VBAT at
+    # about 4.1-4.6 V, which with EN tied to VIN could start it with its
+    # output above its input, and in forced PWM it would then run backwards
+    # into VBAT (8.4.2, 9.3).  The divider keeps it off there
+    # (docs/STATUS.md D11).
+    add('U', 'LMR38020F', {'1': GND, '2': 'BUCK5_EN', '3': 'VBAT', '4': 'BUCK5_RT', '5': 'BUCK5_FB',
                            '6': None, '7': 'BUCK5_CB', '8': 'BUCK5_SW', '9': GND},
         B, '5V BEC', ref='U_BUCK5')
     cap('C10U50_1210', 'VBAT', GND, B, '5V BEC input')
     cap('C100N_100', 'VBAT', GND, B, '5V BEC input HF')
     res('R57K6', 'BUCK5_RT', GND, B, '5V BEC 455 kHz')
+    res('R100K', 'VBAT', 'BUCK5_EN', B, '5V BEC UVLO top')
+    res('R24K9', 'BUCK5_EN', GND, B, '5V BEC UVLO bottom')
     cap('C100N', 'BUCK5_CB', 'BUCK5_SW', B, '5V BEC bootstrap')
     add('L', 'L15U_SPM6530', {'1': 'BUCK5_SW', '2': '+5V'}, B, '5V BEC inductor', ref='L_5V')
     for _ in range(2):
@@ -188,7 +193,7 @@ def fc_power():
         # EN (1.1-1.4 V rising, 0.95-1.22 V falling, at most VIN + 0.3 V):
         #   * UVLO 100k / 24.9k: on above 5.5-7.0 V, so the rail stays off
         #     while USB back-feeds about 4-4.6 V to VBAT through the 5 V buck
-        #     (unless that buck runs backwards: docs/STATUS.md D11);
+        #     (whose own EN divider keeps it from running backwards);
         #   * an N-FET to ground, driven by PB5 (Betaflight PINIO1), turns
         #     the VTX off.  PB5 is pulled low at boot: the VTX is on unless
         #     the pilot switches it;
@@ -237,17 +242,20 @@ def fc_power():
     # (table 8-1: at least 8 uF out at 3.3 V); MODE high: forced PWM, a
     # steady frequency near the gyro.  Vout = 0.6 V x (1 + 100k / 22.1k) =
     # 3.31 V, 10 pF across the top resistor (table 7-1).  0.47 uH (TDK
-    # TFM252012ALMAR47MTAA, 150 C); out, 2 x 4.7 uF X7R 0603 at it: 3.6 uF
-    # each at 3.3 V on Murata's curve, 7.2 uF, UNDER the 8 uF effective
-    # minimum close to the device (recommended conditions, table 8-1); the
-    # plane's 4.7 + 1 + 0.5 uF at the MCU, 14 mm away, do not count.  Open:
-    # docs/STATUS.md D10.  It runs from USB too: VBUS feeds the 5 V rail.
+    # TFM252012ALMAR47MTAA, 150 C); out, at the inductor: 2 x 4.7 uF X7R
+    # 0603 (3.6 uF each at 3.3 V on Murata's curve) and 1 x 10 uF X7R 0805
+    # (8.4 uF), 15.6 uF in all against TI's 8 uF effective minimum close to
+    # the device (recommended conditions, table 8-1) and 200 uF maximum
+    # (8.3.2); the plane's 4.7 + 1 + 0.5 uF at the MCU, 14 mm away, do not
+    # count (docs/STATUS.md D10).  It runs from USB too: VBUS feeds the
+    # 5 V rail.
     add('U', 'TPS628501', {'1': '+5V', '2': '+5V', '3': '+5V', '4': GND, '5': 'BUCK3_FB',
                            '6': None, '7': 'BUCK3_SW', '8': GND}, B, '3.3V buck', ref='U_BUCK3')
     cap('C10U25_X7R', '+5V', GND, B, '3.3V buck input')
     add('L', 'L470N_TFM', {'1': 'BUCK3_SW', '2': '+3V3'}, B, '3.3V buck inductor', ref='L_3V3')
     for _ in range(2):
         cap('C4U7_X7R', '+3V3', GND, B, '3.3V buck output')
+    cap('C10U25_X7R', '+3V3', GND, B, '3.3V buck output bulk')
     res('R100K', '+3V3', 'BUCK3_FB', B, '3.3V buck feedback top')
     cap('C10P', '+3V3', 'BUCK3_FB', B, '3.3V buck feed-forward')
     res('R22K1', 'BUCK3_FB', GND, B, '3.3V buck feedback bottom')

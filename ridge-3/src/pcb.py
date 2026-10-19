@@ -100,6 +100,75 @@ def add_net(b, name):
         b.Add(n)
     return n
 
+def _in_zone(z, item, pts, reach=0):
+    """One of pts lies in z's fill, or within reach (nm) of it, on a copper
+    layer item is on."""
+    return z.IsFilled() and any(z.IsOnLayer(l) and item.IsOnLayer(l) and
+                                any(z.GetFilledPolysList(l).Collide(pcbnew.VECTOR2I(e), int(reach)) for e in pts)
+                                for l in pcbnew.LSET.AllCuMask().Seq())
+
+
+def tap_stub(b, pad, tol=0.001):
+    """The copper that joins a tap's pad (a feedback divider's top) to the
+    rest of its net: every track and via of the net reached from the pad
+    without passing through a pour or another pad.  Returns (those tracks
+    and vias, the other pads of the net they reach, the pours of the net
+    they or the pad touch)."""
+    net = pad.GetNetCode()
+    tracks = [t for t in b.GetTracks() if t.GetNetCode() == net]
+    pads = [p for fp in b.GetFootprints() for p in fp.Pads()
+            if p.GetNetCode() == net and p.m_Uuid.AsString() != pad.m_Uuid.AsString()]
+    zones = [z for z in b.Zones() if not z.GetIsRuleArea() and z.GetNetCode() == net]
+    acc = int(tol * 1e6)
+
+    def ends(t):
+        return [t.GetStart(), t.GetEnd()] if t.GetClass() != 'PCB_VIA' else [t.GetPosition()]
+
+    def half(t):
+        """How far t's copper reaches past its ends: a track's round cap."""
+        return t.GetWidth() // 2 if t.GetClass() == 'PCB_TRACK' else 0
+
+    def shared(a, t):
+        return any(a.IsOnLayer(l) and t.IsOnLayer(l) for l in cu_layers(b))
+
+    def in_pour(e, item):
+        return any(_in_zone(z, item, [e]) for z in zones)
+
+    def touches(a, t):
+        """a (a pad, track or via) and the track or via t share copper: an
+        end of one, with its round cap, on the other's copper.  Copper the
+        tap reaches is part of it, but the way on from a point of a that
+        lies in a pour (a track's end in it, a via through a plane) is the
+        pour's, not the tap's."""
+        if not shared(a, t):
+            return False
+        if a.GetClass() == 'PAD':
+            return any(a.HitTest(e, acc + half(t)) for e in ends(t)) or \
+                (t.GetClass() == 'PCB_VIA' and t.HitTest(a.GetPosition(), acc))
+        pts = [e for e in ends(t) if a.HitTest(e, acc + half(t))] + \
+              [e for e in ends(a) if t.HitTest(e, acc + half(a))]
+        return any(not in_pour(e, a) for e in pts)
+
+    seen, todo = [], [pad]
+    while todo:
+        a = todo.pop()
+        for t in tracks:
+            if t not in seen and touches(a, t):
+                seen.append(t)
+                todo.append(t)
+    others = [p for p in pads if any(shared(p, t) and any(p.HitTest(e, acc + half(t)) and not in_pour(e, t)
+                                                         for e in ends(t)) for t in seen)]
+    poured = [z for z in zones if _in_zone(z, pad, [pad.GetPosition()])
+              or any(_in_zone(z, t, ends(t), acc + half(t)) for t in seen)]
+    return seen, others, poured
+
+
+def pad_zones(b, pad):
+    """The pours of pad's net that pad sits in."""
+    return [z for z in b.Zones() if not z.GetIsRuleArea() and z.GetNetCode() == pad.GetNetCode()
+            and _in_zone(z, pad, [pad.GetPosition()])]
+
+
 # Every point of the outline where the slot meets the board's edge or the
 # hole is rounded off with arcs tangent to both sides, so the outline is
 # one smooth curve with no sharp point anywhere.  Where the slot opens

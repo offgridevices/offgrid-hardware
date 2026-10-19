@@ -26,10 +26,11 @@ simulations, including what rev 2 still does not pass.
 errors, zero warnings and zero unconnected items against JLCPCB's rules.
 The copper matches `src/circuit.py` pad for pad, and
 [`VERIFICATION.md`](VERIFICATION.md) checks the design against sources other
-than itself. No board has been made or measured.  Two changes to the FC
-are open and must be made before anything is ordered: its 3.3 V buck's
-output capacitance and its 5 V buck's enable on USB power
-([`docs/STATUS.md`](docs/STATUS.md), D10 and D11).  Then order the prototypes
+than itself. No board has been made or measured.  The FC's last three
+fixes before ordering are in: its 3.3 V buck's output capacitance, its 5 V
+buck's enable on USB power, and its 5 V rail's copper, which the first
+routing had run through a feedback line ([`docs/STATUS.md`](docs/STATUS.md),
+D10-D12).  Order the prototypes
 that [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md#what-to-order-for-testing)
 lists, build one stack, and go through the [bring-up](#bring-up) steps
 before building more.  Every test and simulation, with why it exists, how
@@ -225,14 +226,17 @@ before assembly fees and bare boards:
 
 | | 1 set | 100 sets | 1,000 sets |
 |---|---|---|---|
-| FC (HD build) | $37.91 | $29.53 | $28.34 |
+| FC (HD build) | $38.23 | $29.73 | $28.54 |
 | ESC | $63.13 | $54.48 | $52.56 |
-| **Stack** | **$101.04** | **$84.01** | **$80.90** |
+| **Stack** | **$101.36** | **$84.21** | **$81.10** |
 
 The analog build adds $5.33 / $3.63 / $3.46 to the FC (the AT7456E OSD,
 its 27 MHz crystal and their parts).  The ESC's row is its BOM before
 2 October's changes (four ferrite beads and eight 1 µF capacitors in, eight
-other capacitors out), which move it by a few cents.
+other capacitors out), which move it by a few cents.  The FC's row includes
+the three parts D10 and D11 added on 19 October (a 10 µF 0805 and two 0402
+resistors, $0.32 / $0.20 / $0.20), priced from the same listing; all three
+were already on the board, so the extended-part count below is unchanged.
 
 Revision 1 was $84.48 / $57.12 / $53.60.  Revision 2 spends the difference
 on surviving a hot day:
@@ -941,7 +945,8 @@ maps, SPICE runs) stay in `sim/out/`, which git ignores.
 | File | What it does |
 |---|---|
 | `copper.py` | Each board's copper as a 0.05 mm grid per layer: which net owns each cell, every via and plated hole, the pads of each part. |
-| `dcflow.py` | DC current flow in one net's copper: voltage, current density, loss, current in each via barrel. Checked against a strip and a ring. |
+| `dcflow.py` | DC current flow in one net's copper: voltage, current density, loss, current in each via barrel. |
+| `selfcheck.py` | `dcflow.py` against a strip and a ring, whose resistance has a closed form, and how much wider `copper.py`'s grid draws a thin track; `stress.py` runs it and quotes it. |
 | `copperloss.py` | Where the motor current heats the ESC's copper, per amp squared, over AM32's six commutation steps. |
 | `spice.py` | ngspice: one half-bridge switching (the makers' FET models; each design's gate driver as its datasheet drive), the battery line, and the FET models' checks against their datasheets. |
 | `thermal.py`, `stack.py` | Both boards as thermal grids, stacked with the air gap between them, and the ESC's heatsink under it (its plate on the ESC's grid, from `src/heatsink.py`'s geometry: pockets, contact, the gap pad's charted impedance, the fins); each part that heats or has a temperature limit gets a node. |

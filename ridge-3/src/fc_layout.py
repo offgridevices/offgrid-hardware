@@ -147,6 +147,10 @@ PLACE_BY_NOTE = {
     '5V BEC output':        [(8.1, 10.3, 90, Bo), (8.1, 15.05, 90, Bo)],
     '5V BEC feedback top':  at(A5, -2.4, -4.5, 0),
     '5V BEC feedback bottom': at(A5, -2.4, -5.5, 0),
+    # its UVLO divider on the top, right of the stack lead's corridor
+    # (KEEP_FREE); EN leaves its pin by a via in the pad (vias())
+    '5V BEC UVLO top':      (3.9, 9.0, 90, T),
+    '5V BEC UVLO bottom':   (5.0, 9.0, 90, T),
     # 9 V BEC, as the 5 V one (relative to A9, IC turned 180: rear row x
     # +1.9 GND, +0.63 EN, -0.63 VIN, -1.9 RT at +2.68; front row +1.9 SW,
     # +0.63 CB, -0.63 PG, -1.9 FB at -2.68): input HF capacitor behind
@@ -189,6 +193,9 @@ PLACE_BY_NOTE = {
     # of the inductor's courtyard.
     '3.3V buck input':      at(A3, 0.55, 2.25, 0),
     '3.3V buck output':     [at(A3, 3.9, -2.8, 90), at(A3, 5.45, -2.8, 90)],
+    # the third, 10 uF 0805, beside them under the inductor's switch end
+    # (docs/STATUS.md D10)
+    '3.3V buck output bulk': at(A3, 1.825, -3.01, 90),
     '3.3V buck feedback top': at(A3, -1.9, -1.6, 90),
     '3.3V buck feed-forward': at(A3, -2.9, -1.6, 90),
     '3.3V buck feedback bottom': at(A3, -1.3, -3.4, 0),
@@ -241,7 +248,8 @@ FIXED_REFS = {'U_FC', 'U_IMU', 'U_OSD', 'U_FLASH', 'J_USB', 'J_ESC', 'SW_BOOT', 
 FIXED_NOTES = {'5V BEC input HF', '5V BEC bootstrap', '5V BEC input', '5V BEC 455 kHz', '5V BEC output',
                '9V BEC input HF', '9V BEC input', '9V BEC bootstrap', '9V BEC output', '9V BEC 455 kHz',
                '9V BEC UVLO top',
-               'VBAT TVS', 'VBAT_VTX TVS', 'CC1 Rd', 'CC2 Rd', '3.3V buck input', '3.3V buck output'}
+               'VBAT TVS', 'VBAT_VTX TVS', 'CC1 Rd', 'CC2 Rd', '3.3V buck input', '3.3V buck output',
+               '3.3V buck output bulk'}
 
 
 def placement(comps):
@@ -400,11 +408,11 @@ def pours():
         ('VBAT_VTX', T, [(7.8, 17.4), (9.6, 17.4), (9.6, 9.75), (12.5, 9.75), (12.5, 8.3), (7.8, 8.3),
                          (7.8, 10.0), (6.2, 10.0), (6.2, 11.8), (7.8, 11.8)]),
         # 5 V BEC (bottom, relative to its IC): input round the back of
-        # its VIN/EN pins, the HF capacitor, the clamp and the input
-        # capacitor; switch node to the inductor; ground at the IC's GND
-        # pin and the HF capacitor
+        # its VIN pin, the HF capacitor, the clamp and the input capacitor,
+        # clear of EN beside VIN (as the 9 V BEC's); switch node to the
+        # inductor; ground at the IC's GND pin and the HF capacitor
         ('VBAT', Bo, _rel(A5, [(-4.95, -0.15), (-4.25, -0.15), (-4.25, 3.85), (-0.95, 3.85), (-0.95, 3.2),
-                               (0.95, 3.2), (0.95, 3.85), (0.7, 3.85), (0.7, 5.45), (-4.95, 5.45)])),
+                               (0.0, 3.2), (0.0, 3.9), (0.55, 3.9), (0.55, 5.45), (-4.95, 5.45)])),
         ('BUCK5_SW', Bo, _rel(A5, [(1.3, -4.9), (2.3, -4.9), (2.3, -4.15), (7.9, -4.15), (7.9, -1.9),
                                    (1.3, -1.9)])),
         ('GND', Bo, _rel(A5, [(1.2, 1.6), (3.4, 1.6), (3.4, 5.45), (1.2, 5.45)])),
@@ -437,13 +445,14 @@ def pours():
         # its other end to the GND pin (widening behind the switch node to
         # take the whole of the capacitor's pad), the switch node from the
         # SW pin (between PG and GND) to the inductor, 3.3 V from the
-        # inductor's far end to both output capacitors
+        # inductor's far end to the output capacitors (to the 0805 in a
+        # strip below the switch node's pour)
         ('+5V', Bo, _rel(A3, [(-1.55, -0.35), (-0.35, -0.35), (-0.35, 3.05), (-1.55, 3.05)])),
         ('GND', Bo, _rel(A3, [(0.4, 0.65), (1.3, 0.65), (1.3, 1.5), (2.05, 1.5), (2.05, 3.05), (0.4, 3.05)])),
         ('BUCK3_SW', Bo, _rel(A3, [(0.7, 0.1), (1.5, 0.1), (1.5, -1.2), (2.65, -1.2), (2.65, 1.2), (1.5, 1.2),
                                    (1.5, 0.4), (0.7, 0.4)])),
-        ('+3V3', Bo, _rel(A3, [(3.3, -2.4), (6.0, -2.4), (6.0, -1.2), (4.7, -1.2), (4.7, 1.2), (3.4, 1.2),
-                               (3.4, -1.2), (3.3, -1.2)])),
+        ('+3V3', Bo, _rel(A3, [(1.1, -2.6), (6.0, -2.6), (6.0, -1.2), (4.7, -1.2), (4.7, 1.2), (3.4, 1.2),
+                               (3.4, -1.45), (1.1, -1.45)])),
     ]
 
 
@@ -461,6 +470,9 @@ def vias():
         # and capped), at the pad's inner end, clear of the bulk
         # capacitor's ground pad on the top
         ('BUCK9_EN', [_rel(A9, [(0.63, 1.98)])[0]], VIA_SIG),
+        # the 5 V BEC's EN, boxed in the same way: its via in the pad's
+        # outer half, past the ESC lead connector's pads on the top
+        ('BUCK5_EN', [_rel(A5, [(0.63, 2.7)])[0]], VIA_SIG),
     ]
 
 
@@ -528,29 +540,35 @@ else:
     ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.B_Cu]
     PLANES = [('GND', pcbnew.In1_Cu), ('+3V3', pcbnew.In4_Cu)]
 # Router rules per supply net (netclasses): (width, clearance) in mm.
-# 9 V and the 5 V / 9 V switch nodes 0.4 mm; the 3.3 V buck's switch node
-# 0.3 mm (its ~0.5 A).  The lead's battery current runs in its pours; its
-# tracks feed the dividers and the clamp: 0.3 mm, as USB's 0.5 A.  The
-# video battery's (up to 2 A, at 9 V 18 W from an empty 3S) runs in its
-# pours too; anything the router adds is 0.5 mm.  5 V 0.3 mm: its heavy
-# current stays in the BEC's pour, and no branch carries more than the
-# camera's, the 3.3 V buck's or the LED strip's ~0.7 A (0.3 mm outer
-# copper: 1 A at a 10 C rise).  The bootstrap nodes swing with the switch
-# nodes, 0.25 mm.  The filtered 3.3 V feeds (OSD ~0.1 A, gyro ~1 mA) reach
+# The 5 V / 9 V switch nodes 0.4 mm; the 3.3 V buck's switch node 0.3 mm
+# (its ~0.5 A).  The lead's battery current runs in its pours; its tracks
+# feed the dividers and the clamp: 0.3 mm, as USB's 0.5 A.  The video
+# battery's (up to 2 A, at 9 V 18 W from an empty 3S) runs in its pours
+# too; anything the router adds is 0.5 mm.  5 V and 9 V 0.5 mm: the
+# router joins each rail's loads in a tree, so one track can carry the
+# BEC's whole 2 A (rev 2.0's 0.3 mm 5 V did, docs/STATUS.md D12).  2 A in
+# 0.5 mm of 1 oz outer copper is a 21 C rise on the IPC-2221 curve (the
+# fit I = 0.048 dT^0.44 A^0.725, A in mil2, on which 0.3 mm is 1 A at
+# 10 C); that curve is for a lone trace in still air, and every routing
+# layer here sits 0.1-0.4 mm from a plane, which IPC-2152 counts as the
+# largest reduction.  The bootstrap nodes swing with the switch nodes,
+# 0.25 mm.  The filtered 3.3 V feeds (OSD ~0.1 A, gyro ~1 mA) reach
 # 0.5 mm pitch pins: 0.2 and 0.15 mm, and 3.3-5 V needs only the 0.1 mm
 # clearance.
 NET_RULES = {
-    'VBAT': (0.3, 0.15), '+9V': (0.4, 0.15), 'USB_VBUS': (0.3, 0.15),
+    'VBAT': (0.3, 0.15), '+9V': (0.5, 0.15), 'USB_VBUS': (0.3, 0.15),
     'BUCK5_SW': (0.4, 0.15), 'BUCK9_SW': (0.4, 0.15), 'BUCK3_SW': (0.3, 0.15),
     'VBAT_VTX': (0.5, 0.15),
-    '+5V': (0.3, 0.15),
+    '+5V': (0.5, 0.15),
     'BUCK5_CB': (0.25, 0.15), 'BUCK9_CB': (0.25, 0.15),
     '+3V3_OSD': (0.2, 0.1), '+3V3_GYRO': (0.15, 0.1),
 }
 # Low-current pins on the supply nets, by part note and net: joined to
-# their net at this width before the autorouter runs (finish.route_taps).
-# The bucks' feedback tops are sense lines (TI: thin, from the output
-# capacitors).
+# their net at this width before the autorouter runs (finish.route_taps),
+# straight to the converter's output pour, and hidden from every router
+# until the routing is done (finish.hide_taps, pipeline.py), so no load is
+# fed through one.  The bucks' feedback tops are sense lines (TI: thin,
+# from the output capacitors).
 TAPS = {
     ('5V BEC feedback top', '+5V'): 0.2, ('9V BEC feedback top', '+9V'): 0.2,
     ('3.3V buck feedback top', '+3V3'): 0.2,

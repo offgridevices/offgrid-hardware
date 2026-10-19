@@ -552,9 +552,14 @@ def route_taps(board, taps, clmap=None, layers=None, via=None, log=print):
     feedback divider's top, a converter's bias pin and its capacitor, a
     small regulator's input.  The net's full width is for the paths that
     carry its current; these pins cannot carry it, and a feedback line
-    should be thin anyway.  taps: {(ref, pad number): width}.  A tap's
-    island is joined to its nearest neighbour until it holds a pour of the
-    net or a pad that is not a tap.  Returns the taps left unjoined."""
+    should be thin anyway.  taps: {(ref, pad number): width}.  Where the
+    net has pours on the routing layers (a converter's output, at its
+    capacitors), a tap is joined straight to the nearest of them and to
+    nothing else, so it stays a branch of its own, carrying none of the
+    net's current: joined to a load's pad instead, the autorouter can feed
+    that load through it (hide_taps keeps it from doing so later).  A net
+    without pours has its tap joined to its nearest island until that holds
+    a pad that is not a tap.  Returns the taps left unjoined."""
     global ROUTE_LAYERS, VIA_D, VIA_DRILL
     saved = ROUTE_LAYERS, VIA_D, VIA_DRILL
     if layers:
@@ -567,7 +572,7 @@ def route_taps(board, taps, clmap=None, layers=None, via=None, log=print):
         for key, w in sorted(taps.items()):
             pad = pads[key]
             net = pad.GetNetname()
-            trunk = [_geom_of(p) for k, p in pads.items() if p.GetNetname() == net and k not in taps]
+            trunk = []
             for z in board.Zones():
                 if not z.GetIsRuleArea() and z.GetNetname() == net and z.IsFilled():
                     for l in ROUTE_LAYERS:
@@ -578,18 +583,39 @@ def route_taps(board, taps, clmap=None, layers=None, via=None, log=print):
                                 pts = [(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())]
                                 if len(pts) >= 3:
                                     trunk.append({l: [Polygon(pts).buffer(0)]})
+            poured = bool(trunk)
+            if not poured:
+                trunk = [_geom_of(p) for k, p in pads.items() if p.GetNetname() == net and k not in taps]
             for _ in range(8):
                 comps = _net_components(board, net)
                 mine = [c for c in comps if _touch(c, _geom_of(pad))]
                 if not mine or any(_touch(mine[0], t) for t in trunk):
                     break
                 others = [c for c in comps if c is not mine[0]]
+                if poured:
+                    others = [c for c in others if any(_touch(c, t) for t in trunk)]
                 if not others:
+                    left.append(key)
                     break
                 before = set(t.m_Uuid.AsString() for t in board.GetTracks())
-                # the nearest island first; if it is walled in, the next ones
-                for near in sorted(others, key=lambda c: _dist(mine[0], c))[:4]:
-                    res = route_connection(board, net, mine[0], near, track_w=w, clmap=clmap)
+                # the nearest island first; if it is walled in, the next ones.
+                # To a pour, on the pad's own layer first: a via would join
+                # the net's plane too, a second path in parallel with the
+                # net's own
+                tries = [list(ROUTE_LAYERS)]
+                if poured:
+                    own = [l for l in ROUTE_LAYERS if pad.IsOnLayer(l)]
+                    if own and own != tries[0]:
+                        tries.insert(0, own)
+                every = ROUTE_LAYERS
+                res = None
+                for ls in tries:
+                    ROUTE_LAYERS = ls
+                    for near in sorted(others, key=lambda c: _dist(mine[0], c))[:4]:
+                        res = route_connection(board, net, mine[0], near, track_w=w, clmap=clmap)
+                        if res:
+                            break
+                    ROUTE_LAYERS = every
                     if res:
                         break
                 if not res:
@@ -598,10 +624,62 @@ def route_taps(board, taps, clmap=None, layers=None, via=None, log=print):
                 for t in board.GetTracks():
                     if t.m_Uuid.AsString() not in before:
                         t.SetLocked(True)
+            else:
+                left.append(key)
             log('   tap %-10s %s.%s at %.2f mm%s' % (net, key[0], key[1], w, ' NOT JOINED' if key in left else ''))
     finally:
         ROUTE_LAYERS, VIA_D, VIA_DRILL = saved
     return left
+
+
+TAP = '~tap'
+
+
+def hide_taps(board, taps):
+    """While the routers work (pipeline.py): each tap's pad and the copper
+    route_taps joined it with go to a net of their own (the net's name with
+    '~tap', in the net's class), so every router sees them as another net's
+    copper.  None can then take a load's current through a feedback line or
+    end a track on one.  show_taps puts them back.  Returns how many taps
+    were hidden."""
+    import pcb
+    pads = {(fp.GetReference(), p.GetNumber()): p for fp in board.GetFootprints() for p in fp.Pads()}
+    ns = board.GetDesignSettings().m_NetSettings
+    k = 0
+    for key in sorted(taps):
+        pad = pads[key]
+        stub, others, poured = pcb.tap_stub(board, pad)
+        # its own net, in its net's class: the autorouter keeps the
+        # clearance the real net needs from it
+        cls = pad.GetNetClassName()
+        net = pcb.add_net(board, pad.GetNetname() + TAP)
+        ns.SetNetclassPatternAssignment(net.GetNetname(), cls)
+        net.SetNetClass(ns.GetNetClassByName(cls))
+        if hasattr(ns, 'RecomputeEffectiveNetclasses'):
+            ns.RecomputeEffectiveNetclasses()
+        for item in [pad] + stub:
+            item.SetNet(net)
+        k += 1
+    return k
+
+
+def show_taps(board):
+    """hide_taps undone: every item on a '~tap' net back on its own net, and
+    the '~tap' nets removed.  Returns how many nets it put back."""
+    hidden = [n for n in board.GetNetsByName().keys() if str(n).endswith(TAP)]
+    for name in hidden:
+        name = str(name)
+        net, real = board.FindNet(name), board.FindNet(name[:-len(TAP)])
+        for item in [p for fp in board.GetFootprints() for p in fp.Pads()] + list(board.GetTracks()):
+            if item.GetNetCode() == net.GetNetCode():
+                item.SetNet(real)
+        board.Remove(net)
+    return len(hidden)
+
+
+def hidden_taps(board):
+    """The '~tap' nets hide_taps made: routers must leave them alone."""
+    return [str(n) for n in board.GetNetsByName().keys() if str(n).endswith(TAP)]
 
 
 def _touch(a, b):

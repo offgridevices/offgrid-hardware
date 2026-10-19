@@ -191,10 +191,10 @@ Open until T5, T6 and T7 are done.  Candidates, from
   files come from (`CHANGING.md`, step 6).  Either option keeps that tag.
 - **Decided:** _not yet_
 
-### D10. The FC's 3.3 V buck output capacitance (fix before ordering)
+### D10. The FC's 3.3 V buck output capacitance (fixed)
 
-- **Found** in the pre-merge review (2026-10-14), not yet fixed: the
-  TPS628501's output has 2 × Murata GRM188Z71A475KE15D (4.7 µF 10 V X7R
+- **Found** in the pre-merge review (2026-10-14): the
+  TPS628501's output had 2 × Murata GRM188Z71A475KE15D (4.7 µF 10 V X7R
   0603, `C4U7_X7R`, `'3.3V buck output'`).  On Murata's DC-bias curve each
   is 3.6 µF at 3.3 V, 7.2 µF together.  TI (SLUSEC8C, recommended
   operating conditions and table 8-1 for COMP/FSET to ground) asks at least
@@ -218,12 +218,18 @@ Open until T5, T6 and T7 are done.  Candidates, from
 - **Recommendation:** the 0805 part, already qualified on this board, before
   the prototypes are ordered; then T10 checks the 3.3 V rail's ripple and a
   load step.
-- **Decided:** _not yet_
+- **Decided:** 2026-10-19, by the owner: fix it before ordering.  Done as a
+  variant of the first option: there was room for one 0805 beside the two
+  0603, not for two 0805 in their place without moving the OSD's parts, so
+  one GRM21BZ71E106KE15L (`'3.3V buck output bulk'`, under the inductor's
+  switch end) was added and the two 0603 stay: 3.6 + 3.6 + 8.4 = 15.6 µF
+  at 3.3 V, against TI's 8 µF minimum and 200 µF maximum.  `verify.py`
+  checks the sum.  T10 still checks the rail's ripple and a load step.
 
-### D11. The FC's 5 V buck on USB power (fix before ordering)
+### D11. The FC's 5 V buck on USB power (fixed)
 
-- **Found** in the pre-merge review (2026-10-14), not yet fixed: the 5 V
-  buck (`U_BUCK5`, LMR38020F, forced PWM) has EN tied to VIN.  On USB alone
+- **Found** in the pre-merge review (2026-10-14): the 5 V
+  buck (`U_BUCK5`, LMR38020F, forced PWM) had EN tied to VIN.  On USB alone
   the USB diode feeds +5V, the buck's output, and the buck's high-side body
   diode back-feeds VBAT at about 4.1-4.6 V: at or above the part's 4.2 V
   maximum start-up threshold (SNVSC40E 7.5).  The buck can then start with
@@ -245,13 +251,44 @@ Open until T5, T6 and T7 are done.  Candidates, from
     over the back-feed at 5.5 V of VBUS on a hot board.
 - **Recommendation:** 100 kΩ / 24.9 kΩ, in the same FC change as D10.  T10
   then checks the board on USB alone.
-- **Decided:** _not yet_
+- **Decided:** 2026-10-19, by the owner: the recommendation.  EN leaves its
+  pin by a via in the pad, as the 9 V BEC's does, to the divider on the top
+  beside the stack lead's corridor.  `verify.py` checks that EN's lowest
+  falling threshold (0.95 V) through the divider, 4.77 V, is above the
+  4.6 V back-feed.  T10 checks the board on USB alone.
+
+### D12. The FC's 5 V rail through its feedback line (fixed)
+
+- **Found** on 2026-10-17 while answering a question about trace corners
+  and current: on the routed FC, all 2 A of the 5 V rail at full load ran
+  through the 0.2 mm, 7.6 mm track that joins the 5 V BEC's feedback
+  resistor to the rail, and through 12 mm of 0.3 mm track, 8 mm of it on an
+  inner layer.  The router that joins the feedback resistor first
+  (`finish.route_taps`) had joined it to the nearest pad that was not
+  another feedback line, the USB diode's, on the loads' side; the
+  autorouter then fed the loads through it.  The design note behind the
+  0.3 mm rule had assumed no 5 V branch carries more than about 0.7 A.  The
+  simulation had shown 332 A/mm² there, with no verdict.
+- **Fixed** 2026-10-19 (the owner asked for it with D10 and D11):
+  - each supply's feedback line is joined straight to its converter's
+    output pour and to nothing else, and is hidden from every router until
+    the routing is done (`finish.route_taps`, `finish.hide_taps`,
+    `src/pipeline.py`), so no load can be fed through it;
+  - the 5 V and 9 V tracks are 0.5 mm instead of 0.3 and 0.4 mm: the
+    router joins each rail's loads in a tree, so one track can carry the
+    BEC's whole 2 A (21 °C rise on the IPC-2221 external curve, which
+    overstates it for a short track over a plane; `src/fc_layout.py`);
+  - `verify.py` checks every feedback line: it reaches one pour and no pad
+    but its divider's.
+- **Result:** TODO_SIM
+- **Settled by:** T10 (a thermal camera on the 5 V copper at 2 A).
 
 ## Before ordering prototypes
 
-- [ ] Fix D10 (the FC's 3.3 V buck output capacitance) and D11 (the 5 V
-      buck's enable on USB power): one change to the FC, placed and routed
-      again (`CHANGING.md`).
+- [x] Fix D10 (the FC's 3.3 V buck output capacitance), D11 (the 5 V
+      buck's enable on USB power) and D12 (the 5 V rail through its
+      feedback line): one change to the FC, placed and routed again
+      (2026-10-19).
 
 - [ ] Recheck stock and lead time of every part, dated, in a file in this
       folder (`sourcing-YYYY-MM-DD.md`).  Single-source parts to watch:
@@ -283,7 +320,7 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
 | T7 | Locked rotor (destructive) | **D3**, D6 | [ ] |
 | T8 | Heat on a hot day | the thermal model, the 50 °C rating | [ ] |
 | T9 | On the ground with video | the video thermostat | [ ] |
-| T10 | Supplies | the FC's rails, D10, D11 | [ ] |
+| T10 | Supplies | the FC's rails, D10, D11, D12 | [ ] |
 | T11 | Battery transients | the voltage ratings | [ ] |
 | T12 | LiHV | the LiHV rating | [ ] |
 | T13 | Flight | everything together | [ ] |

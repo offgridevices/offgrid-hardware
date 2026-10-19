@@ -41,7 +41,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RIDGE = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(RIDGE, 'src'))
-import copper, dcflow, copperloss, thermal, spice, losses, data, stack, design
+import copper, dcflow, copperloss, thermal, spice, losses, data, stack, design, selfcheck
 
 HOT = 50.0             # the design's hot day: 50 C air around the quad (owner's requirement)
 AIRS = (25.0, HOT, 60.0)
@@ -186,12 +186,20 @@ def copper_section(esc_ops):
     P = u['paths']
     say('## 2. The ESC\'s copper under motor current')
     say()
+    chk = selfcheck.run(c.res)
     say('Every copper cell of the ESC (%.2f mm grid, all %s layers, zones, '
         'tracks, pads and via barrels as KiCad fills them) solved for DC current '
         'flow, one net at a time, with the FETs, shunts and battery pads putting '
-        'current in and taking it out where their pads are.  The solver was '
-        'checked against a copper strip and a ring, whose resistance has a '
-        'closed form: both agree to within the grid\'s staircase edges.' % (c.res, count(len(c.layers))))
+        'current in and taking it out where their pads are.  The solver against '
+        'a copper strip and a ring, whose resistance has a closed form '
+        '(`sim/selfcheck.py`, run with this report): %+.2f %% and %+.2f %%.  '
+        'The grid takes in the cells a copper edge runs along, so it draws a '
+        'track up to one cell wider than it is (%s): in a thin track the '
+        'resistance and the current density read low by that much; the pours, '
+        'millimetres wide, barely change.' % (
+            c.res, count(len(c.layers)), chk['strip'], chk['ring'],
+            ', '.join('%.1f mm as %s mm' % (w, '%.2f' % lo if abs(hi - lo) < 1e-9 else '%.2f-%.2f' % (lo, hi))
+                      for w, (lo, hi) in chk['drawn'].items())))
     say()
     rows = []
     rho100 = 1 + dcflow.ALPHA * 80
@@ -699,7 +707,12 @@ def lead_section(i_motor=20.0):
                      '%.2f W' % s.loss, '%.0f A/mm2 (%s, %.3f mm copper)' % (jl[lj], cf.layers[lj], cf.t[lj]),
                      '%.2f A' % bc])
     say('The FC\'s own supply copper at its full load (copper at 100 C).  The '
-        'FC\'s inner layers are %.1f oz (%.4f mm):' % (cf.t[1] / 0.035, cf.t[1]))
+        'FC\'s inner layers are %.1f oz (%.4f mm).  The densest point is the '
+        'grid\'s highest cell: where it falls on a sharp inside corner (a '
+        'pour\'s corner, a track leaving a pour, a jog) the density there has '
+        'no finite peak, and the figure rises about a quarter each time the '
+        'grid is halved; the copper around it, the drop, the loss and the '
+        'current in each via do not move:' % (cf.t[1] / 0.035, cf.t[1]))
     say()
     table(['Net', 'Where the current goes in and out', 'Largest drop', 'Loss', 'Densest point', 'Most in one via'], rows)
     return dict(i_loop=i_loop, v_gnd=v_gnd)
@@ -1579,6 +1592,18 @@ def limits_section():
         'AC effects in the copper: the switching-frequency part of the battery '
         'current is solved as DC (it has no skin effect at the 24-48 kHz of '
         'AM32\'s PWM in 35 um copper, but it may take a slightly different path).',
+        'The shape of each corner of a track: a sharp inside corner crowds the '
+        'current into a point the grid cannot resolve (section 5), and a '
+        'rounded or mitred one would spread it, but at DC the corner shape moves '
+        'a track\'s resistance by under half a milliohm; its width and length '
+        'set its drop and heat.',
+        'Signal integrity: reflections, crosstalk and impedance.  The fastest '
+        'edges on the boards (the FC processor\'s SPI and LED pins at very high '
+        'speed, about 1.7 ns into 10 pF, STM32G473 datasheet table 56) run on '
+        'traces a few centimetres long at most on a 36 mm board, short against '
+        'the 40 mm or so at which a line of that edge starts to ring, and a '
+        'corner\'s extra capacitance (under 0.01 pF) matters only at tens of '
+        'gigahertz.  USB is full speed, 12 Mbit/s.',
         'EMI, ESD and radio interference; vibration; solder-joint fatigue from '
         'the heat cycles; the long-term effect of running parts near their '
         'limits.',

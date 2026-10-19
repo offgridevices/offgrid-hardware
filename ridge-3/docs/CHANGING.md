@@ -61,9 +61,11 @@ simulations](../README.md#stress-simulations) for `sim/`, and
    numbers moved, the rows of [`../TESTS.md`](../TESTS.md) whose runs were
    repeated (result and date), and in `STATUS.md` the decision, its date
    and a log line.
-6. **Revision:** a change to the copper is a new revision: `REVISION` in
-   `src/fc_layout.py` or `src/esc_layout.py` (printed on the board), and a
-   new change list.  Before an order is placed, tag the commit its files
+6. **Revision:** a change to the copper of a revision that has been
+   ordered is a new revision: `REVISION` in `src/fc_layout.py` or
+   `src/esc_layout.py` (printed on the board), and a new change list.
+   Before a revision's first order its changes join its own change list
+   (D10-D12 went into revision 2.0's).  Before an order is placed, tag the commit its files
    come from (`git tag ridge-3-rev2.0 <commit>` and push the tag) and
    record the tag in `STATUS.md`'s log.  A later copper change bumps
    `REVISION` and starts a new change list; the ordered files stay at their
