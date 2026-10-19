@@ -39,7 +39,8 @@ PA_LEVELS = [
 
 def default_cfg():
     return dict(
-        cell=dict(ocv=3.7, rint=0.15, reverse=False, plug_t=None, present=True),
+        temp=25.0,                      # ambient = component temperature (powerlib.set_temp)
+        cell=dict(ocv=3.7, rint=0.15, reverse=False, plug_t=None, present=True),   # rint at 25 C
         lm='gnd',                       # 'gnd' as drawn, 'vout' = CE to VSYS
         usb=None,                       # source voltage, or None
         usb_step=None,                  # (t, v2): USB source steps to v2 at t
@@ -47,7 +48,8 @@ def default_cfg():
         chg={},                         # BQ25185 overrides
         mux={}, bb={}, prot={},
         pr_force_low=False,             # proposed fix: a GPIO FET pulls PR1 low
-        pa=dict(vset=4.0, inom=2.3, t_en=1e-3, t_apc=4e-3, t_rf=4.2e-3, burst=1.0, on=True),
+        pa=dict(vset=4.0, inom=2.3, t_en=1e-3, t_apc=4e-3, t_rf=4.2e-3, burst=1.0, on=True, n=1, period=1.0),
+        sw_on=None,                     # slide switch closes at this time (None: already on)
         i3v3_idle=0.013, i3v3_tx=0.130,
         extra='',                       # extra netlist lines (shorts, loads)
         tstop=None, tmax=10e-6, uic=False,
@@ -55,15 +57,27 @@ def default_cfg():
     )
 
 
+def _win(t0, t1, n, per, edge=5e-6):
+    """Sum of n smooth 0..1 windows [t0, t1] repeating every per."""
+    return '(' + ' + '.join(P.sat('min(time - %g, %g - time)/%g' % (t0 + k * per, t1 + k * per, edge))
+                            for k in range(n)) + ')'
+
+
+def _any(t0, t1, n, per):
+    return '(' + ' || '.join('(time > %g && time < %g)' % (t0 + k * per, t1 + k * per) for k in range(n)) + ')'
+
+
 def build(cfg, datfile):
     c = cfg
     pa = c['pa']
+    nb, per = pa.get('n', 1), pa.get('period', 1.0)
     t_off = pa['t_rf'] + pa['burst']
-    s = ['* Mesh Radio v1 power path (sim/board.py)', P.MODELS]
+    P.set_temp(c.get('temp', 25.0))
+    s = ['* Mesh Radio v1 power path (sim/board.py), %g C' % P.TEMP, P.models()]
     # ---------------------------------------------------------------- battery
     cl = c['cell']
     if cl['present']:
-        s.append(P.cell('BT', 'BATT_PLUS', 'CELL_MINUS', cl['ocv'], cl['rint'], plug_t=cl['plug_t'],
+        s.append(P.cell('BT', 'BATT_PLUS', 'CELL_MINUS', cl['ocv'], cl['rint'] * P.rint_k(), plug_t=cl['plug_t'],
                         reverse=cl['reverse'], llead=cl.get('llead', 0.1e-6)))
     else:
         s.append('Rnob1 BATT_PLUS 0 10Meg\nRnob2 CELL_MINUS 0 10Meg\n')
@@ -96,10 +110,11 @@ def build(cfg, datfile):
     s.append(P.cap('cvc1', 'VIN_CHG', '0', 0.9e-6) + P.cap('cvc2', 'VIN_CHG', '0', 8e-6) + 'Rvcl VIN_CHG 0 1Meg\n')
     s.append(P.bq25185('CH', 'VIN_CHG', 'VSYS', 'BAT_P', c['chg']))
     # ---------------------------------------------------------------- system rail
-    tx = P.sat('min(time - %g, %g - time)/5e-6' % (pa['t_apc'], t_off + 0.1e-3)) if pa['on'] else '0'
-    s.append(P.system_rail('SR', iload='(%g + %s*%g)' % (c['i3v3_idle'], tx, c['i3v3_tx'] - c['i3v3_idle'])))
+    tx = _win(pa['t_apc'], t_off + 0.1e-3, nb, per) if pa['on'] else '0'
+    s.append(P.system_rail('SR', iload='(%g + %s*%g)' % (c['i3v3_idle'], tx, c['i3v3_tx'] - c['i3v3_idle']),
+                           t_on=c.get('sw_on')))
     # ---------------------------------------------------------------- amplifier supply
-    en = '(time > %g && time < %g)' % (pa['t_en'], t_off + 1e-3) if pa['on'] else '0'
+    en = _any(pa['t_en'], t_off + 1e-3, nb, per) if pa['on'] else '0'
     s.append(P.rl('tm1', 'BAT_P', 'MUX_IN1', *TRACE_MUX1))
     mux = dict(c['mux'])
     if c['pr_force_low']:
@@ -112,15 +127,15 @@ def build(cfg, datfile):
     s.append(P.cap('cvp1', 'BB_OUT', '0', 19e-6) + P.cap('cvp2', 'BB_OUT', '0', 19e-6))
     s.append(P.rl('tvp', 'BB_OUT', 'VPA', *TRACE_VPA))
     s.append(P.cap('cvp3', 'VPA', '0', 2.8e-6) + P.cap('cvp4', 'VPA', '0', 2.8e-6))
-    apc = P.sat('min(time - %g, %g - time)/5e-6' % (pa['t_apc'], t_off + 0.1e-3)) if pa['on'] else '0'
-    rf = 'max(0, min(1, (time - %g)/40e-6)) * (time < %g ? 1 : 0)' % (pa['t_rf'], t_off) if pa['on'] else '0'
+    apc = _win(pa['t_apc'], t_off + 0.1e-3, nb, per) if pa['on'] else '0'
+    rf = _win(pa['t_rf'], t_off, nb, per, 40e-6) if pa['on'] else '0'
     s.append(P.qpa9510('PA', 'VPA', apc, rf, pa['vset'], pa['inom']))
     # DC paths for nodes that only see caps and B current sources (10 Meg: < 0.5 uA)
     s.append(''.join('Rdc%d %s 0 10Meg\n' % (i, n) for i, n in enumerate(
         ['PA_IN', 'BB_IN', 'BB_OUT', 'VPA', 'VSYS', 'VSYS_SW', '3V3', 'BAT_P'])))
     s.append(c['extra'])
     # ---------------------------------------------------------------- analysis
-    tstop = c['tstop'] or (t_off + 0.05)
+    tstop = c['tstop'] or (t_off + (nb - 1) * per + 0.05)
     vecs = ['v(bat_p)', 'v(vsys)', 'v(vsys_sw)', 'v(3v3)', 'v(pa_in)', 'v(vpa)', 'v(vin_chg)',
             'i(vbt_am)' if cl['present'] else 'v(batt_plus)', 'v(pblm_i)', 'v(ch_isup)', 'v(ch_ichg)', 'v(ch_iin)',
             'v(mx_i1)', 'v(mx_i2)', 'v(mx_sel)', 'v(bb_iin)', 'v(pa_i)', 'v(pbocd)', 'v(pbuvp)', 'v(chbuvf)',
@@ -132,8 +147,10 @@ def build(cfg, datfile):
     ns = dict(BATT_PLUS=v0, BAT_P_C=v0, BAT_P=v0, MUX_IN1=v0, PROT_BAT=v0, CELL_MINUS=0, PROT_DOUT=v0,
               PROT_COUT=v0, PBval=1 if v0 > 1.5 else 0, VSYS=vs0, VSYS_SW=vs0, CHbuv=1 if v0 > 3.0 else 0,
               PROT_D=0, PROT_S2=0)
-    ns['3V3'] = max(0.0, min(3.3, vs0 - 0.02))
-    ns['SRbon'] = 1 if vs0 > 1.8 else 0
+    ns['3V3'] = max(0.0, min(3.3, vs0 - 0.02)) if c.get('sw_on') is None else 0.0
+    ns['SRbon'] = 1 if (vs0 > 1.8 and c.get('sw_on') is None) else 0
+    if c.get('sw_on') is not None:
+        ns['VSYS_SW'] = 0.0
     ns['CHok'] = 1 if c['usb'] else 0
     ns.update(c.get('nodeset', {}))
     ctl = ['.nodeset ' + ' '.join('v(%s)=%g' % kv for kv in ns.items())]

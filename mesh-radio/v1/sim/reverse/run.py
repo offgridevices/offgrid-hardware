@@ -54,15 +54,21 @@ Desd2 esd2 VSYS DESD
 """
 
 
-def cfg(reverse=True, usb=None, lm='gnd', ocv=4.2, held=False):
+TEMPS = [-40, -20, 0, 25, 60, 85]
+
+
+def cfg(reverse=True, usb=None, lm='gnd', ocv=4.2, held=False, clamp=False, temp=25.0):
     c = B.default_cfg()
+    c['temp'] = temp
     c['cell'].update(ocv=ocv, rint=0.05, reverse=reverse, plug_t=T_PLUG)
     c['usb'] = usb
     c['lm'] = lm
     c['pa']['on'] = False
     c['extra'] = ESD + ('* worst case: CELL_MINUS held near GND before the plug (FET / board leakage), so the\n'
                         '* BQ29700 is powered from BAT_P and its FETs are ON when the reversed cell lands\n'
-                        'Rheld CELL_MINUS 0 100k\n' if held else '')
+                        'Rheld CELL_MINUS 0 100k\n' if held else '') + (
+        '* proposed: Schottky clamp GND -> BAT_P (RB060MM) so a negative swing goes through it, not IC substrates\n'
+        'Dclamp 0 BAT_P DRB060\n' if clamp else '')
     c['tstop'] = TSTOP
     c['tmax'] = 2e-4
     if usb:
@@ -129,12 +135,14 @@ def run(args):
 
 
 def main():
-    cases = [('rev_nousb', cfg()), ('rev_usb_drawn', cfg(usb=5.0, lm='gnd')),
-             ('rev_usb_fix', cfg(usb=5.0, lm='diode')),
-             ('rev_usb_drawn_held', cfg(usb=5.0, lm='gnd', held=True)),
-             ('rev_usb_fix_held', cfg(usb=5.0, lm='diode', held=True)),
-             ('rev_nousb_held', cfg(held=True)),
-             ('fwd_nousb', cfg(reverse=False, held=True))]
+    base = [('rev_nousb', dict()), ('rev_usb_drawn', dict(usb=5.0, lm='gnd')),
+            ('rev_usb_fix', dict(usb=5.0, lm='diode')),
+            ('rev_usb_drawn_held', dict(usb=5.0, lm='gnd', held=True)),
+            ('rev_usb_fix_held', dict(usb=5.0, lm='diode', held=True)),
+            ('rev_usb_fix_held_clamp', dict(usb=5.0, lm='diode', held=True, clamp=True)),
+            ('rev_nousb_held', dict(held=True)),
+            ('fwd_nousb', dict(reverse=False, held=True))]
+    cases = [('%s_%d' % (n, ta), cfg(temp=float(ta), **kw)) for ta in TEMPS for n, kw in base]
     with ProcessPoolExecutor(4) as ex:
         res = list(ex.map(run, cases))
     L = ['Study 2: battery plugged in backwards (X1).  4.2 V cell, 50 mOhm, plugged at 20 ms, run to 2 s.',
@@ -172,6 +180,17 @@ def main():
                             'BAT-VSS min', 'BAT-VSS max', 'V- - BAT max', 'BAT_P min', 'BAT_P max', 'CELL_MINUS min',
                             'CELL_MINUS max', 'LM66100 |I| A', 'verdict', 'why']))
     L.append('')
+    bn = []
+    for r in res:
+        b0 = r['name'].rsplit('_', 1)[0]
+        if b0 not in bn:
+            bn.append(b0)
+    V_ = dict((r['name'], r['verdict']) for r in res)
+    L.append('Verdict per case and ambient:')
+    L.append(S.table([[b0] + [V_['%s_%d' % (b0, ta)] for ta in TEMPS] for b0 in bn], ['case'] + ['%d C' % t for t in TEMPS]))
+    L.append('  _held: CELL_MINUS held near GND before the plug (protector on), the worst case for the reverse FET;')
+    L.append('  _clamp: plus the proposed Schottky clamp from GND to BAT_P.')
+    L.append('')
     L.append('Pin currents (peak, A): BQ29700 VSS, V-, BAT (through 330 R); substrate diodes on MUX_IN1, VSYS and the')
     L.append('BQ25185 BAT pin:')
     L.append(S.table([[r['name'], r['ivss_max'], r['ivm_max'], r['ibatpin_max'], r['iesd_mux'], r['iesd_sys'], r['iesd_chb']]
@@ -181,8 +200,8 @@ def main():
     L.append(S.table([[r['name'], r['ocd'], r['occ'], r['ovp'], r['uvp'], r['vsys_late'], r['v3_late']] for r in res],
                      ['case', 'OCD', 'OCC', 'OVP', 'UVP', 'VSYS V', '3V3 V']))
     L.append('')
-    L.append('Every node, min / max after the plug (V):')
-    for r in res:
+    L.append('Every node, min / max after the plug (V), 25 C:')
+    for r in [x for x in res if x['name'].endswith('_25')]:
         L.append('  %s: ' % r['name'] + ', '.join('%s %.2f/%.2f' % (k, a, b) for k, (a, b) in sorted(r['nodes'].items())))
     S.write_results(HERE, L)
 
@@ -201,7 +220,7 @@ def main():
 
     plt = S.style()
     fig, ax = plt.subplots(1, 3, figsize=(16, 4.5))
-    for r in res:
+    for r in [x for x in res if x['name'].endswith('_25') or x['name'].endswith('_held_-40')]:
         d = np.load(os.path.join(OUT, r['name'] + '.npz'))
         tm = d['t'] * 1e3
         ax[0].plot(tm, d['icell'], label=r['name'])

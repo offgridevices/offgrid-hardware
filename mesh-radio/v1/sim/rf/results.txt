@@ -1,0 +1,365 @@
+Mesh Radio v1 - RF simulation results (sim/rf/run.py)
+Board values from src/circuit.py; part models and sources in sim/rf/README.md and rflib.py.
+
+LFCN-1000+ model vs Mini-Circuits typical table (REV. R):
+   MHz         50    500   1000   1275   1500   2000   2750   3250   4000   4600   5125   5500   6000   6500   7000
+   IL ds     0.01   0.30   0.80   3.33  25.87  49.50  39.80  43.45  43.25  43.25  43.11  22.76  15.24  19.30  18.56
+   IL fit    0.07   0.32   0.82   3.32  27.41  48.00  41.24  43.15  43.21  42.61  44.36  26.61  13.89  15.04  18.80
+   VSWR ds    1.0    1.1    1.2    2.2   17.6   34.8   59.9   51.1   52.6   59.9   41.4   34.8   29.5   62.0   69.5
+   VSWRfit    1.0    1.2    1.2    2.3   20.5   49.1   32.3   20.2   17.6   33.5   64.3   88.3   56.6   83.9  164.8
+
+====================================================================================================
+STUDY 1  Transmit path, nominal values, 25 C (and the six temperatures with mid-range TCs)
+====================================================================================================
+Criteria (fixed before computing):
+  loss PA output (EVB plane, after the 47 pF DC block) -> U.FL, 902-928 MHz: PASS <= 1.3 dB (35 dBm reached at
+    VPA 4.0 V: PA 36.3 dBm = 35.4 dBm x (4.0/3.6)^2), MARGINAL 1.3-2.0 dB, FAIL > 2.0 dB
+  return loss at each interface: PASS >= 10 dB, MARGINAL 6-10 dB, FAIL < 6 dB
+  harmonics (FCC 15.205/15.209 restricted bands, 54 dBuV/m average at 3 m = -41.2 dBm EIRP; LoRa packets are
+    longer than 100 ms so no averaging relief): 3f 2.71-2.78 GHz (2690-2900), 4f 3.61-3.71 GHz (3600-4400),
+    5f 4.51-4.64 GHz (4500-5150) are ALL restricted.  2f 1.80-1.86 GHz is not: 15.247(d) -20 dBc (-30 dBc
+    shown too, for RMS-averaged conducted power).  Part 97: -43 dBc (as the owner asked).  Antenna gain at the
+    harmonic = its in-band gain (2.15 or 6 dBi; conservative).  PASS margin >= 3 dB, MARGINAL 0-3, FAIL < 0.
+
+1a SX1262 RFO network (Semtech SX1262MB2CAS values from circuit.py), 50 ohm at LORA_TX50:
+     902 MHz  Z at RFO pin  15.4  +2.6j ohm   network loss 0.38 dB
+     915 MHz  Z at RFO pin  15.2  +3.1j ohm   network loss 0.39 dB
+     928 MHz  Z at RFO pin  15.0  +3.7j ohm   network loss 0.41 dB
+   own harmonic filtering (S21, 50 ohm both sides): 2f 20.8 dB, 3f 31.0 dB
+1b 15.9 dB pi pad 68/150/68 R 0805 + 47 pF DC block, PA input VSWR 1.72:1 and 2.48:1 (data sheet) at all phases:
+   attenuation (50 ohm) 15.94 / 15.94 / 15.94 dB at 902/915/928; RL into pad 34.8 dB; RL back into pad (PA source) 48.9 dB
+   RL the SX1262 match sees at LORA_TX50 with the PA input at its worst phase: 30.8 dB
+   QPA9510 input itself (data sheet): VSWR 1.72:1 near full power (RL 11.5 dB), 2.48:1 below Pmax-5 dB (RL 7.4 dB)
+1c QPA9510 output match: load the die sees (model, README) - this board vs Qorvo EVB parts
+   PA model: die current source 2.11 A with 7.59 V clamp (R_opt 3.60 ohm) calibrated to 35.4 dBm at 897.5 MHz on the EVB
+   EVB 880-915    Zdie 1.87-3.17j  1.89-3.06j  1.90-2.96j
+   this board     Zdie 1.93-3.03j  1.94-2.96j  1.95-2.89j   (902/915/928 MHz)
+   output at the EVB plane into 50 ohm (3.6 V): 35.54 / 35.54 / 35.54 dBm  (EVB: 35.4 dBm)
+1d PA output (PA_M2) -> elliptic LPF -> 2 mm -> SKY13330 -> 2 mm -> LFCN-1000+ -> 2 mm -> 47 nH -> U.FL:
+   insertion loss 1.34 / 1.38 / 1.44 dB (902/915/928)
+   blocks alone (50 ohm): LPF 0.40 dB, SKY13330 0.30 dB (typ; 0.35 max), LFCN 0.67 dB (fit to typ table; 1.0 max), traces+ESD 0.07 dB
+   RL PA_M2 into LPF+rest (PA load)          17.8 dB
+   RL U.FL looking into the board            20.3 dB
+   RL LPF alone, in / out                    27.4 / 21.5 dB
+   RL LFCN alone, in / out                   25.4 / 20.7 dB
+   RL switch RF2 into switch+LFCN+antenna    19.8 dB
+  -> TX loss PA -> U.FL: MARGINAL  [1.44 dB max in band (LPF 0.40, switch 0.30, LFCN 0.67): 35 dBm at 4.0 V gives 34.9 dBm at the U.FL]
+  -> return loss at interfaces: PASS  [worst 17.8 dB (PA load 17.8 dB, U.FL 20.3 dB, pad seen by SX1262 30.8 dB); QPA9510 own input 7.3-11.1 dB]
+   SX1262 match loss 0.41 dB is the Semtech reference network driving its 50 ohm design load (the pad).
+1e Harmonics.  PA levels at the EVB plane (into 50 ohm): 2f -63.9 dBc, 3f -62.0 dBc (data sheet), 4f-10f -45 dBc (ASSUMED).
+   Rejection = worse of (a) 50-ohm insertion loss PA_M2 -> U.FL and (b) PA die source through this board's
+   output match + chain, relative to the same source into 50 ohm at the EVB plane.  Switch self-generated
+   harmonics (ASSUMED -65/-60/-70 dBc for 2f/3f/other at +35 dBm on RF1) filtered by the LFCN only.
+   n   f (GHz)    rej 50ohm  rej PA-src  used   PA dBc@UFL  sw dBc@UFL  band
+   2   1.80- 1.86     82.8       82.3      82.3    -144.9      -99.4    15.247(d)
+   3   2.71- 2.78    104.3       90.1      90.1    -150.8      -97.7    restricted 2690-2900
+   4   3.61- 3.71    116.7      106.4     106.4    -150.1     -107.2    restricted 3600-4400
+   5   4.51- 4.64     54.5       49.8      49.8     -93.5     -107.1    restricted 4500-5150
+   6   5.41- 5.57     34.4       33.3      33.3     -77.0      -87.1    restricted 5350-5460 (902-910 MHz only)
+   7   6.31- 6.50     21.8       19.3      19.3     -62.9      -79.0    15.247(d)
+   8   7.22- 7.42     33.1       33.5      33.1     -76.8      -82.2    restricted 7250-7750
+   9   8.12- 8.35     23.6       25.5      23.6     -67.3      -72.9    restricted 8025-8500
+  10   9.02- 9.28     11.2       13.4      11.2     -54.9      -63.7    restricted 9000-9200
+
+   Margins (dB; + passes).  FCC: restricted bands vs -41.2 dBm EIRP, 2f/7f vs -20 dBc.  Ham: -43 dBc.
+   case                        2f      3f      4f      5f      6f      7f      8f      9f      10f   
+   30 dBm 2.15 dBi FCC          84.4     34.3     48.8     20.1      3.6     42.9      3.4     -6.1    -18.5 
+   30 dBm 6.00 dBi FCC          84.4     30.4     45.0     16.3     -0.3     42.9     -0.5     -9.9    -22.3 
+   30 dBm      Part 97 ham       61.4     64.7     79.2     50.5     34.0     19.9     33.7     24.3     11.9 
+   30 dBm      total dBc       -104.4   -107.7   -122.2    -93.5    -77.0    -62.9    -76.7    -67.3    -54.9 
+   35 dBm 2.15 dBi FCC          79.4     19.3     28.8     14.9     -1.8     42.8     -2.7    -12.1    -24.0 
+   35 dBm 6.00 dBi FCC          79.4     15.4     25.0     11.1     -5.7     42.8     -6.6    -16.0    -27.9 
+   35 dBm      Part 97 ham       56.4     54.7     64.2     50.3     33.6     19.8     32.7     23.2     11.4 
+   35 dBm      total dBc        -99.4    -97.7   -107.2    -93.3    -76.6    -62.8    -75.7    -66.2    -54.4 
+  -> harmonics 2f-5f at 30 dBm, 6 dBi: PASS  [worst margin 16.3 dB at 5f (FCC and Part 97)]
+  -> harmonics 2f-5f at 35 dBm, 6 dBi: PASS  [worst margin 11.1 dB at 5f (FCC and Part 97)]
+  -> harmonics 6f-8f at 35 dBm, 6 dBi (edge of data): RISK (unverified)  [worst margin -6.6 dB at 8f; the LFCN re-enters above 5.5 GHz (15-19 dB, data sheet) and the PA level there is assumed (-45 dBc)]
+   9f and 10f (8.1-9.3 GHz, restricted) are beyond the LFCN data (7 GHz) and every part model: margins above are extrapolations (-16 / -28 dB) and must be measured.
+
+====================================================================================================
+STUDY 2  Monte Carlo, 1000 runs at each temperature (tolerances uniform over the full band, per-part TC drawn
+         from the maker range): C0G +-0.05/0.1/0.25 pF or +-5 %%, LQW15AN +-0.2 nH / +-5 %%, LQW18AN 4.7 and 3.6 nH
+         +-0.5 nH, 11 nH +-2 %%, 0908SQ +-5 %%; TC C0G 0+-30 ppm/C, inductors +25..+125 ppm/C, R +-100 ppm/C;
+         SKY13330 loss typ..max; LFCN loss x1.0-1.5 and +-1 %% frequency (ASSUMED spreads).
+====================================================================================================
+Yield criteria: (1) loss PA -> U.FL <= 1.3 dB in band (35 dBm at 4.0 V) - reported separately;
+  (2) every harmonic 2f-5f meets FCC (6 dBi, 35 dBm) and Part 97 with >= 0 dB margin;
+  (3) PA load return loss >= 10 dB.  Notch shift: the two LPF stop-band minima vs 1.83 / 2.75 GHz.
+
+  T(C)  yield harm+RL  yield loss<=1.3  yield all   loss max  loss median  worst harm margin  worst PA RL   2f notch GHz     3f notch GHz
+   -40    100.0 %          0.0 %         0.0 %     1.90 dB    1.62 dB         5.7 dB           13.5 dB   1.625-2.145   2.290-2.620
+   -20    100.0 %          0.0 %         0.0 %     1.92 dB    1.63 dB         5.4 dB           13.4 dB   1.625-2.145   2.275-2.615
+     0    100.0 %          0.0 %         0.0 %     1.94 dB    1.63 dB         5.3 dB           13.2 dB   1.625-2.145   2.275-2.615
+    25    100.0 %          0.0 %         0.0 %     1.89 dB    1.63 dB         5.3 dB           13.8 dB   1.625-2.145   2.275-2.615
+    60    100.0 %          0.0 %         0.0 %     1.99 dB    1.63 dB         4.5 dB           13.3 dB   1.625-2.145   2.270-2.610
+    85    100.0 %          0.0 %         0.0 %     1.94 dB    1.63 dB         5.4 dB           12.8 dB   1.620-2.145   2.270-2.610
+  nominal notches with the part models: 1.700 GHz (target 1.80-1.86) and 2.430 GHz (target 2.71-2.78)
+  ideal L/C notches (no parasitics): 1.820 and 2.775 GHz.  The shift is the inductors' self-capacitance (SRF at the
+  maker minimum) and the 0805 capacitors' ESL.
+  worst-case notch range over all temperatures and tolerances: 2f notch 1.620-2.145 GHz (-11.5 % to 17.2 % from 1.83), 3f notch 2.270-2.620 GHz (-17.3 % to -4.6 % from 2.745)
+  -> Monte Carlo harmonics + PA match yield: PASS  [worst-temperature yield 100.0 %, worst harmonic margin 4.5 dB]
+  U.FL power at VPA 4.0 V (PA 36.3 dBm): 34.33-34.94 dBm (2.71-3.12 W), median 34.69 dBm; at 3.6 V: 33.41-34.03 dBm
+  -> Monte Carlo TX loss (3 W reachable?): MARGINAL  [0 % of boards <= 1.3 dB, 100 % <= 2.0 dB; loss 1.37-1.99 dB -> 34.3-34.9 dBm (2.7-3.1 W) at 4.0 V]
+  -> elliptic LPF notch placement: MARGINAL  [2f notch 1.62-2.15 GHz, 3f notch 2.27-2.62 GHz (targets 1.80-1.86 / 2.71-2.78): notches miss their bands; rejection is carried by the LFCN]
+
+====================================================================================================
+STUDY 3  The 15.9 dB pi pad (68 / 150 / 68 R, Yageo RC0805FR-07, 0.125 W at 70 C, derated linearly to 0 W at
+         155 C; TCR +-100 ppm/C; 1 %).  SX1262 output into the pad = its setting (Semtech defines output power
+         into 50 ohm); +1 dB unit/temperature spread assumed.  PA input at its worst-case phase, VSWR 2.48:1.
+====================================================================================================
+Criteria: power in each resistor <= 70 % of its derated rating PASS (README E4), 70-100 % MARGINAL (fails E4),
+  > 100 % FAIL.  PA input <= +13 dBm abs max (all settings); <= +4.5 dBm (the 10:1 ruggedness test condition)
+  at the firmware cap.
+  SX1262 setting   R41 68R (LORA_TX50-GND)      R42 150R (LORA_TX50-PA_DRIVE)   R43 68R (PA_DRIVE-GND)       PA input
+  +20.0 dBm          74.3 mW                       26.4 mW                        3.8 mW                      +3.2 dBm
+  +21.0 dBm          93.6 mW                       33.2 mW                        4.8 mW                      +4.2 dBm
+  +22.0 dBm         117.8 mW                       41.8 mW                        6.1 mW                      +5.2 dBm
+  +23.0 dBm         148.3 mW                       52.6 mW                        7.7 mW                      +6.2 dBm
+
+  derated rating: -40 C 125 mW, -20 C 125 mW, 0 C 125 mW, 25 C 125 mW, 60 C 125 mW, 85 C 103 mW
+  worst resistor, %% of derated rating:          -40 C    -20 C      0 C     25 C     60 C     85 C
+    SX1262 +20.0 dBm                             59%      59%      59%      59%      59%      72%
+    SX1262 +21.0 dBm                             75%      75%      75%      75%      75%      91%
+    SX1262 +22.0 dBm                             94%      94%      94%      94%      94%     114%
+    SX1262 +23.0 dBm                            119%     119%     119%     119%     119%     144%
+  -> pad power at +20 dBm (firmware cap), 85 C: MARGINAL  [first 68 R 74 mW = 72 % of its 85 C rating (91 % with +1 dB SX1262 spread); 75 % at 60 C]
+  -> pad power at +22 dBm, 85 C: FAIL  [118 mW = 114 % of rating (144 % at +23 dBm)]
+  attenuation (50 ohm), Monte Carlo 1 %% + TCR: -40 C 15.80-16.09 dB, -20 C 15.80-16.08 dB, 0 C 15.81-16.07 dB, 25 C 15.83-16.05 dB, 60 C 15.81-16.06 dB, 85 C 15.81-16.09 dB
+  PA input (worst phase): +3.2 dBm at +20 dBm, +5.2 dBm at +22, +6.2 dBm at +23 (abs max +13 dBm)
+  -> pad attenuation over tolerance: PASS  [15.80-16.09 dB over 1 %, TCR and -40..85 C; PA input +5.2 dBm at +22 dBm (abs max +13), +3.2 dBm at the +20 dBm cap (ruggedness test condition +4.5)]
+
+====================================================================================================
+STUDY 4  Receive path: U.FL -> 47 nH -> LFCN -> SKY13330 RF1->RF3 -> [1 nF + 11 nH + BGA7L1BN6] -> balun -> SX1262
+====================================================================================================
+Inputs.  SX1262 (Semtech DS rev 1.2 table 3-8, boosted gain, split TX/RX, switch excluded): -137 dBm SF12/BW125,
+  -134 dBm SF12/BW250 -> NF 6.03 dB including Semtech's balun (S = -174 + 10log BW + NF + SNR, SNR SF12 -20 dB,
+  SF11 -17.5 dB).  This board uses the same balun, so its SX1262 stage NF is that value.  RAK4631: the same plus
+  ~1 dB of its own front-end loss (owner's figure).  BGA7L1BN6 (Infineon DS rev 3.1, 25 C only, 11 nH + 1 nF
+  application): high gain NF 0.75 typ / 1.3 max dB, gain 13.6 typ / 12.1 min dB; bypass NF 1.8 typ / 2.8 max,
+  loss 2.2 typ / 3.2 max dB.  Temperature: no Infineon data; ASSUMED noise temperature proportional to absolute
+  temperature (LNA, SX1262 and every passive loss) and LNA gain -0.01 dB/C.  Antenna at 290 K.
+Criterion: the plan claims ~4.5 dB better than a RAK4631 with the LNA on and ~2.5 dB worse in bypass;
+  CONFIRMED if within +-1 dB at 25 C, else CORRECTED.  README R4: never worse than the RAK4631 with the LNA on.
+  passive loss U.FL -> RX_SW (available gain, typical parts): 0.96 dB (LFCN 0.67, switch 0.30, ESD + traces rest); RL at U.FL 30.1 dB
+  worst case: LFCN 1.0 dB (data-sheet max) and switch 0.35 dB -> 1.35 dB
+
+  T(C)   NF LNA on   NF bypass   NF RAK4631   | vs RAK: on   bypass   (typical parts; worst-case parts in brackets)
+   -40    1.74 [ 2.64]  8.18 [ 9.53]    6.20       |  +4.46 [+3.57]  -1.97 [-3.32] dB
+   -20    1.88 [ 2.82]  8.48 [ 9.84]    6.48       |  +4.60 [+3.65]  -2.00 [-3.37] dB
+     0    2.01 [ 3.01]  8.76 [10.14]    6.73       |  +4.72 [+3.73]  -2.03 [-3.41] dB
+    25    2.18 [ 3.23]  9.10 [10.49]    7.04       |  +4.86 [+3.81]  -2.06 [-3.45] dB
+    60    2.42 [ 3.53]  9.52 [10.93]    7.43       |  +5.01 [+3.89]  -2.09 [-3.50] dB
+    85    2.58 [ 3.75]  9.80 [11.22]    7.69       |  +5.10 [+3.94]  -2.12 [-3.53] dB
+
+  Sensitivity (dBm):        LNA on      bypass      RAK4631
+   SF11/BW250 LongFast   -40 C   -135.8     -129.3     -131.3
+   SF11/BW250 LongFast    25 C   -135.3     -128.4     -130.5
+   SF11/BW250 LongFast    85 C   -134.9     -127.7     -129.8
+   SF12/BW125            -40 C   -141.3     -134.9     -136.8
+   SF12/BW125             25 C   -140.8     -133.9     -136.0
+   SF12/BW125             85 C   -140.4     -133.2     -135.3
+   SF12/BW250            -40 C   -138.3     -131.8     -133.8
+   SF12/BW250             25 C   -137.8     -130.9     -133.0
+   SF12/BW250             85 C   -137.4     -130.2     -132.3
+  -> RX with LNA on vs RAK4631: PASS  [+4.9 dB better typical (+3.8 dB with every part at its data-sheet worst); plan says ~4.5: confirmed; LongFast -135.3 dBm vs -130.5]
+  -> RX with LNA in bypass vs RAK4631: PASS  [2.1 dB worse typical (3.4 dB worst case); plan says ~2.5: confirmed]
+  advantage of LNA-on over RAK changes by at most 0.39 dB over -40..85 C (both boards drift together).
+
+====================================================================================================
+STUDY 5  Frequency accuracy
+====================================================================================================
+Inputs.  TCXO ECS-TXO-20CSMV4-320-AP (ECS data sheet): +-1.0 ppm at 25 C, +-0.5 ppm over -40..+105 C (AP option),
+  +-0.1 ppm supply, +-0.1 ppm load, +-1.0 ppm first-year ageing (10-year ageing ASSUMED +-3 ppm).  SX1262 limit
+  (DS rev 1.2 table 3-8, FERR_L): +-25 %% of BW, and for SF10-12 also +-200/100/50 ppm; "the tighter limit applies".
+  32 MHz crystal ABM11W-32.0000MHZ-8-D1X-T3 (Abracon data sheet ordering code: D = -40..85 C, 1 = +-10 ppm at
+  25 C, X = +-20 ppm over temperature, ageing +-2 ppm first year), CL 8 pF, C0 <= 2 pF; motional C1 not published:
+  1.3-2.5 fF ASSUMED (the range Semtech gives for its 32 MHz crystals).  Load: 12 pF +-5 %% (CL05C120J) each side,
+  nRF52840 pin 3-4 pF and PCB 0.5-1.5 pF per side (ASSUMED; circuit.py uses 3 + 1).  BLE: +-50 ppm (Core spec);
+  Nordic asks +-40 ppm for the nRF HFXO.
+
+  LoRa, two nodes, one at -40 C and one at +85 C (the TCXO spec is a band, so any pair of corners is the same):
+   budget per node: new +-1.7 ppm, 1 year +-2.7 ppm, 10 years +-4.7 ppm
+   new       worst pair offset 3.4 ppm = 3.11 kHz;  limits: SF11/BW250 62.5 kHz (margin x20), SF12/BW125 31.2 kHz (margin x10), SF12/BW250 45.7 kHz (margin x15)
+   1 year    worst pair offset 5.4 ppm = 4.94 kHz;  limits: SF11/BW250 62.5 kHz (margin x13), SF12/BW125 31.2 kHz (margin x6), SF12/BW250 45.7 kHz (margin x9)
+   10 years  worst pair offset 9.4 ppm = 8.60 kHz;  limits: SF11/BW250 62.5 kHz (margin x7), SF12/BW125 31.2 kHz (margin x4), SF12/BW250 45.7 kHz (margin x5)
+  -> LoRa frequency offset between nodes: PASS  [8.6 kHz worst pair after 10 years vs 31.2 kHz (SF12/BW125) and 62.5 kHz (LongFast)]
+   Within-packet drift (not a budget item): the TCXO's +-0.5 ppm band over 145 C allows ~0.004 ppm/C on average,
+   but its local slope is not specified.  Semtech AN1200.37 warns that PA heat reaching the reference during long
+   packets causes drift; here a 6 W QPA9510 shares the board.  Keep the TCXO away from the PA and slot the copper.
+
+  32 MHz crystal for Bluetooth:
+   load seen by the crystal 7.55-8.96 pF (nominal 8 pF); pulling -12.2 to +6.5 ppm
+   worst case: +-10 (25 C) +-20 (temperature) + pulling 12.2 = 42.2 ppm new, 47.2 ppm with 10-year ageing (+-5 ASSUMED)
+   sampled (uniform) 99.9th percentile 32.9 ppm
+  -> 32 MHz crystal vs BLE +-50 ppm / Nordic +-40 ppm: MARGINAL  [worst case 42 ppm new, 47 ppm aged (pulling 12 ppm from load uncertainty)]
+   with a +-10 ppm / +-10 ppm (-40..85 C) crystal: 37 ppm aged
+
+====================================================================================================
+STUDY 6  Bluetooth match: Nordic pi (0.8 pF / 4.7 nH / 0.5 pF) + Johanson tee (1.0 pF / 2.7 nH / 3.9 nH) +
+         2450AT18A100 chip antenna, 2400-2483.5 MHz, with tolerances (GJM +-0.1 pF, LQW15AN +-0.2 nH).
+====================================================================================================
+No PCB yet: the antenna is modelled as what Johanson's tee matches on Johanson's EVB (data sheet: "matching values
+on the client PCB will be different"); the routed-board check (EM model or VNA on built boards) follows.  The nRF
+ANT pin's optimum load is taken as what Nordic's nominal pi presents at 2442 MHz with 50 ohm behind it (ASSUMED:
+Nordic's reference values are right for the chip); "RL" below is the power-wave mismatch against that load.
+Criterion: RL >= 9.5 dB (Johanson spec, VSWR ~2) over 2400-2483.5 MHz: PASS >= 99 % of MC runs, MARGINAL >= 90 %.
+  antenna model: Z(2442 MHz) = 38.1 -118.5j ohm, Q 9.6 (2:1 VSWR bandwidth 180 MHz ASSUMED)
+  Nordic pi with 50 ohm behind it presents 115.8 -40.5j ohm to the ANT pin (taken as the chip's optimum load)
+   -40 C: nominal worst RL 15.5 dB; MC worst RL min 8.7 dB, median 13.8 dB, yield RL >= 9.5 dB 98.9 %
+    25 C: nominal worst RL 15.5 dB; MC worst RL min 8.6 dB, median 13.9 dB, yield RL >= 9.5 dB 99.1 %
+    85 C: nominal worst RL 15.5 dB; MC worst RL min 8.7 dB, median 13.9 dB, yield RL >= 9.5 dB 99.6 %
+  one part at a time at its tolerance limit (25 C), worst RL over the band:
+   C39   0.8pF   - tolerance: 11.8 dB
+   L5    2.7nH   - tolerance: 12.7 dB
+   C41   1.0pF   - tolerance: 12.8 dB
+   C40   0.5pF   + tolerance: 13.7 dB
+   L4    4.7nH   - tolerance: 13.8 dB
+   L6    3.9nH   + tolerance: 13.8 dB
+  -> Bluetooth match over tolerance (pre-layout): MARGINAL  [yield 98.9 %, worst RL 8.6 dB, nominal 15.5 dB (antenna = Johanson EVB model; re-check on the routed board)]
+
+====================================================================================================
+STUDY 7  No antenna at 3 W: U.FL open (|Gamma| = 1, every phase, i.e. any cable length) and a 10:1 load
+====================================================================================================
+Ratings.  SKY13330 (DS 201407E): input power +40 dBm abs max (= 31.6 V peak in 50 ohm: the voltage that power
+  makes; no voltage or VSWR rating is published), IP0.1dB +38.5 dBm (26.6 V peak) - above it the switch compresses
+  and makes harmonics after the elliptic filter.  LFCN-1000+: 10 W at 25 C derated to 3.5 W at 100 C (4.8 W at 85 C,
+  21.9 V peak equivalent); no voltage rating.  QPA9510 (DS): output load VSWR 10:1 no damage at VCC 3.6 V, Pin
+  +4.5 dBm, -40..85 C; 8:1 stable; 4.0 V not covered.  Criteria: peak voltage < 95 %% of the 50-ohm equivalent of the
+  abs max PASS, 95-100 %% MARGINAL, above FAIL; PA VSWR at its plane <= 10:1 PASS (at 3.6 V only).
+Two PA models: (A) saturated PA (current source + voltage clamp at the die, through this board's output match);
+  (B) a 50-ohm source whose available power gives the rated output into a matched antenna.
+
+  VPA    P at U.FL (matched)  |  peak voltage (V) with the U.FL open, worst phase, model A [model B]
+                              |  PA_M2           PA_M3           PA_TX           SW2             SW1             ANT_SW          LF_OUT          ANT           
+  2.7 V   31.4 dBm (1.37 W)    |   39.4 [ 25.2]     30.9 [ 19.6]     14.9 [ 22.5]     14.6 [ 22.5]     14.5 [ 22.4]     14.4 [ 22.4]     47.4 [ 26.5]     46.1 [ 26.3]  
+         die current up to 1.00 x nominal; PA_OUT 7.6 V peak, PA_M1 40.2 V peak
+  3.6 V   33.9 dBm (2.43 W)    |   52.6 [ 33.6]     41.2 [ 26.1]     19.9 [ 30.1]     19.5 [ 30.0]     19.3 [ 29.9]     19.3 [ 29.8]     63.2 [ 35.4]     61.4 [ 35.0]  
+         die current up to 1.00 x nominal; PA_OUT 10.1 V peak, PA_M1 53.6 V peak
+  4.0 V   34.8 dBm (3.00 W)    |   58.4 [ 37.3]     45.7 [ 29.0]     22.1 [ 33.4]     21.6 [ 33.4]     21.4 [ 33.2]     21.4 [ 33.1]     70.2 [ 39.3]     68.3 [ 38.9]  
+         die current up to 1.00 x nominal; PA_OUT 11.2 V peak, PA_M1 59.5 V peak
+
+  VSWR the PA sees at its EVB plane with the U.FL open: 9.7:1 worst phase (round-trip loss 2.9 dB)
+  -> PA load with antenna missing: PASS  [9.7:1 at the PA (rated 10:1 at 3.6 V, Pin +4.5 dBm): firmware 3.6 V ceiling is right; 4.0 V is outside the rating]
+  -> SKY13330 voltage, antenna missing, 3.6 V: MARGINAL  [30.0 V peak = 95 % of the +40 dBm (31.6 V) abs max; 113 % of the IP0.1dB voltage]
+  3.6 V: LFCN port peak 63.2 V = 289 % of the 85 C power rating's voltage (21.9 V), 200 % of 10 W (31.6 V)
+  -> SKY13330 voltage, antenna missing, 4.0 V: FAIL  [33.4 V peak = 106 % of the +40 dBm (31.6 V) abs max; 125 % of the IP0.1dB voltage]
+  4.0 V: LFCN port peak 70.2 V = 321 % of the 85 C power rating's voltage (21.9 V), 222 % of 10 W (31.6 V)
+
+  Inductor RF heating (VPA 3.6 V): I_rms^2 x R_ac(915 MHz) vs the heating at the maker's rated current, I^2 x Rdc max
+  (Murata: rated current = 20 C self-heating).  R_ac from the minimum Q (typical Q is ~1.4x higher, loss ~1.4x lower).
+  Matched antenna / antenna missing (worst phase, model A):
+   L14   0908SQ-8N1       8.1nH  0908  I 0.13 / 0.15 A rms   P    8 /   11 mW   rated-current heating   64 mW  ->  13 % /  16 %
+   L15   LQW18AN3N6D00D   3.6nH  0603  I 0.58 / 1.84 A rms   P  147 / 1468 mW   rated-current heating   43 mW  -> 345 % / 3444 %
+  -> RF heating L15 3.6nH 0603: FAIL  [147 mW matched = 345 % (typical Q 246 %) of its rated-current heating; 1468 mW antenna missing (3444 %)]
+   L16   LQW15AN5N1C00D   5.1nH  0402  I 0.51 / 0.56 A rms   P  161 /  193 mW   rated-current heating   43 mW  -> 372 % / 448 %
+  -> RF heating L16 5.1nH 0402: FAIL  [161 mW matched = 372 % (typical Q 266 %) of its rated-current heating; 193 mW antenna missing (448 %)]
+   L17   LQW18AN4N7D00D   4.7nH  0603  I 0.41 / 1.08 A rms   P   67 /  472 mW   rated-current heating   43 mW  -> 157 % / 1108 %
+  -> RF heating L17 4.7nH 0603: FAIL  [67 mW matched = 157 % (typical Q 112 %) of its rated-current heating; 472 mW antenna missing (1108 %)]
+   L18   LQW15AN47NJ00D   47nH   0402  I 0.04 / 0.15 A rms   P    8 /  111 mW   rated-current heating   48 mW  ->  18 % / 233 %
+  -> RF heating L18 47nH 0402: MARGINAL  [8 mW matched = 18 % (typical Q 13 %) of its rated-current heating; 111 mW antenna missing (233 %)]
+
+  Capacitor RF current and ESR loss (3.6 V, matched antenna; max-ESR limits; no RF current rating published for GQM):
+   C66   GJM1555C1H470JB01D   47pF   0402  V   0.1 V peak  I 0.04 A rms  P    1 mW
+   C67   GJM1555C1H1R5BB01D   1.5pF  0402  V   8.8 V peak  I 0.05 A rms  P    1 mW
+   C72   GJM1555C1H470JB01D   47pF   0402  V   0.1 V peak  I 0.04 A rms  P    1 mW
+   C73   GQM1875C2E150JB12D   15pF   0603  V   8.9 V peak  I 0.68 A rms  P  250 mW
+   C74   GQM1875C2E100JB12D   10pF   0603  V   8.9 V peak  I 0.42 A rms  P   42 mW
+   C75   GQM1875C2E5R6CB12D   5.6pF  0603  V  20.4 V peak  I 0.50 A rms  P   60 mW
+   C76   GQM1875C2E470JB12D   47pF   0603  V   0.5 V peak  I 0.23 A rms  P   29 mW
+   C77   GQM1875C2E3R3BB12D   3.3pF  0603  V  20.3 V peak  I 0.28 A rms  P   23 mW
+   C78   GQM2195C2E1R5BB12D   1.5pF  0805  V  21.2 V peak  I 0.13 A rms  P    5 mW
+   C79   GQM2195C2E4R3BB12D   4.3pF  0805  V  12.9 V peak  I 0.24 A rms  P   17 mW
+   C80   GQM2195C2ER70WB12D   0.7pF  0805  V  15.5 V peak  I 0.04 A rms  P    1 mW
+   C81   GQM2195C2E2R7BB12D   2.7pF  0805  V  17.0 V peak  I 0.20 A rms  P   11 mW
+
+  LNA during transmit (firmware drives RXEN low = bypass): RF1 open-antenna peak 21.4 V = 36.6 dBm equivalent;
+   RF1->RF3 isolation 40 dB min -> LNA input -3.4 dBm (abs max +25 dBm); bypass output -5.6 dBm into the SX1262 RFI (abs max +10 dBm)
+   matched antenna, 35 dBm: LNA input -4.2 dBm.  If the LNA were left in high gain (13.6 dB, IP1dB -1 dBm) the SX1262 would see ~9 dBm.
+  -> LNA / SX1262 RX input during TX: PASS  [LNA input -3.4 dBm worst (abs max +25); SX1262 RFI -5.6 dBm (abs max +10)]
+
+====================================================================================================
+FIXES  re-checked with the proposed values (overrides in run.py; src/ unchanged)
+====================================================================================================
+  L15   LQW18AN3N6D00D         3.6nH    -> LQW2BAN3N6J00L         3.6nH   (PA_OUT-PA_M1)
+  L16   LQW15AN5N1C00D         5.1nH    -> LQW2BAN3N2J00L         3.2nH   (PA_M2-PA_M3)
+  L17   LQW18AN4N7D00D         4.7nH    -> LQW2BAN3N2J00L         3.2nH   (PA_M3-PA_TX)
+  C39   GJM1555C1HR80BB01D     0.8pF    -> GJM1555C1HR80WB01D     0.8pF   (NRF_ANT-GND)
+  C77   GQM1875C2E3R3BB12D     3.3pF    -> GQM1875C2E2R0BB12D     2.0pF   (PA_M2-GND)
+  C78   GQM2195C2E1R5BB12D     1.5pF    -> GQM1875C2E3R6BB12D     3.6pF   (PA_M2-PA_M3)
+  C79   GQM2195C2E4R3BB12D     4.3pF    -> GQM1875C2E1R3BB12D     1.3pF   (PA_M3-GND)
+  C80   GQM2195C2ER70WB12D     0.7pF    -> GQM1875C2E1R3BB12D     1.3pF   (PA_M3-PA_TX)
+  C81   GQM2195C2E2R7BB12D     2.7pF    -> GQM1875C2ER90BB12D     0.9pF   (PA_TX-GND)
+  R41  RC0805FR-0768RL 0.125 W -> Panasonic ERJ-P06F68R0V 0.5 W (same 0805 footprint, same value)
+  TX loss PA -> U.FL 1.06 / 1.09 / 1.12 dB (was 1.44 max); LPF alone 0.21 dB; RL PA load 27.2 dB, U.FL 23.9 dB, LPF 17.2 / 18.9 dB
+  nominal LPF notches 1.390 / 2.300 GHz (targets 1.80-1.86 / 2.71-2.78)
+  harmonic margins at 35 dBm / 6 dBi (dB):  2f 56.1  3f 13.8  4f 8.5  5f 15.5  6f -8.6  7f 28.6  8f -0.2  9f -10.3  10f -22.1
+  PA-path rejection (dB):                    2f 48  3f 40  4f 47  5f 54  6f 30  7f 29  8f 53  9f 35  10f 19
+  Monte Carlo with the fixes:  T  yield harm+RL  yield loss<=1.3  loss max  worst harm margin  worst PA RL
+                             -40    100.0 %        52.5 %      1.48 dB        4.9 dB         21.1 dB
+                             -20    100.0 %        54.6 %      1.49 dB        5.5 dB         21.0 dB
+                               0    100.0 %        49.8 %      1.50 dB        5.0 dB         20.2 dB
+                              25    100.0 %        54.1 %      1.49 dB        5.6 dB         20.4 dB
+                              60    100.0 %        53.0 %      1.49 dB        5.7 dB         20.2 dB
+                              85    100.0 %        47.9 %      1.49 dB        5.4 dB         20.0 dB
+  notch range over all runs: 1.345-2.145 GHz and 2.165-2.445 GHz
+  U.FL power at 4.0 V: 34.81-35.22 dBm (3.03-3.33 W)
+  -> fixed LPF: loss / 2f-5f harmonic yield: PASS  [loss 1.12 dB nominal (1.09-1.50 MC, 52 % <= 1.3 dB) -> 34.8-35.2 dBm at 4.0 V; 2f-5f yield 100.0 %, worst margin 4.9 dB]
+  -> fixed LPF: 6f-8f (edge of data): RISK (unverified)  [worst margin -8.6 dB (original filter -6.6 dB); these bands depend on unpublished PA levels and models past the data]
+
+  Inductor RF heating (VPA 3.6 V): I_rms^2 x R_ac(915 MHz) vs the heating at the maker's rated current, I^2 x Rdc max
+  (Murata: rated current = 20 C self-heating).  R_ac from the minimum Q (typical Q is ~1.4x higher, loss ~1.4x lower).
+  Matched antenna / antenna missing (worst phase, model A):
+   L14   0908SQ-8N1       8.1nH  0908  I 0.14 / 0.15 A rms   P    9 /   10 mW   rated-current heating   64 mW  ->  14 % /  16 %
+   L15   LQW2BAN3N6J00L   3.6nH  0805  I 0.60 / 1.79 A rms   P  126 / 1132 mW   rated-current heating  200 mW  ->  63 % / 566 %
+   L16   LQW2BAN3N2J00L   3.2nH  0805  I 0.51 / 0.57 A rms   P   65 /   81 mW   rated-current heating  289 mW  ->  23 % /  28 %
+   L17   LQW2BAN3N2J00L   3.2nH  0805  I 0.35 / 0.38 A rms   P   30 /   36 mW   rated-current heating  289 mW  ->  11 % /  12 %
+   L18   LQW15AN47NJ00D   47nH   0402  I 0.04 / 0.12 A rms   P   10 /   74 mW   rated-current heating   48 mW  ->  21 % / 156 %
+  -> fixed inductors RF heating, 3.6 V: MARGINAL  [worst 45 % of rated-current heating matched (typical Q), 404 % antenna missing]
+  Inductor RF heating (VPA 4.0 V): I_rms^2 x R_ac(915 MHz) vs the heating at the maker's rated current, I^2 x Rdc max
+  (Murata: rated current = 20 C self-heating).  R_ac from the minimum Q (typical Q is ~1.4x higher, loss ~1.4x lower).
+  Matched antenna / antenna missing (worst phase, model A):
+   L14   0908SQ-8N1       8.1nH  0908  I 0.16 / 0.17 A rms   P   11 /   13 mW   rated-current heating   64 mW  ->  18 % /  20 %
+   L15   LQW2BAN3N6J00L   3.6nH  0805  I 0.66 / 1.99 A rms   P  155 / 1397 mW   rated-current heating  200 mW  ->  78 % / 699 %
+   L16   LQW2BAN3N2J00L   3.2nH  0805  I 0.57 / 0.64 A rms   P   81 /  100 mW   rated-current heating  289 mW  ->  28 % /  35 %
+   L17   LQW2BAN3N2J00L   3.2nH  0805  I 0.39 / 0.42 A rms   P   37 /   44 mW   rated-current heating  289 mW  ->  13 % /  15 %
+   L18   LQW15AN47NJ00D   47nH   0402  I 0.05 / 0.13 A rms   P   12 /   92 mW   rated-current heating   48 mW  ->  26 % / 193 %
+  -> fixed inductors RF heating, 4.0 V: MARGINAL  [worst 55 % of rated-current heating matched (typical Q), 499 % antenna missing]
+  switch peak voltage with the fixes, 3.6 V (33.6 dBm), antenna missing (model B): 30.8 V (98 % of 31.6 V)
+  Bluetooth with the 0.8 pF at +-0.05 pF: -40 C yield 100.0 % (worst 9.6 dB), 25 C yield 100.0 % (worst 9.6 dB), 85 C yield 100.0 % (worst 9.8 dB)
+  -> Bluetooth with 0.8 pF +-0.05 pF: PASS  [yield 100.0 % (pre-layout)]
+  pad first 68 R as ERJ-P06F68R0V (0.5 W at 70 C, 0 W at 155 C): +22 dBm (118 mW) at 85 C = 29 %; +23 dBm = 36 %
+  -> pad with ERJ-P06F68R0V: PASS  [29 % of its 85 C rating at +22 dBm, 36 % at +23 dBm]
+
+====================================================================================================
+SUMMARY
+====================================================================================================
+  1  TX loss PA -> U.FL                                   MARGINAL  1.44 dB max in band (LPF 0.40, switch 0.30, LFCN 0.67): 35 dBm at 4.0 V gives 34.9 dBm at the U.FL
+  1  return loss at interfaces                            PASS      worst 17.8 dB (PA load 17.8 dB, U.FL 20.3 dB, pad seen by SX1262 30.8 dB); QPA9510 own input 7.3-11.1 dB
+  1  harmonics 2f-5f at 30 dBm, 6 dBi                     PASS      worst margin 16.3 dB at 5f (FCC and Part 97)
+  1  harmonics 2f-5f at 35 dBm, 6 dBi                     PASS      worst margin 11.1 dB at 5f (FCC and Part 97)
+  1  harmonics 6f-8f at 35 dBm, 6 dBi (edge of data)      RISK (unverified) worst margin -6.6 dB at 8f; the LFCN re-enters above 5.5 GHz (15-19 dB, data sheet) and the PA level there is assumed (-45 dBc)
+  2  Monte Carlo harmonics + PA match yield               PASS      worst-temperature yield 100.0 %, worst harmonic margin 4.5 dB
+  2  Monte Carlo TX loss (3 W reachable?)                 MARGINAL  0 % of boards <= 1.3 dB, 100 % <= 2.0 dB; loss 1.37-1.99 dB -> 34.3-34.9 dBm (2.7-3.1 W) at 4.0 V
+  2  elliptic LPF notch placement                         MARGINAL  2f notch 1.62-2.15 GHz, 3f notch 2.27-2.62 GHz (targets 1.80-1.86 / 2.71-2.78): notches miss their bands; rejection is carried by the LFCN
+  3  pad power at +20 dBm (firmware cap), 85 C            MARGINAL  first 68 R 74 mW = 72 % of its 85 C rating (91 % with +1 dB SX1262 spread); 75 % at 60 C
+  3  pad power at +22 dBm, 85 C                           FAIL      118 mW = 114 % of rating (144 % at +23 dBm)
+  3  pad attenuation over tolerance                       PASS      15.80-16.09 dB over 1 %, TCR and -40..85 C; PA input +5.2 dBm at +22 dBm (abs max +13), +3.2 dBm at the +20 dBm cap (ruggedness test condition +4.5)
+  4  RX with LNA on vs RAK4631                            PASS      +4.9 dB better typical (+3.8 dB with every part at its data-sheet worst); plan says ~4.5: confirmed; LongFast -135.3 dBm vs -130.5
+  4  RX with LNA in bypass vs RAK4631                     PASS      2.1 dB worse typical (3.4 dB worst case); plan says ~2.5: confirmed
+  5  LoRa frequency offset between nodes                  PASS      8.6 kHz worst pair after 10 years vs 31.2 kHz (SF12/BW125) and 62.5 kHz (LongFast)
+  5  32 MHz crystal vs BLE +-50 ppm / Nordic +-40 ppm     MARGINAL  worst case 42 ppm new, 47 ppm aged (pulling 12 ppm from load uncertainty)
+  6  Bluetooth match over tolerance (pre-layout)          MARGINAL  yield 98.9 %, worst RL 8.6 dB, nominal 15.5 dB (antenna = Johanson EVB model; re-check on the routed board)
+  7  PA load with antenna missing                         PASS      9.7:1 at the PA (rated 10:1 at 3.6 V, Pin +4.5 dBm): firmware 3.6 V ceiling is right; 4.0 V is outside the rating
+  7  SKY13330 voltage, antenna missing, 3.6 V             MARGINAL  30.0 V peak = 95 % of the +40 dBm (31.6 V) abs max; 113 % of the IP0.1dB voltage
+  7  SKY13330 voltage, antenna missing, 4.0 V             FAIL      33.4 V peak = 106 % of the +40 dBm (31.6 V) abs max; 125 % of the IP0.1dB voltage
+  7  RF heating L15 3.6nH 0603                            FAIL      147 mW matched = 345 % (typical Q 246 %) of its rated-current heating; 1468 mW antenna missing (3444 %)
+  7  RF heating L16 5.1nH 0402                            FAIL      161 mW matched = 372 % (typical Q 266 %) of its rated-current heating; 193 mW antenna missing (448 %)
+  7  RF heating L17 4.7nH 0603                            FAIL      67 mW matched = 157 % (typical Q 112 %) of its rated-current heating; 472 mW antenna missing (1108 %)
+  7  RF heating L18 47nH 0402                             MARGINAL  8 mW matched = 18 % (typical Q 13 %) of its rated-current heating; 111 mW antenna missing (233 %)
+  7  LNA / SX1262 RX input during TX                      PASS      LNA input -3.4 dBm worst (abs max +25); SX1262 RFI -5.6 dBm (abs max +10)
+  F  fixed LPF: loss / 2f-5f harmonic yield               PASS      loss 1.12 dB nominal (1.09-1.50 MC, 52 % <= 1.3 dB) -> 34.8-35.2 dBm at 4.0 V; 2f-5f yield 100.0 %, worst margin 4.9 dB
+  F  fixed LPF: 6f-8f (edge of data)                      RISK (unverified) worst margin -8.6 dB (original filter -6.6 dB); these bands depend on unpublished PA levels and models past the data
+  F  fixed inductors RF heating, 3.6 V                    MARGINAL  worst 45 % of rated-current heating matched (typical Q), 404 % antenna missing
+  F  fixed inductors RF heating, 4.0 V                    MARGINAL  worst 55 % of rated-current heating matched (typical Q), 499 % antenna missing
+  F  Bluetooth with 0.8 pF +-0.05 pF                      PASS      yield 100.0 % (pre-layout)
+  F  pad with ERJ-P06F68R0V                               PASS      29 % of its 85 C rating at +22 dBm, 36 % at +23 dBm

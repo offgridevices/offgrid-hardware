@@ -3,11 +3,21 @@
   "part": "TPS259470A",
   "ref": "U (eFuse IN)",
   "qty": "peak input voltage",
-  "value": 27.824251638608736,
+  "value": 28.285822398700443,
   "unit": "V",
   "rating": 28.0,
   "kind": "absmax",
-  "case": "drone 20 V hot plug (fault)"
+  "case": "drone 20 V hot plug (fault), 85 C"
+ },
+ {
+  "part": "TPS259470A",
+  "ref": "U (eFuse IN)",
+  "qty": "steady input voltage, 12 V panel at -40 C (Voc)",
+  "value": 25.848,
+  "unit": "V",
+  "rating": 23.0,
+  "kind": "rec",
+  "case": "23 V recommended maximum"
  },
  {
   "part": "TPS259470A",
@@ -23,21 +33,21 @@
   "part": "TPS259470A",
   "ref": "U (EN/UVLO pin)",
   "qty": "peak voltage",
-  "value": 4.216547635993586,
+  "value": 4.311714042952075,
   "unit": "V",
   "rating": 6.5,
   "kind": "absmax",
-  "case": "drone 20 V hot plug (fault)"
+  "case": "drone 20 V hot plug (fault), -40 C"
  },
  {
   "part": "TPS259470A",
   "ref": "U (OVLO pin)",
   "qty": "peak voltage",
-  "value": 5.701282527342177,
+  "value": 5.784548891269955,
   "unit": "V",
   "rating": 6.5,
   "kind": "absmax",
-  "case": "drone 20 V hot plug (fault)"
+  "case": "drone 20 V hot plug (fault), 85 C"
  },
  {
   "part": "C1u25 0603 25 V",
@@ -73,11 +83,11 @@
   "part": "nRF52840",
   "ref": "U (VBUS)",
   "qty": "peak voltage",
-  "value": 4.7538083086339995,
+  "value": 4.757385058849,
   "unit": "V",
   "rating": 5.8,
   "kind": "absmax",
-  "case": "USB 5 V -> 20 V step, 1 us"
+  "case": "USB 5 V -> 20 V step, 1 us, 85 C"
  },
  {
   "part": "nRF52840",
@@ -93,11 +103,11 @@
   "part": "BQ25185",
   "ref": "U (IN)",
   "qty": "peak voltage",
-  "value": 4.489032302539652,
+  "value": 4.557485783996698,
   "unit": "V",
   "rating": 25.0,
   "kind": "absmax",
-  "case": "drone 5 V hot plug"
+  "case": "drone 5 V hot plug, 85 C"
  },
  {
   "part": "BQ25185",

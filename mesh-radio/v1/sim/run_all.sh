@@ -5,7 +5,8 @@
 # Scratch netlists, ngspice logs and decimated waveforms go to sim/out/ (ignored by
 # the repository's out/ rule).  Each study writes results.txt, stress.json and its
 # plot next to its run.py; derating/ reads the other studies' stress.json, so it
-# runs last.  The burst grid is the slow part (~40-60 min on 4 cores).
+# runs last.  Every study runs at ambient -40, -20, 0, 25, 60 and 85 C; the burst grid
+# (720 runs) is the slow part, ~30-60 min on 4 cores (cached per run in sim/out/burst/).
 set -e
 cd "$(dirname "$0")"
 for study in hotplug reverse shorts burst solar derating; do

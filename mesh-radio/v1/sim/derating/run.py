@@ -39,14 +39,28 @@ def tj(p, rth):
 
 
 def datasheet_rows():
+    global TA
+    out = []
+    for ta in (60.0, 85.0):
+        TA = ta
+        for r in _rows():
+            r['qty'] = r['qty'] + ', %d C ambient' % ta if r['unit'] == 'W' else r['qty']
+            if r['unit'] == 'W' or ta == 60.0:
+                out.append(r)
+    return out
+
+
+def _rows():
     st = []
     s = S.stress
+    rfa = 1 + 0.004 * (TA - 25)
     # thermal: dissipation -> Tj at 60 C ambient, against Tj max (125 C) - expressed as power vs (125-60)/RthJA
-    p_bb = 4.0 * 2.3 / 0.92 - 4.0 * 2.3          # 3 W burst: PIN - POUT at 92 %
-    st.append(s('TPS63810', 'U (buck-boost)', 'dissipation during a 3 W burst (92 %)', p_bb, 'W', (125 - TA) / 80.5,
+    eff = 1 - 0.08 * (1 + 0.004 * (TA - 25))
+    p_bb = 4.0 * 2.3 / eff - 4.0 * 2.3           # 3 W burst: PIN - POUT, efficiency 92 % at 25 C falling with RDS(on)
+    st.append(s('TPS63810', 'U (buck-boost)', 'dissipation during a 3 W burst', p_bb, 'W', (125 - TA) / 80.5,
                 'derate', 'RthJA 80.5 C/W JEDEC -> Tj %.0f C at 60 C if continuous; bursts only (E2 thermal sim)' % tj(p_bb, 80.5)))
-    p_bb1 = 2.7 * 1.0 / 0.92 - 2.7
-    st.append(s('TPS63810', 'U (buck-boost)', 'dissipation at 1 W (92 %)', p_bb1, 'W', (125 - TA) / 80.5, 'derate',
+    p_bb1 = 2.7 * 1.0 / eff - 2.7
+    st.append(s('TPS63810', 'U (buck-boost)', 'dissipation at 1 W', p_bb1, 'W', (125 - TA) / 80.5, 'derate',
                 'Tj %.0f C at 60 C, continuous' % tj(p_bb1, 80.5)))
     p_pa = 4.0 * 2.3 - 3.16
     st.append(s('QPA9510', 'U (PA)', 'dissipation at 35 dBm (9.2 W DC, 3.2 W RF)', p_pa, 'W', (175 - 85) / 12.5, 'derate',
@@ -55,7 +69,7 @@ def datasheet_rows():
     st.append(s('QPA9510', 'U (PA)', 'dissipation at 30 dBm', p_pa1, 'W', (175 - 85) / 12.5, 'derate',
                 'Tj = Tcase + %.0f C' % (p_pa1 * 12.5)))
     st.append(s('TPS259470A', 'U (USB eFuse)', 'current at the charger input limit', 1.1, 'A', 5.5, 'derate', '5.5 A continuous'))
-    st.append(s('TPS259470A', 'U (USB eFuse)', 'dissipation at 1.1 A', 1.1 ** 2 * 0.045, 'W', (125 - TA) / 74.5, 'derate',
+    st.append(s('TPS259470A', 'U (USB eFuse)', 'dissipation at 1.1 A', 1.1 ** 2 * 0.045 * rfa, 'W', (125 - TA) / 74.5, 'derate',
                 'RON 45 mOhm max, RthJA 74.5 C/W'))
     st.append(s('RB060MM-30', 'D (USB into charger)', 'forward current', 1.1, 'A', 2.0, 'derate', 'Io 2 A'))
     p_chg = (4.6 - 3.0) * 0.497 + (4.6 - 4.5) * 0.05
@@ -109,7 +123,8 @@ def main():
         out.append(r)
     out.sort(key=lambda r: (r['part'], -r['pct']))
     L = ['Study 6: derating (E4).  derate: <= 70 % of rating; absmax: < 95 % of the absolute maximum (transients);',
-         'rec: steady pin voltage within the recommended maximum; pulse: reported.  60 C ambient for the thermal rows.', '']
+         'rec: steady pin voltage within the recommended maximum; pulse: reported.  Thermal rows at 60 C (the sealed box,',
+         'E2) and 85 C (the top corner); stresses from the studies are the worst over -40 .. 85 C.', '']
     L.append(S.table([[r['part'], r['ref'], r['qty'], '%.3g %s' % (r['value'], r['unit']), '%.3g %s' % (r['rating'], r['unit']),
                        '%.0f %%' % r['pct'], r['kind'], r['verdict'], r['study'], r['case']] for r in out],
                      ['part', 'where', 'quantity', 'worst case', 'rating', '%', 'rule', 'verdict', 'from', 'case / note']))

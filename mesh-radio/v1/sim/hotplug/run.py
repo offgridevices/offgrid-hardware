@@ -54,7 +54,8 @@ DRN = dict(rt_uv=1e6, rb_uv=383e3, rt_ov=1e6, rb_ov=261e3, rilm=2490)
 
 def netlist(case, raw):
     kind = case['kind']
-    s = ['* hot plug: %s' % case['name'], P.MODELS]
+    P.set_temp(case.get('ta', 25.0))
+    s = ['* hot plug: %s, %g C' % (case['name'], P.TEMP), P.models()]
     tvs = case.get('tvs', 'MAX')
     if kind in ('usb', 'drone'):
         v1 = case['v']
@@ -104,11 +105,18 @@ def run(case):
     r = S.rawread(os.path.join(OUT, name + '.raw'))
     t = r['time']
     v = r['v(raw)']
-    dv = np.diff(v) / np.maximum(np.diff(t), 1e-12)
-    m = t[1:] > T_PLUG
+    # slew over 50 ns windows (a single solver step across the TVS knee is not a slew rate)
+    tg = np.arange(T_PLUG, min(t[-1], T_PLUG + 300e-6), 10e-9)
+    vg = np.interp(tg, t, v)
+    dv = (vg[5:] - vg[:-5]) / 50e-9
+    if 'step' in case:
+        tg2 = np.arange(case['step'][0], case['step'][0] + 300e-6, 10e-9)
+        vg2 = np.interp(tg2, t, v)
+        dv = np.concatenate([dv, (vg2[5:] - vg2[:-5]) / 50e-9])
+    m = np.ones(len(dv), bool)
     itvs = r['i(vtvsam)']
     late = t > TSTOP - 2e-3
-    res = dict(name=name, label=case['label'], raw_max=v.max(), dvr=dv[m].max() / 1e6, dvf=-dv[m].min() / 1e6,
+    res = dict(name=name, base=case['base'], ta=case['ta'], label=case['label'], raw_max=v.max(), dvr=dv[m].max() / 1e6, dvf=-dv[m].min() / 1e6,
                en_max=r['v(fu_en)'].max(), ov_max=r['v(fu_ov)'].max(), out_max=r['v(eout)'].max(),
                vin_max=r['v(vin_chg)'].max(), out_end=r['v(eout)'][-1], vin_end=r['v(vin_chg)'][-1],
                ena_max=r['v(fu_ena)'].max(), ena_end=r['v(fu_ena)'][-1], i_max=r['v(fu_i)'].max(), iin_end=r['v(ch_iin)'][-1],
@@ -125,22 +133,42 @@ def voc_at(voc25, ncell, temp):
     return voc25 - 0.0022 * ncell * (temp - 25)
 
 
+TEMPS = [-40, -20, 0, 25, 60, 85]
+BASE = [
+    dict(base='usb5', label='USB 5 V hot plug', kind='usb', v=5.0),
+    dict(base='usb5p5', label='USB 5.5 V (vSafe5V max) hot plug', kind='usb', v=5.5),
+    dict(base='usb20', label='USB 20 V hot plug (fault)', kind='usb', v=20.0),
+    dict(base='usb5to20', label='USB 5 V -> 20 V step, 1 us', kind='usb', v=5.0, step=(6e-3, 20.0)),
+    dict(base='sol12', label='12 V panel (21 V Voc at 25 C), TVS min', kind='solar', voc=21.0, isc=0.33, ncell=36,
+         tvs='MIN'),
+    dict(base='sol6', label='6 V 1 W panel (7.2 V Voc at 25 C)', kind='solar', voc=7.2, isc=0.185, ncell=12),
+    dict(base='drn5', label='drone 5 V hot plug', kind='drone', v=5.0),
+    dict(base='drn20', label='drone 20 V hot plug (fault)', kind='drone', v=20.0),
+]
+
+
+def leak_op(ta, vin, rbleed=47e3):
+    """USB unplugged, VIN_CHG held up by solar / drone: the USB OR-ing RB060MM is reverse biased and its
+    leakage flows into USB_5V (the nRF52840's VBUS, 47 k bleed, ~10 uA of nRF input).  DC operating point."""
+    P.set_temp(ta)
+    net = '\n'.join(['* RB060MM leakage into USB_5V, %g C' % ta, P.models(), 'Vin VIN_CHG 0 %g' % vin,
+                      'D1 USB_5V VIN_CHG DRB060', 'Rb USB_5V 0 %g' % rbleed, 'Rnrf USB_5V 0 500k',
+                      '.control', 'op', 'print v(usb_5v)', '.endc', '.end'])
+    out = S.ngspice(net, OUT, 'leak_%g_%g' % (ta, vin))
+    import re
+    m = re.search(r'v\(usb_5v\) = ([0-9.eE+-]+)', out)
+    return float(m.group(1))
+
+
 def main():
-    cases = [
-        dict(name='usb5', label='USB 5 V hot plug', kind='usb', v=5.0),
-        dict(name='usb5p5', label='USB 5.5 V (vSafe5V max) hot plug', kind='usb', v=5.5),
-        dict(name='usb20', label='USB 20 V hot plug (fault)', kind='usb', v=20.0),
-        dict(name='usb5to20', label='USB 5 V -> 20 V step, 1 us', kind='usb', v=5.0, step=(6e-3, 20.0)),
-        dict(name='sol12', label='12 V panel, 21 V Voc, 25 C', kind='solar', voc=21.0, isc=0.33, ncell=36, temp=25),
-        dict(name='sol12m20', label='12 V panel at -20 C (TVS min 24.6 V)', kind='solar', voc=21.0, isc=0.33,
-             ncell=36, temp=-20, tvs='MIN'),
-        dict(name='sol12m40', label='12 V panel at -40 C (TVS min 24.6 V)', kind='solar', voc=21.0, isc=0.33,
-             ncell=36, temp=-40, tvs='MIN'),
-        dict(name='sol6', label='6 V 1 W panel (7.2 V Voc), 25 C', kind='solar', voc=7.2, isc=0.185, ncell=12, temp=25),
-        dict(name='sol6c', label='6 V 1 W panel at -40 C', kind='solar', voc=7.2, isc=0.185, ncell=12, temp=-40),
-        dict(name='drn5', label='drone 5 V hot plug', kind='drone', v=5.0),
-        dict(name='drn20', label='drone 20 V hot plug (fault)', kind='drone', v=20.0),
-    ]
+    cases = []
+    for ta in TEMPS:
+        for b in BASE:
+            c = dict(b)
+            c['name'] = '%s_%d' % (b['base'], ta)
+            c['ta'] = float(ta)
+            c['temp'] = float(ta)        # panel cells at ambient (the cold-morning worst case)
+            cases.append(c)
     with ProcessPoolExecutor(4) as ex:
         res = list(ex.map(run, cases))
     R = dict((r['name'], r) for r in res)
@@ -166,24 +194,28 @@ def main():
             fails.append('charger IN > 25 V')
         if r['tvs_idc'] > 0.018:
             fails.append('TVS DC %.0f mA' % (r['tvs_idc'] * 1e3))
-        hi = ('20' in r['name'] and r['name'] != 'usb5to20') or r['name'].startswith('sol12')
+        hi = r['base'] in ('usb20', 'drn20', 'sol12')
         if hi and max(r['out_max'], r['vin_max']) > 1.0:
             fails.append('eFuse passed the over-voltage')
-        if r['name'] == 'usb5to20' and r['ena_end'] > 0.5:
+        if r['base'] == 'usb5to20' and r['ena_end'] > 0.5:
             fails.append('OV did not cut off')
         if r['raw_max'] > 27.0 and not fails:
             marg.append('IN within 1 V of 28 V')
         if r['kind'] == 'usb' and r['out_max'] > 5.5 and not fails:
             marg.append('VBUS above 5.5 V rec.')
-        if r['name'] in ('usb5', 'usb5p5', 'drn5', 'sol6', 'sol6c') and r['ena_end'] < 0.5:
+        if r['base'] in ('usb5', 'usb5p5', 'drn5', 'sol6') and r['ena_end'] < 0.5:
             marg.append('input did not switch on')
         r['verdict'] = 'FAIL' if fails else ('MARGINAL' if marg else 'PASS')
-        rows.append([r['label'], r['raw_max'], r['dvr'], r['dvf'], r['en_max'], r['ov_max'], r['out_max'], r['vin_max'],
+        rows.append([r['label'], '%d C' % r['ta'], r['raw_max'], r['dvr'], r['dvf'], r['en_max'], r['ov_max'], r['out_max'], r['vin_max'],
                      'on' if r['ena_end'] > 0.5 else 'off', r['tvs_ipk'], r['tvs_idc'] * 1e3, r['verdict'],
                      ', '.join(fails + marg) or '-'])
-    L.append(S.table(rows, ['case', 'IN max V', 'dV/dt up V/us', 'dV/dt down V/us', 'EN max', 'OVLO max',
+    L.append(S.table(rows, ['case', 'ambient', 'IN max V', 'dV/dt up V/us', 'dV/dt down V/us', 'EN max', 'OVLO max',
                             'eFuse OUT max', 'VIN_CHG max', 'eFuse', 'TVS pk A', 'TVS DC mA', 'verdict', 'notes']))
     L.append('  (eFuse OUT = USB_5V for USB; for solar / drone the eFuse output is VIN_CHG.)')
+    L.append('')
+    L.append('Verdict per case and ambient:')
+    L.append(S.table([[b['label']] + [R['%s_%d' % (b['base'], ta)]['verdict'] for ta in TEMPS] for b in BASE],
+                     ['case'] + ['%d C' % ta for ta in TEMPS]))
     L.append('')
     # 12 V panel Voc vs temperature against the TVS breakdown
     L.append('12 V panel (36 cells, 21.0 V Voc at 25 C, -2.2 mV/C/cell) against the TVS2200 breakdown 24.6 / 25.9 / 27.6 V:')
@@ -211,18 +243,49 @@ def main():
     L.append('  5.22-5.57 V (comparator and 1 % resistor tolerance): a 5.25-5.5 V charger can be refused.  Once tripped,')
     L.append('  OVLO only releases below 1.09 V on the pin, i.e. %.2f V on VBUS.' % (1.09 * (1 + USB['rt_ov'] / USB['rb_ov'])))
     L.append('')
+    L.append('USB UVLO rising threshold over temperature with the zener leakage doubling every 10 C (generic junction')
+    L.append('leakage; the UDZV4.7B datasheet gives only 25 C): from an assumed 20 nA typical and from the 2 uA maximum')
+    L.append('at 25 C.  The USB OV cut-off is 5.22-5.57 V; above it the input never switches on.')
+    zr = []
+    for ta in TEMPS:
+        k = 2 ** ((ta - 25) / 10.0)
+        base = 1.20 * (1 + USB['rt_uv'] / USB['rb_uv'])
+        lt, lm = 20e-9 * k, 2e-6 * k
+        zr.append(['%d C' % ta, lt * 1e6, base + lt * USB['rt_uv'], lm * 1e6, base + min(lm, 5e-6) * USB['rt_uv'],
+                   'OK' if base + lt * 1e6 < 5.22 else 'USB off', 'OK' if base + lm * 1e6 < 5.22 else 'USB off'])
+    L.append(S.table(zr, ['ambient', 'leak typ uA', 'UVLO typ V', 'leak max uA', 'UVLO max V', 'typ', 'max']))
+    L.append('  (UVLO max capped at 5 uA of leakage, where the zener itself would hold EN below 1.2 V anyway.)')
+    L.append('')
+    L.append('RB060MM reverse leakage into USB_5V (nRF52840 VBUS, 47 k bleed) with USB unplugged and VIN_CHG held up by')
+    L.append('the solar input (10.3 V: its OV cut-off maximum; 7.2 V: a 6 V panel the charger is not loading) or the')
+    L.append('drone input (5.8 V).  Model leakage = the diode fit (IS 2.8 uA at 25 C, EG 0.69 eV, XTI 2): typical, the')
+    L.append('datasheet maximum (50 uA at 30 V, 25 C) is ~5x higher.  Limits: VBUS abs max 5.8 V; VBUS detect 3.4 V min.')
+    lr = []
+    for ta in TEMPS:
+        row = ['%d C' % ta]
+        for vin in (10.3, 7.2, 5.8):
+            row.append(leak_op(ta, vin))
+        v = max(row[1:])
+        row.append('FAIL' if v > 5.8 else ('MARGINAL' if v > 3.4 else 'PASS'))
+        lr.append(row)
+    L.append(S.table(lr, ['ambient', 'USB_5V @ 10.3 V', '@ 7.2 V', '@ 5.8 V', 'verdict']))
+    L.append('  Above ~3.4 V the nRF52840 reports USB present (VBUS detect); above 5.8 V VBUS is over its absolute maximum.')
+    L.append('')
     # zener-leak transient check (USB, 1 uA)
     S.write_results(HERE, L)
 
     st = []
+    lab = lambda r: '%s, %d C' % (r['label'], r['ta'])
     w = max(res, key=lambda x: x['raw_max'])
-    st.append(S.stress('TPS259470A', 'U (eFuse IN)', 'peak input voltage', w['raw_max'], 'V', 28.0, 'absmax', w['label']))
+    st.append(S.stress('TPS259470A', 'U (eFuse IN)', 'peak input voltage', w['raw_max'], 'V', 28.0, 'absmax', lab(w)))
+    st.append(S.stress('TPS259470A', 'U (eFuse IN)', 'steady input voltage, 12 V panel at -40 C (Voc)',
+                       voc_at(21.0, 36, -40) - 0.3, 'V', 23.0, 'rec', '23 V recommended maximum'))
     st.append(S.stress('TPS259470A', 'U (eFuse IN)', 'steady input voltage (20 V fault / 12 V panel)', 21.0, 'V', 23.0,
                        'rec', '23 V recommended maximum'))
     w = max(res, key=lambda x: x['en_max'])
-    st.append(S.stress('TPS259470A', 'U (EN/UVLO pin)', 'peak voltage', w['en_max'], 'V', 6.5, 'absmax', w['label']))
+    st.append(S.stress('TPS259470A', 'U (EN/UVLO pin)', 'peak voltage', w['en_max'], 'V', 6.5, 'absmax', lab(w)))
     w = max(res, key=lambda x: x['ov_max'])
-    st.append(S.stress('TPS259470A', 'U (OVLO pin)', 'peak voltage', w['ov_max'], 'V', 6.5, 'absmax', w['label']))
+    st.append(S.stress('TPS259470A', 'U (OVLO pin)', 'peak voltage', w['ov_max'], 'V', 6.5, 'absmax', lab(w)))
     st.append(S.stress('C1u25 0603 25 V', 'C (raw inputs)', 'steady voltage, 12 V panel / 20 V fault', 21.0, 'V', 25.0,
                        'derate', 'continuous with a 12 V panel at 25 C (24 V+ cold)'))
     st.append(S.stress('TVS2200', 'D (surge clamp)', 'standoff, 12 V panel at 25 C', 21.0 - 0.3, 'V', 22.0, 'rec',
@@ -230,11 +293,11 @@ def main():
     st.append(S.stress('RB060MM-30', 'D (solar / drone reverse block)', 'reverse voltage, panel reversed (cold)',
                        voc_at(21.0, 36, -40), 'V', 30.0, 'derate', '12 V panel plugged in backwards at -40 C'))
     w = max([r for r in res if r['kind'] == 'usb'], key=lambda x: x['out_max'])
-    st.append(S.stress('nRF52840', 'U (VBUS)', 'peak voltage', w['out_max'], 'V', 5.8, 'absmax', w['label']))
+    st.append(S.stress('nRF52840', 'U (VBUS)', 'peak voltage', w['out_max'], 'V', 5.8, 'absmax', lab(w)))
     st.append(S.stress('nRF52840', 'U (VBUS)', 'steady voltage at OV max', 1.223 * (1 + 1.01e6 / (0.99 * 287e3)), 'V', 5.5,
                        'rec', 'a source just under the USB OV cut-off'))
     w = max(res, key=lambda x: x['vin_max'])
-    st.append(S.stress('BQ25185', 'U (IN)', 'peak voltage', w['vin_max'], 'V', 25.0, 'absmax', w['label']))
+    st.append(S.stress('BQ25185', 'U (IN)', 'peak voltage', w['vin_max'], 'V', 25.0, 'absmax', lab(w)))
     st.append(S.stress('BQ25185', 'U (IN)', 'steady voltage (solar OV cut-off max)', 1.223 * (1 + 1.01e6 / (0.99 * 137e3)),
                        'V', 18.0, 'rec', 'VIN_OP 18 V'))
     st.append(S.stress('C10u25 0805 25 V', 'C (VIN_CHG)', 'steady voltage (solar OV max)', 1.223 * (1 + 1.01e6 / (0.99 * 137e3)),
@@ -245,8 +308,9 @@ def main():
 
     plt = S.style()
     fig, ax = plt.subplots(2, 3, figsize=(16, 8))
-    panels = [('usb5', 'USB 5 V hot plug'), ('usb20', 'USB 20 V hot plug'), ('usb5to20', 'USB 5 -> 20 V while on'),
-              ('sol12m20', '12 V panel, -20 C, TVS min'), ('sol6', '6 V panel'), ('drn20', 'drone 20 V')]
+    panels = [('usb5_25', 'USB 5 V hot plug, 25 C'), ('usb20_85', 'USB 20 V hot plug, 85 C'),
+              ('usb5to20_25', 'USB 5 -> 20 V while on, 25 C'), ('sol12_-40', '12 V panel, -40 C, TVS min'),
+              ('sol6_25', '6 V panel, 25 C'), ('drn20_85', 'drone 20 V, 85 C')]
     for a, (n, title) in zip(ax.flat, panels):
         d = np.load(os.path.join(OUT, n + '.npz'))
         tm = (d['time'] - T_PLUG) * 1e3

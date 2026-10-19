@@ -22,6 +22,37 @@ Conventions
 Part numbers and pins follow src/circuit.py.
 """
 
+# ------------------------------------------------------------------ temperature
+
+TEMP = 25.0          # ambient = component temperature for every model, set by set_temp() before a build
+
+
+def set_temp(t):
+    global TEMP
+    TEMP = float(t)
+
+
+def rf():
+    """On-resistance factor of every MOSFET switch: +0.4 %/C from 25 C."""
+    return 1.0 + 0.004 * (TEMP - 25.0)
+
+
+def ck():
+    """Ceramic capacitance factor over temperature (X5R/X7R, on top of the DC-bias
+    derating): -15 % at -40 and 85 C, -10 % at -20 C, -5 % at 0 and 60 C."""
+    import numpy as np
+    return float(np.interp(TEMP, [-40, -20, 0, 25, 60, 85], [0.85, 0.90, 0.95, 1.0, 0.95, 0.85]))
+
+
+def rint_k():
+    """LiPo internal-resistance factor vs 25 C: x2 at 0 C, x5 at -20 C, x9 at -40 C (the
+    Arrhenius-like rise reported by Ji, Zhang & Wang, J. Electrochem. Soc. 160 (4) A636 (2013),
+    extrapolated below -20 C); x0.8 / x0.75 at 60 / 85 C (the ohmic and contact part
+    hardly falls, so less than Arrhenius would give)."""
+    import numpy as np
+    return float(np.interp(TEMP, [-40, -20, 0, 25, 60, 85], [9.0, 5.0, 2.0, 1.0, 0.8, 0.75]))
+
+
 # ------------------------------------------------------------------ helpers
 
 def lines(*ls):
@@ -30,7 +61,9 @@ def lines(*ls):
 
 def cap(name, a, b, c, esr=5e-3, esl=0.0):
     """Capacitor with ESR (and optional ESL).  `c` is the value left at the
-    working DC bias (studies pass derated values, README table)."""
+    working DC bias at 25 C (studies pass derated values, README table); the
+    temperature factor ck() is applied here."""
+    c = c * ck()
     if esl:
         return lines('C%s %s %s_x %g' % (name, a, name, c),
                      'R%s %s_x %s_y %g' % (name, name, name, esr),
@@ -109,14 +142,15 @@ def mon(n, expr):
 
 # ------------------------------------------------------------------ diodes and passive models
 
-MODELS = """
+_MODELS = """
 * RB060MM-30 Schottky: VF 0.30 V @ 0.1 A (assumed), 0.40 V @ 1 A, 0.46 V @ 2 A (datasheet typ 0.40/0.44); VR 30 V
-.model DRB060 D (IS=2.8e-6 N=1.1 RS=0.039 BV=30 IBV=50e-6 CJO=120p)
+.model DRB060 D (IS=2.8e-6 N=1.1 RS=0.039 BV=30 IBV=50e-6 CJO=120p EG=0.69 XTI=2)
 * TVS2200 flat clamp: VBR 24.6 / 25.9 / 27.6 V (min / typ / max at 1 mA); the clamp barely rises with current
-* (VCLAMP 27.2 typ / 27.7 max at 24 A, 28.0 max at 40 A): sharp knee (NBV 0.3) + 5 mOhm; 105 pF; VF 0.5 V
-.model DTVS_TYP D (IS=1e-12 N=1.9 RS=0.005 BV=25.9 IBV=1e-3 NBV=1 CJO=105p)
-.model DTVS_MAX D (IS=1e-12 N=1.9 RS=0.005 BV=27.6 IBV=1e-3 NBV=0.3 CJO=105p)
-.model DTVS_MIN D (IS=1e-12 N=1.9 RS=0.005 BV=24.6 IBV=1e-3 NBV=1 CJO=105p)
+* (VCLAMP 27.2 typ / 27.7 max at 24 A, 28.0 max at 40 A): sharp knee + 5 mOhm; 105 pF; VF 0.5 V;
+* VBR +6.5 mV/C (from VCLAMP 28.35 V max at 125 C vs 27.7 V at 27 C), applied in models()
+.model DTVS_TYP D (IS=1e-12 N=1.9 RS=0.005 BV={BV_TYP} IBV=1e-3 NBV=1 CJO=105p)
+.model DTVS_MAX D (IS=1e-12 N=1.9 RS=0.005 BV={BV_MAX} IBV=1e-3 NBV=0.6 CJO=105p)
+.model DTVS_MIN D (IS=1e-12 N=1.9 RS=0.005 BV={BV_MIN} IBV=1e-3 NBV=1 CJO=105p)
 * UDZV4.7B zener (EN clamp): VZ 4.55-4.75 V @ 5 mA, ZZ 100 ohm, soft knee (ZZK 800 ohm @ 0.5 mA);
 * reverse leakage below the knee is a separate resistor/current in efuse() (datasheet IR <= 2 uA @ 1 V)
 .model DZ47 D (IS=1e-14 N=1 RS=20 BV=4.65 IBV=5e-3 NBV=2.8 CJO=60p)
@@ -126,12 +160,26 @@ MODELS = """
 * generic substrate / ESD diode on an IC pin
 .model DESD D (IS=1e-14 N=1 RS=1)
 * CSD25485F5 -20 V P-FET: Vth -0.95 V, RDS(on) 35 mOhm @ -4.5 V (level 1: KP*W/L = 8.05 A/V^2)
-.model PREV PMOS (LEVEL=1 VTO=-0.95 KP=8.05 LAMBDA=0.01 IS=1e-30 CGSO=0 CGDO=0)
+.model PREV PMOS (LEVEL=1 VTO=-0.95 KP={KPREV} LAMBDA=0.01 IS=1e-30 CGSO=0 CGDO=0)
 * SSM10N954L protector half (one of the two common-drain N-FETs): RSS(on) 2.75 mOhm for both,
 * 1.375 mOhm each at VGS 3.7 V, Vth ~0.8 V (assumed)
-.model NPROT NMOS (LEVEL=1 VTO=0.8 KP=250 LAMBDA=0.01 IS=1e-30)
+.model NPROT NMOS (LEVEL=1 VTO=0.8 KP={KPROT} LAMBDA=0.01 IS=1e-30)
 .model SWI SW (VT=0.5 VH=0.05 RON=1m ROFF=1G)
 """
+
+
+def models():
+    """The model cards at the current temperature.  Diodes follow the global
+    .temp (Schottky VF and leakage through EG/XTI, the TVS breakdown at +6.5 mV/C
+    from its datasheet clamp at 27 and 125 C, the 4.7 V zener taken as flat);
+    the MOSFETs are pinned at 25 C internally (instance temp=25) and their KP is
+    divided by rf() instead, so RDS(on) rises 0.4 %/C as specified."""
+    return ('.temp %g\n.options tnom=25\n' % TEMP +
+            _MODELS.replace('{KPREV}', '%g' % (8.05 / rf())).replace('{KPROT}', '%g' % (250.0 / rf()))
+            .replace('{BV_TYP}', '%g' % (25.9 + 6.5e-3 * (TEMP - 25)))
+            .replace('{BV_MAX}', '%g' % (27.6 + 6.5e-3 * (TEMP - 25)))
+            .replace('{BV_MIN}', '%g' % (24.6 + 6.5e-3 * (TEMP - 25))))
+
 
 
 def schottky(p, a, k):
@@ -196,7 +244,7 @@ def battery_block(p, lm='gnd', prot=None, lm_ron=0.079, trace_bat=(0.006, 6e-9))
     vm = 'V(PROT_VM,CELL_MINUS)'
     s = lines(
         '* --- reverse-battery P-FET (D = BATT_PLUS, S = BAT_P_C, G = REV_G)',
-        'M%srev BATT_PLUS REV_G BAT_P_C BAT_P_C PREV' % k,
+        'M%srev BATT_PLUS REV_G BAT_P_C BAT_P_C PREV temp=25' % k,
         'D%srevb BATT_PLUS BAT_P_C DBODY' % k,
         'R%srevg REV_G CELL_MINUS 100k' % k, 'C%srevc REV_G BAT_P_C 400p' % k,
         '* gate ESD: back-to-back zeners, assumed +-14 V',
@@ -232,9 +280,9 @@ def battery_block(p, lm='gnd', prot=None, lm_ron=0.079, trace_bat=(0.006, 6e-9))
         'B%svmpu PROT_BAT %s_vm I = (V(%sval) > 0.5 && V(%suvp) > 0.5 && V(%socd) < 0.5) ? V(PROT_BAT,%s_vm)/300k : 0'
         % (k, k, k, k, k, k),
         '* --- SSM10N954L: DSG FET (S1 = CELL_MINUS, G1 = DOUT), CHG FET (S2 = PROT_S2, G2 = COUT), common drain',
-        'M%sdsg PROT_D PROT_DOUT CELL_MINUS CELL_MINUS NPROT' % k,
+        'M%sdsg PROT_D PROT_DOUT CELL_MINUS CELL_MINUS NPROT temp=25' % k,
         'D%sdsgb CELL_MINUS PROT_D DBODY' % k,
-        'M%schg PROT_D PROT_COUT PROT_S2 PROT_S2 NPROT' % k,
+        'M%schg PROT_D PROT_COUT PROT_S2 PROT_S2 NPROT temp=25' % k,
         'D%schgb PROT_S2 PROT_D DBODY' % k,
         'R%ssns PROT_S2 %s_gnd %g' % (k, k, q['rsense']),
         'V%samgnd %s_gnd 0 0' % (k, k),
@@ -246,6 +294,7 @@ def battery_block(p, lm='gnd', prot=None, lm_ron=0.079, trace_bat=(0.006, 6e-9))
 
 
 def lm66100(p, vin, vout, mode, ron=0.079):
+    ron = ron * rf()
     """LM66100: P-FET switch with body diode VIN->VOUT and reverse-polarity
     protection.  mode 'gnd' (CE = GND, as drawn): ON whenever VIN > CE +
     0.25 V, i.e. a plain bidirectional switch - it does NOT block current
@@ -275,7 +324,8 @@ def lm66100(p, vin, vout, mode, ron=0.079):
 # ------------------------------------------------------------------ charger
 
 CHG = dict(ilim=1.05, ron_in=0.40, ron_bat=0.130, vsys=4.5, vreg=4.2, ichg=0.497, iprech=0.0994, itrickle=0.007,
-           buvlo=3.0, buvlo_hys=0.15, buvlo_t=60e-6, batocp=3.13, vdpm_track=0.33, vdpm_min=3.6, ce=1, ts=1)
+           buvlo=3.0, buvlo_hys=0.15, buvlo_t=60e-6, batocp=3.13, vdpm_track=0.33, vdpm_min=3.6, ce=1, ts=1,
+           rth=68.3)
 
 
 def bq25185(p, vin, sys, bat, cfg=None):
@@ -292,10 +342,14 @@ def bq25185(p, vin, sys, bat, cfg=None):
         40 mV with an input, fully on without one; off when VBAT < BUVLO
         3.0 V for 60 us (BUVLO, back on above 3.15 V); BATOCP 3.13 A ->
         off 250 ms (10 us response assumed).
-    Not modelled: thermal regulation, safety timers, termination toggling,
+    Thermal regulation (TREG 100 C) is static: the charge current is limited so
+    TA + 68.3 C/W x P stays at 100 C (TA = the study's ambient).
+    Not modelled: thermal-shutdown, safety timers, termination toggling,
     TS/MR button timer, ship mode, SYS-short hiccup."""
     c = dict(CHG)
     c.update(cfg or {})
+    c['ron_in'] *= rf()
+    c['ron_bat'] *= rf()
     V = lambda n: 'V(%s)' % n
     s = lines(
         latch(p + 'ok', '%s > 3.15 && %s > %s + 0.152 && %s < 18.5' % (V(vin), V(vin), V(bat), V(vin)),
@@ -317,7 +371,10 @@ def bq25185(p, vin, sys, bat, cfg=None):
             '(%g*%s + (1 - %s)*(%g*%s + %g*(1 - %s)))' % (c['itrickle'], sat('V(%sbsc)' % p), sat('V(%sbsc)' % p),
                                                       c['iprech'], sat('V(%slowv)' % p), c['ichg'], sat('V(%slowv)' % p)),
             '20*(%g - %s)' % (c['vreg'], V(bat)), '10*(%s - %s - 0.1)' % (V(sys), V(bat)),
-            '(%s - %s)/%g' % (V(sys), V(bat), c['ron_bat'])))),
+            '(%s - %s)/%g' % (V(sys), V(bat), c['ron_bat']),
+            # TREG: the charge current is cut so the die stays at 100 C (RthJA 68.3 C/W JEDEC, static)
+            'max(0, %g - (%s - %s)*V(%s_iin))/max(%s - %s, 0.05)' % ((100.0 - TEMP) / c['rth'], V(vin), V(sys), p,
+                                                                   V(sys), V(bat))))),
         mon(p + '_isup', '%s*(1 - %s)*max(0, %s - %s - 0.04*%s)/%g'
             % (sat('V(%sbuv)' % p), sat('V(%socp)' % p), V(bat), V(sys), sat('V(%sok)' % p), c['ron_bat'])),
         'B%sin %s %s I = V(%s_iin)' % (p, vin, sys, p),
@@ -349,6 +406,7 @@ def tps2121(p, in1, in2, out, en='1', cfg=None):
     OV2 pulled low).  Monitors <p>_i1, <p>_i2, <p>_sel (1 = IN1, 2 = IN2)."""
     c = dict(MUX)
     c.update(cfg or {})
+    c['ron'] *= rf()
     V = lambda n: 'V(%s)' % n
     want1 = '(%s) && V(%sv1) > 0.5 && (V(%spr) > 0.5 || V(%sv2) < 0.5 || V(%svc) > 0.5)' % (en, p, p, p, p)
     want2 = '(%s) && V(%sv2) > 0.5 && !(%s)' % (en, p, want1)
@@ -390,6 +448,7 @@ def tps63810(p, vin, vout, en, vset, cfg=None):
     Monitors <p>_iout, <p>_iin."""
     c = dict(BB)
     c.update(cfg or {})
+    c['eff'] = 1 - (1 - c['eff']) * rf()        # conduction losses grow with RDS(on): 92 % -> ~90 % at 85 C
     V = lambda n: 'V(%s)' % n
     s = lines(
         latch(p + 'on', '(%s) && %s > %g' % (en, V(vin), c['uvlo_on']), '!(%s) || %s < %g' % (en, V(vin), c['uvlo_off'])),
@@ -421,7 +480,7 @@ def qpa9510(p, vcc, apc, rf, vnom, inom, iq=0.208):
 
 # ------------------------------------------------------------------ system rail
 
-def system_rail(p, vsys='VSYS', vsw='VSYS_SW', v3='3V3', iload='0.013', sw_ron=0.018, c_v3=17e-6):
+def system_rail(p, vsys='VSYS', vsw='VSYS_SW', v3='3V3', iload='0.013', sw_ron=0.018, c_v3=17e-6, t_on=None):
     """VSYS caps (C10u25 + 2 x C1u25 at 4 V), TPS22965 (on, RON 16-18 mOhm,
     no current limit), VSYS_SW caps (C10u + C4u7), TPS62840 averaged (3.3 V,
     HS 0.43-0.6 Ohm + L2u2 DCR 0.14 Ohm in 100 % mode, current limit 1.0-1.4 A
@@ -432,10 +491,13 @@ def system_rail(p, vsys='VSYS', vsw='VSYS_SW', v3='3V3', iload='0.013', sw_ron=0
     V = lambda n: 'V(%s)' % n
     s = lines(
         cap(p + 'cs1', vsys, '0', 7e-6), cap(p + 'cs2', vsys, '0', 0.6e-6), cap(p + 'cs3', vsys, '0', 0.6e-6),
-        'R%ssw %s %s %g' % (p, vsys, vsw, sw_ron),
+        ('R%ssw %s %s %g' % (p, vsys, vsw, sw_ron * rf())) if t_on is None else
+        # slide switch closed at t_on: TPS22965 turns on over ~1.5 ms (CT 1 nF), modelled as a conductance ramp
+        ('B%ssw %s %s I = max(0, min(1, (time - %g)/1.5e-3))*V(%s,%s)/%g' % (p, vsys, vsw, t_on, vsys, vsw, sw_ron * rf()) +
+         '\nR%ssw0 %s %s 1Meg' % (p, vsys, vsw)),
         cap(p + 'cw1', vsw, '0', 5e-6), cap(p + 'cw2', vsw, '0', 2.4e-6),
         latch(p + 'bon', '%s > 1.8' % V(vsw), '%s < 1.6' % V(vsw)),
-        mon(p + '_ib', '%s*max(0, %s)' % (sat('V(%sbon)' % p), mn('1.1', '5*(3.3 - %s)' % V(v3), '(%s - %s)/0.74' % (V(vsw), V(v3))))),
+        mon(p + '_ib', '%s*max(0, %s)' % (sat('V(%sbon)' % p), mn('1.1', '5*(3.3 - %s)' % V(v3), '(%s - %s)/%g' % (V(vsw), V(v3), 0.74 * rf())))),
         mon(p + '_iinb', 'V(%s_ib)*min(1, max(%s, 0)/(0.9*max(%s, 0.5))) + 1e-6*%s' % (p, V(v3), V(vsw), sat(V(vsw)))),
         'B%sbo 0 %s I = V(%s_ib)' % (p, v3, p),
         'B%sbi %s 0 I = V(%s_iinb)' % (p, vsw, p),
@@ -458,6 +520,7 @@ def efuse(p, vin, vout, rt_uv, rb_uv, rt_ov, rb_ov, rilm, zleak=0.0, cdvdt=1e-9,
     max.  Forward current only (reverse blocking).  zleak: zener leakage
     (A at 1.2 V, modelled as a resistor 1.2 / zleak from EN to GND).
     Monitor <p>_i (IN -> OUT current), nodes <p>_EN, <p>_OV."""
+    ron = ron * rf()
     ilim = 3334.0 / rilm
     sr = 2000.0 / (cdvdt * 1e12) * 1e3   # V/s
     tblank = 1.51 * citimer * 1e9 / 1.8 * 1e-3

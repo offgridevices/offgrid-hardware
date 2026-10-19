@@ -63,15 +63,26 @@ def mpp(isc, temp):
     return v[k], p[k]
 
 
-def cfg(ocv, sun=1.0, temp=25.0, lm='gnd', ce=1, usb=None, solar=True, lowv=None):
+TEMPS = [-40, -20, 0, 25, 60, 85]
+
+
+def charge_ok(ta):
+    """Charging is allowed only inside the firmware window 0-45 C (/CE), itself inside the NTC's 0-60 C
+    (TS); the cell is at ambient.  At 0 C and below the TS cold limit stops it as well."""
+    return 0 < ta < 45
+
+
+def cfg(ocv, sun=1.0, temp=25.0, lm='gnd', ce=1, usb=None, solar=True, lowv=None, ta=25.0):
     # lowv = 1: the cell is below the part's VLOWV (2.9-3.1 V), so it gets the 20 % precharge current
+    # temp = panel cell temperature, ta = ambient (board, cell)
     c = B.default_cfg()
+    c['temp'] = ta
     c['cell'].update(ocv=ocv, rint=0.10)
     c['lm'] = lm
     c['usb'] = usb
     if solar:
         c['solar'] = dict(voc=PANEL['voc'], isc=PANEL['isc'] * sun, ncell=PANEL['ncell'], temp_c=temp)
-    c['chg'] = dict(ce=ce)
+    c['chg'] = dict(ce=ce, ts=1 if 0 < ta < 60 else 0)
     if lowv:
         c['chg']['ichg'] = c['chg']['iprech'] = 0.0994
     c['pa']['on'] = False
@@ -108,39 +119,47 @@ def run(args):
 
 def main():
     jobs = []
-    for ocv, lowv, lab in ((3.0, 1, '3.0 V (precharge)'), (3.0, 0, '3.0 V (fast charge)'), (4.1, 0, '4.1 V')):
-        for sun in (1.0, 0.5, 0.2):
-            for temp in (25.0, 60.0):
+    for ta in TEMPS:
+        ok = charge_ok(ta)
+        for ocv, lowv, lab in ((3.0, 0, '3.0 V'), (4.1, 0, '4.1 V')):
+            for sun in (1.0, 0.2):
                 for lm in ('gnd', 'diode'):
-                    n = 'pv_%g_%d_%g_%d_%s' % (ocv, lowv, sun * 100, temp, lm)
-                    jobs.append((n, cfg(ocv, sun, temp, lm, lowv=lowv),
-                                 dict(cell=lab, sun=sun, temp=temp, lm=lm, kind='solar', ce=1)))
+                    tp = ta + 25 * sun               # panel cells above ambient in sun (NOCT-like)
+                    n = 'pv_%d_%g_%g_%s' % (ta, ocv, sun * 100, lm)
+                    jobs.append((n, cfg(ocv, sun, tp, lm, lowv=lowv, ce=1 if ok else 0, ta=ta),
+                                 dict(cell=lab, sun=sun, temp=tp, ta=ta, lm=lm, kind='solar', ce=1 if ok else 0)))
+        for lm in ('gnd', 'vout', 'diode'):
+            jobs.append(('usb_%d_%s' % (ta, lm), cfg(3.7, lm=lm, ce=1 if ok else 0, usb=5.0, solar=False, ta=ta),
+                         dict(cell='3.7 V', sun=0, temp=ta, ta=ta, lm=lm, kind='USB', ce=1 if ok else 0)))
     for lm in ('gnd', 'vout', 'diode'):
-        jobs.append(('pvce_%s' % lm, cfg(3.7, 1.0, 25.0, lm, ce=0),
-                     dict(cell='3.7 V', sun=1.0, temp=25.0, lm=lm, kind='solar, charging disabled', ce=0)))
+        jobs.append(('pvce_%s' % lm, cfg(3.7, 1.0, 50.0, lm, ce=0),
+                     dict(cell='3.7 V', sun=1.0, temp=50.0, ta=25.0, lm=lm, kind='solar, /CE high at 25 C', ce=0)))
         jobs.append(('usbce_%s' % lm, cfg(3.7, lm=lm, ce=0, usb=5.0, solar=False),
-                     dict(cell='3.7 V', sun=0, temp=25.0, lm=lm, kind='USB, charging disabled', ce=0)))
-        jobs.append(('usb_%s' % lm, cfg(3.7, lm=lm, ce=1, usb=5.0, solar=False),
-                     dict(cell='3.7 V', sun=0, temp=25.0, lm=lm, kind='USB, charging', ce=1)))
+                     dict(cell='3.7 V', sun=0, temp=25.0, ta=25.0, lm=lm, kind='USB, /CE high at 25 C', ce=0)))
         jobs.append(('usb41_%s' % lm, cfg(4.15, lm=lm, ce=1, usb=5.0, solar=False),
-                     dict(cell='4.15 V', sun=0, temp=25.0, lm=lm, kind='USB, charging', ce=1)))
+                     dict(cell='4.15 V', sun=0, temp=25.0, ta=25.0, lm=lm, kind='USB, 4.15 V cell, 25 C', ce=1)))
     with ProcessPoolExecutor(4) as ex:
         res = list(ex.map(run, jobs))
     R = dict((r['name'], r) for r in res)
 
-    L = ['Study 5: 6 V 1 W panel through VINDPM (P5); charge-path control (P7, X5).',
-         'Panel 12 cells, 7.2 V Voc, 0.185 A Isc at full sun; cell 100 mOhm; 3V3 load 13 mA.  Last 10 ms of 40 ms averaged.',
-         '']
+    L = ['Study 5: 6 V 1 W panel through VINDPM (P5); charge-path control (P7, X5); ambient -40 .. 85 C.',
+         'Panel 12 cells, 7.2 V Voc, 0.185 A Isc at full sun, cells at ambient + 25 C x sun; cell 100 mOhm at 25 C;',
+         '3V3 load 13 mA.  Last 10 ms of 40 ms averaged.  Charging is allowed only between 0 and 45 C (firmware /CE',
+         'inside the NTC window): at 25 C the criterion is P5 (the cell charges); at -40 / -20 / 0 / 60 / 85 C it is',
+         'P7 (<= 1 mA into the cell).  The BQ25185 thermal regulation (TREG 100 C, 68.3 C/W) is in the model.', '']
     rows = []
     for r in res:
         if r['kind'] != 'solar':
             continue
-        ok = r['ichg_cell'] > 0.005 and r['ena_min'] > 0.5
+        if r['ce']:
+            ok = r['ichg_cell'] > 0.005 and r['ena_min'] > 0.5
+        else:
+            ok = r['ichg_cell'] <= 1e-3
         r['verdict'] = 'PASS' if ok else 'FAIL'
-        rows.append([r['cell'], '%d %%' % (r['sun'] * 100), '%d C' % r['temp'], LMN[r['lm']],
+        rows.append([r['cell'], '%d %%' % (r['sun'] * 100), '%d C' % r['ta'], 'P5' if r['ce'] else 'P7', LMN[r['lm']],
                      r['vpv'], r['ipv'] * 1e3, r['ppv'] * 1e3, r['pmpp'] * 1e3, r['vin'], r['vsys'], r['ichg_cell'] * 1e3,
                      r['harvest'] * 100, r['verdict']])
-    L.append(S.table(rows, ['cell', 'sun', 'panel', 'BAT_P-VSYS path', 'Vpanel', 'Ipanel mA', 'Ppanel mW', 'MPP mW', 'VIN_CHG',
+    L.append(S.table(rows, ['cell', 'sun', 'ambient', 'rule', 'BAT_P-VSYS path', 'Vpanel', 'Ipanel mA', 'Ppanel mW', 'MPP mW', 'VIN_CHG',
                             'VSYS', 'into cell mA', 'harvest %', 'verdict']))
     L.append('  harvest = cell charge power / panel MPP power.  The 3V3 load (13 mA) comes out of the panel first.')
     L.append('')
@@ -152,18 +171,29 @@ def main():
             ok = r['ichg_cell'] <= 1e-3
             crit = 'P7: <= 1 mA into the cell'
         else:
-            ok = 0.447 <= r['ichg_cell'] <= 0.547 or r['bat'] > 4.1
-            crit = 'X5: ISET 497 mA +-10 %'
+            ok = r['ichg_cell'] <= 0.547 and (r['ichg_cell'] >= 0.447 or r['bat'] > 4.1 or r['ich'] > 0)
+            crit = 'X5: <= ISET 497 mA +10 %, via the charger'
         r['verdict'] = 'PASS' if ok else 'FAIL'
-        rows.append([r['kind'], r['cell'], LMN[r['lm']], r['vsys'], r['bat'],
+        rows.append([r['kind'], '%d C' % r['ta'], r['cell'], LMN[r['lm']], r['vsys'], r['bat'],
                      r['ich'] * 1e3, r['ilm'] * 1e3, r['ichg_cell'] * 1e3, crit, r['verdict']])
-    L.append(S.table(rows, ['case', 'cell', 'BAT_P-VSYS path', 'VSYS', 'BAT_P', 'charger BAT mA', 'LM66100 mA (BAT->SYS)',
+    L.append(S.table(rows, ['case', 'ambient', 'cell', 'BAT_P-VSYS path', 'VSYS', 'BAT_P', 'charger BAT mA', 'LM66100 mA (BAT->SYS)',
                             'into cell mA', 'criterion', 'verdict']))
     L.append('  As drawn the LM66100 (CE = GND) is a closed switch between BAT_P and VSYS: SYS (regulated to 4.5 V, or')
     L.append('  pulled down by the cell) charges the cell directly, outside the charger\'s ISET, CV, /CE and TS control;')
     L.append('  only the BQ29700 (OVP 4.275 V after 1.25 s, OCC 4 A) still limits it.  With CE = VSYS the LM66100 only')
     L.append('  turns off once VSYS is 35 mV (0-80 mV) above the cell, i.e. above ~0.44 A reverse; a weak source (the')
     L.append('  panel) never gets there, so the cell still charges through it.  A Schottky in its place always blocks.')
+    L.append('')
+    L.append('Verdict per ambient (solar rows: worst of the 3.0 / 4.1 V cell, 100 / 20 % sun; USB row: 3.7 V cell):')
+    vrows = []
+    for lm in ('gnd', 'vout', 'diode'):
+        row = [LMN[lm]]
+        for ta in TEMPS:
+            vs = [r['verdict'] for r in res if r.get('ta') == ta and r['lm'] == lm and r['name'].startswith('pv_%d_' % ta)]
+            vu = R['usb_%d_%s' % (ta, lm)]['verdict']
+            row.append('solar %s / USB %s' % ('FAIL' if 'FAIL' in vs else ('PASS' if vs else '-'), vu))
+        vrows.append(row)
+    L.append(S.table(vrows, ['BAT_P-VSYS path'] + ['%d C' % t for t in TEMPS]))
     S.write_results(HERE, L)
 
     st = []
@@ -171,7 +201,7 @@ def main():
     pch = (w['vin'] - w['bat']) * w['iin']
     st.append(S.stress('BQ25185', 'U (charger)', 'dissipation, 6 V panel', pch, 'W', 1.1, 'derate',
                        w['name'] + ' (vs (125-60) C / 68.3 C/W = 0.95 W at 60 C ambient; 1.1 W shown as TJ 135 C)'))
-    pusb = max((R['usb_vout']['vin'] - R['usb_vout']['bat']) * R['usb_vout']['iin'], 0)
+    pusb = max((R['usb_25_diode']['vin'] - R['usb_25_diode']['bat']) * R['usb_25_diode']['iin'], 0)
     st.append(S.stress('BQ25185', 'U (charger)', 'dissipation, USB charging 3.7 V cell (CE=VSYS)', pusb, 'W', 0.95, 'derate',
                        '(125 - 60 C) / 68.3 C/W JEDEC'))
     st.append(S.stress('BQ25185', 'U (charger)', 'IN current (ILIM 1.05 A, max 1.1 A)', 1.1, 'A', 1.1, 'absmax',
@@ -190,16 +220,16 @@ def main():
             i = np.clip(panel_iv(v, PANEL['isc'] * sun, temp), 0, None)
             a.plot(v, v * i * 1e3, c + ls, lw=1, label='%d %% sun, %d C' % (sun * 100, temp))
     for r in res:
-        if r['kind'] == 'solar' and r['lm'] == 'diode':
+        if r['kind'] == 'solar' and r['lm'] == 'diode' and r['ta'] == 25:
             a.plot(r['vpv'], r['ppv'] * 1e3, 'ko' if r['cell'] == '4.1 V' else 'k^', ms=4)
     a.set_xlabel('panel V')
     a.set_ylabel('panel power mW')
     a.set_title('panel P-V and the operating points (o: 4.1 V cell, ^: 3.0 V)')
     a.legend(fontsize=6)
     a = ax[1]
-    for n, lab in (('usbce_gnd', 'USB, /CE high, as drawn'), ('usbce_vout', 'USB, /CE high, CE=VSYS'),
-                   ('usb_gnd', 'USB charging, as drawn'), ('usb_vout', 'USB charging, CE=VSYS'),
-                   ('pvce_gnd', 'panel, /CE high, as drawn')):
+    for n, lab in (('usbce_gnd', 'USB, /CE high, as drawn'), ('usbce_diode', 'USB, /CE high, Schottky'),
+                   ('usb_25_gnd', 'USB charging 25 C, as drawn'), ('usb_25_diode', 'USB charging 25 C, Schottky'),
+                   ('usb_85_gnd', 'USB, 85 C (NTC hot), as drawn'), ('pvce_gnd', 'panel, /CE high, as drawn')):
         d = np.load(os.path.join(OUT, n + '.npz'))
         a.plot(d['t'] * 1e3, d['icell'] * 1e3, label=lab)
     a.set_xlabel('ms')
