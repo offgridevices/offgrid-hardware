@@ -152,6 +152,10 @@ def build(cfg, datfile):
     if c.get('sw_on') is not None:
         ns['VSYS_SW'] = 0.0
     ns['CHok'] = 1 if c['usb'] else 0
+    if c['usb']:
+        u = c['usb']
+        ns.update(FUramp=u, USB_VBUS=u, usb_conn=u, USB_5V=u - 0.05, VIN_CHG=u - 0.45, FUuv=1, FUuvp=1, FUovl=0,
+                  FUtov=0)
     ns.update(c.get('nodeset', {}))
     ctl = ['.nodeset ' + ' '.join('v(%s)=%g' % kv for kv in ns.items())]
     ctl += [c.get('opt', '.option method=gear reltol=2e-3 abstol=1e-9 vntol=1e-5 itl4=200'),

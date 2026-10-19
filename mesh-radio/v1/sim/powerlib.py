@@ -90,7 +90,9 @@ def latch_k(n, set_k='0', reset_k='0', t_rec=0.0):
     resets it, so the latch's drive does not jump when the timer crosses).
     It holds itself once past ~0.4 V (a fault stays latched when its timer
     resets); reset wins."""
-    k = 'max(%s, max(0, min(1, (V(%s) - 0.3)*5)))' % (set_k, n)      # self-holding once past ~0.4
+    # self-holding once past ~0.4 V - but not in the DC operating point (time = 0), where a self-holding
+    # latch would have two solutions and the solver may pick the faulted one
+    k = 'max(%s, (time > 0) ? max(0, min(1, (V(%s) - 0.3)*5)) : 0)' % (set_k, n)
     pre = ''
     if t_rec:   # the release condition is only looked at after a recovery delay (BQ2970x note 1)
         pre = timer(n + 'r', 'V(%s) > 0.5' % n, t_rec)
