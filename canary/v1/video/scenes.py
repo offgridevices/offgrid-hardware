@@ -40,6 +40,8 @@ def cue(seg, word, after=0.0, default=None):
         if s.startswith(w):
             t0 = heard[min(len(heard) - 1, round(i * len(heard) / len(said)))][1] + LEAD
             if t0 >= after:
+                print(f'cue fallback: {seg} {word!r} -> {t0:.2f} s (Whisper heard it differently; '
+                      'check this cue)', flush=True)
                 return t0
     raise KeyError(f'{seg}: no word {word!r} after {after}')
 
