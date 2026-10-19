@@ -1,0 +1,72 @@
+== STL integrity (case frame; volumes in mm^3)
+  top         watertight=True winding_ok=True volume=  15245.3 bodies=1
+  bottom      watertight=True winding_ok=True volume=   7174.7 bodies=1
+  guard       watertight=True winding_ok=True volume=   4181.0 bodies=1
+  rocker      watertight=True winding_ok=True volume=    634.1 bodies=1
+  ring_inlay  watertight=True winding_ok=True volume=    161.5 bodies=3
+  text_inlay  watertight=True winding_ok=True volume=     27.3 bodies=15
+
+== Component boxes (courtyard x height table; XH sockets: body outline) vs top shell and floor
+  no interference > 0.01 mm^3 (all parts, all four bodies)
+  expected pass-through J1 x top: box overlap 0.3 mm^3 (XT60 mouth through the battery-end wall; real body checked below)
+  expected pass-through J2 x top: box overlap 20.5 mm^3 (XT30 mouth through the battery-end wall; real body checked below)
+  expected pass-through J8 x top: box overlap 0.2 mm^3 (USB-C in the back-wall opening; real body checked below)
+  THT leads (1.3 mm below the PCB) vs floor: none
+
+== Pass-through parts: real 3D bodies (lib/*.wrl) vs top shell; gap = smallest distance, <0 = overlap
+  XT60 (J1)   min gap to the shell +0.193 mm
+  XT30 (J2)   min gap to the shell +0.192 mm
+  USB-C (J8)  min gap to the shell +0.070 mm
+  SW1 bushing + lever vs shell: overlap 0.0000 mm^3, min gap +0.125 mm (Ø6.35 bushing in a Ø6.6 hole: 0.125 radial)
+  SW1 body to its shoulder vs shell: gap +0.010 mm (the 0.2 mm shoulder pad)
+
+== Display module (MODULE x MODULE_T) in its pocket
+  overlap 0.0000 mm^3
+  left (-x)                          clearance 0.200 mm
+  right (+x, beside the FPC slot)    clearance 0.200 mm
+  back (-y)                          clearance 0.200 mm
+  front (+y)                         clearance 0.200 mm
+  top: the module face bears on the window lip at z 13.4 (contact by design)
+  under-screen rule (parts under the module <= 6.34 mm):
+    tallest: [(4.6, 'R_PRE2'), (4.6, 'R_PRE'), (4.2, 'F1'), (3.25, 'J8')]  violations: none
+
+== Guard
+  height above the face 17.9 mm (geometry.py GUARD_H 17.9); lever tip z 30.30, roof underside z 31.30
+  closed: overlap with shell 0.0000 mm^3, with rocker 0.0000 mm^3
+  lever tilted +0 deg (pivot at the shoulder): overlap 0.0000 mm^3, gap +1.00 mm
+  lever tilted +20 deg (pivot at the shoulder): overlap 0.0000 mm^3, gap +1.48 mm
+  lever tilted -20 deg (pivot at the shoulder): overlap 0.0000 mm^3, gap +1.48 mm
+  opening sweep: first contact with the shell at 155 deg (0.22 mm^3)
+  free to 150 deg
+  opening sweep 0..150 deg vs the upright lever: worst overlap 0.0000 mm^3
+  hinge pin Ø2.0 x 20 at x 68.6..88.6: press interference in the right lug 0.919 mm^3 (Ø1.9 bore), loading path x 47.1..68.6 overlap 0.0000 mm^3, solid shell between the blind end and the outside: True
+  magnet Ø6 x 3 N52 centre (x 79.0, y 35.30), z 14.6..17.6; U6 element at (y 35.30, z 4.95): 0.00 mm off-axis, 9.65 mm below the magnet
+    |Bz| falls below BRP min (0.5 mT) at 40.5 deg open
+    guard open  0 deg: |Bz| at U6 =  12.85 mT, |B| =  12.85 mT (Br 1.42 T)
+    guard open 10 deg: |Bz| at U6 =   3.89 mT, |B| =   3.89 mT (Br 1.42 T)
+    guard open 20 deg: |Bz| at U6 =   1.66 mT, |B| =   1.66 mT (Br 1.42 T)
+    guard open 30 deg: |Bz| at U6 =   0.86 mT, |B| =   0.86 mT (Br 1.42 T)
+    DRV5032FA (SLVSDC7H): BOP +-1.5/3/4.8 mT, BRP +-0.5/1.5/3 mT (min/typ/max); target closed >= 9.6 mT, open must fall below BRP min 0.5 mT
+
+== Rocker
+  at rest: overlap with shell 0.0000 mm^3
+  nub to B3U actuator at rest 0.20 mm; B3U travel 0.15 mm
+  SW2 (dx 7.5): 2.67 deg tilt presses it; at 1.3x that tilt: overlap with shell 0.0000 mm^3, nub reaches 0.494 mm^3 into the switch box (actuation)
+  SW3 (dx 7.5): 2.67 deg tilt presses it; at 1.3x that tilt: overlap with shell 0.0000 mm^3, nub reaches 0.494 mm^3 into the switch box (actuation)
+
+== Drone leads (12 AWG Ø3.6 / 16 AWG Ø2.4)
+  inside the case: overlap with shell 0.0000, with floor 0.0000 mm^3
+  in the end wall: crown clearance +0.15 mm radial, floor-tab saddles squeeze 0.5 mm on the diameter
+
+== Fastening
+  boss Ø7.5 PCB top z 4.3 to panel z 13.4 (9.1 mm), insert hole Ø4.0 x 6.5
+  screw: ISO 7380 M3 x 8 from below; head seat z 1.7, tip z 9.7 (insert spans z 4.3..10.0)
+
+== Text inlays
+  2S    at x  20.3: cap 2.5 mm, thinnest stroke 0.48 mm, depth 0.6 mm
+  3S    at x  26.9: cap 2.5 mm, thinnest stroke 0.48 mm, depth 0.6 mm
+  4S    at x  33.5: cap 2.5 mm, thinnest stroke 0.48 mm, depth 0.6 mm
+  5S    at x  40.1: cap 2.5 mm, thinnest stroke 0.44 mm, depth 0.6 mm
+  6S    at x  46.7: cap 2.5 mm, thinnest stroke 0.48 mm, depth 0.6 mm
+  LIMIT at x  79.0: cap 2.5 mm, thinnest stroke 0.66 mm, depth 0.6 mm
+  top shell vs text inlay overlap 0.0000 mm^3; vs ring inlay 0.0087 mm^3

@@ -1,0 +1,113 @@
+# -*- coding: utf-8 -*-
+"""Silkscreen: labels and the OffGrid brand, as filled outlines in the
+brand faces (brand.py): words in Instrument Sans 500, numbers and codes in
+JetBrains Mono 500.  White silk on the black mask.
+
+  TOP     the buttons, the test pads, "Print Hub" with its revision (the
+          lid carries the port numbers and POWER / DATA)
+  BOTTOM  each connector's name under it, the OffGrid lockup, what to
+          plug in, the licence
+
+Every label is placed where it touches no pad, hole or mask opening (the
+fab would clip it there), searched outwards from where it is meant to go.
+"""
+import os
+import pcbnew
+from shapely.geometry import Point, box
+from shapely.ops import unary_union
+import pcb, brand, layout
+
+NAME = 'Print Hub'
+# the revision, from this revision's folder name (v1 -> V1): a copy into
+# v2/ prints V2 with no edit
+REV = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).upper()
+CAP = 1.2              # cap height of the labels, mm
+# where the big artwork goes, kept free of stitching vias (stitch.py):
+# (x0, y0, x1, y1), board mm.  Top: the title and the mark, in the band
+# between the logic and the ports.  Bottom: the lockup and the notes.
+ART = [(-24.0, -24.6, -8.0, -18.0), (-22.0, -12.0, 22.0, 9.0)]
+
+
+def strip(b):
+    """Remove every silkscreen drawing this module made (copper untouched)."""
+    for d in list(b.GetDrawings()):
+        if d.GetLayer() in (pcbnew.F_SilkS, pcbnew.B_SilkS):
+            pcb.remove(b, d)
+
+
+def _blocked(b, side):
+    cu = pcbnew.F_Cu if side == 'T' else pcbnew.B_Cu
+    out = []
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.IsOnLayer(cu) or p.GetDrillSize().x > 0:
+                bb = p.GetBoundingBox()
+                out.append(box(bb.GetLeft() / 1e6 - pcb.CX, bb.GetTop() / 1e6 - pcb.CY,
+                               bb.GetRight() / 1e6 - pcb.CX, bb.GetBottom() / 1e6 - pcb.CY).buffer(0.2))
+        if side == 'T':
+            # the parts' bodies too: ink under a part is never seen
+            c = fp.GetCourtyard(pcbnew.F_CrtYd)
+            if c.OutlineCount() and fp.GetReference()[0] not in 'H':
+                bb = c.BBox()
+                out.append(box(bb.GetLeft() / 1e6 - pcb.CX, bb.GetTop() / 1e6 - pcb.CY,
+                               bb.GetRight() / 1e6 - pcb.CX, bb.GetBottom() / 1e6 - pcb.CY))
+    for t in b.GetTracks():
+        if t.GetClass() == 'PCB_VIA':
+            # vias are tented: ink may cross the ring, not the hole
+            out.append(Point(pcb.xy(t.GetPosition())).buffer(t.GetDrillValue() / 2e6 + 0.15))
+    return unary_union(out)
+
+
+class Placer:
+    def __init__(self, b, side):
+        self.b, self.side = b, side
+        self.layer = pcbnew.F_SilkS if side == 'T' else pcbnew.B_SilkS
+        self.free = pcb.board_polygon().buffer(-0.6).difference(_blocked(b, side))
+        self.used = []
+
+    def put(self, g, x, y, anchor='c', rot=0, search=6.0, step=0.25):
+        """Place g (baseline at y 0) near (x, y); returns where, or raises."""
+        mirror = self.side == 'B'
+        for r in [i * step for i in range(int(search / step) + 1)]:
+            for dx, dy in ([(0, 0)] if r == 0 else
+                           [(r, 0), (-r, 0), (0, r), (0, -r), (r, r), (-r, r), (r, -r), (-r, -r)]):
+                gg = brand.place(g, x + dx, y + dy, anchor, rot, mirror)
+                if self.free.contains(gg.buffer(0.15)) and not any(u.intersects(gg.buffer(0.3)) for u in self.used):
+                    self.used.append(gg)
+                    brand.add(self.b, gg, self.layer)
+                    return x + dx, y + dy
+        raise SystemExit('silk: no room for a label near (%.1f, %.1f)' % (x, y))
+
+
+def text(fam, s, cap=CAP):
+    g, _ = brand.styled(fam, s, cap)
+    return g
+
+
+def draw(b):
+    top = Placer(b, 'T')
+    for ref, label in (('SW1', 'Reset'), ('SW2', 'Boot')):
+        x, y = pcb.xy(b.FindFootprintByReference(ref).GetPosition())
+        top.put(text('sans', label), x - 4.6, y, anchor='r')
+    for ref, label in (('TP1', 'TX'), ('TP2', 'RX'), ('TP3', 'GND'), ('TP4', '5V')):
+        x, y = pcb.xy(b.FindFootprintByReference(ref).GetPosition())
+        top.put(text('mono', label, 0.9), x, y + 1.9)
+    # the title between the two USB-C receptacles (the mark is on the back)
+    title = brand.line([('sans', NAME), ('mono', REV)], 1.8)[0]
+    top.put(title, -16.0, -21.0)
+
+    bot = Placer(b, 'B')
+    lk, _ = brand.lockup_mm(24.0)        # between the vias (the board is dense)
+    # each port's number under its receptacle, ahead of the pins
+    for i, x in enumerate(layout.PORT_X):
+        bot.put(text('mono', str(i + 1), 1.8), x, layout.USBA_Y + 6.5, search=2.0)
+    jy = layout.USBC_Y + 3.0
+    bot.put(brand.line([('sans', 'Power in'), ('mono', 'PD 9V')], CAP)[0], layout.J1_X, jy)
+    bot.put(text('sans', 'Data'), layout.J2_X, jy)
+    bot.put(lk, 2.5, -13.0, search=2.0)
+    bot.put(brand.line([('sans', NAME), ('mono', REV)], 1.8)[0], 2.5, -8.0, search=8.0)
+    bot.put(text('sans', 'Power: a USB-C PD charger, 20 W or more', 1.0), -6.0, 3.0, search=10.0)
+    bot.put(text('sans', 'Data: the print server (USB) or Wi-Fi', 1.0), -6.0, 6.0, search=10.0)
+    # the licence in the corner behind the antenna (silk is not copper)
+    bot.put(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 1.0)[0], 31.0, -20.5)
+    return top, bot

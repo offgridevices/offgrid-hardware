@@ -1,0 +1,52 @@
+* SmokeBreak v1 - Case 7: 3 V probe (stage 1) into the drone side
+* Board per src/circuit.py: +3V3 -> Q6 (1 kOhm path, 0-100 ms) / Q7 (100 Ohm
+* path, 100-400 ms) -> BAT46WJ -> VOUT; ADC reads VOUT_LO (100k + BAT54S + 1 nF).
+* Board VOUT capacitance: 100 nF + output snubber (csn/rsn), Q2 Coss.
+* Loads (params): cbulk (1p = none) / rshort (1G = none) / rev (1m = reversed ESC
+* fitted, 1G = not) with crev / fc (1m = 1S whoop FC fitted).
+* Run from sim/:  ngspice -b case7_probe.cir
+.include lib/smokebreak.lib
+.include lib/board.lib
+
+.param ncell=6 vcell=4.0 cbulk=2200u rshort=1G rev=1G crev=470u fc=1G csn=4u rsn=0.47
+
+XB vin gnd BATT ncell={ncell} vcell={vcell} rcell=3m lser=250n rlead=3m
+V33 v33 gnd 3.3
+XPP vin src gate vout gnd dneg inp scp PPATH csn={csn} rsn={rsn}
+XPR vin vout gnd preon guard PRECH
+XAX vin vout gnd aux v33 vlo AUXSENSE
+XPRB vout gnd v33 e1k e100 PROBE
+Vinp inp gnd 0
+Vpre preon gnd 0
+Vguard guard gnd 3.3
+Ve1 e1k 0 PWL(0 0 1m 0 1.01m 1 100m 1 100.01m 0)
+Ve2 e100 0 PWL(0 0 100m 0 100.01m 1 400m 1 400.01m 0)
+
+* drone side (10 cm leads), returning to DRONE_NEG
+Lol vout d1 100n
+Rol d1 drn 2m
+Rdn dneg dnn 2m
+Rcb drn cb1 30m
+Ccb cb1 dnn {cbulk}
+Rleak drn dnn 200k
+Rsh drn dnn {rshort}
+Rrv drn rv0 {rev}
+Drv1 rv0 rv1 DBODY area=3
+Drv2 rv1 dnn DBODY area=3
+Crv rv0 rvc {crev}
+Rrvc rvc dnn 30m
+Rfc drn fc0 {fc}
+Cfc fc0 dnn 22u
+Bfc fc0 dnn I = 30m*max(0, min(1, (V(fc0,dnn)-1.8)/1.2)) * 0.5*(1+tanh((V(fc0,dnn)-1.8)/0.05))
+
+.options method=gear reltol=1e-3 abstol=1e-9 vntol=1e-6 itl4=200
+.tran 100u 420m 0 200u
+.control
+set wr_singlescale
+set wr_vecnames
+option numdgt=7
+run
+linearize
+wrdata work/c7.dat v(vlo) v(vout) v(drn)
+.endc
+.end

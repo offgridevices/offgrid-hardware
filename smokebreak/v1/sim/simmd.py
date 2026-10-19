@@ -1,0 +1,212 @@
+"""SIM.md writer for run_all.py (kept separate so the prose does not crowd the runner)."""
+import os
+import sys
+import datetime
+
+import simlib as S
+
+K_Q11 = "Q11 alternative network (2 × 2.2 µF + 4 µF/0.33 Ω damper, 4 µF/0.47 Ω snubber)"
+
+
+def _table(head, rows):
+    out = ["| " + " | ".join(head) + " |", "|" + "|".join("---" for _ in head) + "|"]
+    out += ["| " + " | ".join(str(x) for x in r) + " |" for r in rows]
+    return "\n".join(out)
+
+
+def _pf(ok):
+    return "PASS" if ok else "**FAIL**"
+
+
+MODELS = """\
+## Models and assumptions
+
+Topology and part values follow `../src/circuit.py` (TPS48000, low-side 1 mΩ shunt RS1 in the drone
+return, INA181A2 + LMV331 (open drain, 10 kΩ) + SN74LVC1G74 latch + 74LVC1G11 into INP, pre-charge
+Q3/D3/RPRE, probe switches, BAT46WJ aux OR, SMBJ64CA, 2 × 2.2 µF input; the pre-review rows keep the parts the circuit had before this review). Note: circuit.py carries
+the INA181A2 and LMV331, not the INA240A2/TLV7011 named in the brief; this run models what circuit.py has. Decks include `lib/smokebreak.lib` (devices,
+behavioural parts) and `lib/board.lib` (board blocks). Datasheets read for this run: TI TPS4800-Q1
+(SLUSEZ1B, Mar 2026), Infineon BSC040N10NS5 (Rev 2.4), TI INA181 (2023), TI LMV331 (SLCS136V), Diodes
+DMP10H400SE (DS37841), Vishay AC series (28730).
+
+| Part | Model | Key parameters |
+|---|---|---|
+| Battery | `BATT` / `BATTR` (soft-start) | N × Vcell, N × Rcell + 3 mΩ lead, 150-300 nH; Rcell 3 / 15 / 60 mΩ |
+| Q1, Q2 BSC040N10NS5 | `VDMOS` | Rds(on) 3.2 mΩ @ 10 V, 4.2 mΩ @ 6 V; 45 A @ Vgs 4.5 V (plateau 4.6 V @ 50 A); Ciss 4.1 nF, Crss 28 pF, Coss 0.63 nF @ 50 V; body diode 0.9 V @ 50 A; breakdown 100 V. **Limits (datasheet):** ID,pulse 544 A, IAS 50 A, EAS 268 mJ (50 A), V(BR)DSS 100 V @ 25 °C, Vgs ±20 V; **SOA (Diagram 3, digitised, Tc 25 °C):** at 25 V: 10 µs 223 A, 100 µs 19 A, 1 ms 1.84 A, 10 ms 0.53 A, DC 0.25 A — power falls as 1/V (thermal-instability slope); checked at 50 % |
+| TPS48000 | `TPS48000` behavioural | POR 2.5 V; EN/UVLO 1.18 V (4.8 µs); OV 1.23 V (4.5 µs); charge pump 11 V, 345 µA; PU 6.5 Ω (1.69 A), PD 5.5 Ω (2 A); INP 1.4 V, INP→PD 0.36 µs typ / 1.05 µs max; SCP = 2 µA·RISCP + 19 mV on CS+−CS− (low-side), tSC 4 µs, latched; reverse I(VS) 22 µA. **Abs max (verified, §5.1):** VS, CS±, SRC to GND −65…100 V; PU/PD/BST to SRC −0.3…19 V, to GND −65…112 V; EN/OV/INP/CS_SEL between V(VS) and V(VS)+70 V when VS < 0 |
+| Peak path | `PEAKPATH` | 10 Ω/10 Ω/1 nF → INA181A2 50 V/V, 210 kHz, 2 V/µs, 0…3.28 V → LMV331 (delay t0 + q/Vod fitted to the 2.7 V table: 10 mV → 1 µs, 100 mV → 350 ns; VICR −0.1…2.6 V at 3.3 V, above it the output pulls low) → PEAK_OK → latch CLR → AND (+10 ns); optional second LMV331 on the shunt at a fixed threshold with its 7 mV max offset, open drain onto PEAK_OK |
+| Q3 pre-charge P-FET DMP10H400SE | `VDMOS pchan` | 0.2 Ω @ −10 V; SOA (Fig. 12, min-pad board): 100 µs 12 A (≤ 30 V), 1 ms 46 W, 10 ms 16 W, 100 ms 7.8 W, 1 s 3.8 W; checked at 50 % |
+| Pre-charge driver | circuit.py | D2 10 V, 100 kΩ G-S, 47 kΩ, Q4/Q5 BC817 (Gummel-Poon, no breakdown model: Vce/Vcb reported against 45/50 V) |
+| D3 SS2H10, D4/aux BAT46WJ, BAT54S | diodes | 100 V 2 A (IFSM 50 A ≈ 10 A²s); 100 V 150 mA; 30 V |
+| Probe Q6/Q7 AO3401A | `VDMOS pchan` | 30 V, breakdown at 33 V so exposure shows as current |
+| TVS D1 | `TVSBI` | SMBJ64CA (the board's): 64 V stand-off, 71.1 (min)…78.6 (max) V @ 1 mA, 103 V @ 5.8 A; the max-Vbr corner is used for clamping |
+| Q11 (battery-minus FET) | `VDMOS` (BSC040N10NS5 model) | the fitted BSC070N10LS5 is the same 100 V SuperSO8 class; avalanche judged against its 50 A / 55 mJ single-pulse rating (datasheet Rev 2.2); gate from VIN through 4.7 MΩ + 12 V zener |
+| RPRE | 2 × Vishay D2TO020 3.9 Ω | pulse capability **≈ 10 J per resistor** (datasheet single-pulse curve at 100 ms) |
+| Drone | per case | leads 2 × 75-100 nH + 2 mΩ; bulk 470/2200/5000 µF, 30 mΩ, 5 nH; VTX 10-15 W from 6 V UVLO; FC 1 W; ESC body diodes |
+
+Ceramics are entered at their effective value at 60 V (4.7 µF/100 V X7S 1210 ≈ 2 µF; 2.2 µF/100 V
+X7R 1210 ≈ 1 µF). Thermal behaviour is checked through SOA/pulse ratings, not simulated. The DC
+miswiring cases are solved as slow-start transients (the plain `.op` found non-physical solutions with
+the constant-power loads and the latches).
+"""
+
+PREVIOUS = """\
+## Previous run (superseded)
+
+The first version of this suite (same day) simulated the earlier architecture — TPS48111, high-side
+shunt, INA290 — and led to RPRE 8.2 Ω, an electrolytic input damper, an output snubber, and B− reverse
+FETs because the TPS48111's SRC is rated only to −30 V and its VS/CS pins to −1 V. Those results do not
+apply to the board in `src/circuit.py` and were replaced by this run.
+
+A second version (TPS48000, but modelling an INA240A2 + TLV7011 peak path) recommended 2 × 2.2 µF + a
+4 µF/0.33 Ω damper + a 4 µF/0.47 Ω snubber with an 80 mV hard-short comparator, plus a B− FET (Q11) for
+reversed plug-ins of 11S-14S. With the board's actual INA181A2 + LMV331 and the stronger snubber found here,
+Q11 is no longer needed; that network is kept below as the "Q11 alternative".
+"""
+
+
+def write_simmd(out, wall, REP, DESIGN, CASES):
+    L = ["# SmokeBreak v1 — power-path simulations", "",
+         f"Generated by `run_all.py` on {datetime.date.today().isoformat()} with **ngspice-{S.ngspice_version()}** "
+         f"(`{S.NGSPICE}`, batch mode), Python {sys.version.split()[0]}, matplotlib. Total run time {wall:.0f} s.",
+         "", "Run: `cd smokebreak/v1/sim && python3 run_all.py` (or `python3 run_all.py 3 7`). Each "
+         "`case*.cir` also runs alone with its default parameters (`ngspice -b case3_short.cir`). Generated "
+         "decks, data and logs go to `work/` (scratch, git-ignored), plots to `plots/`. The runner retries a "
+         "deck with more forgiving solver options if it does not converge.", "",
+         "Circuit under test: [`src/circuit.py`](../src/circuit.py). References: "
+         "[architecture.md](../docs/architecture.md), [spec.md](../docs/spec.md) §4-5.", ""]
+    n = len(REP.fails)
+    L += ["## Result", "",
+          f"**{len(REP.checks) - n} of {len(REP.checks)} checks PASS"
+          + (f", {n} FAIL" if n else ", none FAIL") + "**. **The board as built (src/circuit.py) is the *Q11 alternative network*:** Q11 "
+          "BSC070N10LS5 in the battery minus with a 4.7 MΩ gate and 12 V zener, 2 × 2.2 µF direct, 2 × 4.7 µF / "
+          "0.33 Ω damper, 2 × 4.7 µF / 0.47 Ω snubber, RISCP 40.2 kΩ, the 65 mV hard-short LMV331, the Cdvdt "
+          "network, the 15 V gate zener, a 43 mΩ pre-charge P-FET and 150 V probe and pre-charge driver parts. "
+          "Rows marked *pre-review* are the circuit before this simulation review, kept for comparison; they "
+          "fail as expected.", "",
+          _table(["case", "check", "result", "detail"], [[c[0], c[1], _pf(c[2]), c[3] or ""] for c in REP.checks]), ""]
+    L += ["## Findings that shaped src/circuit.py", "",
+          "1. **TPS48000 reverse rating verified:** VS, CS±, SRC to GND −65 V (datasheet §5.1). A reversed "
+          "14S LiHV pack *at rest* is fine (SRC −60.6 V, VS −60.9 V). **The plug-in of a reversed pack rings:** "
+          "SRC (which holds the most negative value through Q1's body diode) reaches −104 V with the 2 × 2.2 µF "
+          "input. The previous recommendation (2 × 2.2 µF + 4 µF/0.33 Ω) holds −65 V only up to "
+          f"{DESIGN.get('rev_nmax_noq3', {}).get(K_Q11, '?')}S and needed a B− FET (Q11) above that.",
+          "2. **Q11 is not needed.** The first no-Q11 try (0.1 µF + 8 µF/0.47 Ω damper, 4 µF/0.47 Ω snubber) "
+          "passes the reversed plug-in but fails the 10S/14S short at the maximum INP delay even with the 80 mV "
+          "hard-short LMV331 (Q1 avalanches at 80-130 A). A sweep of ≈ 150 damper/snubber/threshold combinations "
+          "found that the output snubber is the lever: a stronger snubber holds SRC up during the cut. "
+          "**1 µF direct + 16 µF/0.33 Ω damper + 12 µF/0.22 Ω snubber** passes everything: reversed 14S plug-in "
+          "SRC %.1f V (%.1f V with −20 %% damper C and +20 %% direct C), 14S short Q1 Vds ≤ 91 V at both "
+          "65 mV and 80 mV, with 300 nH drone leads included. Leaner networks that pass nominally (0.47 µF + "
+          "12 µF damper) leave < 1 V reversed-plug margin at tolerance or < 5 V Vds margin, so they were "
+          "rejected." % DESIGN.get("rev_rec", (0, 0)),
+          "2a. **Q11 alternative (smaller board area), also passes the full suite:** Q11 in the battery B− lead "
+          "(gate VIN → 4.7 MΩ, 12 V zener) + **2 × 2.2 µF direct (keep both)** + 2 × 4.7 µF/0.33 Ω damper + "
+          "2 × 4.7 µF/**0.47 Ω** snubber, 65 mV hard-short, RISCP 40.2 kΩ. 14S short at max INP delay: Q1 Vds "
+          "≤ 90 V including 300 nH leads; reversed plug-in: Q11 avalanches ≈ 28 A for < 1 µs (fitted "
+          "BSC070N10LS5: 50 A / 55 mJ single pulse). With only **one** 2.2 µF direct it passes the standard cases but Q1 avalanches "
+          "(9 A) with 300 nH drone leads, so keep both. A 0.22 Ω snubber fails the reversed drone-side plug-in "
+          "(SRC −70 V), so 0.47 Ω. **The gate is 4.7 MΩ, not 47 kΩ:** 47 kΩ would draw 1.04 mA from a "
+          "plugged-in 14S pack (SPEC: < 30 µA off); 4.7 MΩ draws 10 µA and brings the gate up in ≈ 10 ms, the "
+          "body diode carrying meanwhile. This run simulates the 4.7 MΩ.",
+          "3. **Dead short pre-review:** Q1 reaches its 100 V breakdown at 6S-14S and avalanches far above its "
+          "50 A IAS; SRC goes below −65 V; the AO3401A probe switches (30 V) break down whenever VOUT swings "
+          "negative. Causes: the TPS48000's 4 µs SCP, the INA181's slew and the LMV331's delay in the peak path, "
+          "no output snubber, no input damping.",
+          "3a. **LMV331 instead of TLV7011 is acceptable** for both comparators: with the datasheet's "
+          "overdrive-dependent delay (0.35-1 µs) every case 3 and case 9 check passes. Its input common-mode "
+          "range ends ≈ 0.7 V below VCC (≈ 2.6 V on 3.3 V); above that it pulls PEAK_OK low whatever PEAK_REF "
+          "is, so the programmable trip cannot be set above ≈ 52 A (fail-safe). Cap firmware at 50 A.",
+          "4. **BSC040N10NS5 linear-mode SOA is very small** (0.53 A for 10 ms at 25 V). With PU straight "
+          "through 47 Ω the main switch closes in µs and the inrush trips the 50 A SCP; it must close with a "
+          "gate slew network, only after the pre-charge has settled, and never across a large gap.",
+          "5. **Q4 BC817 (45 V) holds the full pack voltage** in normal use (60.9 V at 14S LiHV); a reversed "
+          "pack forward-biases its base-collector junction (1.2 mA, 0.12 mA into the unpowered PRE_ON pin).",
+          "6. **Q3 DMP10H400SE** is at 112 % of its derated SOA in the worst pre-charge (14S LiHV, 5000 µF): "
+          "the 47 kΩ gate drive turns it on slowly through the linear region (110 W peak).",
+          "7. **RISCP 15.4 kΩ (50 A)** sits at the peak-path ceiling and would nuisance-trip the motor test.",
+          "8. **SMBJ58CA** has a 58 V stand-off below 14S LiHV (60.9 V): up to ≈ 20 µA leakage at a min-Vbr "
+          "part, a large share of the < 30 µA off budget. It does not limit any simulated peak in the "
+          "recommended design, so SMBJ64CA (64 V stand-off) costs nothing in protection.", ""]
+    bad = [c for c in REP.notes if not c[2]]
+    if bad:
+        L += ["As-built and alternative runs that fail (details in the case tables):", ""]
+        L += [f"- case {c[0]}: {c[1]}" + (f" — {c[3]}" if c[3] else "") for c in bad]
+        L += [""]
+    L += [PREVIOUS, MODELS]
+    for k, txt in out.items():
+        L += [f"## Case {k} — {CASES[k][0]}", "", txt, ""]
+        png = {1: "case1_precharge.png", 2: "case2_hotplug.png", 3: "case3_short.png", 4: "case4_miswire.png",
+               5: "case5_miswire.png", 6: "case6_miswire.png", 7: "case7_probe.png", 8: "case8_ir.png",
+               9: "case9_peak.png"}[k]
+        L += [f"![case {k}](plots/{png})", ""]
+    e_norm, e_abort, e_cap = DESIGN.get("ac05", (0, 0, 11))
+    gate = DESIGN.get("gate", "R1 100 kΩ + C1 22 nF")
+    L += ["## Design values chosen", "",
+          _table(["item", "value", "cost / note", "from"], [
+              ["RPRE", "2 × Vishay D2TO020 3.9 Ω in series (7.8 Ω), one bank for 1S-14S",
+               "as asked; fits the case", "1(a)"],
+              ["RPRE energy", f"worst normal attempt (14S LiHV, 5000 µF) {2*e_norm:.1f} J = **{e_norm:.1f} J per D2TO020**; "
+                              f"at a 15 J abort {e_abort:.1f} J each; D2TO020 3.9 Ω pulse capability ≈ {e_cap:.0f} J",
+               "firmware abort budget **12 J** (6 J each, 55 %)", "1(c)"],
+              ["Cdvdt", f"{gate}: C1 from GATE to **GND** in series with **R2 = 1 kΩ**; PU resistor 47 Ω → **100 kΩ**; "
+                        "PD stays direct. Not gate→SRC (that only adds Ciss; in source-follower mode the output slew "
+                        "is set by the gate-to-GND capacitance)", "+2 parts, ~$0.01", "1(b), 3"],
+              ["Main-switch close rule", f"close only after the pre-charge has settled (VOUT within 1 % for 20 ms) and "
+                                         f"VIN − VOUT ≤ {12:g} V; else report 'drone draws power at x V'", "firmware", "1(b)"],
+              ["RISCP", "**40.2 kΩ** → 99 mV = 99 A (≥ 78 A at −22 %), above the peak path's 52 A ceiling", "pre-review 15.4 kΩ = 50 A", "3"],
+              ["Gate-source zener", "**15 V (BZT52C15)**, cathode at GATE, anode at SRC; Vgs peak 12.3 V in the worst short "
+                                    "(PU/PD-SRC max 19 V)", "~$0.01", "3"],
+              ["Input network", "**1 µF effective directly on VIN** (keep one 2.2 µF/100 V, remove the second); "
+                                "**add 8 × 4.7 µF/100 V X7S 1210 (16 µF eff.) + 0.33 Ω VIN→GND damper** (R: pulse-rated "
+                                "1206/2010, ≈ 30 mJ per plug-in)", "≈ $0.65", "2, 3"],
+              ["Output snubber", "**6 × 4.7 µF/100 V X7S 1210 (12 µF eff.) + 0.22 Ω, VOUT → DRONE_NEG**. Needed even "
+                                 "with SRC rated −65 V; it is also what lets the short pass without Q11", "≈ $0.50", "3, 5"],
+              ["Hard-short comparator", "**second LMV331 on the shunt Kelvin pads, fixed 65 mV** (58-72 A with offset), "
+                                        "open drain onto PEAK_OK (clears the latch). 80 mV also passes, with less margin", "≈ $0.10", "3, 9"],
+              ["TVS", "SMBJ64CA instead of SMBJ58CA (stand-off ≥ 60.9 V); every case now runs at its maximum-breakdown corner", "same price", "2, 3, 4"],
+              ["B− reverse FET (Q11)", "**not fitted** in the recommended design. Space-saving alternative (full suite "
+                                       "passes, **fitted on the board**): Q11 **Infineon BSC070N10LS5** (LCSC C3278731; 100 V, 7 mΩ @ 10 V, "
+                                       "8.5 mΩ @ 4.5 V, 50 A / 55 mJ single-pulse avalanche, SuperSO8; ≈ $1.15 @ 100) "
+                                       "in the B− lead, gate VIN → **4.7 MΩ** (not 47 kΩ: 1 mA standby) + 12 V zener; "
+                                       "2 × 2.2 µF direct + 2 × 4.7 µF/0.33 Ω damper + 2 × 4.7 µF/0.47 Ω snubber",
+               "≈ $1.55 vs ≈ $1.10 for the no-Q11 network", "2-7"],
+              ["Pre-charge FET", "DMP10H400SE is at 112 % of derated SOA → ≤ 50 mΩ 100 V P-FET in DPAK/PowerPAK "
+                                 "(e.g. Vishay SUD50P10-43L class; check LCSC stock), uses ≈ 40 %; D3 SS2H10 adequate",
+               "≈ +$0.3", "1(c)"],
+              ["Pre-charge driver", "Q4 BC817 → **MMBTA42 / MMBT5551** (≥ 160 V); **1N4148WS in series with the 47 kΩ** "
+                                    "(blocks the reversed-pack path into PRE_ON)", "≈ $0.01", "4"],
+              ["Probe switches", "AO3401A (30 V) → **150 V part** (MMBT5401 PNP or ≥ 100 V P-FET)", "≈ $0.02", "3, 5"],
+              ["Peak path", "INA181A2 + LMV331 as on the board; cap the setting at **50 A** (LMV331 common-mode "
+                            "ceiling ≈ 52 A); latch U9 already present", "firmware", "9"],
+              ["Damping + snubber total", "14 × 4.7 µF/100 V X7S 1210 + 2 resistors, one 2.2 µF removed",
+               "**≈ $1.10** (over the $0.50 target, but replaces Q11)", "2, 3, 5"],
+          ]), "", "## Open risks", ""]
+    risks = [
+        "**SOA digitising.** The BSC040N10NS5 and DMP10H400SE SOA curves were read off the datasheet graphs; the "
+        "main-switch close and pre-charge verdicts depend on them (worst main close 97 % of the derated value).",
+        "**TPS48000 is behavioural.** tSC (4 µs max), INP→PD (0.36/1.05 µs) and PU/PD strength come from the "
+        "datasheet tables; confirm the short-circuit cut-off and Vgs on the bench.",
+        "**14S hard short relies on the hard-short LMV331.** Without it, or with both comparators failed (TPS48000 "
+        "SCP only), Q1 avalanches briefly at ≈ 35 A, inside IAS 50 A but with no margin.",
+        "**Reversed 14S plug-in margin is small:** SRC −61.9 V nominal, −64.5 V with −20 % damper C (limit −65 V). "
+        "The damper capacitance must be ≥ 16 µF *effective at 60 V*; check the chosen capacitor's DC-bias curve.",
+        "**Q11 alternative only:** Q11 is modelled with the BSC040N10NS5 VDMOS (same footprint class); at 1S its "
+        "gate sees only the pack voltage (3-4.35 V), so its Rds(on) is above the 4.5 V figure there.",
+        "**LMV331 delay is a typical-only datasheet figure** (no max); the model uses the slower 2.7 V table on "
+        "the 3.3 V rail.",
+        f"**6S at 3.5 V/cell with a 10 W VTX** (VTX stuck at its 6 V UVLO, gap 15 V) cannot be powered with 7.8 Ω "
+        f"inside the BSC040N10NS5 SOA; firmware refuses it. A 3.9 Ω tap (second pre-charge switch at the D2TO020 "
+        f"mid-point) powers every 2S-7S case.",
+        "**D2TO020 pulse rating** is a chart value (single pulse, ≈ 11 J at 3.9 Ω); confirm with Vishay for "
+        "repeated attempts and set the NTC cool-down accordingly.",
+        "**Ceramic DC-bias** values (4.7 µF → ~2 µF at 60 V) set the damper and snubber; check the chosen part's curve.",
+        "**Lead parasitics** (250 nH battery, 2 × 75 nH drone, 0.3 nH shunt) and an ideal, bounce-free contact are "
+        "assumptions; the 300 nH drone-lead case passes.",
+        "**Off-state SRC/VOUT drift:** the charge pump keeps ≈ 345 µA flowing out of SRC for ~30 ms after enable "
+        "(CBST charge), which lifts VOUT through Q2's body diode if nothing is connected; the 'VOUT > 1 V' check "
+        "must wait for that or be qualified by the probe.",
+        "**1S:** the EN/UVLO divider turns the switch off when a 1S pack sags below 3.57 V under load.",
+    ]
+    L += [f"{i+1}. {r}" for i, r in enumerate(risks)]
+    open(os.path.join(S.SIM, "SIM.md"), "w").write("\n".join(L) + "\n")

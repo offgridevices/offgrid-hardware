@@ -12,8 +12,6 @@ on:
   # here is green, so a PR runs this suite exactly once and a red suite stops
   # there — no paid review of a board that does not rebuild.
   workflow_call:
-  # Manual runs (any branch), e.g. to check a board branch before its PR.
-  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -128,6 +126,99 @@ jobs:
       # Firmware pin maps, parts, fab outputs, simulations' verdicts.
       - name: Design checks (verify.py)
         run: python3 src/verify.py
+
+  print-hub-v1:
+    # Print Hub (print-hub/v1).  Same pinned KiCad image as the board's
+    # toolchain (print-hub/v1/tools/Dockerfile), by digest.  The routed board
+    # is the design of record: the artwork is rebuilt from src/, then every
+    # gate and the fab files, which must equal the committed ones.  Then the
+    # design checks, the power-chain analysis and the firmware's host tests.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 30
+    container:
+      image: kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
+      options: --user root
+    defaults:
+      run:
+        working-directory: print-hub/v1
+    env:
+      HOME: /tmp
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git g++ make > /dev/null
+          pip3 install --break-system-packages -q numpy==2.5.4 shapely==2.2.0 Pillow==13.0.0 \
+            pypdf==6.21.1 uharfbuzz==0.56.3 fonttools==4.67.0
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Artwork from src/ (brand.py, silk.py), circuit gates, KiCad DRC
+      # (0 / 0 / 0), net check, Gerbers, BOM, CPL.
+      - name: Build artwork and fab files (make.py)
+        run: python3 src/make.py --artwork --fab-only
+
+      - name: Committed fab files match the build
+        run: python3 tools/check_outputs.py
+
+      - name: Power-chain analysis (sim/power_budget.py)
+        run: python3 sim/power_budget.py
+
+      # Firmware pin map and scaling against the circuit, LED chain, port
+      # parts, simulation verdicts.
+      - name: Design checks (verify.py)
+        run: python3 src/verify.py
+
+      - name: Firmware host tests
+        run: make -C firmware/test
+
+  smokebreak-v1:
+    # SmokeBreak (smokebreak/v1).  The routed board is the design of record:
+    # Freerouting is not deterministic and the last joins were finished by
+    # script (src/touchup.py), so routing is not re-run.  Everything after it
+    # is: the silkscreen art from src/ (brand.py, art.py, make.art_items),
+    # KiCad DRC (0 / 0 / 0), the net check against circuit.py, then the
+    # Gerbers, BOM, CPL and netlist, which must equal the committed ones.
+    # Runs in the official KiCad image the board's toolchain pins
+    # (smokebreak/v1/tools/Dockerfile), by digest.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 30
+    container:
+      image: kicad/kicad:10.0.7@sha256:3224d1bf143185ecc1bd3a1082a36f37f0f4e59d707983a16515a845e3737fc6
+      options: --user root
+    defaults:
+      run:
+        working-directory: smokebreak/v1
+    env:
+      HOME: /tmp
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Python packages tools/Dockerfile installs that these steps use.
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git > /dev/null
+          pip3 install --break-system-packages -q numpy shapely Pillow matplotlib uharfbuzz fonttools pytest
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Rebuild the silkscreen art (src/artwork.py)
+        working-directory: smokebreak/v1/src
+        run: python3 artwork.py
+
+      # DRC 0 / 0 / 0 and every pad's net against circuit.py are gates here.
+      - name: DRC, net check and production files (src/fab.py)
+        working-directory: smokebreak/v1/src
+        run: python3 fab.py --no-3d
+
+      - name: Committed production files match the build
+        run: python3 tools/check_outputs.py
+
+      - name: Firmware model tests
+        run: python3 -m pytest -q firmware/tests
 
   canary-v1:
     # Canary (canary/v1). Routing is Freerouting's and not bit-for-bit
