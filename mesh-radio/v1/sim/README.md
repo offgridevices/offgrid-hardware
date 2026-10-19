@@ -36,7 +36,38 @@ Requirement IDs refer to `../README.md`.  The circuit is `src/circuit.py`
 as changed on 19 Oct (next section).  Ambient corners -40 / -20 / 0 / 25 /
 60 / 85 C; every number is in the study's `results.txt`.
 
-{{VERDICT2}}
+| study / case | -40 C | -20 C | 0 C | 25 C | 60 C | 85 C | note |
+|---|---|---|---|---|---|---|---|
+| hotplug: USB 5 V, 20 V fault, 5 -> 20 V step; 6 V and 12 V panels; drone 5 / 20 V; panel and drone reversed | PASS | PASS | PASS | PASS | PASS | PASS | eFuse IN 22.9 V max (28 V); MAX17608 IN 37.6 / -47 V (65 / -70 V); nRF VBUS 5.27 V max in the step |
+| hotplug: USB 5.5 V source | MARG | MARG | MARG | MARG | MARG | MARG | by design: the USB OV cut-off (5.22-5.57 V) sits on vSafe5V max to keep VBUS under the nRF52840's 5.5 V |
+| USB UVLO vs zener leakage (bound) | PASS | PASS | PASS | PASS | PASS | MARG | only at a 64 uA leakage bound; bench check |
+| RB060MM leakage onto VBUS (USB out, 10.4 V on VIN_CHG) | PASS | PASS | PASS | PASS | PASS | PASS | 0.5 V typ, 2.6 V at 5x leakage, 85 C |
+| reverse cell: no USB / USB / USB with the protector on | PASS | PASS | PASS | PASS | PASS | PASS | reverse FET stays off; no pin current |
+| reverse cell into live pads (right-way cell pulled out under USB, then a reversed one) | FAIL* | FAIL* | FAIL* | FAIL | FAIL | FAIL | 21-24 A for ~0.2 ms, BAT_P below -0.3 V, check-FET VGS 9-11 V.  *At <= 0 C the solver started unlatched, so those runs did not test it |
+| right-way cell, with and without USB | PASS | PASS | PASS | PASS | PASS | PASS | FET on ~3 ms after the plug |
+| shorts: 3V3, header 3V3, VSYS, VPA, PA_IN (also with USB) | PASS | PASS | PASS | PASS | PASS | PASS | VSYS: TPS22950 holds the cell to 1.0 A |
+| shorts: BAT_P (cell terminals) | MARG | MARG | MARG | MARG | MARG | MARG | protector trips in ~0.3 ms (29 A peak, 48 A IDM FET); restart on the cell alone: bench |
+| burst 3 W, fresh cell 4.2 V / 50 mOhm | cap 2 W | PASS | PASS | PASS | PASS | PASS | |
+| burst 3 W, mid cell 3.7 V / 150 mOhm | no TX | no TX | cap 2 W | PASS | PASS | PASS | |
+| burst 1 W, worn cell 3.3 V / 300 mOhm | no TX | no TX | no TX | PASS | PASS | PASS | |
+| cold start (switch on, first burst) | 1 W fresh cell only | | | | | | worn or 150 mOhm cells cannot burst at -40 C (R_int x9) |
+| hot: USB in, charging off, 3 bursts 1 / 2.5 / 3 W | | | | | | PASS | <= 0.07 mA into the cell (P7) |
+| USB only, no cell, 1 W (firmware sets PA_SRC_SYS) | | | | PASS | | | 1.6 W and up exceed the charger's 1.05 A input |
+| USB in, cell too weak for 1 W: firmware sets PA_SRC_SYS | | | | PASS | | | without it the weak cell trips UVP |
+| solar 6 V panel (charges inside 0-45 C, <= 1 mA outside) and USB charge path | PASS | PASS | PASS | PASS | PASS | PASS | harvest 56 / 76 % of MPP (3.0 / 4.1 V cell), 37 / 53 % at 20 % sun |
+| derating (E4) | | | | | | | 81 rows: 1 FAIL (the live-pad case above), 11 MARGINAL (3 W: QPA9510 2.3 A vs 2.4 A, TPS63810, TPS2121 IN1 4.0 A; BQ25185 ILIM at 1.1 A; nRF VBUS at OV max 96 % of abs max) |
+
+"cap" / "no TX": the firmware cap from `burst/results.txt` (highest level that passes for that cell
+and temperature); a capped level browns the board out or trips the protector, nothing is damaged.
+"MARG" = MARGINAL, with the reason in the note.
+
+**Residual risk, the one FAIL:** with external power in, unplugging a right-way cell leaves the
+reverse FET on (its polarity check then sees BAT_P on the pads, a state that holds itself), so a
+reversed cell plugged in next sees live pads.  Firmware can clear it: when on external power and
+VBAT_SENSE says no cell, drive CHG_CE_N high for ~1 s (BAT_P then decays below the check FET's
+threshold in well under a second) and back low.  That needs the processor running; with the
+board switched off and external power in, the window stays open.  A hardware cure needs a cell-
+presence signal (a 3-pin battery plug); bench-test the sequence either way.
 
 ## Changes made on 19 Oct (src/circuit.py, src/parts.py)
 
@@ -47,12 +78,13 @@ the PA level by temperature and cell voltage), charge current 300 mA.
 |---|---|---|
 | inputs | Solar and drone: RB060MM + TVS2200 + TPS259470A replaced by SMF33CA (33 V bidirectional) + MAX17608 (60 V, -60 V reverse, reverse-current blocking; OV 9.93 V, 0.71 A continuous limit, internal 4 V UVLO); SOLAR_OK / DRONE_OK become 1.5 M / 100 k (1/16) input-voltage dividers to the ADC | a 12 V panel's cold Voc (26 V) made the TVS2200 conduct, and a 20 V fault put the eFuse IN at 28.0-28.2 V hot (28 V abs max) (hotplug); no series Schottky: no reversed-panel stress, more harvest |
 | inputs | USB: 4.7 uF 50 V + 1 R (0805 pulse-proof) snubber, eFuse input cap 1 uF 50 V, EN divider 20 k / 7.68 k with a 5.6 V zener (was 1 M / 383 k, 4.7 V), 100 pF on OVLO, VBUS bleed 2.2 k (was 47 k), 22 R from USB_5V to the nRF52840 VBUS (new net NRF_VBUS, its 4.7 uF) | 20 V plug-in ring to 28.2 V; zener leakage could lift UVLO above OV; a 5 V plug-in ring tripped OVLO, which then held USB off (it releases only below 4.89 V); RB060MM leakage put 10 V on VBUS at 85 C; VBUS must ride out the eFuse's 1-2 us cut-off of a 5 -> 20 V step (hotplug) |
-| charger | LM66100 replaced by TPS22950 (current-limited 1.0 A, reverse-current blocking, on with the power switch) | the LM66100 (CE = GND) charged the cell at ~0.9 A outside the charger's control (solar, burst hot case); 12 A in a VSYS short (shorts) |
+| charger | LM66100 replaced by TPS22950 (current-limited 1.0 A, on with the power switch) + RB060MM Schottky to VSYS; VIN_CHG cap 1 + 10 uF -> 1 uF | the LM66100 (CE = GND) charged the cell at ~0.9 A outside the charger's control (solar, burst hot case); 12 A in a VSYS short (shorts); the TPS22950's own reverse block acts only near 1 A, so SYS back-charged the cell (solar); 11 uF on VIN_CHG made a weak panel hiccup the MAX17608 at start-up (solar) |
 | charger | reverse FET CSD25485F5 -> CSD25310Q2 (19.9 mOhm, 9.6 A), gate pulled up to BAT_P (1 M) and pulled down only by an SSM3K56ACT polarity check (gate = BATT_PLUS through 100 k / 100 nF; 1 M across the plug) | 3.6 A bursts on a 3.2 A part; a reversed cell with USB in turned the old FET on (33 A, reverse); without the gate filter, BAT_P rising at USB plug-in (coupled onto the empty pad by the FET's capacitance) or the cell leads' plug-in ring turned the check on and latched the FET on |
 | charger | protector sense 22 mOhm -> 15 mOhm (Vishay WSLP1206) | OCD could trip at 3.3 A, inside a 3 W burst (shorts) |
 | charger | ISET 604 R -> 1 k (300 mA); CHG_TS also to P0.31/AIN7 (coordinator) | owner decision |
 | system | TPS22965 removed: the slide switch drives the TPS62840 EN; the buck runs from VSYS | a VSYS_SW short put 15 A through the TPS22965 for 20 ms; the TPS22950 now limits the cell's share of any VSYS short |
 | pa_power | PR1 562 k / 301 k -> 562 k / 374 k (IN1 priority to 2.60 V); SSM3K56ACT from PR1 to GND driven by P0.02, renamed PA_VSEL -> PA_SRC_SYS (TPS63810 VSEL tied low) | a sagging cell switched the mux over and the 100 us gap reset the TPS63810 (burst); with no cell, firmware selects SYS |
+| mcu (crossing nets only) | A12 PA_VSEL -> PA_SRC_SYS; VBUS pin (AD2) and its 4.7 uF moved from USB_5V to NRF_VBUS | follow the pa_power and inputs changes |
 | pa_power | 2 x 47 uF VPA caps: Samsung 0805 X5R -> TDK C3216X7S0J476M160AC (1206 X7S) | more capacitance at 4 V / 85 C (thermal study) |
 
 Firmware follow-ups: P0.02 is now PA_SRC_SYS (drive high to run the
