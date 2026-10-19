@@ -21,6 +21,8 @@ v = re.findall(r'^\[(\w+)\]', open('out/drc.rpt').read(), re.M)
 print('DRC items:', len(v), sorted(set(v)))
 sys.exit(1 if v else 0)
 PY
+echo "== copper geometry: no corner sharper than 45 deg, power tracks wide enough (IPC-2221)"
+tools/kd python3 src/check_geometry.py canary.kicad_pcb
 
 echo "== fab outputs, pin map; committed files must equal the build"
 python3 src/fab.py --no-renders

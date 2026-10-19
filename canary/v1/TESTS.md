@@ -10,6 +10,7 @@ empty until a board is built.
 | Schematic ERC | `kicad-cli sch erc --exit-code-violations` (KiCad 10.0.6) | **0 violations** |
 | Schematic netlist = `circuit.py` | `src/check_netlist.py` on KiCad's own netlist export | **27 nets, 0 mismatches** |
 | Board DRC, PCBWay limits, schematic parity, all severities | `kicad-cli pcb drc --schematic-parity --severity-all` | **0 errors, 0 warnings, 0 unconnected** |
+| Copper geometry: no corner sharper than 45°, no acute junction; power tracks ≥ IPC-2221 width (10 °C rise, 1 oz) for their worst-case current | `src/check_geometry.py` | **166 bends, sharpest 45°**; VBUS 0.30 ≥ 0.12 mm @ 0.52 A, BUZ_D 0.30 ≥ 0.07 mm @ 0.33 A, +3V3 0.25 ≥ 0.03 mm @ 0.2 A |
 | Strict DRC (0.2 mm clearance and track everywhere) | same, rules raised to 0.2 mm | **0 errors** (so "6/6 mil" is safe to order) |
 | CPL = BOM | `src/fab.py` | **43 placed parts = 43 BOM parts, 27 lines** |
 | Firmware pin map = circuit = routed board | `src/check_pins.py` | **11 pins, 0 mismatches** |

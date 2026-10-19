@@ -57,7 +57,8 @@ def main(steps):
         route('out/placed.kicad_pcb', 'out/route')
     if 'finish' in steps:
         for rnd in range(4):
-            kd('python3', 'src/finish.py', 'out/routed.kicad_pcb', 'canary.kicad_pcb')
+            kd('python3', 'src/miter.py', 'out/routed.kicad_pcb', 'out/mitered.kicad_pcb')
+            kd('python3', 'src/finish.py', 'out/mitered.kicad_pcb', 'canary.kicad_pcb')
             kd('kicad-cli', 'pcb', 'drc', '--refill-zones', '--schematic-parity', '--severity-all',
                '-o', 'out/drc.rpt', 'canary.kicad_pcb')
             v = set(re.findall(r'^\[(\w+)\]', open(os.path.join(OUT, 'drc.rpt')).read(), re.M))
@@ -68,6 +69,7 @@ def main(steps):
             print(f'routing round {rnd + 2}: connections left, routing again')
             route('out/routed.kicad_pcb', f'out/route_r{rnd + 2}')
         drc_gate(os.path.join(OUT, 'drc.rpt'))
+        kd('python3', 'src/check_geometry.py', 'canary.kicad_pcb')
     if 'fab' in steps:
         run(sys.executable, 'src/fab.py')
 

@@ -43,6 +43,17 @@ service; the board is not dense. Ground is not routed: every ground pad has
 its own via into solid pours on both layers (`board.py: fanout`), and
 Freerouting routes only signals.
 
+**Corners and track widths.** At Canary's speeds (100 kHz I²C, 38400 baud,
+4 kHz sounder) a corner does nothing electrically: a signal's rise time is
+thousands of times longer than the trace. Corners are kept to 45° anyway, for
+etching (an inside right angle can trap etchant and an outside one etches
+thin): Freerouting left six right-angle corners where tracks turn onto pads,
+and `src/miter.py` cuts each into two 45° turns after routing. Widths are
+set by heat, not by geometry: by IPC-2221 (outer layer, 1 oz, 10 °C rise)
+VBUS needs 0.12 mm for its 0.52 A worst-case peak and has 0.30 mm; the
+sounder drain needs 0.07 mm for 0.33 A and has 0.30 mm; +3V3 needs 0.03 mm
+for 0.2 A and has 0.25 mm. `src/check_geometry.py` gates both.
+
 **Yellow mask, black silk.** A canary. Also high-contrast for the labels a
 user needs (OK / WARN / ALARM, TEST / HUSH, NTC TAB, AIR IN).
 

@@ -116,6 +116,18 @@ board's `docs/` keeps its own dated checks).
   Freerouting, or it routes signals through them. (Freerouting 1.9.0)
 - **Freerouting 2.5.0 stalled** with a dozen connections left on Print Hub
   (after a few passes, no progress, no end); 1.9.0 finished the same board.
+- **Freerouting leaves right-angle corners** where a track turns onto a pad
+  or around an obstacle (six on Canary). Miter them after routing and gate
+  the sharpest bend (Canary `src/miter.py`, `src/check_geometry.py`).
+  (Freerouting 1.9.0)
+- **Freerouting ignores internal board cutouts** (routed slots): draw a
+  keepout rule area around each one, or it routes through them.
+  (Freerouting 1.9.0)
+- **Single-pin nets named `unconnected-(…)` stall Freerouting's DSN reader.**
+  Drop them from the DSN before routing. (KiCad 10.0.6, Freerouting 1.9.0)
+- **simavr 1.6 (Ubuntu's package) has a TWI bug**: it answers SLA+W with
+  status 0x28 instead of 0x18, so a polled I²C master fails. Build upstream
+  master for hardware-in-the-loop tests.
 - **EasyEDA's 3D models can sit off their own land** (the HRO
   TYPE-C-31-M-12 by 2.55 mm). Look at a render before trusting the STEP for
   an enclosure; correct it with a model offset in the footprint.

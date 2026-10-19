@@ -49,6 +49,7 @@ a vent at 400 s (alarm 7.6 s later) — `sim/hil/`:
 | Latest KiCad | KiCad **10.0.6** (`kicad/kicad:10.0.6-full`), current stable | Yes |
 | Schematic clean | `kicad-cli sch erc`: **0 violations** | Yes |
 | Board clean, fab's limits | `kicad-cli pcb drc --schematic-parity --severity-all`: **0 errors, 0 warnings, 0 unconnected** against PCBWay 2-layer limits (with margin) | Yes |
+| Clean copper, wide enough for its current | `check_geometry.py`: no corner sharper than 45° (the router's six right angles mitered by `miter.py`); every power track ≥ 2.4× its IPC-2221 width at a 10 °C rise | Yes |
 | Schematic = circuit = board = firmware | `check_netlist.py` (27 nets, 0 mismatches), DRC parity, `check_pins.py` (11 pins, 0 mismatches) | Yes |
 | Detects a vent within seconds, ignores single-cause events | HIL simulation of the real firmware: vent → ALARM in **7.6 s**; spray, breath → no alarm; **56/56 checks** across 8 scenarios | Yes, in simulation |
 | Sounder driver safe | ngspice: drain clamped at **5.4 V** on 5 V, clamp diode ≤ 0.34 A, VBUS dip ≥ 4.95 V, for 0.5–4 mH coils | Yes |
@@ -120,7 +121,7 @@ the USB-C, probe connector and the sensor head's air path stay open.
 |---|---|
 | `production/` | Gerber zip, PCBWay BOM, CPL, netlist, assembly + schematic PDFs, firmware HEX |
 | `canary.kicad_sch`, `canary.kicad_pcb`, `canary.kicad_pro` | KiCad 10 design (generated) |
-| `src/` | the design source: `circuit.py` (every part and net), `schematic.py`, `board.py`, `finish.py`, `fab.py`, checks |
+| `src/` | the design source: `circuit.py` (every part and net), `schematic.py`, `board.py`, `miter.py`, `finish.py`, `fab.py`, checks |
 | `firmware/` | AVR C firmware (`detect.c` is the detector logic) |
 | `sim/hil/` | simavr hardware-in-the-loop harness + scenarios |
 | `sim/spice/`, `sim/analysis/` | sounder driver SPICE, NTC/power/I²C analyses |
