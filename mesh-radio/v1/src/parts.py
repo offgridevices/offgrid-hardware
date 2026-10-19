@@ -281,10 +281,10 @@ def _two(kind, key, mpn, maker, lcsc, fp, value, desc, sym, pinmap=None, **kw):
     PARTS[key] = dict(mpn=mpn, maker=m, hq=hq, lcsc=lcsc, digikey='', fp=fp, value=value, desc=desc,
                       sym=sym, kind=kind, **({'pinmap': pinmap} if pinmap else {}), **kw)
 
-SAMSUNG, MURATA, YAGEO, TDK, ROHM, LITEON, ABRACON, PANASONIC, COILCRAFT, CK, OMRON, LITTELFUSE = (
+SAMSUNG, MURATA, YAGEO, TDK, ROHM, LITEON, ABRACON, PANASONIC, COILCRAFT, CK, OMRON, LITTELFUSE, VISHAY = (
     ('Samsung Electro-Mechanics', KR), ('Murata', JP), ('Yageo', TW), ('TDK', JP), ('Rohm', JP),
     ('Lite-On', TW), ('Abracon', US), ('Panasonic', JP), ('Coilcraft', US), ('C&K', US),
-    ('Omron (Aratas)', JP), ('Littelfuse', US))
+    ('Omron (Aratas)', JP), ('Littelfuse', US), ('Vishay Dale', US))
 
 FP = {'0402': 'og:C_0402', '0603': 'og:C_0603', '0805': 'og:C_0805', '1206': 'og:R_1206'}
 
@@ -319,17 +319,19 @@ cap('C100p', '100pF', '0402', '50V C0G', 'GRM1555C1H101JA01D', 'C77177', MURATA)
 cap('C22p', '22pF', '0402', '50V C0G', 'GRM1555C1H220JA01D', 'C76960', MURATA)
 cap('C12p', '12pF', '0402', '50V C0G', 'CL05C120JB5NNNC', 'C26406')
 # RF: Murata GJM high-Q C0G
-for v, code, lc in [('0.5pF', 'R50B', 'C76911'), ('0.8pF', 'R80B', 'C76915'), ('1.0pF', '1R0B', 'C76898'),
+for v, code, lc in [('0.5pF', 'R50B', 'C76911'), ('1.0pF', '1R0B', 'C76898'),
                     ('1.5pF', '1R5B', 'C76900'), ('1.8pF', '1R8B', 'C76902'), ('2.4pF', '2R4B', 'C88888'),
                     ('3.0pF', '3R0B', 'C88891'), ('5.6pF', '5R6B', 'C161329'), ('10pF', '100J', 'C85874'),
                     ('11pF', '110J', 'C426107'), ('15pF', '150J', 'C88877'), ('27pF', '270J', 'C88884'),
                     ('39pF', '390J', 'C426038'), ('47pF', '470J', 'C161322')]:
     cap('RF' + v, v, '0402', '50V C0G high-Q', 'GJM1555C1H%sB01D' % code, lc, MURATA)
-# PA harmonic filter: 250 V C0G (an open antenna roughly doubles the RF voltage)
-for v, size, mpn, lc in [('0.7pF', '0805', 'GQM2195C2ER70WB12D', 'C3908487'), ('1.5pF', '0805', 'GQM2195C2E1R5BB12D', 'C2173009'),
-                         ('2.7pF', '0805', 'GQM2195C2E2R7BB12D', 'C668330'), ('3.3pF', '0603', 'GQM1875C2E3R3BB12D', 'C882553'),
-                         ('4.3pF', '0805', 'GQM2195C2E4R3BB12D', 'C668332')]:
+# PA harmonic filter: 250 V C0G (an open antenna roughly doubles the RF
+# voltage); values from sim/rf (lowest loss with 2f-5f rejection, with the LFCN)
+for v, size, mpn, lc in [('0.9pF', '0603', 'GQM1875C2ER90BB12D', 'C1865143'), ('1.3pF', '0603', 'GQM1875C2E1R3BB12D', 'C3901219'),
+                         ('2.0pF', '0603', 'GQM1875C2E2R0BB12D', 'C6867410'), ('3.6pF', '0603', 'GQM1875C2E3R6BB12D', 'C2178747')]:
     cap('HV' + v, v, size, '250V C0G high-Q', mpn, lc, MURATA)
+# the Bluetooth match's 0.8 pF at +-0.05 pF (sim/rf: +-0.1 pF loses 1 % of boards)
+cap('RF0.8pF_W', '0.8pF', '0402', '50V C0G high-Q +-0.05pF', 'GJM1555C1HR80WB01D', 'C88902', MURATA)
 
 for v, code, lc in [('0R', '0R', 'C106231'), ('22R', '22R', 'C114765'), ('330R', '330R', 'C105875'), ('470R', '470R', 'C114877'),
                     ('604R', '604R', 'C273693'), ('287k', '287K', 'C327358'), ('1k', '1K', 'C106235'), ('2.2k', '2K2', 'C114762'), ('2.21k', '2K21', 'C138019'),
@@ -340,6 +342,8 @@ for v, code, lc in [('0R', '0R', 'C106231'), ('22R', '22R', 'C114765'), ('330R',
                     ('510k', '510K', 'C137961'), ('562k', '562K', 'C273337'), ('1M', '1M', 'C138033'), ('1.5M', '1M5', 'C138034')]:
     res('R' + v, v, '0402', 'RC0402FR-07%sL' % code, lc)
 res('R68_0805', '68R', '0805', 'RC0805FR-0768RL', 'C137498')
+# the pad's first resistor takes the most power (sim/rf: 118 mW at +22 dBm drive)
+res('R68_0805_AS', '68R', '0805', 'RCS080568R0FKEA', 'C2114866', VISHAY, '1% 0.4 W anti-surge')
 res('R150_0805', '150R', '0805', 'RC0805FR-07150RL', 'C114523')
 res('R22m', '22mR', '1206', 'ERJ-8BWFR022V', 'C2075813', PANASONIC, '1% 1 W')
 
@@ -348,10 +352,13 @@ ind('L15u', '15uH', '0805', 'MLZ2012M150WT000', 'C383402', TDK, 'SX1262 DC/DC')
 ind('L2u2', '2.2uH', '0806', 'DFE201610E-2R2M=P2', 'C337891', MURATA, '3.3 V buck')
 ind('L470n', '0.47uH', '1008', 'DFE252012F-R47M=P2', 'C703140', MURATA, 'amplifier buck-boost')
 for v, mpn, lc in [('1.5nH', 'LQW15AN1N5C00D', 'C167468'), ('2.5nH', 'LQW15AN2N5C00D', 'C703121'), ('2.7nH', 'LQW15AN2N7C00D', 'C98058'),
-                   ('3.9nH', 'LQW15AN3N9C00D', 'C98063'), ('4.7nH', 'LQW15AN4N7C00D', 'C167480'), ('5.1nH', 'LQW15AN5N1C00D', 'C113117'),
+                   ('3.9nH', 'LQW15AN3N9C00D', 'C98063'), ('4.7nH', 'LQW15AN4N7C00D', 'C167480'),
                    ('11nH', 'LQW15AN11NJ00D', 'C167465'), ('15nH', 'LQW15AN15NJ00D', 'C94079'), ('47nH', 'LQW15AN47NJ00D', 'C192855')]:
     ind('L' + v, v, '0402', mpn, lc, MURATA, 'wire-wound RF')
-ind('L4.7nH_0603', '4.7nH', '0603', 'LQW18AN4N7D00D', 'C98078', MURATA, 'wire-wound RF, harmonic filter')
+# 3 W path: 0805 wire-wound, 2 A class (sim/rf: the 0402/0603 parts ran 1.1-2.7x
+# past their rated self-heating at 3 W)
+ind('L3.2nH_0805', '3.2nH', '0805', 'LQW2BAN3N2J00L', 'C2043110', MURATA, 'wire-wound RF 0805, harmonic filter')
+ind('L3.6nH_0805', '3.6nH', '0805', 'LQW2BAN3N6J00L', 'C2045110', MURATA, 'wire-wound RF 0805, amplifier output match')
 ind('L5.6nH_0603', '5.6nH', '0603', 'LQW18AN5N6C00D', 'C98081', MURATA, 'wire-wound RF, harmonic filter')
 ind('L11nH_0603', '11nH', '0603', 'LQW18AN11NG00D', 'C701196', MURATA, 'wire-wound RF, amplifier supply feed')
 ind('L8.1nH_PA', '8.1nH', '0908SQ', '0908SQ-8N1', 'C19191636', COILCRAFT, 'air-core, amplifier output choke (carries the 1.7 A collector current)')
@@ -391,7 +398,6 @@ _two('Q', 'NMOS', 'SSM3K56ACT,L3F', ('Toshiba', JP), 'C146308', 'og:SOT-883', 'S
 
 res('R220R', '220R', '0402', 'RC0402FR-07220RL', 'C112291')
 ind('L1.6nH', '1.6nH', '0402', 'LQG15HS1N6S02D', 'C162539', MURATA, 'multilayer RF')
-ind('L3.6nH_0603', '3.6nH', '0603', 'LQW18AN3N6D00D', 'C341694', MURATA, 'wire-wound RF, amplifier output match')
 for v, size, mpn, lc in [('5.6pF', '0603', 'GQM1875C2E5R6CB12D', 'C2171689'), ('10pF', '0603', 'GQM1875C2E100JB12D', 'C882554'),
                          ('15pF', '0603', 'GQM1875C2E150JB12D', 'C2181572'), ('47pF', '0603', 'GQM1875C2E470JB12D', 'C882552')]:
     cap('HV' + v, v, size, '250V C0G high-Q', mpn, lc, MURATA)
@@ -429,13 +435,8 @@ DIGIKEY = {
     'C820p': '490-3242-1-ND',
     'CSD25485F5': '296-47760-1-ND',
     'FB120': '490-5176-1-ND',
-    'HV0.7pF': '490-GQM2195C2ER70WB12DCT-ND',
-    'HV1.5pF': '490-5282-1-ND',
     'HV10pF': '490-6086-1-ND',
     'HV15pF': '490-14794-1-ND',
-    'HV2.7pF': '490-5286-1-ND',
-    'HV3.3pF': '490-8126-1-ND',
-    'HV4.3pF': '490-GQM2195C2E4R3BB12DCT-ND',
     'HV47pF': '490-5900-1-ND',
     'HV5.6pF': '490-7162-1-ND',
     'JST_GH6': '455-1568-1-ND',
@@ -451,13 +452,10 @@ DIGIKEY = {
     'L2.5nH': '490-6798-1-ND',
     'L2.7nH': '490-6800-1-ND',
     'L2u2': '490-17728-1-ND',
-    'L3.6nH_0603': '490-1159-1-ND',
     'L3.9nH': '490-6813-1-ND',
     'L4.7nH': '490-1139-1-ND',
-    'L4.7nH_0603': '490-1162-1-ND',
     'L470n': '490-13049-1-ND',
     'L47nH': '490-1154-1-ND',
-    'L5.1nH': '490-6832-1-ND',
     'LED_B': '160-1647-1-ND',
     'LED_G': '160-1446-1-ND',
     'LED_R': '160-1447-1-ND',
@@ -499,7 +497,6 @@ DIGIKEY = {
     'R68_0805': '311-68.0CRCT-ND',
     'RB060MM': 'RB060MM-30CT-ND',
     'RF0.5pF': '490-6077-1-ND',
-    'RF0.8pF': '490-6080-1-ND',
     'RF1.0pF': '490-6073-1-ND',
     'RF1.5pF': '490-8087-1-ND',
     'RF1.8pF': '490-8089-1-ND',

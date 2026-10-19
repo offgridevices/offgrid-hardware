@@ -4269,7 +4269,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "RC0805FR-0768RL"
+		(property "MPN" "RCS080568R0FKEA"
 			(at 25.4 116.84 0)
 			(effects
 				(font
@@ -4278,7 +4278,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manufacturer" "Yageo"
+		(property "Manufacturer" "Vishay Dale"
 			(at 25.4 116.84 0)
 			(effects
 				(font
@@ -4287,7 +4287,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "311-68.0CRCT-ND"
+		(property "LCSC" "C2114866"
 			(at 25.4 116.84 0)
 			(effects
 				(font
@@ -4296,16 +4296,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C137498"
-			(at 25.4 116.84 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Resistor 68R 1% 0805"
+		(property "Description" "Resistor 68R 1% 0.4 W anti-surge 0805"
 			(at 25.4 116.84 0)
 			(effects
 				(font
@@ -8389,7 +8380,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "3.3pF"
+		(property "Value" "2.0pF"
 			(at 332 115.9 0)
 			(effects
 				(font
@@ -8407,7 +8398,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GQM1875C2E3R3BB12D"
+		(property "MPN" "GQM1875C2E2R0BB12D"
 			(at 330.2 114.3 0)
 			(effects
 				(font
@@ -8425,7 +8416,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-8126-1-ND"
+		(property "LCSC" "C6867410"
 			(at 330.2 114.3 0)
 			(effects
 				(font
@@ -8434,16 +8425,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C882553"
-			(at 330.2 114.3 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 3.3pF 250V C0G high-Q 0603"
+		(property "Description" "Capacitor 2.0pF 250V C0G high-Q 0603"
 			(at 330.2 114.3 0)
 			(effects
 				(font
@@ -8558,7 +8540,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "4.3pF"
+		(property "Value" "1.3pF"
 			(at 344.7 115.9 0)
 			(effects
 				(font
@@ -8567,7 +8549,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "og:C_0805"
+		(property "Footprint" "og:C_0603"
 			(at 342.9 114.3 0)
 			(effects
 				(font
@@ -8576,7 +8558,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GQM2195C2E4R3BB12D"
+		(property "MPN" "GQM1875C2E1R3BB12D"
 			(at 342.9 114.3 0)
 			(effects
 				(font
@@ -8594,7 +8576,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-GQM2195C2E4R3BB12DCT-ND"
+		(property "LCSC" "C3901219"
 			(at 342.9 114.3 0)
 			(effects
 				(font
@@ -8603,16 +8585,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C668332"
-			(at 342.9 114.3 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 4.3pF 250V C0G high-Q 0805"
+		(property "Description" "Capacitor 1.3pF 250V C0G high-Q 0603"
 			(at 342.9 114.3 0)
 			(effects
 				(font
@@ -8727,7 +8700,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "2.7pF"
+		(property "Value" "0.9pF"
 			(at 357.4 115.9 0)
 			(effects
 				(font
@@ -8736,7 +8709,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "og:C_0805"
+		(property "Footprint" "og:C_0603"
 			(at 355.6 114.3 0)
 			(effects
 				(font
@@ -8745,7 +8718,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GQM2195C2E2R7BB12D"
+		(property "MPN" "GQM1875C2ER90BB12D"
 			(at 355.6 114.3 0)
 			(effects
 				(font
@@ -8763,7 +8736,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-5286-1-ND"
+		(property "LCSC" "C1865143"
 			(at 355.6 114.3 0)
 			(effects
 				(font
@@ -8772,16 +8745,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C668330"
-			(at 355.6 114.3 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 2.7pF 250V C0G high-Q 0805"
+		(property "Description" "Capacitor 0.9pF 250V C0G high-Q 0603"
 			(at 355.6 114.3 0)
 			(effects
 				(font
@@ -10754,7 +10718,7 @@
 				)
 			)
 		)
-		(property "Footprint" "og:L_0603"
+		(property "Footprint" "og:L_0805"
 			(at 215.9 180.34 0)
 			(effects
 				(font
@@ -10763,7 +10727,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "LQW18AN3N6D00D"
+		(property "MPN" "LQW2BAN3N6J00L"
 			(at 215.9 180.34 0)
 			(effects
 				(font
@@ -10781,7 +10745,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-1159-1-ND"
+		(property "LCSC" "C2045110"
 			(at 215.9 180.34 0)
 			(effects
 				(font
@@ -10790,16 +10754,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C341694"
-			(at 215.9 180.34 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Inductor 3.6nH 0603 wire-wound RF, amplifier output match"
+		(property "Description" "Inductor 3.6nH 0805 wire-wound RF 0805, amplifier output match"
 			(at 215.9 180.34 0)
 			(effects
 				(font
@@ -11054,7 +11009,7 @@
 				)
 			)
 		)
-		(property "Value" "5.1nH"
+		(property "Value" "3.2nH"
 			(at 294.64 183.34 0)
 			(effects
 				(font
@@ -11062,7 +11017,7 @@
 				)
 			)
 		)
-		(property "Footprint" "og:L_0402"
+		(property "Footprint" "og:L_0805"
 			(at 294.64 180.34 0)
 			(effects
 				(font
@@ -11071,7 +11026,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "LQW15AN5N1C00D"
+		(property "MPN" "LQW2BAN3N2J00L"
 			(at 294.64 180.34 0)
 			(effects
 				(font
@@ -11089,7 +11044,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-6832-1-ND"
+		(property "LCSC" "C2043110"
 			(at 294.64 180.34 0)
 			(effects
 				(font
@@ -11098,16 +11053,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C113117"
-			(at 294.64 180.34 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Inductor 5.1nH 0402 wire-wound RF"
+		(property "Description" "Inductor 3.2nH 0805 wire-wound RF 0805, harmonic filter"
 			(at 294.64 180.34 0)
 			(effects
 				(font
@@ -11208,7 +11154,7 @@
 				)
 			)
 		)
-		(property "Value" "1.5pF"
+		(property "Value" "3.6pF"
 			(at 332.74 183.34 0)
 			(effects
 				(font
@@ -11216,7 +11162,7 @@
 				)
 			)
 		)
-		(property "Footprint" "og:C_0805"
+		(property "Footprint" "og:C_0603"
 			(at 332.74 180.34 0)
 			(effects
 				(font
@@ -11225,7 +11171,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GQM2195C2E1R5BB12D"
+		(property "MPN" "GQM1875C2E3R6BB12D"
 			(at 332.74 180.34 0)
 			(effects
 				(font
@@ -11243,7 +11189,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-5282-1-ND"
+		(property "LCSC" "C2178747"
 			(at 332.74 180.34 0)
 			(effects
 				(font
@@ -11252,16 +11198,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C2173009"
-			(at 332.74 180.34 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 1.5pF 250V C0G high-Q 0805"
+		(property "Description" "Capacitor 3.6pF 250V C0G high-Q 0603"
 			(at 332.74 180.34 0)
 			(effects
 				(font
@@ -11362,7 +11299,7 @@
 				)
 			)
 		)
-		(property "Value" "4.7nH"
+		(property "Value" "3.2nH"
 			(at 43.18 196.04 0)
 			(effects
 				(font
@@ -11370,7 +11307,7 @@
 				)
 			)
 		)
-		(property "Footprint" "og:L_0603"
+		(property "Footprint" "og:L_0805"
 			(at 43.18 193.04 0)
 			(effects
 				(font
@@ -11379,7 +11316,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "LQW18AN4N7D00D"
+		(property "MPN" "LQW2BAN3N2J00L"
 			(at 43.18 193.04 0)
 			(effects
 				(font
@@ -11397,7 +11334,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-1162-1-ND"
+		(property "LCSC" "C2043110"
 			(at 43.18 193.04 0)
 			(effects
 				(font
@@ -11406,16 +11343,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C98078"
-			(at 43.18 193.04 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Inductor 4.7nH 0603 wire-wound RF, harmonic filter"
+		(property "Description" "Inductor 3.2nH 0805 wire-wound RF 0805, harmonic filter"
 			(at 43.18 193.04 0)
 			(effects
 				(font
@@ -11516,7 +11444,7 @@
 				)
 			)
 		)
-		(property "Value" "0.7pF"
+		(property "Value" "1.3pF"
 			(at 81.28 196.04 0)
 			(effects
 				(font
@@ -11524,7 +11452,7 @@
 				)
 			)
 		)
-		(property "Footprint" "og:C_0805"
+		(property "Footprint" "og:C_0603"
 			(at 81.28 193.04 0)
 			(effects
 				(font
@@ -11533,7 +11461,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GQM2195C2ER70WB12D"
+		(property "MPN" "GQM1875C2E1R3BB12D"
 			(at 81.28 193.04 0)
 			(effects
 				(font
@@ -11551,7 +11479,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-GQM2195C2ER70WB12DCT-ND"
+		(property "LCSC" "C3901219"
 			(at 81.28 193.04 0)
 			(effects
 				(font
@@ -11560,16 +11488,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C3908487"
-			(at 81.28 193.04 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 0.7pF 250V C0G high-Q 0805"
+		(property "Description" "Capacitor 1.3pF 250V C0G high-Q 0603"
 			(at 81.28 193.04 0)
 			(effects
 				(font

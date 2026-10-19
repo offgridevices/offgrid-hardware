@@ -9203,7 +9203,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GJM1555C1HR80BB01D"
+		(property "MPN" "GJM1555C1HR80WB01D"
 			(at 241.3 203.2 0)
 			(effects
 				(font
@@ -9221,7 +9221,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-6080-1-ND"
+		(property "LCSC" "C88902"
 			(at 241.3 203.2 0)
 			(effects
 				(font
@@ -9230,16 +9230,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C76915"
-			(at 241.3 203.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 0.8pF 50V C0G high-Q 0402"
+		(property "Description" "Capacitor 0.8pF 50V C0G high-Q +-0.05pF 0402"
 			(at 241.3 203.2 0)
 			(effects
 				(font

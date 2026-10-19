@@ -96,11 +96,12 @@ Yield criteria: (1) loss PA -> U.FL <= 1.3 dB in band (35 dBm at 4.0 V) - report
   nominal notches with the part models: 1.700 GHz (target 1.80-1.86) and 2.430 GHz (target 2.71-2.78)
   ideal L/C notches (no parasitics): 1.820 and 2.775 GHz.  The shift is the inductors' self-capacitance (SRF at the
   maker minimum) and the 0805 capacitors' ESL.
+  99 % of all runs: 2f notch 1.630-2.145 GHz, 3f notch 2.285-2.600 GHz (extremes below include runs where the two notches merge and the search hits its window edge)
   worst-case notch range over all temperatures and tolerances: 2f notch 1.620-2.145 GHz (-11.5 % to 17.2 % from 1.83), 3f notch 2.270-2.620 GHz (-17.3 % to -4.6 % from 2.745)
   -> Monte Carlo harmonics + PA match yield: PASS  [worst-temperature yield 100.0 %, worst harmonic margin 4.5 dB]
   U.FL power at VPA 4.0 V (PA 36.3 dBm): 34.33-34.94 dBm (2.71-3.12 W), median 34.69 dBm; at 3.6 V: 33.41-34.03 dBm
   -> Monte Carlo TX loss (3 W reachable?): MARGINAL  [0 % of boards <= 1.3 dB, 100 % <= 2.0 dB; loss 1.37-1.99 dB -> 34.3-34.9 dBm (2.7-3.1 W) at 4.0 V]
-  -> elliptic LPF notch placement: MARGINAL  [2f notch 1.62-2.15 GHz, 3f notch 2.27-2.62 GHz (targets 1.80-1.86 / 2.71-2.78): notches miss their bands; rejection is carried by the LFCN]
+  -> elliptic LPF notch placement: MARGINAL  [nominal 1.70 / 2.43 GHz (ideal 1.82 / 2.78); 99 % of runs 1.63-2.15 / 2.29-2.60 GHz vs the 1.80-1.86 / 2.71-2.78 bands: the notches miss, the LFCN carries the rejection]
 
 ====================================================================================================
 STUDY 3  The 15.9 dB pi pad (68 / 150 / 68 R, Yageo RC0805FR-07, 0.125 W at 70 C, derated linearly to 0 W at
@@ -272,10 +273,10 @@ Two PA models: (A) saturated PA (current source + voltage clamp at the die, thro
    C80   GQM2195C2ER70WB12D   0.7pF  0805  V  15.5 V peak  I 0.04 A rms  P    1 mW
    C81   GQM2195C2E2R7BB12D   2.7pF  0805  V  17.0 V peak  I 0.20 A rms  P   11 mW
 
-  LNA during transmit (firmware drives RXEN low = bypass): RF1 open-antenna peak 21.4 V = 36.6 dBm equivalent;
-   RF1->RF3 isolation 40 dB min -> LNA input -3.4 dBm (abs max +25 dBm); bypass output -5.6 dBm into the SX1262 RFI (abs max +10 dBm)
+  LNA during transmit (firmware drives RXEN low = bypass): RF1 open-antenna peak 33.2 V (4.0 V, worse model) = 40.4 dBm equivalent;
+   RF1->RF3 isolation 40 dB min -> LNA input 0.4 dBm (abs max +25 dBm); bypass output -1.8 dBm into the SX1262 RFI (abs max +10 dBm)
    matched antenna, 35 dBm: LNA input -4.2 dBm.  If the LNA were left in high gain (13.6 dB, IP1dB -1 dBm) the SX1262 would see ~9 dBm.
-  -> LNA / SX1262 RX input during TX: PASS  [LNA input -3.4 dBm worst (abs max +25); SX1262 RFI -5.6 dBm (abs max +10)]
+  -> LNA / SX1262 RX input during TX: PASS  [LNA input 0.4 dBm worst (abs max +25); SX1262 RFI -1.8 dBm (abs max +10)]
 
 ====================================================================================================
 FIXES  re-checked with the proposed values (overrides in run.py; src/ unchanged)
@@ -340,7 +341,7 @@ SUMMARY
   1  harmonics 6f-8f at 35 dBm, 6 dBi (edge of data)      RISK (unverified) worst margin -6.6 dB at 8f; the LFCN re-enters above 5.5 GHz (15-19 dB, data sheet) and the PA level there is assumed (-45 dBc)
   2  Monte Carlo harmonics + PA match yield               PASS      worst-temperature yield 100.0 %, worst harmonic margin 4.5 dB
   2  Monte Carlo TX loss (3 W reachable?)                 MARGINAL  0 % of boards <= 1.3 dB, 100 % <= 2.0 dB; loss 1.37-1.99 dB -> 34.3-34.9 dBm (2.7-3.1 W) at 4.0 V
-  2  elliptic LPF notch placement                         MARGINAL  2f notch 1.62-2.15 GHz, 3f notch 2.27-2.62 GHz (targets 1.80-1.86 / 2.71-2.78): notches miss their bands; rejection is carried by the LFCN
+  2  elliptic LPF notch placement                         MARGINAL  nominal 1.70 / 2.43 GHz (ideal 1.82 / 2.78); 99 % of runs 1.63-2.15 / 2.29-2.60 GHz vs the 1.80-1.86 / 2.71-2.78 bands: the notches miss, the LFCN carries the rejection
   3  pad power at +20 dBm (firmware cap), 85 C            MARGINAL  first 68 R 74 mW = 72 % of its 85 C rating (91 % with +1 dB SX1262 spread); 75 % at 60 C
   3  pad power at +22 dBm, 85 C                           FAIL      118 mW = 114 % of rating (144 % at +23 dBm)
   3  pad attenuation over tolerance                       PASS      15.80-16.09 dB over 1 %, TCR and -40..85 C; PA input +5.2 dBm at +22 dBm (abs max +13), +3.2 dBm at the +20 dBm cap (ruggedness test condition +4.5)
@@ -356,7 +357,7 @@ SUMMARY
   7  RF heating L16 5.1nH 0402                            FAIL      161 mW matched = 372 % (typical Q 266 %) of its rated-current heating; 193 mW antenna missing (448 %)
   7  RF heating L17 4.7nH 0603                            FAIL      67 mW matched = 157 % (typical Q 112 %) of its rated-current heating; 472 mW antenna missing (1108 %)
   7  RF heating L18 47nH 0402                             MARGINAL  8 mW matched = 18 % (typical Q 13 %) of its rated-current heating; 111 mW antenna missing (233 %)
-  7  LNA / SX1262 RX input during TX                      PASS      LNA input -3.4 dBm worst (abs max +25); SX1262 RFI -5.6 dBm (abs max +10)
+  7  LNA / SX1262 RX input during TX                      PASS      LNA input 0.4 dBm worst (abs max +25); SX1262 RFI -1.8 dBm (abs max +10)
   F  fixed LPF: loss / 2f-5f harmonic yield               PASS      loss 1.12 dB nominal (1.09-1.50 MC, 52 % <= 1.3 dB) -> 34.8-35.2 dBm at 4.0 V; 2f-5f yield 100.0 %, worst margin 4.9 dB
   F  fixed LPF: 6f-8f (edge of data)                      RISK (unverified) worst margin -8.6 dB (original filter -6.6 dB); these bands depend on unpublished PA levels and models past the data
   F  fixed inductors RF heating, 3.6 V                    MARGINAL  worst 45 % of rated-current heating matched (typical Q), 404 % antenna missing

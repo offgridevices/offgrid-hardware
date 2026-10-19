@@ -389,7 +389,7 @@ def plot_tx(b, rej, hres):
     a.set_xticks(x)
     a.set_xticklabels(['%df' % n for n in NH])
     a.set_ylabel('margin to FCC limit, dB (positive passes)')
-    a.set_title('35 dBm, 6 dBi antenna: harmonic margins (grey = 6f-10f, models outside data)', fontsize=10)
+    a.set_title('35 dBm, 6 dBi: margin to the FCC limit (grey = 6f-10f, past the data: unverified)', fontsize=10)
     a.grid(alpha=0.25, axis='y')
     fig.tight_layout()
     fig.savefig(os.path.join(HERE, 'tx_chain.png'), dpi=110)
@@ -458,6 +458,9 @@ def study2(s1):
         % ideal + '\n  maker minimum) and the 0805 capacitors\' ESL.')
     n1all = np.concatenate([a[1] for a in allnotch])
     n2all = np.concatenate([a[2] for a in allnotch])
+    q = lambda a: (np.percentile(a, 0.5) / 1e9, np.percentile(a, 99.5) / 1e9)
+    out('  99 %% of all runs: 2f notch %.3f-%.3f GHz, 3f notch %.3f-%.3f GHz (extremes below include runs where the two'
+        ' notches merge and the search hits its window edge)' % (q(n1all) + q(n2all)))
     out('  worst-case notch range over all temperatures and tolerances: 2f notch %.3f-%.3f GHz (%.1f %% to %.1f %% from 1.83),'
         ' 3f notch %.3f-%.3f GHz (%.1f %% to %.1f %% from 2.745)' % (
             n1all.min() / 1e9, n1all.max() / 1e9, 100 * (n1all.min() / 1.83e9 - 1), 100 * (n1all.max() / 1.83e9 - 1),
@@ -478,8 +481,8 @@ def study2(s1):
     nshift = max(abs(n1all.min() / 1.83e9 - 1), abs(n2all.min() / 2.745e9 - 1), abs(n2all.max() / 2.745e9 - 1))
     out_of_band = (n2all.max() < 2.706e9) or (n1all.max() < 1.804e9)
     summ('2', 'elliptic LPF notch placement', 'MARGINAL' if out_of_band else 'PASS',
-         '2f notch %.2f-%.2f GHz, 3f notch %.2f-%.2f GHz (targets 1.80-1.86 / 2.71-2.78): notches miss their bands; '
-         'rejection is carried by the LFCN' % (n1all.min() / 1e9, n1all.max() / 1e9, n2all.min() / 1e9, n2all.max() / 1e9))
+         'nominal %.2f / %.2f GHz (ideal 1.82 / 2.78); 99 %% of runs %.2f-%.2f / %.2f-%.2f GHz vs the 1.80-1.86 / 2.71-2.78 '
+         'bands: the notches miss, the LFCN carries the rejection' % ((n10[0] / 1e9, n20[0] / 1e9) + q(n1all) + q(n2all)))
     plot_mc(allnotch)
     return rows
 
@@ -1008,9 +1011,10 @@ def study7(s1):
             1e3 * ic ** 2 * info['esr1g'] * math.sqrt(0.915)))
     # LNA during TX
     out()
-    p1 = results[4.0][1]['SW1'].max() ** 2 / (2 * R.Z0)
-    out('  LNA during transmit (firmware drives RXEN low = bypass): RF1 open-antenna peak %.1f V = %.1f dBm equivalent;'
-        % (results[4.0][1]['SW1'].max(), R.w_to_dbm(p1)))
+    vsw1 = max(results[4.0][1]['SW1'].max(), resB[4.0]['SW1'].max())
+    p1 = vsw1 ** 2 / (2 * R.Z0)
+    out('  LNA during transmit (firmware drives RXEN low = bypass): RF1 open-antenna peak %.1f V (4.0 V, worse model) ='
+        ' %.1f dBm equivalent;' % (vsw1, R.w_to_dbm(p1)))
     out('   RF1->RF3 isolation 40 dB min -> LNA input %.1f dBm (abs max +25 dBm); bypass output %.1f dBm into the SX1262 RFI'
         ' (abs max +10 dBm)' % (R.w_to_dbm(p1) - 40, R.w_to_dbm(p1) - 40 - 2.2))
     out('   matched antenna, 35 dBm: LNA input %.1f dBm.  If the LNA were left in high gain (13.6 dB, IP1dB -1 dBm) the SX1262'
@@ -1025,7 +1029,16 @@ def study7(s1):
         for p in ph:
             v, _ = pa.solve(ckt, [915e6], np.exp(1j * p))
             vv.append(abs(v['SW1'][0, 0]))
-        ax.plot(np.degrees(ph), vv, color=col, lw=2, label='switch RF1, VPA %.1f V (model A)' % vpa)
+        ax.plot(np.degrees(ph), vv, color=col, lw=2, label='switch RF1, VPA %.1f V (model A: saturated PA)' % vpa)
+        f1 = np.array([915e6])
+        S1 = ct.sparams(f1, ['PA_M2', 'ANT'])[0]
+        vinc = np.sqrt(8 * R.Z0 * R.dbm_to_w(results[vpa][0][1] - R.db20(S1[0, 1, 0])))
+        vb = []
+        for p in ph:
+            v = ct.voltages(f1, {'PA_M2': vinc / R.Z0}, loads={'PA_M2': lambda w: np.ones(w.shape) / R.Z0,
+                                                               'ANT': ant_load(np.exp(1j * p))})
+            vb.append(max(abs(v['SW1'][0, 0]), abs(v['SW2'][0, 0])))
+        ax.plot(np.degrees(ph), vb, color=col, lw=1.5, ls='--', label='switch RF1/RF2, VPA %.1f V (model B: 50-ohm source)' % vpa)
     ax.axhline(31.6, color=CR, ls='--', lw=1, label='+40 dBm abs max (31.6 V in 50 ohm)')
     ax.axhline(26.6, color=CG, ls='--', lw=1, label='IP0.1dB (26.6 V)')
     ax.set_xlabel('phase of the open-circuit reflection at the U.FL, degrees')

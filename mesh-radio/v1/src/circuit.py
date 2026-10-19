@@ -291,7 +291,7 @@ def mcu():
     C('RF10pF', 'XL1'); C('RF10pF', 'XL2')
     # Bluetooth: Nordic's ANT match (0.8 pF / 4.7 nH / 0.5 pF), a 50 ohm line,
     # then Johanson's tee for the chip antenna (1.0 pF / 2.7 nH / 3.9 nH). tune
-    C('RF0.8pF', 'NRF_ANT', note='tune'); L('L4.7nH', 'NRF_ANT', 'BLE_50R', note='tune'); C('RF0.5pF', 'BLE_50R', note='tune')
+    C('RF0.8pF_W', 'NRF_ANT', note='tune'); L('L4.7nH', 'NRF_ANT', 'BLE_50R', note='tune'); C('RF0.5pF', 'BLE_50R', note='tune')
     add('C', 'RF1.0pF', {'1': 'BLE_50R', '2': 'BLE_T'}, note='tune')
     L('L2.7nH', 'BLE_T', GND, note='tune'); L('L3.9nH', 'BLE_T', 'BLE_FEED', note='tune')
     add('AE', 'ANT2450', {'1': 'BLE_FEED', '2': None}, note='Bluetooth antenna')
@@ -332,7 +332,7 @@ def frontend():
     # 15.9 dB pi pad, 68 / 150 / 68 ohm, 0805 (0.125 W).  Firmware caps the
     # SX1262 at +20 dBm (SX126X_MAX_POWER): the first 68 R then takes 73 mW,
     # 58 % of its rating; +22 dBm would be 92 %.
-    R('R68_0805', 'LORA_TX50'); R('R150_0805', 'LORA_TX50', 'PA_DRIVE'); R('R68_0805', 'PA_DRIVE')
+    R('R68_0805_AS', 'LORA_TX50'); R('R150_0805', 'LORA_TX50', 'PA_DRIVE'); R('R68_0805', 'PA_DRIVE')
     # QPA9510, Qorvo EVB values (880-915 MHz), output match scaled ~2 % up. tune
     add('C', 'RF47pF', {'1': 'PA_DRIVE', '2': 'PA_RFIN'}, note='DC block')
     add('U', 'QPA9510', {'3': 'PA_RFIN', '1': 'PA_VCC1', '5': 'PA_VCC2', '6': 'PA_VCC2', '14': 'VPA', '16': 'PA_APC',
@@ -352,14 +352,16 @@ def frontend():
     L('L8.1nH_PA', 'VPA', 'PA_OUT', note='collector choke')
     C('C4u7', 'VPA'); C('C1n', 'VPA'); C('RF47pF', 'VPA')
     C('HV15pF', 'PA_OUT', note='tune'); C('HV10pF', 'PA_OUT', note='tune')
-    L('L3.6nH_0603', 'PA_OUT', 'PA_M1', note='tune'); C('HV5.6pF', 'PA_M1', note='tune')
+    L('L3.6nH_0805', 'PA_OUT', 'PA_M1', note='tune'); C('HV5.6pF', 'PA_M1', note='tune')
     add('C', 'HV47pF', {'1': 'PA_M1', '2': 'PA_M2'}, note='DC block')
-    # LPF1: 5th-order elliptic, fc ~1.05 GHz, notches at 2f and 3f. tune
-    C('HV3.3pF', 'PA_M2')
-    L('L5.1nH', 'PA_M2', 'PA_M3'); add('C', 'HV1.5pF', {'1': 'PA_M2', '2': 'PA_M3'})
-    C('HV4.3pF', 'PA_M3')
-    L('L4.7nH_0603', 'PA_M3', 'PA_TX'); add('C', 'HV0.7pF', {'1': 'PA_M3', '2': 'PA_TX'})
-    C('HV2.7pF', 'PA_TX')
+    # LPF1: 5th-order elliptic, notches near 1.4 and 2.3 GHz (sim/rf: chosen for the
+    # lowest loss with the LFCN-1000+ carrying 2f-5f; 0.4 dB less loss than the
+    # textbook 2f/3f notches, so 3 W still reaches the U.FL). tune
+    C('HV2.0pF', 'PA_M2')
+    L('L3.2nH_0805', 'PA_M2', 'PA_M3'); add('C', 'HV3.6pF', {'1': 'PA_M2', '2': 'PA_M3'})
+    C('HV1.3pF', 'PA_M3')
+    L('L3.2nH_0805', 'PA_M3', 'PA_TX'); add('C', 'HV1.3pF', {'1': 'PA_M3', '2': 'PA_TX'})
+    C('HV0.9pF', 'PA_TX')
     # SKY13330: CTRL high (transmit) = RF1-RF2, low = RF1-RF3; ENABLE 2.0 V
     add('U', 'SKY13330', {'11': 'PA_TX', '5': 'RX_SW', '2': 'ANT_SW', '7': 'RF_SW_CTRL', '8': 'RF_SW_EN', '9': '3V3',
                           '1': GND, '3': GND, '4': GND, '6': GND, '10': GND, '12': GND, '13': GND}, note='antenna switch')
