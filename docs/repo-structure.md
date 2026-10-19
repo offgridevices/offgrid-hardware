@@ -8,6 +8,8 @@ One folder per product, named after it; one folder per revision inside
 ```
 <product>/
   README.md                 every revision and its status
+  design/                   optional: spec, research, concepts and design studies
+                            that come before (and are shared by) every revision
   v1/                       one revision; frozen once ordered
     README.md               what it is, requirements, status, next steps, ordering, bring-up, limits, build
     TESTS.md                every test and simulation, with this revision's results

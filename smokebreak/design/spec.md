@@ -2,17 +2,17 @@
 
 > **The original product spec (10 Oct 2026), kept as written.** The compact
 > redesign changed the case, screen, controls and several parts since; where
-> this file and [`../README.md`](../README.md) or [`decisions.md`](decisions.md)
+> this file and [`../v1/README.md`](../v1/README.md) or [`decisions.md`](../v1/docs/decisions.md)
 > differ, those win.
 
 **Status: spec only.** Nothing is designed or built yet. This document is
 what the schematic and the board will be built against. Research behind it
-is in [`docs/research/market-and-complaints.md`](market-research.md).
+is in [`market-research.md`](market-research.md).
 Name chosen by the owner, 10 Oct 2026; trademark search pending.
 
-![SmokeBreak Arm](design/arm/hero.png)
+![SmokeBreak Arm](arm/hero.png)
 
-*The chosen design, Arm (concept 10, refined in [`design/arm/`](design/arm/)). The arming screens are in [`ui/`](../ui/).*
+*The chosen design, Arm (concept 10, refined in [`arm/`](arm/)). The arming screens are in [`v1/ui/`](../v1/ui/).*
 
 ---
 
@@ -25,7 +25,7 @@ Name chosen by the owner, 10 Oct 2026; trademark search pending.
 | D3 | USB-C port | **Yes** — decided | Firmware updates, drone-memory export |
 | D4 | Front panel | **The PCB is the front panel**, behind a clear cover | The silkscreen instructions are the product's UI and stay on brand |
 | D5 | Price | **No target** — decided: "the best smoke stopper on the market" | Every part is picked for the result, not the cost (§12) |
-| D6 | Form factor and industrial design | **Arm** (concept 10) — decided, 11 Oct 2026. Guarded toggle, dramatic arming screens | [`design/arm/`](design/arm/), [`ui/`](../ui/); the other 19 concepts stay in [`concepts/`](concepts/) |
+| D6 | Form factor and industrial design | **Arm** (concept 10) — decided, 11 Oct 2026. Guarded toggle, dramatic arming screens | [`arm/`](arm/), [`v1/ui/`](../v1/ui/); the other 19 concepts stay in [`concepts/`](concepts/) |
 
 ---
 
@@ -205,9 +205,9 @@ The screen makes it dramatic: hazard stripes when armed, a checklist that
 ticks off line by line, a green flash when the drone goes live, and a
 flashing red ABORT when something is wrong.
 
-Demo animation: [`design/arm/arm.py`](design/arm/arm.py) renders it.
-Screens: [`../ui/storyboard.png`](../ui/storyboard.png); the arming
-animation with beeps is rendered by [`../ui/screens.py`](../ui/screens.py)
+Demo animation: [`arm/arm.py`](arm/arm.py) renders it.
+Screens: [`v1/ui/storyboard.png`](../v1/ui/storyboard.png); the arming
+animation with beeps is rendered by [`v1/ui/screens.py`](../v1/ui/screens.py)
 (videos are not committed).
 
 ### The face (96 × 58 mm)
@@ -363,7 +363,7 @@ live output is always the female side, whose contacts are recessed.
 | Aux supply | **TI LMR36503** buck, 3.0–65 V in | 1S–14S. Fed through an RC filter and its own clamp, so input spikes stay under its 70 V limit |
 | MCU | ST **STM32C071** | USB without a crystal, 12-bit ADC, non-PRC maker |
 | USB-C | 16-pin receptacle + ESD array | Data and 5 V. Works with the drone powered |
-| Screen | **1.9" 320 × 170 colour IPS** (ST7789, SPI) under black glass | The arming screens are drawn for this panel ([`ui/`](../ui/)) |
+| Screen | **1.9" 320 × 170 colour IPS** (ST7789, SPI) under black glass | The arming screens are drawn for this panel ([`v1/ui/`](../v1/ui/)) |
 | Status light | 12 × addressable RGB LED under a plain ring light pipe round the toggle | Also lights the translucent guard from inside |
 | Input clamp | 64 V stand-off TVS (SMBJ64A class) | Clears 14S LiHV at 60.9 V |
 | Toggle | Metal-bushed toggle, ON-OFF-(ON), PCB mount (C&K 7000 / APEM class) | Signals only; Bind is the spring-return position |
@@ -399,7 +399,7 @@ live output is always the female side, whose contacts are recessed.
   USB-C on the back.
 - **Underside:** rubber feet; fully closed so it cannot short on a
   conductive bench.
-- 3D model and demo: [`design/arm/arm.py`](design/arm/arm.py).
+- 3D model and demo: [`arm/arm.py`](arm/arm.py).
 
 ---
 
@@ -408,10 +408,10 @@ live output is always the female side, whose contacts are recessed.
 Taken from the existing boards (`packet-logger-carrier`, Ridge 3):
 
 - **The logo is never redrawn by hand.** The Beacon Ring and the lockup
-  come only from [`src/brand.py`](../src/brand.py), which builds them from
+  come only from [`v1/src/brand.py`](../v1/src/brand.py), which builds them from
   the brand file's own numbers (ring r 58, stroke 22 with round caps, node
   r 17 at (100, 40) in the 200-unit box; lockup per v3.2 with the word's
-  capitals centred on the ring). [`tools/verify_brand.py`](../tools/verify_brand.py)
+  capitals centred on the ring). [`v1/tools/verify_brand.py`](../v1/tools/verify_brand.py)
   checks it against the brand SVG rendered by Chromium and fails on any
   edge more than 0.2 units off. Every render, screen, silkscreen and
   animation takes the mark from there.

@@ -24,11 +24,11 @@ import sys
 import bpy
 from mathutils import Vector
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'v1', 'src'))
 import brand   # noqa: E402  the one source of the mark and lockup
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FONTS = os.environ.get('SB_FONTS', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'fonts'))
+FONTS = os.environ.get('SB_FONTS', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'v1', 'fonts'))
 
 # ----------------------------------------------------------------- colours
 def srgb(h):

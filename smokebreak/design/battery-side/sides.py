@@ -18,9 +18,9 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SB = os.path.dirname(os.path.dirname(HERE))
-sys.path.insert(0, os.path.join(SB, 'concepts', '_blender'))
-sys.path.insert(0, os.path.join(SB, 'design', 'arm'))
+DESIGN = os.path.dirname(HERE)                        # smokebreak/design
+sys.path.insert(0, os.path.join(DESIGN, 'concepts', '_blender'))
+sys.path.insert(0, os.path.join(DESIGN, 'arm'))
 import bpy            # noqa: E402
 import studio as s    # noqa: E402
 import arm            # noqa: E402  body shape, guard, ring and screen materials

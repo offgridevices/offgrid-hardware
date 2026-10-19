@@ -70,7 +70,7 @@ def g2_rect(x0, y0, w, h, r, n=5.0, k=16):
     """Rounded rectangle whose corners are superellipse quadrants
     |x|^n + |y|^n = r^n: the curvature runs from zero at the straight edge
     to a maximum at 45 degrees and back, so every joint is G2.
-    (Copied from design/face/layout.py.)"""
+    (Copied from smokebreak/design/face/layout.py.)"""
     pts = []
     corners = [(x0 + w - r, y0 + r, -90), (x0 + w - r, y0 + h - r, 0), (x0 + r, y0 + h - r, 90), (x0 + r, y0 + r, 180)]
     for cx, cy, a0 in corners:

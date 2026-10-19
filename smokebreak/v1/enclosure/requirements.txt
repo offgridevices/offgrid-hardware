@@ -1,0 +1,13 @@
+# The Python the case was built and checked with (Python 3.13):
+#   python3.13 -m venv cqenv && cqenv/bin/pip install -r requirements.txt
+# Used by enclosure.py (CadQuery) and check.py (trimesh, manifold3d).
+cadquery==2.8.0
+cadquery-ocp==7.9.3.1.1
+trimesh==5.1.1
+manifold3d==3.5.4
+numpy==2.5.4
+scipy==1.18.1
+shapely==2.2.0
+rtree==1.4.1
+networkx==3.7
+Pillow==12.3.0

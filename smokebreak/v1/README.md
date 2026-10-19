@@ -33,6 +33,7 @@ each pack by number.
 | Trade-offs | [`docs/decisions.md`](docs/decisions.md) |
 | Parts availability | [`docs/parts-check-2026-10-18.md`](docs/parts-check-2026-10-18.md) (check again before ordering) |
 | How the circuit works | [`docs/architecture.md`](docs/architecture.md) |
+| Spec, concepts, design studies | [`../design/`](../design/) (shared by every revision) |
 | Toolchain | KiCad 10.0.7 (pinned image, `tools/Dockerfile`), Freerouting 2.5.0, ngspice 47, CadQuery 2.8 |
 | Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../docs/brand.md)); checked by `tools/verify_brand.py` |
 
@@ -222,4 +223,5 @@ the routed board, and fails if they differ from what is committed.
 | `firmware/` | reference model of every firmware decision, with tests |
 | `ui/` | the screens, drawn at the panel's real resolution |
 | `tools/` | toolchain (Dockerfile), output check, brand check, cost tally, debug plots |
-| `docs/` | decisions, architecture, the original spec, market research, the design studies and concepts behind the face |
+| `docs/` | decisions, architecture, the dated parts check |
+| [`../design/`](../design/) | before any revision: the original spec, market research, the 20 concepts and the design studies |

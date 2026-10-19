@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FONTS = os.environ.get('SB_FONTS', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'fonts'))
+FONTS = os.environ.get('SB_FONTS', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'v1', 'fonts'))
 MONO = os.path.join(FONTS, 'JetBrainsMono-VariableFont.ttf')
 
 

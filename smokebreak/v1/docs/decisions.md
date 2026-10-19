@@ -2,13 +2,13 @@
 
 The trade-offs behind v1, newest first within each topic. Each says what
 was chosen, what else was on the table, and why. The pictures each decision
-was made from are in [`design/`](design/) (see its README).
+was made from are in [`smokebreak/design/`](../../design/) (see its README).
 
 ## The product
 
 - **Form: "Arm"** (concept 10 of 20, 11 Oct 2026). A guarded metal toggle
   you lift and flick, with dramatic arming screens. The other concepts and
-  why they lost are in [`concepts/`](concepts/).
+  why they lost are in [`smokebreak/design/concepts/`](../../design/concepts/).
 - **Compact redesign** (13 Oct 2026). The first layout (a 100 × 58 × 18 mm
   box with side-entry sockets and panel-mount drone plugs) worked, but the
   owner wanted it thinner and smaller without losing a feature. The result
@@ -36,7 +36,7 @@ was made from are in [`design/`](design/) (see its README).
   - The rocker is centred under the switch and ends M before the front.
 
   Every number is in `src/geometry.py`, so the board and the case cannot
-  drift apart. Pictures: [`design/face/`](design/face/), [`design/compact/`](design/compact/).
+  drift apart. Pictures: [`smokebreak/design/face/`](../../design/face/), [`smokebreak/design/compact/`](../../design/compact/).
 - **G2 corners** (a superellipse, n = 5) on the case and on the screen
   window. The screens draw the same rounded outline, so the UI's corners
   meet the window's exactly ([`../ui/`](../ui/)).
@@ -47,17 +47,17 @@ was made from are in [`design/`](design/) (see its README).
   already knows. A pull-toward-you toggle was considered and rejected.
 - **One rocker, not two buttons.** Limit − and + are the only settings a
   pilot changes at the bench. Forum complaints about other stoppers are
-  about too many modes, not too few ([`market-research.md`](market-research.md)).
-  Pictures: [`design/packs/`](design/packs/).
+  about too many modes, not too few ([`smokebreak/design/market-research.md`](../../design/market-research.md)).
+  Pictures: [`smokebreak/design/packs/`](../../design/packs/).
 - **Grip and stability:** rubber feet (Bumpon) on a printed floor, and a
   finger lip under the back edge. Fingertips hook the lip while the thumb
   flips the switch, so the box does not rock when armed. A steel floor was
-  considered; printed was chosen for now. Pictures: [`design/stability/`](design/stability/).
+  considered; printed was chosen for now. Pictures: [`smokebreak/design/stability/`](../../design/stability/).
 
 ## Safety
 
 - **A soldered 40 A / 80 V fire fuse** (Eaton 2822HC40), by the battery
-  plugs. Three options were drawn ([`design/fuse/`](design/fuse/)): the
+  plugs. Three options were drawn ([`smokebreak/design/fuse/`](../../design/fuse/)): the
   soldered fuse, a swappable blade fuse in a bay, and an inline fuse on the
   drone lead.
   - SmokeBreak's own switch clears every outside fault thousands of times

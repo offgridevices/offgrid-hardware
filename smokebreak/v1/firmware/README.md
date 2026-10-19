@@ -14,7 +14,7 @@ python -m pytest -q          # 328 tests, ~18 s
 
 Reference documents: `../docs/architecture.md` (the board), `../src/circuit.py`
 (the final hardware), `../sim/SIM.md` (power-path simulations and the design
-values the firmware must honour), `../docs/spec.md` (§4 stages, §5 protection,
+values the firmware must honour), `../../design/spec.md` (§4 stages, §5 protection,
 §6 UI, §7 memory), `../ui/screens.py` (S00–S21).
 
 ## Hardware the model is written against (circuit.py, SIM.md)

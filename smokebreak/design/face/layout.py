@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon, Circle
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SB = os.path.dirname(os.path.dirname(HERE))
+DESIGN = os.path.dirname(HERE)                        # smokebreak/design
+V1 = os.path.join(os.path.dirname(DESIGN), 'v1')       # smokebreak/v1
 BG, INK, BODY, WIN, WELL, EMB, MUTE = '#E9E4D8', '#1B1813', '#2A2621', '#0B0A08', '#14120F', '#E35D00', '#8A8273'
 
 W, D = 100.0, 58.0
@@ -98,8 +99,8 @@ fig.savefig(os.path.join(HERE, '1-face-options.png'), dpi=120, facecolor=BG)
 
 # 2. the screen's corners: the bezel's G2 radius, matched by the UI
 def corners():
-    sys.path.insert(0, os.path.join(SB, '..', 'ui'))
-    os.environ.setdefault('SB_FONTS', os.path.join(SB, '..', 'fonts'))
+    sys.path.insert(0, os.path.join(V1, 'ui'))
+    os.environ.setdefault('SB_FONTS', os.path.join(V1, 'fonts'))
     import screens as S
     from PIL import Image, ImageDraw
     ui = S.s06_live(0.3).im                                   # 320 x 170 at x4

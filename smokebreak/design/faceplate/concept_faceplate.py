@@ -13,11 +13,11 @@ import os
 import subprocess
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'v1', 'src'))
 import brand  # noqa: E402  the one source of the mark and lockup
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FONTS = os.environ.get('FONTS_DIR', os.path.join(HERE, '..', '..', '..', 'fonts'))
+FONTS = os.environ.get('FONTS_DIR', os.path.join(HERE, '..', '..', 'v1', 'fonts'))
 
 PITCH, BONE, EMBER = '#1B1813', '#F1ECE0', '#FF6A00'
 W, H = 84.0, 54.0                     # board, mm

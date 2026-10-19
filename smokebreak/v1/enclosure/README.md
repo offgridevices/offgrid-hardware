@@ -30,6 +30,10 @@ python render.py           # Blender's Python (bpy): the previews in out/
 python3 package.py         # copy STLs, STEP zip, report and previews to their committed places
 ```
 
+The Python packages, pinned: [`requirements.txt`](requirements.txt) (CadQuery,
+trimesh) and [`requirements-render.txt`](requirements-render.txt) (Blender's
+`bpy`). `dump_board.py` runs in KiCad's own Python, e.g. `../tools/kd`.
+
 `out/` is scratch (git-ignored). `package.py` writes `print/`, the STEP zip
 in `../mechanical/` and `../images/case-*.png`.
 
