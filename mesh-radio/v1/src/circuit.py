@@ -457,7 +457,7 @@ def ports():
                           '12': 'IO1', '13': 'IO2', '14': None, '15': None, '16': 'IO5', '17': 'IO6',
                           '18': GND, '19': GND, '20': '3V3'}, note='expansion header')
     # Buttons (by the USB-C, as on the Heltec V4) and LEDs (active high, as RAK4631)
-    add('SW', 'B3U', {'1': 'NRF_RESET', '2': GND}, note='reset')
-    add('SW', 'B3U', {'1': 'BTN_USER', '2': GND}, note='user')
+    add('SW', 'SKRP', {'1': 'NRF_RESET', '2': 'NRF_RESET', '3': GND, '4': GND}, note='reset')
+    add('SW', 'SKRP', {'1': 'BTN_USER', '2': 'BTN_USER', '3': GND, '4': GND}, note='user')
     R('R1k', 'LED_GREEN', 'LED_G_A'); add('LED', 'LED_G', {'2': 'LED_G_A', '1': GND}, note='green')
     R('R220R', 'LED_BLUE', 'LED_B_A'); add('LED', 'LED_B', {'2': 'LED_B_A', '1': GND}, note='blue')

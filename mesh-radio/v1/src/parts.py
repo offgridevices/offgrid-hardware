@@ -392,8 +392,14 @@ _two('Y', 'XTAL32K', 'ABS07-32.768KHZ-7-T', ABRACON, 'C276424', 'og:ABS07', '32.
      ('Device', 'Crystal'), None)
 _two('TH', 'NTC10K', 'NCP15XH103F03RC', MURATA, 'C77131', 'og:R_0402', '10k NTC', 'Thermistor NTC 10 k B3380, 0402',
      ('Device', 'Thermistor_NTC'))
-_two('SW', 'B3U', 'B3U-1000P', OMRON, 'C231329', 'og:KEY-SMD_B3U-1000PM', 'B3U-1000P', 'Tactile switch, top push',
-     ('Switch', 'SW_Push'))
+# buttons: -40 to +90 C (Alps spec KRP-703; the B3U was -25..+70 C, and sim/thermal
+# puts the buttons at 61-68 C in a 60 C box).  Pads 1-2 are one contact, 3-4 the
+# other.  Second source, same land pattern: C&K PTS810 SJS 250 SMTR LFS
+# (-40..+85 C), DigiKey CKN10878CT-ND.
+PARTS['SKRP'] = ic('SKRPADE010', ('Alps Alpine', JP), 'C127488', '', 'og:KEY-SMD_4P-L4.2-W3.2-P2.20-LS4.6',
+                   'Tactile switch 4.2 x 3.2 mm, top push, 4 N, -40..+90 C',
+                   [('1', 'A', P), ('2', 'A', P), ('3', 'B', P), ('4', 'B', P)],
+                   left=['1', '2'], right=['3', '4'], prefix='SW')
 PARTS['SLIDE'] = ic('JS102011SAQN', CK, 'C221660', '', 'og:SW-SMD_JS102011SAQN',
                     'Slide switch SPDT 300 mA (drives the power switch enable, carries no load current)',
                     [('1', 'A', P), ('2', 'COM', P), ('3', 'B', P)], left=['2'], right=['1', '3'], prefix='SW')
@@ -434,7 +440,7 @@ DIGIKEY = {
     'R68_0805_AS': '541-10549-1-ND',  # sim/rf fixes, checked 19 Oct
     'UFL': '26-U.FL-R-SMT-1(80)CT-ND',
     'ANT2450': '712-2450AT18A0100001ECT-ND',
-    'B3U': 'SW1020CT-ND',
+    'SKRP': '4809-SKRPADE010CT-ND',
     'BGA7L1BN6': 'BGA7L1BN6E6327XTSA1CT-ND',
     'BQ25185': '296-BQ25185DLHRCT-ND',
     'BQ29700': '296-43985-1-ND',
