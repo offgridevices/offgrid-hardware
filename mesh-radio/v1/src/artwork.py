@@ -91,7 +91,7 @@ class SilkPlacer:
     (exposed copper), no hole, no other silk, and 0.3 mm inside the edge.
     Each item gets a list of candidate spots and takes the first that fits."""
     def __init__(self, b, side='T', pad_clear=0.12, silk_clear=0.15, edge=0.35, bodies=False,
-                 brand=False, via_clear=None):
+                 brand=False, via_clear=None, body_margin=0.25, no_body=()):
         from shapely.geometry import Polygon, Point, box
         self.b, self.side, self.brand = b, side, brand
         self.layer = pcbnew.F_SilkS if side == 'T' else pcbnew.B_SilkS
@@ -113,14 +113,16 @@ class SilkPlacer:
             # is assembled (courtyards of solder pads / test points excepted)
             crt = pcbnew.F_CrtYd if side == 'T' else pcbnew.B_CrtYd
             for fp in b.GetFootprints():
-                if fp.IsFlipped() != (side == 'B') or fp.GetReference().startswith(('P_', 'TP', 'H')):
+                if fp.IsFlipped() != (side == 'B') or fp.GetReference().startswith(('P_', 'TP', 'H')) \
+                        or fp.GetReference() in no_body:
                     continue
                 cy = fp.GetCourtyard(crt)
                 if cy.OutlineCount():
                     bb = cy.BBox()
-                    # courtyards carry 0.25 mm of margin round the part
-                    self.blocks.append(box(bb.GetLeft() / 1e6 + 0.25, bb.GetTop() / 1e6 + 0.25,
-                                           bb.GetRight() / 1e6 - 0.25, bb.GetBottom() / 1e6 - 0.25))
+                    # courtyards carry body_margin round the part
+                    m = body_margin
+                    self.blocks.append(box(bb.GetLeft() / 1e6 + m, bb.GetTop() / 1e6 + m,
+                                           bb.GetRight() / 1e6 - m, bb.GetBottom() / 1e6 - m))
         # the screw heads cover the board round the mounting holes: the
         # copper keep-out there is no place for ink either
         for hx, hy in pcb.HOLES:

@@ -186,6 +186,10 @@ FIXUPS = {
     # lands 1.12 mm apart).  It is drawn from Coilcraft's land pattern in
     # coilcraft_0908sq_fp() instead.
     'IND-SMD_L2.1-W1.5': {'skip': True},
+    # the battery plug's EasyEDA 3D body sits 1.0 mm toward pad 2 and
+    # 2.7 mm toward the fitting nails from the pads; moved so its contact
+    # tails end on pads 1 and 2 (checked in a render; 3D y is up)
+    'CONN-SMD_P2.00_S2B-PH-SM4-TB-LF-SN': {'model_offset': (1.0, -2.7, 0)},
     # Amphenol 12401610E4#2A USB-C (C5119948), checked against Amphenol's
     # customer drawing 12401610 rev C, sheet 2 "Recommended PCB Layout":
     # signal pads 0.30 x 0.70 (EasyEDA draws 0.25), and two locating pegs

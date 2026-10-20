@@ -6,16 +6,17 @@ Every label sits where it touches no pad, no hole and no other ink
 (brand.py): words in Instrument Sans 500, port names and numerals in
 JetBrains Mono 500.  White silk on the black mask.
 
-  TOP     the board name and revision, the OffGrid mark, the buttons and
-          the LoRa antenna port
-  BOTTOM  the plugs (battery with its + pin, solar, drone, GPS), the
-          OffGrid lockup and the subdued flag of the United States
+  TOP     the board name and revision, the OffGrid mark, the user button
+          and the LoRa antenna port
+  BOTTOM  the reset button, the plugs (battery with its + pin, solar,
+          drone, GPS), the OffGrid lockup and the subdued flag of the
+          United States
           (flag.py, silk only)
 """
 import os
 import pcbnew
 from shapely import affinity
-import pcb, brand, flag, artwork
+import pcb, brand, flag, artwork, parts
 
 NAME = 'Mesh Radio'
 # the revision, from this revision's folder name (v1 -> V1), so a copy into
@@ -47,13 +48,33 @@ def strip(b):
 
 
 def draw(b, comps, log=print):
-    """comps: circuit.build(), to find parts by what they are."""
+    """comps: circuit.build(), to find parts by what they are.  Ink stays
+    off part bodies (courtyards less their 0.10 mm margin): under a part it
+    cannot be read."""
     artwork.hide_fields(b)
+    # parts the assembler does not fit (the expansion header) have no body
+    unfitted = {c.ref for c in comps if c.part in parts.PARTS
+                and (not parts.PARTS[c.part].get('assembled', True) or parts.PARTS[c.part].get('dnp'))}
     by = lambda part, note=None: [c.ref for c in comps if c.part == part and (note is None or c.note == note)][0]
     # ---------------------------------------------------------------- top
-    top = artwork.SilkPlacer(b, 'T', brand=True, via_clear=0.05)
-    top.label(by('SKRP', 'reset'), 'RST', size=0.7, face='mono', smallest=0.5)
-    top.label(by('SKRP', 'user'), 'USR', size=0.7, face='mono', smallest=0.5)
+    top = artwork.SilkPlacer(b, 'T', brand=True, via_clear=0.05, bodies=True, body_margin=0.10, no_body=unfitted)
+    # the user button: beside whichever of its four pads has room
+    usr = by('SKRP', 'user')
+    for pad in ('1', '2', '3', '4'):
+        if top.label(usr, 'USR', pad=pad, size=0.7, face='mono', smallest=0.5) is not None:
+            break
+    else:
+        # no room within 3 mm of a pad: the nearest free spot to its middle
+        fp = b.FindFootprintByReference(usr)
+        q = fp.GetPosition()
+        for size in (0.7, 0.6, 0.5):
+            for rot in (0, 90):
+                if top.text_near('USR', (q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY), size=size, face='mono',
+                                 radius=4.5, rot=rot) is not None:
+                    break
+            else:
+                continue
+            break
     top.label(by('UFL'), 'LORA', size=0.7, face='mono', smallest=0.5)
     named = None
     for size, radius in ((1.0, 10.0), (0.9, 30.0), (0.8, 30.0), (0.7, 30.0)):
@@ -66,11 +87,13 @@ def draw(b, comps, log=print):
     m, clear = brand.mark_mm(2.6)
     top.geom(m, top.roomiest(need=1.6)[:400], clear=clear, vias=False, hull=True, quiet=True)
     # ------------------------------------------------------------- bottom
-    bot = artwork.SilkPlacer(b, 'B', brand=True, via_clear=0.05)
+    bot = artwork.SilkPlacer(b, 'B', brand=True, via_clear=0.05, bodies=True, body_margin=0.10, no_body=unfitted)
     bat = by('JST_PH2')
     # the battery's + pin, large: a standard LiPo (Adafruit/SparkFun JST-PH,
     # red lead on pin 1) plugs in this way round
     bot.label(bat, '+', size=1.6, face='mono', smallest=1.0, pad='1')
+    # the reset button is under the user button, on the bottom
+    bot.label(by('SKRP', 'reset'), 'RST', size=0.7, face='mono', smallest=0.5)
     for part, s in (('JST_PH2', 'BAT'), ('JST_SH2', 'SOLAR'), ('JST_GH6', 'DRONE'), ('JST_SH6', 'GPS')):
         bot.label(by(part), s, size=0.7, face='mono', smallest=0.5)
     if named is None:

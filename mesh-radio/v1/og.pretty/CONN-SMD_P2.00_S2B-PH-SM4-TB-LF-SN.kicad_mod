@@ -219,7 +219,7 @@
 	(embedded_fonts no)
 	(model "${KIPRJMOD}/og.3dshapes/CONN-SMD_P2.00_S2B-PH-SM4-TB-LF-SN.stpZ"
 		(offset
-			(xyz 0 0 0)
+			(xyz 1 -2.7 0)
 		)
 		(scale
 			(xyz 1 1 1)
