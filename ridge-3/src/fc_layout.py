@@ -389,6 +389,11 @@ VIA_SIG = (0.35, 0.15)           # routers and the signal ICs' plane vias
 # Freerouting may drop a signal via onto a same-net pad (route.py), filled
 # and capped; the 0.1 mm ring keeps its hole 0.2 mm from other copper.
 VIA_IN_PAD = VIA_SIG
+# The 2 A supplies' vias, wherever a router puts them: power vias, 0.25 mm
+# drill (a barrel of 0.016 mm2 of copper, a 0.45 mm track's worth at 1 oz,
+# against the 0.5 mm of their tracks).  A signal via's 0.15 mm barrel is a
+# 0.27 mm track's worth: rev 2.0's 5 V took its whole 2 A through one.
+VIA_BY_NET = {'+5V': VIA_PWR, '+9V': VIA_PWR, 'VBAT_VTX': VIA_PWR}
 
 
 def _rel(a, pts):
@@ -612,8 +617,10 @@ def via_rules(b):
     for n, rule in NET_RULES.items():
         groups.setdefault(rule, []).append(n)
     for (w, c), nets in sorted(groups.items(), reverse=True):
+        vd, vdrill = VIA_BY_NET.get(nets[0], VIA_SIG)
+        assert all(VIA_BY_NET.get(n, VIA_SIG) == (vd, vdrill) for n in nets), nets
         pcb.netclass(b, 'PWR_%03d_%03d' % (round(w * 100), round(c * 100)), nets, width=w, clearance=c,
-                     via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+                     via_d=vd, via_drill=vdrill)
 
 
 def build(out_path):

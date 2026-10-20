@@ -278,8 +278,12 @@ Open until T5, T6 and T7 are done.  Candidates, from
     router joins each rail's loads in a tree, so one track can carry the
     BEC's whole 2 A (21 °C rise on the IPC-2221 external curve, which
     overstates it for a short track over a plane; `src/fc_layout.py`);
-  - `verify.py` checks every feedback line: it reaches one pour and no pad
-    but its divider's.
+  - every via the routers put on the 5 V, 9 V and video-battery nets is a
+    0.5 / 0.25 mm power via (`VIA_BY_NET`): the first reroute still took
+    the 5 V rail's 2 A through one 0.15 mm signal via (212 A/mm² in its
+    barrel); a 0.25 mm barrel holds the copper of a 0.45 mm track;
+  - `verify.py` checks every feedback line (it reaches one pour and no pad
+    but its divider's) and every via on those three nets.
 - **Result:** the simulations are being run again on the new board (`../STRESS.md` section 5 gives the 5 V copper's drop, loss and densest point at 2 A); this line is filled in from them.
 - **Settled by:** T10 (a thermal camera on the 5 V copper at 2 A).
 

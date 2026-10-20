@@ -62,7 +62,7 @@ Board revision labels: both boards print **REV 2.0**.
 | X5R capacitors (regulator inputs and outputs, MCU, OSD) | X7R everywhere (125 °C) | 85 °C dielectric on a hot board |
 | – | **3.3 V buck output: a 10 µF 0805** (Murata GRM21BZ71E106KE15L, already the buck's input capacitor) beside its two 4.7 µF 0603 | 15.6 µF effective at 3.3 V against TI's 8 µF minimum; the two 0603 alone had 7.2 µF (`STATUS.md`, D10) |
 | – | **5 V BEC enable on a divider** from its input, 100 kΩ / 24.9 kΩ as on the 9 V BEC | With EN on VIN, USB power alone could start it backwards into the battery line (`STATUS.md`, D11) |
-| 5 V and 9 V tracks 0.3 / 0.4 mm; the 5 V feedback line joined to the nearest load's pad | **0.5 mm**; each supply's feedback line joined straight to its output pour and kept out of the autorouter's reach | The first routing fed every 5 V load (2 A) through the 0.2 mm feedback line (`STATUS.md`, D12) |
+| 5 V and 9 V tracks 0.3 / 0.4 mm and 0.35 / 0.15 mm vias; the 5 V feedback line joined to the nearest load's pad | **0.5 mm** tracks and **0.5 / 0.25 mm** vias on the 5 V, 9 V and video-battery nets; each supply's feedback line joined straight to its output pour and kept out of the routers' reach | The first routing fed every 5 V load (2 A) through the 0.2 mm feedback line and one 0.15 mm via (`STATUS.md`, D12) |
 
 ## Both boards
 

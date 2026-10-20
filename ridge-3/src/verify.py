@@ -1999,6 +1999,24 @@ def check_board(board, name):
               not bad and not extra, ', '.join(bad + ['%s not fitted' % r for r in extra]) or '%d parts' % len(fitted))
     for f in ('-bom-jlcpcb.csv', '-cpl-jlcpcb.csv', '-bom-pcbway.csv', '-assembly.pdf', '-netlist.csv'):
         check(S, 'production/%s%s present' % (name, f), os.path.exists(os.path.join(prod, name + f)))
+    # the 2 A supplies' vias (fc_layout.VIA_BY_NET): every one that carries
+    # current is a power via, wherever the routers put it; only a supply
+    # tap's own copper keeps a signal via (rev 2.0's 5 V took its 2 A
+    # through one 0.15 mm signal via)
+    if board == 'fc':
+        import fc_layout
+        pads_ = {(fp.GetReference(), p.GetNumber()): p for fp in b.GetFootprints() for p in fp.Pads()}
+        tapped = set()
+        for key in fc_layout.taps(list(comps_.values())):
+            tapped |= {t.m_Uuid.AsString() for t in pcb.tap_stub(b, pads_[key])[0]}
+        for net, (vd, vdrill) in sorted(fc_layout.VIA_BY_NET.items()):
+            vias_ = [t for t in b.GetTracks() if t.GetClass() == 'PCB_VIA' and t.GetNetname() == net
+                     and t.m_Uuid.AsString() not in tapped]
+            small = [t for t in vias_ if t.GetDrillValue() / 1e6 < vdrill - 1e-6]
+            check(S, '%s: its %d vias are %.2f / %.2f mm power vias (its feedback line aside)'
+                  % (net, len(vias_), vd, vdrill), not small,
+                  ', '.join('(%.2f, %.2f) %.2f mm drill' % (t.GetPosition().x / 1e6 - pcb.CX, t.GetPosition().y / 1e6
+                                                           - pcb.CY, t.GetDrillValue() / 1e6) for t in small))
     # the supply taps (a converter's feedback top): each joined to its
     # net's output pour and to no load, so none of the rail's current runs
     # through a sense line (rev 2.0's 5 V did: docs/STATUS.md D12)

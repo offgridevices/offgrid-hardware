@@ -179,10 +179,11 @@ class Grid:
             for g, c in self.inner_zones.get(l, []):
                 self._draw(img, g.buffer(max(c, mine) + self.tw / 2 + M, 8))
             self.block[l] = np.array(img, dtype=bool)
+        drill = getattr(self, 'vdrill', VIA_DRILL)
         for g in self.same_via_holes:
-            self._draw(vmask, g.buffer(HOLE_TO_HOLE + VIA_DRILL / 2 + M, 8))
+            self._draw(vmask, g.buffer(HOLE_TO_HOLE + drill / 2 + M, 8))
         for g in self.pofv_holes:
-            self._draw(vmask, g.buffer(POFV_GAP + VIA_DRILL / 2 + M, 8))
+            self._draw(vmask, g.buffer(POFV_GAP + drill / 2 + M, 8))
         # inner layers: a via may not hit another net's pad or via there either
         for l in (pcbnew.In1_Cu, pcbnew.In2_Cu):
             pass
@@ -240,6 +241,9 @@ def _same_cells(grid, same, layer):
 
 # Via the maze router drops (a board may set smaller ones, see esc_layout)
 VIA_D, VIA_DRILL = 0.45, 0.25
+# Nets whose vias are bigger than VIA_D / VIA_DRILL: {net: (diameter, drill)}
+# (a supply's current path: pipeline.setup_routers from the layout's VIA_BY_NET)
+VIA_BY_NET = {}
 # Every via is an obstacle with at least this ring (see route.VIA_RING)
 VIA_RING = 0.0
 HOLE_TO_HOLE = 0.25
@@ -280,10 +284,12 @@ def route_connection(board, net, a_items, b_items, clearance=0.1, track_w=0.1, v
 
 def _route_in(board, net, a_items, b_items, clearance, track_w, via_d, via_drill, max_expand, clmap, soft_nets,
               rip_cost, victims_out, window):
-    via_d = VIA_D if via_d is None else via_d
-    via_drill = VIA_DRILL if via_drill is None else via_drill
+    own_d, own_drill = VIA_BY_NET.get(net, (VIA_D, VIA_DRILL))
+    via_d = own_d if via_d is None else via_d
+    via_drill = own_drill if via_drill is None else via_drill
     layers = list(ROUTE_LAYERS)
     g = Grid(board, layers, clearance, track_w, via_d, clmap=clmap, soft_nets=soft_nets, window=window)
+    g.vdrill = via_drill
     g.build(net)
     src = {}; dst = {}
     for li, l in enumerate(layers):
@@ -612,7 +618,8 @@ def route_taps(board, taps, clmap=None, layers=None, via=None, log=print):
                 for ls in tries:
                     ROUTE_LAYERS = ls
                     for near in sorted(others, key=lambda c: _dist(mine[0], c))[:4]:
-                        res = route_connection(board, net, mine[0], near, track_w=w, clmap=clmap)
+                        res = route_connection(board, net, mine[0], near, track_w=w, clmap=clmap,
+                                               via_d=VIA_D, via_drill=VIA_DRILL)
                         if res:
                             break
                     ROUTE_LAYERS = every

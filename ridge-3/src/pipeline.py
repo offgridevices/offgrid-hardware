@@ -59,6 +59,7 @@ def setup_routers(L):
     finish.RES = getattr(L, 'FINISH_RES', 0.05)
     if hasattr(L, 'VIA_SIG'):
         finish.VIA_D, finish.VIA_DRILL = L.VIA_SIG
+    finish.VIA_BY_NET = dict(getattr(L, 'VIA_BY_NET', {}))
     finish.VIA_RING = getattr(L, 'VIA_RING', None) or 0.0
     finish.POFV_GAP = None               # every via is filled (POFV): via to via is the normal rule
     route.PRE_EXPORT = getattr(L, 'dsn_keepouts', None) or getattr(L, 'routing_keepouts', None)

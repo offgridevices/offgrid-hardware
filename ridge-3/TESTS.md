@@ -49,7 +49,7 @@ into `main` and every push to `main`.
 `python3.12 src/verify.py` writes [`VERIFICATION.md`](VERIFICATION.md) and
 exits 1 on any failure.  With the five outside sources set (the README's
 [*What `verify.py` reads from outside the repository*](README.md#what-verifypy-reads-from-outside-the-repository)):
-**260 passed, 0 failed**, 12 informational lines.  Without them: 214
+**263 passed, 0 failed**, 12 informational lines.  Without them: 217
 passed, 0 failed, 29 SKIP; in CI, whose image has none of KiCad's own 3D
 models, two more SKIP lines (72 FC and 118 ESC parts left out of the
 3D-model checks), 31 in all.  Both on 2026-10-19.  By section, with
@@ -62,7 +62,7 @@ every source set:
 | Firmware scales | The current, voltage and thermistor scales in Betaflight and AM32 against the hardware's (Betaflight's current scale within 3 %: 125 against the 12.2 mV/A its input sees, 122 exact, as `firmware/README.md` says); the gyro patch applies and matches the IIM-42652's datasheet | 15 passed | 2026-10-19 |
 | Power and analog | Supply voltages, dividers, pin tables against the datasheets, the 60 % voltage rule, inductor saturation, gate drive, decoupling | 55 passed, 7 informational (inductor margins, gate drive at 2S, conduction losses); with the 5 V BEC's enable divider against USB back-feed (D11) and the 3.3 V buck's output capacitance (D10) | 2026-10-19 |
 | Option groups | The FC's video, analog and blackbox groups: each reaches no part outside it, and the board keeps every supply and no single-pin net without it | 9 passed | 2026-10-19 |
-| Board FC | DRC, nets, outline, mounting slots, stackup, fab files, CPL rotations, 3D models in their courtyards, solder pads | 24 passed, 1 informational (nearest part body to a wire pad, 0.68 mm); with each supply's feedback line: one pour and no load's pad on it (D12) | 2026-10-19 |
+| Board FC | DRC, nets, outline, mounting slots, stackup, fab files, CPL rotations, 3D models in their courtyards, solder pads | 27 passed, 1 informational (nearest part body to a wire pad, 0.68 mm); with each supply's feedback line: one pour and no load's pad on it, and the 2 A supplies' vias all power vias (D12) | 2026-10-20 |
 | Silkscreen FC | Strokes the fab prints cleanly, only the brand's faces, the mark at its minimum size, the front arrow | 14 passed | 2026-10-19 |
 | Board ESC | The same for the ESC, and its drivers' capacitors, thermistors and MCU supplies placed at their parts | 21 passed, 3 informational (thermistor and capacitor distances, nearest part body to a wire pad, 0.50 mm) | 2026-10-19 |
 | Silkscreen ESC | As for the FC | 12 passed | 2026-10-19 |
