@@ -160,9 +160,10 @@ def routing_keepouts(b):
       - a strip along the outline (Freerouting keeps only its own
         clearance from it).
 
-    The ground planes are marked power layers (Freerouting routes nothing on
-    them; its vias pass through) and every pour is removed (Freerouting reads
-    a zone as its outline, overlapping the pads inside it)."""
+    The ground plane is a power layer with its plane zone kept (Freerouting
+    routes nothing on it; its vias pass through) and every other pour is
+    removed (Freerouting reads a zone as its outline, overlapping the pads
+    inside it)."""
     from shapely.geometry import LineString, Point
     from shapely.ops import unary_union
     import fanout
@@ -197,8 +198,13 @@ def routing_keepouts(b):
         pts = [(x - pcb.CX, y - pcb.CY) for x, y in list(q.exterior.coords)[:-1]]
         pcb.rule_area(b, pts, [pcbnew.F_Cu], tracks=True, vias=True, pads=False, pours=False, name='RF ground strip')
         k += 1
+    gl = pcb.layer_id(pcb.INNER['gnd'])
     for z in list(b.Zones()):
-        if not z.GetIsRuleArea():
+        # the ground plane stays: exported as a plane, Freerouting routes
+        # nothing on it and joins ground pads through it (without it, In1
+        # was "a power layer with no plane, treated as a signal layer" and
+        # took signals)
+        if not z.GetIsRuleArea() and not (z.GetNetname() == 'GND' and z.GetLayerSet().Contains(gl)):
             pcb.remove(b, z)
     for gl in [pcb.INNER['gnd']] + ([pcb.INNER['gnd2']] if 'gnd2' in pcb.INNER else []):
         b.SetLayerType(pcb.layer_id(gl), pcbnew.LT_POWER)
