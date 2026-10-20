@@ -121,7 +121,7 @@ def build(out, replace=False):
         for t in b.GetTracks():
             if t.m_Uuid.AsString() not in before:
                 t.SetLocked(True)
-    # ground: In1 (and In4 on 6 layers) solid everywhere; the other layers are poured after routing
+    # ground: In1 solid everywhere; the other layers are poured after routing
     ex, ey = pcb.HX - 0.3, pcb.HY - 0.3
     full = [(-ex, -ey), (ex, -ey), (ex, ey), (-ex, ey)]
     for gl in [pcb.INNER['gnd']] + ([pcb.INNER['gnd2']] if 'gnd2' in pcb.INNER else []):

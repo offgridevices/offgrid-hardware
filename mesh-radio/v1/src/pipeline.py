@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 """Route and finish the placed board, to a DRC-clean .kicad_pcb.
 
-  1. board.build()          parts, the RF lines (locked), ground planes (In1, In4), rules
+  1. board.build()          parts, the RF lines (locked), the ground plane (In1), rules
   2. plane_fanout()         every ground pad takes its via into the planes; every
                             inner ball of a ball-grid chip its via in the ball
   3. Freerouting            every other signal and supply (rounds)
   4. finish (finish.py)     the maze router and rip-up repair for what is left
   5. ground poured on the routing layers, stitched to the planes; the RF lines keep
-     their 0.18 mm coplanar gap to it (board.RULES)
+     their 0.25 mm coplanar gap to it (board.RULES)
   6. KiCad DRC              must be 0 errors / 0 warnings / 0 unconnected
 
     kd python3 src/pipeline.py WORKDIR [--passes N] [--from-routed]
 
-Adapted from Ridge 3 Lite's pipeline: ground planes on In1 (and In4 on 6
-layers), routing on the other layers, and the RF lines kept clear of other
-copper.
+Adapted from Ridge 3 Lite's pipeline: a solid ground plane on In1, routing
+on the five other layers (ground-filled after), and the RF lines kept clear
+of other copper.
 """
 import os, sys, shutil
 from collections import Counter
@@ -229,7 +229,7 @@ def setup_routers():
     route.DROP_NETS = tuple(PLANES) + tuple(board.RF_NETS) + tuple(board.RF_EXTRA)
     route.AUTOROUTE = dict(via_costs=40, plane_via_costs=5, start_ripup_costs=100, fanout=False,
                            directions={'F.Cu': 'horizontal', 'In2.Cu': 'vertical', 'In3.Cu': 'horizontal',
-                                       'B.Cu': 'vertical'})
+                                       'In4.Cu': 'vertical', 'B.Cu': 'horizontal'})
 
 
 def widths(comps):
