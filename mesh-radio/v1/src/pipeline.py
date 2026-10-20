@@ -500,8 +500,9 @@ def finish_tail(fin, work, w, cl):
 
 ROUND_PASSES = int(os.environ.get('ROUND_PASSES', 5))   # Freerouting passes per saved round
 # In1 carries signals too, except under the RF lines and the antenna
-# (rf_reference_keepouts); trial option until it proves out
-ROUTE_IN1 = bool(int(os.environ.get('ROUTE_IN1', 0)))
+# (rf_reference_keepouts): 20 Oct trial, first routing round, 59 open
+# signal connections with it against 84 without
+ROUTE_IN1 = bool(int(os.environ.get('ROUTE_IN1', 1)))
 
 
 def run(work, passes=40, from_routed=False):

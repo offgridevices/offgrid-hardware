@@ -537,11 +537,12 @@ def set_stackup(path, inner_oz=0.5):
 # The copper layers by job.  4 layers (JLC04161H-7628): F parts, RF and
 # signals; In1 a solid ground plane, 0.21 mm under F (the RF lines' reference);
 # In2 power and signals, ground fill elsewhere; B parts and signals.
-# 6 layers (JLC06161H-2116B): F parts, RF and signals; In1 solid ground
-# 0.12 mm under F (the RF lines' reference); In2, In3, In4 signals and
-# power with ground fill; B parts and signals.  (In4 was a second solid
-# plane until 20 Oct: with only four signal layers about 140 of 350
-# connections found no way through, so it carries signals too.)
+# 6 layers (JLC06161H-2116B): F parts, RF and signals; In1 ground 0.12 mm
+# under F, kept solid under every RF line and the Bluetooth antenna (the
+# lines' reference) and carrying signals elsewhere (pipeline.ROUTE_IN1);
+# In2, In3, In4 signals and power with ground fill; B parts and signals.
+# (In4 was a second solid plane until 20 Oct, and In1 solid everywhere:
+# with fewer signal layers too many connections found no way through.)
 INNER = {4: dict(gnd='In1.Cu', sig=['In2.Cu']),
          6: dict(gnd='In1.Cu', sig=['In2.Cu', 'In3.Cu', 'In4.Cu'])}[NLAYERS]
 
