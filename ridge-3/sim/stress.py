@@ -1498,12 +1498,15 @@ def run_design(name, full, variant=None):
 
 def _finished(name, full, variant):
     """Where run_design keeps a design's result, named by a hash of all it
-    reads: the simulation code, the design's two boards and circuit.py, the
-    makers' SPICE models, and the run's settings.  A change to any of them
-    names another file, so a result is never reused for different inputs."""
-    files = sorted(glob.glob(os.path.join(HERE, '*.py')))
+    reads: the simulation code, the generator's code in src/ (circuit.py,
+    the heatsink, the board geometry), the design's two boards (and rev 1's
+    frozen circuit.py), the makers' SPICE models, and the run's settings.  A
+    change to any of them names another file, so a result is never reused
+    for different inputs."""
+    files = sorted(glob.glob(os.path.join(HERE, '*.py')) + glob.glob(os.path.join(RIDGE, 'src', '*.py')))
     files += [design.board_path(b, name) for b in ('fc', 'esc')]
-    files += [design.circuit(name).__file__ if name == 'rev2' else os.path.join(design.REV1, 'circuit.py')]
+    if name != 'rev2':
+        files += [os.path.join(design.REV1, 'circuit.py')]
     files += sorted(set(glob.glob(os.path.join(spice.OUT, '*.lib')) +
                         [os.environ[k] for k in ('TPN2R304PL_LIB', 'OPTIMOS6_60V_LIB', 'OPTIMOS5_60V_LIB')
                          if os.environ.get(k)]))
