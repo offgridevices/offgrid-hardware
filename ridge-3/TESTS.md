@@ -34,15 +34,15 @@ into `main` and every push to `main`.
 
 | Test | Why | How | Rev 2.0 result | Ran |
 |---|---|---|---|---|
-| The circuit's own checks | A broken schematic stops before it becomes a board | `python3.12 src/make.py --fab-only` | pass, both boards: every part has a footprint, no single-pin net, every assembled part orderable (an LCSC number, or an MPN and DigiKey number for global sourcing) | 2026-10-19 |
-| KiCad DRC | The fab can make it, to JLCPCB's rules | the same | FC and ESC: 0 errors, 0 warnings, 0 unconnected | 2026-10-19 |
-| Copper nets equal `circuit.py` | The copper is the schematic | the same | pass pad for pad, both boards; footprints equal the circuit's parts (FC 124, ESC 193) | 2026-10-19 |
-| BOM and CPL equal the placed parts | Assembly gets what each build needs | the same | FC 83 parts, its analog build 94, ESC 159: BOM and CPL exactly those | 2026-10-19 |
-| The heatsink is the ESC's | The CNC order fits the ESC's bottom parts | the same (ESC) | pass: every bottom part pocketed to its maximum height, no wall under 0.8 mm, the pad at 17 % squeeze; plate 14.5 g, pad 5.0 g | 2026-10-19 |
-| Production panels | The 3 × 2 panels are six true copies | the same | FC and ESC: 112 × 88 mm, 6 copies, DRC six times the board's own, every copy's Gerbers, BOM and CPL equal the board's | 2026-10-19 |
-| Committed outputs equal the build | Someone orders from them | the same, then `git status --porcelain -- .` (CI's step) | pass: after the run only the ignored unzipped Gerbers changed; the 23 order files, the boards and `mechanical/` unchanged | 2026-10-19 |
+| The circuit's own checks | A broken schematic stops before it becomes a board | `python3.12 src/make.py --fab-only` | pass, both boards: every part has a footprint, no single-pin net, every assembled part orderable (an LCSC number, or an MPN and DigiKey number for global sourcing) | 2026-10-20 |
+| KiCad DRC | The fab can make it, to JLCPCB's rules | the same | FC and ESC: 0 errors, 0 warnings, 0 unconnected | 2026-10-20 |
+| Copper nets equal `circuit.py` | The copper is the schematic | the same | pass pad for pad, both boards; footprints equal the circuit's parts (FC 124, ESC 193) | 2026-10-20 |
+| BOM and CPL equal the placed parts | Assembly gets what each build needs | the same | FC 83 parts, its analog build 94, ESC 159: BOM and CPL exactly those | 2026-10-20 |
+| The heatsink is the ESC's | The CNC order fits the ESC's bottom parts | the same (ESC) | pass: every bottom part pocketed to its maximum height, no wall under 0.8 mm, the pad at 17 % squeeze; plate 14.5 g, pad 5.0 g | 2026-10-20 |
+| Production panels | The 3 × 2 panels are six true copies | the same | FC and ESC: 112 × 88 mm, 6 copies, DRC six times the board's own, every copy's Gerbers, BOM and CPL equal the board's | 2026-10-20 |
+| Committed outputs equal the build | Someone orders from them | the same, then `git status --porcelain -- .` (CI's step) | pass: after the run only the ignored unzipped Gerbers changed; the 23 order files, the boards and `mechanical/` unchanged | 2026-10-20 |
 | Renders and STEP models rebuild unchanged | CI does not compare them | `python3.12 src/make.py` | pass: a second default run left all 57 outputs byte for byte (321 s) | 2026-10-14 |
-| CI job `ridge-3` | The same gates in a pinned toolchain, on every pull request into `main` and push to `main` | [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml), in `kicad/kicad:10.0.6` by digest | on GitHub (pull request #4, run 39323866008, after the FC was routed again): exit 0, every committed file unchanged, `verify.py` 214 passed, 0 failed, 31 SKIP; the job took 2 min 42 s.  Later runs are in the repository's Actions tab | 2026-10-19 |
+| CI job `ridge-3` | The same gates in a pinned toolchain, on every pull request into `main` and push to `main` | [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml), in `kicad/kicad:10.0.6` by digest | on GitHub (pull request #4, run 39355146418, after the FC's power vias): exit 0, every committed file unchanged, `verify.py` 217 passed, 0 failed, 31 SKIP; the job took 2 min 54 s.  Later runs are in the repository's Actions tab | 2026-10-20 |
 
 ## Design checks (`verify.py`)
 
@@ -52,22 +52,22 @@ exits 1 on any failure.  With the five outside sources set (the README's
 **263 passed, 0 failed**, 12 informational lines.  Without them: 217
 passed, 0 failed, 29 SKIP; in CI, whose image has none of KiCad's own 3D
 models, two more SKIP lines (72 FC and 118 ESC parts left out of the
-3D-model checks), 31 in all.  Both on 2026-10-19.  By section, with
+3D-model checks), 31 in all.  Both on 2026-10-20.  By section, with
 every source set:
 
 | Section | Why | Rev 2.0 result | Ran |
 |---|---|---|---|
-| FC pin map | Every processor pin against KiCad's STM32G473 symbol and Betaflight's `RIDGE3` config: a wrong pin is a dead board | 67 passed | 2026-10-19 |
-| ESC pin map | Each AT32F421's pins against Artery's datasheet and AM32's target; supplies, reset, SWD pads | 25 passed, 1 informational (AM32's dead time, not scoped) | 2026-10-19 |
-| Firmware scales | The current, voltage and thermistor scales in Betaflight and AM32 against the hardware's (Betaflight's current scale within 3 %: 125 against the 12.2 mV/A its input sees, 122 exact, as `firmware/README.md` says); the gyro patch applies and matches the IIM-42652's datasheet | 15 passed | 2026-10-19 |
-| Power and analog | Supply voltages, dividers, pin tables against the datasheets, the 60 % voltage rule, inductor saturation, gate drive, decoupling | 55 passed, 7 informational (inductor margins, gate drive at 2S, conduction losses); with the 5 V BEC's enable divider against USB back-feed (D11) and the 3.3 V buck's output capacitance (D10) | 2026-10-19 |
-| Option groups | The FC's video, analog and blackbox groups: each reaches no part outside it, and the board keeps every supply and no single-pin net without it | 9 passed | 2026-10-19 |
+| FC pin map | Every processor pin against KiCad's STM32G473 symbol and Betaflight's `RIDGE3` config: a wrong pin is a dead board | 67 passed | 2026-10-20 |
+| ESC pin map | Each AT32F421's pins against Artery's datasheet and AM32's target; supplies, reset, SWD pads | 25 passed, 1 informational (AM32's dead time, not scoped) | 2026-10-20 |
+| Firmware scales | The current, voltage and thermistor scales in Betaflight and AM32 against the hardware's (Betaflight's current scale within 3 %: 125 against the 12.2 mV/A its input sees, 122 exact, as `firmware/README.md` says); the gyro patch applies and matches the IIM-42652's datasheet | 15 passed | 2026-10-20 |
+| Power and analog | Supply voltages, dividers, pin tables against the datasheets, the 60 % voltage rule, inductor saturation, gate drive, decoupling | 55 passed, 7 informational (inductor margins, gate drive at 2S, conduction losses); with the 5 V BEC's enable divider against USB back-feed (D11) and the 3.3 V buck's output capacitance (D10) | 2026-10-20 |
+| Option groups | The FC's video, analog and blackbox groups: each reaches no part outside it, and the board keeps every supply and no single-pin net without it | 9 passed | 2026-10-20 |
 | Board FC | DRC, nets, outline, mounting slots, stackup, fab files, CPL rotations, 3D models in their courtyards, solder pads | 27 passed, 1 informational (nearest part body to a wire pad, 0.68 mm); with each supply's feedback line: one pour and no load's pad on it, and the 2 A supplies' vias all power vias (D12) | 2026-10-20 |
-| Silkscreen FC | Strokes the fab prints cleanly, only the brand's faces, the mark at its minimum size, the front arrow | 14 passed | 2026-10-19 |
-| Board ESC | The same for the ESC, and its drivers' capacitors, thermistors and MCU supplies placed at their parts | 21 passed, 3 informational (thermistor and capacitor distances, nearest part body to a wire pad, 0.50 mm) | 2026-10-19 |
-| Silkscreen ESC | As for the FC | 12 passed | 2026-10-19 |
-| Brand | The mark against the brand repository's art (`OFFGRID_BRAND`); the vendored fonts' hashes against `fonts/README.md`, with or without it | 5 passed | 2026-10-19 |
-| Firmware | Each image and patch against its SHA-256 in `firmware/README.md`; nothing left from revision 1; the AM32 image holds the patch's thermistor table; the bootloader's device info | 13 passed | 2026-10-19 |
+| Silkscreen FC | Strokes the fab prints cleanly, only the brand's faces, the mark at its minimum size, the front arrow | 14 passed | 2026-10-20 |
+| Board ESC | The same for the ESC, and its drivers' capacitors, thermistors and MCU supplies placed at their parts | 21 passed, 3 informational (thermistor and capacitor distances, nearest part body to a wire pad, 0.50 mm) | 2026-10-20 |
+| Silkscreen ESC | As for the FC | 12 passed | 2026-10-20 |
+| Brand | The mark against the brand repository's art (`OFFGRID_BRAND`); the vendored fonts' hashes against `fonts/README.md`, with or without it | 5 passed | 2026-10-20 |
+| Firmware | Each image and patch against its SHA-256 in `firmware/README.md`; nothing left from revision 1; the AM32 image holds the patch's thermistor table; the bootloader's device info | 13 passed | 2026-10-20 |
 
 ## Simulations (run by hand, recorded here)
 
