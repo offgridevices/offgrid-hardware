@@ -256,7 +256,7 @@ def setup_routers():
     finish.ROUTE_LAYERS = [pcbnew.F_Cu] + [pcb.layer_id(n) for n in pcb.INNER['sig']] + [pcbnew.B_Cu]
     # 0.025 mm cells (the SX1262's and the chips' 0.5 mm pitch), searched in
     # a window round each connection first
-    finish.SIG_W, finish.SIG_CL = 0.1, 0.1         # the board's default net class
+    finish.SIG_W, finish.SIG_CL = board.SIG, board.SIG   # the board's default net class
     finish.RES = 0.025
     finish.WINDOW = 3.0
     finish.COARSE = 0.05
