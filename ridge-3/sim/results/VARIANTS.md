@@ -14,7 +14,7 @@ Each column is rev 2 with one change (sim/data.py VARIANTS), run through the sam
 | Held all day, every part in rating, 25 C, 5 m/s | 61 % | 58 % | 58 % | 75 % | 56 % | 55 % | 61 % | 58 % |
 | Held all day before AM32 cuts, 50 C, 5 m/s | 52 % (7.7 A/motor) | 49 % (6.6 A/motor) | 50 % (7.5 A/motor) | 58 % (8.0 A/motor) | 48 % (6.5 A/motor) | 45 % (5.5 A/motor) | 54 % (8.6 A/motor) | 52 % (7.5 A/motor) |
 | Held all day, every part in rating, 50 C, 5 m/s | 55 % | 53 % | 53 % | 64 % | 52 % | 50 % | 55 % | 53 % |
-| Held all day before AM32 cuts, 60 C, 5 m/s | 48 % (6.5 A/motor) | 43 % (5.2 A/motor) | 45 % (6.0 A/motor) | 54 % (6.7 A/motor) | 43 % (5.2 A/motor) | 40 % (4.5 A/motor) | 52 % (7.5 A/motor) | 48 % (6.5 A/motor) |
+| Held all day before AM32 cuts, 60 C, 5 m/s | 48 % (6.5 A/motor) | 43 % (5.2 A/motor) | 45 % (6.1 A/motor) | 54 % (6.7 A/motor) | 43 % (5.2 A/motor) | 40 % (4.5 A/motor) | 52 % (7.5 A/motor) | 49 % (6.6 A/motor) |
 | Held all day, every part in rating, 60 C, 5 m/s | 53 % | 50 % | 51 % | 59 % | 50 % | 46 % | 53 % | 50 % |
 | Held all day before AM32 cuts, 50 C, 2 m/s | 45 % (5.6 A/motor) | 41 % (4.6 A/motor) | 42 % (5.3 A/motor) | 52 % (5.9 A/motor) | 41 % (4.6 A/motor) | 35 % (3.6 A/motor) | 49 % (6.6 A/motor) | 44 % (5.4 A/motor) |
 | Held all day, every part in rating, 50 C, 2 m/s | 50 % | 46 % | 47 % | 55 % | 45 % | 42 % | 50 % | 46 % |
