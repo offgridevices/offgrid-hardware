@@ -35,7 +35,7 @@ HX, HY = pcb.HX, pcb.HY
 HDR_X0 = -7.0                      # expansion header: pin 1 / pin 11 x
 NRF_RING = 0.6                     # mm kept free round the nRF52840's courtyard (its dog-bone vias reach 0.55 mm past it)
 NRF_X, SX_X = -12.6, -5.4          # the nRF52840 and the SX1262 (the TX line grows right from the SX1262)
-ANT_BOX = (-HX + 4.0, 8.9, -HX + 14.7, HY)   # the Bluetooth antenna's ground-free box: round where its feed line ends (x -24..-21; until 20 Oct the box sat 1.6 mm to its right)
+ANT_BOX = (-HX + 4.5, 8.9, -HX + 11.0, HY)   # the Bluetooth antenna's ground-free box (all layers): the antenna (x -23..-20, its feed at the line's end) and 1.5 mm round it; nothing under it on the bottom either
 
 
 def ref(comps, part, note=None):
@@ -78,8 +78,8 @@ def anchors(comps):
         # ---- bottom: inputs.  USB: behind the USB-C, under the board's left
         # end; solar beside its plug; drone beside the drone plug
         (R('TVS2200', 'USB surge clamp'), -HX + 10.6, 0.6, 0, 'B'),
-        (R('TPS259470A', 'USB eFuse'), -HX + 11.4, 8.4, 0, 'B'),   # below the nRF52840's escape vias
-        (R('RB060MM', 'USB into the charger'), -HX + 8.8, 7.6, 90, 'B'),
+        (R('TPS259470A', 'USB eFuse'), -HX + 12.4, 8.4, 0, 'B'),   # below the nRF52840's escape vias, right of the antenna box
+        (R('RB060MM', 'USB into the charger'), -HX + 8.8, 6.9, 90, 'B'),   # clear of the antenna box above it
         (R('TPD4E05U06', 'USB ESD'), -HX + 12.2, -6.0, 90, 'T'),
         (R('SMF33CA', 'SOL surge clamp'), -HX + 11.5, -10.0, 90, 'T'),    # beside the slide switch, on top
         (R('MAX17608', 'SOL 60 V current limiter'), -HX + 10.5, -6.0, 0, 'B'),
