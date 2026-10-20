@@ -33,6 +33,7 @@ import pcb, circuit, parts, place
 
 HX, HY = pcb.HX, pcb.HY
 HDR_X0 = -7.0                      # expansion header: pin 1 / pin 11 x
+NRF_RING = 1.0                     # mm kept free round the nRF52840's courtyard on the top (its pin escape)
 NRF_X, SX_X = -12.6, -5.4          # the nRF52840 and the SX1262 (the TX line grows right from the SX1262)
 ANT_BOX = (-HX + 8.4, 8.9, -HX + 19.1, HY)  # Bluetooth antenna keepout (x0, y0, x1, y1)
 
@@ -164,6 +165,16 @@ def place_all(log=print):
     B.taken['T'].remove(hbox)
     for (px, py) in hp.values():
         B.keep_out((px - 0.95, py - 0.95, px + 0.95, py + 0.95))
+    # the nRF52840's outer ball ring leaves on F.Cu, straight out between
+    # its neighbours' balls: a ring round it on the top stays free of
+    # other parts (and of their ground vias, board.py), or those pins are
+    # walled in (32 of the 130 connections Freerouting could not make)
+    nrf = ref(comps, 'NRF52840')
+    (cx0, cy0, cx1, cy1), _ = B.geom(nrf, *B.pl[nrf])
+    g = NRF_RING
+    for box in ((cx0 - g, cy0 - g, cx1 + g, cy0), (cx0 - g, cy1, cx1 + g, cy1 + g),
+                (cx0 - g, cy0, cx0, cy1), (cx1, cy0, cx1 + g, cy1)):
+        B.keep_out(box, ('T',))
     # ---- RF chains (top), a U: transmit along the top to the amplifier,
     # its output down the right end to the antenna switch, the antenna
     # through the filter to the U.FL, receive back along the bottom
