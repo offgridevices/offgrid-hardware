@@ -260,13 +260,28 @@ def place_all(log=print):
     put_fit(B, uf, xb + 1.6 - sig[0], ya - sig[1], 270, (0.1, 0), tries=40)
     NODES['ANT'] = (fl3[0], ya, 0)
     yc = ya - RF_PITCH_CPL                               # the coupled line, above the antenna line
-    term = ref(comps, 'R49.9R')
+    on = lambda *nets: [c.ref for c in comps if set(nets) <= set(c.pins.values())]
+    pin = lambda r_, net: B.pad_xy(r_, [p for p, n in B.comps[r_].pins.items() if n == net][0])
+    term = on('REFL_CPL', 'GND')[0]
     put_pad(B, term, 'REFL_CPL', (xa, yc - 1.0), (0, -0.1), 'GND', (0, -1), tries=5)
-    det = ref(comps, 'BAT15')
+    det = on('REFL_CPL', 'REFL_DET')[0]
     put_pad(B, det, 'REFL_CPL', (xb, yc - 1.0), (0, -0.1), 'REFL_DET', (0, -1), tries=5)
-    ta = B.pad_xy(term, [p for p, n in B.comps[term].pins.items() if n == 'REFL_CPL'][0])
-    da = B.pad_xy(det, [p for p, n in B.comps[det].pins.items() if n == 'REFL_CPL'][0])
-    NODES['_cpl'] = [ta, (ta[0], yc), (da[0], yc), da]
+    ta, da = pin(term, 'REFL_CPL'), pin(det, 'REFL_CPL')
+    cpl = [ta, (ta[0], yc), (da[0], yc), da]
+    # the forward detector (since 20 Oct): its diode at the 49.9 R end, on
+    # the line's level, its cathode away from it
+    fwd = on('REFL_CPL', 'FWD_DET')
+    if fwd:
+        put_pad(B, fwd[0], 'REFL_CPL', (ta[0] - 1.0, ta[1]), (-0.1, 0), 'FWD_DET', (-1, 0), tries=10)
+        cpl = [pin(fwd[0], 'REFL_CPL')] + cpl
+    NODES['_cpl'] = cpl
+    # each detector's 1 nF and 100 k right at its diode's cathode (until
+    # 20 Oct they were packed 21 mm away: sim/rf)
+    for d_, net, away in ((det, 'REFL_DET', (0, -1)),) + (((fwd[0], 'FWD_DET', (-1, 0)),) if fwd else ()):
+        k = pin(d_, net)
+        for r_ in [c.ref for c in comps if set(c.pins.values()) == {net, 'GND'}]:
+            put_pad(B, r_, net, (k[0] + away[0] * 0.8, k[1] + away[1] * 0.8), (away[1] * 0.1 or -0.1, away[0] * 0.1 or -0.1),
+                    'GND', away, tries=30)
     esd = [c.ref for c in comps if c.part == 'L47nH' and set(c.pins.values()) == {'ANT', 'GND'}][0]
     put_pad(B, esd, 'ANT', (xb - 0.6, ya + 0.55), (-0.1, 0), 'GND', (0, 1), tries=10)
     # receive: from the switch's RX port (down) left along the board, the
