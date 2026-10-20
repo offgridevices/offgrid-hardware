@@ -261,7 +261,7 @@ def study1():
     il_ant = float(np.max(-R.db20(sa[:, 1, 0])))
     p_term = float(np.max(np.abs(sa[:, 2, 0]) ** 2))
     out('   blocks alone (50 ohm): LPF %.2f dB, SKY13330 0.30 dB (typ; 0.35 max), %s %.2f dB (fit to typ table; %.1f max),'
-        ' antenna section (coupler, ESD, detector, %.1f mm of line) %.2f dB, other traces %.2f dB'
+        ' antenna section (coupler, ESD, detector, %.1f mm of line) %.2f dB, other traces and mismatch interaction %+.2f dB'
         % (np.max(-R.db20(lp[:, 1, 0])), FLT, np.max(-R.db20(lf[:, 1, 0])), FLT_IL_MAX,
            G['flt_cpl'] + G['cpl_len'] + G['cpl_ufl'], il_ant,
            np.max(il) - np.max(-R.db20(lp[:, 1, 0])) - 0.30 - np.max(-R.db20(lf[:, 1, 0])) - il_ant))
@@ -1091,7 +1091,9 @@ def study7(s1):
     out()
     out('  VSWR the PA sees at its EVB plane with the U.FL open: %.1f:1 worst phase (round-trip loss %.1f dB)' % (vs_pa, rt))
     summ('7', 'PA load with antenna missing', 'PASS' if vs_pa <= 10 else 'FAIL',
-         '%.1f:1 at the PA (rated 10:1 at 3.6 V, Pin +4.5 dBm): firmware 3.6 V ceiling is right; 4.0 V is outside the rating' % vs_pa)
+         '%.1f:1 at the PA, worst phase (rated 10:1 at 3.6 V, Pin +4.5 dBm; 4.0 V not covered); %s'
+         % (vs_pa, 'inside the rating' if vs_pa <= 10 else 'the LFCG reflects more than the LFCN did (9.1:1 on 19 Oct): only'
+            ' the detector cut-off limits the exposure'))
     sw = {}
     for vpa in (2.7, 3.6, 4.0):
         va = max(resA[vpa][1]['SW1'].max(), resA[vpa][1]['SW2'].max())
@@ -1102,8 +1104,11 @@ def study7(s1):
         extra = ''
         if vpa == 2.7:
             vb30 = max(resB['30dBm'][1]['SW1'].max(), resB['30dBm'][1]['SW2'].max())
-            sw['30dBm'] = vb30
-            extra = '; model B at exactly 30 dBm %.1f V (%.0f %%)' % (vb30, 100 * vb30 / SW_VMAX)
+            # model A is linear in its supply (current and clamp both scale), so at exactly 30 dBm:
+            va30 = va * 10 ** ((30.0 - float(resA[vpa][0][1])) / 20)
+            sw['30dBm'] = (va30, vb30)
+            extra = '; at exactly 30 dBm (US cap): model A %.1f V (%.0f %%), model B %.1f V (%.0f %%)' % (
+                va30, 100 * va30 / SW_VMAX, vb30, 100 * vb30 / SW_VMAX)
         summ('7', 'SKY13330 voltage, antenna missing, %.1f V' % vpa,
              'PASS' if pct < 95 else ('MARGINAL' if pct <= 100 else 'FAIL'),
              'model A %.1f V (%.0f %%), model B %.1f V (%.0f %%) peak vs the +40 dBm (31.6 V) abs max; IP0.1dB 26.6 V%s'
@@ -1406,17 +1411,19 @@ def det_vdc(va, t_c, d=None):
     return brentq(f, 0.0, va + 0.5)
 
 
-def det_rise(va, t_c, d=None, frac=0.99):
+def det_rise(va, t_c, d=None, frac=0.99, r_src=31.0):
     """Time for REFL_DET to reach `frac` of its final value after the RF steps on (1 nF charged through the
-    diode), and the 100 k x 1 nF decay constant."""
+    diode), and the 100 k x 1 nF decay constant.  While the cathode is far below its final value the diode
+    current is limited by the source (~25 ohm at the anode) and RS (6 ohm): at most va / (pi r_src) on average
+    (half-wave rectifier into a short); steps limited to 1 mV."""
     d = d or DIODES['typ']
     vf = det_vdc(va, t_c, d)
-    v, t, dt = 0.0, 0.0, 2e-9
+    v, t = 0.0, 0.0
     while v < frac * vf and t < 2e-3:
-        dv = (diode_mean_current(va, v, t_c, d) - v / RL_DET) / CL_DET
-        v += dv * dt
+        i = min(diode_mean_current(va, v, t_c, d), max(va - v, 0.0) / (math.pi * r_src)) - v / RL_DET
+        dt = min(1e-7, 1e-3 * CL_DET / max(abs(i), 1e-12))
+        v += i * dt / CL_DET
         t += dt
-        dt = min(dt * 1.01, 1e-7)
     return t, RL_DET * CL_DET
 
 
@@ -1467,15 +1474,38 @@ def det_table(b, cathode='designed', gap=None, pa36=None, quiet=False, powers=(3
     return res
 
 
-def det_margins(tab, diode='typ', dp=0.0, powers=(30.0, 35.0)):
+def det_model(tab, model):
+    """The detector table restricted to one PA model."""
+    return {k: (v[3][model][0], v[3][model][1], v[2], v[3]) for k, v in tab.items()}
+
+
+def best_thresholds(tab, diode='typ', powers=(30.0, 35.0)):
+    """Threshold set (V30, V35, TC) centred in the window between the highest VSWR-2 reading and the lowest
+    missing reading over -40/25/85 C (same form as the firmware's).  Returns (v30, v35, tc, worst half-window)."""
+    d = DIODES[diode]
+    best = None
+    for tc in np.arange(0.0, 2.51e-3, 0.05e-3):
+        vs, worst = {}, 1e9
+        for p in powers:
+            lo = max(det_vdc(tab[(p, 'VSWR 2')][1], t, d) - tc * (t - 25) for t in DET_TEMPS)
+            hi = min(det_vdc(tab[(p, 'missing')][0], t, d) - tc * (t - 25) for t in DET_TEMPS)
+            vs[p] = 0.5 * (lo + hi)
+            worst = min(worst, 0.5 * (hi - lo))
+        if best is None or worst > best[3]:
+            best = (vs[powers[0]], vs[powers[-1]], tc, worst)
+    return best
+
+
+def det_margins(tab, diode='typ', dp=0.0, powers=(30.0, 35.0), thr=None):
     """Margins (V) at each power and temperature: missing min - threshold, threshold - VSWR-2 max, threshold -
     matched max.  dp: the actual power is dp dB above the firmware's modelled power (amplitudes x 10^(dp/20))."""
     d = DIODES[diode]
     k = 10 ** (dp / 20)
     out_ = {}
+    thf = thr or fw_threshold
     for p in powers:
         for t in DET_TEMPS:
-            thr = fw_threshold(p, t)
+            thr = thf(p, t)
             vm = det_vdc(tab[(p, 'missing')][0] * k, t, d)
             v2 = det_vdc(tab[(p, 'VSWR 2')][1] * k, t, d)
             v0 = det_vdc(tab[(p, 'matched')][1] * k, t, d)
@@ -1519,15 +1549,23 @@ def spice_check(b, cases):
     co = b.tx_out(with_pa=False, cathode='open')
     S = co.sparams([915e6], ['PA_M2', 'ANT'])[0]
     pav = R.dbm_to_w(np.array([0.0]) - R.db20(S[:, 1, 0]))
-    for p_dbm, gam, t_c, label in cases:
+    ct = b.tx_out(with_pa=False)
+    for p_dbm, gm, pick, t_c, label in cases:
         vinc = np.sqrt(8 * R.Z0 * pav * 10 ** (p_dbm / 10))
+        # the phase of the antenna reflection where the junction amplitude is lowest / highest (915 MHz)
+        phs = np.linspace(0, 2 * np.pi, 72, endpoint=False) + 0.01
+        am = [abs(complex(ct.voltages([915e6], {'PA_M2': vinc / R.Z0}, loads={
+            'PA_M2': lambda w: np.ones(w.shape) / R.Z0, 'ANT': ant_load(gm * np.exp(1j * q))})['REFL_J'][0, 0]
+            - ct.voltages([915e6], {'PA_M2': vinc / R.Z0}, loads={
+                'PA_M2': lambda w: np.ones(w.shape) / R.Z0, 'ANT': ant_load(gm * np.exp(1j * q))})['REFL_K'][0, 0]))
+            for q in phs]
+        gam = gm * np.exp(1j * phs[int(np.argmin(am) if pick == 'min' else np.argmax(am))])
         load = {'PA_M2': lambda w: np.ones(w.shape) / R.Z0, 'ANT': ant_load(gam)}
         voc = complex(co.voltages([915e6], {'PA_M2': vinc / R.Z0}, loads=load)['REFL_A'][0, 0])
         zth = complex(co.voltages([915e6], {'REFL_A': 1.0}, loads=load)['REFL_A'][0, 0])
         w0 = 2 * math.pi * 915e6
         xel = ('L1 x a %.6g' % (zth.imag / w0)) if zth.imag > 0 else ('C1 x a %.6g' % (-1 / (w0 * zth.imag)))
-        # Python value for the same Thevenin source, with the junction amplitude from the linear model
-        ct = b.tx_out(with_pa=False)
+        # Python value for the same source, with the junction amplitude from the linear model
         v = ct.voltages([915e6], {'PA_M2': vinc / R.Z0}, loads=load)
         va = abs(v['REFL_J'][0, 0] - v['REFL_K'][0, 0])
         vpy = det_vdc(va, t_c, d)
@@ -1617,12 +1655,46 @@ def study8(s7):
     mv = min(r['m_vswr2'] for r in m.values())
     pmin = min(min(a, c) for a, c in pm_all)
     v = 'PASS' if pmin >= 1.0 else ('MARGINAL' if (mm > 0 and mv > 0) else 'FAIL')
+    ma = det_margins(det_model(tab, 'A'))
+    mb = det_margins(det_model(tab, 'B'))
     summ('8', 'detector vs firmware thresholds (typical BAT15, as designed)', v,
-         'missing reads >= %+.0f mV above, VSWR 2 >= %+.0f mV below the threshold at 30/35 dBm, -40..85 C; tolerates %.1f dB'
-         ' of power error' % (1e3 * mm, 1e3 * mv, pmin))
+         'missing antenna: model A (saturated PA) reads down to %.0f mV %s the threshold at some cable lengths, model B '
+         '%+.0f mV; VSWR 2 at least %.0f mV below it (30/35 dBm, -40..85 C)%s'
+         % (1e3 * abs(min(r['m_miss'] for r in ma.values())), 'BELOW' if min(r['m_miss'] for r in ma.values()) < 0 else 'above',
+            1e3 * min(r['m_miss'] for r in mb.values()), 1e3 * mv,
+            '' if pmin < 0 else '; tolerates %.1f dB of power error' % pmin))
+    out()
+    out('  The same, per PA model (worst over 30/35 dBm, -40/25/85 C; mV, missing / VSWR 2):')
+    for model, lab in (('A', 'model A (saturated PA)'), ('B', 'model B (50-ohm source)')):
+        mc = det_margins(det_model(tab, model))
+        out('   %-26s %+5.0f / %+5.0f   (missing reads %s)' % (lab, 1e3 * min(r['m_miss'] for r in mc.values()),
+                                                               1e3 * min(r['m_vswr2'] for r in mc.values()),
+                                                               ', '.join('%.0f' % (1e3 * mc[(p, t)]['miss']) for p, t in mc)))
+    v30, v35, tcb, half = best_thresholds(tab)
+    out()
+    out('  Window: contrast between the lowest missing reading and the highest VSWR-2 reading (typical BAT15, both models):')
+    for p in (30.0, 35.0):
+        out('   %2.0f dBm: ' % p + ',  '.join('%d C %.0f .. %.0f mV' % (t, 1e3 * m[(p, t)]['vswr2'], 1e3 * m[(p, t)]['miss'])
+                                         for t in DET_TEMPS) + '   (junction amplitude ratio %.1f dB)'
+            % R.db20(tab[(p, 'missing')][0] / tab[(p, 'VSWR 2')][1]))
+    thr_b = lambda p, t: v30 * (v35 / v30) ** ((p - 30.0) / 5.0) + tcb * (t - 25.0)
+    out('  Thresholds centred in that window (same form as the firmware): V30 %.0f mV, V35 %.0f mV, TC %.2f mV/C -> margin'
+        ' +-%.0f mV at worst (firmware now: %.0f / %.0f mV, %.1f mV/C)' % (1e3 * v30, 1e3 * v35, 1e3 * tcb, 1e3 * half,
+                                                                         1e3 * FW['v30'], 1e3 * FW['v35'], 1e3 * FW['tc']))
+    out('  With those thresholds (worst margin, mV, missing / VSWR 2):')
+    best_rows = []
+    for dn in DIODES:
+        mc = det_margins(tab, diode=dn, thr=thr_b)
+        best_rows.append(('BAT15 ' + dn, min(r['m_miss'] for r in mc.values()), min(r['m_vswr2'] for r in mc.values())))
+    for dp in (-1.0, 1.0):
+        mc = det_margins(tab, dp=dp, thr=thr_b)
+        best_rows.append(('actual power %+.0f dB vs the model' % dp, min(r['m_miss'] for r in mc.values()),
+                          min(r['m_vswr2'] for r in mc.values())))
+    for name, a, c in best_rows:
+        out('   %-40s %+6.0f / %+6.0f%s' % (name, 1e3 * a, 1e3 * c, '   <- misread' if min(a, c) < 0 else ''))
     # corners
     out()
-    out('  Sensitivity (worst margin over 30/35 dBm and -40/25/85 C, mV; missing / VSWR 2):')
+    out('  Sensitivity, firmware thresholds (worst margin over 30/35 dBm and -40/25/85 C, mV; missing / VSWR 2):')
     corner_rows = []
     for dn in DIODES:
         mc = det_margins(tab, diode=dn)
@@ -1673,28 +1745,33 @@ def study8(s7):
     out('  modelled; check on the bench, README).')
     # stress on the detector parts
     out()
-    worst_rev, worst_term = 0.0, 0.0
-    for vpa in (3.6, 4.0):
+    worst_rev, worst_term, rev_b = 0.0, 0.0, 0.0
+    for vpa in (2.7, 3.6, 4.0):
         pdbm = float(s7['resA'][vpa][0][1])
         tb = det_table(b, pa36=pa36, powers=(pdbm,))
+        per = tb[(pdbm, 'missing')][3]
         hi = tb[(pdbm, 'missing')][1]
         vrev = det_vdc(hi, 85) + hi
+        vrb = det_vdc(per['B'][1], 85) + per['B'][1]
         vt = tb[(pdbm, 'missing')][2]
-        worst_rev, worst_term = max(worst_rev, vrev), max(worst_term, vt)
-        out('  VPA %.1f V (%.1f dBm), antenna missing: BAT15 reverse peak %.2f V (VR max 4 V), REFL_DET %.2f V (nRF pin max'
-            ' 3.6 V), 49.9 R %.0f mW (0402 rated 63 mW)' % (vpa, pdbm, vrev, det_vdc(hi, 85), vt ** 2 / (2 * 49.9) * 1e3))
+        worst_rev, worst_term, rev_b = max(worst_rev, vrev), max(worst_term, vt), max(rev_b, vrb)
+        out('  VPA %.1f V (%.1f dBm), antenna missing: BAT15 reverse peak %.2f V model A / %.2f V model B (VR max 4 V),'
+            ' REFL_DET up to %.2f V (nRF pin max 3.6 V), 49.9 R up to %.0f mW (0402 rated 63 mW)'
+            % (vpa, pdbm, vrev, vrb, det_vdc(hi, 85), vt ** 2 / (2 * 49.9) * 1e3))
     summ('8', 'detector parts with the antenna missing, VPA 4.0 V', 'PASS' if worst_rev < 0.95 * 4 and worst_term ** 2 / 99.8 < 0.044
          else ('MARGINAL' if worst_rev <= 4 else 'FAIL'),
-         'BAT15 reverse peak %.2f V (4 V max); 49.9 R %.0f mW (63 mW)' % (worst_rev, worst_term ** 2 / 99.8 * 1e3))
+         'BAT15 reverse peak %.2f V model A, %.2f V model B (4 V max); 49.9 R %.0f mW (63 mW; a 0.75 ms pulse when the'
+         ' cut-off works)' % (worst_rev, rev_b, worst_term ** 2 / 99.8 * 1e3))
     # SPICE check
     out()
     out('  ngspice cross-check (model B, 915 MHz, typical BAT15 with RS 6 ohm and CJ 0.2 pF in the SPICE model, Thevenin')
     out('  source at the anode from the board model, 25 us transient from the averaged value):')
-    sp = spice_check(b, [(30.0, 1.0 / 3.0, 85, 'VSWR 2, 30 dBm'), (30.0, -1.0, -40, 'missing (short-phase), 30 dBm'),
-                         (30.0, 1.0, -40, 'missing (open-phase), 30 dBm'), (35.0, -1.0 / 3.0, 85, 'VSWR 2, 35 dBm'),
-                         (35.0, 1.0, 25, 'missing, 35 dBm')])
+    sp = spice_check(b, [(30.0, 1.0 / 3.0, 'max', 85, 'VSWR 2 (worst phase)'), (30.0, 1.0, 'min', -40, 'missing (worst phase)'),
+                         (30.0, 0.0, 'max', 25, 'matched'), (35.0, 1.0 / 3.0, 'max', 85, 'VSWR 2 (worst phase)'),
+                         (35.0, 1.0, 'min', -40, 'missing (worst phase)'), (35.0, 1.0, 'max', 25, 'missing (best phase)')])
     plot_detector(tab, tpl)
-    return dict(tab=tab, margins=m, corners=corner_rows, spice=sp, placed=tpl)
+    return dict(tab=tab, margins=m, corners=corner_rows, spice=sp, placed=tpl, best=(v30, v35, tcb, half),
+                best_rows=best_rows)
 
 
 def plot_detector(tab, tpl):

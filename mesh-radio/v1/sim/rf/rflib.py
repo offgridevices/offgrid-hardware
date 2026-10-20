@@ -388,10 +388,15 @@ def part_info(part):
     val = parse_value(part['value'])
     info = dict(mpn=mpn, kind=kind, size=size, value=val)
     if kind == 'C':
+        m_tdk = re.match(r'C\d{4}[A-Z0-9]{3}\d[A-Z]\d{3}([A-Z])', mpn)
         if mpn.startswith(('GJM', 'GQM', 'GRM')):
             tol = CAP_TOL[mpn[13]]
-        else:   # Samsung CL05C120JB5NNNC style: tolerance letter after the value code
+        elif m_tdk:     # TDK C3216X7S0J476M160AC style (the VPA bulk capacitors since 19 Oct)
+            tol = CAP_TOL[m_tdk.group(1)]
+        elif mpn[8] in CAP_TOL:   # Samsung CL05C120JB5NNNC style: tolerance letter after the value code
             tol = CAP_TOL[mpn[8]]
+        else:
+            raise KeyError('cannot read the tolerance of capacitor %s' % mpn)
         info['tol'] = tol
         info['esr1g'] = gjm_esr_1g(val * 1e12) if mpn.startswith(('GJM', 'GQM')) else 0.15
         info['esl'] = ESL.get(size, 0.4e-9)
