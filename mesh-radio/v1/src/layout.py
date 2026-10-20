@@ -33,9 +33,9 @@ import pcb, circuit, parts, place
 
 HX, HY = pcb.HX, pcb.HY
 HDR_X0 = -7.0                      # expansion header: pin 1 / pin 11 x
-NRF_RING = 1.0                     # mm kept free round the nRF52840's courtyard on the top (its pin escape)
+NRF_RING = 0.6                     # mm kept free round the nRF52840's courtyard (its dog-bone vias reach 0.55 mm past it)
 NRF_X, SX_X = -12.6, -5.4          # the nRF52840 and the SX1262 (the TX line grows right from the SX1262)
-ANT_BOX = (-HX + 8.4, 8.9, -HX + 19.1, HY)  # Bluetooth antenna keepout (x0, y0, x1, y1)
+ANT_BOX = (-HX + 4.0, 8.9, -HX + 14.7, HY)   # the Bluetooth antenna's ground-free box: round where its feed line ends (x -24..-21; until 20 Oct the box sat 1.6 mm to its right)
 
 
 def ref(comps, part, note=None):
@@ -59,7 +59,9 @@ def anchors(comps):
         (R('SKRP', 'user'), -HX + 2.2, HY - 3.2, 90, 'T'),
         (R('SKRP', 'reset'), -HX + 2.2, HY - 3.2, 90, 'B'),
         # ---- processor and Bluetooth
-        (R('NRF52840'), NRF_X, 0.3, 180, 'T'),              # SPI side towards the SX1262, USB side towards USB-C
+        # (y 1.6 since 20 Oct: at 0.3 the battery plug's tails, under it on the
+        # bottom, sat where its top row's escape vias must go)
+        (R('NRF52840'), NRF_X, 1.6, 180, 'T'),              # SPI side towards the SX1262, USB side towards USB-C
         (R('ANT2450'), -HX + 11.6, HY - 1.35, 180, 'T'),         # feed end towards the nRF52840
         (R('HDR_2x10'), HDR_X0, 0.0, 0, 'T'),
         # ---- LoRa radio: RF pins face +x (top to bottom VR_PA, RFO, RFI_N, RFI_P)
@@ -75,8 +77,8 @@ def anchors(comps):
         (R('JST_SH6'), HX - 3.29, 0.0, 270, 'B'),           # GPS, on the antenna end's short edge
         # ---- bottom: inputs.  USB: behind the USB-C, under the board's left
         # end; solar beside its plug; drone beside the drone plug
-        (R('TVS2200', 'USB surge clamp'), -HX + 11.2, 0.6, 0, 'B'),
-        (R('TPS259470A', 'USB eFuse'), -HX + 11.4, 3.8, 0, 'B'),
+        (R('TVS2200', 'USB surge clamp'), -HX + 10.6, 0.6, 0, 'B'),
+        (R('TPS259470A', 'USB eFuse'), -HX + 11.4, 8.4, 0, 'B'),   # below the nRF52840's escape vias
         (R('RB060MM', 'USB into the charger'), -HX + 8.8, 7.6, 90, 'B'),
         (R('TPD4E05U06', 'USB ESD'), -HX + 12.2, -6.0, 90, 'T'),
         (R('SMF33CA', 'SOL surge clamp'), -HX + 11.5, -10.0, 90, 'T'),    # beside the slide switch, on top
@@ -91,7 +93,7 @@ def anchors(comps):
         (R('R15m'), 0.6, -7.4, 0, 'B'),
         # the charger away from the battery plug (sim/thermal: its heat reached
         # the NTC and the cell); the NTC right by the plug, reading the cell
-        (R('BQ25185'), -12.6, 5.6, 0, 'B'),
+        (R('BQ25185'), -12.6, 8.2, 0, 'B'),                 # clear of the nRF52840's escape vias
         (R('NTC10K'), -7.65, -2.6, 90, 'B'),
         (R('TPS22950'), -6.4, -2.5, 0, 'B'),
         (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -2.4, 0, 'B'),
@@ -172,9 +174,16 @@ def place_all(log=print):
     nrf = ref(comps, 'NRF52840')
     (cx0, cy0, cx1, cy1), _ = B.geom(nrf, *B.pl[nrf])
     g = NRF_RING
-    for box in ((cx0 - g, cy0 - g, cx1 + g, cy0), (cx0 - g, cy1, cx1 + g, cy1 + g),
+    # (narrower on the Bluetooth side, +y: the match parts need the room
+    # between it and the antenna's keepout, and that edge has few escapes)
+    gb = 0.25
+    for box in ((cx0 - g, cy0 - g, cx1 + g, cy0), (cx0 - g, cy1, cx1 + g, cy1 + gb),
                 (cx0 - g, cy0, cx0, cy1), (cx1, cy0, cx1 + g, cy1)):
         B.keep_out(box, ('T',))
+    # and under it on the bottom: its ball and dog-bone vias fill that
+    # area, so a part there cannot be reached (C15, C87, C88 and the
+    # charger's pins were, even on an empty board: 20 Oct)
+    B.keep_out((cx0 - g, cy0 - g, cx1 + g, cy1 + g), ('B',))
     # ---- RF chains (top), a U: transmit along the top to the amplifier,
     # its output down the right end to the antenna switch, the antenna
     # through the filter to the U.FL, receive back along the bottom
