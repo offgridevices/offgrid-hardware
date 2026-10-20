@@ -381,6 +381,9 @@ for v, code, lc in [('0R', '0R', 'C106231'), ('22R', '22R', 'C114765'), ('330R',
     res('R' + v, v, '0402', 'RC0402FR-07%sL' % code, lc)
 # the antenna detector's coupler termination: 85 mW with the antenna off (sim/rf study 8), so 0805 0.5 W pulse-proof
 res('R49.9R_0805', '49.9R', '0805', 'CRCW080549R9FKEAHP', 'C4088942', VISHAY, '1% 0.5 W pulse-proof')
+# the coupler's U.FL-end termination: 21 mW at 4.0 V with the antenna
+# missing (sim/rf study 8), 40 % of an 0402's 85 C rating; 0402 for room
+res('R49.9R', '49.9R', '0402', 'RC0402FR-0749R9L', 'C87044')
 res('R68_0805', '68R', '0805', 'RC0805FR-0768RL', 'C137498')
 # the pad's first resistor takes the most power (sim/rf: 118 mW at +22 dBm drive)
 res('R68_0805_AS', '68R', '0805', 'RCS080568R0FKEA', 'C2114866', VISHAY, '1% 0.4 W anti-surge')
@@ -487,6 +490,7 @@ PARTS['HDR_2x10']['assembled'] = False
 DIGIKEY = {
     'LFCG1000': '3157-LFCG-1000+CT-ND',
     'BAT68_04W': 'BAT6804WH6327XTSA1CT-ND',  # 7,598 in stock, INR 43.95@1 / 30.39@10 / 23.50@100, 20 Oct 2026
+    'R49.9R': '311-49.9LRCT-ND',
     'R49.9R_0805': '541-49.9TCT-ND',  # 178,810 in stock, INR 18.15@1 / 8.98@10 / 5.12@100, 20 Oct 2026
     'L3.6nH_0805': '490-16042-1-ND',  # sim/rf fixes, checked 19 Oct
     'L3.2nH_0805': '490-16041-1-ND',  # sim/rf fixes, checked 19 Oct

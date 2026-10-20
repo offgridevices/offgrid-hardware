@@ -11,8 +11,8 @@
  *     3.6 V licensed (4.0 V only with -D OFFGRID_PA_ALLOW_4V0=1);
  *   - power caps by board temperature (TMP1075) and by the cell (sim/burst),
  *     applied to the SX1262 setting of each packet and to the supply;
- *   - missing-antenna cut-off: the ratio REFL_DET / FWD_DET sampled in every
- *     transmission of 27 dBm or more;
+ *   - missing-antenna cut-off: FWD_DET and REFL_DET sampled in every
+ *     transmission of 30 dBm or more, sim/rf study 8's two-condition rule;
  *   - soft start: a packet above 1 W starts with the amplifier supply at the
  *     1 W level and is raised only once the antenna check has passed;
  *   - amplifier source: battery first, charger SYS (PA_SRC_SYS) when no cell
@@ -102,9 +102,10 @@ static_assert(PIN_PA_EN == 32 + 7, "paEnDrivenHigh() reads P1.07");
 static_assert(REFL_DET_AIN == SAADC_CH_PSELP_PSELP_AnalogInput6, "REFL_DET is AIN6");
 static_assert(FWD_DET_AIN == SAADC_CH_PSELP_PSELP_AnalogInput0, "FWD_DET is AIN0");
 static_assert(PIN_PA_SRC_SYS == 32 + 9, "PA_SRC_SYS is P1.09");
-static_assert(OFFGRID_SOFTSTART_VPA_MV >= PA_VOUT_MIN_MV && OFFGRID_SOFTSTART_VPA_MV <= OFFGRID_PA_VOUT_US_MV,
-              "soft-start supply outside 1.8 V .. the US level");
-static_assert(OFFGRID_ANT_RATIO_MAX_PCT > 0 && OFFGRID_ANT_RATIO_MAX_PCT < 100, "antenna ratio threshold");
+static_assert(OFFGRID_SOFTSTART_VPA_MIN_MV >= PA_VOUT_MIN_MV && OFFGRID_SOFTSTART_VPA_MIN_MV <= OFFGRID_PA_VOUT_US_MV,
+              "soft-start supply floor outside 1.8 V .. the US level");
+static_assert(OFFGRID_SOFTSTART_DBM <= 30, "the soft start must begin at 1 W or less");
+static_assert(OFFGRID_REFL_MIN_DBM <= OFFGRID_SOFTSTART_DBM, "soft-started packets must be checked");
 static_assert(CHG_TS_AIN == SAADC_CH_PSELP_PSELP_AnalogInput7, "CHG_TS is AIN7");
 
 // TMP1075 (datasheet SBOS854, section 7.5)
@@ -175,12 +176,12 @@ enum AntState : uint8_t { ANT_OK, ANT_BLOCKED, ANT_PROBE };
 AntState antState = ANT_OK;
 uint32_t antRetryAtMs = 0;
 uint32_t antBackoffMs = OFFGRID_ANT_RETRY_MS;
-enum AntVerdict : uint8_t { AV_OK, AV_FAULT, AV_UNSURE };
-uint16_t antLastFwdMv = 0, antLastReflMv = 0, antLastThrMv = 0;
-bool antLastByRatio = false;   // the last verdict came from the ratio (else the REFL_DET-only fallback)
+uint16_t antLastFwdMv = 0, antLastReflMv = 0; // last readings
+uint16_t antLastFminMv = 0;    // last Fmin(P, T)
+float antLastR = 0;            // last R(P, T)
+float antLastP = 0;            // the P they were worked out for
 bool antNotifyPending = false;
 bool antLogPending = false;
-bool antFwdLowPending = false; // a soft start was held at 1 W: FWD_DET too low to trust
 bool softLatePending = false;  // a soft start was held at 1 W: the raise would end after the preamble
 bool softFailPending = false;  // the soft-start supply could not be set: drive held to the 1 W setting
 
@@ -540,10 +541,11 @@ int8_t capDbm()
     int8_t b = paSrcSys ? OFFGRID_SYS_CAP_DBM : battCap; // from SYS: the charger's 1.05 A input sets it
     if (b < cap)
         cap = b;
+    // ANT_PROBE (the retry after a fault) needs no cap of its own: the next
+    // packet above 1 W soft-starts at <= 1 W and is checked before it rises,
+    // and packets at or below 1 W are not checked and cannot harm.
     if (antState == ANT_BLOCKED)
         cap = CAP_PA_OFF;
-    else if (antState == ANT_PROBE && cap > OFFGRID_ANT_PROBE_DBM)
-        cap = OFFGRID_ANT_PROBE_DBM;
     return cap;
 }
 
@@ -560,17 +562,32 @@ uint16_t paWantedMv()
 // Soft start (variant.h, OFFGRID_SOFTSTART_*): a packet above 1 W starts at
 // the soft-start supply and is raised only after the antenna check.
 // ---------------------------------------------------------------------------
-// Above the US supply and, in the model, above 30 dBm less the model's
-// uncertainty.  US mode (2.7 V, the gain table's +13 dBm) never soft-starts.
+// Above 1 W in the model.  US mode (2.7 V, the gain table's +13 dBm: 29.0 dBm)
+// never soft-starts.
 bool softStartWanted(int8_t drive, uint16_t targetMv)
 {
-    return targetMv > OFFGRID_PA_VOUT_US_MV &&
-           modelUflDbm(drive, targetMv) > (float)(OFFGRID_SOFTSTART_ABOVE_DBM - OFFGRID_SOFTSTART_MODEL_DB);
+    return modelUflDbm(drive, targetMv) > (float)OFFGRID_SOFTSTART_DBM;
 }
 
-uint16_t softStartMv(uint16_t targetMv)
+// The soft-start supply for this drive: the highest TPS63810 step at which
+// the model gives at most OFFGRID_SOFTSTART_DBM (so the check runs at
+// 29.9-30.0 dBm, where the detector rule is fitted), not below
+// OFFGRID_SOFTSTART_VPA_MIN_MV and not above the packet's own supply.
+// 2.25 V at the full +20 dBm drive.
+uint16_t softStartMv(int8_t drive, uint16_t targetMv)
 {
-    return targetMv < OFFGRID_SOFTSTART_VPA_MV ? targetMv : OFFGRID_SOFTSTART_VPA_MV;
+    uint8_t lo = voutCode(OFFGRID_SOFTSTART_VPA_MIN_MV), hi = voutCode(targetMv);
+    if (hi <= lo)
+        return targetMv;
+    // binary search: the model rises with the supply
+    while (hi - lo > 1) {
+        const uint8_t mid = (uint8_t)((lo + hi) / 2);
+        if (modelUflDbm(drive, PA_VOUT_MIN_MV + mid * 25) <= (float)OFFGRID_SOFTSTART_DBM)
+            lo = mid;
+        else
+            hi = mid;
+    }
+    return PA_VOUT_MIN_MV + lo * 25;
 }
 
 // The supply between packets: the caps' level, or the soft-start level when
@@ -579,7 +596,7 @@ uint16_t softStartMv(uint16_t targetMv)
 uint16_t paIdleMv()
 {
     const uint16_t want = paWantedMv();
-    return softStartWanted(txDrive, want) ? softStartMv(want) : want;
+    return softStartWanted(txDrive, want) ? softStartMv(txDrive, want) : want;
 }
 
 // The 16-symbol preamble of the current LoRa settings, us (0 = unknown).
@@ -655,41 +672,27 @@ void antennaFault()
         antNotifyPending = true;
 }
 
-// The antenna check, once the sample time has passed.  Reads FWD_DET and
-// REFL_DET; while FWD_DET is below OFFGRID_FWD_MIN_MV (RF not up yet), reads
-// them again every OFFGRID_FWD_POLL_US for up to OFFGRID_FWD_WAIT_MAX_US.
-//   AV_OK      FWD_DET trusted and REFL/FWD within OFFGRID_ANT_RATIO_MAX_PCT
-//   AV_FAULT   the ratio is above it, or (fallback, FWD_DET too low) REFL_DET
-//              is above the old absolute threshold for this power
-//   AV_UNSURE  FWD_DET too low and REFL_DET below the fallback threshold: no
-//              fault seen, but nothing proves the antenna is there either
-// *elapsedUs grows by the time spent here (an estimate: micros() on this core
-// has only RTOS-tick resolution unless DWT is on).
-AntVerdict antennaCheck(float pDbm, uint32_t *elapsedUs)
+// The antenna check (sim/rf study 8), once the sample time has passed: both
+// detectors in one SAADC scan; MISSING (true) if FWD_DET < Fmin(P, T) or
+// REFL_DET / FWD_DET > R(P, T), P = the modelled U.FL power in dBm, T = the
+// board temperature in C.  A low FWD_DET is a fault, not "wait": with the
+// antenna missing it collapses at some cable lengths.  (T unknown: 25 C.  It
+// cannot happen in practice: without a temperature reading the cap is 30 dBm
+// and nothing is checked.)
+bool antennaMissing(float pDbm)
 {
     uint16_t fwd = 0, refl = 0;
     saadcRead2Mv(FWD_DET_AIN, REFL_DET_AIN, SAADC_CH_CONFIG_GAIN_Gain1_6, &fwd, &refl);
-    *elapsedUs += SAADC_READ2_US;
-    for (uint32_t waited = 0; fwd < OFFGRID_FWD_MIN_MV && waited < OFFGRID_FWD_WAIT_MAX_US; waited += OFFGRID_FWD_POLL_US) {
-        delayMicroseconds(OFFGRID_FWD_POLL_US);
-        saadcRead2Mv(FWD_DET_AIN, REFL_DET_AIN, SAADC_CH_CONFIG_GAIN_Gain1_6, &fwd, &refl);
-        *elapsedUs += OFFGRID_FWD_POLL_US + SAADC_READ2_US;
-    }
+    const float dt = boardTempValid ? boardCentiC / 100.0f - 25.0f : 0.0f;
+    const float dp = pDbm - 30.0f;
+    const float fmin = OFFGRID_ANT_FMIN30_MV * powf(OFFGRID_ANT_FMIN_KT, dt) * powf(OFFGRID_ANT_FMIN_KP, dp);
+    const float r = OFFGRID_ANT_R30 * powf(OFFGRID_ANT_R_KT, dt) * powf(OFFGRID_ANT_R_KP, dp);
     antLastFwdMv = fwd;
     antLastReflMv = refl;
-    if (fwd >= OFFGRID_FWD_MIN_MV) {
-        // Ratio: independent of the cable length and of the power; the two
-        // diodes' temperature drift largely cancels, so no correction.
-        antLastByRatio = true;
-        return (uint32_t)refl * 100 > (uint32_t)OFFGRID_ANT_RATIO_MAX_PCT * fwd ? AV_FAULT : AV_OK;
-    }
-    // Fallback: the old single-detector threshold, V30 at 30 dBm, V35 at
-    // 35 dBm, straight line in dB(V) against dBm, plus the diode's drift
-    antLastByRatio = false;
-    const float thr = OFFGRID_REFL_V30_MV * powf((float)OFFGRID_REFL_V35_MV / OFFGRID_REFL_V30_MV, (pDbm - 30.0f) / 5.0f) +
-                      (boardTempValid ? OFFGRID_REFL_TC_UV_PER_C * (boardCentiC - 2500) / 100000.0f : 0.0f);
-    antLastThrMv = (uint16_t)thr;
-    return refl > thr ? AV_FAULT : AV_UNSURE;
+    antLastFminMv = (uint16_t)(fmin + 0.5f);
+    antLastR = r;
+    antLastP = pDbm;
+    return fwd < fmin || (float)refl > r * fwd;
 }
 
 void gpsPinsFloating()
@@ -922,12 +925,12 @@ int8_t variantLimitTxPower(int8_t power)
     txDrive = d;
     txTargetMv = paWantedMv();
     txSoft = softStartWanted(d, txTargetMv);
-    if (!supplyTo(txSoft ? softStartMv(txTargetMv) : txTargetMv) && txSoft) {
+    if (!supplyTo(txSoft ? softStartMv(d, txTargetMv) : txTargetMv) && txSoft) {
         // The soft-start level could not be set, so the supply is unknown
         // (up to the licensed ceiling).  Hold the drive to the 1 W setting
         // instead: the gain table keeps that at or under 30 dBm at any supply.
         txSoft = false;
-        const int8_t m = driveForCapDbm(OFFGRID_ANT_PROBE_DBM);
+        const int8_t m = driveForCapDbm(OFFGRID_SOFTSTART_DBM);
         if (m < d)
             txDrive = d = m;
         softFailPending = true;
@@ -948,10 +951,9 @@ int8_t variantLimitTxPower(int8_t power)
 // begun and PA_EN has been high for at least ~0.25 ms.  The QPA9510's 2.8 V
 // control supply (TLV75528, PA_EN) takes 550 us typical (no maximum given)
 // to start, the QPA9510 ramps in ~40 us, and the detectors then settle in
-// ~0.15 ms (FWD_DET) to ~0.46 ms (REFL_DET, antenna missing, 27 dBm, -40 C;
-// sim/rf study 8).  OFFGRID_REFL_SAMPLE_US (750 us, >= 1 ms after PA_EN)
-// covers the typical case with little to spare, so it is not shortened; the
-// FWD_DET poll in antennaCheck() covers a late RF.
+// 34 us (FWD_DET) to 335 us (REFL_DET, antenna missing, 30 dBm, -40 C;
+// sim/rf study 8).  So the 750 us sample needs the RF at full power by
+// ~415 us after startTransmit: a bench check.
 void variantTxStarted()
 {
     txActive = true;
@@ -966,30 +968,28 @@ void variantTxStarted()
     // An unknown supply (I2C failed) is taken as the highest it can be, so
     // the packet is checked rather than waved through
     txPest = modelUflDbm(txDrive, paSetMv != 0 ? paSetMv : PA_VOUT_ABS_MAX_MV);
+    // Below 30 dBm the detector cannot tell (sim/rf study 8) and a missing
+    // antenna harms nothing.  A soft-started packet is at 29.9-30.0 dBm here
+    // (the highest 25 mV step at or under 30 dBm) and is always checked.
     if (!txSoft && txPest < OFFGRID_REFL_MIN_DBM)
-        return; // a missing antenna harms nothing down here
-    uint32_t elapsedUs = OFFGRID_REFL_SAMPLE_US;
+        return;
     delayMicroseconds(OFFGRID_REFL_SAMPLE_US);
-    const AntVerdict v = antennaCheck(txPest, &elapsedUs);
-    if (v == AV_FAULT) {
+    const uint32_t elapsedUs = OFFGRID_REFL_SAMPLE_US + SAADC_READ2_US; // estimate, see TPS_WRITE_US
+    if (antennaMissing(txPest)) {
         antennaFault(); // amplifier off now; for a soft start that is from <= 1 W
         txSoft = false;
         return;
     }
     if (antState == ANT_PROBE) {
-        // the 1 W retry found no fault (as before: the fallback alone may clear it)
+        // the retry after a fault (a soft start, at <= 1 W) found the antenna
         antState = ANT_OK;
         antBackoffMs = OFFGRID_ANT_RETRY_MS;
         antLogPending = true;
     }
     if (!txSoft)
         return;
-    if (v != AV_OK) {
-        antFwdLowPending = true; // only a trusted ratio clears a packet for more than 1 W
-        return;
-    }
     // Raise to the packet's own level: one VOUT1 write, then the TPS63810
-    // slews at 1 V/ms (2.25 -> 3.6 V: 1.35 ms; -> 4.0 V: 1.75 ms).  LoRa
+    // slews at 1 V/ms (at most 2.25 -> 4.0 V: 1.75 ms).  LoRa
     // chirps are constant-envelope, so the receiver takes this amplitude step
     // in its stride as long as it lands inside the preamble (it only shifts
     // the level the receiver's gain settles on over a few preamble symbols);
@@ -1148,8 +1148,15 @@ void lateInitVariant()
     supplyTo(paIdleMv());
     LOG_INFO("PA supply %u mV (%s), cap %d dBm", paSetMv, devicestate.owner.is_licensed ? "licensed" : "unlicensed, 30 dBm",
              capDbm() == CAP_NONE ? 99 : capDbm());
-    LOG_INFO("Antenna check: REFL/FWD > %d%% trips (FWD_DET >= %d mV); packets above %d dBm soft-start at %u mV (provisional)",
-             OFFGRID_ANT_RATIO_MAX_PCT, OFFGRID_FWD_MIN_MV, OFFGRID_SOFTSTART_ABOVE_DBM, (unsigned)OFFGRID_SOFTSTART_VPA_MV);
+    LOG_INFO("Antenna check from %d dBm (sim/rf study 8, %s fit): missing if FWD_DET < %d mV or REFL/FWD > %d%% at 30 dBm, 25 C; "
+             "packets above %d dBm soft-start at <= %d dBm",
+             OFFGRID_REFL_MIN_DBM,
+#if defined(OFFGRID_ANT_FIT_ROBUST) && (OFFGRID_ANT_FIT_ROBUST == 1)
+             "+-1 dB",
+#else
+             "nominal",
+#endif
+             (int)OFFGRID_ANT_FMIN30_MV, (int)(OFFGRID_ANT_R30 * 100.0f + 0.5f), OFFGRID_SOFTSTART_DBM, OFFGRID_SOFTSTART_DBM);
     stat2WindowMs = now;
     paLastCheckMs = now;
 }
@@ -1165,22 +1172,14 @@ void variant_nrf52LoopHook(void)
 
     if (antLogPending) {
         antLogPending = false;
-        if (antState == ANT_BLOCKED && antLastByRatio)
-            LOG_WARN("ANTENNA MISSING? REFL_DET %u mV / FWD_DET %u mV = %u%% > %d%% at ~%d dBm: amplifier off, retry at 1 W in %u s",
-                     antLastReflMv, antLastFwdMv, (unsigned)(antLastReflMv * 100u / antLastFwdMv), OFFGRID_ANT_RATIO_MAX_PCT,
-                     (int)txPest, (unsigned)(antBackoffMs / 1000));
-        else if (antState == ANT_BLOCKED)
-            LOG_WARN("ANTENNA MISSING? REFL_DET %u mV > %u mV (fallback: FWD_DET %u mV, too low for the ratio) at ~%d dBm: "
-                     "amplifier off, retry at 1 W in %u s",
-                     antLastReflMv, antLastThrMv, antLastFwdMv, (int)txPest, (unsigned)(antBackoffMs / 1000));
+        const unsigned ratioPct = antLastFwdMv ? (unsigned)(antLastReflMv * 100u / antLastFwdMv) : 999;
+        if (antState == ANT_BLOCKED)
+            LOG_WARN("ANTENNA MISSING? at ~%d dBm: FWD_DET %u mV (min %u), REFL_DET %u mV, REFL/FWD %u%% (max %d%%): "
+                     "amplifier off, next retry (a 1 W soft start) in %u s",
+                     (int)antLastP, antLastFwdMv, antLastFminMv, antLastReflMv, ratioPct, (int)(antLastR * 100.0f + 0.5f),
+                     (unsigned)(antBackoffMs / 1000));
         else
-            LOG_INFO("Antenna OK again (REFL_DET %u mV, FWD_DET %u mV%s): full power", antLastReflMv, antLastFwdMv,
-                     antLastByRatio ? "" : ", fallback check only");
-    }
-    if (antFwdLowPending) {
-        antFwdLowPending = false;
-        LOG_WARN("Soft start held at 1 W: FWD_DET %u mV (< %d mV) at ~%d dBm, REFL_DET %u mV: RF late or forward detector fault",
-                 antLastFwdMv, OFFGRID_FWD_MIN_MV, (int)txPest, antLastReflMv);
+            LOG_INFO("Antenna OK again (FWD_DET %u mV, REFL/FWD %u%%): full power", antLastFwdMv, ratioPct);
     }
     if (softLatePending) {
         softLatePending = false;
@@ -1200,7 +1199,7 @@ void variant_nrf52LoopHook(void)
         }
     }
     if (antState == ANT_BLOCKED && (int32_t)(now - antRetryAtMs) >= 0)
-        antState = ANT_PROBE; // the next packet goes at 1 W and is checked
+        antState = ANT_PROBE; // the next packet above 1 W soft-starts at 1 W and is checked
 
     if (now - paLastCheckMs < OFFGRID_PA_CHECK_MS)
         return;

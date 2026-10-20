@@ -370,80 +370,67 @@ static const uint8_t SCK = PIN_SPI_SCK;
 
 /*
  * Missing-antenna detector: a RATIO detector (circuit.py, 20 Oct).  A printed
- * coupler between the antenna filter and the U.FL feeds two diode detectors,
- * each into 1 nF || 100 k: a DC level that settles within ~0.15 ms (FWD) and
- * up to ~0.46 ms (REFL, antenna missing, 27 dBm, -40 C) of the RF reaching
- * full power (sim/rf/results.txt study 8, in progress on 20 Oct):
- *   REFL_DET  P0.30 / AIN6  the reflected wave
- *   FWD_DET   P0.02 / AIN0  the forward wave
- * REFL/FWD is near 0 with a matched antenna and near 1 with the antenna
- * missing, whatever the cable length and the power.  The diodes are partly
- * square-law at these levels, which squeezes the in-between cases: study 8
- * has VSWR 2 at 0.00-0.29 (0.33 over diode pairings) and missing at 0.27 and
- * up (0.43 and up at 30 dBm, 0.69 and up at 33 dBm and more).  The single reflected-wave detector before
- * it compared REFL_DET with a fixed threshold per power, and with the antenna
- * missing could read below it at some cable lengths.
+ * coupler between the antenna filter and the U.FL, terminated in 49.9 R at
+ * both ends, feeds two BAT68-04W diode detectors, each into 1 nF || 100 k:
+ *   REFL_DET  P0.30 / AIN6  the reflected wave (U.FL end)
+ *   FWD_DET   P0.02 / AIN0  the forward wave (filter end)
+ *
+ * Rule (sim/rf/results.txt and sim/rf/README.md, study 8): with P the
+ * modelled U.FL power (dBm) and T the board temperature (C), the antenna is
+ * MISSING if
+ *     FWD_DET < Fmin(P, T) = FMIN30 x FMIN_KT^(T - 25) x FMIN_KP^(P - 30)
+ *  or REFL_DET / FWD_DET > R(P, T) = R30 x R_KT^(T - 25) x R_KP^(P - 30)
+ * A low FWD_DET is a fault, not a reason to wait: with a saturated amplifier
+ * and the antenna missing, FWD_DET collapses to a few mV at some cable
+ * lengths (the amplifier delivers little into the open).
+ * Default: the sim's nominal-power fit, which works from 30 dBm up (every
+ * diode pairing, both amplifier models, -40..85 C, worst margin +1.9 dB).
+ * -D OFFGRID_ANT_FIT_ROBUST=1: the fit with +-1 dB of power-model error built
+ * in.  It is fitted from 33 dBm only, so at the soft start's 30 dBm check it
+ * is outside its range (not covered by the sim).  With the nominal fit, a
+ * real power 1 dB under the model gives false "missing" readings at 30 dBm
+ * (a needless 1 W retry), never a missed fault.
+ * Below 30 dBm nothing works with these parts, and nothing there can harm
+ * (OFFGRID_REFL_MIN_DBM): those packets are not checked.
  *
  * When: OFFGRID_REFL_SAMPLE_US after the SX1262 was told to transmit, both
- * pins sampled in one SAADC scan (40 us acquisition each, back to back, 3.6 V
- * full scale), in every packet of
- * OFFGRID_REFL_MIN_DBM or more (modelled U.FL power) and every soft-started
- * one (below).  If FWD_DET is still below OFFGRID_FWD_MIN_MV the pins are
- * sampled again every OFFGRID_FWD_POLL_US, for up to OFFGRID_FWD_WAIT_MAX_US
- * more (the RF can come up late: the TLV75528's start-up is 550 us typical
- * and has no maximum).
- * Trip: FWD_DET >= OFFGRID_FWD_MIN_MV (the RF is on and the reading is out of
- * the diodes' noise) and REFL_DET / FWD_DET > OFFGRID_ANT_RATIO_MAX_PCT / 100.
- * Fallback, only while FWD_DET reads too low to trust (RF late, or the
- * forward detector broken): the old absolute threshold on REFL_DET alone,
- * V30 at 30 dBm, V35 at 35 dBm, interpolated in dB, plus
- * OFFGRID_REFL_TC_UV_PER_C per degree C above 25 C.  It can trip, but it
- * never clears a packet for more than 1 W (see the soft start).
- * PROVISIONAL: the ratio threshold and FWD_DET minimum are placeholders
- * until the RF sim's ratio study is final.  0.35 is above every VSWR-2 case
- * in study 8 as it stood on 20 Oct (0.33 worst diode pairing) and below
- * every missing-antenna case with typical diodes from 30 dBm up (0.43); 0.6
- * would miss a missing antenna at 30 dBm in the cold.  50 mV: a matched
- * antenna's FWD_DET is ~0.13 V at 30 dBm, -40 C, so 150 mV would block the
- * soft start's raise in the cold.  The fallback thresholds are the old
- * single-detector ones (sim/rf/coupler.txt); study 8 shows that the new
- * REFL_DET stays below them even with the antenna missing, so the fallback
- * needs new numbers (or removing) once the sim is final.
- * Above the threshold: amplifier off at once, for this packet and the ones
- * after; one try at 1 W (OFFGRID_ANT_PROBE_DBM) after OFFGRID_ANT_RETRY_MS,
- * doubling up to OFFGRID_ANT_RETRY_MAX_MS while the fault stays.
+ * pins in one SAADC scan (40 us acquisition each, back to back, 3.6 V full
+ * scale).  REFL_DET takes up to 335 us to settle (99 %) after the RF reaches
+ * full power (30 dBm, -40 C, antenna missing, worst phase), FWD_DET 34 us,
+ * so the RF must be at full power by ~415 us after startTransmit (bench
+ * check: the TLV75528 that powers the amplifier's control input starts in
+ * 550 us typical from PA_EN, which rises >= ~0.25 ms before the hook).
+ * On a fault: amplifier off at once, for this packet and the ones after;
+ * after OFFGRID_ANT_RETRY_MS (doubling up to OFFGRID_ANT_RETRY_MAX_MS while
+ * the fault stays) the next packet above 1 W is the retry: it soft-starts at
+ * 1 W and is checked.
  */
 #define PIN_REFL_DET (30) // P0.30 / AIN6 REFL_DET
 #define REFL_DET_AIN 7     // SAADC PSELP value for AIN6 (AINx = x + 1)
 #define PIN_FWD_DET (2)    // P0.02 / AIN0 FWD_DET
 #define FWD_DET_AIN 1      // SAADC PSELP value for AIN0
 #ifndef OFFGRID_REFL_SAMPLE_US
-#define OFFGRID_REFL_SAMPLE_US 750 // after startTransmit(): >= 1 ms after PA_EN, ~2x the TLV75528's typical start-up
-#endif
-#ifndef OFFGRID_ANT_RATIO_MAX_PCT
-#define OFFGRID_ANT_RATIO_MAX_PCT 35 // PROVISIONAL: trip when REFL/FWD > 0.35 (study 8: VSWR 2 <= 0.33, missing >= 0.43 at 30 dBm)
-#endif
-#ifndef OFFGRID_FWD_MIN_MV
-#define OFFGRID_FWD_MIN_MV 50 // PROVISIONAL: FWD_DET at or above this proves the RF is on (matched, 30 dBm: 0.13 V at -40 C)
-#endif
-#ifndef OFFGRID_FWD_POLL_US
-#define OFFGRID_FWD_POLL_US 50
-#endif
-#ifndef OFFGRID_FWD_WAIT_MAX_US
-#define OFFGRID_FWD_WAIT_MAX_US 750 // extra wait for a late FWD_DET, after OFFGRID_REFL_SAMPLE_US
-#endif
-// Fallback (FWD_DET too low): the old single-detector thresholds
-#ifndef OFFGRID_REFL_V30_MV
-#define OFFGRID_REFL_V30_MV 350
-#endif
-#ifndef OFFGRID_REFL_V35_MV
-#define OFFGRID_REFL_V35_MV 730
-#endif
-#ifndef OFFGRID_REFL_TC_UV_PER_C
-#define OFFGRID_REFL_TC_UV_PER_C 1400
+#define OFFGRID_REFL_SAMPLE_US 750 // after startTransmit(); needs the RF at full power by ~415 us
 #endif
 #ifndef OFFGRID_REFL_MIN_DBM
-#define OFFGRID_REFL_MIN_DBM 27
+#define OFFGRID_REFL_MIN_DBM 30 // packets modelled below this are not checked
+#endif
+#if defined(OFFGRID_ANT_FIT_ROBUST) && (OFFGRID_ANT_FIT_ROBUST == 1)
+// sim/rf study 8, fitted with +-1 dB of power-model error; works from 33 dBm
+#define OFFGRID_ANT_FMIN30_MV 70.0f
+#define OFFGRID_ANT_FMIN_KT 1.0054f
+#define OFFGRID_ANT_FMIN_KP 1.231f
+#define OFFGRID_ANT_R30 0.424f
+#define OFFGRID_ANT_R_KT 1.0020f
+#define OFFGRID_ANT_R_KP 1.010f
+#else
+// sim/rf study 8, nominal-power fit; works from 30 dBm (default)
+#define OFFGRID_ANT_FMIN30_MV 53.0f
+#define OFFGRID_ANT_FMIN_KT 1.0064f
+#define OFFGRID_ANT_FMIN_KP 1.252f
+#define OFFGRID_ANT_R30 0.245f
+#define OFFGRID_ANT_R_KT 1.0101f
+#define OFFGRID_ANT_R_KP 1.051f
 #endif
 #ifndef OFFGRID_ANT_RETRY_MS
 #define OFFGRID_ANT_RETRY_MS 30000
@@ -451,29 +438,22 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #ifndef OFFGRID_ANT_RETRY_MAX_MS
 #define OFFGRID_ANT_RETRY_MAX_MS 600000
 #endif
-#ifndef OFFGRID_ANT_PROBE_DBM
-#define OFFGRID_ANT_PROBE_DBM 30 // the retry runs at 1 W
-#endif
 
 /*
  * Soft start of every transmission above 1 W (variant.cpp).  The RF sim found
  * that above ~1 W into a missing antenna the antenna switch is overstressed
  * from the first RF cycle, so a check once the packet is at full power is too
- * late.  A packet whose supply is above the US level and whose modelled U.FL
- * power is above OFFGRID_SOFTSTART_ABOVE_DBM (less OFFGRID_SOFTSTART_MODEL_DB
- * for the provisional model) starts with the amplifier supply at
- * OFFGRID_SOFTSTART_VPA_MV; at the detector sample the ratio check runs, and
- * only a clean ratio reading raises the supply to the packet's own level (one
- * VOUT1 write; the TPS63810 then slews at 1 V/ms).  A trip is the
- * missing-antenna cut-off above; a reading that cannot be trusted (FWD_DET
- * low) keeps the packet at the soft-start level.  The supply goes back to the
- * soft-start level as soon as the packet has gone.
- *
- * OFFGRID_SOFTSTART_VPA_MV: Psat(VPA) = 30 dBm in the transmit model (2.25 V;
- * firmware/tools/pa_gain_table.py), so even the full +20 dBm drive of licensed
- * mode gives <= 1 W (model 29.9 dBm).  The US supply (2.7 V) would not: the
- * gain table holds US packets to a +13 dBm drive, but at +20 dBm 2.7 V gives
- * ~31.4 dBm (1.4 W).  Set it to 2700 to start at the US level instead.
+ * late.  A packet whose modelled U.FL power is above OFFGRID_SOFTSTART_DBM
+ * starts with the amplifier supply at the highest TPS63810 step (25 mV) at
+ * which the model gives at most OFFGRID_SOFTSTART_DBM with this packet's
+ * SX1262 drive, never below OFFGRID_SOFTSTART_VPA_MIN_MV: 2.25 V at the full
+ * +20 dBm drive (Psat(VPA) = 30 dBm, model 29.9 dBm; tools/pa_gain_table.py),
+ * a little more at lower drives.  So the check runs at 29.9-30.0 dBm, where
+ * the detector rule is fitted.  (The US supply, 2.7 V, would give ~31.4 dBm
+ * at +20 dBm drive.)  At the detector sample the check runs; "present" raises
+ * the supply to the packet's own level (one VOUT1 write; the TPS63810 then
+ * slews at 1 V/ms), "missing" is the cut-off above.  The supply goes back to
+ * the soft-start level as soon as the packet has gone.
  *
  * LoRa is constant-envelope (chirps), so an amplitude step early in the
  * preamble does not corrupt the packet; it must land inside the preamble,
@@ -484,14 +464,11 @@ static const uint8_t SCK = PIN_SPI_SCK;
  * the raise to 4.0 V ends ~3.0 ms in.  Every other preset is longer (LONG_FAST
  * 131 ms, LONG_SLOW 524 ms).
  */
-#ifndef OFFGRID_SOFTSTART_ABOVE_DBM
-#define OFFGRID_SOFTSTART_ABOVE_DBM 30
+#ifndef OFFGRID_SOFTSTART_DBM
+#define OFFGRID_SOFTSTART_DBM 30
 #endif
-#ifndef OFFGRID_SOFTSTART_MODEL_DB
-#define OFFGRID_SOFTSTART_MODEL_DB 1 // the QPA9510 may have ~1 dB more gain than the model
-#endif
-#ifndef OFFGRID_SOFTSTART_VPA_MV
-#define OFFGRID_SOFTSTART_VPA_MV 2250
+#ifndef OFFGRID_SOFTSTART_VPA_MIN_MV
+#define OFFGRID_SOFTSTART_VPA_MIN_MV 2250 // the full-drive value; never run the amplifier lower than this
 #endif
 #ifndef OFFGRID_SOFTSTART_PREAMBLE_MARGIN_US
 #define OFFGRID_SOFTSTART_PREAMBLE_MARGIN_US 500

@@ -570,4 +570,4 @@ def detector_fwd():
         note='forward-wave detector: at the 49.9 R (filter end of the coupled line)')
     C('C1n', 'FWD_DET'); R('R100k', 'FWD_DET')
     # the coupled line's U.FL end: its own 49.9 R, beside the reflected diode
-    R('R49.9R_0805', 'REFL_CPL', note='coupler termination: at the U.FL end, by the reflected diode')
+    R('R49.9R', 'REFL_CPL', note='coupler termination: at the U.FL end, by the reflected diode (21 mW: 0402)')

@@ -11664,7 +11664,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "og:R_0805"
+		(property "Footprint" "og:R_0402"
 			(at 165.1 157.48 0)
 			(effects
 				(font
@@ -11673,7 +11673,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "CRCW080549R9FKEAHP"
+		(property "MPN" "RC0402FR-0749R9L"
 			(at 165.1 157.48 0)
 			(effects
 				(font
@@ -11682,7 +11682,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manufacturer" "Vishay Dale"
+		(property "Manufacturer" "Yageo"
 			(at 165.1 157.48 0)
 			(effects
 				(font
@@ -11691,7 +11691,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "541-49.9TCT-ND"
+		(property "DigiKey" "311-49.9LRCT-ND"
 			(at 165.1 157.48 0)
 			(effects
 				(font
@@ -11700,7 +11700,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C4088942"
+		(property "LCSC" "C87044"
 			(at 165.1 157.48 0)
 			(effects
 				(font
@@ -11709,7 +11709,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Resistor 49.9R 1% 0.5 W pulse-proof 0805"
+		(property "Description" "Resistor 49.9R 1% 0402"
 			(at 165.1 157.48 0)
 			(effects
 				(font

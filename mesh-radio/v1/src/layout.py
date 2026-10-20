@@ -261,13 +261,40 @@ def place_all(log=print):
     NODES['ANT'] = (fl3[0], ya, 0)
     yc = ya - RF_PITCH_CPL                               # the coupled line, above the antenna line
     on = lambda *nets: [c.ref for c in comps if set(nets) <= set(c.pins.values())]
-    pin = lambda r_, net: B.pad_xy(r_, [p for p, n in B.comps[r_].pins.items() if n == net][0])
-    term = on('REFL_CPL', 'GND')[0]
+    def pin(r_, net):
+        # (of two pads on the net, the one farthest from the part's other nets: a diode pair's cathode)
+        ps = [p for p, n in B.comps[r_].pins.items() if n == net]
+        others = [B.pad_xy(r_, p) for p, n in B.comps[r_].pins.items() if n != net]
+        return max((B.pad_xy(r_, p) for p in ps),
+                   key=lambda q: min([(q[0] - o[0]) ** 2 + (q[1] - o[1]) ** 2 for o in others] or [0]))
+    # the two 49.9 R terminations: one at each end of the coupled line
+    # (circuit.py notes; the U.FL-end one since 20 Oct, sim/rf study 8)
+    note = {c.ref: c.note for c in comps}
+    terms = sorted(on('REFL_CPL', 'GND'), key=lambda r_: 'U.FL end' in note[r_])   # filter end first
+    term = terms[0]
     put_pad(B, term, 'REFL_CPL', (xa, yc - 1.0), (0, -0.1), 'GND', (0, -1), tries=5)
     det = on('REFL_CPL', 'REFL_DET')[0]
-    put_pad(B, det, 'REFL_CPL', (xb, yc - 1.0), (0, -0.1), 'REFL_DET', (0, -1), tries=5)
-    ta, da = pin(term, 'REFL_CPL'), pin(det, 'REFL_CPL')
-    cpl = [ta, (ta[0], yc), (da[0], yc), da]
+    if len(terms) > 1:
+        # the line's U.FL end: its 49.9 R (0402) just above the end, lying
+        # back along the line (the U.FL leaves no room beyond it), and the
+        # reflected diode straight above that pad, turned so its anode is its
+        # bottom-most pad (the short link up to it touches no other pad)
+        put_pad(B, terms[1], 'REFL_CPL', (xb, yc - 0.6), (0, -0.1), 'GND', (-1, 0), tries=10)
+        te = pin(terms[1], 'REFL_CPL')
+        an = [p for p, n in B.comps[det].pins.items() if n == 'REFL_CPL'][0]
+        for rot in (0, 90, 180, 270):
+            _, pads = B.geom(det, 0, 0, rot, 'T')
+            if all(pads[an][1] - q[1] > 0.3 for p, q in pads.items() if p != an):
+                break
+        else:
+            raise ValueError('cannot turn %s' % det)
+        put_fit(B, det, te[0] - pads[an][0], te[1] - 1.2 - pads[an][1], rot, (0, -0.1), tries=30)
+        ta, da = pin(term, 'REFL_CPL'), pin(det, 'REFL_CPL')
+        cpl = [ta, (ta[0], yc), (te[0], yc), te, da]
+    else:
+        put_pad(B, det, 'REFL_CPL', (xb, yc - 1.0), (0, -0.1), 'REFL_DET', (0, -1), tries=5)
+        ta, da = pin(term, 'REFL_CPL'), pin(det, 'REFL_CPL')
+        cpl = [ta, (ta[0], yc), (da[0], yc), da]
     # the forward detector (since 20 Oct): its diode at the 49.9 R end, on
     # the line's level, its cathode away from it
     fwd = on('REFL_CPL', 'FWD_DET')
@@ -280,8 +307,19 @@ def place_all(log=print):
     for d_, net, away in ((det, 'REFL_DET', (0, -1)),) + (((fwd[0], 'FWD_DET', (-1, 0)),) if fwd else ()):
         k = pin(d_, net)
         for r_ in [c.ref for c in comps if set(c.pins.values()) == {net, 'GND'}]:
-            put_pad(B, r_, net, (k[0] + away[0] * 0.8, k[1] + away[1] * 0.8), (away[1] * 0.1 or -0.1, away[0] * 0.1 or -0.1),
-                    'GND', away, tries=30)
+            # the nearest free spot: straight out, then either side, then further out
+            for d, step in ((0.8, (away[1] * 0.1 or -0.1, away[0] * 0.1 or -0.1)), (0.8, (-(away[1] * 0.1) or 0.1, -(away[0] * 0.1) or 0.1)),
+                            (1.6, (away[1] * 0.1 or -0.1, away[0] * 0.1 or -0.1)), (1.6, (-(away[1] * 0.1) or 0.1, -(away[0] * 0.1) or 0.1))):
+                try:
+                    put_pad(B, r_, net, (k[0] + away[0] * d, k[1] + away[1] * d), step, 'GND', away, tries=25)
+                    break
+                except ValueError:
+                    continue
+            else:
+                # the 100 k only bleeds the 1 nF (DC): the packer places it
+                # with the rest; the 1 nF must sit at the diode
+                if B.comps[r_].part.startswith('C'):
+                    raise ValueError('no room for %s by %s' % (r_, d_))
     esd = [c.ref for c in comps if c.part == 'L47nH' and set(c.pins.values()) == {'ANT', 'GND'}][0]
     put_pad(B, esd, 'ANT', (xb - 0.6, ya + 0.55), (-0.1, 0), 'GND', (0, 1), tries=10)
     # receive: from the switch's RX port (down) left along the board, the
@@ -335,7 +373,7 @@ def place_all(log=print):
     left = place.pack(B, left)                 # parts whose anchor was placed after them
     if left:
         log('no room for: %s' % left)
-    B.pl['_nodes'] = {k: ([[round(p[0], 3), round(p[1], 3)] for p in v] if k == '_cpl'
+    B.pl['_nodes'] = {k: ([[round(p[0], 3), round(p[1], 3)] for p in v] if k.startswith('_cpl')
                           else [round(v[0], 3), round(v[1], 3), v[2]]) for k, v in NODES.items()}
     clashes = overlaps(B)
     for a_, b_ in clashes:
@@ -411,7 +449,10 @@ def put_pad(B, r_, net, at, step, far_net, far_dir, side='T', tries=60):
     spot stepping by `step`), turned so its `far_net` pad lies toward
     far_dir (a unit (dx, dy))."""
     pn = [p for p, n in B.comps[r_].pins.items() if n == net][0]
-    pf = [p for p, n in B.comps[r_].pins.items() if n == far_net and p != pn][0]
+    # of several far_net pads (a SOT-323 diode pair with two pins joined) the one farthest from pn
+    _, pads0 = B.geom(r_, 0, 0, 0, side)
+    pf = max([p for p, n in B.comps[r_].pins.items() if n == far_net and p != pn],
+             key=lambda p: (pads0[p][0] - pads0[pn][0]) ** 2 + (pads0[p][1] - pads0[pn][1]) ** 2)
     for rot in (0, 90, 180, 270):
         _, pads = B.geom(r_, 0, 0, rot, side)
         dx, dy = pads[pf][0] - pads[pn][0], pads[pf][1] - pads[pn][1]
@@ -431,6 +472,8 @@ def put_fit(B, r_, x, y, rot, step, side='T', tries=60):
             return
     r = B.rect(r_, x, y, rot, side)
     hits = [o for o in B.taken[side] + B.keepouts[side] if place.overlap(r, o, place.GAP)]
+    rl = B.rect(r_, x + step[0] * (tries - 1), y + step[1] * (tries - 1), rot, side)
+    hits += [o for o in B.taken[side] + B.keepouts[side] if place.overlap(rl, o, place.GAP) and o not in hits]
     edge = r[0] < -pcb.HX + 0.25 or r[2] > pcb.HX - 0.25 or r[1] < -pcb.HY + 0.25 or r[3] > pcb.HY - 0.25
     raise ValueError('no room for %s near (%.2f, %.2f): %s%s' % (r_, x, y, place.who(B, hits[:4]),
                                                             ' (and the board edge)' if edge else ''))
@@ -581,8 +624,10 @@ def rf_paths(pads, nodes):
         t = (p[0] - h[0]) * ux + (p[1] - h[1]) * uy
         return t, (round(h[0] + ux * t, 4), round(h[1] + uy * t, 4))
 
-    if '_cpl' in nodes:                                  # the detector's coupled line, as drawn
-        cp = [tuple(p) for p in nodes['_cpl']]
+    for k in sorted(nodes):                              # the detector's coupled line (and branch), as drawn
+        if not k.startswith('_cpl'):
+            continue
+        cp = [tuple(p) for p in nodes[k]]
         for a_, b_ in zip(cp, cp[1:]):
             add('REFL_CPL', a_, b_)
     for n, pp in sorted(by.items()):
