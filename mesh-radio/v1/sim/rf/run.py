@@ -500,9 +500,10 @@ def study2(s1):
     out()
     out('=' * 100)
     out('STUDY 2  Monte Carlo, %d runs at each temperature (tolerances uniform over the full band, per-part TC drawn' % NMC)
-    out('         from the maker range): C0G +-0.05/0.1/0.25 pF or +-5 %%, LQW15AN +-0.2 nH / +-5 %%, LQW18AN 4.7 and 3.6 nH')
-    out('         +-0.5 nH, 11 nH +-2 %%, 0908SQ +-5 %%; TC C0G 0+-30 ppm/C, inductors +25..+125 ppm/C, R +-100 ppm/C;')
-    out('         SKY13330 loss typ..max; LFCN loss x1.0-1.5 and +-1 %% frequency (ASSUMED spreads).')
+    out('         from the maker range): C0G +-0.05/0.1/0.25 pF or +-5 %, LQW15AN +-0.2 nH / +-5 %, LQW2BAN 0805 +-5 %,')
+    out('         0908SQ +-5 %; TC C0G 0+-30 ppm/C, inductors +25..+125 ppm/C, R +-100 ppm/C;')
+    out('         SKY13330 loss typ..max; %s loss x1.0-1.5 and +-1 %% frequency (ASSUMED spreads; its data-sheet' % FLT)
+    out('         maximum, 1.8 dB, would add ~1.1 dB to every loss below).  Coupler geometry nominal.')
     out('=' * 100)
     out('Yield criteria: (1) loss PA -> U.FL <= 1.3 dB in band (35 dBm at 4.0 V) - reported separately;')
     out('  (2) every harmonic 2f-5f meets FCC (6 dBi, 35 dBm) and Part 97 with >= 0 dB margin;')
@@ -571,7 +572,7 @@ def study2(s1):
     out_of_band = (n2all.max() < 2.706e9) or (n1all.max() < 1.804e9)
     summ('2', 'elliptic LPF notch placement', 'MARGINAL' if out_of_band else 'PASS',
          'nominal %.2f / %.2f GHz (ideal 1.82 / 2.78); 99 %% of runs %.2f-%.2f / %.2f-%.2f GHz vs the 1.80-1.86 / 2.71-2.78 '
-         'bands: the notches miss, the LFCN carries the rejection' % ((n10[0] / 1e9, n20[0] / 1e9) + q(n1all) + q(n2all)))
+         'bands: the notches miss, the %s carries the rejection' % ((n10[0] / 1e9, n20[0] / 1e9) + q(n1all) + q(n2all) + (FLT,)))
     plot_mc(allnotch)
     return rows
 
@@ -624,8 +625,9 @@ def r0805_rating(t_c, p70=0.125, t0=70.0, tmax=155.0):
 def study3():
     out()
     out('=' * 100)
-    out('STUDY 3  The 15.9 dB pi pad (68 / 150 / 68 R, Yageo RC0805FR-07, 0.125 W at 70 C, derated linearly to 0 W at')
-    out('         155 C; TCR +-100 ppm/C; 1 %).  SX1262 output into the pad = its setting (Semtech defines output power')
+    out('STUDY 3  The 15.9 dB pi pad (68 / 150 / 68 R 0805, 1 %, TCR +-100 ppm/C): R41 Vishay RCS080568R0FKEA anti-surge')
+    out('         0.4 W at 70 C, the other two Yageo RC0805FR-07 0.125 W at 70 C; all derated linearly to 0 W at 155 C.')
+    out('         SX1262 output into the pad = its setting (Semtech defines output power')
     out('         into 50 ohm); +1 dB unit/temperature spread assumed.  PA input at its worst-case phase, VSWR 2.48:1.')
     out('=' * 100)
     out('Criteria: power in each resistor <= 70 % of its derated rating PASS (README E4), 70-100 % MARGINAL (fails E4),')
@@ -664,7 +666,7 @@ def study3():
     for pset, pw, pin in res:
         out('  %+5.1f dBm        ' % pset + '   '.join('%6.1f mW                  ' % (1e3 * pw[r]) for r in refs) + '   %+5.1f dBm' % pin)
     out()
-    out('  derated rating: ' + ', '.join('%d C %.0f mW' % (t, 1e3 * r0805_rating(t)) for t in TEMPS))
+    out('  derated rating of a 0.125 W part: ' + ', '.join('%d C %.0f mW' % (t, 1e3 * r0805_rating(t)) for t in TEMPS))
     r1 = refs[0]
     def p70(r):
         mpn = B.parts.PARTS[B.BY_REF[r].part]['mpn']
@@ -702,14 +704,14 @@ def study3():
     # plot
     fig, ax = plt.subplots(figsize=(7, 4.2))
     tt = np.linspace(-40, 125, 200)
-    ax.plot(tt, [1e3 * r0805_rating(t) for t in tt], color='k', lw=1.5, label='0805 rating (Yageo derating)')
-    ax.plot(tt, [0.7e3 * r0805_rating(t) for t in tt], color=CG, lw=1, ls='--', label='70 % (E4 headroom)')
+    ax.plot(tt, [1e3 * r0805_rating(t, p70=0.4) for t in tt], color='k', lw=1.5, label='R41 RCS0805 0.4 W rating')
+    ax.plot(tt, [0.7e3 * r0805_rating(t, p70=0.4) for t in tt], color=CG, lw=1, ls='--', label='70 % (E4 headroom)')
     for (pset, pw, pin), col in zip(res, (C1, C3, C2, C4)):
         ax.axhline(1e3 * max(pw.values()), color=col, lw=1.5, label='first 68 R at SX1262 %+.0f dBm' % pset)
     ax.axvline(85, color=CR, lw=0.8, ls=':')
     ax.set_xlabel('board temperature at the resistor, C')
     ax.set_ylabel('mW')
-    ax.set_ylim(0, 160)
+    ax.set_ylim(0, 420)
     ax.grid(alpha=0.25)
     ax.legend(fontsize=8, loc='lower left')
     ax.set_title('Pi pad: power in the first 68 R vs its derated rating', fontsize=10)
@@ -734,7 +736,8 @@ def te_nf(te):
 def study4():
     out()
     out('=' * 100)
-    out('STUDY 4  Receive path: U.FL -> 47 nH -> LFCN -> SKY13330 RF1->RF3 -> [1 nF + 11 nH + BGA7L1BN6] -> balun -> SX1262')
+    out('STUDY 4  Receive path: U.FL -> coupler + 47 nH + detector -> %s -> SKY13330 RF1->RF3 -> [1 nF + 11 nH + BGA7L1BN6]' % FLT)
+    out('         -> balun -> SX1262')
     out('=' * 100)
     out('Inputs.  SX1262 (Semtech DS rev 1.2 table 3-8, boosted gain, split TX/RX, switch excluded): -137 dBm SF12/BW125,')
     out('  -134 dBm SF12/BW250 -> NF %.2f dB including Semtech\'s balun (S = -174 + 10log BW + NF + SNR, SNR SF12 -20 dB,'
@@ -751,10 +754,11 @@ def study4():
     S = b.rx_front().sparams(FB, ['ANT', 'RX_SW'])[0]
     gav = R.avail_gain(S)
     lpre_typ = float(np.max(-R.db10(gav)))
-    out('  passive loss U.FL -> RX_SW (available gain, typical parts): %.2f dB (LFCN %.2f, switch 0.30, ESD + traces rest);'
-        ' RL at U.FL %.1f dB' % (lpre_typ, np.max(-R.db20(lfcn.response(FB)[:, 1, 0])), np.min(R.rl_db(S[:, 0, 0]))))
-    lpre_max = lpre_typ + (1.0 - 0.66) + (0.35 - 0.30)
-    out('  worst case: LFCN 1.0 dB (data-sheet max) and switch 0.35 dB -> %.2f dB' % lpre_max)
+    lflt = float(np.max(-R.db20(flt_response(FB)[:, 1, 0])))
+    out('  passive loss U.FL -> RX_SW (available gain, typical parts): %.2f dB (%s %.2f, switch 0.30, coupler + ESD + detector'
+        ' + traces the rest); RL at U.FL %.1f dB' % (lpre_typ, FLT, lflt, np.min(R.rl_db(S[:, 0, 0]))))
+    lpre_max = lpre_typ + (FLT_IL_MAX - lflt) + (0.35 - 0.30)
+    out('  worst case: %s %.1f dB (data-sheet max) and switch 0.35 dB -> %.2f dB' % (FLT, FLT_IL_MAX, lpre_max))
     rows = []
     for T in TEMPS:
         tk = T + 273.15
@@ -930,7 +934,8 @@ def study6():
     out()
     out('=' * 100)
     out('STUDY 6  Bluetooth match: Nordic pi (0.8 pF / 4.7 nH / 0.5 pF) + Johanson tee (1.0 pF / 2.7 nH / 3.9 nH) +')
-    out('         2450AT18A100 chip antenna, 2400-2483.5 MHz, with tolerances (GJM +-0.1 pF, LQW15AN +-0.2 nH).')
+    out('         2450AT18A100 chip antenna, 2400-2483.5 MHz, with tolerances (0.8 pF GJM...W +-0.05 pF, other GJM +-0.1 pF,')
+    out('         LQW15AN +-0.2 nH).')
     out('=' * 100)
     out('No PCB yet: the antenna is modelled as what Johanson\'s tee matches on Johanson\'s EVB (data sheet: "matching values')
     out('on the client PCB will be different"); the routed-board check (EM model or VNA on built boards) follows.  The nRF')
@@ -1002,67 +1007,80 @@ def study6():
 
 
 # ============================================================================ study 7
-def study7(s1):
-    out()
-    out('=' * 100)
-    out('STUDY 7  No antenna at 3 W: U.FL open (|Gamma| = 1, every phase, i.e. any cable length) and a 10:1 load')
-    out('=' * 100)
-    out('Ratings.  SKY13330 (DS 201407E): input power +40 dBm abs max (= 31.6 V peak in 50 ohm: the voltage that power')
-    out('  makes; no voltage or VSWR rating is published), IP0.1dB +38.5 dBm (26.6 V peak) - above it the switch compresses')
-    out('  and makes harmonics after the elliptic filter.  LFCN-1000+: 10 W at 25 C derated to 3.5 W at 100 C (4.8 W at 85 C,')
-    out('  21.9 V peak equivalent); no voltage rating.  QPA9510 (DS): output load VSWR 10:1 no damage at VCC 3.6 V, Pin')
-    out('  +4.5 dBm, -40..85 C; 8:1 stable; 4.0 V not covered.  Criteria: peak voltage < 95 %% of the 50-ohm equivalent of the')
-    out('  abs max PASS, 95-100 %% MARGINAL, above FAIL; PA VSWR at its plane <= 10:1 PASS (at 3.6 V only).')
-    out('Two PA models: (A) saturated PA (current source + voltage clamp at the die, through this board\'s output match);')
-    out('  (B) a 50-ohm source whose available power gives the rated output into a matched antenna.')
-    pa_by_v = {3.6: PA(3.6), 4.0: PA(4.0), 2.7: PA(2.7)}
-    b = B.Board()
-    ckt = b.tx_out(with_pa=True)
-    ph = np.linspace(0, 2 * np.pi, 180, endpoint=False)
-    nodes = ['PA_OUT', 'PA_M1', 'PA_M2', 'PA_M3', 'PA_TX', 'SW2', 'SW1', 'ANT_SW', 'LF_OUT', 'ANT']
-    vlim = {'SW2': 31.6, 'SW1': 31.6, 'ANT_SW': 21.9, 'LF_OUT': 21.9}
-    results = {}
-    ct = b.tx_out(with_pa=False)
+SW_VMAX = 31.6           # SKY13330 +40 dBm abs max, as the peak voltage it makes in 50 ohm
+SW_V01 = 26.6            # SKY13330 IP0.1dB +38.5 dBm, same
+OPEN_NODES = ['PA_OUT', 'PA_M1', 'PA_M2', 'PA_M3', 'PA_TX', 'SW2', 'SW1', 'ANT_SW', 'LF_OUT', 'ANT_E', 'ANT']
+
+
+def flt_vrating(t_c):
+    """Peak voltage the filter's power rating makes in 50 ohm (no voltage rating is published)."""
+    return math.sqrt(2 * R.Z0 * flt_rating_w(t_c))
+
+
+def open_stress(b, ckt, ct, ph, vpas=(2.7, 3.6, 4.0)):
+    """Peak node voltages with the U.FL open (every phase, 902-928 MHz) for model A (saturated PA at each VPA)
+    and model B (50-ohm source; at the same matched power as A, and at 30 dBm, the US cap)."""
     S = ct.sparams(FB, ['PA_M2', 'ANT'])[0]
-    # nominal operating point
-    for vpa, pa in pa_by_v.items():
-        v0, i0 = pa.solve(ckt, FB, 0.0)
+    loss = -R.db20(S[:, 1, 0])
+    resA, resB = {}, {}
+    for vpa in vpas:
+        pa = PA(vpa)
+        v0, _ = pa.solve(ckt, FB, 0.0)
         p_ant = R.w_to_dbm(np.abs(v0['ANT'][0]) ** 2 / (2 * R.Z0))
-        vmax = {n: np.zeros(3) for n in nodes}
+        vmax = {n: np.zeros(3) for n in OPEN_NODES}
         imax = np.zeros(3)
         for g in (1.0, 0.818):
             for p in ph:
-                gam = g * np.exp(1j * p)
-                v, i = pa.solve(ckt, FB, gam)
-                for n in nodes:
+                v, i = pa.solve(ckt, FB, g * np.exp(1j * p))
+                for n in OPEN_NODES:
                     vmax[n] = np.maximum(vmax[n], np.abs(v[n][0]))
                 imax = np.maximum(imax, np.abs(i[0]))
-                if g == 1.0:
-                    pass
-        results[vpa] = (p_ant, vmax, imax / pa.inom)
-    # model B
-    resB = {}
-    for vpa in (3.6, 4.0, 2.7):
-        p_ant = results[vpa][0]
-        loss = -R.db20(S[:, 1, 0])
-        pav = R.dbm_to_w(p_ant + loss)        # available at PA_M2
-        vmax = {n: np.zeros(3) for n in nodes if n not in ('PA_OUT', 'PA_M1')}
+        resA[vpa] = (p_ant, vmax, imax / pa.inom, pa)
+    for key in list(vpas) + ['30dBm']:
+        p_ant = np.full(3, 30.0) if key == '30dBm' else resA[key][0]
+        pav = R.dbm_to_w(p_ant + loss)
+        vmax = {n: np.zeros(3) for n in OPEN_NODES if n not in ('PA_OUT', 'PA_M1')}
         for p in ph:
-            gam = np.exp(1j * p)
             vinc = np.sqrt(8 * R.Z0 * pav)
             v = ct.voltages(FB, {'PA_M2': vinc / R.Z0}, loads={'PA_M2': lambda w: np.ones(w.shape) / R.Z0,
-                                                                'ANT': ant_load(gam)})
+                                                                'ANT': ant_load(np.exp(1j * p))})
             for n in vmax:
                 vmax[n] = np.maximum(vmax[n], np.abs(v[n][0]))
-        resB[vpa] = vmax
+        resB[key] = (p_ant, vmax)
+    return resA, resB, S
+
+
+def study7(s1):
+    out()
+    out('=' * 100)
+    out('STUDY 7  No antenna: U.FL open (|Gamma| = 1, every phase, i.e. any cable length) and a 10:1 load, VPA 2.7 / 3.6 / 4.0 V')
+    out('=' * 100)
+    out('Ratings.  SKY13330 (DS 201407E): input power +40 dBm abs max (= 31.6 V peak in 50 ohm: the voltage that power')
+    out('  makes; no voltage or VSWR rating is published), IP0.1dB +38.5 dBm (26.6 V peak) - above it the switch compresses')
+    out('  and makes harmonics after the elliptic filter.  %s: %.1f W at 25 C derated linearly to 1 W at 125 C (%.1f W at'
+        % (FLT, flt_rating_w(25), flt_rating_w(85)))
+    out('  85 C; %.1f / %.1f V peak equivalent at 25 / 85 C); no voltage rating.  QPA9510 (DS): output load VSWR 10:1 no damage'
+        % (flt_vrating(25), flt_vrating(85)))
+    out('  at VCC 3.6 V, Pin +4.5 dBm, -40..85 C; 8:1 stable; 4.0 V not covered.  Criteria: peak voltage < 95 % of the 50-ohm')
+    out('  equivalent of the abs max PASS, 95-100 % MARGINAL, above FAIL; PA VSWR at its plane <= 10:1 PASS (at 3.6 V only).')
+    out('Two PA models: (A) saturated PA (current source + voltage clamp at the die, through this board\'s output match);')
+    out('  (B) a 50-ohm source whose available power gives model A\'s output into a matched antenna (and, for the US')
+    out('  setting, 30 dBm).  The firmware\'s US mode is VPA 2.7 V with the SX1262 drive set for 30 dBm, i.e. between the two.')
+    b = B.Board()
+    ckt = b.tx_out(with_pa=True)
+    ct = b.tx_out(with_pa=False)
+    ph = np.linspace(0, 2 * np.pi, 180, endpoint=False)
+    resA, resB, S = open_stress(b, ckt, ct, ph)
+    nodes = OPEN_NODES
     out()
     out('  VPA    P at U.FL (matched)  |  peak voltage (V) with the U.FL open, worst phase, model A [model B]')
     out('                              |  ' + '  '.join('%-14s' % n for n in nodes[2:]))
     for vpa in (2.7, 3.6, 4.0):
-        p_ant, vmax, ir = results[vpa]
+        p_ant, vmax, ir, pa = resA[vpa]
         out('  %.1f V  %5.1f dBm (%4.2f W)    |  ' % (vpa, p_ant[1], R.dbm_to_w(p_ant[1]))
-            + '  '.join('%5.1f [%5.1f]  ' % (vmax[n].max(), resB[vpa][n].max()) for n in nodes[2:]))
+            + '  '.join('%5.1f [%5.1f]  ' % (vmax[n].max(), resB[vpa][1][n].max()) for n in nodes[2:]))
         out('         die current up to %.2f x nominal; PA_OUT %.1f V peak, PA_M1 %.1f V peak' % (ir.max(), vmax['PA_OUT'].max(), vmax['PA_M1'].max()))
+    out('  model B at 30 dBm (US cap):  |  ' + '  '.join('      [%5.1f]  ' % resB['30dBm'][1][n].max() for n in nodes[2:]))
     # VSWR at PA plane
     vs_pa = 0
     for p in ph:
@@ -1074,20 +1092,42 @@ def study7(s1):
     out('  VSWR the PA sees at its EVB plane with the U.FL open: %.1f:1 worst phase (round-trip loss %.1f dB)' % (vs_pa, rt))
     summ('7', 'PA load with antenna missing', 'PASS' if vs_pa <= 10 else 'FAIL',
          '%.1f:1 at the PA (rated 10:1 at 3.6 V, Pin +4.5 dBm): firmware 3.6 V ceiling is right; 4.0 V is outside the rating' % vs_pa)
-    for vpa in (3.6, 4.0):
-        v1 = max(results[vpa][1]['SW1'].max(), resB[vpa]['SW1'].max(), results[vpa][1]['SW2'].max(), resB[vpa]['SW2'].max())
-        pct = 100 * v1 / 31.6
+    sw = {}
+    for vpa in (2.7, 3.6, 4.0):
+        va = max(resA[vpa][1]['SW1'].max(), resA[vpa][1]['SW2'].max())
+        vb = max(resB[vpa][1]['SW1'].max(), resB[vpa][1]['SW2'].max())
+        sw[vpa] = (va, vb)
+        v1 = max(va, vb)
+        pct = 100 * v1 / SW_VMAX
+        extra = ''
+        if vpa == 2.7:
+            vb30 = max(resB['30dBm'][1]['SW1'].max(), resB['30dBm'][1]['SW2'].max())
+            sw['30dBm'] = vb30
+            extra = '; model B at exactly 30 dBm %.1f V (%.0f %%)' % (vb30, 100 * vb30 / SW_VMAX)
         summ('7', 'SKY13330 voltage, antenna missing, %.1f V' % vpa,
              'PASS' if pct < 95 else ('MARGINAL' if pct <= 100 else 'FAIL'),
-             '%.1f V peak = %.0f %% of the +40 dBm (31.6 V) abs max; %.0f %% of the IP0.1dB voltage' % (v1, pct, 100 * v1 / 26.6))
-        vl = max(results[vpa][1]['ANT_SW'].max(), results[vpa][1]['LF_OUT'].max(), resB[vpa]['ANT_SW'].max(), resB[vpa]['LF_OUT'].max())
-        out('  %.1f V: LFCN port peak %.1f V = %.0f %% of the 85 C power rating\'s voltage (21.9 V), %.0f %% of 10 W (31.6 V)'
-            % (vpa, vl, 100 * vl / 21.9, 100 * vl / 31.6))
-    # inductor RF stress in the matched and open cases (3.6 V)
+             'model A %.1f V (%.0f %%), model B %.1f V (%.0f %%) peak vs the +40 dBm (31.6 V) abs max; IP0.1dB 26.6 V%s'
+             % (va, 100 * va / SW_VMAX, vb, 100 * vb / SW_VMAX, extra))
+    for vpa in (2.7, 3.6, 4.0):
+        vl = max(resA[vpa][1]['ANT_SW'].max(), resA[vpa][1]['LF_OUT'].max(), resB[vpa][1]['ANT_SW'].max(),
+                 resB[vpa][1]['LF_OUT'].max())
+        out('  %.1f V: %s port peak %.1f V = %.0f %% of its 25 C power rating\'s voltage (%.1f V), %.0f %% of the 85 C one (%.1f V)'
+            % (vpa, FLT, vl, 100 * vl / flt_vrating(25), flt_vrating(25), 100 * vl / flt_vrating(85), flt_vrating(85)))
+    # inductor RF stress in the matched and open cases
+    heat = {}
+    for vpa in (2.7, 3.6, 4.0):
+        out()
+        wst = inductor_heating(b, resA[vpa][3], ckt, ph, verdicts=False)
+        heat[vpa] = wst
+        worst_t = max(x[6] for x in wst)
+        worst_o = max(x[7] for x in wst)
+        if vpa >= 3.6:
+            summ('7', 'inductor RF heating (steady), %.1f V' % vpa, 'PASS' if (worst_t <= 0.7 and worst_o <= 1.0) else
+                 ('MARGINAL' if worst_t <= 1.0 else 'FAIL'),
+                 'worst %.0f %% of rated-current heating matched (typical Q), %.0f %% antenna missing (L15; transient: 7b)'
+                 % (100 * worst_t, 100 * worst_o))
     out()
-    pa = pa_by_v[3.6]
-    inductor_heating(b, pa, ckt, ph, tag='')
-    out()
+    pa = resA[3.6][3]
     out('  Capacitor RF current and ESR loss (3.6 V, matched antenna; max-ESR limits; no RF current rating published for GQM):')
     w = 2 * np.pi * 915e6
     cap_refs = [c.ref for c in B.rf_parts(B.NETS_PA_OUT + B.NETS_LPF) if B.parts.PARTS[c.part]['kind'] == 'C'
@@ -1095,7 +1135,7 @@ def study7(s1):
     v0, _ = pa.solve(ckt, [915e6], 0.0)
     for ref in cap_refs:
         info = b.info.get(ref) or R.part_info(b.part(ref))
-        a, bb = B.BY_REF[ref].pins['1'], B.BY_REF[ref].pins['2']
+        a, bb = model_pins(ref)
         va = v0[a][0, 0] if a != 'GND' else 0
         vb = v0[bb][0, 0] if bb != 'GND' else 0
         z = R.Cap(info['value'], info['esr1g'], info['esl']).z(np.array([w]))[0, 0]
@@ -1105,45 +1145,44 @@ def study7(s1):
             1e3 * ic ** 2 * info['esr1g'] * math.sqrt(0.915)))
     # LNA during TX
     out()
-    vsw1 = max(results[4.0][1]['SW1'].max(), resB[4.0]['SW1'].max())
+    vsw1 = max(resA[4.0][1]['SW1'].max(), resB[4.0][1]['SW1'].max())
     p1 = vsw1 ** 2 / (2 * R.Z0)
     out('  LNA during transmit (firmware drives RXEN low = bypass): RF1 open-antenna peak %.1f V (4.0 V, worse model) ='
         ' %.1f dBm equivalent;' % (vsw1, R.w_to_dbm(p1)))
     out('   RF1->RF3 isolation 40 dB min -> LNA input %.1f dBm (abs max +25 dBm); bypass output %.1f dBm into the SX1262 RFI'
         ' (abs max +10 dBm)' % (R.w_to_dbm(p1) - 40, R.w_to_dbm(p1) - 40 - 2.2))
-    out('   matched antenna, 35 dBm: LNA input %.1f dBm.  If the LNA were left in high gain (13.6 dB, IP1dB -1 dBm) the SX1262'
-        ' would see ~%.0f dBm.' % (35.75 - 40, min(35.75 - 40 + 13.6, 13)))
     summ('7', 'LNA / SX1262 RX input during TX', 'PASS', 'LNA input %.1f dBm worst (abs max +25); SX1262 RFI %.1f dBm (abs max +10)'
          % (R.w_to_dbm(p1) - 40, R.w_to_dbm(p1) - 42.2))
-    # plot: SW1 voltage vs phase
+    # plot: switch voltage vs phase
     fig, ax = plt.subplots(figsize=(7, 4.2))
-    for vpa, col in ((3.6, C1), (4.0, C2)):
-        pa = pa_by_v[vpa]
+    for vpa, col in ((2.7, C3), (3.6, C1), (4.0, C2)):
+        pa = resA[vpa][3]
         vv = []
         for p in ph:
             v, _ = pa.solve(ckt, [915e6], np.exp(1j * p))
-            vv.append(abs(v['SW1'][0, 0]))
-        ax.plot(np.degrees(ph), vv, color=col, lw=2, label='switch RF1, VPA %.1f V (model A: saturated PA)' % vpa)
+            vv.append(max(abs(v['SW1'][0, 0]), abs(v['SW2'][0, 0])))
+        ax.plot(np.degrees(ph), vv, color=col, lw=2, label='switch RF1/RF2, VPA %.1f V (model A: saturated PA)' % vpa)
         f1 = np.array([915e6])
         S1 = ct.sparams(f1, ['PA_M2', 'ANT'])[0]
-        vinc = np.sqrt(8 * R.Z0 * R.dbm_to_w(results[vpa][0][1] - R.db20(S1[0, 1, 0])))
+        vinc = np.sqrt(8 * R.Z0 * R.dbm_to_w(resA[vpa][0][1] - R.db20(S1[0, 1, 0])))
         vb = []
         for p in ph:
             v = ct.voltages(f1, {'PA_M2': vinc / R.Z0}, loads={'PA_M2': lambda w: np.ones(w.shape) / R.Z0,
                                                                'ANT': ant_load(np.exp(1j * p))})
             vb.append(max(abs(v['SW1'][0, 0]), abs(v['SW2'][0, 0])))
         ax.plot(np.degrees(ph), vb, color=col, lw=1.5, ls='--', label='switch RF1/RF2, VPA %.1f V (model B: 50-ohm source)' % vpa)
-    ax.axhline(31.6, color=CR, ls='--', lw=1, label='+40 dBm abs max (31.6 V in 50 ohm)')
-    ax.axhline(26.6, color=CG, ls='--', lw=1, label='IP0.1dB (26.6 V)')
+    ax.axhline(SW_VMAX, color=CR, ls='--', lw=1, label='+40 dBm abs max (31.6 V in 50 ohm)')
+    ax.axhline(SW_V01, color=CG, ls='--', lw=1, label='IP0.1dB (26.6 V)')
     ax.set_xlabel('phase of the open-circuit reflection at the U.FL, degrees')
     ax.set_ylabel('peak RF voltage, V')
-    ax.set_title('Antenna missing: voltage on the SKY13330 antenna port, 915 MHz', fontsize=10)
+    ax.set_title('Antenna missing: voltage on the SKY13330, 915 MHz', fontsize=10)
     ax.grid(alpha=0.25)
-    ax.legend(fontsize=8)
+    ax.legend(fontsize=7)
     fig.tight_layout()
     fig.savefig(os.path.join(HERE, 'open_antenna.png'), dpi=110)
     plt.close(fig)
-    return results
+    heat7b = study7b(b, ckt, resA)
+    return dict(resA=resA, resB=resB, sw=sw, heat=heat, heat7b=heat7b, vs_pa=vs_pa)
 
 
 def inductor_heating(b, pa, ckt, ph, tag='', verdicts=True):
@@ -1157,7 +1196,7 @@ def inductor_heating(b, pa, ckt, ph, tag='', verdicts=True):
     for ref in ind_refs:
         b.value(ref)
         info = b.info[ref]
-        a, bb = B.BY_REF[ref].pins['1'], B.BY_REF[ref].pins['2']
+        a, bb = model_pins(ref)
         rac = float(R.Ind(info['value'], info['q'], info['fq'], info['srf'], info['rdc']).r(np.array([w]))[0, 0])
 
         def irms(gam):
@@ -1174,7 +1213,7 @@ def inductor_heating(b, pa, ckt, ph, tag='', verdicts=True):
             % (ref, info['mpn'], val, info['size'], im, io, 1e3 * pm, 1e3 * po, 1e3 * prated, 100 * pm / prated, 100 * po / prated))
         rt = pm / prated / 1.4          # verdict on typical Q
         ro = po / prated / 1.4
-        worst.append((ref, val, info['size'], pm, po, prated, rt, ro))
+        worst.append((ref, val, info['size'], pm, po, prated, rt, ro, info['mpn']))
         if verdicts and (rt > 0.3 or ro > 0.7):
             summ('7', '%sRF heating %s %s %s' % (tag, ref, val, info['size']),
                  'PASS' if (rt <= 0.7 and ro <= 1.0) else ('MARGINAL' if rt <= 1.0 else 'FAIL'),
@@ -1183,180 +1222,544 @@ def inductor_heating(b, pa, ckt, ph, tag='', verdicts=True):
     return worst
 
 
-# ============================================================================ fixes
-def fix_overrides(lpf=True, l36=True, esd=False, ble=True):
-    ov = {}
-
-    def kind(ref):
-        return B.parts.PARTS[B.BY_REF[ref].part]['kind']
-
-    def cap(mpn, v, size='0603'):
-        return dict(mpn=mpn, kind='C', value=v, desc='Capacitor %s 250V C0G high-Q %s (proposed)' % (v, size))
-
-    def ind(mpn, v, size='0805'):
-        return dict(mpn=mpn, kind='L', value=v, desc='Inductor %s %s wire-wound (proposed)' % (v, size))
-    if lpf:   # design_lpf.py: same topology, whole-chain optimised, one inductor type (LQW2BAN 3.2 nH 0805)
-        ov[refs_between('PA_M2', 'GND')[0]] = cap('GQM1875C2E2R0BB12D', '2.0pF')
-        for r in refs_between('PA_M2', 'PA_M3'):
-            ov[r] = ind('LQW2BAN3N2J00L', '3.2nH') if kind(r) == 'L' else cap('GQM1875C2E3R6BB12D', '3.6pF')
-        ov[refs_between('PA_M3', 'GND')[0]] = cap('GQM1875C2E1R3BB12D', '1.3pF')
-        for r in refs_between('PA_M3', 'PA_TX'):
-            ov[r] = ind('LQW2BAN3N2J00L', '3.2nH') if kind(r) == 'L' else cap('GQM1875C2E1R3BB12D', '1.3pF')
-        ov[refs_between('PA_TX', 'GND')[0]] = cap('GQM1875C2ER90BB12D', '0.9pF')
-    if l36:
-        ov[refs_between('PA_OUT', 'PA_M1')[0]] = ind('LQW2BAN3N6J00L', '3.6nH')
-    if esd:
-        ov[refs_between('ANT', 'GND')[0]] = ind('LQW2BAN47NJ00L', '47nH')
-    if ble:
-        r = [x for x in refs_between('NRF_ANT', 'GND') if kind(x) == 'C'][0]
-        ov[r] = dict(mpn='GJM1555C1HR80WB01D', kind='C', value='0.8pF', desc='Capacitor 0.8pF 50V C0G high-Q 0402')
-    return ov
+# Thermal data (ESTIMATES, makers publish none; followup.py 19 Oct): total part-to-ambient resistance from Murata's
+# rated current (20 C rise at I_rated^2 x Rdc max): LQW2BAN3N6J00L 2.0 A, 50 mOhm -> 0.20 W -> 100 K/W;
+# LQW15AN47NJ00D 0.21 A, 1.08 Ohm -> 48 mW -> 420 K/W, split part -> pads / pads -> ambient.  Heat capacity from
+# volume x 3.4 J/cm3K plus board copper within ~5 mm.
+THERM = {
+    'LQW2BAN3N6J00L': dict(r1=35.0, r2=65.0, c1=0.016, c2=0.25),
+    'LQW15AN47NJ00D': dict(r1=200.0, r2=220.0, c1=0.001, c2=0.08),
+}
 
 
-def fixes(s1):
-    """Re-run the affected checks with the proposed changes (overrides only; src/ unchanged)."""
+def thermal(p_w, th, t_amb, on=1.0, period=None, t_end=None, dt=1e-3):
+    """Two-node RC: part (c1) -r1- pads/board (c2) -r2- ambient.  Returns (t, Tpart, Tpad)."""
+    t_end = t_end or (on + 3 if period is None else 300.0)
+    n = int(t_end / dt)
+    tp, tb = t_amb, t_amb
+    T = np.empty(n)
+    Bd = np.empty(n)
+    for i in range(n):
+        t = i * dt
+        if period is None:
+            p = p_w if t < on else 0.0
+        else:
+            p = p_w if (t % period) < on else 0.0
+        q12 = (tp - tb) / th['r1']
+        tp += dt * (p - q12) / th['c1']
+        tb += dt * (q12 - (tb - t_amb) / th['r2']) / th['c2']
+        T[i], Bd[i] = tp, tb
+    return np.arange(n) * dt, T, Bd
+
+
+def study7b(b, ckt, resA):
     out()
-    out('=' * 100)
-    out('FIXES  proposed 18 Oct and applied to src/ in 6cb9185 (so the studies above already include them); this section')
-    out('       re-applies them as overrides, which is now a no-op apart from R41 shown as the ERJ-P06 alternative')
-    out('=' * 100)
-    ov = fix_overrides()
-    for r, p in sorted(ov.items(), key=lambda t: int(t[0][1:])):
-        c = B.BY_REF[r]
-        old = B.parts.PARTS[c.part]
-        out('  %-5s %-22s %-8s -> %-22s %-7s (%s)' % (r, old['mpn'], old['value'], p['mpn'], p['value'],
-                                                     '-'.join(n for n in c.pins.values())))
-    out('  R41  RC0805FR-0768RL 0.125 W -> Panasonic ERJ-P06F68R0V 0.5 W (same 0805 footprint, same value)')
-    pa = s1['pa']
-    b = B.Board(overrides=ov)
-    ct = b.tx_out(with_pa=False)
-    S = ct.sparams(FB, ['PA_M2', 'ANT'])[0]
-    il = -R.db20(S[:, 1, 0])
-    lp = b.lpf_only().sparams(FB, ['PA_M2', 'PA_TX'])[0]
-    out('  TX loss PA -> U.FL %.2f / %.2f / %.2f dB (was %.2f max); LPF alone %.2f dB; RL PA load %.1f dB, U.FL %.1f dB, LPF %.1f / %.1f dB'
-        % (il[0], il[1], il[2], s1['loss'], np.max(-R.db20(lp[:, 1, 0])), np.min(R.rl_db(S[:, 0, 0])),
-           np.min(R.rl_db(S[:, 1, 1])), np.min(R.rl_db(lp[:, 0, 0])), np.min(R.rl_db(lp[:, 1, 1]))))
-    n1, n2 = lpf_notches(b, 1)
-    out('  nominal LPF notches %.3f / %.3f GHz (targets 1.80-1.86 / 2.71-2.78)' % (n1[0] / 1e9, n2[0] / 1e9))
-    rej = harmonic_rejection(b, pa)
-    hres = harmonic_table(rej, b) if False else None
-    loss = float(np.min(il))
-    lv = harm_levels(rej, 35.0, loss)
-    m = harm_margins(lv, 35.0, 6.0)
-    out('  harmonic margins at 35 dBm / 6 dBi (dB):  ' + '  '.join('%df %.1f' % (n, float(min(m[n]['fcc'][0], m[n]['ham'][0])))
-                                                             for n in NH))
-    out('  PA-path rejection (dB):                    ' + '  '.join('%df %.0f' % (n, float(np.min(rej[n]['r']))) for n in NH))
+    out('7b Antenna missing, transient: L15 (3.6 nH output match) and L18 (47 nH ESD shunt), worst phase, model A.')
+    out('   Thermal data ESTIMATED (THERM: L15 35 / 65 K/W, 0.016 / 0.25 J/K; L18 200 / 220 K/W, 0.001 / 0.08 J/K).')
+    out('   Criterion: part <= 125 C (Murata).  (i) no detector cut-off: 1 s bursts (single, and every 4 s = 25 % duty);')
+    out('   (ii) with the firmware cut-off: the amplifier runs %.2f ms into the open, then once per retry (30 s, doubling'
+        % (FW['t_sample'] * 1e3))
+    out('   to 600 s), each retry at the 1 W setting.')
+    ph = np.linspace(0, 2 * np.pi, 90, endpoint=False)
+    w = 2 * np.pi * 915e6
+    refs = {'L15': refs_between('PA_OUT', 'PA_M1')[0], 'L18': [c.ref for c in B.rf_parts(B.NETS_ANT)][0]}
+    res = {}
+    for vpa in (2.7, 3.6, 4.0):
+        pa = resA[vpa][3]
+        for name, ref in refs.items():
+            b.value(ref)
+            info = b.info[ref]
+            a, bb = model_pins(ref)
+            rac = float(R.Ind(info['value'], info['q'], info['fq'], info['srf'], info['rdc']).r(np.array([w]))[0, 0])
+            L = float(np.atleast_1d(info['value'])[0])
+
+            def p_of(g):
+                v, _ = pa.solve(ckt, FB, g)
+                va = v[a][0] if a != 'GND' else 0
+                vb = v[bb][0] if bb != 'GND' else 0
+                i = np.abs((va - vb) / (rac + 1j * w * L)) / math.sqrt(2)
+                return float(np.max(i ** 2 * rac))
+            res[(vpa, name)] = (p_of(0.0), max(p_of(np.exp(1j * p)) for p in ph), info['mpn'])
+    out('   dissipation (W), matched / antenna missing:  ' + '   '.join(
+        'VPA %.1f V: L15 %.3f / %.3f, L18 %.3f / %.3f' % (v, res[(v, 'L15')][0], res[(v, 'L15')][1], res[(v, 'L18')][0],
+                                                          res[(v, 'L18')][1]) for v in (2.7, 3.6, 4.0)))
+    out('   peak part / pad temperature (C), 60 C ambient:   single 1 s burst | 25 % duty | with the 0.75 ms cut-off')
+    worst = {}
+    curves = {}
+    for name in ('L15', 'L18'):
+        for vpa in (2.7, 3.6, 4.0):
+            pm, po, mpn = res[(vpa, name)]
+            th = THERM[mpn]
+            _, a1, b1 = thermal(po, th, 60.0)
+            t2, a2, b2 = thermal(po, th, 60.0, period=4.0)
+            curves[(name, vpa)] = (t2, a2)
+            # cut-off: energy P x t_sample into c1 (adiabatic, upper bound); retries far apart
+            dcut = po * FW['t_sample'] / th['c1']
+            worst[(name, vpa)] = (a1.max(), a2.max(), b2.max(), dcut)
+            out('    %s VPA %.1f V, %.2f W:   %5.0f / %4.0f  |  %5.0f / %4.0f  |  +%.2f C per event' % (
+                name, vpa, po, a1.max(), b1.max(), a2.max(), b2.max(), dcut))
+    for name in ('L15', 'L18'):
+        for vpa, label in ((2.7, '1 W setting, VPA 2.7 V'), (3.6, 'VPA 3.6 V'), (4.0, 'VPA 4.0 V')):
+            s1, s25, pad, dcut = worst[(name, vpa)]
+            summ('7b', '%s antenna missing, %s, 60 C, no cut-off' % (name, label), 'PASS' if s25 <= 125 else 'FAIL',
+                 'single 1 s burst %.0f C, 25 %% duty %.0f C (pads %.0f C); limit 125 C; with the 0.75 ms cut-off +%.2f C'
+                 % (s1, s25, pad, dcut))
+    fig, ax = plt.subplots(figsize=(7, 4.2))
+    for (name, vpa), col in ((('L15', 4.0), C2), (('L15', 3.6), C1), (('L15', 2.7), C3), (('L18', 4.0), C4)):
+        t, T = curves[(name, vpa)]
+        k = t >= 280
+        ax.plot(t[k] - 280, T[k], color=col, lw=1.5, label='%s, VPA %.1f V, 60 C ambient' % (name, vpa))
+    ax.axhline(125, color=CR, ls='--', lw=1, label='125 C part maximum')
+    ax.set_xlabel('s (last 20 s of 300 s of 1 s bursts every 4 s, no detector cut-off)')
+    ax.set_ylabel('part temperature, C')
+    ax.set_title('Antenna missing: inductor temperature, 25 % duty (thermal data estimated)', fontsize=10)
+    ax.grid(alpha=0.25)
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    fig.savefig(os.path.join(HERE, 'heating.png'), dpi=110)
+    plt.close(fig)
+    return worst
+
+
+# ============================================================================ study 8: missing-antenna detector
+def _fw_constants():
+    """Detector thresholds from firmware/variant/variant.h (defaults if not found)."""
+    fw = dict(v30=0.350, v35=0.730, tc=1.4e-3, t_sample=750e-6, min_dbm=27.0, src='defaults')
+    try:
+        txt = open(os.path.join(HERE, '..', '..', 'firmware', 'variant', 'variant.h')).read()
+    except OSError:
+        return fw
+    import re
+    for key, name, scale in (('v30', 'OFFGRID_REFL_V30_MV', 1e-3), ('v35', 'OFFGRID_REFL_V35_MV', 1e-3),
+                             ('tc', 'OFFGRID_REFL_TC_UV_PER_C', 1e-6), ('t_sample', 'OFFGRID_REFL_SAMPLE_US', 1e-6),
+                             ('min_dbm', 'OFFGRID_REFL_MIN_DBM', 1.0)):
+        m = re.search(r'#define\s+%s\s+([0-9.]+)' % name, txt)
+        if m:
+            fw[key] = float(m.group(1)) * scale
+    fw['src'] = 'firmware/variant/variant.h'
+    return fw
+
+
+FW = _fw_constants()
+
+
+def fw_threshold(p_dbm, t_c):
+    """variant.cpp: V30 (V35/V30)^((P-30)/5) + TC (T - 25); P = the firmware's modelled U.FL power."""
+    return FW['v30'] * (FW['v35'] / FW['v30']) ** ((p_dbm - 30.0) / 5.0) + FW['tc'] * (t_c - 25.0)
+
+
+# BAT15-02EL, Infineon data sheet v1.0 (2018-06-30), 25 C: VF 0.16 / 0.25 / 0.32 V (min / typ / max) at 1 mA,
+# 0.25 / 0.35 / 0.41 V at 10 mA; IR <= 5 uA at VR 1 V; C 0.20 / 0.24 pF; RF 8 / 10 ohm.  Typical curve (fig. 2,
+# digitised): 1.0 uA at 0.06 V, 9.2 uA at 0.12 V, 82 uA at 0.18 V, 0.90 mA at 0.25 V, 9.1 mA at 0.36 V
+# -> n 1.08, IS 1.15e-7 A, RS ~6 ohm.  Fig. 3: IR 0.11 uA at 0.1 V rising to 0.24 uA at 1 V -> a 0.13 uS leak.
+# Temperature: not published.  SPICE form IS(T) = IS (T/T0)^(XTI/N) exp(EG/(N Vt) (T/T0 - 1)), XTI 2,
+# EG 0.55 eV (low-barrier Schottky, as coupler.py) and 0.69 eV (the SPICE Schottky default) as a corner.
+VT25 = 8.617e-5 * 298.15
+
+
+def _is_from_vf(vf, n=1.08, i=1e-3):
+    return i / (math.exp(vf / (n * VT25)) - 1)
+
+
+DIODES = {
+    'typ':              dict(is25=1.15e-7, n=1.08, eg=0.55, xti=2.0, gleak=0.13e-6),
+    'typ, EG 0.69':     dict(is25=1.15e-7, n=1.08, eg=0.69, xti=2.0, gleak=0.13e-6),
+    'VF min (0.16 V)':  dict(is25=_is_from_vf(0.16), n=1.08, eg=0.55, xti=2.0, gleak=0.13e-6 * _is_from_vf(0.16) / 1.15e-7),
+    'VF max (0.32 V)':  dict(is25=_is_from_vf(0.32), n=1.08, eg=0.69, xti=2.0, gleak=0.13e-6 * _is_from_vf(0.32) / 1.15e-7),
+    'VF min, EG 0.69':  dict(is25=_is_from_vf(0.16), n=1.08, eg=0.69, xti=2.0, gleak=0.13e-6 * _is_from_vf(0.16) / 1.15e-7),
+}
+DET_TEMPS = (-40, 25, 85)
+
+
+def _det_rc():
+    r = [B.parts.PARTS[c.part] for c in B.rf_parts(['REFL_DET'])]
+    rl = [R.parse_value(p['value']) for p in r if p['kind'] == 'R'][0]
+    cl = [R.parse_value(p['value']) for p in r if p['kind'] == 'C'][0]
+    return rl, cl
+
+
+RL_DET, CL_DET = _det_rc()
+
+
+def diode_is(d, t_c):
+    t = t_c + 273.15
+    r = t / 298.15
+    return d['is25'] * r ** (d['xti'] / d['n']) * math.exp(d['eg'] / (d['n'] * 8.617e-5 * t) * (r - 1))
+
+
+def diode_mean_current(va, v, t_c, d):
+    """Mean junction current with RF peak va across the junction and DC v on the cathode (anode at DC 0)."""
+    from scipy.special import i0e
+    nvt = d['n'] * 8.617e-5 * (t_c + 273.15)
+    isat = diode_is(d, t_c)
+    x = va / nvt
+    return isat * (i0e(x) * math.exp(x - v / nvt) - 1) - d['gleak'] * isat / d['is25'] * v
+
+
+def det_vdc(va, t_c, d=None):
+    """REFL_DET DC: mean diode current = V / 100 k (the 1 nF holds the cathode at RF ground)."""
+    from scipy.optimize import brentq
+    d = d or DIODES['typ']
+    if va <= 1e-6:
+        return 0.0
+    f = lambda v: diode_mean_current(va, v, t_c, d) - v / RL_DET
+    return brentq(f, 0.0, va + 0.5)
+
+
+def det_rise(va, t_c, d=None, frac=0.99):
+    """Time for REFL_DET to reach `frac` of its final value after the RF steps on (1 nF charged through the
+    diode), and the 100 k x 1 nF decay constant."""
+    d = d or DIODES['typ']
+    vf = det_vdc(va, t_c, d)
+    v, t, dt = 0.0, 0.0, 2e-9
+    while v < frac * vf and t < 2e-3:
+        dv = (diode_mean_current(va, v, t_c, d) - v / RL_DET) / CL_DET
+        v += dv * dt
+        t += dt
+        dt = min(dt * 1.01, 1e-7)
+    return t, RL_DET * CL_DET
+
+
+def det_amplitudes(b, model, p_dbm, gm, cathode='designed', gap=None, nph=72, pa36=None):
+    """RF peak voltage across the BAT15 junction (REFL_J - REFL_K), every phase of an antenna reflection of
+    magnitude gm and 902/915/928 MHz.  model 'A': saturated PA scaled so a matched antenna gets p_dbm at the
+    U.FL; 'B': 50-ohm source, same matched power.  Also returns the U.FL-open node data the stress check needs."""
+    ph = [0.0] if gm == 0 else np.linspace(0, 2 * np.pi, nph, endpoint=False)
+    amps, vrev = [], []
+    if model == 'A':
+        ckt = b.tx_out(with_pa=True, cathode=cathode, gap=gap)
+        p36 = pa36 or PA(3.6)
+        v0, _ = p36.solve(ckt, [915e6], 0.0)
+        p_now = float(R.w_to_dbm(abs(v0['ANT'][0, 0]) ** 2 / (2 * R.Z0)))
+        pa = PA(3.6 * 10 ** ((p_dbm - p_now) / 20))
+        for p in ph:
+            v, _ = pa.solve(ckt, FB, gm * np.exp(1j * p))
+            amps.append(np.abs(v['REFL_J'][0] - v['REFL_K'][0]))
+            vrev.append(np.abs(v['REFL_T'][0]))
+    else:
+        ct = b.tx_out(with_pa=False, cathode=cathode, gap=gap)
+        S = ct.sparams(FB, ['PA_M2', 'ANT'])[0]
+        pav = R.dbm_to_w(p_dbm - R.db20(S[:, 1, 0]))
+        vinc = np.sqrt(8 * R.Z0 * pav)
+        for p in ph:
+            v = ct.voltages(FB, {'PA_M2': vinc / R.Z0}, loads={'PA_M2': lambda w: np.ones(w.shape) / R.Z0,
+                                                                'ANT': ant_load(gm * np.exp(1j * p))})
+            amps.append(np.abs(v['REFL_J'][0] - v['REFL_K'][0]))
+            vrev.append(np.abs(v['REFL_T'][0]))
+    return np.array(amps), np.array(vrev)
+
+
+ANTS = (('matched', 0.0), ('VSWR 2', 1.0 / 3.0), ('missing', 1.0))
+
+
+def det_table(b, cathode='designed', gap=None, pa36=None, quiet=False, powers=(30.0, 35.0)):
+    """{(P, antenna): (amp_min, amp_max, vterm_max)} over both PA models, every phase and the band."""
+    res = {}
+    for p in powers:
+        for name, gm in ANTS:
+            lo, hi, vt = 1e9, 0.0, 0.0
+            per = {}
+            for model in ('A', 'B'):
+                a, vr = det_amplitudes(b, model, p, gm, cathode=cathode, gap=gap, pa36=pa36)
+                per[model] = (a.min(), a.max())
+                lo, hi, vt = min(lo, a.min()), max(hi, a.max()), max(vt, vr.max())
+            res[(p, name)] = (lo, hi, vt, per)
+    return res
+
+
+def det_margins(tab, diode='typ', dp=0.0, powers=(30.0, 35.0)):
+    """Margins (V) at each power and temperature: missing min - threshold, threshold - VSWR-2 max, threshold -
+    matched max.  dp: the actual power is dp dB above the firmware's modelled power (amplitudes x 10^(dp/20))."""
+    d = DIODES[diode]
+    k = 10 ** (dp / 20)
+    out_ = {}
+    for p in powers:
+        for t in DET_TEMPS:
+            thr = fw_threshold(p, t)
+            vm = det_vdc(tab[(p, 'missing')][0] * k, t, d)
+            v2 = det_vdc(tab[(p, 'VSWR 2')][1] * k, t, d)
+            v0 = det_vdc(tab[(p, 'matched')][1] * k, t, d)
+            out_[(p, t)] = dict(thr=thr, miss=vm, vswr2=v2, matched=v0, m_miss=vm - thr, m_vswr2=thr - v2)
+    return out_
+
+
+def power_margin_db(tab, p, t, which, diode='typ'):
+    """How far (dB) the actual power may sit from the firmware's model before this case is misread."""
+    d = DIODES[diode]
+    thr = fw_threshold(p, t)
+    if which == 'missing':
+        a = tab[(p, 'missing')][0]
+        f = lambda db: det_vdc(a * 10 ** (-db / 20), t, d) - thr      # power below the model
+    else:
+        a = tab[(p, 'VSWR 2')][1]
+        f = lambda db: thr - det_vdc(a * 10 ** (db / 20), t, d)       # power above the model
+    if f(0.0) <= 0:
+        lo, hi = -20.0, 0.0
+        if f(lo) <= 0:
+            return -20.0
+    else:
+        lo, hi = 0.0, 20.0
+        if f(hi) > 0:
+            return 20.0
+    from scipy.optimize import brentq
+    return brentq(f, lo, hi)
+
+
+def spice_check(b, cases):
+    """Cross-check the averaged diode solve with ngspice (transient, real diode model with RS, CJ) for model B
+    cases at 915 MHz: the board's network at the anode is reduced to its Thevenin equivalent."""
+    import shutil
+    import subprocess
+    import tempfile
+    if not shutil.which('ngspice'):
+        out('   ngspice not found: SPICE cross-check skipped')
+        return []
+    d = DIODES['typ']
     rows = []
-    n1a, n2a, la, ha = [], [], [], []
-    for T in TEMPS:
-        bm = B.Board(nsamp=NMC, temp_c=T, mode='mc', seed=2000 + T, overrides=ov)
-        Sm = bm.tx_out(with_pa=False).sparams(FB, ['PA_M2', 'ANT'], nsamp=NMC)
-        lossm = np.max(-R.db20(Sm[:, :, 1, 0]), axis=1)
-        rlpa = np.min(R.rl_db(Sm[:, :, 0, 0]), axis=1)
-        rejm = harmonic_rejection(bm, pa, nsamp=NMC)
-        lvm = harm_levels(rejm, 35.0, np.min(-R.db20(Sm[:, :, 1, 0]), axis=1).reshape(-1, 1))
-        mm = harm_margins(lvm, 35.0, 6.0)
-        hmin = np.min(np.stack([np.minimum(mm[n]['fcc'], mm[n]['ham']) for n in (2, 3, 4, 5)]), axis=0)
-        a1, a2 = lpf_notches(bm, NMC)
-        n1a.append(a1), n2a.append(a2), la.append(lossm), ha.append(hmin)
-        rows.append((T, np.mean((hmin >= 0) & (rlpa >= 10)), np.mean(lossm <= 1.3), lossm.max(), hmin.min(), rlpa.min()))
-    out('  Monte Carlo with the fixes:  T  yield harm+RL  yield loss<=1.3  loss max  worst harm margin  worst PA RL')
-    for r in rows:
-        out('                            %4d   %6.1f %%      %6.1f %%      %.2f dB      %5.1f dB         %4.1f dB' % (
-            r[0], 100 * r[1], 100 * r[2], r[3], r[4], r[5]))
-    n1a, n2a = np.concatenate(n1a), np.concatenate(n2a)
-    lall = np.concatenate(la)
-    out('  notch range over all runs: %.3f-%.3f GHz and %.3f-%.3f GHz' % (n1a.min() / 1e9, n1a.max() / 1e9, n2a.min() / 1e9, n2a.max() / 1e9))
-    p40 = PA_P_DS + 20 * math.log10(4.0 / 3.6) - lall
-    out('  U.FL power at 4.0 V: %.2f-%.2f dBm (%.2f-%.2f W)' % (p40.min(), p40.max(), R.dbm_to_w(p40.min()), R.dbm_to_w(p40.max())))
-    summ('F', 'fixed LPF: loss / 2f-5f harmonic yield', 'PASS' if min(r[1] for r in rows) >= 0.99 else 'MARGINAL',
-         'loss %.2f dB nominal (%.2f-%.2f MC, %.0f %% <= 1.3 dB) -> %.1f-%.1f dBm at 4.0 V; 2f-5f yield %.1f %%, worst margin %.1f dB'
-         % (il.max(), lall.min(), lall.max(), 100 * np.mean(lall <= 1.3), p40.min(), p40.max(),
-            100 * min(r[1] for r in rows), min(r[4] for r in rows)))
-    hi = min(float(m[n]['fcc'][0]) for n in (6, 7, 8))
-    summ('F', 'fixed LPF: 6f-8f (edge of data)', 'PASS' if hi >= 10 else 'RISK (unverified)',
-         'worst margin %.1f dB (original filter %.1f dB); these bands depend on unpublished PA levels and models past the data'
-         % (hi, s1['hi68']))
-    # inductor heating with the fixes
+    co = b.tx_out(with_pa=False, cathode='open')
+    S = co.sparams([915e6], ['PA_M2', 'ANT'])[0]
+    pav = R.dbm_to_w(np.array([0.0]) - R.db20(S[:, 1, 0]))
+    for p_dbm, gam, t_c, label in cases:
+        vinc = np.sqrt(8 * R.Z0 * pav * 10 ** (p_dbm / 10))
+        load = {'PA_M2': lambda w: np.ones(w.shape) / R.Z0, 'ANT': ant_load(gam)}
+        voc = complex(co.voltages([915e6], {'PA_M2': vinc / R.Z0}, loads=load)['REFL_A'][0, 0])
+        zth = complex(co.voltages([915e6], {'REFL_A': 1.0}, loads=load)['REFL_A'][0, 0])
+        w0 = 2 * math.pi * 915e6
+        xel = ('L1 x a %.6g' % (zth.imag / w0)) if zth.imag > 0 else ('C1 x a %.6g' % (-1 / (w0 * zth.imag)))
+        # Python value for the same Thevenin source, with the junction amplitude from the linear model
+        ct = b.tx_out(with_pa=False)
+        v = ct.voltages([915e6], {'PA_M2': vinc / R.Z0}, loads=load)
+        va = abs(v['REFL_J'][0, 0] - v['REFL_K'][0, 0])
+        vpy = det_vdc(va, t_c, d)
+        net = '\n'.join([
+            '* BAT15 detector check',
+            'V1 s 0 SIN(0 %.6g 915e6)' % abs(voc),
+            'R1 s x %.6g' % max(zth.real, 1e-3),
+            xel,
+            'LS a ai 0.4n',
+            'D1 ai k BAT15 temp=%g' % t_c,
+            'RLK ai k 7.7Meg',
+            'CL k kc %.6g' % CL_DET,
+            'LC kc 0 0.45n',
+            'RL k 0 %.6g' % RL_DET,
+            '.model BAT15 D(IS=%.4g N=%.3g RS=6 CJO=0.2p M=0.3 VJ=0.35 EG=%.3g XTI=%.3g BV=4.5 IBV=100u)'
+            % (d['is25'], d['n'], d['eg'], d['xti']),
+            '.ic v(k)=%.5g v(kc)=0' % vpy,
+            '.options temp=%g tnom=25' % t_c,
+            '.tran 25p 25u 0 25p uic',
+            '.meas tran vavg AVG v(k) from=23u to=25u',
+            '.end', ''])
+        with tempfile.TemporaryDirectory() as td:
+            fn = os.path.join(td, 'det.cir')
+            open(fn, 'w').write(net)
+            r = subprocess.run(['ngspice', '-b', fn], capture_output=True, text=True, timeout=900)
+        import re
+        m = re.search(r'vavg\s*=\s*([-0-9.eE+]+)', r.stdout)
+        vsp = float(m.group(1)) if m else float('nan')
+        rows.append((label, p_dbm, t_c, va, vpy, vsp))
+        out('   %-28s %2.0f dBm %4d C  junction %.3f V peak   averaged model %.3f V   ngspice %.3f V   (diff %+.0f mV)'
+            % (label, p_dbm, t_c, va, vpy, vsp, 1e3 * (vsp - vpy)))
+    return rows
+
+
+def study8(s7):
     out()
-    ckt = b.tx_out(with_pa=True)
-    ph = np.linspace(0, 2 * np.pi, 180, endpoint=False)
+    out('=' * 100)
+    out('STUDY 8  Missing-antenna detector: coupler (%.1f mm, %.2f mm gap) -> BAT15-02EL -> 1 nF || 100 k -> REFL_DET (P0.30)'
+        % (B.GEOM['cpl_len'], B.GEOM['gap']))
+    out('=' * 100)
+    out('Inputs.  Board: the antenna section of study 1 (coupler from coupler.py\'s field solve, inside the real chain: PA,')
+    out('  LPF, switch, %s; both PA models, so the PA\'s own reflection of the returning wave is included).  Antenna at' % FLT)
+    out('  the U.FL: matched; VSWR 2 at every phase; missing (open, every phase = any cable length); 902/915/928 MHz.')
+    out('  Power = the matched-antenna power at the U.FL, which is what the firmware\'s model (txPest) predicts.')
+    out('  BAT15-02EL: Infineon data sheet (typical IF-VF curve digitised: IS 1.15e-7 A, N 1.08; RS ~6 ohm, CJ 0.20 pF, LS')
+    out('  0.4 nH); temperature not published: EG 0.55 eV, XTI 2 (EG 0.69 corner).  Unit spread from the data sheet\'s VF')
+    out('  limits at 1 mA (0.16 / 0.32 V -> IS %.1e / %.1e A).  DC: mean diode current over an RF cycle (junction peak'
+        % (_is_from_vf(0.16), _is_from_vf(0.32)))
+    out('  amplitude from the linear model) = V / 100 k, plus the reverse leak (fig. 3); checked against ngspice below.')
+    out('Firmware (%s): threshold V30 %.0f mV at 30 dBm, V35 %.0f mV at 35 dBm, interpolated in dB, + %.1f mV/C x (T - 25 C);'
+        % (FW['src'], 1e3 * FW['v30'], 1e3 * FW['v35'], 1e3 * FW['tc']))
+    out('  sampled %.0f us after startTransmit, only when the modelled U.FL power >= %.0f dBm.' % (1e6 * FW['t_sample'], FW['min_dbm']))
+    out('Criteria: a missing antenna must read above the threshold and a VSWR-2 antenna below it, in every case (both')
+    out('  PA models, every phase, band, -40/25/85 C).  PASS: still true with the actual power 1 dB off the firmware\'s')
+    out('  model (unit gain spread, loss spread, supply); MARGINAL: true at the model power only; FAIL: misread.')
+    b = B.Board()
+    pa36 = PA(3.6)
+    tab = det_table(b, pa36=pa36)
+    out()
+    out('  RF peak across the BAT15 junction (V), min-max over both PA models, phase and band [model A / model B ranges]:')
+    for (p, name), (lo, hi, vt, per) in tab.items():
+        out('   %2.0f dBm %-8s %.3f-%.3f V   [A %.3f-%.3f, B %.3f-%.3f]' % (p, name, lo, hi, per['A'][0], per['A'][1],
+                                                                       per['B'][0], per['B'][1]))
+    out()
+    out('  REFL_DET (V), typical BAT15, as designed (1 nF at the cathode), min-max; and the firmware threshold:')
+    out('   P       antenna     ' + ''.join('     %4d C          ' % t for t in DET_TEMPS))
+    for p in (30.0, 35.0):
+        for name, gm in ANTS:
+            lo, hi = tab[(p, name)][:2]
+            out('   %2.0f dBm  %-9s  ' % (p, name) + ''.join('   %.3f-%.3f V    ' % (det_vdc(lo, t), det_vdc(hi, t))
+                                                           for t in DET_TEMPS))
+        out('   %2.0f dBm  threshold  ' % p + ''.join('      %.3f V        ' % fw_threshold(p, t) for t in DET_TEMPS))
+    m = det_margins(tab)
+    out()
+    out('  Margins (mV; positive = read correctly), typical BAT15, as designed:')
+    out('   P        T      threshold   missing min  margin   |  VSWR-2 max  margin  | matched max   | power error'
+        ' allowed (dB): missing / VSWR 2')
+    pm_all = []
+    for (p, t), r in m.items():
+        pmiss = power_margin_db(tab, p, t, 'missing')
+        pv2 = power_margin_db(tab, p, t, 'vswr2')
+        pm_all.append((pmiss, pv2))
+        out('   %2.0f dBm %5d C   %5.0f        %5.0f       %+5.0f    |   %5.0f     %+5.0f   |   %5.0f       |   %+5.1f / %+5.1f'
+            % (p, t, 1e3 * r['thr'], 1e3 * r['miss'], 1e3 * r['m_miss'], 1e3 * r['vswr2'], 1e3 * r['m_vswr2'],
+               1e3 * r['matched'], pmiss, pv2))
+    mm = min(r['m_miss'] for r in m.values())
+    mv = min(r['m_vswr2'] for r in m.values())
+    pmin = min(min(a, c) for a, c in pm_all)
+    v = 'PASS' if pmin >= 1.0 else ('MARGINAL' if (mm > 0 and mv > 0) else 'FAIL')
+    summ('8', 'detector vs firmware thresholds (typical BAT15, as designed)', v,
+         'missing reads >= %+.0f mV above, VSWR 2 >= %+.0f mV below the threshold at 30/35 dBm, -40..85 C; tolerates %.1f dB'
+         ' of power error' % (1e3 * mm, 1e3 * mv, pmin))
+    # corners
+    out()
+    out('  Sensitivity (worst margin over 30/35 dBm and -40/25/85 C, mV; missing / VSWR 2):')
+    corner_rows = []
+    for dn in DIODES:
+        mc = det_margins(tab, diode=dn)
+        a, c = min(r['m_miss'] for r in mc.values()), min(r['m_vswr2'] for r in mc.values())
+        corner_rows.append(('BAT15 ' + dn, a, c))
+    for dp in (-1.0, 1.0):
+        mc = det_margins(tab, dp=dp)
+        corner_rows.append(('actual power %+.0f dB vs the model' % dp, min(r['m_miss'] for r in mc.values()),
+                            min(r['m_vswr2'] for r in mc.values())))
+    for gap in (round(B.GEOM['gap'] - 0.02, 3), round(B.GEOM['gap'] + 0.02, 3)):
+        tg = det_table(b, gap=gap, pa36=pa36)
+        mc = det_margins(tg)
+        corner_rows.append(('coupler gap %.2f mm (etch)' % gap, min(r['m_miss'] for r in mc.values()),
+                            min(r['m_vswr2'] for r in mc.values())))
+    tpl = det_table(b, cathode='placed', pa36=pa36)
+    mc = det_margins(tpl)
+    corner_rows.append(('1 nF / 100 k as PLACED (21 mm away)', min(r['m_miss'] for r in mc.values()),
+                        min(r['m_vswr2'] for r in mc.values())))
+    for name, a, c in corner_rows:
+        out('   %-40s %+6.0f / %+6.0f%s' % (name, 1e3 * a, 1e3 * c, '   <- misread' if min(a, c) < 0 else ''))
+    worst_c = min(min(a, c) for _, a, c in corner_rows if not _.startswith('1 nF'))
+    bad = [n for n, a, c in corner_rows if min(a, c) < 0 and not n.startswith('1 nF')]
+    summ('8', 'detector over BAT15 data-sheet VF limits, EG, gap +-0.02 mm, +-1 dB',
+         'PASS' if worst_c > 0.02 else ('MARGINAL' if worst_c > 0 else 'FAIL'),
+         'worst margin %+.0f mV%s' % (1e3 * worst_c, (' (misread: ' + '; '.join(bad) + ')') if bad else ''))
+    out()
+    out('  As placed (src/placement.json): REFL_DET\'s 1 nF (C82) and 100 k (R52) sit by the nRF52840, ~21 mm of 0.1 mm track')
+    out('  from the diode.  The cathode is then not at RF ground; REFL_DET ranges (typical BAT15):')
+    for p in (30.0, 35.0):
+        for name, gm in ANTS:
+            lo, hi = tpl[(p, name)][:2]
+            out('   %2.0f dBm  %-9s  ' % (p, name) + ''.join('   %.3f-%.3f V    ' % (det_vdc(lo, t), det_vdc(hi, t))
+                                                           for t in DET_TEMPS))
+    pl = min(min(r['m_miss'], r['m_vswr2']) for r in mc.values())
+    summ('8', 'detector with the 1 nF / 100 k as placed (21 mm from the diode)', 'PASS' if pl > 0.02 else
+         ('MARGINAL' if pl > 0 else 'FAIL'), 'worst margin %+.0f mV; move C82/R52 to the diode (layout)' % (1e3 * pl))
+    # timing
+    out()
+    a_m30 = tab[(30.0, 'missing')][0]
+    a_v35 = tab[(35.0, 'VSWR 2')][1]
+    tr1, tau = det_rise(a_m30, -40)
+    tr2, _ = det_rise(a_v35, 85)
+    out('  Timing: after the RF reaches full power REFL_DET reaches 99 %% of its final value in %.1f us (missing, 30 dBm,'
+        ' -40 C) / %.1f us (VSWR 2, 35 dBm, 85 C); it decays with 100 k x 1 nF = %.0f us.  The %.0f us sample therefore reads'
+        % (1e6 * tr1, 1e6 * tr2, 1e6 * tau, 1e6 * FW['t_sample']))
+    out('  the steady level if the RF is at full power by ~%.0f us after startTransmit (SX1262 start-up + ramp + APC LDO: not'
+        % (1e6 * (FW['t_sample'] - max(tr1, tr2))))
+    out('  modelled; check on the bench, README).')
+    # stress on the detector parts
+    out()
+    worst_rev, worst_term = 0.0, 0.0
     for vpa in (3.6, 4.0):
-        wst = inductor_heating(b, PA(vpa), ckt, ph, tag='fixed, %.1f V: ' % vpa, verdicts=False)
-        worst_t = max(x[6] for x in wst)
-        worst_o = max(x[7] for x in wst)
-        summ('F', 'fixed inductors RF heating, %.1f V' % vpa, 'PASS' if (worst_t <= 0.7 and worst_o <= 1.0) else
-             ('MARGINAL' if worst_t <= 1.0 else 'FAIL'),
-             'worst %.0f %% of rated-current heating matched (typical Q), %.0f %% antenna missing' % (100 * worst_t, 100 * worst_o))
-    # switch voltage with the fixed LPF (model B dominates at the switch)
-    vmax = 0
-    S2 = b.tx_out(with_pa=False).sparams(FB, ['PA_M2', 'ANT'])[0]
-    pav = R.dbm_to_w(PA_P_DS + 20 * math.log10(3.6 / 3.6) - 0 * 0)
-    for p in ph:
-        vinc = np.sqrt(8 * R.Z0 * R.dbm_to_w(33.6 + (-R.db20(S2[:, 1, 0]))))
-        v = b.tx_out(with_pa=False).voltages(FB, {'PA_M2': vinc / R.Z0}, loads={'PA_M2': lambda w: np.ones(w.shape) / R.Z0,
-                                                                                 'ANT': ant_load(np.exp(1j * p))})
-        vmax = max(vmax, float(np.max(np.abs(v['SW1']))), float(np.max(np.abs(v['SW2']))))
-    out('  switch peak voltage with the fixes, 3.6 V (33.6 dBm), antenna missing (model B): %.1f V (%.0f %% of 31.6 V)' % (vmax, 100 * vmax / 31.6))
-    # Bluetooth with +-0.05 pF on the 0.8 pF
-    fb = np.linspace(2.40e9, 2.4835e9, 18)
-    bn = B.Board(overrides=ov)
-    zant, za, q = antenna_model(B.Board())
-    pi = B.Board().ble_pi().sparams([2.442e9], ['NRF_ANT', 'BLE_50R'])[0][0]
-    zopt = complex(R.gamma_to_z(pi[0, 0]))
-    ys = []
-    for T in (-40, 25, 85):
-        bm = B.Board(nsamp=NMC, temp_c=T, mode='mc', seed=600 + T, overrides=ov)
-        c = R.Circuit('ble')
-        bm.add_parts(c, ['NRF_ANT', 'BLE_50R'])
-        bm.add_parts(c, ['BLE_50R', 'BLE_T', 'BLE_FEED'], skip=B.BLE_PI_REFS)
-        c.add('BLE_FEED', 'GND', R.Admittance(lambda w: 1 / zant(w)), 'antenna')
-        Sb = c.sparams(fb, ['NRF_ANT'], nsamp=NMC)
-        zl = R.gamma_to_z(Sb[:, :, 0, 0])
-        rl = np.min(R.rl_db((zl - zopt) / (zl + np.conj(zopt))), axis=1)
-        ys.append((T, np.mean(rl >= 9.5), rl.min()))
-    out('  Bluetooth with the 0.8 pF at +-0.05 pF: ' + ', '.join('%d C yield %.1f %% (worst %.1f dB)' % (T, 100 * y, w_) for T, y, w_ in ys))
-    yb = min(y for T, y, w_ in ys)
-    summ('F', 'Bluetooth with 0.8 pF +-0.05 pF', 'PASS' if yb >= 0.99 else ('MARGINAL' if yb >= 0.9 else 'FAIL'),
-         'yield %.1f %% (pre-layout)' % (100 * yb))
-    # pad with ERJ-P06
-    out('  pad first 68 R as ERJ-P06F68R0V (0.5 W at 70 C, 0 W at 155 C): +22 dBm (118 mW) at 85 C = %.0f %%; +23 dBm = %.0f %%'
-        % (100 * 0.1178 / r0805_rating(85, p70=0.5), 100 * 0.1483 / r0805_rating(85, p70=0.5)))
-    summ('F', 'pad with ERJ-P06F68R0V', 'PASS', '%.0f %% of its 85 C rating at +22 dBm, %.0f %% at +23 dBm'
-         % (100 * 0.1178 / r0805_rating(85, p70=0.5), 100 * 0.1483 / r0805_rating(85, p70=0.5)))
+        pdbm = float(s7['resA'][vpa][0][1])
+        tb = det_table(b, pa36=pa36, powers=(pdbm,))
+        hi = tb[(pdbm, 'missing')][1]
+        vrev = det_vdc(hi, 85) + hi
+        vt = tb[(pdbm, 'missing')][2]
+        worst_rev, worst_term = max(worst_rev, vrev), max(worst_term, vt)
+        out('  VPA %.1f V (%.1f dBm), antenna missing: BAT15 reverse peak %.2f V (VR max 4 V), REFL_DET %.2f V (nRF pin max'
+            ' 3.6 V), 49.9 R %.0f mW (0402 rated 63 mW)' % (vpa, pdbm, vrev, det_vdc(hi, 85), vt ** 2 / (2 * 49.9) * 1e3))
+    summ('8', 'detector parts with the antenna missing, VPA 4.0 V', 'PASS' if worst_rev < 0.95 * 4 and worst_term ** 2 / 99.8 < 0.044
+         else ('MARGINAL' if worst_rev <= 4 else 'FAIL'),
+         'BAT15 reverse peak %.2f V (4 V max); 49.9 R %.0f mW (63 mW)' % (worst_rev, worst_term ** 2 / 99.8 * 1e3))
+    # SPICE check
+    out()
+    out('  ngspice cross-check (model B, 915 MHz, typical BAT15 with RS 6 ohm and CJ 0.2 pF in the SPICE model, Thevenin')
+    out('  source at the anode from the board model, 25 us transient from the averaged value):')
+    sp = spice_check(b, [(30.0, 1.0 / 3.0, 85, 'VSWR 2, 30 dBm'), (30.0, -1.0, -40, 'missing (short-phase), 30 dBm'),
+                         (30.0, 1.0, -40, 'missing (open-phase), 30 dBm'), (35.0, -1.0 / 3.0, 85, 'VSWR 2, 35 dBm'),
+                         (35.0, 1.0, 25, 'missing, 35 dBm')])
+    plot_detector(tab, tpl)
+    return dict(tab=tab, margins=m, corners=corner_rows, spice=sp, placed=tpl)
 
 
-def lfcn_fit_report():
-    S = lfcn.response(lfcn.F_TAB)
-    out('LFCN-1000+ model vs Mini-Circuits typical table (REV. R):')
-    out('   MHz    ' + ''.join('%7.0f' % (f / 1e6) for f in lfcn.F_TAB))
-    out('   IL ds  ' + ''.join('%7.2f' % x for x in lfcn.IL_TAB))
+def plot_detector(tab, tpl):
+    fig, ax = plt.subplots(1, 2, figsize=(12, 4.4))
+    ts = np.linspace(-40, 85, 26)
+    for a, p in zip(ax, (30.0, 35.0)):
+        for (name, gm), col in zip(ANTS, (C3, C1, C2)):
+            lo, hi = tab[(p, name)][:2]
+            a.fill_between(ts, [det_vdc(lo, t) for t in ts], [det_vdc(hi, t) for t in ts], color=col, alpha=0.35, lw=0,
+                           label='%s (as designed)' % name)
+            lo2, hi2 = tpl[(p, name)][:2]
+            a.plot(ts, [det_vdc(lo2, t) for t in ts], color=col, lw=1, ls=':')
+            a.plot(ts, [det_vdc(hi2, t) for t in ts], color=col, lw=1, ls=':')
+        a.plot(ts, [fw_threshold(p, t) for t in ts], color='k', lw=1.8, label='firmware threshold')
+        a.set_title('%.0f dBm at the U.FL: REFL_DET, typical BAT15 (dotted: 1 nF as placed)' % p, fontsize=9)
+        a.set_xlabel('board temperature, C')
+        a.set_ylabel('V')
+        a.grid(alpha=0.25)
+        a.legend(fontsize=7, loc='upper left')
+    fig.tight_layout()
+    fig.savefig(os.path.join(HERE, 'detector.png'), dpi=110)
+    plt.close(fig)
+
+
+def flt_fit_report():
+    out('%s model vs Mini-Circuits typical table:' % FLT)
+    if IS_LFCG:
+        ft, it = lfcn.G_F_TAB, lfcn.G_IL_TAB
+        g = 10 ** (-lfcn.G_RL_TAB / 20)
+        vt = (1 + g) / (1 - g)
+    else:
+        ft, it, vt = lfcn.F_TAB, lfcn.IL_TAB, lfcn.VSWR_TAB
+    S = flt_response(ft)
+    out('   MHz    ' + ''.join('%7.0f' % (f / 1e6) for f in ft))
+    out('   IL ds  ' + ''.join('%7.2f' % x for x in it))
     out('   IL fit ' + ''.join('%7.2f' % x for x in -R.db20(S[:, 1, 0])))
-    g = np.abs(S[:, 0, 0])
-    out('   VSWR ds' + ''.join('%7.1f' % x for x in lfcn.VSWR_TAB))
-    out('   VSWRfit' + ''.join('%7.1f' % x for x in (1 + g) / (1 - g)))
+    gg = np.abs(S[:, 0, 0])
+    out('   VSWR ds' + ''.join('%7.1f' % min(x, 999) for x in vt))
+    out('   VSWRfit' + ''.join('%7.1f' % min(x, 999) for x in (1 + gg) / (1 - gg)))
+    out('   (the harmonic studies use the table\'s magnitude and the model\'s phase)')
     out()
 
 
 def main():
     out('Mesh Radio v1 - RF simulation results (sim/rf/run.py%s)' % (' --quick' if QUICK else ''))
     out('Board values from src/circuit.py; part models and sources in sim/rf/README.md and rflib.py.')
+    out('Antenna filter FL1 = %s; missing-antenna detector coupler %.1f mm x %.2f mm gap (src/layout.py).'
+        % (FLT, B.GEOM['cpl_len'], B.GEOM['gap']))
     out()
-    lfcn_fit_report()
+    flt_fit_report()
     s1 = study1()
+    study1f()
     study2(s1)
     study3()
     study4()
     study5()
     study6()
-    study7(s1)
-    fixes(s1)
+    s7 = study7(s1)
+    study8(s7)
     out()
     out('=' * 100)
     out('SUMMARY')
     out('=' * 100)
     for st, item, v, nums in SUMMARY:
-        out('  %s  %-52s %-9s %s' % (st, item, v, nums))
+        out('  %-2s  %-62s %-9s %s' % (st, item, v, nums))
     with open(os.path.join(HERE, 'results.txt'), 'w') as fh:
         fh.write('\n'.join(LINES) + '\n')
 

@@ -236,8 +236,8 @@ class Board:
         esd_from_end before the coupler's U.FL end) -> cpl_ufl line -> U.FL ('ANT').  Coupled line: filter
         end -> stub -> 49.9 R (REFL_T); U.FL end -> stub -> BAT15 (anode REFL_A, junction REFL_J, cathode
         REFL_K).  cathode='designed': 1 nF and 100 k at the cathode; 'placed': REFL_K -> 21 mm track ->
-        1 nF + 100 k (REFL_C), as src/placement.json has them; None: no detector parts (coupled line
-        open: never used for the board)."""
+        1 nF + 100 k (REFL_C), as src/placement.json has them; 'open': the 49.9 R but no diode; None: no
+        detector parts at all (coupled line open: never used for the board)."""
         L = dict(self.lines, **(lines or {}))
         p = coupler_params(gap)
         lc = GEOM['cpl_len']
@@ -253,6 +253,8 @@ class Board:
         c.add2('CPL_B2', 'REFL_A', R.Line(L['cpl_stub']), 'stub_diode')
         term = [x.ref for x in rf_parts(['REFL_CPL']) if parts.PARTS[x.part]['kind'] == 'R']
         self.add_parts(c, ['REFL_CPL'], only=term, remap={'REFL_CPL': 'REFL_T'})
+        if cathode == 'open':           # the diode's anode left open (Thevenin source for the SPICE check)
+            return c
         d = BAT15_RF
         c.add('REFL_A', 'REFL_J', R.Ind(d['ls'], 1e9, 1e9, 0, d['rs']), 'BAT15_LsRs')
         c.add('REFL_J', 'REFL_K', R.Cap(d['cj'], 0.0, 0.0), 'BAT15_Cj')

@@ -1,0 +1,15 @@
+* test
+V1 s 0 SIN(0 0.8 915e6)
+R1 s a 25
+LS a ai 0.4n
+D1 ai k BAT15 temp=25
+RLK ai k 7.7Meg
+CL k kc 1n
+LC kc 0 0.45n
+RL k 0 100k
+.model BAT15 D(IS=1.15e-7 N=1.08 RS=6 CJO=0.2p M=0.3 VJ=0.35 EG=0.55 XTI=2 BV=4.5 IBV=100u)
+.ic v(k)=0.55 v(kc)=0
+.options tnom=25
+.tran 25p 25u 0 25p uic
+.meas tran vavg AVG v(k) from=23u to=25u
+.end
