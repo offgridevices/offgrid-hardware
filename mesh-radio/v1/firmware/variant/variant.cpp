@@ -11,7 +11,10 @@
  *     3.6 V licensed (4.0 V only with -D OFFGRID_PA_ALLOW_4V0=1);
  *   - power caps by board temperature (TMP1075) and by the cell (sim/burst),
  *     applied to the SX1262 setting of each packet and to the supply;
- *   - missing-antenna cut-off: REFL_DET sampled in every transmission;
+ *   - missing-antenna cut-off: the ratio REFL_DET / FWD_DET sampled in every
+ *     transmission of 27 dBm or more;
+ *   - soft start: a packet above 1 W starts with the amplifier supply at the
+ *     1 W level and is raised only once the antenna check has passed;
  *   - amplifier source: battery first, charger SYS (PA_SRC_SYS) when no cell
  *     is fitted or the cell is too weak and USB is in;
  *   - charging held to 0-45 C cell temperature (the charger's NTC on CHG_TS),
@@ -30,7 +33,9 @@
  * Without patch part 3 the last three are never called: the caps then act
  * on the amplifier supply only (every OFFGRID_PA_CHECK_MS), the amplifier-off
  * states still work (PA_EN released to its pull-down), and there is no
- * missing-antenna detection and no battery reading under load.
+ * missing-antenna detection, no soft start and no battery reading under
+ * load.  Without the hooks the supply stays at the full level between
+ * packets (paIdleMv() only lowers it after a soft-started packet).
  *
  * Every fallback state is a safe one: if the TPS63810 is not programmed it
  * sits at its 3.3 V reset value, which is below the licensed set point, and
@@ -77,6 +82,14 @@ constexpr uint8_t TPS_REG_VOUT1 = 0x04;
 // RPWM=1 (forced PWM while ramping, so a step down is actively driven),
 // SLEW=00 (1 V/ms)
 constexpr uint8_t TPS_CONTROL_VALUE = 0x20 | 0x04;
+// DVS ramp, SLEW = 00: 1 V/ms = 1 mV/us, up and down (datasheet 7.7, "SR")
+constexpr uint32_t TPS_SLEW_MV_PER_MS = 1000;
+// One I2C register write at the core's default 100 kHz: START, 3 x 9 bits,
+// STOP (~290 us) plus driver overhead, rounded up
+constexpr uint32_t TPS_WRITE_US = 400;
+// One two-channel saadcRead2Mv(): 2 x (40 us acquisition + 2 us conversion)
+// + start/stop, rounded up
+constexpr uint32_t SAADC_READ2_US = 110;
 
 // Hard firmware ceiling on the amplifier supply, whatever the build flags say.
 constexpr uint16_t PA_VOUT_ABS_MAX_MV = 4000;
@@ -87,6 +100,11 @@ static_assert(OFFGRID_PA_VOUT_LICENSED_MV <= PA_VOUT_ABS_MAX_MV, "amplifier supp
 static_assert(OFFGRID_PA_VOUT_US_MV <= OFFGRID_PA_VOUT_LICENSED_MV, "licensed supply below the unlicensed one");
 static_assert(PIN_PA_EN == 32 + 7, "paEnDrivenHigh() reads P1.07");
 static_assert(REFL_DET_AIN == SAADC_CH_PSELP_PSELP_AnalogInput6, "REFL_DET is AIN6");
+static_assert(FWD_DET_AIN == SAADC_CH_PSELP_PSELP_AnalogInput0, "FWD_DET is AIN0");
+static_assert(PIN_PA_SRC_SYS == 32 + 9, "PA_SRC_SYS is P1.09");
+static_assert(OFFGRID_SOFTSTART_VPA_MV >= PA_VOUT_MIN_MV && OFFGRID_SOFTSTART_VPA_MV <= OFFGRID_PA_VOUT_US_MV,
+              "soft-start supply outside 1.8 V .. the US level");
+static_assert(OFFGRID_ANT_RATIO_MAX_PCT > 0 && OFFGRID_ANT_RATIO_MAX_PCT < 100, "antenna ratio threshold");
 static_assert(CHG_TS_AIN == SAADC_CH_PSELP_PSELP_AnalogInput7, "CHG_TS is AIN7");
 
 // TMP1075 (datasheet SBOS854, section 7.5)
@@ -140,18 +158,31 @@ int32_t cellCentiC = 2500;
 bool cellTempValid = false;
 uint32_t tsToggleMs = 0;
 
+// --- supply ramp (TPS63810 DVS) ---
+uint32_t paRampFromMs = 0;     // millis() when the last ramp was commanded
+uint32_t paRampUs = 0;         // how long it takes (0 = none pending)
+
 // --- transmission and antenna ---
 bool txActive = false;
 uint32_t txStartMs = 0;
 uint32_t lastTxEndMs = 0;
 float txPest = -99;            // modelled U.FL power of the current packet, dBm
+bool txSoft = false;           // this packet starts at the soft-start supply
+bool txRaised = false;         // ... and has been raised to its own level
+uint16_t txTargetMv = 0;       // this packet's own supply (the caps' level)
+uint32_t txPreambleUs = 0;     // its preamble, us
 enum AntState : uint8_t { ANT_OK, ANT_BLOCKED, ANT_PROBE };
 AntState antState = ANT_OK;
 uint32_t antRetryAtMs = 0;
 uint32_t antBackoffMs = OFFGRID_ANT_RETRY_MS;
-uint16_t antLastMv = 0, antLastThrMv = 0;
+enum AntVerdict : uint8_t { AV_OK, AV_FAULT, AV_UNSURE };
+uint16_t antLastFwdMv = 0, antLastReflMv = 0, antLastThrMv = 0;
+bool antLastByRatio = false;   // the last verdict came from the ratio (else the REFL_DET-only fallback)
 bool antNotifyPending = false;
 bool antLogPending = false;
+bool antFwdLowPending = false; // a soft start was held at 1 W: FWD_DET too low to trust
+bool softLatePending = false;  // a soft start was held at 1 W: the raise would end after the preamble
+bool softFailPending = false;  // the soft-start supply could not be set: drive held to the 1 W setting
 
 // ---------------------------------------------------------------------------
 // I2C helpers
@@ -195,6 +226,30 @@ bool i2cRead(uint8_t addr, uint8_t reg, uint8_t *buf, uint8_t len)
     return true;
 }
 
+// The TPS63810 ramps to a new VOUT at TPS_SLEW_MV_PER_MS.  Remember how long
+// the ramp just commanded takes, so a packet that must not start on the way
+// down (a soft start) can wait for it.  From an unknown level (0), assume the
+// whole 1.8-4.0 V range.
+void noteRamp(uint16_t fromMv, uint16_t toMv)
+{
+    const uint32_t d = fromMv == 0 ? (PA_VOUT_ABS_MAX_MV - PA_VOUT_MIN_MV) : (fromMv > toMv ? fromMv - toMv : toMv - fromMv);
+    paRampFromMs = millis();
+    paRampUs = d * 1000 / TPS_SLEW_MV_PER_MS + 50;
+}
+
+// Busy-wait for the rest of the last ramp.  millis() ticks at ~1 ms, so
+// "n ms since" only proves n - 1 ms have passed.
+void waitForRamp()
+{
+    if (paRampUs == 0)
+        return;
+    const uint32_t since = millis() - paRampFromMs;
+    const uint32_t doneUs = since >= 1 ? (since - 1) * 1000 : 0;
+    if (doneUs < paRampUs)
+        delayMicroseconds(paRampUs - doneUs);
+    paRampUs = 0;
+}
+
 // Write CONTROL and VOUT1, read both back.  VSEL is low (tied low on the
 // reworked board, held low on the committed one), so VOUT1 is the active register.
 bool tpsProgram(uint16_t mv)
@@ -209,7 +264,23 @@ bool tpsProgram(uint16_t mv)
         return false;
     if (ctrl != TPS_CONTROL_VALUE || (vout & 0x7f) != code)
         return false;
-    paSetMv = PA_VOUT_MIN_MV + code * 25;
+    const uint16_t mvSet = PA_VOUT_MIN_MV + code * 25;
+    noteRamp(paSetMv, mvSet);
+    paSetMv = mvSet;
+    return true;
+}
+
+// VOUT1 only: one register write, for a change while CONTROL is known good
+// (tpsProgram() verified it before this packet).  Used in the middle of a
+// packet, where the read-backs would cost another ~0.8 ms.
+bool tpsSetVout(uint16_t mv)
+{
+    const uint8_t code = voutCode(mv);
+    if (!i2cWrite8(TPS63810_ADDR, TPS_REG_VOUT1, code))
+        return false;
+    const uint16_t mvSet = PA_VOUT_MIN_MV + code * 25;
+    noteRamp(paSetMv, mvSet);
+    paSetMv = mvSet;
     return true;
 }
 
@@ -284,6 +355,52 @@ uint16_t saadcReadMv(uint32_t psel, uint32_t gain)
     NRF_SAADC->ENABLE = SAADC_ENABLE_ENABLE_Disabled << SAADC_ENABLE_ENABLE_Pos;
     int32_t v = value < 0 ? 0 : value;
     return (uint16_t)((v * fullScaleMv) / 4096);
+}
+
+// Two pins in one SAADC scan (CH[0], CH[1], converted back to back on one
+// SAMPLE task), same gain: two readings ~45 us apart, so a level still
+// moving moves both nearly alike.
+void saadcRead2Mv(uint32_t pselA, uint32_t pselB, uint32_t gain, uint16_t *mvA, uint16_t *mvB)
+{
+    volatile int16_t value[2] = {0, 0};
+    const uint32_t fullScaleMv = (gain == SAADC_CH_CONFIG_GAIN_Gain1_2) ? 1200 : 3600;
+    const uint32_t cfg = (SAADC_CH_CONFIG_RESP_Bypass << SAADC_CH_CONFIG_RESP_Pos) |
+                         (SAADC_CH_CONFIG_RESN_Bypass << SAADC_CH_CONFIG_RESN_Pos) | (gain << SAADC_CH_CONFIG_GAIN_Pos) |
+                         (SAADC_CH_CONFIG_REFSEL_Internal << SAADC_CH_CONFIG_REFSEL_Pos) |
+                         (SAADC_CH_CONFIG_TACQ_40us << SAADC_CH_CONFIG_TACQ_Pos) |
+                         (SAADC_CH_CONFIG_MODE_SE << SAADC_CH_CONFIG_MODE_Pos) |
+                         (SAADC_CH_CONFIG_BURST_Disabled << SAADC_CH_CONFIG_BURST_Pos);
+    NRF_SAADC->RESOLUTION = SAADC_RESOLUTION_VAL_12bit;
+    NRF_SAADC->OVERSAMPLE = 0;
+    NRF_SAADC->ENABLE = SAADC_ENABLE_ENABLE_Enabled << SAADC_ENABLE_ENABLE_Pos;
+    for (int i = 0; i < 8; i++) {
+        NRF_SAADC->CH[i].PSELN = SAADC_CH_PSELP_PSELP_NC;
+        NRF_SAADC->CH[i].PSELP = SAADC_CH_PSELP_PSELP_NC;
+    }
+    NRF_SAADC->CH[0].CONFIG = cfg;
+    NRF_SAADC->CH[1].CONFIG = cfg;
+    NRF_SAADC->CH[0].PSELP = pselA;
+    NRF_SAADC->CH[1].PSELP = pselB;
+    NRF_SAADC->RESULT.PTR = (uint32_t)value;
+    NRF_SAADC->RESULT.MAXCNT = 2;
+    NRF_SAADC->TASKS_START = 1;
+    while (!NRF_SAADC->EVENTS_STARTED)
+        ;
+    NRF_SAADC->EVENTS_STARTED = 0;
+    NRF_SAADC->TASKS_SAMPLE = 1; // one task scans every enabled channel
+    while (!NRF_SAADC->EVENTS_END)
+        ;
+    NRF_SAADC->EVENTS_END = 0;
+    NRF_SAADC->TASKS_STOP = 1;
+    while (!NRF_SAADC->EVENTS_STOPPED)
+        ;
+    NRF_SAADC->EVENTS_STOPPED = 0;
+    NRF_SAADC->CH[0].PSELP = SAADC_CH_PSELP_PSELP_NC;
+    NRF_SAADC->CH[1].PSELP = SAADC_CH_PSELP_PSELP_NC;
+    NRF_SAADC->ENABLE = SAADC_ENABLE_ENABLE_Disabled << SAADC_ENABLE_ENABLE_Pos;
+    const int32_t a = value[0] < 0 ? 0 : value[0], b = value[1] < 0 ? 0 : value[1];
+    *mvA = (uint16_t)((a * fullScaleMv) / 4096);
+    *mvB = (uint16_t)((b * fullScaleMv) / 4096);
 }
 
 uint16_t readVbatMv()
@@ -440,6 +557,49 @@ uint16_t paWantedMv()
 }
 
 // ---------------------------------------------------------------------------
+// Soft start (variant.h, OFFGRID_SOFTSTART_*): a packet above 1 W starts at
+// the soft-start supply and is raised only after the antenna check.
+// ---------------------------------------------------------------------------
+// Above the US supply and, in the model, above 30 dBm less the model's
+// uncertainty.  US mode (2.7 V, the gain table's +13 dBm) never soft-starts.
+bool softStartWanted(int8_t drive, uint16_t targetMv)
+{
+    return targetMv > OFFGRID_PA_VOUT_US_MV &&
+           modelUflDbm(drive, targetMv) > (float)(OFFGRID_SOFTSTART_ABOVE_DBM - OFFGRID_SOFTSTART_MODEL_DB);
+}
+
+uint16_t softStartMv(uint16_t targetMv)
+{
+    return targetMv < OFFGRID_SOFTSTART_VPA_MV ? targetMv : OFFGRID_SOFTSTART_VPA_MV;
+}
+
+// The supply between packets: the caps' level, or the soft-start level when
+// the last packet's drive would need a soft start (so the next one does not
+// have to wait for the TPS63810 to ramp down before it starts).
+uint16_t paIdleMv()
+{
+    const uint16_t want = paWantedMv();
+    return softStartWanted(txDrive, want) ? softStartMv(want) : want;
+}
+
+// The 16-symbol preamble of the current LoRa settings, us (0 = unknown).
+// 902-928 MHz is never "wide LoRa" (that is 2.4 GHz).
+uint32_t preambleUs()
+{
+    float bwKHz = 0;
+    uint8_t sf = 0, cr = 0;
+    if (config.lora.use_preset) {
+        modemPresetToParams(config.lora.modem_preset, false, bwKHz, sf, cr);
+    } else {
+        sf = config.lora.spread_factor;
+        bwKHz = bwCodeToKHz(config.lora.bandwidth);
+    }
+    if (bwKHz <= 0 || sf < 5 || sf > 12)
+        return 0;
+    return (uint32_t)(OFFGRID_LORA_PREAMBLE_SYMBOLS * (float)(1u << sf) * 1000.0f / bwKHz);
+}
+
+// ---------------------------------------------------------------------------
 // Amplifier on/off.  RadioLib drives PA_EN (its TXEN) with digitalWrite()
 // only, which sets the OUT register; with the pin made an input the 100 k
 // pull-down holds the amplifier in standby whatever RadioLib writes.
@@ -466,36 +626,70 @@ void paRestoreIfIdle()
     }
 }
 
-void applySupply(bool waitForRise)
+// Bring the supply to mv (programmed and read back); false if that failed,
+// and the level is then unknown (paSetMv = 0, retried later).
+bool supplyTo(uint16_t mv)
 {
-    const uint16_t want = paWantedMv();
-    if (paSetMv != 0 && voutCode(want) == voutCode(paSetMv))
-        return;
-    const uint16_t before = paSetMv;
-    if (tpsProgram(want)) {
-        if (waitForRise && want > before + 200)
-            delayMicroseconds(1000); // TPS63810 slews 1 V/ms
-    } else {
-        paSetMv = 0; // unknown: try again next time
-    }
+    if (paSetMv != 0 && voutCode(mv) == voutCode(paSetMv))
+        return true;
+    if (tpsProgram(mv))
+        return true;
+    paSetMv = 0;
+    return false;
 }
 
-void antennaFault(uint16_t mv, uint16_t thrMv)
+void antennaFault()
 {
     paRelease(); // amplifier standby now, mid-packet
     const AntState was = antState;
     antState = ANT_BLOCKED;
-    tpsProgram(PA_VOUT_MIN_MV);
+    if (!tpsProgram(PA_VOUT_MIN_MV))
+        paSetMv = 0;
     if (was == ANT_PROBE)
         antBackoffMs = min((uint32_t)OFFGRID_ANT_RETRY_MAX_MS, antBackoffMs * 2);
     else
         antBackoffMs = OFFGRID_ANT_RETRY_MS;
     antRetryAtMs = millis() + antBackoffMs;
-    antLastMv = mv;
-    antLastThrMv = thrMv;
     antLogPending = true;
     if (was == ANT_OK)
         antNotifyPending = true;
+}
+
+// The antenna check, once the sample time has passed.  Reads FWD_DET and
+// REFL_DET; while FWD_DET is below OFFGRID_FWD_MIN_MV (RF not up yet), reads
+// them again every OFFGRID_FWD_POLL_US for up to OFFGRID_FWD_WAIT_MAX_US.
+//   AV_OK      FWD_DET trusted and REFL/FWD within OFFGRID_ANT_RATIO_MAX_PCT
+//   AV_FAULT   the ratio is above it, or (fallback, FWD_DET too low) REFL_DET
+//              is above the old absolute threshold for this power
+//   AV_UNSURE  FWD_DET too low and REFL_DET below the fallback threshold: no
+//              fault seen, but nothing proves the antenna is there either
+// *elapsedUs grows by the time spent here (an estimate: micros() on this core
+// has only RTOS-tick resolution unless DWT is on).
+AntVerdict antennaCheck(float pDbm, uint32_t *elapsedUs)
+{
+    uint16_t fwd = 0, refl = 0;
+    saadcRead2Mv(FWD_DET_AIN, REFL_DET_AIN, SAADC_CH_CONFIG_GAIN_Gain1_6, &fwd, &refl);
+    *elapsedUs += SAADC_READ2_US;
+    for (uint32_t waited = 0; fwd < OFFGRID_FWD_MIN_MV && waited < OFFGRID_FWD_WAIT_MAX_US; waited += OFFGRID_FWD_POLL_US) {
+        delayMicroseconds(OFFGRID_FWD_POLL_US);
+        saadcRead2Mv(FWD_DET_AIN, REFL_DET_AIN, SAADC_CH_CONFIG_GAIN_Gain1_6, &fwd, &refl);
+        *elapsedUs += OFFGRID_FWD_POLL_US + SAADC_READ2_US;
+    }
+    antLastFwdMv = fwd;
+    antLastReflMv = refl;
+    if (fwd >= OFFGRID_FWD_MIN_MV) {
+        // Ratio: independent of the cable length and of the power; the two
+        // diodes' temperature drift largely cancels, so no correction.
+        antLastByRatio = true;
+        return (uint32_t)refl * 100 > (uint32_t)OFFGRID_ANT_RATIO_MAX_PCT * fwd ? AV_FAULT : AV_OK;
+    }
+    // Fallback: the old single-detector threshold, V30 at 30 dBm, V35 at
+    // 35 dBm, straight line in dB(V) against dBm, plus the diode's drift
+    antLastByRatio = false;
+    const float thr = OFFGRID_REFL_V30_MV * powf((float)OFFGRID_REFL_V35_MV / OFFGRID_REFL_V30_MV, (pDbm - 30.0f) / 5.0f) +
+                      (boardTempValid ? OFFGRID_REFL_TC_UV_PER_C * (boardCentiC - 2500) / 100000.0f : 0.0f);
+    antLastThrMv = (uint16_t)thr;
+    return refl > thr ? AV_FAULT : AV_UNSURE;
 }
 
 void gpsPinsFloating()
@@ -503,7 +697,6 @@ void gpsPinsFloating()
     pinMode(PIN_SERIAL1_RX, INPUT);
     pinMode(PIN_SERIAL1_TX, INPUT);
     pinMode(PIN_GPS_PPS, INPUT);
-    pinMode(PIN_GPS_RESET_OFFGRID, INPUT);
 }
 
 // ---------------------------------------------------------------------------
@@ -706,13 +899,16 @@ float paDcWatts(float dbm)
 // Transmit hooks (patch 0001 part 3)
 // ---------------------------------------------------------------------------
 
-// Before each packet, radio in standby: the SX1262 setting for this packet.
+// Before each packet, radio in standby: the SX1262 setting for this packet,
+// and the supply it starts at.
 int8_t variantLimitTxPower(int8_t power)
 {
     paRestoreIfIdle();
-    applySupply(true);
+    txSoft = false;
+    txRaised = false;
     const int8_t cap = capDbm();
     if (cap == CAP_PA_OFF) {
+        supplyTo(PA_VOUT_MIN_MV);
         paRelease();
         txDrive = -9;
         return -9;
@@ -724,35 +920,90 @@ int8_t variantLimitTxPower(int8_t power)
             d = m;
     }
     txDrive = d;
+    txTargetMv = paWantedMv();
+    txSoft = softStartWanted(d, txTargetMv);
+    if (!supplyTo(txSoft ? softStartMv(txTargetMv) : txTargetMv) && txSoft) {
+        // The soft-start level could not be set, so the supply is unknown
+        // (up to the licensed ceiling).  Hold the drive to the 1 W setting
+        // instead: the gain table keeps that at or under 30 dBm at any supply.
+        txSoft = false;
+        const int8_t m = driveForCapDbm(OFFGRID_ANT_PROBE_DBM);
+        if (m < d)
+            txDrive = d = m;
+        softFailPending = true;
+    }
+    // Let the TPS63810 finish ramping (at 1 V/ms) first: a rise, or the drop
+    // to the soft-start level, which must not still be under way when the RF
+    // starts.  Usually there is nothing left: variantTxDone() already brought
+    // the supply back down after the last packet.
+    waitForRamp();
+    txPreambleUs = txSoft ? preambleUs() : 0;
     return d;
 }
 
-// Right after the SX1262 was told to transmit (RadioLib has raised PA_EN).
+// Right after the SX1262 was told to transmit.  RadioLib (7.6.0,
+// SX126x::launchMode) raises PA_EN, sends SetTx and then waits for BUSY to
+// fall, which the SX1262 does only after its oscillator start, PLL lock and
+// 200 us PA ramp: here the SX1262 is at full drive, the preamble has just
+// begun and PA_EN has been high for at least ~0.25 ms.  The QPA9510's 2.8 V
+// control supply (TLV75528, PA_EN) takes 550 us typical (no maximum given)
+// to start, the QPA9510 ramps in ~40 us, and the detectors then settle in
+// ~0.15 ms (FWD_DET) to ~0.46 ms (REFL_DET, antenna missing, 27 dBm, -40 C;
+// sim/rf study 8).  OFFGRID_REFL_SAMPLE_US (750 us, >= 1 ms after PA_EN)
+// covers the typical case with little to spare, so it is not shortened; the
+// FWD_DET poll in antennaCheck() covers a late RF.
 void variantTxStarted()
 {
     txActive = true;
     txStartMs = millis();
+    txRaised = false;
     if (paReleased || capDbm() == CAP_PA_OFF) {
         paRelease();
         txPest = -99;
+        txSoft = false;
         return;
     }
-    txPest = modelUflDbm(txDrive, paSetMv);
-    if (txPest < OFFGRID_REFL_MIN_DBM)
-        return;
+    // An unknown supply (I2C failed) is taken as the highest it can be, so
+    // the packet is checked rather than waved through
+    txPest = modelUflDbm(txDrive, paSetMv != 0 ? paSetMv : PA_VOUT_ABS_MAX_MV);
+    if (!txSoft && txPest < OFFGRID_REFL_MIN_DBM)
+        return; // a missing antenna harms nothing down here
+    uint32_t elapsedUs = OFFGRID_REFL_SAMPLE_US;
     delayMicroseconds(OFFGRID_REFL_SAMPLE_US);
-    const uint16_t mv = saadcReadMv(REFL_DET_AIN, SAADC_CH_CONFIG_GAIN_Gain1_6);
-    // threshold: V30 at 30 dBm, V35 at 35 dBm, straight line in dB(V) against dBm
-    const float thr = OFFGRID_REFL_V30_MV * powf((float)OFFGRID_REFL_V35_MV / OFFGRID_REFL_V30_MV, (txPest - 30.0f) / 5.0f) +
-                      (boardTempValid ? OFFGRID_REFL_TC_UV_PER_C * (boardCentiC - 2500) / 100000.0f : 0.0f);
-    if (mv > thr) {
-        antennaFault(mv, (uint16_t)thr);
-    } else if (antState == ANT_PROBE) {
+    const AntVerdict v = antennaCheck(txPest, &elapsedUs);
+    if (v == AV_FAULT) {
+        antennaFault(); // amplifier off now; for a soft start that is from <= 1 W
+        txSoft = false;
+        return;
+    }
+    if (antState == ANT_PROBE) {
+        // the 1 W retry found no fault (as before: the fallback alone may clear it)
         antState = ANT_OK;
         antBackoffMs = OFFGRID_ANT_RETRY_MS;
-        antLastMv = mv;
-        antLastThrMv = (uint16_t)thr;
         antLogPending = true;
+    }
+    if (!txSoft)
+        return;
+    if (v != AV_OK) {
+        antFwdLowPending = true; // only a trusted ratio clears a packet for more than 1 W
+        return;
+    }
+    // Raise to the packet's own level: one VOUT1 write, then the TPS63810
+    // slews at 1 V/ms (2.25 -> 3.6 V: 1.35 ms; -> 4.0 V: 1.75 ms).  LoRa
+    // chirps are constant-envelope, so the receiver takes this amplitude step
+    // in its stride as long as it lands inside the preamble (it only shifts
+    // the level the receiver's gain settles on over a few preamble symbols);
+    // if it would not, the packet stays at the soft-start level.
+    const uint32_t rampUs = TPS_WRITE_US + (uint32_t)(txTargetMv - paSetMv) * 1000 / TPS_SLEW_MV_PER_MS;
+    if (txPreambleUs == 0 || elapsedUs + rampUs + OFFGRID_SOFTSTART_PREAMBLE_MARGIN_US > txPreambleUs) {
+        softLatePending = true;
+        return;
+    }
+    if (tpsSetVout(txTargetMv)) {
+        txRaised = true;
+        txPest = modelUflDbm(txDrive, paSetMv);
+    } else {
+        paSetMv = 0; // unknown: the main loop re-programs it after the packet
     }
 }
 
@@ -765,6 +1016,12 @@ void variantTxDone()
     const uint32_t now = millis();
     const uint32_t dur = now - txStartMs;
     lastTxEndMs = now;
+    // Soft start: back to the soft-start level now, so the TPS63810's ramp
+    // down (1 V/ms) is over before the next packet starts.
+    if (txRaised && !paReleased && paSetMv != 0 && !tpsSetVout(paIdleMv()))
+        paSetMv = 0;
+    txRaised = false;
+    txSoft = false;
     // The cell's sag under this packet, read through VBAT_SENSE (0.6 M x
     // 100 nF = 60 ms, so scaled up for the part not yet reached), gives the
     // cell's resistance with the modelled amplifier current.
@@ -811,6 +1068,7 @@ void initVariant()
     pinMode(PIN_DRONE_OK, INPUT);
     pinMode(PIN_TEMP_ALERT, INPUT);
     pinMode(PIN_REFL_DET, INPUT); // analog only
+    pinMode(PIN_FWD_DET, INPUT);  // analog only
     pinMode(PIN_CHG_TS, INPUT);   // analog only
 
     // RF front end quiet until RadioLib takes TXEN/RXEN: amplifier control
@@ -887,9 +1145,11 @@ void lateInitVariant()
     updateBatteryCap(now);
     if (capDbm() == CAP_PA_OFF)
         paRelease();
-    applySupply(false);
+    supplyTo(paIdleMv());
     LOG_INFO("PA supply %u mV (%s), cap %d dBm", paSetMv, devicestate.owner.is_licensed ? "licensed" : "unlicensed, 30 dBm",
              capDbm() == CAP_NONE ? 99 : capDbm());
+    LOG_INFO("Antenna check: REFL/FWD > %d%% trips (FWD_DET >= %d mV); packets above %d dBm soft-start at %u mV (provisional)",
+             OFFGRID_ANT_RATIO_MAX_PCT, OFFGRID_FWD_MIN_MV, OFFGRID_SOFTSTART_ABOVE_DBM, (unsigned)OFFGRID_SOFTSTART_VPA_MV);
     stat2WindowMs = now;
     paLastCheckMs = now;
 }
@@ -905,11 +1165,30 @@ void variant_nrf52LoopHook(void)
 
     if (antLogPending) {
         antLogPending = false;
-        if (antState == ANT_BLOCKED)
-            LOG_WARN("ANTENNA MISSING? REFL_DET %u mV > %u mV at ~%d dBm: amplifier off, retry at 1 W in %u s", antLastMv,
-                     antLastThrMv, (int)txPest, (unsigned)(antBackoffMs / 1000));
+        if (antState == ANT_BLOCKED && antLastByRatio)
+            LOG_WARN("ANTENNA MISSING? REFL_DET %u mV / FWD_DET %u mV = %u%% > %d%% at ~%d dBm: amplifier off, retry at 1 W in %u s",
+                     antLastReflMv, antLastFwdMv, (unsigned)(antLastReflMv * 100u / antLastFwdMv), OFFGRID_ANT_RATIO_MAX_PCT,
+                     (int)txPest, (unsigned)(antBackoffMs / 1000));
+        else if (antState == ANT_BLOCKED)
+            LOG_WARN("ANTENNA MISSING? REFL_DET %u mV > %u mV (fallback: FWD_DET %u mV, too low for the ratio) at ~%d dBm: "
+                     "amplifier off, retry at 1 W in %u s",
+                     antLastReflMv, antLastThrMv, antLastFwdMv, (int)txPest, (unsigned)(antBackoffMs / 1000));
         else
-            LOG_INFO("Antenna OK again (REFL_DET %u mV < %u mV): full power", antLastMv, antLastThrMv);
+            LOG_INFO("Antenna OK again (REFL_DET %u mV, FWD_DET %u mV%s): full power", antLastReflMv, antLastFwdMv,
+                     antLastByRatio ? "" : ", fallback check only");
+    }
+    if (antFwdLowPending) {
+        antFwdLowPending = false;
+        LOG_WARN("Soft start held at 1 W: FWD_DET %u mV (< %d mV) at ~%d dBm, REFL_DET %u mV: RF late or forward detector fault",
+                 antLastFwdMv, OFFGRID_FWD_MIN_MV, (int)txPest, antLastReflMv);
+    }
+    if (softLatePending) {
+        softLatePending = false;
+        LOG_WARN("Soft start held at 1 W: the raise would end after the %u us preamble", (unsigned)txPreambleUs);
+    }
+    if (softFailPending) {
+        softFailPending = false;
+        LOG_WARN("Soft start: TPS63810 not set, packet sent at the 1 W drive setting instead");
     }
     if (antNotifyPending && service) {
         antNotifyPending = false;
@@ -943,11 +1222,13 @@ void variant_nrf52LoopHook(void)
     else if (!txActive)
         paRestoreIfIdle();
 
-    // Supply: never raised in the middle of a packet
-    const uint16_t want = paWantedMv();
+    // Supply: not changed in the middle of a packet (a soft start raises it
+    // there on purpose, and variantTxDone() brings it back down), except down
+    // to "amplifier off", which PA_EN already enforces anyway.
+    const uint16_t want = paIdleMv();
     if (voutCode(want) == voutCode(paSetMv) && tpsStillProgrammed())
         return;
-    if (want > paSetMv && paSetMv != 0 && paEnDrivenHigh())
+    if ((txActive || paEnDrivenHigh()) && want != PA_VOUT_MIN_MV)
         return;
     const uint16_t before = paSetMv;
     if (tpsProgram(want)) {

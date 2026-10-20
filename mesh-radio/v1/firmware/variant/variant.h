@@ -19,6 +19,8 @@
  *    not a measurement) and errs towards too little power.
  *  - Temperature, the cell and the antenna detector can lower that further
  *    (or switch the amplifier off) per packet: variant.cpp, patch part 3.
+ *  - Every packet above 1 W starts at 1 W and is raised only once the
+ *    antenna check passes (soft start, OFFGRID_SOFTSTART_*).
  *  - Meshtastic v2.7.26 applies the table only at radio init, not after a
  *    settings change (SX126xInterface::reconfigure); until the board reboots
  *    the SX1262 then runs at SX126X_MAX_POWER.  Apply
@@ -71,7 +73,7 @@ extern "C" {
 // Number of pins defined in PinDescription array
 #define PINS_COUNT (48)
 #define NUM_DIGITAL_PINS (48)
-#define NUM_ANALOG_INPUTS (5)
+#define NUM_ANALOG_INPUTS (6)
 #define NUM_ANALOG_OUTPUTS (0)
 
 /*
@@ -92,16 +94,17 @@ extern "C" {
 
 /*
  * Analog pins.  analogRead() takes the GPIO number; the core maps it to AINx.
- * A0 = battery sense.  A1-A2 = expansion header IO1-IO2.  A3 = the
- * missing-antenna detector, A4 = the charger's battery NTC (both on the
- * board only; header pins 14 and 15, which were IO3/IO4, are not connected).
+ * A0 = battery sense.  A1-A2 = expansion header IO1-IO2.  A3 and A5 = the
+ * antenna detector's reflected and forward waves, A4 = the charger's battery
+ * NTC (all on the board only; header pins 14 and 15, which were IO3/IO4, are
+ * not connected).
  */
 #define PIN_A0 (5)  // P0.05 / AIN3  VBAT_SENSE
 #define PIN_A1 (28) // P0.28 / AIN4  IO1 (expansion)
 #define PIN_A2 (29) // P0.29 / AIN5  IO2 (expansion)
 #define PIN_A3 (30) // P0.30 / AIN6  REFL_DET (missing-antenna detector)
 #define PIN_A4 (31) // P0.31 / AIN7  CHG_TS (charger TS/MR pin, battery NTC)
-#define PIN_A5 (0xff)
+#define PIN_A5 (2)  // P0.02 / AIN0  FWD_DET (antenna detector, forward wave)
 #define PIN_A6 (0xff)
 #define PIN_A7 (0xff)
 
@@ -115,7 +118,7 @@ static const uint8_t A6 = PIN_A6;
 static const uint8_t A7 = PIN_A7;
 #define ADC_RESOLUTION 14
 
-// P0.02/AIN0 is PA_SRC_SYS here, so there is no usable external reference pin.
+// P0.02/AIN0 is FWD_DET here, so there is no usable external reference pin.
 #define PIN_AREF (0xff)
 static const uint8_t AREF = PIN_AREF;
 
@@ -252,7 +255,7 @@ static const uint8_t SCK = PIN_SPI_SCK;
  *   starts at 3.3 V (VOUT1 reset value) and loses its registers whenever its
  *   input goes away, so the variant writes VOUT1 after every enable and
  *   re-checks it every OFFGRID_PA_CHECK_MS.  Its VSEL is tied to GND: VOUT1.
- * PA_SRC_SYS (P0.02, 1 M pull-down): low = the mux takes the battery first
+ * PA_SRC_SYS (P1.09, 1 M pull-down): low = the mux takes the battery first
  *   (down to 2.60 V); high = an N-FET pulls the mux's PR1 low and it takes
  *   charger SYS.  Driven high with no cell fitted, or with USB in and a cell
  *   too weak for 1 W (sim/burst).
@@ -261,7 +264,7 @@ static const uint8_t SCK = PIN_SPI_SCK;
  */
 #define PIN_PA_PWR_EN (32 + 1) // P1.01 PA_PWR_EN
 #define PIN_PA_EN SX126X_TXEN  // P1.07 PA_EN (amplifier control-voltage LDO), 100 k pull-down
-#define PIN_PA_SRC_SYS (2)     // P0.02 PA_SRC_SYS (was PA_VSEL before the 19 Oct power-path rework)
+#define PIN_PA_SRC_SYS (32 + 9) // P1.09 PA_SRC_SYS (P0.02 until 20 Oct, which is now FWD_DET; PA_VSEL before 19 Oct)
 
 #define TPS63810_ADDR 0x75
 #define TMP1075_ADDR 0x48
@@ -366,26 +369,70 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #endif
 
 /*
- * Missing-antenna detector (sim/rf/coupler.txt): a printed coupler beside the
- * U.FL feed, a BAT15 diode, 1 nF || 100 k, into P0.30/AIN6.  It reads the
- * reflected wave, so the threshold scales with the power sent.
- * The SAADC samples it OFFGRID_REFL_SAMPLE_US after the transmission starts
- * (it settles ~0.3 ms after PA_EN; sample at 0.5-1 ms), 40 us acquisition.
- * Threshold at the U.FL power P (dBm): V30 at 30 dBm, V35 at 35 dBm,
- * interpolated in dB (log of the voltage, linear in dBm), plus
- * OFFGRID_REFL_TC_UV_PER_C per degree C of board temperature above 25 C.
- * Worst cases (-40..85 C, 902-928 MHz, every phase): VSWR-2 antenna 0.24 V,
- * missing 0.52 V at 30 dBm; 0.47 / 1.12 V at 35 dBm.
- * Not checked below OFFGRID_REFL_MIN_DBM, where a missing antenna harms nothing.
+ * Missing-antenna detector: a RATIO detector (circuit.py, 20 Oct).  A printed
+ * coupler between the antenna filter and the U.FL feeds two diode detectors,
+ * each into 1 nF || 100 k: a DC level that settles within ~0.15 ms (FWD) and
+ * up to ~0.46 ms (REFL, antenna missing, 27 dBm, -40 C) of the RF reaching
+ * full power (sim/rf/results.txt study 8, in progress on 20 Oct):
+ *   REFL_DET  P0.30 / AIN6  the reflected wave
+ *   FWD_DET   P0.02 / AIN0  the forward wave
+ * REFL/FWD is near 0 with a matched antenna and near 1 with the antenna
+ * missing, whatever the cable length and the power.  The diodes are partly
+ * square-law at these levels, which squeezes the in-between cases: study 8
+ * has VSWR 2 at 0.00-0.29 (0.33 over diode pairings) and missing at 0.27 and
+ * up (0.43 and up at 30 dBm, 0.69 and up at 33 dBm and more).  The single reflected-wave detector before
+ * it compared REFL_DET with a fixed threshold per power, and with the antenna
+ * missing could read below it at some cable lengths.
+ *
+ * When: OFFGRID_REFL_SAMPLE_US after the SX1262 was told to transmit, both
+ * pins sampled in one SAADC scan (40 us acquisition each, back to back, 3.6 V
+ * full scale), in every packet of
+ * OFFGRID_REFL_MIN_DBM or more (modelled U.FL power) and every soft-started
+ * one (below).  If FWD_DET is still below OFFGRID_FWD_MIN_MV the pins are
+ * sampled again every OFFGRID_FWD_POLL_US, for up to OFFGRID_FWD_WAIT_MAX_US
+ * more (the RF can come up late: the TLV75528's start-up is 550 us typical
+ * and has no maximum).
+ * Trip: FWD_DET >= OFFGRID_FWD_MIN_MV (the RF is on and the reading is out of
+ * the diodes' noise) and REFL_DET / FWD_DET > OFFGRID_ANT_RATIO_MAX_PCT / 100.
+ * Fallback, only while FWD_DET reads too low to trust (RF late, or the
+ * forward detector broken): the old absolute threshold on REFL_DET alone,
+ * V30 at 30 dBm, V35 at 35 dBm, interpolated in dB, plus
+ * OFFGRID_REFL_TC_UV_PER_C per degree C above 25 C.  It can trip, but it
+ * never clears a packet for more than 1 W (see the soft start).
+ * PROVISIONAL: the ratio threshold and FWD_DET minimum are placeholders
+ * until the RF sim's ratio study is final.  0.35 is above every VSWR-2 case
+ * in study 8 as it stood on 20 Oct (0.33 worst diode pairing) and below
+ * every missing-antenna case with typical diodes from 30 dBm up (0.43); 0.6
+ * would miss a missing antenna at 30 dBm in the cold.  50 mV: a matched
+ * antenna's FWD_DET is ~0.13 V at 30 dBm, -40 C, so 150 mV would block the
+ * soft start's raise in the cold.  The fallback thresholds are the old
+ * single-detector ones (sim/rf/coupler.txt); study 8 shows that the new
+ * REFL_DET stays below them even with the antenna missing, so the fallback
+ * needs new numbers (or removing) once the sim is final.
  * Above the threshold: amplifier off at once, for this packet and the ones
- * after; one try at 1 W after OFFGRID_ANT_RETRY_MS, doubling up to
- * OFFGRID_ANT_RETRY_MAX_MS while the fault stays.
+ * after; one try at 1 W (OFFGRID_ANT_PROBE_DBM) after OFFGRID_ANT_RETRY_MS,
+ * doubling up to OFFGRID_ANT_RETRY_MAX_MS while the fault stays.
  */
 #define PIN_REFL_DET (30) // P0.30 / AIN6 REFL_DET
 #define REFL_DET_AIN 7     // SAADC PSELP value for AIN6 (AINx = x + 1)
+#define PIN_FWD_DET (2)    // P0.02 / AIN0 FWD_DET
+#define FWD_DET_AIN 1      // SAADC PSELP value for AIN0
 #ifndef OFFGRID_REFL_SAMPLE_US
-#define OFFGRID_REFL_SAMPLE_US 750
+#define OFFGRID_REFL_SAMPLE_US 750 // after startTransmit(): >= 1 ms after PA_EN, ~2x the TLV75528's typical start-up
 #endif
+#ifndef OFFGRID_ANT_RATIO_MAX_PCT
+#define OFFGRID_ANT_RATIO_MAX_PCT 35 // PROVISIONAL: trip when REFL/FWD > 0.35 (study 8: VSWR 2 <= 0.33, missing >= 0.43 at 30 dBm)
+#endif
+#ifndef OFFGRID_FWD_MIN_MV
+#define OFFGRID_FWD_MIN_MV 50 // PROVISIONAL: FWD_DET at or above this proves the RF is on (matched, 30 dBm: 0.13 V at -40 C)
+#endif
+#ifndef OFFGRID_FWD_POLL_US
+#define OFFGRID_FWD_POLL_US 50
+#endif
+#ifndef OFFGRID_FWD_WAIT_MAX_US
+#define OFFGRID_FWD_WAIT_MAX_US 750 // extra wait for a late FWD_DET, after OFFGRID_REFL_SAMPLE_US
+#endif
+// Fallback (FWD_DET too low): the old single-detector thresholds
 #ifndef OFFGRID_REFL_V30_MV
 #define OFFGRID_REFL_V30_MV 350
 #endif
@@ -409,14 +456,56 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #endif
 
 /*
- * GPS add-on (JST-SH 6): switched 3.3 V (TPS22916, active high), UART, PPS,
- * RESET.  The variant leaves GPS_RESET as an input (not given to Meshtastic)
- * so the processor never drives it into an unpowered module.
+ * Soft start of every transmission above 1 W (variant.cpp).  The RF sim found
+ * that above ~1 W into a missing antenna the antenna switch is overstressed
+ * from the first RF cycle, so a check once the packet is at full power is too
+ * late.  A packet whose supply is above the US level and whose modelled U.FL
+ * power is above OFFGRID_SOFTSTART_ABOVE_DBM (less OFFGRID_SOFTSTART_MODEL_DB
+ * for the provisional model) starts with the amplifier supply at
+ * OFFGRID_SOFTSTART_VPA_MV; at the detector sample the ratio check runs, and
+ * only a clean ratio reading raises the supply to the packet's own level (one
+ * VOUT1 write; the TPS63810 then slews at 1 V/ms).  A trip is the
+ * missing-antenna cut-off above; a reading that cannot be trusted (FWD_DET
+ * low) keeps the packet at the soft-start level.  The supply goes back to the
+ * soft-start level as soon as the packet has gone.
+ *
+ * OFFGRID_SOFTSTART_VPA_MV: Psat(VPA) = 30 dBm in the transmit model (2.25 V;
+ * firmware/tools/pa_gain_table.py), so even the full +20 dBm drive of licensed
+ * mode gives <= 1 W (model 29.9 dBm).  The US supply (2.7 V) would not: the
+ * gain table holds US packets to a +13 dBm drive, but at +20 dBm 2.7 V gives
+ * ~31.4 dBm (1.4 W).  Set it to 2700 to start at the US level instead.
+ *
+ * LoRa is constant-envelope (chirps), so an amplitude step early in the
+ * preamble does not corrupt the packet; it must land inside the preamble,
+ * though, before the sync word and header.  The raise is skipped (the packet
+ * stays at the soft-start level) if it would end later than
+ * OFFGRID_SOFTSTART_PREAMBLE_MARGIN_US before the end of the 16-symbol
+ * preamble.  Fastest preset, SHORT_TURBO (SF7, 500 kHz): 4.1 ms of preamble,
+ * the raise to 4.0 V ends ~3.0 ms in.  Every other preset is longer (LONG_FAST
+ * 131 ms, LONG_SLOW 524 ms).
+ */
+#ifndef OFFGRID_SOFTSTART_ABOVE_DBM
+#define OFFGRID_SOFTSTART_ABOVE_DBM 30
+#endif
+#ifndef OFFGRID_SOFTSTART_MODEL_DB
+#define OFFGRID_SOFTSTART_MODEL_DB 1 // the QPA9510 may have ~1 dB more gain than the model
+#endif
+#ifndef OFFGRID_SOFTSTART_VPA_MV
+#define OFFGRID_SOFTSTART_VPA_MV 2250
+#endif
+#ifndef OFFGRID_SOFTSTART_PREAMBLE_MARGIN_US
+#define OFFGRID_SOFTSTART_PREAMBLE_MARGIN_US 500
+#endif
+#define OFFGRID_LORA_PREAMBLE_SYMBOLS 16 // RadioInterface::preambleLength (Meshtastic v2.7.26, SX126x)
+
+/*
+ * GPS add-on (JST-SH 6): switched 3.3 V (TPS22916, active high), UART, PPS.
+ * The module's RESET is not wired to the processor (circuit.py, 20 Oct): the
+ * GPS is reset by cycling GPS_EN, which Meshtastic's GPS code already drives.
  */
 #define PIN_GPS_EN (23)        // P0.23 GPS_EN, active high
 #define GPS_EN_ACTIVE 1
 #define PIN_GPS_PPS (17)       // P0.17 GPS_PPS
-#define PIN_GPS_RESET_OFFGRID (32 + 9) // P1.09 GPS_RESET (deliberately not PIN_GPS_RESET)
 #define GPS_RX_PIN PIN_SERIAL1_RX
 #define GPS_TX_PIN PIN_SERIAL1_TX
 #define GPS_SERIAL_PORT Serial1

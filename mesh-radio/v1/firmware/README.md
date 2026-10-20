@@ -16,15 +16,23 @@ board definition it needs. It lives here until it goes upstream.
 > new: power caps by temperature and by the cell, the missing-antenna cut-off,
 > the 0–45 °C charging window, the no-cell check, and the 32.768 kHz crystal
 > declared as 250 ppm.
+>
+> 20 Oct: the missing-antenna detector is a **ratio detector** (a forward-wave
+> detector on P0.02/AIN0 joins the reflected-wave one; the trip is
+> REFL/FWD, no longer a fixed voltage per power); every packet above 1 W
+> **soft-starts** at 1 W and is raised only after that check passes;
+> PA_SRC_SYS moved to P1.09; GPS_RESET is no longer wired to the processor.
+> **The ratio threshold and the FWD_DET minimum are provisional** until the
+> RF sim gives the new coupler's levels.
 
 | Path | What it is |
 |---|---|
 | `variant/variant.h` | Pin map, radio and front-end settings, the **provisional** gain table, battery and charger settings |
-| `variant/variant.cpp` | Board start-up and amplifier power: the TPS63810 supply, licensed/unlicensed levels, power caps (temperature, cell), missing-antenna cut-off, amplifier source, charging window, shutdown |
+| `variant/variant.cpp` | Board start-up and amplifier power: the TPS63810 supply, licensed/unlicensed levels, power caps (temperature, cell), the ratio missing-antenna check, the soft start above 1 W, amplifier source, charging window, shutdown |
 | `variant/platformio.ini` | The `offgrid_mesh_radio_v1` build environment |
 | `patches/0001-offgrid-mesh-radio-core-backports.patch` | A three-part change to Meshtastic core. **Part 1 is required before any US field use** (see *The US 1 W rule*). **Part 3 is required for the power caps and the antenna cut-off** (see *Transmit hooks*). |
 | `bootloader/offgrid_mesh_radio_v1/` | `board.h`, `board.mk`, `board.cmake` and `pinconfig.c` for Adafruit_nRF52_Bootloader |
-| `tools/pa_gain_table.py` | Builds the gain table from the amplifier model. Replace the model with bench data later. |
+| `tools/pa_gain_table.py` | Builds the gain table from the amplifier model, and checks the soft-start supply against it. Replace the model with bench data later. |
 
 ## Build
 
@@ -41,11 +49,15 @@ git apply ../mesh-radio/v1/firmware/patches/0001-offgrid-mesh-radio-core-backpor
 # -> .pio/build/offgrid_mesh_radio_v1/firmware-offgrid_mesh_radio_v1-2.7.26.54e0d8d.uf2 (and .hex, -ota.zip)
 ```
 
-**Result on 19 Oct 2026:** `pio run -e offgrid_mesh_radio_v1` gave SUCCESS
-both on unpatched v2.7.26 and with the patch applied. The `.uf2` is 1,467,392
-bytes with the patch (1,463,808 without); flash 90.0 % (733,584 of 815,104
-bytes), RAM 41.1 %. The variant adds no compiler warnings beyond those the
-stock `rak4631` build already shows.
+**Result on 20 Oct 2026** (ratio detector, soft start, pin changes):
+`pio run -e offgrid_mesh_radio_v1` gave SUCCESS both on unpatched v2.7.26
+and with the patch applied. The `.uf2` is 1,470,976 bytes with the patch
+(1,465,856 without); flash 90.2 % (735,408 of 815,104 bytes), RAM 41.1 %
+(102,332 of 248,832). The 19 Oct variant, rebuilt the same day as a
+reference, gave its 1,467,392 bytes again, so the change costs ~1.8 kB of
+flash. The variant adds no compiler warnings (51 in the build, the same as
+the reference). The 250 ppm check below was not repeated (nothing it
+depends on changed).
 
 **Checking the 250 ppm crystal setting.** Take the compile line for
 `Bluefruit52Lib/bluefruit.cpp` from `pio run -v`, swap `-o …bluefruit.cpp.o`
@@ -72,7 +84,9 @@ Build options go in `build_flags`:
 | `-D OFFGRID_PA_ALLOW_4V0=1` | Licensed mode runs the amplifier at 4.0 V (about 35 dBm) instead of 3.6 V. **Use only with a known-good antenna.** The QPA9510 is rated for a 10:1 mismatch (a missing antenna) at 3.6 V only. |
 | `-D OFFGRID_LNA_BYPASS=1` | The receive amplifier is always in bypass. This is the battery saver: about 5 mA less, and about 7 dB less sensitive. |
 | `-D OFFGRID_PA_VOUT_US_MV=…` | Amplifier supply in unlicensed mode (default 2700). Set it from the bench measurements. |
-| `-D OFFGRID_TCAP_…`, `OFFGRID_REFL_…`, `OFFGRID_ANT_…`, `OFFGRID_CHG_…`, `OFFGRID_CELL_TEST_MS`, … | Every threshold below is an `#ifndef` default in `variant.h`; set it from bench data here. |
+| `-D OFFGRID_TCAP_…`, `OFFGRID_REFL_…`, `OFFGRID_FWD_…`, `OFFGRID_ANT_…`, `OFFGRID_CHG_…`, `OFFGRID_CELL_TEST_MS`, … | Every threshold below is an `#ifndef` default in `variant.h`; set it from bench data here. |
+| `-D OFFGRID_ANT_RATIO_MAX_PCT=…`, `-D OFFGRID_FWD_MIN_MV=…` | The antenna trip (REFL/FWD, default 35 %) and the FWD_DET level that proves the RF is on (default 50 mV). **Provisional**: set them from the RF sim, then the bench. |
+| `-D OFFGRID_SOFTSTART_VPA_MV=…` | The supply a packet above 1 W starts at (default 2250: Psat = 30 dBm in the model). 2700 starts at the US level instead, which the model puts at ~31.4 dBm at the full +20 dBm drive. |
 | `-D OFFGRID_DRONE_SERIAL_DEFAULT=0` | Stops the drone-port serial module from being turned on by default. This only matters with patch part 2. |
 
 ## Flash
@@ -135,19 +149,20 @@ over the USB serial port), or send the `-ota.zip` over Bluetooth.
 | DIO2 (on the SX1262) | — | — | Antenna switch (`SX126X_DIO2_AS_RF_SWITCH`) |
 | DIO3 (on the SX1262) | — | — | TCXO at 2.2 V |
 | PA_PWR_EN | P1.01 | 33 | Power mux + TPS63810 on. 1 M pull-down. |
-| PA_SRC_SYS | P0.02 | 2 | High = amplifier from charger SYS (no cell, or USB in and a cell too weak for 1 W); low = battery first. 1 M pull-down. Was PA_VSEL; the TPS63810 VSEL is now tied to GND. |
+| PA_SRC_SYS | P1.09 | 41 | High = amplifier from charger SYS (no cell, or USB in and a cell too weak for 1 W); low = battery first. 1 M pull-down. P0.02 until 20 Oct; PA_VSEL before 19 Oct (the TPS63810 VSEL is tied to GND). |
 | I2C SDA / SCL | P0.13 / P0.14 | 13 / 14 | TMP1075 at 0x48, TPS63810 at 0x75 |
 | TEMP_ALERT | P0.06 | 6 | TMP1075 ALERT, active low |
 | Drone RX / TX (Serial2) | P0.15 / P0.16 | 15 / 16 | The RAK4631's Serial1 pins |
 | Drone CTS / RTS | P0.21 / P0.22 | 21 / 22 | RTS held low (ready); CTS not used |
 | GPS RX / TX (Serial1) | P0.19 / P0.20 | 19 / 20 | |
-| GPS_EN / PPS / RESET | P0.23 / P0.17 / P1.09 | 23 / 17 / 41 | EN active high; RESET left as an input |
+| GPS_EN / PPS | P0.23 / P0.17 | 23 / 17 | EN active high. The module's RESET is not wired to the processor (20 Oct): cycling GPS_EN resets it. |
 | LED green / blue | P1.03 / P1.04 | 35 / 36 | Active high |
 | User button | P1.00 | 32 | Active low, internal pull-up |
 | Battery sense | P0.05 / AIN3 | 5 | 1 M / 1.5 M divider, multiplier 1.667 |
 | CHG_CE_N / STAT1 / STAT2 | P0.09 / P0.24 / P0.25 | 9 / 24 / 25 | /CE driven low (charging on). STAT2 low = charging. |
 | SOLAR_OK / DRONE_OK | P0.04 / P0.03 (AIN2 / AIN1) | 4 / 3 | Analog: input voltage / 16 (1.5 M / 100 k). Read to tell whether external power is in. |
-| REFL_DET | P0.30 / AIN6 | 30 (A3) | Missing-antenna detector (BAT15 into 1 nF ∥ 100 k) |
+| REFL_DET | P0.30 / AIN6 | 30 (A3) | Antenna detector, reflected wave (diode into 1 nF ∥ 100 k) |
+| FWD_DET | P0.02 / AIN0 | 2 (A5) | Antenna detector, forward wave (diode into 1 nF ∥ 100 k). New 20 Oct. |
 | CHG_TS | P0.31 / AIN7 | 31 (A4) | The charger's TS/MR pin: battery NTC, 38 µA bias while an input is present |
 | USB VBUS | — | — | Read through the POWER peripheral (`NRF_APM`); the VBUS pin is fed through 22 R (net NRF_VBUS) |
 | Display SPI1 (header) | SCK P0.07, MOSI P0.08, MISO P0.11, CS P0.12, DC P0.26, RST P0.27, BL P1.08 | | Defined, but no display is turned on |
@@ -213,7 +228,9 @@ the U.FL is about 16.8 dB.
    whenever the power mux drops its input. A raise of the supply waits until
    no packet is going out.
 4. Before each packet (patch part 3) the supply is brought to the level the
-   caps want, with a 1 ms wait when it rises by more than 0.2 V.
+   caps want, or to the soft-start level for a packet above 1 W (see
+   *Soft start*), and the radio waits for the TPS63810's ramp (1 V/ms) to
+   finish.
 5. `variant_shutdown()` turns everything off before system-off.
 
 **Why a failure stays safe.** An unprogrammed TPS63810 sits at 3.3 V: that
@@ -287,12 +304,15 @@ Where the table says not even 1 W, the amplifier is off, unless USB is in
 (below).
 
 **After a missing-antenna detection**: amplifier off, then 30 dBm for the
-retry (next section but one).
+retry (*Missing-antenna cut-off*).
+
+**Soft start**: not a cap. Every packet above 1 W *starts* at 1 W, whatever
+the caps allow, until the antenna check has passed (*Soft start*).
 
 ### Amplifier source: battery first, SYS without a cell
 
-P0.02 is PA_SRC_SYS (it was PA_VSEL). Low, the TPS2121 mux takes the battery
-first, down to 2.60 V. High, it takes charger SYS. The variant drives it
+P1.09 is PA_SRC_SYS (P0.02 until 20 Oct, PA_VSEL before). Low, the TPS2121
+mux takes the battery first, down to 2.60 V. High, it takes charger SYS. The variant drives it
 high:
 
 - **with no cell fitted** (the cell test below says so), cap 30 dBm: the
@@ -327,33 +347,151 @@ hooks (no-ops for every other board):
 
 | Hook | Called from | Used for |
 |---|---|---|
-| `variantLimitTxPower(power)` | `SX126xInterface::configHardwareForSend()`, radio in standby, before each packet | Returns the SX1262 setting for this packet (can only lower it). Written to the chip only when it changes. The variant also brings the supply to the caps' level here and hands PA_EN back to RadioLib when the amplifier may run. |
-| `variantTxStarted()` | `RadioLibInterface::startSend()`, right after `startTransmit()` | The missing-antenna check |
-| `variantTxDone()` | `RadioLibInterface::completeSending()` | The cell voltage under load |
+| `variantLimitTxPower(power)` | `SX126xInterface::configHardwareForSend()`, radio in standby, before each packet | Returns the SX1262 setting for this packet (can only lower it). Written to the chip only when it changes. The variant also brings the supply to the caps' level (or the soft-start level) here, waits out the ramp, and hands PA_EN back to RadioLib when the amplifier may run. |
+| `variantTxStarted()` | `RadioLibInterface::startSend()`, right after `startTransmit()` | The antenna check; for a soft-started packet, the raise to full power |
+| `variantTxDone()` | `RadioLibInterface::completeSending()` | Supply back to the soft-start level; the cell voltage under load |
 
-## Missing-antenna cut-off
+The patch did not change for the ratio detector or the soft start: the
+three hooks already run at the right moments.
 
-The detector (sim/rf/coupler.txt) is a printed coupler beside the U.FL feed,
-a BAT15 diode and 1 nF ∥ 100 k into P0.30/AIN6. It reads the reflected
-wave, so its reading scales with the power sent.
+## Missing-antenna cut-off: the ratio detector
+
+A printed coupler between the antenna filter and the U.FL feeds two diode
+detectors, each into 1 nF ∥ 100 k: a DC level that settles within ~0.15 ms
+(FWD_DET) to ~0.46 ms (REFL_DET, antenna missing, 27 dBm, −40 °C) of the RF
+reaching full power (`sim/rf/results.txt` study 8, still being worked on
+when this was written):
+
+- **REFL_DET**, P0.30/AIN6: the reflected wave (as before);
+- **FWD_DET**, P0.02/AIN0: the forward wave (new, 20 Oct).
+
+The firmware trips on the **ratio REFL/FWD**. It is near 0 with a matched
+antenna and near 1 with the antenna missing, whatever the cable length and
+the power. At these levels the diodes are partly square-law, which squeezes
+the cases in between: study 8 (20 Oct) has a VSWR-2 antenna at 0.00–0.29
+(0.33 over mismatched diode pairs) and a missing one at 0.27 and up with
+typical diodes (0.43 and up at 30 dBm, 0.69 and up from 33 dBm). The single detector before it compared
+REFL_DET with a fixed threshold per power, and with the antenna missing its
+reading could fall below that threshold at some cable lengths. The two
+diodes drift alike with temperature, so the ratio needs no temperature term.
 
 - **When:** 750 µs after the SX1262 is told to transmit
-  (`OFFGRID_REFL_SAMPLE_US`; the reading settles ~0.3 ms after PA_EN),
-  one SAADC sample, 40 µs acquisition, 3.6 V full scale. Every packet whose
-  modelled U.FL power (the gain model at the packet's SX1262 setting and
-  supply) is 27 dBm or more; below that a missing antenna harms nothing.
-  The radio thread waits those 0.75 ms; the packet is already on air.
-- **Threshold:** 0.35 V at 30 dBm and 0.73 V at 35 dBm, interpolated in dB
-  (log of the voltage, straight in dBm), plus 1.4 mV/°C of board temperature
-  above 25 °C. The worst cases it sits between, over −40…85 °C, 902–928 MHz
-  and every phase: a VSWR-2 antenna reads at most 0.24 / 0.47 V, a missing
-  one at least 0.52 / 1.12 V at 30 / 35 dBm (6.7 / 7.5 dB of contrast).
-- **Above the threshold:** PA_EN is dropped at once (mid-packet), the supply
-  goes to 1.8 V, and the amplifier stays off for the following packets. It
-  is logged (`ANTENNA MISSING? …`) and the phone app gets a warning
-  notification. After 30 s the next packet goes at 1 W (30 dBm) and is
-  checked; if it passes, full power is back; if not, the wait doubles, up to
-  10 minutes.
+  (`OFFGRID_REFL_SAMPLE_US`, kept; see the timing below), FWD_DET and
+  REFL_DET in one two-channel SAADC scan (40 µs acquisition each, back to
+  back, so a level still moving moves both nearly alike), 3.6 V full scale.
+  Every packet whose modelled U.FL power is 27 dBm or more
+  (`OFFGRID_REFL_MIN_DBM`), and every soft-started packet. If FWD_DET is
+  still below its minimum, both are read again every 50 µs for up to 750 µs
+  more (`OFFGRID_FWD_POLL_US`, `OFFGRID_FWD_WAIT_MAX_US`): the RF can come up
+  late.
+- **Trip (PROVISIONAL):** FWD_DET ≥ 50 mV (`OFFGRID_FWD_MIN_MV`: the RF is
+  on and the reading is clear of the SAADC's offset) and REFL/FWD > 0.35
+  (`OFFGRID_ANT_RATIO_MAX_PCT`). Both are placeholders until the RF sim's
+  ratio study is final. As study 8 stood on 20 Oct, 0.35 is above every
+  VSWR-2 case (0.33, worst diode pair: no false trips) and below every
+  missing-antenna case with typical diodes from 30 dBm up (0.43), which is
+  where the soft start decides. The obvious 0.6 would miss a missing antenna
+  at 30 dBm in the cold. It still misses one at 27 dBm and −40 °C (0.27)
+  and with badly mismatched diodes; both are at ≤ 1 W. A matched antenna's
+  FWD_DET is only ~0.13 V at 30 dBm and −40 °C, so a minimum of 150 mV would
+  stop the soft start from ever raising in the cold.
+- **Fallback, only while FWD_DET reads too low to trust** (RF late, the
+  forward detector broken, or an open U.FL at a phase that puts FWD_DET near
+  0): the old absolute test on REFL_DET alone, 0.35 V at 30 dBm and 0.73 V
+  at 35 dBm, interpolated in dB, plus 1.4 mV/°C above 25 °C
+  (`OFFGRID_REFL_V30_MV` / `_V35_MV` / `_TC_UV_PER_C`). It can trip the
+  cut-off and can pass the 1 W retry, as before, but it never clears a
+  packet for more than 1 W: a soft-started packet whose FWD_DET stays low
+  stays at the soft-start level (logged `Soft start held at 1 W: FWD_DET …`).
+  **These thresholds belong to the old detector.** Study 8 shows the new
+  REFL_DET staying below them even with the antenna missing (e.g. 75 mV
+  against 350 mV at 30 dBm, 25 °C), so in practice the fallback never trips;
+  it needs new numbers, or removing, once the sim is final.
+- **On a trip:** PA_EN is dropped at once (mid-packet), the supply goes to
+  1.8 V, and the amplifier stays off for the following packets. It is logged
+  (`ANTENNA MISSING? REFL_DET … / FWD_DET … = …%`) and the phone app gets a
+  warning notification. After 30 s the next packet goes at 1 W
+  (`OFFGRID_ANT_PROBE_DBM`) and is checked; if it passes, full power is back;
+  if not, the wait doubles, up to 10 minutes (`OFFGRID_ANT_RETRY_MS`,
+  `OFFGRID_ANT_RETRY_MAX_MS`).
+
+**Why 750 µs is kept.** RadioLib 7.6.0 (`SX126x::launchMode()`) raises
+PA_EN, sends SetTx and then waits for the SX1262's BUSY to fall, which comes
+only after its oscillator start, PLL lock and 200 µs PA ramp. So when the
+hook runs, the SX1262 is at full drive, the preamble has just begun and
+PA_EN has been high for at least ~0.25 ms. What is left is the QPA9510's
+2.8 V control supply: the TLV75528 starts in 550 µs *typical* with no
+maximum in its data sheet, then the QPA9510 ramps in ~40 µs and the
+detectors settle: ~20 µs was the expectation, but study 8 gives ~0.15 ms
+for FWD_DET and up to ~0.46 ms for REFL_DET (antenna missing, 27 dBm,
+−40 °C). So 750 µs (≥ 1 ms after PA_EN) covers the typical case with little
+to spare and is not shortened; the FWD_DET poll covers a later RF. A
+REFL_DET not quite settled reads low, so the ratio errs towards "antenna
+present"; at 30 dBm a missing antenna (≥ 0.43) still has room above 0.35.
+
+## Soft start above 1 W
+
+The RF sim found that above ~1 W with the antenna missing the antenna switch
+is overstressed from the first RF cycle, so a check once the packet is at
+full power is too late. Every packet that would go out above 1 W therefore
+starts at 1 W:
+
+1. **Which packets.** The packet's supply (the caps' level) is above the US
+   level (2.7 V) and its modelled U.FL power is above 30 dBm less 1 dB for
+   the model's uncertainty (`OFFGRID_SOFTSTART_ABOVE_DBM`,
+   `OFFGRID_SOFTSTART_MODEL_DB`). In practice: licensed mode at a drive of
+   +13 dBm or more, at the 3.6/4.0 V ceiling or a 33/32 dBm cap. US mode
+   (2.7 V) and every 30 dBm cap never soft-start: those packets are as
+   before, with the ratio check.
+2. **Before the packet** (`variantLimitTxPower`): the SX1262 gets the
+   packet's own drive, and the TPS63810 the soft-start supply,
+   **2.25 V** (`OFFGRID_SOFTSTART_VPA_MV`). The radio waits for the ramp
+   down to finish, so no RF goes out above it; usually there is nothing to
+   wait for, because the supply went back down right after the last packet.
+3. **At the sample** (750 µs): the ratio check above.
+   - Antenna present (a trusted ratio): one I2C write of VOUT1 raises the
+     supply to the packet's own level. The TPS63810 then slews at 1 V/ms
+     (SLEW = 00, data sheet SR): 2.25 → 3.6 V in 1.35 ms, → 4.0 V in
+     1.75 ms. The rest of the packet goes at full power.
+   - Antenna missing: the cut-off above, from ≤ 1 W.
+   - FWD_DET too low to trust: no raise; the packet finishes at ≤ 1 W.
+4. **After the packet** (`variantTxDone`): the supply goes back to 2.25 V
+   (one VOUT1 write), so its ramp down is over before the next packet.
+
+**Why 2.25 V and not the US level (2.7 V).** In US mode the gain table holds
+the SX1262 to +13 dBm, which gives ~29 dBm at 2.7 V. A licensed packet runs
+the SX1262 at up to +20 dBm, and the model puts that at ~31.4 dBm (1.4 W) at
+2.7 V. 2.25 V is the highest TPS63810 step at which the saturated output is
+30 dBm (model 29.9 dBm at +20 dBm drive; `tools/pa_gain_table.py` prints the
+table and asserts it). `-D OFFGRID_SOFTSTART_VPA_MV=2700` gives the literal
+US level instead.
+
+**LoRa and the step.** LoRa chirps have a constant envelope, so an amplitude
+step does not corrupt the symbols; early in the preamble it only moves the
+level the receiver's gain settles on over a few preamble symbols. It must
+land inside the preamble, though, before the sync word and the header. With
+Meshtastic's 16-symbol preamble:
+
+| Preset | Preamble | Raise to 4.0 V ends at |
+|---|---|---|
+| SHORT_TURBO (SF7, 500 kHz), the shortest | 4.10 ms | ~3.0 ms |
+| SHORT_FAST (SF7, 250 kHz) | 8.19 ms | ~3.0 ms |
+| LONG_FAST (SF11, 250 kHz), the default | 131 ms | ~3.0 ms |
+| LONG_SLOW (SF12, 125 kHz), the longest | 524 ms | ~3.0 ms |
+
+~3.0 ms = 0.75 ms to the sample, ~0.1 ms for the two-channel reading, ~0.4 ms for
+the I2C write at the core's default 100 kHz, 1.75 ms of slew. The variant
+works the preamble out from the LoRa settings for every soft-started packet
+and skips the raise (the packet stays at 1 W, logged `Soft start held at 1 W:
+the raise would end after the … us preamble`) if the raise would end less
+than 0.5 ms (`OFFGRID_SOFTSTART_PREAMBLE_MARGIN_US`) before the end of the
+preamble: a late FWD_DET at SHORT_TURBO, or a custom setting with a very
+short preamble (SF5/SF6 at 500 kHz).
+
+**If the TPS63810 cannot be set** to the soft-start level before a packet
+above 1 W (I2C failure), the supply is unknown, so that packet's SX1262
+drive is held to the 1 W setting instead (+13 dBm, which the gain table
+keeps at or under 30 dBm at any supply).
 
 ## Charging window (CHG_TS)
 
@@ -489,12 +627,31 @@ before it is sold; that is separate from this firmware.
 - That 30 dBm is reached, and not exceeded, in US mode.
 - The QPA9510's real gain and saturation at 902–928 MHz. Qorvo's evaluation
   board is tuned 2 % lower.
-- **The antenna detector**: its levels are a first-order estimate (diode
-  model assumed, coupler not EM-simulated). Measure REFL_DET with a good
-  antenna, a VSWR-2 load and an open U.FL at 30 and 35 dBm, hot and cold,
-  and set `OFFGRID_REFL_V30_MV` / `_V35_MV` / `_TC_UV_PER_C` from that. Also
-  check the 750 µs sample point against the real PA_EN-to-RF delay, and that
-  dropping PA_EN mid-packet is clean.
+- **The antenna detector** (ratio, 20 Oct): the trip ratio (0.35) and the
+  FWD_DET minimum (50 mV) are **provisional**, picked from the RF sim's
+  study 8 while it was still being worked on; the fallback's absolute
+  thresholds are the old single-detector ones and do not fit the new
+  detector (see *Missing-antenna cut-off*). On the bench: FWD_DET and REFL_DET with a good
+  antenna, a VSWR-2 load and an open U.FL, at 27, 30 and 35 dBm, hot and
+  cold, over several cable lengths; set `OFFGRID_ANT_RATIO_MAX_PCT`,
+  `OFFGRID_FWD_MIN_MV` (and the fallback's `OFFGRID_REFL_V30_MV` / `_V35_MV`
+  / `_TC_UV_PER_C`) from that. Also check the 750 µs sample point against
+  the real PA_EN-to-RF delay (the TLV75528's start-up), and that dropping
+  PA_EN mid-packet is clean.
+- **The soft start**:
+  - that the QPA9510 behaves at 2.25 V (stable, no oscillation, ≤ 30 dBm at
+    +20 dBm drive). Its data sheet was not at hand here: the model only
+    scales Psat by 20·log(VPA), and every earlier use of the amplifier was at
+    2.7 V or more. If 2.25 V is outside its range, either raise
+    `OFFGRID_SOFTSTART_VPA_MV` and accept more than 1 W at full drive, or
+    lower the drive of high-power packets;
+  - that a receiver at the edge of range still decodes a packet whose level
+    rises by ~4–5 dB during the preamble (SHORT_TURBO first: the step ends
+    ~1 ms before the preamble does);
+  - the timing estimates: the I2C write (~0.4 ms at 100 kHz), the TPS63810's
+    1 V/ms slew under the amplifier's load, the SAADC readings;
+  - the antenna switch's stress during the first ~0.9 ms at ≤ 1 W into an
+    open U.FL, which this design assumes is safe (the RF sim's finding).
 - **The power caps**: the temperature table is sim/thermal (6-layer board,
   heat fixes, gap pad), and the TMP1075 lags the amplifier case; the battery
   table is sim/burst with an ohmic cell model, and the firmware's R_int
@@ -532,8 +689,13 @@ before it is sold; that is separate from this firmware.
 - **"Amplifier off" is not "low power":** there is no path around the
   amplifier, so the >75 °C, no-1-W-cell and antenna-fault states make the
   node practically silent until they clear.
-- **GPS pins.** They float until the GPS starts, and again at shutdown, and
-  GPS_RESET is never driven. However, while Meshtastic switches GPS power off
+- **A broken FWD_DET limits the node to 1 W.** Soft-started packets then
+  never get a trusted ratio and stay at the soft-start level; the fallback
+  still catches a missing antenna at the old (cable-length-dependent)
+  thresholds.
+- **GPS pins.** They float until the GPS starts, and again at shutdown
+  (GPS_RESET is no longer wired to the processor; cycling GPS_EN resets the
+  module). However, while Meshtastic switches GPS power off
   between fixes, its UART still holds GPS_TX high into the unpowered module
   (through 470 Ω). The Adafruit UART cannot be ended safely behind the GPS
   code's back, so fixing this needs a small core hook in `GPS::writePinEN()`.

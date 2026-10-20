@@ -45,7 +45,9 @@ G0 = PA_GAIN - PAD - LOSS_TX   # 16.8 dB, SX1262 pin -> U.FL (PROVISIONAL)
 P_SAT_4V0 = 35.0   # dBm at the U.FL with VPA = 4.0 V (PROVISIONAL)
 RAPP_P = 2.0
 VPA_US = 2.7       # V, unlicensed supply (OFFGRID_PA_VOUT_US_MV)
-VPA_MIN = 2.7      # V, lowest supply the variant uses for a transmitting PA
+VPA_MIN = 2.7      # V, lowest steady supply the variant uses for a transmitting PA
+SOFTSTART_DBM = 30.0   # soft start: a packet above 1 W begins at no more than this
+SOFTSTART_VPA = 2.25   # V, OFFGRID_SOFTSTART_VPA_MV (variant.h)
 
 
 def psat(vpa):
@@ -78,6 +80,15 @@ def vpa_for_cap(cap_dbm, ceiling):
     return min(max(v, VPA_MIN), ceiling)
 
 
+def softstart_vpa(max_drive=20, limit=SOFTSTART_DBM):
+    """Highest TPS63810 step (25 mV) at which even the full SX1262 drive gives
+    no more than `limit` at the U.FL: the soft-start supply."""
+    v = 1.8
+    while pout(max_drive, v + 0.025) <= limit:
+        v += 0.025
+    return round(v, 3)
+
+
 if __name__ == '__main__':
     t = table()
     print('#define NUM_PA_POINTS 22')
@@ -102,3 +113,12 @@ if __name__ == '__main__':
             v = vpa_for_cap(cap, ceil_v)
             print('  cap %2d dBm: SX1262 <= %2d dBm, VPA %.3f V (ceiling %.1f V) -> %5.1f dBm'
                   % (cap, d, v, ceil_v, pout(20 if d >= 20 else d, v)))
+    print()
+    print('soft start (variant.cpp): the first ~0.9 ms of a packet above 1 W, before the antenna check')
+    v_ss = softstart_vpa()
+    print('  highest supply with <= %.0f dBm at the full +20 dBm drive: %.3f V (OFFGRID_SOFTSTART_VPA_MV = %d)'
+          % (SOFTSTART_DBM, v_ss, round(SOFTSTART_VPA * 1000)))
+    assert SOFTSTART_VPA <= v_ss + 1e-9, 'OFFGRID_SOFTSTART_VPA_MV gives more than 30 dBm at +20 dBm drive'
+    for d in (13, 14, 16, 18, 20):
+        print('  SX1262 %3d dBm: %5.1f dBm at %.2f V (soft start)   %5.1f dBm at 2.70 V (US level)'
+              % (d, pout(d, SOFTSTART_VPA), SOFTSTART_VPA, pout(d, 2.7)))
