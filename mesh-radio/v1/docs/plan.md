@@ -85,7 +85,13 @@ the owner accepted about 13 mA in exchange for the range (18 Oct 2026).
 
 ## Cost
 
-**Parts: about $76 per board at 10 boards and $58 at 100, at DigiKey
+**Update, 19 Oct 2026: about $87 per board at 10 boards and $68 at 100**
+(the re-audit in `part-audit.md`). The +$10 is mostly the power-path
+changes the −40 to +85 °C simulations called for (two 60 V current
+limiters, +$8.46) and the better antenna filter (+$3.66). The table below
+is the 17 Oct breakdown, kept for comparison.
+
+**17 Oct: about $76 per board at 10 boards and $58 at 100, at DigiKey
 prices.** The figures come from the audit (`part-audit.md`), with three
 small lines estimated. That is above the roughly $40 the owner expected,
 and well above the RAK's $32 retail. Assembly is extra.
@@ -108,13 +114,15 @@ with its parts), for a total of roughly **$40**. See question 2.
 
 ## Size and build
 
-- **About 238 assembled parts, on both sides.** About half of them are the
-  amplifier, filters and power protection the RAK does not have.
-- **Size target: 25.4 mm wide, length set at layout.** The Heltec V4 is
-  51.7 mm long. The amplifier stage adds about 10–12 mm of length, so expect
-  roughly 25 × 60 mm. Layout will make it as short as it can.
-- **4-layer board.** The nRF52840 package needs filled vias in its pads,
-  which JLCPCB charges extra for on 4 layers. Get quotes for both.
+- **243 assembled parts, on both sides** (250 in the circuit: 6 test pads
+  and the unfitted expansion header are not assembled). About half of them
+  are the amplifier, filters and power protection the RAK does not have.
+- **58 × 25.4 mm** (19 Oct). The Heltec V4 is 51.7 mm long. 57 mm does not
+  fit: the amplifier's choke meets a mounting hole.
+- **6-layer board** (owner, 19 Oct), JLCPCB stackup JLC06161H-2116B:
+  ground planes on layers 2 and 5, signals on 3 and 4. JLCPCB fills and caps
+  vias in pads at no extra cost on 6 layers, which the nRF52840's inner
+  balls and the amplifier's heat path need.
 - **Test boards at JLCPCB.**
   - Every part has an LCSC number. A few (the amplifier and the LNA) are
     not stocked at LCSC, so JLC buys them through global sourcing, or they
@@ -191,7 +199,7 @@ Every finding was fixed:
 3. **Buttons and JST connectors rated to −25 °C are accepted for now.**
    Revisit if a contract asks for −40 °C.
 4. **3 W confirmed, at about $58 of parts per board** (a 1 W-only board
-   would be about $40).
+   would be about $40). Now about $68 after the 19 Oct changes.
 5. **Above 1 W:** the owner gets a ham licence before taking boards into
    the field. Until then the boards stay in US mode, which caps them at 1 W.
    The hardware does not change.
@@ -204,11 +212,22 @@ Every finding was fixed:
 8. **The node is on, on the mesh and charging while the drone carries it**
    (the 14 Oct Cairn decision; Notion's 16 Sep note said off until release).
 
+## Owner decisions (19 Oct 2026)
+
+1. **Keep 3 W and fix the heat:** a 10 × 10 mm gap pad from under the
+   amplifier to a metal enclosure wall, nine filled vias under its paddle.
+2. **6 layers.**
+3. **New parts:** the designer's choice where the simulations needed them
+   (60 V current limiters on solar and drone, the Alps SKRP buttons rated
+   −40 °C, the LFCG-1000+ filter, the missing-antenna detector).
+4. **Charging at 300 mA.**
+5. Layout approved (18 Oct), with standard (Adafruit/SparkFun) battery
+   polarity.
+
 Still open:
 
 - **Battery polarity:** check the plug on a real Adafruit cell with a meter
   before the order (the footprint drawing says pad 1 = +).
-- **Go-ahead for layout.**
 
 ## After approval
 

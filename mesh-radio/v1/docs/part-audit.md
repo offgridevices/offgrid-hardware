@@ -124,13 +124,14 @@ No part is marked last-time-buy.
   47 uF at $0.35 and the ECS -AP oscillator at $1.67 are the largest).
 - Largest lines: MAX17608 pair $8.46, QPA9510 $7.46, SX1262 $6.86,
   LFCG-1000+ $6.56, nRF52840 $5.49.
-- `plan.md` still says $58 / $76: update it when the owner has seen this.
+- `plan.md` carries these figures (20 Oct).
 
 ## Exceptions to the −40 °C rule (E1)
 
 These are mechanical parts:
 
-- **Omron/Aratas B3U buttons:** −25 to +70 °C.
+- ~~Omron/Aratas B3U buttons: −25 to +70 °C.~~ Replaced on 19 Oct by Alps
+  SKRPADE010, rated −40 to +85 °C.
 - **JST PH/GH/SH connectors:** −25 to +85 °C.
 
 None of them is in the RF or power path. Cairn's environment is hot, not
