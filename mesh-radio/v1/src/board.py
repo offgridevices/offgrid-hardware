@@ -44,7 +44,11 @@ HEAVY_W = float(os.environ.get('HEAVY_W', 0.6))
 HEAVY = ['VPA', 'PA_IN', 'PA_LX1', 'PA_LX2', 'BAT_P', 'BATT_PLUS', 'CELL_MINUS', 'PROT_S2',
          'PA_VCC1', 'PA_VCC2', 'PA_V1F', 'PA_V2F']
 POWER = ['VSYS', 'VSYS_SW', 'VIN_CHG', 'USB_VBUS', 'USB_5V', 'SOLAR_CONN', 'SOLAR_RAW',
-         'DRONE_5V_CONN', 'DRONE_5V_RAW', 'BUCK_SW', '3V3']
+         'DRONE_5V_CONN', 'DRONE_5V_RAW', 'BUCK_SW']
+# the 3.3 V rail: at most about 0.15 A (the nRF52840, the SX1262 at +20 dBm,
+# the LNA, pull-ups), to dozens of pins; 0.15 mm (0.5 oz inner: about
+# 0.35 A for a 10 C rise, IPC-2152) and ground-poured round it
+RAIL = ['3V3']
 
 
 # The USB-C's right locating slot sits where Amphenol's drawing puts it,
@@ -83,6 +87,7 @@ def net_classes(b, comps):
                  via_drill=VIA_SIG[1])
     pcb.netclass(b, 'Heavy', sorted(nets & set(HEAVY)), HEAVY_W, clearance=0.1, via_d=0.5, via_drill=0.25)
     pcb.netclass(b, 'Power', sorted(nets & set(POWER)), 0.3, clearance=0.12, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    pcb.netclass(b, 'Rail', sorted(nets & set(RAIL)), 0.15, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
     pcb.netclass(b, 'USB', ['USB_DP', 'USB_DM', 'NRF_DP', 'NRF_DM'], 0.2, clearance=0.12,
                  via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
 

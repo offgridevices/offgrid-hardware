@@ -282,6 +282,8 @@ def widths(comps):
             out[n] = board.HEAVY_W
         elif n in board.POWER:
             out[n] = 0.3
+        elif n in board.RAIL:
+            out[n] = 0.15
         elif n in board.RF_NETS:
             out[n] = board.RF_W
     return out
