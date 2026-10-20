@@ -137,16 +137,6 @@ def build(out, replace=False):
     for poly, layers, name in layout.keepouts():
         pcb.rule_area(b, poly, [pcb.layer_id(l) for l in layers], tracks=True, vias=True, pads=False,
                       pours=True, name=name)
-    # the nRF52840's escape ring (layout.NRF_RING): its outer balls leave on
-    # F.Cu, so no via of any net lands there (tracks may)
-    nrf = [fp for fp in b.GetFootprints() if fp.GetValue().startswith('NRF52840')][0]
-    cb = nrf.GetCourtyard(pcbnew.F_CrtYd).BBox()
-    L, T = cb.GetLeft() / 1e6 - pcb.CX, cb.GetTop() / 1e6 - pcb.CY
-    R, Bt = cb.GetRight() / 1e6 - pcb.CX, cb.GetBottom() / 1e6 - pcb.CY
-    g = layout.NRF_RING
-    for x0, y0, x1, y1 in ((L - g, T - g, R + g, T), (L - g, Bt, R + g, Bt + g), (L - g, T, L, Bt), (R, T, R + g, Bt)):
-        pcb.rule_area(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], [pcbnew.F_Cu], tracks=False, vias=True,
-                      pads=False, pours=False, name='nRF52840 escape ring: no vias')
     pcb.save_board(b, out)
     pcb.write_rules(out, RULES)
     pcb.set_stackup(out, inner_oz=0.5)

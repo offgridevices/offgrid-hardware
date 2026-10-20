@@ -39,6 +39,7 @@ def plane_fanout(path):
     import fanout
     b = pcbnew.LoadBoard(path)
     ball_escapes(b)
+    outer_escapes(b)
     # no via within POFV's 0.45 mm of a part's drilled hole (the plug pegs,
     # the header pins): a ring round each, for the fan-out only
     tmp = []
@@ -63,6 +64,41 @@ def plane_fanout(path):
             t.SetLocked(True)
     b.Save(path)
     log('plane fan-out: %d vias, %d ground pads with no via of their own %s' % (n, len(failed), failed[:12]))
+    return failed
+
+
+def outer_escapes(b, refs=('NRF52840',), log=log):
+    """The nRF52840's outer ball ring: a dog-bone each, a short F.Cu stub
+    straight out across the clear ring round the chip (layout.NRF_RING) to
+    a via, near and far vias alternating so inner-layer tracks from the
+    inner balls' vias pass between them.  Freerouting left most of these
+    balls unconnected with the ring empty beside them."""
+    import fanout
+    pins = []
+    for fp in b.GetFootprints():
+        if not fp.GetValue().startswith(refs):
+            continue
+        pads = [p for p in fp.Pads() if p.GetAttribute() == pcbnew.PAD_ATTRIB_SMD]
+        bbs = [p.GetBoundingBox() for p in pads]
+        L_, T_ = min(q.GetLeft() for q in bbs), min(q.GetTop() for q in bbs)
+        R_, B_ = max(q.GetRight() for q in bbs), max(q.GetBottom() for q in bbs)
+        c = fp.GetPosition()
+        for p, bb in zip(pads, bbs):
+            net = p.GetNetname()
+            if not net or net in PLANES or net in board.RF_NETS + board.RF_EXTRA:
+                continue
+            if min(bb.GetLeft() - L_, R_ - bb.GetRight(), bb.GetTop() - T_, B_ - bb.GetBottom()) / 1e6 >= 0.05:
+                continue
+            q = p.GetPosition()
+            dx, dy = q.x - c.x, q.y - c.y
+            face = ('x', dx > 0) if abs(dx) >= abs(dy) else ('y', dy > 0)
+            along = q.y if face[0] == 'x' else q.x
+            pins.append((face, along, fp.GetReference(), p.GetNumber()))
+    pins.sort()
+    n, failed = fanout.dogbones(b, [(r_, num) for _, _, r_, num in pins], via_d=board.VIA_SIG[0],
+                                via_drill=board.VIA_SIG[1], width=finish.SIG_W if finish.SIG_W <= 0.1 else 0.1,
+                                cl=0.1, hole_gap=0.2)
+    log('outer ball escapes: %d dog-bones, %d balls without one %s' % (n, len(failed), failed[:12]))
     return failed
 
 
