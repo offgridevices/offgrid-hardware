@@ -11639,6 +11639,175 @@
 	)
 	(symbol
 		(lib_id "Device:R")
+		(at 165.1 157.48 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "c8f649cc-f8f1-ef50-3f09-a6d9bb5e6ee8")
+		(property "Reference" "R75"
+			(at 166.9 156.48 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "49.9R"
+			(at 166.9 159.08 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "og:R_0805"
+			(at 165.1 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "CRCW080549R9FKEAHP"
+			(at 165.1 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "Vishay Dale"
+			(at 165.1 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "541-49.9TCT-ND"
+			(at 165.1 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C4088942"
+			(at 165.1 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor 49.9R 1% 0.5 W pulse-proof 0805"
+			(at 165.1 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
+					(reference "R75")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 165.1 153.67)
+			(xy 165.1 151.13)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "fdb9a0b0-bc49-517f-6fd2-3ec29fbb9c59")
+	)
+	(global_label "REFL_CPL"
+		(shape passive)
+		(at 165.1 151.13 90)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "b5b9a1c5-eef0-62bc-1f50-3d9468c97b32")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 165.1 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 165.1 161.29)
+			(xy 165.1 166.37)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "36df84ff-83ba-44a5-b77f-6b3bf1ad92c3")
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 165.1 166.37 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "b2ca5d12-d272-03d1-d395-db17b068352e")
+		(property "Reference" "#PWRFRO059"
+			(at 165.1 163.17 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 165.1 170.37 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
+					(reference "#PWRFRO059")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
 		(at 45.72 180.34 90)
 		(unit 1)
 		(exclude_from_sim no)
@@ -13526,8 +13695,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "8669575c-dd32-4777-db87-5d508af36d37")
-		(property "Reference" "#FLGFRO59"
+		(uuid "6741a6f7-f076-edc6-8f85-48a311f62460")
+		(property "Reference" "#FLGFRO60"
 			(at 15.24 210.16 0)
 			(effects
 				(font
@@ -13547,7 +13716,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
-					(reference "#FLGFRO59")
+					(reference "#FLGFRO60")
 					(unit 1)
 				)
 			)
@@ -13594,8 +13763,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "6741a6f7-f076-edc6-8f85-48a311f62460")
-		(property "Reference" "#FLGFRO60"
+		(uuid "69499196-2a68-9c5d-7ced-83eb96bbe09c")
+		(property "Reference" "#FLGFRO61"
 			(at 45.72 210.16 0)
 			(effects
 				(font
@@ -13615,7 +13784,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
-					(reference "#FLGFRO60")
+					(reference "#FLGFRO61")
 					(unit 1)
 				)
 			)

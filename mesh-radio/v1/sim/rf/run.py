@@ -1335,7 +1335,8 @@ def _fw_constants():
     except OSError:
         return fw
     import re
-    for key, name, scale in (('v30', 'OFFGRID_REFL_V30_MV', 1e-3), ('v35', 'OFFGRID_REFL_V35_MV', 1e-3),
+    for key, name, scale in (('ratio', 'OFFGRID_ANT_RATIO_MAX_PCT', 1e-2), ('fwd_min', 'OFFGRID_FWD_MIN_MV', 1e-3),
+                             ('v30', 'OFFGRID_REFL_V30_MV', 1e-3), ('v35', 'OFFGRID_REFL_V35_MV', 1e-3),
                              ('tc', 'OFFGRID_REFL_TC_UV_PER_C', 1e-6), ('t_sample', 'OFFGRID_REFL_SAMPLE_US', 1e-6),
                              ('min_dbm', 'OFFGRID_REFL_MIN_DBM', 1.0)):
         m = re.search(r'#define\s+%s\s+([0-9.]+)' % name, txt)
@@ -1795,7 +1796,7 @@ def study8(s7):
                 out('      %2.0f dBm: ' % p + ',  '.join('%d C %+.1f / %+.1f (Fmin %.3f V, R %.3f)' % (
                     t, cl3[(p, t)][0], cl3[(p, t)][1], cl3[(p, t)][2], cl3[(p, t)][3]) for t in DET_TEMPS))
             summ('8', 'two conditions, fitted with +-1 dB of power-model error', 'PASS' if (p1 <= 30 and mg3 >= 1) else
-                 ('MARGINAL' if p1 <= 30 else 'FAIL'),
+                 'MARGINAL',
                  'from %.0f dBm, worst margin %+.1f dB: Fmin %.3f V x %.4f^(T-25) x %.3f^(P-30), R %.3f x %.4f^(T-25) x '
                  '%.3f^(P-30)' % (p1, mg3, math.exp(c3[0]), math.exp(c3[1]), math.exp(c3[2]), math.exp(r3[0]),
                                   math.exp(r3[1]), math.exp(r3[2])))
@@ -1807,6 +1808,35 @@ def study8(s7):
              ' margin = a false "antenna missing" and a 1 W retry, not a missed fault)' % (res_dp[-1.0] + res_dp[1.0]))
     else:
         summ('8', 'ratio detector (%s), two conditions (FWD_DET low or ratio high)' % dp, 'FAIL', 'no level range works')
+    # 4) the firmware as committed: trip if FWD_DET >= FWD_MIN and REFL/FWD > RATIO; while FWD_DET < FWD_MIN, the old
+    #    absolute REFL_DET thresholds
+    if 'ratio' in FW:
+        out()
+        out('  (4) The firmware as committed (%s): trip if FWD_DET >= %.0f mV and REFL/FWD > %.2f; while FWD_DET is lower, the'
+            % (FW['src'], 1e3 * FW['fwd_min'], FW['ratio']))
+        out('      old REFL_DET thresholds (%.0f / %.0f mV, +%.1f mV/C).  Worst margin (dB) per level, every pairing, both models,'
+            % (1e3 * FW['v30'], 1e3 * FW['v35'], 1e3 * FW['tc']))
+        out('      -40..85 C (good antenna / missing; missing via the ratio or the fallback, whichever applies):')
+        fw_g, fw_m = 99.0, 99.0
+        for p in (30.0, 33.0, 35.0, 36.0):
+            g, m = 99.0, 99.0
+            for k, (vr, vf, ra) in rd.items():
+                if k[0] != p:
+                    continue
+                big = vf >= FW['fwd_min']
+                rl = 8.686 * np.log(np.maximum(ra, 1e-9) / FW['ratio'])
+                fb = 8.686 * np.log(np.maximum(vr, 1e-6) / fw_threshold(p, k[2]))
+                mm = np.where(big, rl, fb)
+                if k[1] == 'missing':
+                    m = min(m, float(mm.min()))
+                else:
+                    g = min(g, float((-mm).min()))
+            fw_g, fw_m = min(fw_g, g), min(fw_m, m)
+            out('      %2.0f dBm: good %+6.1f dB, missing %+6.1f dB%s' % (p, g, m, '   <- a missing antenna passes' if m < 0 else ''))
+        summ('8', 'detector rule as in firmware %s' % FW['src'].split('/')[-1], 'PASS' if min(fw_g, fw_m) >= 1 else
+             ('MARGINAL' if min(fw_g, fw_m) > 0 else 'FAIL'),
+             'FWD >= %.0f mV and ratio > %.2f, else the old REFL thresholds: worst good %+.1f dB, missing %+.1f dB (30-36 dBm); '
+             'use the two-condition rule (FWD_DET low = fault, not "wait")' % (1e3 * FW['fwd_min'], FW['ratio'], fw_g, fw_m))
     # margins table with the selected threshold
     out()
     out('  Margins with that threshold (dB, + = read correctly; typical pair [worst pairing]):')

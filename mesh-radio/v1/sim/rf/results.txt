@@ -409,7 +409,22 @@ Criteria: a ratio threshold (fixed, or of the form R25 x exp(b (T-25) + c (P-30)
       36 dBm: -40 C +3.5 / +12.1 (Fmin 0.135 V, R 0.173),  0 C +2.3 / +9.0 (Fmin 0.174 V, R 0.258),  25 C +2.7 / +7.1 (Fmin 0.204 V, R 0.331),  60 C +3.9 / +4.3 (Fmin 0.254 V, R 0.470),  85 C +5.0 / +2.3 (Fmin 0.298 V, R 0.603)
   -> ratio detector (BAT6804WH6327XTSA1), two conditions (FWD_DET low or ratio high): PASS  [works from 30 dBm (every pairing, both PA models, -40..85 C), worst margin +1.9 dB; Fmin(30 dBm, 25 C) 0.053 V +0.64 %/C +25.2 %/dB; R(30 dBm, 25 C) 0.245 +1.01 %/C +5.1 %/dB]
       real power 1 dB below the firmware model: good antenna -4.6 dB, missing +0.4 dB; 1 dB above: good +1.5 dB, missing +2.4 dB  (worst over every pairing, model, phase, T)
+  -> fitted with +-1 dB of power error built in (good antennas 1 dB low, missing 1 dB high): works from 33 dBm, worst margin +1.9 dB:
+     Fmin(P, T) = 0.070 V x 1.0054^(T-25) x 1.231^(P-30);  R(P, T) = 0.424 x 1.0020^(T-25) x 1.010^(P-30)
+      33 dBm: -40 C +1.9 / +3.8 (Fmin 0.092 V, R 0.384),  0 C +3.5 / +4.1 (Fmin 0.114 V, R 0.416),  25 C +4.0 / +4.1 (Fmin 0.130 V, R 0.437),  60 C +4.2 / +3.9 (Fmin 0.157 V, R 0.469),  85 C +3.8 / +3.8 (Fmin 0.179 V, R 0.493)
+      35 dBm: -40 C +3.8 / +5.0 (Fmin 0.139 V, R 0.391),  0 C +4.0 / +4.7 (Fmin 0.173 V, R 0.424),  25 C +3.9 / +4.5 (Fmin 0.197 V, R 0.446),  60 C +3.6 / +4.1 (Fmin 0.238 V, R 0.478),  85 C +3.2 / +3.9 (Fmin 0.272 V, R 0.502)
+      36 dBm: -40 C +4.2 / +5.3 (Fmin 0.172 V, R 0.395),  0 C +4.0 / +4.9 (Fmin 0.213 V, R 0.428),  25 C +3.7 / +4.6 (Fmin 0.243 V, R 0.450),  60 C +3.1 / +4.2 (Fmin 0.293 V, R 0.483),  85 C +2.7 / +3.9 (Fmin 0.335 V, R 0.508)
+  -> two conditions, fitted with +-1 dB of power-model error: MARGINAL  [from 33 dBm, worst margin +1.9 dB: Fmin 0.070 V x 1.0054^(T-25) x 1.231^(P-30), R 0.424 x 1.0020^(T-25) x 1.010^(P-30)]
   -> two conditions with +-1 dB between the power model and the real power: MARGINAL  [-1 dB: good antenna -4.6, missing +0.4 dB; +1 dB: good +1.5, missing +2.4 dB (a negative good-antenna margin = a false "antenna missing" and a 1 W retry, not a missed fault)]
+
+  (4) The firmware as committed (firmware/variant/variant.h): trip if FWD_DET >= 50 mV and REFL/FWD > 0.35; while FWD_DET is lower, the
+      old REFL_DET thresholds (350 / 730 mV, +1.4 mV/C).  Worst margin (dB) per level, every pairing, both models,
+      -40..85 C (good antenna / missing; missing via the ratio or the fallback, whichever applies):
+      30 dBm: good   +0.9 dB, missing  -38.0 dB   <- a missing antenna passes
+      33 dBm: good   +0.8 dB, missing  -18.3 dB   <- a missing antenna passes
+      35 dBm: good   +0.7 dB, missing   +5.4 dB
+      36 dBm: good   +0.6 dB, missing   +6.0 dB
+  -> detector rule as in firmware variant.h: FAIL  [FWD >= 50 mV and ratio > 0.35, else the old REFL thresholds: worst good +0.6 dB, missing -38.0 dB (30-36 dBm); use the two-condition rule (FWD_DET low = fault, not "wait")]
 
   Margins with that threshold (dB, + = read correctly; typical pair [worst pairing]):
    P        T     threshold   VSWR-2 max          missing min         matched max   FWD_DET min (V)
@@ -497,6 +512,8 @@ SUMMARY
   7b  L18 antenna missing, VPA 3.6 V, 60 C, no cut-off               PASS      single 1 s burst 87 C, 25 % duty 93 C (pads 68 C); limit 125 C; with the 0.75 ms cut-off +0.10 C
   7b  L18 antenna missing, VPA 4.0 V, 60 C, no cut-off               PASS      single 1 s burst 93 C, 25 % duty 101 C (pads 69 C); limit 125 C; with the 0.75 ms cut-off +0.12 C
   8   ratio detector (BAT6804WH6327XTSA1), two conditions (FWD_DET low or ratio high) PASS      works from 30 dBm (every pairing, both PA models, -40..85 C), worst margin +1.9 dB; Fmin(30 dBm, 25 C) 0.053 V +0.64 %/C +25.2 %/dB; R(30 dBm, 25 C) 0.245 +1.01 %/C +5.1 %/dB
+  8   two conditions, fitted with +-1 dB of power-model error        MARGINAL  from 33 dBm, worst margin +1.9 dB: Fmin 0.070 V x 1.0054^(T-25) x 1.231^(P-30), R 0.424 x 1.0020^(T-25) x 1.010^(P-30)
   8   two conditions with +-1 dB between the power model and the real power MARGINAL  -1 dB: good antenna -4.6, missing +0.4 dB; +1 dB: good +1.5, missing +2.4 dB (a negative good-antenna margin = a false "antenna missing" and a 1 W retry, not a missed fault)
+  8   detector rule as in firmware variant.h                         FAIL      FWD >= 50 mV and ratio > 0.35, else the old REFL thresholds: worst good +0.6 dB, missing -38.0 dB (30-36 dBm); use the two-condition rule (FWD_DET low = fault, not "wait")
   8   ratio detector (BAT6804WH6327XTSA1), compensated threshold     MARGINAL  works from 33 dBm; at the 30 dBm probe worst margin -5.9 dB, FWD_DET >= 0.002 V; fixed ratio: -0.4 dB (typical), -8.0 dB (every pairing)
   8   detector parts, antenna missing, VPA 4.0 V                     PASS      BAT6804WH6327XTSA1 reverse peak 2.82 V = 35 % of 8 V; 49.9 R 21 mW = 5 % of its 85 C rating (continuous, not just the 0.75 ms pulse)

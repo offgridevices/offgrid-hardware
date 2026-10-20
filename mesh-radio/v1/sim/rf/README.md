@@ -43,7 +43,7 @@ and `rfboard.py` now model the board as it is in `src/`:
    odd-mode parameters come from `coupler.py`'s field solve, as a new 4-port
    `rflib.CoupledLine`. The 47 nH ESD shunt sits inside the run, 0.6 mm from
    its U.FL end. The coupled line ends in 1 mm stubs: one to the 49.9 R, the
-   other to the BAT15 (0.4 nH, 6–8 Ω, 0.2 pF), with the 1 nF and 100 k at
+   other to the detector diode (BAT15 at first; BAT68-04W since item 6), with the 1 nF and 100 k at
    the cathode. The detector is present in every study, transmit and
    receive.
 3. **Mismatches found and fixed in the model:**
@@ -68,6 +68,16 @@ and `rfboard.py` now model the board as it is in `src/`:
    1f (harmonics over 108 trace layouts, from `followup.py`) are now part
    of `run.py`.
 5. **Study 8 is new: the detector against the firmware.**
+6. **Later on 20 Oct: the ratio detector.** It adds a forward BAT68-04W at
+   the 49.9 R end (FWD_DET, P0.02/AIN0) and a second 49.9 R at the U.FL end.
+   Both detector diodes are BAT68-04W (8 V) instead of BAT15-02EL. The 49.9 R
+   parts are now 0805 0.5 W.
+   - `rfboard.py` places each part at its end of the coupled line, by the
+     notes in `circuit.py`.
+   - `run.py` study 8 evaluates the ratio, the two-condition rule, the diode
+     spread (unmatched pairs) and the BAT15 for comparison
+     (`RF_DIODE=BAT15 tools/kd python3 sim/rf/run.py` writes
+     `results_BAT15.txt`).
 
 ## Verdict: board as in src/ on 20 Oct (LFCG-1000+, detector fitted)
 
@@ -85,7 +95,7 @@ and `rfboard.py` now model the board as it is in `src/`:
 | 4 | Receive vs a RAK4631 | PASS | 4.8 dB better with the LNA on (3.0 dB with every part at its worst, including the LFCG at 1.8 dB). 2.1 dB worse in bypass. |
 | 5 | LoRa frequency offset / 32 MHz crystal | PASS / MARGINAL | 8.6 kHz against a 31.2 kHz limit. The crystal's worst case is 42 ppm new and 47 ppm aged. |
 | 6 | Bluetooth match, before layout | PASS | 100 % yield; worst RL 9.6 dB. |
-| 7 | **PA load with the antenna missing** | **FAIL** | 10.5:1 at the worst phase, against Qorvo's 10:1 rating at 3.6 V. The LFCG reflects more than the LFCN did (9.1:1 on 19 Oct). Only the detector cut-off limits how long the PA sees it. |
+| 7 | **PA load with the antenna missing** | **FAIL** | 10.6:1 at the worst phase, against Qorvo's 10:1 rating at 3.6 V. The LFCG reflects more than the LFCN did (9.1:1 on 19 Oct). Only the detector cut-off limits how long the PA sees it. |
 | 7 | **SKY13330 with the antenna missing, 2.7 V** | **FAIL** | Model A 40.8 V (129 %), model B 26.8 V (85 %). At exactly 30 dBm (the US cap): **A 30.5 V (97 %), B 20.2 V (64 %)**. The limit is 31.6 V, what +40 dBm makes in 50 Ω. |
 | 7 | **SKY13330 with the antenna missing, 3.6 V** | **FAIL** | **Model A 54.4 V (172 %), model B 35.7 V (113 %)**. |
 | 7 | **SKY13330 with the antenna missing, 4.0 V** | **FAIL** | Model A 60.5 V (191 %), model B 39.6 V (125 %). |
@@ -94,10 +104,12 @@ and `rfboard.py` now model the board as it is in `src/`:
 | 7 | LNA and SX1262 input during transmit | PASS | LNA 5.5 dBm (abs max +25); SX1262 3.3 dBm (abs max +10). |
 | 7b | L15, antenna missing, 60 °C, 1 s bursts at 25 % duty, no cut-off | PASS at 2.7 and 3.6 V, **FAIL at 4.0 V** | 94, 121 and 135 °C against a 125 °C limit. With the 0.75 ms cut-off it rises 0.1 °C or less per event. |
 | 7b | L18, the same conditions | PASS | 101 °C or less. |
-| 8 | **Detector against the firmware thresholds** (typical BAT15, as designed) | **FAIL** | A missing antenna reads up to 80 mV **below** the threshold in model A, at some cable lengths, at both 30 and 35 dBm and every temperature. Model B reads at least 178 mV above it. A VSWR-2 antenna reads at least 113 mV below it in both models. |
-| 8 | Detector over BAT15 spread, EG, ±0.02 mm gap and ±1 dB of power | FAIL | Worst −186 mV (gap 0.12 mm). A 0.08 mm gap passes, with margins of +19 / +12 mV. |
-| 8 | **Detector with the 1 nF / 100 k as placed** | **FAIL** | C82 and R52 sit 21 mm from the diode, by the nRF52840. Worst margin −23 mV. Move them to D9 in the layout. |
-| 8 | Detector parts with the antenna missing | **FAIL** | The BAT15 sees a reverse peak of 5.1 / 5.7 V in model A at 3.6 / 4.0 V (3.5 / 3.9 V in model B), against its 4 V VR maximum. The 49.9 R takes up to 85 mW against its 63 mW rating, but only for 0.75 ms when the cut-off works. |
+| 8 | **Ratio detector, two conditions** (fault if FWD_DET < Fmin(P,T) or REFL/FWD > R(P,T)) | PASS from 30 dBm | Every diode pairing, both PA models, −40..85 °C, worst margin +1.9 dB. Fmin(30 dBm, 25 °C) 53 mV, +0.64 %/°C, +25 %/dB. R(30 dBm, 25 °C) 0.245, +1.0 %/°C, +5 %/dB. |
+| 8 | The same with ±1 dB between the power model and the real power | MARGINAL | Fitted with that 1 dB built in, it works from **33 dBm**: Fmin 70 mV × 1.0054^(T−25) × 1.231^(P−30), R 0.424 × 1.0020^(T−25) × 1.010^(P−30), +1.9 dB. At 30–33 dBm, a real power 1 dB under the model gives false "antenna missing" readings (a needless 1 W retry, never a missed fault). |
+| 8 | **The rule in firmware as committed (1a8f864)**: trip if FWD_DET ≥ 50 mV and ratio > 0.35, else the old REFL_DET thresholds | **FAIL** | A missing antenna passes at 30 dBm (−38 dB) and 33 dBm (−18 dB). At those cable lengths FWD_DET stays under 50 mV, and the fallback thresholds sit above every REFL_DET reading. It is fine at 35–36 dBm (+5.4 dB). Use the two-condition rule: a low FWD_DET is a fault, not a reason to wait. |
+| 8 | Ratio detector, one ratio threshold only | MARGINAL | Works from 33 dBm. At 30 dBm and −40 °C the forward reading collapses with the antenna missing (model A), so a ratio alone misreads by up to 5.9 dB. |
+| 8 | Detector parts with the antenna missing | PASS | BAT68-04W reverse peak 2.8 V (35 % of 8 V). Each 49.9 R takes 21 mW (5 % of the 0.5 W part's 85 °C rating), continuous. |
+| 8 | Coupler gap ±0.02 mm, CJ 1 pF, REFL_DET 1 nF as placed (21 mm away) | PASS (from 33 dBm) | +1.7 dB or better each. The 1 nF must still sit at each diode. |
 
 ### What still fails, and why
 
@@ -120,69 +132,88 @@ and `rfboard.py` now model the board as it is in `src/`:
     exposure to more than 10:1. It cuts the amplifier within 0.75 ms and
     retries at 1 W after 30 s, doubling up to 600 s.
   - *It does not protect against* the peak voltage on the SKY13330, the LFCG
-    or the BAT15, which is there from the first RF cycle of every packet and
+    or the detector diodes, which is there from the first RF cycle of every packet and
     every 1 W retry.
   - *It does not protect against* an antenna lost mid-packet, because it
     samples only once, 750 µs into each packet; the packet then runs to its
     end, up to ~5 s.
   - *It does not protect against* packets whose modelled power is below
     27 dBm, which are not checked.
-  - *It does not protect against* the cases it fails to detect. In model A a
-    missing antenna on some cable lengths reads below the threshold, so it
-    never trips; the steady-heating and 4.0 V L15 FAIL rows then apply in
-    full.
-- **Detector thresholds.** `coupler.py` gave 6.7–7.5 dB of contrast between
-  a missing and a VSWR-2 antenna, but it fed the coupler from an ideal
-  50-ohm source. In the full chain the wave the open antenna returns
-  bounces off the filter, the switch and the PA and comes back, so the
-  forward wave varies with cable length:
-  - With a saturated PA (model A) the lowest missing reading is only 2.0 dB
-    above the highest VSWR-2 reading.
-  - The firmware's thresholds (350 / 730 mV, +1.4 mV/°C) sit above that
-    window.
-  - Thresholds centred in it would be **V30 272 mV, V35 582 mV and
-    +1.15 mV/°C**. That gives ±37 mV with a typical BAT15. It still misreads
-    with a diode at the data-sheet VF limits, or with 1 dB of error between
-    the firmware's power model and the real power.
-  - The robust fix is a circuit change, not a threshold: read the forward
-    wave too. A second BAT15 at the coupler's filter end, behind the 49.9 R,
-    into a spare analog pin, lets firmware compare reflected with forward.
-    That cancels PA-power error, cable-length effects and most of the diode
-    spread and temperature drift.
-  - A tighter gap (0.08 mm) also helps. Thresholds must be set from bench
-    data in any case.
-- **The BAT15's reverse voltage.** The peak exceeds the 4 V maximum when the
-  antenna is missing at 3.6 and 4.0 V. Options are a weaker coupling, a
-  series resistor, or a detector diode with a higher reverse rating; none of
-  these was checked here.
-- **The PA's mismatch rating.** 10.5:1 is just past Qorvo's 10:1 rating at
+  - *It does not protect against* readings it cannot make: at 27-30 dBm a
+    real power more than ~1 dB under the firmware's model makes the forward
+    reading unreliable cold (study 8).
+- **The detector, before the 20 Oct ratio change.** A single reflected
+  detector against fixed thresholds misread a missing antenna by up to 80 mV
+  at some cable lengths with a saturated PA. That design is replaced by the
+  ratio detector below.
+- **The ratio detector needs both ends of the coupled line terminated.** With
+  the U.FL end left to the reflected diode alone (high impedance), the
+  reflected wave's coupled copy bounces off it back to the forward diode and
+  cancels the forward reading at some cable lengths. The forward port then
+  swings 0.003–0.085 V per volt incident; with the second 49.9 R it holds at
+  0.041–0.045. `src/circuit.py` now has a 49.9 R at each end (R51 at the
+  filter end, R75 at the U.FL end).
+- **The BAT68 reads little at 30 dBm when cold.** It is a medium-barrier
+  diode (VF 318 mV at 1 mA, against 250 mV for the BAT15). With the antenna
+  missing and a saturated PA at some cable lengths, FWD_DET falls to a few
+  mV at −40 °C, because the PA delivers little into the open. The firmware
+  therefore needs the second condition, FWD_DET below Fmin(P,T). Faster or
+  stronger options, none of them applied:
+  - a tighter gap: 0.08 mm adds ~1.5 dB of margin;
+  - a longer coupler;
+  - a small forward bias on both diodes;
+  - a later sample point.
+  REFL_DET needs up to 335 µs to settle at 30 dBm and −40 °C, so the RF must
+  be at full power by ~415 µs after startTransmit.
+- **The BAT15 compared** (`results_BAT15.txt`, `detector_BAT15.png`; the same
+  places, the same rule). It is more sensitive, with +4.1 dB for a fixed ratio
+  using typical diodes. But its data-sheet VF spread at 1 mA (0.16–0.32 V)
+  makes unmatched pairs fail below 33–35 dBm, and its 2.8 V reverse peak is
+  69 % of its 4 V rating. The BAT68's tighter spread (318 typ / 340 max mV)
+  makes it the more robust part.
+- **The PA's mismatch rating.** 10.6:1 is just past Qorvo's 10:1 rating at
   3.6 V. This is the LFCG's stop-band and pass-band reflection combining
   with the open.
 
-### Detector margins (study 8, typical BAT15, as designed)
+### Ratio detector (study 8): the firmware rule and its margins
 
-Thresholds are the firmware's (V30 350 mV, V35 730 mV, +1.4 mV/°C). Each
-cell gives the reading, then the margin (positive means read correctly).
-All values are in mV.
+The board now has:
 
-| P | T | Threshold | Missing, lowest (both models) | VSWR 2, highest | Matched |
+- the coupled line terminated in 49.9 R (Vishay CRCW0805 HP, 0.5 W) at both
+  ends;
+- **FWD_DET**: a BAT68-04W at the filter end into 1 nF ∥ 100 k, to P0.02/AIN0;
+- **REFL_DET**: a BAT68-04W at the U.FL end into 1 nF ∥ 100 k, to P0.30/AIN6.
+
+Firmware samples both in one SAADC scan and calls the antenna missing if
+**FWD_DET < Fmin(P, T)** or **REFL_DET / FWD_DET > R(P, T)**. P is the
+modelled U.FL power and T the board temperature.
+
+| Fitted for | Works from | Fmin(P, T) | R(P, T) | Worst margin |
+|---|---|---|---|---|
+| Nominal power | 30 dBm | 53 mV × 1.0064^(T−25) × 1.252^(P−30) | 0.245 × 1.0101^(T−25) × 1.051^(P−30) | +1.9 dB |
+| ±1 dB power-model error | 33 dBm | 70 mV × 1.0054^(T−25) × 1.231^(P−30) | 0.424 × 1.0020^(T−25) × 1.010^(P−30) | +1.9 dB |
+
+Margins for the nominal fit, in dB, as good-antenna / missing-antenna. Each
+is the worst over seven diode pairings (VF 296–340 mV, EG 0.60–0.70,
+unmatched), both PA models, every phase and 902–928 MHz:
+
+| P | −40 °C | 0 °C | 25 °C | 60 °C | 85 °C |
 |---|---|---|---|---|---|
-| 30 dBm | −40 °C | 259 | 235 (−24) | 146 (+113) | 0 |
-| 30 dBm | 25 °C | 350 | 325 (−25) | 235 (+115) | 17 |
-| 30 dBm | 85 °C | 434 | 381 (−53) | 289 (+145) | 34 |
-| 35 dBm | −40 °C | 639 | 586 (−53) | 415 (+224) | 3 |
-| 35 dBm | 25 °C | 730 | 674 (−56) | 504 (+226) | 49 |
-| 35 dBm | 85 °C | 814 | 734 (−80) | 563 (+251) | 81 |
+| 30 dBm | +1.9 / +2.2 | +6.4 / +7.1 | +4.4 / +6.8 | +2.2 / +5.2 | +3.1 / +3.9 |
+| 33 dBm | +7.4 / +10.9 | +4.8 / +9.0 | +3.1 / +7.4 | +3.1 / +4.9 | +4.2 / +3.2 |
+| 35 dBm | +6.0 / +12.0 | +2.9 / +9.1 | +2.7 / +7.2 | +3.6 / +4.5 | +5.0 / +2.6 |
+| 36 dBm | +3.5 / +12.1 | +2.3 / +9.0 | +2.7 / +7.1 | +3.9 / +4.3 | +5.0 / +2.3 |
 
-With model B alone, the lowest missing readings are 463, 552 and 612 mV at
-30 dBm and 1008, 1094 and 1155 mV at 35 dBm, all at least 178 mV above the
-threshold. The averaged diode solve agrees with ngspice to within 13 mV over
-six cases.
-
-REFL_DET settles within 20 µs of the RF reaching full power, and decays with
-a 100 µs time constant. The 750 µs sample therefore reads the steady level
-only if the SX1262 start-up, its PA ramp and the APC LDO bring the RF to full
-power within ~730 µs. That timing is not modelled and needs a bench check.
+- **A single ratio threshold does not work at every level.** Over 27–36 dBm
+  the VSWR-2 and missing ratios overlap, by −0.4 dB with typical diodes. That
+  is because the diodes move from square-law to linear detection as the
+  level rises.
+- **A threshold compensated for temperature and level, alone,** works from
+  33 dBm.
+- **Below 30 dBm nothing works with these parts.** Firmware should check
+  from 30 dBm, not from 27 dBm (`OFFGRID_REFL_MIN_DBM`).
+- **ngspice agrees** with the averaged diode solve to within 32 mV over five
+  cases.
 
 ## Models and sources
 
@@ -193,7 +224,8 @@ power within ~730 µs. That timing is not modelled and needs a bench check.
 | Inductor thermal data | Two-node RC. L15: 35 / 65 K/W and 0.016 / 0.25 J/K. L18: 200 / 220 K/W and 0.001 / 0.08 J/K. | **Estimated** from Murata's rated current (20 °C rise) and the parts' size. |
 | LFCG-1000+ (FL1) | Lumped 7-section ladder fitted to Mini-Circuits' typical table (`lfcn.G_FIT`). The table sets the magnitude and the model gives the phase. The model's stop-band VSWR is higher than the table's. Unit spread: loss ×1.0–1.5, ±1 % frequency (**assumed**). | Mini-Circuits data sheet: 0.8 dB typical / 1.8 dB maximum; 5.5 W at 25 °C, derated to 1 W at 125 °C. |
 | Detector coupler | Even/odd-mode coupled microstrip, 0.17 mm lines, 0.10 mm gap, 5.5 mm long: Z0e 60.0 Ω, Z0o 38.2 Ω, εeff 3.42 / 3.19. FR-4 loss as for the lines. Coupling about −27 dB; directivity about 23 dB in the board, with the ESD shunt and stubs. | `coupler.py` 2-D field solve (JLC06161H-2116B, 35 µm copper, mask assumed). Not EM-simulated in 3-D. |
-| BAT15-02EL | RF: Ls 0.4 nH + Rs 8 Ω + Cj 0.20 pF. DC: mean diode current over an RF cycle equals V/100 k, plus a 0.13 µS reverse leak. IS 1.15e-7 A, N 1.08 (typical IF–VF curve, digitised). Corners: IS from VF 0.16 / 0.32 V at 1 mA; EG 0.55 / 0.69 eV, XTI 2. | Infineon data sheet v1.0 (2018-06-30). It gives no temperature data, so the temperature behaviour is **assumed**. Cross-checked with an ngspice transient. |
+| BAT68-04W (detectors since 20 Oct) | RF: Ls 1.4 nH + Rs 9.2 Ω + Cj 0.65 pF (1.0 pF maximum as a corner); D2 shorted. DC: mean diode current over an RF cycle equals V/100 k, plus a 6 nS leak. IS 2.35e-9 A (318 mV at 1 mA), N 0.932, EG 0.65 eV, XTI 2, fitted to the IF–VF curves at −40/25/85 °C (within 4 mV). Corners: IS at 340 mV (data-sheet max) and 296 mV (**assumed**); EG 0.60 / 0.70 eV. | Infineon BAT68 data sheet (2011-06-15). Cross-checked with an ngspice transient. |
+| BAT15-02EL (comparison only) | Ls 0.4 nH + Rs 8 Ω + Cj 0.20 pF; IS 1.15e-7 A, N 1.08 (typical curve); corners from VF 0.16 / 0.32 V at 1 mA; EG 0.55 (0.50 / 0.69). | Infineon data sheet v1.0 (2018-06-30). |
 | SKY13330 | Loss 0.30/0.35 dB (typ/max) below 1 GHz, rising with frequency; 20 dB return loss. | Skyworks 201407E. Its harmonics are not published: −65/−60 dBc for 2f/3f at +35 dBm assumed. |
 | QPA9510 | (A) A saturated current source with a voltage clamp at the die, through assumed bond wires, calibrated to 35.4 dBm on the EVB network. (B) A 50-ohm source. | Qorvo data sheet, 23 Jun 2025. 4f–10f at −45 dBc is **assumed**. |
 | BGA7L1BN6, SX1262, TCXO, crystal, chip antenna | As in `results.txt`. | Infineon rev 3.1, Semtech DS rev 1.2, ECS, Abracon, Johanson data sheets. |
@@ -210,7 +242,7 @@ study 8 supersedes them.
   must sit at the diode, and the coupler should be EM-simulated with the
   U.FL and the ESD pad.
 - **PA behaviour into a missing antenna.** Two simple models bracket it, and
-  they disagree about the detector. The switch, the LFCG and the BAT15 have
+  they disagree about the detector. The switch, the LFCG and the BAT68 have
   no published ratings for this case. Only a bench test settles it: measure
   REFL_DET with a good antenna, a VSWR-2 load and an open U.FL on several
   cable lengths, at 30 and 35 dBm, hot and cold.
