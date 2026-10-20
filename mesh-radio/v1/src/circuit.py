@@ -97,6 +97,10 @@ def build():
     COMPS, _count = [], {}
     inputs(); charger(); system(); mcu(); radio(); frontend(); pa_power(); ports()
     detector_fwd()
+    import os
+    if os.environ.get('NO_HEADER'):
+        # routing trial only: the board without the (unfitted) expansion header
+        COMPS[:] = [c for c in COMPS if c.part != 'HDR_2x10']
     return COMPS
 
 

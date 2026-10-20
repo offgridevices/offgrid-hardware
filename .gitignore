@@ -43,3 +43,4 @@ out/
 # Board build output that duplicates a committed file (the Gerber zip)
 */v*/production/gerbers/
 mesh-radio/v1/src/placement_*.json
+mesh-radio/v1/src/placement_nohdr*.json

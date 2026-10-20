@@ -425,7 +425,8 @@ def finish_stage(routed, fin, work):
     left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
     log('after the maze router: %d nets open %s' % (len(left), left[:12]))
     if left:
-        left = finish.repair_orders(b, left, protect=protect, widths=w, clmap=cl, log=log)
+        left = finish.repair_orders(b, left, protect=protect, widths=w, clmap=cl, log=log,
+                                    tries=int(os.environ.get('REPAIR_TRIES', 40)))
         b.Save(fin)
     log('signals left after repair: %s' % (left,))
     return finish_tail(fin, work, w, cl)

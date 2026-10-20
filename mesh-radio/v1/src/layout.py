@@ -50,7 +50,8 @@ def ref(comps, part, note=None):
 def anchors(comps):
     """(ref, x, y, rot, side) for the parts that set the floor plan."""
     R = lambda p, n=None: ref(comps, p, n)
-    return [
+    hdr = [(R('HDR_2x10'), HDR_X0, 0.0, 0, 'T')] if any(c.part == 'HDR_2x10' for c in comps) else []
+    return hdr + [
         # ---- left end
         (R('USBC'), -HX + 5.48, 0.0, 270, 'T'),           # shell front 0.84 mm past the edge (Amphenol drawing)
         (R('SLIDE'), -HX + 5.6, -HY + 4.55, 180, 'T'),      # body edge on the board edge, lever over it
@@ -63,7 +64,6 @@ def anchors(comps):
         # bottom, sat where its top row's escape vias must go)
         (R('NRF52840'), NRF_X, 1.6, 180, 'T'),              # SPI side towards the SX1262, USB side towards USB-C
         (R('ANT2450'), -HX + 11.6, HY - 1.35, 180, 'T'),         # feed end towards the nRF52840
-        (R('HDR_2x10'), HDR_X0, 0.0, 0, 'T'),
         # ---- LoRa radio: RF pins face +x (top to bottom VR_PA, RFO, RFI_N, RFI_P)
         (R('SX1262'), SX_X, -4.4, 180, 'T'),
         (R('TCXO32'), 2.0, -4.5, 0, 'B'),                   # beside the SX1262, underneath (no room on top)
@@ -161,12 +161,13 @@ def place_all(log=print):
     for r_, x, y, rot, side in anchors(comps):
         B.put(r_, x, y, rot, side, check=False)
     # header holes block both sides (each hole's pad, not the space between the rows)
-    hdr = ref(comps, 'HDR_2x10')
-    hx, hy, hrot, _ = B.pl[hdr]
-    hbox, hp = B.geom(hdr, hx, hy, hrot, 'T')
-    B.taken['T'].remove(hbox)
-    for (px, py) in hp.values():
-        B.keep_out((px - 0.85, py - 0.85, px + 0.85, py + 0.85))     # the 1.5 mm pad + 0.1
+    if any(c.part == 'HDR_2x10' for c in comps):
+        hdr = ref(comps, 'HDR_2x10')
+        hx, hy, hrot, _ = B.pl[hdr]
+        hbox, hp = B.geom(hdr, hx, hy, hrot, 'T')
+        B.taken['T'].remove(hbox)
+        for (px, py) in hp.values():
+            B.keep_out((px - 0.85, py - 0.85, px + 0.85, py + 0.85))     # the 1.5 mm pad + 0.1
     # the nRF52840's outer ball ring leaves on F.Cu, straight out between
     # its neighbours' balls: a ring round it on the top stays free of
     # other parts (and of their ground vias, board.py), or those pins are
