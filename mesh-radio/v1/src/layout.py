@@ -164,7 +164,7 @@ def place_all(log=print):
     hbox, hp = B.geom(hdr, hx, hy, hrot, 'T')
     B.taken['T'].remove(hbox)
     for (px, py) in hp.values():
-        B.keep_out((px - 0.95, py - 0.95, px + 0.95, py + 0.95))
+        B.keep_out((px - 0.85, py - 0.85, px + 0.85, py + 0.85))     # the 1.5 mm pad + 0.1
     # the nRF52840's outer ball ring leaves on F.Cu, straight out between
     # its neighbours' balls: a ring round it on the top stays free of
     # other parts (and of their ground vias, board.py), or those pins are

@@ -512,13 +512,15 @@ def header_rows_fp():
     20.32 mm apart, one along each long edge of the 25.4 mm board (as the
     Heltec boards carry their pin rows).  Pins 1-10 in the first row
     (y = -10.16, pin 1 at x = 0, numbers rising in +x), pins 11-20 in the
-    second (y = +10.16, pin 11 at x = 0).  1.0 mm holes, 1.7 mm pads, the
-    first pin of each row square.  Each row has its own courtyard, so
-    parts may sit between the rows."""
+    second (y = +10.16, pin 11 at x = 0).  1.0 mm holes, 1.5 mm pads (the
+    0.25 mm ring JLCPCB asks for; 1.7 mm until 20 Oct left 0.84 mm between
+    pads, on every layer, for the router), the first pin of each row
+    square.  Each row has its own courtyard, so parts may sit between the
+    rows."""
     name = 'Header_2x1x10_Rows20.32'
-    fp = _new(name, 'Two 1x10 rows, 2.54 mm pitch, rows 20.32 mm apart; 1.0 mm drill, 1.7 mm pads',
+    fp = _new(name, 'Two 1x10 rows, 2.54 mm pitch, rows 20.32 mm apart; 1.0 mm drill, 1.5 mm pads',
               attr=pcbnew.FP_THROUGH_HOLE)
-    pitch, half, drill, pad = 2.54, 10.16, 1.0, 1.7
+    pitch, half, drill, pad = 2.54, 10.16, 1.0, 1.5
     for row, y in ((0, -half), (1, half)):
         for i in range(10):
             _pth_pad(fp, str(row * 10 + i + 1), i * pitch, y, pad, drill, square=(i == 0))
