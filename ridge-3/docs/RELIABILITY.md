@@ -82,9 +82,9 @@ that, the FET's case taken as its drain copper with all its heat in it:
 | cool board | 0.6 V | 68 ms (target change) | 182 °C | 11 ms |
 | cool board | 0.26 V (75 kΩ) | 248 ms | 70 °C | 0 |
 | hot (128 °C, after the hard flight at 50 °C) | none (a bound) | 248 ms | over 300 °C | 249 ms |
-| hot | 0.6 V (as built) | 248 ms | 221 °C | 199 ms |
+| hot | 0.6 V (as built) | 248 ms | 221 °C | 198 ms |
 | hot | 0.6 V | 68 ms | 195 °C | 22 ms |
-| hot | 0.26 V | 248 ms | 193 °C | 68 ms |
+| hot | 0.26 V | 248 ms | 193 °C | 67 ms |
 | hot | 0.26 V | 68 ms | 141 °C | 0 |
 
 - The trip as built does most of the work: it acts in the first
@@ -164,9 +164,9 @@ with a differential or isolated probe, during the high side's turn-on.
 
 | Air | HD unit on the 9 V pads (9 V 1.5 A, 5 V 1 A) | HD unit on the battery (5 V 1 A) |
 |---|---|---|
-| 25 °C | video on 69 % of the time | 100 % |
-| 35 °C | 46 % | 100 % |
-| 50 °C | 8 % | 100 % |
+| 25 °C | video on 71 % of the time | 100 % |
+| 35 °C | 48 % | 100 % |
+| 50 °C | 9 % | 100 % |
 | 60 °C | 0 %, the FC's processor at 107 °C (105 °C rated) | 100 %, the processor at 107 °C |
 
 The thermostat keeps the parts in their ratings by cutting video; it is not

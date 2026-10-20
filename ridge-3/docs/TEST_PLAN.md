@@ -207,7 +207,7 @@ regulator.
 FC and ESC stacked, HD air unit on the 9 V pads (or a 9 V / 1.5 A load and a
 5 V / 1 A load), still air, at room temperature and at 35 °C.  The video
 thermostat should switch the 9 V rail off near 96 °C and on near 76 °C.  The
-simulation: video on 69 % of the time at 25 °C, 46 % at 35 °C.  Pass: the
+simulation: video on 71 % of the time at 25 °C, 48 % at 35 °C.  Pass: the
 thermostat acts and nothing passes its rating.  Also the README's bring-up
 step 7.
 

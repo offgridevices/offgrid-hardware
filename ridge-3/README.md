@@ -982,20 +982,24 @@ maps, SPICE runs) stay in `sim/out/`, which git ignores.
   export OPTIMOS6_60V_LIB=/path/to/OptiMOS6_60V_Spice.lib
   export OPTIMOS5_60V_LIB=/path/to/OptiMOS_OptiMOS5_60V_Spice.lib
   export TPN2R304PL_LIB=/path/to/TPN2R304PL_G0_00_PSpice_rev1.lib
-  sim/.venv/bin/python sim/stress.py                 # STRESS.md, images/stress/: both revisions, about 3 h 25 min
-  sim/.venv/bin/python sim/stress.py --variant=rev2  # sim/results/variants/rev2/: about 2.5 h
-  sim/.venv/bin/python sim/crash.py                  # sim/results/crash/: about 21 min
-  sim/.venv/bin/python sim/punch.py                  # sim/results/punch/: about 37 min
+  sim/.venv/bin/python sim/stress.py                 # STRESS.md, images/stress/: both revisions, about 1 h 40 min
+  sim/.venv/bin/python sim/stress.py --variant=rev2  # sim/results/variants/rev2/: about 2 h
+  sim/.venv/bin/python sim/crash.py                  # sim/results/crash/: about 18 min
+  sim/.venv/bin/python sim/punch.py                  # sim/results/punch/: about 30 min
   sim/.venv/bin/python sim/ground.py                 # sim/results/variants/rev2/GROUND.md
   for v in idrive30 lihv alt2250 bsz040 bsz040-idrive30 temp120 idrive30-temp120; do
-    sim/.venv/bin/python sim/stress.py --variant=$v  # about 1.5-2.5 h each
+    sim/.venv/bin/python sim/stress.py --variant=$v  # about 1-2 h each
   done
   sim/.venv/bin/python sim/crash.py --variant=bsz040 # sim/results/crash/bsz040/
   sim/.venv/bin/python sim/variants.py               # sim/results/VARIANTS.md
   ```
 
   `crash.py`, `punch.py` and `ground.py` start from the `found.json` that
-  `stress.py --variant=rev2` writes, so that run comes first.  Without
+  `stress.py --variant=rev2` writes, so that run comes first.  The times
+  are on four cores, a variant with two others beside it.  `stress.py`
+  keeps each finished design's result in `sim/out/`, named by a hash of
+  everything it read, so a run that is stopped takes up again after the
+  last design it finished.  Without
   Toshiba's model, `stress.py` stops at once (rev 1 runs first), but
   `--variant=...` runs rev 2 alone.
   `sim/stress.py --quick --variant=rev2` (one air speed and temperature,

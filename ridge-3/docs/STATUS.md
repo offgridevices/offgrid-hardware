@@ -8,12 +8,12 @@ and simulation with this revision's result is in [`../TESTS.md`](../TESTS.md),
 the hardware tests' procedure in [`TEST_PLAN.md`](TEST_PLAN.md), and how to
 apply a decision to the design is in [`CHANGING.md`](CHANGING.md).
 
-## Where it stands (2026-10-19)
+## Where it stands (2026-10-20)
 
 | | State |
 |---|---|
 | Design | **Revision 2.0**, both boards.  KiCad DRC 0 errors / 0 warnings / 0 unconnected; the copper matches `src/circuit.py` pad for pad; `../VERIFICATION.md` checks the design against independent sources |
-| Simulation | Being run again on the FC as routed on 2026-10-19 (D10-D12).  Until then `../STRESS.md` and `../sim/results/` describe the earlier FC routing: their section 5 shows the 5 V rail in its feedback line, the defect D12 fixed, and their heat results carry the earlier FC's copper.  The ESC's copper, switching and battery-line results do not depend on the FC.  [`RELIABILITY.md`](RELIABILITY.md) has the variants, a crash and a punch |
+| Simulation | Done on the FC as routed on 2026-10-20 (D10-D12, with power vias): [`../STRESS.md`](../STRESS.md) (rev 2: 19 pass, 1 marginal, 3 fail; rev 1: 6, 5, 15) and every report in `../sim/results/`, all generated 2026-10-20.  [`RELIABILITY.md`](RELIABILITY.md) has the variants, a crash and a punch |
 | Fabrication files | Committed in `../fc/production/` and `../esc/production/`, single boards and 3 × 2 panels.  CI (the `ridge-3` job) rebuilds them from the committed board files on every pull request into `main` and every push to `main`, and fails if they differ |
 | Test record | [`../TESTS.md`](../TESTS.md): every build gate, design check and simulation with revision 2.0's result and date; the hardware rows not run |
 | Prototypes | **Not ordered.**  No board has been built or measured |
@@ -92,7 +92,7 @@ it.  When one is made, fill in **Decided** and follow `CHANGING.md`.
   in flight, and it does most of the work in a crash.
 - **Option:** 75 kΩ to AGND (0.26 V) protects the FET outright in a crash
   together with D3's shorter cut (141 °C from a hot board; with AM32's cut
-  as it ships, 193 °C, 68 ms past its rating), but trips at 51-62 A on a
+  as it ships, 193 °C, 67 ms past its rating), but trips at 51-62 A on a
   hot FET, under a punch's 64-68 A: it would cut motors in flight.  It also needs a footprint the board does not have.
 - **Recommendation:** keep 0.6 V.  In the next ESC revision add the
   footprint unfitted (D6).
@@ -284,7 +284,14 @@ Open until T5, T6 and T7 are done.  Candidates, from
     barrel); a 0.25 mm barrel holds the copper of a 0.45 mm track;
   - `verify.py` checks every feedback line (it reaches one pour and no pad
     but its divider's) and every via on those three nets.
-- **Result:** the simulations are being run again on the new board (`../STRESS.md` section 5 gives the 5 V copper's drop, loss and densest point at 2 A); this line is filled in from them.
+- **Result** (2026-10-20, `../STRESS.md` section 5, simulated): at 2 A
+  the 5 V copper drops 110 mV and loses 0.19 W (130 mV and 0.24 W before);
+  its densest cell is 175 A/mm² on In2.Cu, where it was 332 A/mm² on B.Cu
+  in the feedback line.  The current crosses three 0.25 mm power vias in
+  series, 2.00 A in each: 127 A/mm² in their barrels (212 A/mm² in the
+  first reroute's 0.15 mm via), about what the 0.5 mm tracks carry
+  (114 A/mm²).  The 9 V rail's 2 A splits 1.03 / 0.97 A over two power
+  vias.  No verdict changed: rev 2 still 19 pass, 1 marginal, 3 fail.
 - **Settled by:** T10 (a thermal camera on the 5 V copper at 2 A).
 
 ## Before ordering prototypes
@@ -412,3 +419,18 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
   `main` (Print Hub, SmokeBreak).  Every simulation is being run again on
   the new FC.  REVISION stays 2.0: nothing of it was ordered.  Decisions D1-D9
   open.  Nothing ordered.
+- **2026-10-20** D12 finished: every via on the 5 V, 9 V and video-battery
+  nets is a 0.5 / 0.25 mm power via (`VIA_BY_NET`), after the review found
+  the 5 V rail's 2 A in one 0.15 mm signal via; the FC routed again (DRC
+  0 / 0 / 0, every gate); `verify.py` 263 passed with every source, 217
+  without, a new check holding those nets to power vias.  Every
+  simulation run again on this board: `../STRESS.md`, the eight variants,
+  ground, both crashes and the punch.  No verdict changed (D12's
+  **Result** has the 5 V figures); on the ground, both rails at 2 A in
+  60 °C still air put 75 parts past their rating (99 before), and the
+  video stays on 71 % of the time at 25 °C (69 %).  `sim/stress.py` now
+  sorts the X7R and X7S capacitor rows by name as well as limit (their
+  order had come from a set), and keeps each finished design's result in
+  `sim/out/`, named by a hash of all it reads, so a run stopped by a
+  container restart takes up again.  Decisions D1-D9 open.  Nothing
+  ordered.

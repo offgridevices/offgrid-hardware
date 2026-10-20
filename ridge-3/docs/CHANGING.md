@@ -45,7 +45,7 @@ simulations](../README.md#stress-simulations) for `sim/`, and
    part with figures checked in `verify.py` needs its entry there and its
    datasheet in `DATASHEETS.md`.
 4. **Simulate:** `sim/.venv/bin/python sim/stress.py` writes `STRESS.md`
-   and `images/stress/` (about 3 h 25 min on four cores; it needs both
+   and `images/stress/` (about 1 h 40 min on four cores; it needs both
    revisions' FET models).  Then `sim/stress.py --variant=rev2`, which
    writes the `found.json` that `sim/crash.py`, `sim/punch.py` and
    `sim/ground.py` start from, and those three.  The README's [Stress
