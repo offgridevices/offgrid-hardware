@@ -1137,7 +1137,8 @@ def groups_of(m):
     }
     for b in BOARD_NAMES:
         caps = [x for x in m.parts if x.startswith(b + ' ') and m.parts[x].get('kind')]
-        for diel, lim in sorted({data.CAPS[m.parts[x]['kind']][:2] for x in caps}, key=lambda d: d[1]):
+        # by limit, then by name: X7R and X7S share 125 C, and a set's order changes from run to run
+        for diel, lim in sorted({data.CAPS[m.parts[x]['kind']][:2] for x in caps}, key=lambda d: (d[1], d[0])):
             g['%s capacitors, %s (hottest)' % (b, diel)] = [x for x in caps if data.CAPS[m.parts[x]['kind']][0] == diel]
     g['ESC shunts (hottest)'] = ['ESC R_SH%d' % n for n in CH]
     for label, names in (('ESC stack connector', ['ESC J_FC']), ('FC stack connector', ['FC J_ESC']),
