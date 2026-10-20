@@ -73,7 +73,8 @@ def plane_fanout(path):
 def rf_reference_keepouts(b, margin=0.6, log=log):
     """With In1 routed (ROUTE_IN1): In1 stays solid ground under every RF
     line (the line, its coplanar gap and `margin` beyond), where it is the
-    line's reference: rule areas on In1 with no tracks or vias of any net."""
+    line's reference: rule areas on In1 with no track of any net (vias may
+    pierce it), the chips at the lines' ends cut out."""
     from shapely.geometry import LineString
     from shapely.ops import unary_union
     gl = pcb.layer_id(pcb.INNER['gnd'])
@@ -85,12 +86,25 @@ def rf_reference_keepouts(b, margin=0.6, log=log):
             s_, e_ = t.GetStart(), t.GetEnd()
             band.append(LineString([(s_.x / 1e6, s_.y / 1e6), (e_.x / 1e6, e_.y / 1e6)])
                         .buffer(t.GetWidth() / 2e6 + board.RF_GAP + margin))
+    # not under the chips the lines start and end at: their balls' and
+    # paddles' own vias stand there (the nRF52840's DEC3 ball, the LNA's)
+    from shapely.geometry import box as _box
+    chips = []
+    for fp in b.GetFootprints():
+        r_ = fp.GetReference()
+        if r_[0] == 'U' or r_.startswith('Q'):
+            cy = fp.GetCourtyard(pcbnew.B_CrtYd if fp.IsFlipped() else pcbnew.F_CrtYd)
+            if cy.OutlineCount():
+                bb = cy.BBox()
+                chips.append(_box(bb.GetLeft() / 1e6, bb.GetTop() / 1e6, bb.GetRight() / 1e6, bb.GetBottom() / 1e6))
     k = 0
-    for q in _simple(unary_union(band)):
+    for q in _simple(unary_union(band).difference(unary_union(chips))):
         if q.area < 0.02:
             continue
         pts = [(x - pcb.CX, y - pcb.CY) for x, y in list(q.exterior.coords)[:-1]]
-        pcb.rule_area(b, pts, [gl], tracks=True, vias=True, pads=False, pours=False, name='RF reference: In1 solid')
+        # tracks only: a track there cuts a slot in the line's return path;
+        # a via just pierces it (and the RF parts' ground vias belong there)
+        pcb.rule_area(b, pts, [gl], tracks=True, vias=False, pads=False, pours=False, name='RF reference: In1 solid')
         k += 1
     log('RF reference: %d areas on In1 kept solid' % k)
     return k
