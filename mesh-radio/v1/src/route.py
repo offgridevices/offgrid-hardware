@@ -212,6 +212,43 @@ def route(pcb_in, pcb_out, passes=60, rounds=4):
     shutil.copy(pcb_out + '.best', pcb_out); os.remove(pcb_out + '.best')
     return best[0]
 
+def route_resumable(pcb_in, pcb_out, passes=6, rounds=8, log=print):
+    """route() in rounds of `passes` Freerouting passes, each round's board
+    saved as round<r>.kicad_pcb beside pcb_out: a run that is killed
+    (the container restarts every few hours) picks up from its last saved
+    round instead of starting over.  Returns the best round's unrouted count."""
+    import pcb
+    work = os.path.dirname(os.path.abspath(pcb_out))
+    rb = lambda r: os.path.join(work, 'round%d.kicad_pcb' % r)
+    done = [r for r in range(rounds) if os.path.exists(rb(r))]
+    start = max(done) + 1 if done else 0
+    scores = {}
+    for r in done:
+        scores[r], _ = unrouted(rb(r))
+    if done:
+        log('  resuming after round %d (%s)' % (start, ', '.join('%d: %d' % kv for kv in sorted(scores.items()))))
+    src = rb(start - 1) if done else pcb_in
+    for r in range(start, rounds):
+        if scores and min(scores.values()) == 0:
+            break
+        dsn = os.path.join(work, 'route%d.dsn' % r); ses = os.path.join(work, 'route%d.ses' % r)
+        if r > 0:
+            pcb.tidy_tracks(src)
+        export_dsn(src, dsn)
+        freeroute(dsn, ses, passes=passes, log=os.path.join(work, 'freerouting%d.log' % r))
+        tmp = rb(r) + '.part'
+        pcb.copy_project(src, tmp[:-len('.part')])
+        import_ses(src, ses, tmp)
+        os.replace(tmp, rb(r))
+        scores[r], _ = unrouted(rb(r))
+        log('  routing round %d: %d unrouted' % (r + 1, scores[r]))
+        src = rb(r)
+    best = min(scores, key=lambda k: (scores[k], -k))
+    shutil.copy(rb(best), pcb_out)
+    pcb.copy_project(rb(best), pcb_out)
+    return scores[best]
+
+
 if __name__ == '__main__':
     n = route(sys.argv[1], sys.argv[2], passes=int(os.environ.get('PASSES', 60)))
     print('unrouted connections after autoroute + fill: %d' % n)

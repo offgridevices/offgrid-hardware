@@ -413,21 +413,27 @@ def finish_tail(fin, work, w, cl):
     return e, wn, u
 
 
+ROUND_PASSES = int(os.environ.get('ROUND_PASSES', 5))   # Freerouting passes per saved round
+
+
 def run(work, passes=40, from_routed=False):
     os.makedirs(work, exist_ok=True)
     placed = os.path.join(work, 'placed.kicad_pcb')
     routed = os.path.join(work, 'routed.kicad_pcb')
     fin = os.path.join(work, 'fin.kicad_pcb')
     if not from_routed:
-        board.build(placed)
-        plane_fanout(placed)
-        fill(placed)
+        # a resumed run keeps its placed board (and the rounds routed on it)
+        if not os.path.exists(placed + '.done'):
+            board.build(placed)
+            plane_fanout(placed)
+            fill(placed)
+            open(placed + '.done', 'w').close()
         setup_routers()
         # every stage's board file gets the project (KiCad 10 keeps the
         # rules and net classes there): without it KiCad, the DSN export
         # and the DRC fall back to KiCad's defaults
         pcb.copy_project(placed, routed)
-        n = route.route(placed, routed, passes=passes, rounds=1)
+        n = route.route_resumable(placed, routed, passes=ROUND_PASSES, rounds=max(1, passes // ROUND_PASSES), log=log)
         log('Freerouting: %d connections left, %d duplicate vias removed' % (n, pcb.dedupe_vias(routed)))
         write_rules(routed)
     finish_stage(routed, fin, work)
