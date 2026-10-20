@@ -279,9 +279,9 @@ def widths(comps):
     out = {}
     for n in set(v for c in comps for v in c.pins.values() if v):
         if n in board.HEAVY:
-            out[n] = board.HEAVY_W
+            out[n] = board.HEAVY_ROUTE_W
         elif n in board.POWER:
-            out[n] = 0.3
+            out[n] = board.POWER_ROUTE_W
         elif n in board.RAIL:
             out[n] = 0.15
         elif n in board.RF_NETS:
@@ -332,11 +332,67 @@ def finish_stage(routed, fin, work):
     return finish_tail(fin, work, w, cl)
 
 
+def fatten(path, log=log, neck=0.45):
+    """Widen the heavy-current and power tracks the routers laid thin
+    (board.HEAVY_ROUTE_W / POWER_ROUTE_W) wherever there is room: each
+    segment longer than 2 x `neck` is split so its ends (where it meets a
+    fine-pitch pin) can stay thin while its middle widens; each piece takes
+    the widest of the target width down to its own that clears every other
+    net by its class clearance and keeps 0.35 mm from the board edge."""
+    import fanout
+    from shapely.geometry import LineString, box
+    b = pcbnew.LoadBoard(path)
+    want = {n: (board.HEAVY_W, 0.1) for n in board.HEAVY}
+    want.update({n: (board.POWER_W, 0.12) for n in board.POWER})
+    # split
+    for t in list(b.GetTracks()):
+        if t.GetClass() == 'PCB_VIA' or t.GetNetname() not in want or t.IsLocked():
+            continue
+        s_, e_ = t.GetStart(), t.GetEnd()
+        L = (e_ - s_).EuclideanNorm() / 1e6
+        if L <= 2 * neck + 0.2:
+            continue
+        f1, f2 = neck / L, 1 - neck / L
+        p1 = pcbnew.VECTOR2I(int(s_.x + (e_.x - s_.x) * f1), int(s_.y + (e_.y - s_.y) * f1))
+        p2 = pcbnew.VECTOR2I(int(s_.x + (e_.x - s_.x) * f2), int(s_.y + (e_.y - s_.y) * f2))
+        t.SetEnd(p1)
+        for a, c in ((p1, p2), (p2, e_)):
+            u = pcbnew.PCB_TRACK(b)
+            u.SetStart(a); u.SetEnd(c); u.SetWidth(t.GetWidth()); u.SetLayer(t.GetLayer()); u.SetNet(t.GetNet())
+            b.Add(u)
+    layers = [l for l in b.GetEnabledLayers().CuStack()]
+    obs = fanout.Obstacles(b, layers)
+    obs.keepouts = []                          # vias only; tracks may cross those
+    inside = box(pcb.CX - pcb.HX + 0.35, pcb.CY - pcb.HY + 0.35, pcb.CX + pcb.HX - 0.35, pcb.CY + pcb.HY - 0.35)
+    n = k = 0
+    for t in list(b.GetTracks()):
+        net = t.GetNetname()
+        if t.GetClass() == 'PCB_VIA' or net not in want or t.IsLocked():
+            continue
+        k += 1
+        tw, tcl = want[net]
+        cur = t.GetWidth() / 1e6
+        s_, e_ = t.GetStart(), t.GetEnd()
+        line = LineString([(s_.x / 1e6, s_.y / 1e6), (e_.x / 1e6, e_.y / 1e6)])
+        w_ = tw
+        while w_ > cur + 1e-6:
+            g = line.buffer(w_ / 2)
+            if inside.contains(g) and obs.clear(g, net, [t.GetLayer()], tcl):
+                t.SetWidth(pcbnew.FromMM(w_))
+                obs.add(g, net, [t.GetLayer()])
+                n += 1
+                break
+            w_ = round(w_ - 0.05, 3)
+    b.Save(path)
+    log('fatten: %d of %d power track pieces widened' % (n, k))
+
+
 def finish_tail(fin, work, w, cl):
     """Ground pour and stitching, the last maze pass, clean-up, POFV
     spacing, stackup and DRC."""
     import stitch, cleanup, pofv
     pcb.tidy_tracks(fin)
+    fatten(fin)
     write_rules(fin)
     pcb.pour_ground(fin, list(finish.ROUTE_LAYERS), clearance=0.15)
     b = pcbnew.LoadBoard(fin)

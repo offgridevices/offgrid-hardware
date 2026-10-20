@@ -41,6 +41,13 @@ RF_EXTRA = ['REFL_CPL']
 # the battery and amplifier current path's track width (mm); an
 # environment override is for routing trials only
 HEAVY_W = float(os.environ.get('HEAVY_W', 0.6))
+POWER_W = 0.3
+# The routers lay these nets thin (a 0.6 or 0.3 mm track cannot reach a
+# 0.4 mm-pitch ball or a 0.5 mm-pitch QFN pin: with them at full width,
+# 24 of their connections failed even with every signal left out); the
+# finish widens every stretch that has room to HEAVY_W / POWER_W
+# (pipeline.fatten), and keeps thin only the necks at fine-pitch pins.
+HEAVY_ROUTE_W, POWER_ROUTE_W = 0.3, 0.2
 HEAVY = ['VPA', 'PA_IN', 'PA_LX1', 'PA_LX2', 'BAT_P', 'BATT_PLUS', 'CELL_MINUS', 'PROT_S2',
          'PA_VCC1', 'PA_VCC2', 'PA_V1F', 'PA_V2F']
 POWER = ['VSYS', 'VSYS_SW', 'VIN_CHG', 'USB_VBUS', 'USB_5V', 'SOLAR_CONN', 'SOLAR_RAW',
@@ -85,8 +92,8 @@ def net_classes(b, comps):
     # 0.18 mm gap to ground is the top pour's own clearance (RF_GAP)
     pcb.netclass(b, 'RF', sorted(nets & set(RF_NETS + RF_EXTRA)), RF_W, clearance=0.1, via_d=VIA_SIG[0],
                  via_drill=VIA_SIG[1])
-    pcb.netclass(b, 'Heavy', sorted(nets & set(HEAVY)), HEAVY_W, clearance=0.1, via_d=0.5, via_drill=0.25)
-    pcb.netclass(b, 'Power', sorted(nets & set(POWER)), 0.3, clearance=0.12, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
+    pcb.netclass(b, 'Heavy', sorted(nets & set(HEAVY)), HEAVY_ROUTE_W, clearance=0.1, via_d=0.5, via_drill=0.25)
+    pcb.netclass(b, 'Power', sorted(nets & set(POWER)), POWER_ROUTE_W, clearance=0.12, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
     pcb.netclass(b, 'Rail', sorted(nets & set(RAIL)), 0.15, clearance=0.1, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
     pcb.netclass(b, 'USB', ['USB_DP', 'USB_DM', 'NRF_DP', 'NRF_DM'], 0.2, clearance=0.12,
                  via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
