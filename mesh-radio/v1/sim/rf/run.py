@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Mesh Radio v1 RF studies 1-7 (README.md in this folder says what and why).
+"""Mesh Radio v1 RF studies 1-8 (README.md in this folder says what and why).
 
-    tools/kd python3 sim/rf/run.py            # from mesh-radio/v1, ~2-4 min
+    tools/kd python3 sim/rf/run.py            # from mesh-radio/v1, ~3-6 min
     tools/kd python3 sim/rf/run.py --quick    # 200 Monte Carlo runs instead of 1000
+
+Board as in src/ after 0f1ee3c: antenna filter LFCG-1000+, missing-antenna detector (printed coupler,
+BAT15-02EL, 1 nF / 100 k into REFL_DET).  Study 8 is the detector against the firmware thresholds.
 
 Writes results.txt (every number), *.png, and nothing else.  Values come
 from src/circuit.py / src/parts.py through rfboard.py; nothing in src/ is
@@ -51,6 +54,43 @@ def summ(study, item, verdict, numbers):
 
 def refs_between(a, b):
     return [c.ref for c in B.COMPS if set(c.pins.values()) == {a, b}]
+
+
+def model_pins(ref):
+    """The model nodes a part sits between (the ESD shunt's ANT pin is inside the coupled run, ANT_E)."""
+    pins = [B.BY_REF[ref].pins['1'], B.BY_REF[ref].pins['2']]
+    if ref in [c.ref for c in B.rf_parts(B.NETS_ANT)]:
+        pins = ['ANT_E' if p == 'ANT' else p for p in pins]
+    return pins
+
+
+# ============================================================================ antenna filter (FL1)
+FLT = B.FL_NAME                          # 'LFCG-1000+'
+IS_LFCG = B.FL_PART == 'LFCG1000'
+
+
+def flt_response(f, k=1.0):
+    """S-matrix of the antenna filter model alone (50 ohm)."""
+    return lfcn.response(f, p=lfcn.G_FIT if IS_LFCG else None, k=k)
+
+
+def flt_table_rej(f):
+    """Mini-Circuits' typical insertion loss (dB), linear interpolation; LFCN above 7 GHz: its 7 GHz value
+    (ASSUMED); LFCG table runs to 10 GHz."""
+    if IS_LFCG:
+        return np.interp(f, lfcn.G_F_TAB, lfcn.G_IL_TAB, right=lfcn.G_IL_TAB[-1])
+    return np.interp(f, lfcn.F_TAB, lfcn.IL_TAB, right=lfcn.IL_TAB[-1])
+
+
+# LFCG-1000+ (Mini-Circuits data sheet): insertion loss 0.8 typ / 1.8 max dB DC-1000 MHz; RF input 5.5 W at 25 C,
+# derated linearly to 1 W at 125 C (passband rating); no pulse or voltage rating.
+FLT_IL_MAX = 1.8 if IS_LFCG else 1.0
+
+
+def flt_rating_w(t_c):
+    if IS_LFCG:
+        return 5.5 - 4.5 * (t_c - 25.0) / 100.0
+    return 10.0 - 6.5 * (t_c - 25.0) / 75.0
 
 
 # ============================================================================ PA model
@@ -202,7 +242,11 @@ def study1():
     out('   output at the EVB plane into 50 ohm (3.6 V): %s dBm  (EVB: 35.4 dBm)' % ' / '.join('%.2f' % x for x in R.w_to_dbm(pm2)))
 
     # ---- chain PA_M2 -> antenna
-    out('1d PA output (PA_M2) -> elliptic LPF -> 2 mm -> SKY13330 -> 2 mm -> LFCN-1000+ -> 2 mm -> 47 nH -> U.FL:')
+    G = B.GEOM
+    out('1d PA output (PA_M2) -> elliptic LPF -> %.1f mm -> SKY13330 -> %.1f mm -> %s -> %.1f mm -> detector coupler'
+        % (b.lines['lpf_sw'], b.lines['sw_lfcn'], FLT, G['flt_cpl']))
+    out('   (%.1f mm run, %.2f mm gap, 47 nH ESD shunt %.1f mm before its end) -> %.1f mm -> U.FL (geometry: src/layout.py):'
+        % (G['cpl_len'], G['gap'], G['esd_from_end'], G['cpl_ufl']))
     ct = b.tx_out(with_pa=False)
     S, pv = ct.sparams(FB, ['PA_M2', 'ANT'], probe=['PA_M2', 'SW2', 'SW1', 'ANT_SW', 'LF_OUT'])
     S = S[0]
@@ -210,34 +254,41 @@ def study1():
     out('   insertion loss %.2f / %.2f / %.2f dB (902/915/928)' % tuple(il))
     # loss budget per block (50-ohm insertion loss of each block alone)
     lp = b.lpf_only().sparams(FB, ['PA_M2', 'PA_TX'])[0]
-    lf = lfcn.response(FB)
-    out('   blocks alone (50 ohm): LPF %.2f dB, SKY13330 0.30 dB (typ; 0.35 max), LFCN %.2f dB (fit to typ table; 1.0 max),'
-        ' traces+ESD %.2f dB' % (np.max(-R.db20(lp[:, 1, 0])), np.max(-R.db20(lf[:, 1, 0])),
-                                 np.max(il) - np.max(-R.db20(lp[:, 1, 0])) - 0.30 - np.max(-R.db20(lf[:, 1, 0]))))
+    lf = flt_response(FB)
+    ca = R.Circuit('ant')
+    b.ant_section(ca, 'LF_OUT')
+    sa = ca.sparams(FB, ['LF_OUT', 'ANT', 'REFL_T'])[0]
+    il_ant = float(np.max(-R.db20(sa[:, 1, 0])))
+    p_term = float(np.max(np.abs(sa[:, 2, 0]) ** 2))
+    out('   blocks alone (50 ohm): LPF %.2f dB, SKY13330 0.30 dB (typ; 0.35 max), %s %.2f dB (fit to typ table; %.1f max),'
+        ' antenna section (coupler, ESD, detector, %.1f mm of line) %.2f dB, other traces %.2f dB'
+        % (np.max(-R.db20(lp[:, 1, 0])), FLT, np.max(-R.db20(lf[:, 1, 0])), FLT_IL_MAX,
+           G['flt_cpl'] + G['cpl_len'] + G['cpl_ufl'], il_ant,
+           np.max(il) - np.max(-R.db20(lp[:, 1, 0])) - 0.30 - np.max(-R.db20(lf[:, 1, 0])) - il_ant))
+    out('   detector coupler: %.1f dB of the forward wave goes to the 49.9 R (%.1f mW at 35 dBm; 0402 rated 63 mW)'
+        % (-R.db10(p_term), 1e3 * R.dbm_to_w(35.0) * p_term))
     # interface return losses: build sub-chains starting at each interface
     rls = {}
     rls['PA_M2 into LPF+rest (PA load)'] = np.min(R.rl_db(S[:, 0, 0]))
     rls['U.FL looking into the board'] = np.min(R.rl_db(S[:, 1, 1]))
     rls['LPF alone, in / out'] = (np.min(R.rl_db(lp[:, 0, 0])), np.min(R.rl_db(lp[:, 1, 1])))
-    rls['LFCN alone, in / out'] = (np.min(R.rl_db(lf[:, 0, 0])), np.min(R.rl_db(lf[:, 1, 1])))
+    rls['%s alone, in / out' % FLT] = (np.min(R.rl_db(lf[:, 0, 0])), np.min(R.rl_db(lf[:, 1, 1])))
+    rls['antenna section (coupler) in / out'] = (np.min(R.rl_db(sa[:, 0, 0])), np.min(R.rl_db(sa[:, 1, 1])))
     # RL at switch RF2 looking toward the antenna
-    cs = R.Circuit('sw_on')
+    cs = b.sw_to_ant()
     b.sky13330(cs, 'SW2', 'SW1')
-    cs.add2('SW1', 'ANT_SW', R.Line(b.lines['sw_lfcn']), 'l')
-    b.lfcn(cs, 'ANT_SW', 'LF_OUT')
-    cs.add2('LF_OUT', 'ANT', R.Line(b.lines['lfcn_ant']), 'l2')
-    b.add_parts(cs, B.NETS_ANT)
     ss = cs.sparams(FB, ['SW2', 'ANT'])[0]
-    rls['switch RF2 into switch+LFCN+antenna'] = np.min(R.rl_db(ss[:, 0, 0]))
+    rls['switch RF2 into switch+filter+antenna'] = np.min(R.rl_db(ss[:, 0, 0]))
     for k, x in rls.items():
         out('   RL %-38s %s dB' % (k, ' / '.join('%.1f' % y for y in np.atleast_1d(x))))
     rl_min = min(float(np.min(np.atleast_1d(x))) for x in rls.values())
     rl_min = min(rl_min, worst_rl)
     loss_max = float(np.max(il))
     summ('1', 'TX loss PA -> U.FL', 'PASS' if loss_max <= 1.3 else ('MARGINAL' if loss_max <= 2.0 else 'FAIL'),
-         '%.2f dB max in band (LPF %.2f, switch 0.30, LFCN %.2f): 35 dBm at 4.0 V gives %.1f dBm at the U.FL'
-         % (loss_max, np.max(-R.db20(lp[:, 1, 0])), np.max(-R.db20(lf[:, 1, 0])),
-            PA_P_DS + 20 * math.log10(4.0 / 3.6) - loss_max))
+         '%.2f dB max in band (LPF %.2f, switch 0.30, LFCG %.2f, coupler section %.2f): 35 dBm at 4.0 V gives %.1f dBm at the'
+         ' U.FL; with the LFCG at its 1.8 dB data-sheet max: %.2f dB'
+         % (loss_max, np.max(-R.db20(lp[:, 1, 0])), np.max(-R.db20(lf[:, 1, 0])), il_ant,
+            PA_P_DS + 20 * math.log10(4.0 / 3.6) - loss_max, loss_max + FLT_IL_MAX - np.max(-R.db20(lf[:, 1, 0]))))
     summ('1', 'return loss at interfaces', 'PASS' if rl_min >= 10 else ('MARGINAL' if rl_min >= 6 else 'FAIL'),
          'worst %.1f dB (PA load %.1f dB, U.FL %.1f dB, pad seen by SX1262 %.1f dB); QPA9510 own input 7.3-11.1 dB'
          % (rl_min, rls['PA_M2 into LPF+rest (PA load)'], rls['U.FL looking into the board'], worst_rl))
@@ -249,36 +300,37 @@ def study1():
     out('   Rejection used = 50-ohm insertion loss PA_M2 -> U.FL (how the data-sheet harmonics were measured).  Shown')
     out('   for sensitivity only: the PA die as the source through the output match (internal values guessed), which')
     out('   the reflective filters can make 10-35 dB worse above 5 GHz.  Switch self-generated')
-    out('   harmonics (ASSUMED -65/-60/-70 dBc for 2f/3f/other at +35 dBm on RF1) filtered by the LFCN only.')
+    out('   harmonics (ASSUMED -65/-60/-70 dBc for 2f/3f/other at +35 dBm on RF1) filtered by the %s only.' % FLT)
+    out('   The %s model is credited with no more rejection than Mini-Circuits\' typical table (to %s GHz).'
+        % (FLT, '10' if IS_LFCG else '7'))
     rej = harmonic_rejection(b, pa)
     hres = harmonic_table(rej, b)
     plot_tx(b, rej, hres)
     return dict(pa=pa, rej=rej, loss=loss_max, hi68=hres['hi68'])
 
 
-def harmonic_rejection(b, pa, nsamp=1, lines=None):
+def harmonic_rejection(b, pa, nsamp=1, lines=None, pa_src=True):
     """dict n -> rejection dB array (S, 3 freqs) for PA path (worse of 50-ohm and PA-source) and
     the switch path (SW1 -> U.FL)."""
     fh = np.concatenate([n * FB for n in NH])
     ct = b.tx_out(with_pa=False, lines=lines)
     S = ct.sparams(fh, ['PA_M2', 'ANT'], nsamp=nsamp)
     rej50 = -R.db20(S[:, :, 1, 0])
-    cp = b.tx_out(with_pa=True, lines=lines)
-    v = cp.voltages(fh, {'DIE': 1.0}, loads={'ANT': ant_load(0.0)}, nsamp=nsamp)
-    vref = pa.evb.voltages(fh, {'DIE': 1.0}, loads={'PA_M2': lambda w: np.ones(w.shape) / R.Z0})
-    rejpa = R.db20(vref['PA_M2']) - R.db20(v['ANT'])
+    if pa_src:
+        cp = b.tx_out(with_pa=True, lines=lines)
+        v = cp.voltages(fh, {'DIE': 1.0}, loads={'ANT': ant_load(0.0)}, nsamp=nsamp)
+        vref = pa.evb.voltages(fh, {'DIE': 1.0}, loads={'PA_M2': lambda w: np.ones(w.shape) / R.Z0})
+        rejpa = R.db20(vref['PA_M2']) - R.db20(v['ANT'])
+    else:
+        rejpa = rej50 + 0.0
     # switch path
-    cs = R.Circuit('sw_ant')
-    cs.add2('SW1', 'ANT_SW', R.Line(b.lines['sw_lfcn'] if not lines else lines.get('sw_lfcn', b.lines['sw_lfcn'])), 'l')
-    b.lfcn(cs, 'ANT_SW', 'LF_OUT')
-    cs.add2('LF_OUT', 'ANT', R.Line(b.lines['lfcn_ant']), 'l2')
-    b.add_parts(cs, B.NETS_ANT)
+    cs = b.sw_to_ant(lines=lines)
     Ss = cs.sparams(fh, ['SW1', 'ANT'], nsamp=nsamp)
     rejsw = -R.db20(Ss[:, :, 1, 0])
-    # The fitted LFCN model has notches and a re-entry the data sheet does not show, and no data exist above 7 GHz:
-    # its rejection is replaced by Mini-Circuits' typical table (linear interpolation; the 7 GHz value, 18.6 dB,
-    # ASSUMED beyond), keeping the model's phase and mismatch.
-    corr = -R.db20(lfcn.response(fh)[:, 1, 0]) - lfcn_table_rej(fh)
+    # The fitted filter model has notches the data sheet does not show: its rejection is replaced by
+    # Mini-Circuits' typical table (linear interpolation; LFCN above 7 GHz its 7 GHz value, ASSUMED),
+    # keeping the model's phase and mismatch.
+    corr = -R.db20(flt_response(fh)[:, 1, 0]) - flt_table_rej(fh)
     rej50, rejpa, rejsw = rej50 - corr, rejpa - corr, rejsw - corr
     res = {}
     for k, n in enumerate(NH):
@@ -288,7 +340,44 @@ def harmonic_rejection(b, pa, nsamp=1, lines=None):
 
 
 def lfcn_table_rej(f):
+    """LFCN-1000+ table rejection (kept for followup.py)."""
     return np.interp(f, lfcn.F_TAB, lfcn.IL_TAB, right=lfcn.IL_TAB[-1])
+
+
+def study1f():
+    """6f-10f (and 2f-5f) over the routed trace lengths still unknown: the two filters (LPF, LFCG) with the
+    switch between them interact through their reflective stop bands."""
+    out()
+    out('1f Harmonics over layouts: lpf_sw and sw_lfcn (switch to filter) each 1, 2, 3, 5, 8, 12 mm and the filter to')
+    out('   coupler line 0.9 (as placed), 3 and 6 mm: 108 layouts, 50-ohm rejection as in 1e.  Worst layout per harmonic.')
+    b = B.Board()
+    sweep = [1.0, 2.0, 3.0, 5.0, 8.0, 12.0]
+    worst = {(p, g): {n: 99.0 for n in NH} for p, g in ((35.0, 6.0), (30.0, 2.15))}
+    lossw = 0.0
+    for l1 in sweep:
+        for l2 in sweep:
+            for l3 in (0.9, 3.0, 6.0):
+                ln = {'lpf_sw': l1, 'sw_lfcn': l2, 'flt_cpl': l3}
+                rej = harmonic_rejection(b, None, lines=ln, pa_src=False)
+                S = b.tx_out(with_pa=False, lines=ln).sparams(FB, ['PA_M2', 'ANT'])[0]
+                loss = float(np.min(-R.db20(S[:, 1, 0])))
+                lossw = max(lossw, float(np.max(-R.db20(S[:, 1, 0]))))
+                for (p, g), w in worst.items():
+                    m = harm_margins(harm_levels(rej, p, loss), p, g)
+                    for n in NH:
+                        w[n] = min(w[n], float(min(m[n]['fcc'][0], m[n]['ham'][0])))
+    for (p, g), w in worst.items():
+        out('   %2.0f dBm %4.2f dBi worst layout ' % (p, g) + ' '.join('%df %6.1f' % (n, w[n]) for n in NH))
+    out('   loss PA -> U.FL, worst layout: %.2f dB' % lossw)
+    w35 = min(worst[(35.0, 6.0)].values())
+    n35 = min(NH, key=lambda n: worst[(35.0, 6.0)][n])
+    w30 = min(worst[(30.0, 2.15)].values())
+    n30 = min(NH, key=lambda n: worst[(30.0, 2.15)][n])
+    summ('1', 'harmonics 2f-10f at 35 dBm, 6 dBi, worst of 108 layouts', verdict_margin(w35),
+         'worst %.1f dB at %df (6f-10f rest on the ASSUMED -45 dBc PA level)' % (w35, n35))
+    summ('1', 'harmonics 2f-10f, US default 30 dBm, 2.15 dBi, worst layout', verdict_margin(w30),
+         'worst %.1f dB at %df' % (w30, n30))
+    return worst
 
 
 RESTRICTED = {3: '2690-2900', 4: '3600-4400', 5: '4500-5150', 6: '5350-5460 (902-910 MHz only)', 8: '7250-7750',
@@ -301,7 +390,7 @@ def harm_levels(rej, p_ant, loss_db):
     lv = {}
     for n in NH:
         pa_dbc = harm_dbc_pa(n) - (rej[n]['r'] - loss_db)      # relative to fundamental at U.FL
-        p_sw_rf1 = p_ant + 0.75                                  # RF1 is ~0.75 dB (LFCN+trace) before the U.FL
+        p_sw_rf1 = p_ant + 0.75                                  # RF1 is ~0.75 dB (filter, coupler, traces) before the U.FL
         sw_dbc = harm_dbc_sw(n, p_sw_rf1) - (rej[n]['rsw'] - 0.75)
         tot = 10 * np.log10(10 ** (pa_dbc / 10) + 10 ** (sw_dbc / 10))
         lv[n] = dict(pa=np.max(pa_dbc, axis=-1), sw=np.max(sw_dbc, axis=-1), tot=np.max(tot, axis=-1))
@@ -351,28 +440,26 @@ def harmonic_table(rej, b, loss=None):
         wn = min((2, 3, 4, 5), key=lambda n: min(float(res[(p, 6.0)][n]['fcc'][0]), float(res[(p, 6.0)][n]['ham'][0])))
         summ('1', 'harmonics 2f-5f at %.0f dBm, 6 dBi' % p, verdict_margin(worst),
              'worst margin %.1f dB at %df (FCC and Part 97)' % (worst, wn))
-    hi = min(float(res[(35.0, 6.0)][n]['fcc'][0]) for n in (6, 7, 8))
-    hn = min((6, 7, 8), key=lambda n: float(res[(35.0, 6.0)][n]['fcc'][0]))
-    summ('1', 'harmonics 6f-8f at 35 dBm, 6 dBi (edge of data)', 'PASS' if hi >= 10 else 'RISK (unverified)',
-         'worst margin %.1f dB at %df; the LFCN re-enters above 5.5 GHz (15-19 dB, data sheet) and the PA level there is '
-         'assumed (-45 dBc)' % (hi, hn))
+    mh = lambda p, g, n: min(float(res[(p, g)][n]['fcc'][0]), float(res[(p, g)][n]['ham'][0]))
+    hi = min(mh(35.0, 6.0, n) for n in range(6, 11))
+    hn = min(range(6, 11), key=lambda n: mh(35.0, 6.0, n))
+    summ('1', 'harmonics 6f-10f at 35 dBm, 6 dBi, layout as placed', verdict_margin(hi),
+         'worst margin %.1f dB at %df (PA level there ASSUMED -45 dBc; %s typical table to 10 GHz)' % (hi, hn, FLT))
     res['hi68'] = hi
-    out('   9f and 10f (8.1-9.3 GHz, restricted) are beyond the LFCN data (7 GHz) and every part model: margins above are'
-        ' extrapolations (%.0f / %.0f dB) and must be measured.' % (float(res[(35.0, 6.0)][9]['fcc'][0]),
-                                                                  float(res[(35.0, 6.0)][10]['fcc'][0])))
     return res
 
 
 def plot_tx(b, rej, hres):
     f = np.linspace(0.3e9, 10e9, 1941)
     lp = b.lpf_only().sparams(f, ['PA_M2', 'PA_TX'])[0]
-    lf = lfcn.response(f)
+    lf = flt_response(f)
     ch = b.tx_out(with_pa=False).sparams(f, ['PA_M2', 'ANT'])[0]
     fig, ax = plt.subplots(1, 2, figsize=(13, 4.8))
     a = ax[0]
     a.plot(f / 1e9, R.db20(lp[:, 1, 0]), color=C1, lw=1.5, label='elliptic LPF (parts as modelled)')
-    a.plot(f / 1e9, R.db20(lf[:, 1, 0]), color=C2, lw=1.5, label='LFCN-1000+ (fitted model)')
-    a.plot(lfcn.F_TAB / 1e9, -lfcn.IL_TAB, 'o', color=C2, ms=4, label='LFCN-1000+ data sheet table')
+    a.plot(f / 1e9, R.db20(lf[:, 1, 0]), color=C2, lw=1.5, label='%s (fitted model)' % FLT)
+    ft, it = (lfcn.G_F_TAB, lfcn.G_IL_TAB) if IS_LFCG else (lfcn.F_TAB, lfcn.IL_TAB)
+    a.plot(ft / 1e9, -it, 'o', color=C2, ms=4, label='%s data sheet table' % FLT)
     a.plot(f / 1e9, R.db20(ch[:, 1, 0]), color=C3, lw=2, label='whole chain PA -> U.FL')
     for n in NH:
         a.axvspan(n * 0.902, n * 0.928, color=CR if n in RESTRICTED else CG, alpha=0.18, lw=0)
@@ -391,7 +478,7 @@ def plot_tx(b, rej, hres):
     a.set_xticks(x)
     a.set_xticklabels(['%df' % n for n in NH])
     a.set_ylabel('margin to FCC limit, dB (positive passes)')
-    a.set_title('35 dBm, 6 dBi: margin to the FCC limit (grey = 6f-10f, past the data: unverified)', fontsize=10)
+    a.set_title('35 dBm, 6 dBi: margin to the FCC limit (grey = 6f-10f: PA level assumed)', fontsize=10)
     a.grid(alpha=0.25, axis='y')
     fig.tight_layout()
     fig.savefig(os.path.join(HERE, 'tx_chain.png'), dpi=110)

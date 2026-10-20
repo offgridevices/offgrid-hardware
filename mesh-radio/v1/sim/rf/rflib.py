@@ -142,6 +142,35 @@ class Line:
         return y11, y12, y12, y11
 
 
+class CoupledLine:
+    """Symmetric edge-coupled microstrip pair as a 4-port Y matrix, nodes (a1, a2, b1, b2):
+    a1-a2 is one line, b1-b2 the other, a1 and b1 at the same end.  Even/odd-mode
+    impedances and effective permittivities from a field solve (coupler.py); loss as
+    Line (FR-4 class, both modes)."""
+    def __init__(self, ze, zo, ee, eo, length_mm, ac=0.002, ad=0.003):
+        self.ze, self.zo, self.ee, self.eo, self.len, self.ac, self.ad = ze, zo, ee, eo, length_mm, ac, ad
+
+    def ymat(self, w):
+        f = w / (2 * np.pi)
+        L = self.len * 1e-3
+        alpha = (self.ac * np.sqrt(f / 1e9) + self.ad * (f / 1e9)) * 1e3 / 8.686
+        Y = np.zeros(w.shape + (4, 4), dtype=complex)
+        A = np.zeros(w.shape + (2, 2), dtype=complex)
+        Bm = np.zeros(w.shape + (2, 2), dtype=complex)
+        for z, e, sg in ((self.ze, self.ee, 1), (self.zo, self.eo, -1)):
+            gl = (alpha + 1j * w * math.sqrt(e) / C0_LIGHT) * L
+            y11 = 1.0 / (z * np.tanh(gl))
+            y12 = -1.0 / (z * np.sinh(gl))
+            m = np.stack([np.stack([y11, y12], -1), np.stack([y12, y11], -1)], -2)
+            A += m / 2
+            Bm += sg * m / 2
+        Y[..., :2, :2] = A
+        Y[..., :2, 2:] = Bm
+        Y[..., 2:, :2] = Bm
+        Y[..., 2:, 2:] = A
+        return Y
+
+
 class TwoPortS:
     """Two-port from S-parameters (functions of w), referenced to Z0."""
     def __init__(self, sfn, z0=Z0):
@@ -183,6 +212,13 @@ class Circuit:
         self.elems.append(('2p', a, b, elem, label))
         return elem
 
+    def addn(self, nodes, elem, label=''):
+        """N-port between `nodes` (all referenced to ground); elem.ymat(w) -> (F, N, N)."""
+        for n in nodes:
+            self._n(n)
+        self.elems.append(('np', tuple(nodes), None, elem, label))
+        return elem
+
     def copy(self):
         c = Circuit(self.name)
         c.nodes = list(self.nodes)
@@ -195,6 +231,14 @@ class Circuit:
         idx = {n: i for i, n in enumerate(self.nodes)}
         idx['GND'] = -1
         for kind, a, b, el, _ in self.elems + (extra or []):
+            if kind == 'np':
+                ii = [idx[n] for n in a]
+                ym = el.ymat(w)
+                for r, i in enumerate(ii):
+                    for q, j in enumerate(ii):
+                        if i >= 0 and j >= 0:
+                            Y[:, :, i, j] += ym[..., r, q]
+                continue
             ia, ib = idx[a], idx[b]
             if kind == '2t':
                 y = np.broadcast_to(el.y(w), (nsamp, F))
