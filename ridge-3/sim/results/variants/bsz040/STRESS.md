@@ -224,8 +224,8 @@ The hottest FET is Q1CL, 4.6 mm from a battery pad.  AM32's temperature limit re
 | ESC processors (hottest) | Artery AT32F421G8U7 junction | 111 C | 125 C | - |
 | ESC gate drivers (hottest) | TI DRV8320H (RTV) junction | 114 C | 150 C | - |
 | ESC current amplifiers (hottest) | INA186 operating | 116 C | 125 C | - |
-| ESC capacitors, X7S (hottest) | X7S capacitor (Murata GCJ32EC71H106KA01L) | 107 C | 125 C | - |
 | ESC capacitors, X7R (hottest) | X7R capacitor | 122 C | 125 C | - |
+| ESC capacitors, X7S (hottest) | X7S capacitor (Murata GCJ32EC71H106KA01L) | 107 C | 125 C | - |
 | FC capacitors, X7R (hottest) | X7R capacitor | 82 C | 125 C | - |
 | ESC shunts (hottest) | shunt terminal, derated for its power | 123 C | 170 C | - |
 | FC stack connector | Molex Micro-Lock Plus 505567 | 76 C | 105 C | - |
@@ -272,4 +272,4 @@ The analog build (circuit.BUILDS) fits more parts; the same, still air:
 | 50 C | 9 V at 1 A, 5 V at 0.5 A | > 10 min | > 10 min | > 10 min | > 10 min | never |
 
 ---
-Run time 77 min.
+Run time 86 min.
