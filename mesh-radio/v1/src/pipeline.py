@@ -2,7 +2,8 @@
 """Route and finish the placed board, to a DRC-clean .kicad_pcb.
 
   1. board.build()          parts, the RF lines (locked), ground planes (In1, In4), rules
-  2. plane_fanout()         every ground pad takes its via into the planes
+  2. plane_fanout()         every ground pad takes its via into the planes; every
+                            inner ball of a ball-grid chip its via in the ball
   3. Freerouting            every other signal and supply (rounds)
   4. finish (finish.py)     the maze router and rip-up repair for what is left
   5. ground poured on the routing layers, stitched to the planes; the RF lines keep
@@ -37,6 +38,7 @@ def plane_fanout(path):
     outside it on a stub; exposed pads get a grid."""
     import fanout
     b = pcbnew.LoadBoard(path)
+    ball_escapes(b)
     # no via within POFV's 0.45 mm of a part's drilled hole (the plug pegs,
     # the header pins): a ring round each, for the fan-out only
     tmp = []
@@ -62,6 +64,64 @@ def plane_fanout(path):
     b.Save(path)
     log('plane fan-out: %d vias, %d ground pads with no via of their own %s' % (n, len(failed), failed[:12]))
     return failed
+
+
+def ball_escapes(b, via=None, clearance=0.1, hole_gap=0.2, log=log):
+    """Every inner ball of a ball-grid chip (the nRF52840's inner ring, the
+    0.4 mm wafer-scale parts) gets its via in the ball itself: a track
+    cannot leave it between the outer balls, and the routers only drop vias
+    beside pads.  Board vias of VIA_PAD size (filled and capped; JLCPCB
+    fills via-in-pad free on 6 layers), each checked against every other
+    net's copper on all layers; ground balls' vias go into the planes.
+    Runs before the ground fan-out, whose larger vias would otherwise crowd
+    the ball field.  Skipped: exposed pads, and an inner ball beside an
+    outer ball of its own net (they join on the surface).  Returns the
+    balls left without one."""
+    import fanout
+    from shapely.geometry import Point
+    d, drill = via or board.VIA_PAD
+    layers = [l for l in b.GetEnabledLayers().CuStack()]
+    obs = fanout.Obstacles(b, layers)
+    left, n = [], 0
+    for fp in b.GetFootprints():
+        if fp.GetReference()[0] != 'U' and not fp.GetReference().startswith('Q'):
+            continue
+        pads = [p for p in fp.Pads() if p.GetAttribute() == pcbnew.PAD_ATTRIB_SMD]
+        if len(pads) < 4:
+            continue
+        bbs = [p.GetBoundingBox() for p in pads]
+        L_, T_ = min(q.GetLeft() for q in bbs), min(q.GetTop() for q in bbs)
+        R_, B_ = max(q.GetRight() for q in bbs), max(q.GetBottom() for q in bbs)
+        side = pcbnew.F_Cu if fp.GetLayer() == pcbnew.F_Cu else pcbnew.B_Cu
+        for p, bb in zip(pads, bbs):
+            net = p.GetNetname()
+            if not net or net in board.RF_NETS + board.RF_EXTRA:
+                continue
+            w, h = bb.GetWidth() / 1e6, bb.GetHeight() / 1e6
+            if w * h > 0.8:                     # an exposed pad
+                continue
+            edge = min(bb.GetLeft() - L_, R_ - bb.GetRight(), bb.GetTop() - T_, B_ - bb.GetBottom()) / 1e6
+            if edge < 0.05:                     # outer row: leaves on its own layer
+                continue
+            q = p.GetPosition()
+            twin = [o for o, ob in zip(pads, bbs) if o is not p and o.GetNetname() == net
+                    and min(ob.GetLeft() - L_, R_ - ob.GetRight(), ob.GetTop() - T_, B_ - ob.GetBottom()) / 1e6 < 0.05
+                    and (o.GetPosition() - q).EuclideanNorm() / 1e6 < 0.6]
+            if twin:                            # joins its outer neighbour on the surface
+                continue
+            x, y = q.x / 1e6, q.y / 1e6
+            g = Point(x, y).buffer(d / 2, 16)
+            ok = obs.hole_room(x, y, drill / 2, hole_gap) and obs.clear(g, net, layers, clearance)
+            if not ok:
+                left.append((fp.GetReference(), p.GetNumber(), net)); continue
+            v = pcbnew.PCB_VIA(b)
+            v.SetPosition(q); v.SetWidth(pcbnew.FromMM(d)); v.SetDrill(pcbnew.FromMM(drill))
+            v.SetNet(p.GetNet()); v.SetLocked(True)
+            b.Add(v)
+            obs.add(g, net, layers); obs.holes.append((x, y, drill / 2))
+            n += 1
+    log('ball escapes: %d vias in inner balls, %d balls without one %s' % (n, len(left), left[:12]))
+    return left
 
 
 def fill(path):

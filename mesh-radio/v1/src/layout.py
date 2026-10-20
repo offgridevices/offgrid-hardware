@@ -90,8 +90,8 @@ def anchors(comps):
         (R('R15m'), 0.6, -7.4, 0, 'B'),
         # the charger away from the battery plug (sim/thermal: its heat reached
         # the NTC and the cell); the NTC right by the plug, reading the cell
-        (R('BQ25185'), -10.6, 2.2, 0, 'B'),
-        (R('NTC10K'), -10.2, -2.0, 0, 'B'),
+        (R('BQ25185'), -12.6, 5.6, 0, 'B'),
+        (R('NTC10K'), -7.65, -2.6, 90, 'B'),
         (R('TPS22950'), -6.4, -2.5, 0, 'B'),
         (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -2.4, 0, 'B'),
         # ---- bottom: 3.3 V
@@ -290,6 +290,9 @@ def place_all(log=print):
     B.put(ae, x + ble['BLE_FEED'][0] - feed[0], y, rot, side, check=False)   # inside its own keepout
     # ---- the RF lines, kept clear of everything placed from here on
     track_keepouts(B)
+    # ---- each inner ball of a ball-grid chip takes a via in the ball
+    # (pipeline.ball_escapes): the spot under it on the other side stays free
+    ball_keepouts(B, comps)
     # ---- everything else, beside the pin it serves
     todo = [c.ref for c in comps if c.ref not in B.pl]
     # decoupling first (a capacitor from a supply to ground), then the rest
@@ -312,6 +315,58 @@ def place_all(log=print):
     for a_, b_ in clashes:
         log('overlap: %s %s' % (a_, b_))
     return B.pl
+
+
+def ball_keepouts(B, comps, half=0.35):
+    """A small box on the far side of the board under every inner signal
+    ball of every placed chip, for its via (pipeline.ball_escapes)."""
+    import board as BD
+    n, bad = 0, []
+    for c in comps:
+        if c.ref not in B.pl or not (c.ref[0] == 'U' or c.ref.startswith('Q')):
+            continue
+        fp = B.footprint_at(c.ref)
+        pads = [p for p in fp.Pads() if p.GetAttribute() == pcbnew.PAD_ATTRIB_SMD]
+        if len(pads) < 4:
+            continue
+        bbs = [p.GetBoundingBox() for p in pads]
+        L_, T_ = min(q.GetLeft() for q in bbs), min(q.GetTop() for q in bbs)
+        R_, B_ = max(q.GetRight() for q in bbs), max(q.GetBottom() for q in bbs)
+        far = 'B' if B.pl[c.ref][3] == 'T' else 'T'
+        for p, bb in zip(pads, bbs):
+            net = c.pins.get(p.GetNumber())
+            if not net or bb.GetWidth() * bb.GetHeight() / 1e12 > 0.8:
+                continue
+            outer = lambda b_: min(b_.GetLeft() - L_, R_ - b_.GetRight(), b_.GetTop() - T_, B_ - b_.GetBottom()) / 1e6 < 0.05
+            if outer(bb) or net in BD.RF_NETS + BD.RF_EXTRA:
+                continue
+            q = p.GetPosition()
+            # beside an outer ball of its own net it joins on the surface, no via
+            # (the same rule as pipeline.ball_escapes)
+            if any(c.pins.get(o.GetNumber()) == net and outer(ob) and (o.GetPosition() - q).EuclideanNorm() / 1e6 < 0.6
+                   for o, ob in zip(pads, bbs) if o is not p):
+                continue
+            x, y = q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY
+            box = (x - half, y - half, x + half, y + half)
+            B.keep_out(box, (far,))
+            # a pad of an anchored part already there, on the far side's copper,
+            # is a floor-plan error (a part body over the via is fine)
+            lay = pcbnew.B_Cu if far == 'B' else pcbnew.F_Cu
+            for r_ in B.pl:
+                if r_.startswith('_') or r_ == c.ref:
+                    continue
+                for q_ in B.footprint_at(r_).Pads():
+                    if not q_.IsOnLayer(lay):
+                        continue
+                    qb = q_.GetBoundingBox()
+                    qq = (qb.GetLeft() / 1e6 - pcb.CX, qb.GetTop() / 1e6 - pcb.CY,
+                          qb.GetRight() / 1e6 - pcb.CX, qb.GetBottom() / 1e6 - pcb.CY)
+                    if place.overlap(qq, (x - 0.3, y - 0.3, x + 0.3, y + 0.3)):
+                        bad.append('%s pad %s under %s ball %s' % (r_, q_.GetNumber(), c.ref, p.GetNumber()))
+            n += 1
+    if bad:
+        raise ValueError('parts sit on ball vias (move them): ' + '; '.join(bad))
+    return n
 
 
 def escape(B, r_, pad):
