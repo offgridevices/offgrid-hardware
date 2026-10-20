@@ -6298,6 +6298,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "490-10747-1-ND"
+			(at 127 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C86817"
 			(at 127 104.14 0)
 			(effects
@@ -6463,6 +6472,15 @@
 			)
 		)
 		(property "Manufacturer" "Murata"
+			(at 139.7 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "490-10747-1-ND"
 			(at 139.7 104.14 0)
 			(effects
 				(font

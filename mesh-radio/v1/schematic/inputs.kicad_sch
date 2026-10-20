@@ -6614,6 +6614,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "YAG3088CT-ND"
+			(at 76.2 134.62 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C327358"
 			(at 76.2 134.62 0)
 			(effects

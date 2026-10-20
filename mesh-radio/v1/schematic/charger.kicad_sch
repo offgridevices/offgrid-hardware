@@ -1992,6 +1992,178 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "og_device:D_Zener_ZENER4V7"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 1.016)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "D"
+				(at 0 2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "D_Zener"
+				(at 0 -2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Zener diode"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "diode"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "TO-???* *_Diode_* *SingleDiode* D_*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "D_Zener_ZENER4V7_0_1"
+				(polyline
+					(pts
+						(xy -1.27 -1.27)
+						(xy -1.27 1.27)
+						(xy -0.762 1.27)
+					)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.27 0)
+						(xy -1.27 0)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.27 -1.27)
+						(xy 1.27 1.27)
+						(xy -1.27 0)
+						(xy 1.27 -1.27)
+					)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "D_Zener_ZENER4V7_1_1"
+				(pin passive line
+					(at -3.81 0 0)
+					(length 2.54)
+					(name "K"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 3.81 0 180)
+					(length 2.54)
+					(name "A"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "og_device:LED_LED_R"
 			(pin_numbers
 				(hide yes)
@@ -6469,7 +6641,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "NCP15XH103F03RC"
+		(property "MPN" "NCU15XH103F60RC"
 			(at 88.9 104.14 0)
 			(effects
 				(font
@@ -6487,7 +6659,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-4801-1-ND"
+		(property "DigiKey" "490-18149-1-ND"
 			(at 88.9 104.14 0)
 			(effects
 				(font
@@ -6496,7 +6668,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C77131"
+		(property "LCSC" "C237326"
 			(at 88.9 104.14 0)
 			(effects
 				(font
@@ -8131,8 +8303,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "2ed7fae1-f702-fdbf-5841-6b2ebeec647b")
-		(property "Reference" "D7"
+		(uuid "e0dcf084-43ba-d3f7-caa0-0885580ffb3a")
+		(property "Reference" "D8"
 			(at 217.7 98.06 0)
 			(effects
 				(font
@@ -8207,7 +8379,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
-					(reference "D7")
+					(reference "D8")
 					(unit 1)
 				)
 			)
@@ -9416,8 +9588,153 @@
 		)
 	)
 	(symbol
+		(lib_id "og_device:D_Zener_ZENER4V7")
+		(at 223.52 132.08 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "2ed7fae1-f702-fdbf-5841-6b2ebeec647b")
+		(property "Reference" "D7"
+			(at 223.52 129.48 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(property "Value" "4.7V"
+			(at 223.52 135.08 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(property "Footprint" "og:SOD-323FL"
+			(at 223.52 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "UDZVTE-174.7B"
+			(at 223.52 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "Rohm"
+			(at 223.52 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C209560"
+			(at 223.52 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Zener 4.7 V 200 mW, SOD-323FL"
+			(at 223.52 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/9f171647-52ea-aa63-c2e7-0af4c9c3ce05"
+					(reference "D7")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 219.71 132.08)
+			(xy 217.17 132.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "40893a69-9783-e8af-034c-3c75da4644d8")
+	)
+	(global_label "POL_G"
+		(shape passive)
+		(at 217.17 132.08 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "04215c24-dbea-ef67-e30f-a843269b56d4")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 217.17 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+				(hide yes)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 227.33 132.08)
+			(xy 229.87 132.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "813b8d8f-e3cb-516d-b062-ddba56b32acd")
+	)
+	(global_label "CELL_MINUS"
+		(shape passive)
+		(at 229.87 132.08 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "d344a428-b457-d98b-0783-4ba16abe8456")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 229.87 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C")
-		(at 226.06 132.08 90)
+		(at 271.78 132.08 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -9425,7 +9742,7 @@
 		(dnp no)
 		(uuid "cdd1ce00-246e-26ce-6ce1-2ee455757b52")
 		(property "Reference" "C13"
-			(at 226.06 129.48 0)
+			(at 271.78 129.48 0)
 			(effects
 				(font
 					(size 1 1)
@@ -9433,7 +9750,7 @@
 			)
 		)
 		(property "Value" "100nF"
-			(at 226.06 135.08 0)
+			(at 271.78 135.08 0)
 			(effects
 				(font
 					(size 1 1)
@@ -9441,7 +9758,7 @@
 			)
 		)
 		(property "Footprint" "og:C_0402"
-			(at 226.06 132.08 0)
+			(at 271.78 132.08 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9450,7 +9767,7 @@
 			)
 		)
 		(property "MPN" "CL05B104KO5NNNC"
-			(at 226.06 132.08 0)
+			(at 271.78 132.08 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9459,7 +9776,7 @@
 			)
 		)
 		(property "Manufacturer" "Samsung Electro-Mechanics"
-			(at 226.06 132.08 0)
+			(at 271.78 132.08 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9468,7 +9785,7 @@
 			)
 		)
 		(property "DigiKey" "1276-1001-1-ND"
-			(at 226.06 132.08 0)
+			(at 271.78 132.08 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9477,7 +9794,7 @@
 			)
 		)
 		(property "LCSC" "C1525"
-			(at 226.06 132.08 0)
+			(at 271.78 132.08 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9486,7 +9803,7 @@
 			)
 		)
 		(property "Description" "Capacitor 100nF 16V X7R 0402"
-			(at 226.06 132.08 0)
+			(at 271.78 132.08 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9505,18 +9822,18 @@
 	)
 	(wire
 		(pts
-			(xy 222.25 132.08)
-			(xy 219.71 132.08)
+			(xy 267.97 132.08)
+			(xy 265.43 132.08)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "9547c8f7-e9fa-e8bb-4dd0-ab0b93fe263d")
+		(uuid "d596c0e0-77af-6278-8d33-906a3c79607a")
 	)
 	(global_label "PROT_BAT"
 		(shape passive)
-		(at 219.71 132.08 180)
+		(at 265.43 132.08 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -9524,9 +9841,9 @@
 			)
 			(justify right)
 		)
-		(uuid "bad1103f-9352-d429-6bb4-918d821afe4a")
+		(uuid "3d4f67dd-7cbc-e542-c9d8-971250c322ae")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 219.71 132.08 0)
+			(at 265.43 132.08 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9538,18 +9855,18 @@
 	)
 	(wire
 		(pts
-			(xy 229.87 132.08)
-			(xy 232.41 132.08)
+			(xy 275.59 132.08)
+			(xy 278.13 132.08)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "9b8b8c1c-79be-9598-568f-80e943f5bcff")
+		(uuid "9f426b60-c65e-c3f6-a52b-4033d752cc05")
 	)
 	(global_label "CELL_MINUS"
 		(shape passive)
-		(at 232.41 132.08 0)
+		(at 278.13 132.08 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -9557,9 +9874,9 @@
 			)
 			(justify left)
 		)
-		(uuid "45714e81-cdd4-aa83-ec05-6fc6dd340e73")
+		(uuid "f9b9e83d-6a0c-f556-21c1-901a6a1554fa")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 232.41 132.08 0)
+			(at 278.13 132.08 0)
 			(effects
 				(font
 					(size 1.27 1.27)

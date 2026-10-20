@@ -2378,6 +2378,15 @@
 				(hide yes)
 			)
 		)
+		(property "DigiKey" "50-ECS-TXO-20CSMV4-320-AP-TRCT-ND"
+			(at 104.14 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
 		(property "LCSC" "C54284784"
 			(at 104.14 50.8 0)
 			(effects

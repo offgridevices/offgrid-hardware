@@ -2865,8 +2865,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ca147173-40e4-2832-e359-e32838227539")
-		(property "Reference" "D9"
+		(uuid "ed094ff4-c133-d25e-9938-94585455350f")
+		(property "Reference" "D10"
 			(at 88.9 44.22 0)
 			(effects
 				(font
@@ -2941,7 +2941,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/7f4f5fdb-9d3f-986c-3228-336ce6b7a0b3"
-					(reference "D9")
+					(reference "D10")
 					(unit 1)
 				)
 			)
@@ -3512,8 +3512,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "ed094ff4-c133-d25e-9938-94585455350f")
-		(property "Reference" "D10"
+		(uuid "1b3d3357-1cab-5040-e1b1-5efbdcdf5e5d")
+		(property "Reference" "D11"
 			(at 167.64 44.22 0)
 			(effects
 				(font
@@ -3588,7 +3588,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/7f4f5fdb-9d3f-986c-3228-336ce6b7a0b3"
-					(reference "D10")
+					(reference "D11")
 					(unit 1)
 				)
 			)
