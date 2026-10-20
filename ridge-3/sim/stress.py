@@ -20,7 +20,9 @@ From ridge-3/:
 It reads rev 2's boards (esc/, fc/) and src/circuit.py, rev 1's from
 sim/rev1/ (design.py), the part figures in data.py and the makers' SPICE
 models (spice.py says where they come from).  Copper maps and other caches
-go in sim/out/, which git ignores.
+go in sim/out/, which git ignores.  So does each design's finished result
+(run_design): a run stopped part way, by a restart, takes up again after the
+last design it finished, as long as none of what that design read changed.
 
 Runs, in order:
 
@@ -34,7 +36,7 @@ Runs, in order:
 Every number in the report comes from these runs and from data.py.  Nothing
 here is a measurement; bring-up on the bench is still the test.
 """
-import os, sys, time
+import os, sys, time, glob, hashlib, pickle
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -1462,6 +1464,10 @@ def run_design(name, full, variant=None):
     PLOTS = full
     HOVER = round(losses.hover(data.BATTERY['vfull']), 1)
     log('==== design', name)
+    done = _finished(name, full, variant)
+    if os.path.exists(done):
+        log('finished before, from', os.path.relpath(done, HERE))
+        return pickle.load(open(done, 'rb'))
     fet_check()
     esc_ops = [('4 x 10 A, 70 %% duty', 10.0, 0.7), ('4 x 20 A, 95 %% duty', 20.0, 0.95),
                ('4 x 30 A, 97 %% duty', 30.0, 0.97)]
@@ -1481,7 +1487,31 @@ def run_design(name, full, variant=None):
                conn=(data.STACK_CONN['i_rated'], data.STACK_CONN['t_max']))
     _models.clear()
     dcflow.forget()
+    try:                 # a result that can't be kept still goes into the report
+        with open(done + '.part', 'wb') as f:
+            pickle.dump(out, f)
+        os.replace(done + '.part', done)
+    except (OSError, pickle.PicklingError, TypeError, AttributeError) as e:
+        log('result not kept for a later run:', e)
     return out
+
+
+def _finished(name, full, variant):
+    """Where run_design keeps a design's result, named by a hash of all it
+    reads: the simulation code, the design's two boards and circuit.py, the
+    makers' SPICE models, and the run's settings.  A change to any of them
+    names another file, so a result is never reused for different inputs."""
+    files = sorted(glob.glob(os.path.join(HERE, '*.py')))
+    files += [design.board_path(b, name) for b in ('fc', 'esc')]
+    files += [design.circuit(name).__file__ if name == 'rev2' else os.path.join(design.REV1, 'circuit.py')]
+    files += sorted(set(glob.glob(os.path.join(spice.OUT, '*.lib')) +
+                        [os.environ[k] for k in ('TPN2R304PL_LIB', 'OPTIMOS6_60V_LIB', 'OPTIMOS5_60V_LIB')
+                         if os.environ.get(k)]))
+    h = hashlib.sha1(repr((name, full, variant, QUICK, VARIANT)).encode())
+    for f in files:
+        h.update(os.path.basename(f).encode() + open(f, 'rb').read())
+    return os.path.join(OUT, 'quick' if QUICK else '', 'design-%s-%s-%s.pkl' % (
+        name, variant or 'main', h.hexdigest()[:12]))
 
 
 def _plain(x):
