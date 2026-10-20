@@ -366,6 +366,11 @@ def place_all(log=print):
     # ---- each inner ball of a ball-grid chip takes a via in the ball
     # (pipeline.ball_escapes): the spot under it on the other side stays free
     ball_keepouts(B, comps)
+    # ---- every fine-pitch chip (pins 0.65 mm apart or closer) keeps a ring
+    # free of later parts: its pins leave between its neighbours (packed
+    # tight, the TPS62840's and the charger's could not be reached even on
+    # an empty board: 20 Oct)
+    chip_rings(B, comps)
     # ---- everything else, beside the pin it serves
     todo = [c.ref for c in comps if c.ref not in B.pl]
     # decoupling first (a capacitor from a supply to ground), then the rest
@@ -388,6 +393,31 @@ def place_all(log=print):
     for a_, b_ in clashes:
         log('overlap: %s %s' % (a_, b_))
     return B.pl
+
+
+CHIP_RING = 0.4      # mm
+
+
+def chip_rings(B, comps, ring=CHIP_RING):
+    import math
+    n = 0
+    for c in comps:
+        if c.ref not in B.pl or not (c.ref[0] == 'U' or c.ref.startswith('Q')) or c.part == 'NRF52840':
+            continue
+        x, y, rot, side = B.pl[c.ref]
+        _, pads = B.geom(c.ref, x, y, rot, side)
+        pts = list(pads.values())
+        if len(pts) < 5:
+            continue
+        pitch = min(math.hypot(a[0] - b[0], a[1] - b[1]) for i, a in enumerate(pts) for b in pts[i + 1:])
+        if pitch > 0.65:
+            continue
+        x0, y0, x1, y1 = B.rect(c.ref, x, y, rot, side)
+        for box in ((x0 - ring, y0 - ring, x1 + ring, y0), (x0 - ring, y1, x1 + ring, y1 + ring),
+                    (x0 - ring, y0, x0, y1), (x1, y0, x1 + ring, y1)):
+            B.keep_out(box, (side,))
+        n += 1
+    return n
 
 
 def ball_keepouts(B, comps, half=0.35):
