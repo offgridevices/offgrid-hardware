@@ -38,6 +38,9 @@ RF_NETS = ['LORA_RFO', 'LORA_TXA', 'LORA_TXB', 'LORA_TXC', 'LORA_TX50', 'PA_DRIV
 # (layout.rf_paths), same width and gap to the pour
 RF_EXTRA = ['REFL_CPL']
 # the amplifier's supply and the battery path carry up to ~2.5 A in bursts
+# the battery and amplifier current path's track width (mm); an
+# environment override is for routing trials only
+HEAVY_W = float(os.environ.get('HEAVY_W', 0.6))
 HEAVY = ['VPA', 'PA_IN', 'PA_LX1', 'PA_LX2', 'BAT_P', 'BATT_PLUS', 'CELL_MINUS', 'PROT_S2',
          'PA_VCC1', 'PA_VCC2', 'PA_V1F', 'PA_V2F']
 POWER = ['VSYS', 'VSYS_SW', 'VIN_CHG', 'USB_VBUS', 'USB_5V', 'SOLAR_CONN', 'SOLAR_RAW',
@@ -78,7 +81,7 @@ def net_classes(b, comps):
     # 0.18 mm gap to ground is the top pour's own clearance (RF_GAP)
     pcb.netclass(b, 'RF', sorted(nets & set(RF_NETS + RF_EXTRA)), RF_W, clearance=0.1, via_d=VIA_SIG[0],
                  via_drill=VIA_SIG[1])
-    pcb.netclass(b, 'Heavy', sorted(nets & set(HEAVY)), 0.6, clearance=0.1, via_d=0.5, via_drill=0.25)
+    pcb.netclass(b, 'Heavy', sorted(nets & set(HEAVY)), HEAVY_W, clearance=0.1, via_d=0.5, via_drill=0.25)
     pcb.netclass(b, 'Power', sorted(nets & set(POWER)), 0.3, clearance=0.12, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
     pcb.netclass(b, 'USB', ['USB_DP', 'USB_DM', 'NRF_DP', 'NRF_DM'], 0.2, clearance=0.12,
                  via_d=VIA_SIG[0], via_drill=VIA_SIG[1])

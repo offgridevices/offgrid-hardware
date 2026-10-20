@@ -243,7 +243,7 @@ def widths(comps):
     out = {}
     for n in set(v for c in comps for v in c.pins.values() if v):
         if n in board.HEAVY:
-            out[n] = 0.6
+            out[n] = board.HEAVY_W
         elif n in board.POWER:
             out[n] = 0.3
         elif n in board.RF_NETS:
