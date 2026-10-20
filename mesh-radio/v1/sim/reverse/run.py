@@ -22,7 +22,7 @@ lands, the worst case for the reverse FET.
 
 Pass criteria (X1), fixed before running:
   reverse FET (CSD25310Q2): |VGS| <= 8 V, |VDS| <= 20 V, dissipation <= 0.5 W,
-    drain current <= 9.6 A; polarity-check FET |VGS| <= 8 V
+    drain current <= 9.6 A; polarity-check FET |VGS| <= 8 V (its gate, POL_G)
   BQ29700: BAT - VSS >= -0.3 V and <= 12 V, V- <= BAT + 0.3 V, V- >= BAT - 28 V;
     ESD-diode current <= 1 mA (no sustained pin conduction)
   no IC pin on BAT_P, VSYS or MUX_IN1 below -0.3 V; substrate-diode current
@@ -94,7 +94,8 @@ def run(args):
         net = B.build(c, name + '.raw')
         return re.sub(r'write %s\.raw .*' % name, 'write %s.raw all' % name, net)
     import hashlib, json
-    key = hashlib.sha1(make(S.OPTS[0]).encode()).hexdigest()
+    # the key covers the netlist and this script (a changed measurement re-runs too)
+    key = hashlib.sha1((make(S.OPTS[0]) + open(__file__).read()).encode()).hexdigest()
     cache = os.path.join(OUT, name + '.json')
     if os.path.exists(cache) and os.path.exists(os.path.join(OUT, name + '.npz')):
         d = json.load(open(cache))
@@ -146,7 +147,10 @@ def run(args):
         bat_p_end=V('BAT_P')[-1],
         vds_late=float(np.abs(vds[late]).max()), bp_pre=float((V('BATT_PLUS') - V('CELL_MINUS'))[t < T_PLUG].max()),
         vgs_pre=float(vgs[(t < T_PLUG) & (t > T_PLUG - 2e-3)].min()),
-        vpol_max=float(np.abs(V('BATT_PLUS') - V('CELL_MINUS'))[after].max()),
+        # the check FET's own gate, behind its 100 k / 100 nF filter and (since 20 Oct) its 4.7 V
+        # clamp; until 20 Oct this read the plug pads (BATT_PLUS - CELL_MINUS), 9-11 V
+        vpol_max=float(np.abs(V('POL_G') - V('CELL_MINUS'))[after].max()),
+        vpad_max=float(np.abs(V('BATT_PLUS') - V('CELL_MINUS'))[after].max()),
         bat_p_min=V('BAT_P')[after].min(), bat_p_max=V('BAT_P')[after].max(), vsys_min=V('VSYS')[after].min(),
         vsys_late=V('VSYS')[late].mean(), cm_min=V('CELL_MINUS')[after].min(), cm_max=V('CELL_MINUS')[after].max(),
         bp_min=V('BATT_PLUS')[after].min(), bp_max=V('BATT_PLUS')[after].max(),

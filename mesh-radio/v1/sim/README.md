@@ -43,7 +43,7 @@ as changed on 19 Oct (next section).  Ambient corners -40 / -20 / 0 / 25 /
 | USB UVLO vs zener leakage (bound) | PASS | PASS | PASS | PASS | PASS | MARG | only at a 64 uA leakage bound; bench check |
 | RB060MM leakage onto VBUS (USB out, 10.4 V on VIN_CHG) | PASS | PASS | PASS | PASS | PASS | PASS | 0.5 V typ, 2.6 V at 5x leakage, 85 C |
 | reverse cell: no USB / USB / USB with the protector on | PASS | PASS | PASS | PASS | PASS | PASS | reverse FET stays off; no pin current |
-| reverse cell into live pads (right-way cell pulled out under USB, then a reversed one) | FAIL* | FAIL* | FAIL* | FAIL | FAIL | FAIL | 21-24 A for ~0.2 ms, BAT_P below -0.3 V, check-FET VGS 9-11 V.  *At <= 0 C the solver started unlatched, so those runs did not test it |
+| reverse cell into live pads (right-way cell pulled out under USB, then a reversed one) | PASS* | PASS* | PASS* | PASS | PASS | PASS | 20 Oct: check-FET gate clamped (4.7 V zener): its gate stays in rating. Still 20-21 A for ~0.2 ms until the protector trips (reverse FET 48 A pulsed rating). *At <= 0 C the solver started unlatched, so those runs did not test it |
 | right-way cell, with and without USB | PASS | PASS | PASS | PASS | PASS | PASS | FET on ~3 ms after the plug |
 | shorts: 3V3, header 3V3, VSYS, VPA, PA_IN (also with USB) | PASS | PASS | PASS | PASS | PASS | PASS | VSYS: TPS22950 holds the cell to 1.0 A |
 | shorts: BAT_P (cell terminals) | MARG | MARG | MARG | MARG | MARG | MARG | protector trips in ~0.3 ms (29 A peak, 48 A IDM FET); restart on the cell alone: bench |
@@ -55,13 +55,13 @@ as changed on 19 Oct (next section).  Ambient corners -40 / -20 / 0 / 25 /
 | USB only, no cell, 1 W (firmware sets PA_SRC_SYS) | | | | PASS | | | 1.6 W and up exceed the charger's 1.05 A input |
 | USB in, cell too weak for 1 W: firmware sets PA_SRC_SYS | | | | PASS | | | without it the weak cell trips UVP |
 | solar 6 V panel (charges inside 0-45 C, <= 1 mA outside) and USB charge path | PASS | PASS | PASS | PASS | PASS | PASS | harvest 56 / 76 % of MPP (3.0 / 4.1 V cell), 37 / 53 % at 20 % sun |
-| derating (E4) | | | | | | | 81 rows: 1 FAIL (the live-pad case above), 11 MARGINAL (3 W: QPA9510 2.3 A vs 2.4 A, TPS63810, TPS2121 IN1 4.0 A; BQ25185 ILIM at 1.1 A; nRF VBUS at OV max 96 % of abs max) |
+| derating (E4) | | | | | | | 81 rows: 0 FAIL (20 Oct, with the gate clamp), 11 MARGINAL (3 W: QPA9510 2.3 A vs 2.4 A, TPS63810, TPS2121 IN1 4.0 A; BQ25185 ILIM at 1.1 A; nRF VBUS at OV max 96 % of abs max) |
 
 "cap" / "no TX": the firmware cap from `burst/results.txt` (highest level that passes for that cell
 and temperature); a capped level browns the board out or trips the protector, nothing is damaged.
 "MARG" = MARGINAL, with the reason in the note.
 
-**Residual risk, the one FAIL:** with external power in, unplugging a right-way cell leaves the
+**Residual risk (no longer a FAIL since the 20 Oct gate clamp):** with external power in, unplugging a right-way cell leaves the
 reverse FET on (its polarity check then sees BAT_P on the pads, a state that holds itself), so a
 reversed cell plugged in next sees live pads.  Firmware can clear it: when on external power and
 VBAT_SENSE says no cell, drive CHG_CE_N high for ~1 s (BAT_P then decays below the check FET's

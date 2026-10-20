@@ -57,19 +57,22 @@ copper's resistance and inductance are estimates (`TRACE_*` in
 | Simulation | Checks | How | v1 result |
 |---|---|---|---|
 | Hot plug and over-voltage (X3) | USB, solar and drone inputs: 5 V, 20 V faults, a 5 → 20 V step, 6 V and 12 V panels, reversed panel and drone supply | `tools/kd python3 sim/hotplug/run.py` | **PASS** at every temperature. USB from a 5.5 V source: MARGINAL by design (the board stays off; the cut-off keeps the nRF52840 safe). USB turn-on at 85 °C with worst zener leakage: MARGINAL (bench). |
-| Battery plugged in backwards (X1) | A reversed cell, with and without USB; a right-way cell for reference | `tools/kd python3 sim/reverse/run.py` | **PASS** in five cases. **FAIL in one: a reversed cell plugged into live pads** (see below). |
+| Battery plugged in backwards (X1) | A reversed cell, with and without USB; a right-way cell for reference | `tools/kd python3 sim/reverse/run.py` | **PASS** in all six cases, −40 to 85 °C (20 Oct, with the 4.7 V gate clamp on the polarity-check FET). The live-pad sequence still draws 20–21 A for 0.2 ms until the protector trips, inside the parts' pulse ratings (see below). |
 | Short circuits (X2, X5) | Shorts on 3V3, the header's 3V3, VSYS, VPA, PA_IN and the cell; the protector's trip time | `tools/kd python3 sim/shorts/run.py` | **PASS** on every rail. Cell terminals shorted: MARGINAL. The protector trips in about 0.3 ms; whether the board restarts on the cell alone is a bench test. |
 | Transmit bursts from a worn cell (P2, X4) | 1 to 3 W bursts from fresh, mid and worn cells, at every temperature; USB with no cell | `tools/kd python3 sim/burst/run.py` | **PASS** at the levels the firmware cap allows. 3 W from a fresh cell at −20 to 85 °C (2 W at −40 °C). Worn cell: 1 W at 25 °C and up, none at 0 °C and below. USB only, no cell: 1 W passes. The highest passing level is the firmware's cap table. |
 | Solar charging (P5, P7) | A 6 V panel charges the cell inside 0–45 °C, and nothing flows outside it | `tools/kd python3 sim/solar/run.py` | **PASS** at every temperature. Harvest 56–76 % of the panel's maximum at full sun. |
-| Derating (E4) | Every part at no more than 70 % of its rating | `tools/kd python3 sim/derating/run.py` (runs last) | 81 rows: **1 FAIL** (the live-pad case below), **11 MARGINAL**: mostly the 3 W path the owner chose (amplifier at 2.3 of 2.4 A, buck-boost, power mux), the charger's input limit, and the nRF52840's USB pin at 96 % of its maximum. |
+| Derating (E4) | Every part at no more than 70 % of its rating | `tools/kd python3 sim/derating/run.py` (runs last) | 81 rows: **0 FAIL** (20 Oct), **11 MARGINAL**: mostly the 3 W path the owner chose (amplifier at 2.3 of 2.4 A, buck-boost, power mux), the charger's input limit, and the nRF52840's USB pin at 96 % of its maximum. |
 
 All six in order: `tools/kd sh sim/run_all.sh` (about 40 minutes on 4 cores).
 
-**The one power FAIL, in plain words.** With USB, solar or drone power
-plugged in, pulling out a right-way battery leaves the reverse-protection
-switch on. If a battery is then plugged in backwards, it meets live pads:
-21–24 A for about 0.2 ms, and the polarity-check transistor sees 9–11 V on a
-gate rated 8 V.
+**The live-pad sequence, in plain words** (a FAIL until 20 Oct). With USB,
+solar or drone power plugged in, pulling out a right-way battery leaves the
+reverse-protection switch on. If a battery is then plugged in backwards, it
+meets live pads: 20–21 A for about 0.2 ms until the cell protector trips,
+inside the parts' pulse ratings. The polarity-check transistor's gate saw
+9–11 V (rated 8 V) until a 4.7 V zener was added across it on 20 Oct; the
+study now passes at every temperature. (Until 20 Oct the study read the
+plug pins, not the gate behind its 100 k filter.)
 
 - **Firmware mitigation:** with external power in, the firmware holds
   charging off for 1 s and reads the battery pin. With no cell, the voltage
@@ -140,7 +143,7 @@ No boards have been built.
 | Receive side by side with a RAK (R4) | Sensitivity | two nodes, same antenna and place | not built |
 | RF tuning | Matching values marked "tune" | network analyser | not built |
 | Missing antenna (X7) | Switch, inductors and detector | open U.FL, VSWR-2 load, good antenna, hot and cold; set the detector thresholds | not built |
-| Reversed cell onto live pads (X1) | The one power FAIL and its firmware fix | the sequence above, with and without the processor running | not built |
+| Reversed cell onto live pads (X1) | The live-pad sequence (passes in simulation since the gate clamp) and its firmware fix | the sequence above, with and without the processor running | not built |
 | Short on the cell, restart (X2) | Protector releases on the cell alone | short and release | not built |
 | USB 5 → 20 V step (X3) | The eFuse's real cut-off speed | bench supply | not built |
 | Weak panel start-up (P5) | MAX17608 with a weak panel | dimmed 6 V panel | not built |

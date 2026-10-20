@@ -289,6 +289,8 @@ def battery_block(p, lm='tps', prot=None, lm_ron=0.079, trace_bat=(0.006, 6e-9),
                        'M%spol REV_G POL_G CELL_MINUS CELL_MINUS NSIG temp=25' % k,
                        'C%spolc BATT_PLUS CELL_MINUS 50p' % k,
                        'R%spolr BATT_PLUS POL_G 100k' % k, 'C%spolg POL_G CELL_MINUS 100n' % k,   # gate filter, 10 ms
+                       # gate clamp since 20 Oct (UDZVTE-174.7B, K = POL_G): |VGS| <= 4.7 V / 0.7 V
+                       'D%spolz CELL_MINUS POL_G DZ47' % k,
                        'R%spold BATT_PLUS CELL_MINUS 1Meg' % k)
     else:
         revfet = lines('* --- reverse-battery P-FET (D = BATT_PLUS, S = BAT_P_C, G = REV_G)',

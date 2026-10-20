@@ -257,6 +257,9 @@ def charger():
     add('Q', 'NMOS', {'3': 'REV_G', '2': 'CELL_MINUS', '1': 'POL_G'}, note='cell-polarity check')
     R('R1M', 'BATT_PLUS', 'CELL_MINUS', note='no cell: polarity check off')
     R('R100k', 'BATT_PLUS', 'POL_G'); C('C100n', 'POL_G', 'CELL_MINUS', note='polarity check filter')
+    # its gate clamped (4.7 V zener, through the 100 k): a reversed cell onto
+    # live pads put 9-11 V on it, past its 8 V rating (sim/reverse, 20 Oct)
+    add('D', 'ZENER4V7', {'1': 'POL_G', '2': 'CELL_MINUS'}, note='polarity check gate clamp')
     # Cell protection for unprotected cells: BQ29700 on the minus side, two
     # back-to-back FETs, 15 mOhm sense so OCD = 100 mV / 17.2 mOhm = 5.8 A
     # (4.8-6.7 A over tolerance and temperature) and SCD = 500 mV / 17.2 mOhm

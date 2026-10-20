@@ -3,7 +3,7 @@
   "part": "CSD25310Q2",
   "ref": "Q (reverse FET)",
   "qty": "VDS, reversed cell",
-  "value": 11.599789724194812,
+  "value": 11.605806548095824,
   "unit": "V",
   "rating": 20.0,
   "kind": "derate",
@@ -13,7 +13,7 @@
   "part": "CSD25310Q2",
   "ref": "Q (reverse FET)",
   "qty": "VGS, reversed cell",
-  "value": 4.1999948591944145,
+  "value": 4.199994707605455,
   "unit": "V",
   "rating": 8.0,
   "kind": "derate",
@@ -23,7 +23,7 @@
   "part": "CSD25310Q2",
   "ref": "Q (reverse FET)",
   "qty": "dissipation, reversed cell",
-  "value": 3.7500372765659354e-05,
+  "value": 0.0003532367673343196,
   "unit": "W",
   "rating": 0.5,
   "kind": "derate",
@@ -33,20 +33,20 @@
   "part": "SSM3K56ACT",
   "ref": "Q (cell-polarity check)",
   "qty": "VGS (cell voltage either way)",
-  "value": 9.336887146617915,
+  "value": 4.141094905380219,
   "unit": "V",
   "rating": 8.0,
   "kind": "derate",
-  "case": "rev_usb_live_85"
+  "case": "fwd_usb_-40"
  },
  {
   "part": "BQ29700",
   "ref": "U (protector)",
   "qty": "BAT - VSS",
-  "value": 4.212692571709356,
+  "value": 4.206290410088897,
   "unit": "V",
   "rating": 12.0,
   "kind": "absmax",
-  "case": "rev_usb_live_25"
+  "case": "fwd_nousb_60"
  }
 ]
