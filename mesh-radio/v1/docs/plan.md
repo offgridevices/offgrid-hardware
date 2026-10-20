@@ -120,7 +120,9 @@ with its parts), for a total of roughly **$40**. See question 2.
 - **58 × 25.4 mm** (19 Oct). The Heltec V4 is 51.7 mm long. 57 mm does not
   fit: the amplifier's choke meets a mounting hole.
 - **6-layer board** (owner, 19 Oct), JLCPCB stackup JLC06161H-2116B:
-  ground planes on layers 2 and 5, signals on 3 and 4. JLCPCB fills and caps
+  a solid ground plane on layer 2 (under the radio lines); signals on
+  layers 3, 4 and 5 with ground filled round them (20 Oct: with layer 5 a
+  second solid plane, too many connections had no way through). JLCPCB fills and caps
   vias in pads at no extra cost on 6 layers, which the nRF52840's inner
   balls and the amplifier's heat path need.
 - **Test boards at JLCPCB.**
