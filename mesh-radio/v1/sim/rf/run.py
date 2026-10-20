@@ -4,8 +4,8 @@
     tools/kd python3 sim/rf/run.py            # from mesh-radio/v1, ~3-6 min
     tools/kd python3 sim/rf/run.py --quick    # 200 Monte Carlo runs instead of 1000
 
-Board as in src/ after 0f1ee3c: antenna filter LFCG-1000+, missing-antenna detector (printed coupler,
-BAT15-02EL, 1 nF / 100 k into REFL_DET).  Study 8 is the detector against the firmware thresholds.
+Board as in src/ on 20 Oct: antenna filter LFCG-1000+, missing-antenna ratio detector (printed coupler, BAT68-04W at
+each end into 1 nF / 100 k: REFL_DET and FWD_DET).  Study 8 is the detector: the ratio threshold and its margins.
 
 Writes results.txt (every number), *.png, and nothing else.  Values come
 from src/circuit.py / src/parts.py through rfboard.py; nothing in src/ is
@@ -265,7 +265,7 @@ def study1():
         % (np.max(-R.db20(lp[:, 1, 0])), FLT, np.max(-R.db20(lf[:, 1, 0])), FLT_IL_MAX,
            G['flt_cpl'] + G['cpl_len'] + G['cpl_ufl'], il_ant,
            np.max(il) - np.max(-R.db20(lp[:, 1, 0])) - 0.30 - np.max(-R.db20(lf[:, 1, 0])) - il_ant))
-    out('   detector coupler: %.1f dB of the forward wave goes to the 49.9 R (%.1f mW at 35 dBm; 0402 rated 63 mW)'
+    out('   detector coupler: %.1f dB of the forward wave goes to the 49.9 R (%.1f mW at 35 dBm, matched)'
         % (-R.db10(p_term), 1e3 * R.dbm_to_w(35.0) * p_term))
     # interface return losses: build sub-chains starting at each interface
     rls = {}
@@ -1353,27 +1353,47 @@ def fw_threshold(p_dbm, t_c):
     return FW['v30'] * (FW['v35'] / FW['v30']) ** ((p_dbm - 30.0) / 5.0) + FW['tc'] * (t_c - 25.0)
 
 
-# BAT15-02EL, Infineon data sheet v1.0 (2018-06-30), 25 C: VF 0.16 / 0.25 / 0.32 V (min / typ / max) at 1 mA,
-# 0.25 / 0.35 / 0.41 V at 10 mA; IR <= 5 uA at VR 1 V; C 0.20 / 0.24 pF; RF 8 / 10 ohm.  Typical curve (fig. 2,
-# digitised): 1.0 uA at 0.06 V, 9.2 uA at 0.12 V, 82 uA at 0.18 V, 0.90 mA at 0.25 V, 9.1 mA at 0.36 V
-# -> n 1.08, IS 1.15e-7 A, RS ~6 ohm.  Fig. 3: IR 0.11 uA at 0.1 V rising to 0.24 uA at 1 V -> a 0.13 uS leak.
-# Temperature: not published.  SPICE form IS(T) = IS (T/T0)^(XTI/N) exp(EG/(N Vt) (T/T0 - 1)), XTI 2,
-# EG 0.55 eV (low-barrier Schottky, as coupler.py) and 0.69 eV (the SPICE Schottky default) as a corner.
+# Detector diode DC models (SPICE form: IS(T) = IS (T/T0)^(XTI/N) exp(EG/(N Vt) (T/T0 - 1))), plus a reverse leak
+# g (S, scaled with IS(T)).
+#   BAT68-04W (fitted, the part since 20 Oct): Infineon BAT68 data sheet (2011-06-15), typical IF-VF curves at -40, 25,
+#   85 C digitised (12 uA - 2 mA) and fitted with XTI 2: IS 8.6e-10 A, N 0.932, RS 9.2 ohm, EG 0.65 eV (fit within
+#   4 mV).  The curves sit at the table's VF maximum (340 mV at 1 mA); the table's typical 318 mV gives IS 2.35e-9.
+#   No minimum VF is published: 296 mV (as far below typical as the max is above) ASSUMED -> IS 6.1e-9.  Leak: IR
+#   5 nA at 0.5 V / 20 nA at 4 V, 25 C (fig.) -> 6 nS.  EG 0.60 / 0.70 eV as corners.
+#   BAT15-02EL (the 19-20 Oct part): IS 1.15e-7, N 1.08 (typical curve), EG 0.55, leak 0.13 uS.
 VT25 = 8.617e-5 * 298.15
 
 
-def _is_from_vf(vf, n=1.08, i=1e-3):
-    return i / (math.exp(vf / (n * VT25)) - 1)
+def _is_from_vf(vf, n, i=1e-3, rs=0.0):
+    return i / (math.exp((vf - i * rs) / (n * VT25)) - 1)
 
 
-DIODES = {
-    'typ':              dict(is25=1.15e-7, n=1.08, eg=0.55, xti=2.0, gleak=0.13e-6),
-    'typ, EG 0.69':     dict(is25=1.15e-7, n=1.08, eg=0.69, xti=2.0, gleak=0.13e-6),
-    'VF min (0.16 V)':  dict(is25=_is_from_vf(0.16), n=1.08, eg=0.55, xti=2.0, gleak=0.13e-6 * _is_from_vf(0.16) / 1.15e-7),
-    'VF max (0.32 V)':  dict(is25=_is_from_vf(0.32), n=1.08, eg=0.69, xti=2.0, gleak=0.13e-6 * _is_from_vf(0.32) / 1.15e-7),
-    'VF min, EG 0.69':  dict(is25=_is_from_vf(0.16), n=1.08, eg=0.69, xti=2.0, gleak=0.13e-6 * _is_from_vf(0.16) / 1.15e-7),
+D68 = dict(n=0.932, rs=9.2, xti=2.0, eg=0.65)
+D15 = dict(n=1.08, rs=6.0, xti=2.0, eg=0.55)
+DIODE_SETS = {
+    # BAT68-04W: VF at 1 mA 318 typ / 340 max mV (table); 296 mV ASSUMED as the low corner
+    'BAT68_04W': {
+        'typ':     dict(D68, is25=_is_from_vf(0.318, 0.932, rs=9.2), gleak=6e-9),
+        'VF max':  dict(D68, is25=_is_from_vf(0.340, 0.932, rs=9.2), gleak=6e-9),
+        'VF min':  dict(D68, is25=_is_from_vf(0.296, 0.932, rs=9.2), gleak=6e-9),
+        'EG low':  dict(D68, is25=_is_from_vf(0.318, 0.932, rs=9.2), gleak=6e-9, eg=0.60),
+        'EG high': dict(D68, is25=_is_from_vf(0.318, 0.932, rs=9.2), gleak=6e-9, eg=0.70)},
+    # BAT15-02EL: VF at 1 mA 0.16 / 0.25 / 0.32 V (min / typ / max); EG not published: 0.55 (0.69 corner)
+    'BAT15': {
+        'typ':     dict(D15, is25=1.15e-7, gleak=0.13e-6),
+        'VF max':  dict(D15, is25=_is_from_vf(0.32, 1.08), gleak=0.13e-6),
+        'VF min':  dict(D15, is25=_is_from_vf(0.16, 1.08), gleak=0.13e-6),
+        'EG low':  dict(D15, is25=1.15e-7, gleak=0.13e-6, eg=0.50),
+        'EG high': dict(D15, is25=1.15e-7, gleak=0.13e-6, eg=0.69)},
 }
-DET_TEMPS = (-40, 25, 85)
+DIODES = DIODE_SETS[B.DIODE_PART]
+for _d in DIODES.values():          # the reverse leak scales with IS
+    _d['gleak'] = _d['gleak'] * _d['is25'] / DIODES['typ']['is25']
+# (reflected diode, forward diode): the two are separate parts, so they need not match
+PAIRS = [('typ', 'typ'), ('VF max', 'VF min'), ('VF min', 'VF max'), ('VF max', 'VF max'), ('VF min', 'VF min'),
+         ('EG low', 'EG high'), ('EG high', 'EG low')]
+DET_TEMPS = (-40, 0, 25, 60, 85)
+DET_POWERS = (27.0, 30.0, 33.0, 35.0, 36.0)
 
 
 def _det_rc():
@@ -1402,7 +1422,7 @@ def diode_mean_current(va, v, t_c, d):
 
 
 def det_vdc(va, t_c, d=None):
-    """REFL_DET DC: mean diode current = V / 100 k (the 1 nF holds the cathode at RF ground)."""
+    """Detector DC: mean diode current = V / 100 k (the 1 nF holds the cathode at RF ground)."""
     from scipy.optimize import brentq
     d = d or DIODES['typ']
     if va <= 1e-6:
@@ -1411,11 +1431,23 @@ def det_vdc(va, t_c, d=None):
     return brentq(f, 0.0, va + 0.5)
 
 
+_VTAB = {}
+
+
+def det_v(a, t_c, dname):
+    """det_vdc for an array of amplitudes, through a table on a log grid (exact to < 0.1 mV)."""
+    key = (t_c, dname)
+    if key not in _VTAB:
+        g = np.logspace(-3, np.log10(6.0), 400)
+        _VTAB[key] = (np.log(g), np.array([det_vdc(x, t_c, DIODES[dname]) for x in g]))
+    lg, vv = _VTAB[key]
+    return np.interp(np.log(np.maximum(a, 1e-3)), lg, vv)
+
+
 def det_rise(va, t_c, d=None, frac=0.99, r_src=31.0):
-    """Time for REFL_DET to reach `frac` of its final value after the RF steps on (1 nF charged through the
-    diode), and the 100 k x 1 nF decay constant.  While the cathode is far below its final value the diode
-    current is limited by the source (~25 ohm at the anode) and RS (6 ohm): at most va / (pi r_src) on average
-    (half-wave rectifier into a short); steps limited to 1 mV."""
+    """Time for the detector to reach `frac` of its final value after the RF steps on (1 nF charged through the
+    diode; while far below its final value the diode current is limited by the source and RS: at most
+    va / (pi r_src) on average), and the 100 k x 1 nF decay constant.  Steps limited to 1 mV."""
     d = d or DIODES['typ']
     vf = det_vdc(va, t_c, d)
     v, t = 0.0, 0.0
@@ -1427,117 +1459,75 @@ def det_rise(va, t_c, d=None, frac=0.99, r_src=31.0):
     return t, RL_DET * CL_DET
 
 
-def det_amplitudes(b, model, p_dbm, gm, cathode='designed', gap=None, nph=72, pa36=None):
-    """RF peak voltage across the BAT15 junction (REFL_J - REFL_K), every phase of an antenna reflection of
-    magnitude gm and 902/915/928 MHz.  model 'A': saturated PA scaled so a matched antenna gets p_dbm at the
-    U.FL; 'B': 50-ohm source, same matched power.  Also returns the U.FL-open node data the stress check needs."""
-    ph = [0.0] if gm == 0 else np.linspace(0, 2 * np.pi, nph, endpoint=False)
-    amps, vrev = [], []
+ANTS = (('matched', 0.0), ('VSWR 2', 1.0 / 3.0), ('missing', 1.0))
+
+
+def det_amplitudes(b, model, p_dbm, gm, cathode='designed', gap=None, nph=48, pa36=None, cj=None):
+    """RF peak across the reflected and the forward diode junctions, and at the 49.9 R, for every phase of an
+    antenna reflection of magnitude gm and 902/915/928 MHz.  model 'A': saturated PA scaled so a matched antenna
+    gets p_dbm at the U.FL; 'B': 50-ohm source, same matched power.  Returns (refl, fwd, v_term) arrays."""
+    ph = [0.0] if gm == 0 else np.linspace(0, 2 * np.pi, nph, endpoint=False) + 0.01
+    ar, af, vt = [], [], []
     if model == 'A':
-        ckt = b.tx_out(with_pa=True, cathode=cathode, gap=gap)
+        ckt = b.tx_out(with_pa=True, cathode=cathode, gap=gap, cj=cj)
         p36 = pa36 or PA(3.6)
         v0, _ = p36.solve(ckt, [915e6], 0.0)
         p_now = float(R.w_to_dbm(abs(v0['ANT'][0, 0]) ** 2 / (2 * R.Z0)))
         pa = PA(3.6 * 10 ** ((p_dbm - p_now) / 20))
         for p in ph:
             v, _ = pa.solve(ckt, FB, gm * np.exp(1j * p))
-            amps.append(np.abs(v['REFL_J'][0] - v['REFL_K'][0]))
-            vrev.append(np.abs(v['REFL_T'][0]))
+            ar.append(np.abs(v['REFL_J'][0] - v['REFL_K'][0]))
+            af.append(np.abs(v['FWD_J'][0] - v['FWD_K'][0]))
+            vt.append(np.abs(v['REFL_T'][0]))
     else:
-        ct = b.tx_out(with_pa=False, cathode=cathode, gap=gap)
+        ct = b.tx_out(with_pa=False, cathode=cathode, gap=gap, cj=cj)
         S = ct.sparams(FB, ['PA_M2', 'ANT'])[0]
         pav = R.dbm_to_w(p_dbm - R.db20(S[:, 1, 0]))
         vinc = np.sqrt(8 * R.Z0 * pav)
         for p in ph:
             v = ct.voltages(FB, {'PA_M2': vinc / R.Z0}, loads={'PA_M2': lambda w: np.ones(w.shape) / R.Z0,
                                                                 'ANT': ant_load(gm * np.exp(1j * p))})
-            amps.append(np.abs(v['REFL_J'][0] - v['REFL_K'][0]))
-            vrev.append(np.abs(v['REFL_T'][0]))
-    return np.array(amps), np.array(vrev)
+            ar.append(np.abs(v['REFL_J'][0] - v['REFL_K'][0]))
+            af.append(np.abs(v['FWD_J'][0] - v['FWD_K'][0]))
+            vt.append(np.abs(v['REFL_T'][0]))
+    return np.ravel(ar), np.ravel(af), np.ravel(vt)
 
 
-ANTS = (('matched', 0.0), ('VSWR 2', 1.0 / 3.0), ('missing', 1.0))
+def det_table(b, powers=DET_POWERS, **kw):
+    """{(P, antenna, model): (refl amplitudes, fwd amplitudes, v_term)}."""
+    pa36 = kw.pop('pa36', None) or PA(3.6)
+    return {(p, name, m): det_amplitudes(b, m, p, gm, pa36=pa36, **kw)
+            for p in powers for name, gm in ANTS for m in ('A', 'B')}
 
 
-def det_table(b, cathode='designed', gap=None, pa36=None, quiet=False, powers=(30.0, 35.0)):
-    """{(P, antenna): (amp_min, amp_max, vterm_max)} over both PA models, every phase and the band."""
-    res = {}
-    for p in powers:
-        for name, gm in ANTS:
-            lo, hi, vt = 1e9, 0.0, 0.0
-            per = {}
-            for model in ('A', 'B'):
-                a, vr = det_amplitudes(b, model, p, gm, cathode=cathode, gap=gap, pa36=pa36)
-                per[model] = (a.min(), a.max())
-                lo, hi, vt = min(lo, a.min()), max(hi, a.max()), max(vt, vr.max())
-            res[(p, name)] = (lo, hi, vt, per)
-    return res
-
-
-def det_model(tab, model):
-    """The detector table restricted to one PA model."""
-    return {k: (v[3][model][0], v[3][model][1], v[2], v[3]) for k, v in tab.items()}
-
-
-def best_thresholds(tab, diode='typ', powers=(30.0, 35.0)):
-    """Threshold set (V30, V35, TC) centred in the window between the highest VSWR-2 reading and the lowest
-    missing reading over -40/25/85 C (same form as the firmware's).  Returns (v30, v35, tc, worst half-window)."""
-    d = DIODES[diode]
-    best = None
-    for tc in np.arange(0.0, 2.51e-3, 0.05e-3):
-        vs, worst = {}, 1e9
-        for p in powers:
-            lo = max(det_vdc(tab[(p, 'VSWR 2')][1], t, d) - tc * (t - 25) for t in DET_TEMPS)
-            hi = min(det_vdc(tab[(p, 'missing')][0], t, d) - tc * (t - 25) for t in DET_TEMPS)
-            vs[p] = 0.5 * (lo + hi)
-            worst = min(worst, 0.5 * (hi - lo))
-        if best is None or worst > best[3]:
-            best = (vs[powers[0]], vs[powers[-1]], tc, worst)
-    return best
-
-
-def det_margins(tab, diode='typ', dp=0.0, powers=(30.0, 35.0), thr=None):
-    """Margins (V) at each power and temperature: missing min - threshold, threshold - VSWR-2 max, threshold -
-    matched max.  dp: the actual power is dp dB above the firmware's modelled power (amplitudes x 10^(dp/20))."""
-    d = DIODES[diode]
-    k = 10 ** (dp / 20)
+def det_readings(tab, pairs=None, temps=DET_TEMPS, dp=0.0):
+    """{(P, antenna, T, pair): (Vrefl, Vfwd, ratio) arrays over both PA models, phase and band}.  dp shifts the
+    actual power (dB) against the nominal (the ratio needs no power model; dp tests the FWD trust level)."""
     out_ = {}
-    thf = thr or fw_threshold
-    for p in powers:
-        for t in DET_TEMPS:
-            thr = thf(p, t)
-            vm = det_vdc(tab[(p, 'missing')][0] * k, t, d)
-            v2 = det_vdc(tab[(p, 'VSWR 2')][1] * k, t, d)
-            v0 = det_vdc(tab[(p, 'matched')][1] * k, t, d)
-            out_[(p, t)] = dict(thr=thr, miss=vm, vswr2=v2, matched=v0, m_miss=vm - thr, m_vswr2=thr - v2)
+    k = 10 ** (dp / 20)
+    for (p, name, m), (ar, af, vt) in tab.items():
+        for t in temps:
+            for pr in (pairs or [('typ', 'typ')]):
+                vr = det_v(ar * k, t, pr[0])
+                vf = det_v(af * k, t, pr[1])
+                key = (p, name, t, pr)
+                r0 = out_.get(key)
+                cur = (vr, vf, vr / np.maximum(vf, 1e-4))
+                out_[key] = cur if r0 is None else tuple(np.concatenate([a, c]) for a, c in zip(r0, cur))
     return out_
 
 
-def power_margin_db(tab, p, t, which, diode='typ'):
-    """How far (dB) the actual power may sit from the firmware's model before this case is misread."""
-    d = DIODES[diode]
-    thr = fw_threshold(p, t)
-    if which == 'missing':
-        a = tab[(p, 'missing')][0]
-        f = lambda db: det_vdc(a * 10 ** (-db / 20), t, d) - thr      # power below the model
-    else:
-        a = tab[(p, 'VSWR 2')][1]
-        f = lambda db: thr - det_vdc(a * 10 ** (db / 20), t, d)       # power above the model
-    if f(0.0) <= 0:
-        lo, hi = -20.0, 0.0
-        if f(lo) <= 0:
-            return -20.0
-    else:
-        lo, hi = 0.0, 20.0
-        if f(hi) > 0:
-            return 20.0
-    from scipy.optimize import brentq
-    return brentq(f, lo, hi)
+def ratio_window(rd, powers):
+    """Highest VSWR-2 ratio and lowest missing ratio over everything in rd at these powers."""
+    hi = max(float(rd[k][2].max()) for k in rd if k[0] in powers and k[1] == 'VSWR 2')
+    lo = min(float(rd[k][2].min()) for k in rd if k[0] in powers and k[1] == 'missing')
+    return hi, lo
 
 
 def spice_check(b, cases):
-    """Cross-check the averaged diode solve with ngspice (transient, real diode model with RS, CJ) for model B
-    cases at 915 MHz: the board's network at the anode is reduced to its Thevenin equivalent."""
+    """Cross-check the averaged diode solve with ngspice (transient, the fitted SPICE diode with RS and CJ) for the
+    reflected diode, model B, 915 MHz: the board's network at its anode reduced to its Thevenin equivalent."""
+    import re
     import shutil
     import subprocess
     import tempfile
@@ -1545,43 +1535,42 @@ def spice_check(b, cases):
         out('   ngspice not found: SPICE cross-check skipped')
         return []
     d = DIODES['typ']
+    dr = B.DIODE_RF[B.DIODE_PART]
     rows = []
     co = b.tx_out(with_pa=False, cathode='open')
+    ct = b.tx_out(with_pa=False)
     S = co.sparams([915e6], ['PA_M2', 'ANT'])[0]
     pav = R.dbm_to_w(np.array([0.0]) - R.db20(S[:, 1, 0]))
-    ct = b.tx_out(with_pa=False)
     for p_dbm, gm, pick, t_c, label in cases:
         vinc = np.sqrt(8 * R.Z0 * pav * 10 ** (p_dbm / 10))
-        # the phase of the antenna reflection where the junction amplitude is lowest / highest (915 MHz)
         phs = np.linspace(0, 2 * np.pi, 72, endpoint=False) + 0.01
-        am = [abs(complex(ct.voltages([915e6], {'PA_M2': vinc / R.Z0}, loads={
-            'PA_M2': lambda w: np.ones(w.shape) / R.Z0, 'ANT': ant_load(gm * np.exp(1j * q))})['REFL_J'][0, 0]
-            - ct.voltages([915e6], {'PA_M2': vinc / R.Z0}, loads={
-                'PA_M2': lambda w: np.ones(w.shape) / R.Z0, 'ANT': ant_load(gm * np.exp(1j * q))})['REFL_K'][0, 0]))
-            for q in phs]
+
+        def amp(q):
+            v = ct.voltages([915e6], {'PA_M2': vinc / R.Z0}, loads={'PA_M2': lambda w: np.ones(w.shape) / R.Z0,
+                                                                     'ANT': ant_load(gm * np.exp(1j * q))})
+            return abs(v['REFL_J'][0, 0] - v['REFL_K'][0, 0])
+        am = [amp(q) for q in phs]
         gam = gm * np.exp(1j * phs[int(np.argmin(am) if pick == 'min' else np.argmax(am))])
         load = {'PA_M2': lambda w: np.ones(w.shape) / R.Z0, 'ANT': ant_load(gam)}
         voc = complex(co.voltages([915e6], {'PA_M2': vinc / R.Z0}, loads=load)['REFL_A'][0, 0])
         zth = complex(co.voltages([915e6], {'REFL_A': 1.0}, loads=load)['REFL_A'][0, 0])
         w0 = 2 * math.pi * 915e6
         xel = ('L1 x a %.6g' % (zth.imag / w0)) if zth.imag > 0 else ('C1 x a %.6g' % (-1 / (w0 * zth.imag)))
-        # Python value for the same source, with the junction amplitude from the linear model
-        v = ct.voltages([915e6], {'PA_M2': vinc / R.Z0}, loads=load)
-        va = abs(v['REFL_J'][0, 0] - v['REFL_K'][0, 0])
+        va = amp(np.angle(gam) if gm else 0.0)
         vpy = det_vdc(va, t_c, d)
         net = '\n'.join([
-            '* BAT15 detector check',
+            '* detector check',
             'V1 s 0 SIN(0 %.6g 915e6)' % abs(voc),
             'R1 s x %.6g' % max(zth.real, 1e-3),
             xel,
-            'LS a ai 0.4n',
-            'D1 ai k BAT15 temp=%g' % t_c,
-            'RLK ai k 7.7Meg',
+            'LS a ai %.4g' % dr['ls'],
+            'D1 ai k DET temp=%g' % t_c,
+            'RLK ai k %.4g' % (1 / d['gleak']),
             'CL k kc %.6g' % CL_DET,
             'LC kc 0 0.45n',
             'RL k 0 %.6g' % RL_DET,
-            '.model BAT15 D(IS=%.4g N=%.3g RS=6 CJO=0.2p M=0.3 VJ=0.35 EG=%.3g XTI=%.3g BV=4.5 IBV=100u)'
-            % (d['is25'], d['n'], d['eg'], d['xti']),
+            '.model DET D(IS=%.4g N=%.4g RS=%.3g CJO=0.75p M=0.3 VJ=0.35 EG=%.3g XTI=%.3g BV=8 IBV=10u)'
+            % (d['is25'], d['n'], d['rs'], d['eg'], d['xti']),
             '.ic v(k)=%.5g v(kc)=0' % vpy,
             '.options temp=%g tnom=25' % t_c,
             '.tran 25p 25u 0 25p uic',
@@ -1591,208 +1580,342 @@ def spice_check(b, cases):
             fn = os.path.join(td, 'det.cir')
             open(fn, 'w').write(net)
             r = subprocess.run(['ngspice', '-b', fn], capture_output=True, text=True, timeout=900)
-        import re
         m = re.search(r'vavg\s*=\s*([-0-9.eE+]+)', r.stdout)
         vsp = float(m.group(1)) if m else float('nan')
         rows.append((label, p_dbm, t_c, va, vpy, vsp))
-        out('   %-28s %2.0f dBm %4d C  junction %.3f V peak   averaged model %.3f V   ngspice %.3f V   (diff %+.0f mV)'
+        out('   %-24s %2.0f dBm %4d C  junction %.3f V peak   averaged model %.3f V   ngspice %.3f V   (diff %+.0f mV)'
             % (label, p_dbm, t_c, va, vpy, vsp, 1e3 * (vsp - vpy)))
     return rows
 
 
+ADC_FLOOR = 0.020     # V: below ~20 mV (23 LSB at gain 1/6, 12 bit) the nRF52840 SAADC's offset makes a ratio meaningless
+
+
+def fit_threshold(rd, powers, keys=None):
+    """Ratio threshold of the form R(P, T) = exp(a + b (T - 25) + c (P - 30)) centred in the window between the
+    highest VSWR-2 ratio and the lowest missing ratio at every (P, T) in rd.  Returns (a, b, c, half-window ln)."""
+    cells = sorted({(k[0], k[2]) for k in rd if k[0] in powers})
+    lo, hi = {}, {}
+    for (p, t) in cells:
+        lo[(p, t)] = math.log(max(max(float(rd[k][2].max()) for k in rd if k[0] == p and k[2] == t and k[1] == 'VSWR 2'
+                                      and (keys is None or k[3] in keys)), 1e-6))
+        hi[(p, t)] = math.log(max(min(float(rd[k][2].min()) for k in rd if k[0] == p and k[2] == t and k[1] == 'missing'
+                                      and (keys is None or k[3] in keys)), 1e-6))
+    best = None
+    for b in np.linspace(-0.03, 0.03, 121):
+        for c in np.linspace(-0.3, 0.3, 61):
+            l_ = [lo[q] - b * (q[1] - 25) - c * (q[0] - 30) for q in cells]
+            h_ = [hi[q] - b * (q[1] - 25) - c * (q[0] - 30) for q in cells]
+            half = 0.5 * (min(h_) - max(l_))
+            if best is None or half > best[3]:
+                best = (0.5 * (min(h_) + max(l_)), b, c, half)
+    return best
+
+
+def thr_fn(fit):
+    a, b, c, _ = fit
+    return lambda p, t: math.exp(a + b * (t - 25) + c * (p - 30))
+
+
+def two_rule(rd, powers):
+    """Fault if FWD_DET < Fmin(P, T) OR REFL/FWD > R(P, T).  Fmin = 80 % of the lowest forward reading any good
+    antenna (matched or VSWR 2) gives at that level and temperature, over every pairing, model, phase; then
+    log Fmin fitted as a + b (T-25) + c (P-30) and moved down to stay under every cell.  R fitted (as fit_threshold)
+    between the VSWR-2 ratios and the missing ratios NOT already caught by Fmin.  Returns (fmin_fit, r_fit, cells)
+    with cells[(P, T)] = (good margin dB, missing margin dB, Fmin, R)."""
+    cells = sorted({(k[0], k[2]) for k in rd if k[0] in powers})
+    fgood = {q: min(float(rd[k][1].min()) for k in rd if (k[0], k[2]) == q and k[1] in ('matched', 'VSWR 2')) for q in cells}
+    X = np.array([[1.0, q[1] - 25.0, q[0] - 30.0] for q in cells])
+    y = np.log(np.maximum([0.8 * fgood[q] for q in cells], 1e-6))
+    coef = np.linalg.lstsq(X, y, rcond=None)[0]
+    coef[0] -= max(0.0, float(np.max(X @ coef - y)))
+    fmin = lambda p, t: math.exp(coef[0] + coef[1] * (t - 25) + coef[2] * (p - 30))
+    rd2 = {}
+    for k, (vr, vf, ra) in rd.items():
+        if k[1] == 'missing':
+            keep = vf >= fmin(k[0], k[2])
+            rd2[k] = (vr[keep], vf[keep], ra[keep]) if keep.any() else (np.array([1.0]), np.array([1.0]), np.array([9.0]))
+        else:
+            rd2[k] = (vr, vf, ra)
+    rf = fit_threshold(rd2, powers)
+    th = thr_fn(rf)
+    out_ = {}
+    for q in cells:
+        fm, r_ = fmin(*q), th(*q)
+        g, m = 99.0, 99.0
+        for k in rd:
+            if (k[0], k[2]) != q:
+                continue
+            vr, vf, ra = rd[k]
+            if k[1] == 'missing':
+                det = np.maximum(np.log(fm / np.maximum(vf, 1e-6)), np.log(np.maximum(ra, 1e-9) / r_))
+                m = min(m, float(det.min()) * 8.686)
+            else:
+                ok = np.minimum(np.log(np.maximum(vf, 1e-6) / fm), np.log(r_ / np.maximum(ra, 1e-9)))
+                g = min(g, float(ok.min()) * 8.686)
+        out_[q] = (g, m, fm, r_)
+    return coef, rf, out_
+
+
+
 def study8(s7):
+    dp = B.parts.PARTS.get(B.DIODE_PART, {}).get('mpn', B.DIODE_PART)
     out()
     out('=' * 100)
-    out('STUDY 8  Missing-antenna detector: coupler (%.1f mm, %.2f mm gap) -> BAT15-02EL -> 1 nF || 100 k -> REFL_DET (P0.30)'
+    out('STUDY 8  Missing-antenna ratio detector: coupler (%.1f mm, %.2f mm gap) terminated in 49.9 R at both ends;'
         % (B.GEOM['cpl_len'], B.GEOM['gap']))
+    out('         REFL_DET = %s at the U.FL end, FWD_DET = the same at the filter end, each into 1 nF || 100 k;' % dp)
+    out('         firmware reads REFL_DET / FWD_DET' + ('   [COMPARISON RUN: RF_DIODE=%s]' % B.DIODE_PART
+                                                      if os.environ.get('RF_DIODE') else ''))
     out('=' * 100)
-    out('Inputs.  Board: the antenna section of study 1 (coupler from coupler.py\'s field solve, inside the real chain: PA,')
-    out('  LPF, switch, %s; both PA models, so the PA\'s own reflection of the returning wave is included).  Antenna at' % FLT)
+    out('Inputs.  Board: the antenna section of study 1 (coupler from coupler.py\'s field solve) inside the real chain: PA,')
+    out('  LPF, switch, %s; both PA models, so the PA\'s own reflection of the returning wave is included.  Antenna at' % FLT)
     out('  the U.FL: matched; VSWR 2 at every phase; missing (open, every phase = any cable length); 902/915/928 MHz.')
-    out('  Power = the matched-antenna power at the U.FL, which is what the firmware\'s model (txPest) predicts.')
-    out('  BAT15-02EL: Infineon data sheet (typical IF-VF curve digitised: IS 1.15e-7 A, N 1.08; RS ~6 ohm, CJ 0.20 pF, LS')
-    out('  0.4 nH); temperature not published: EG 0.55 eV, XTI 2 (EG 0.69 corner).  Unit spread from the data sheet\'s VF')
-    out('  limits at 1 mA (0.16 / 0.32 V -> IS %.1e / %.1e A).  DC: mean diode current over an RF cycle (junction peak'
-        % (_is_from_vf(0.16), _is_from_vf(0.32)))
-    out('  amplitude from the linear model) = V / 100 k, plus the reverse leak (fig. 3); checked against ngspice below.')
-    out('Firmware (%s): threshold V30 %.0f mV at 30 dBm, V35 %.0f mV at 35 dBm, interpolated in dB, + %.1f mV/C x (T - 25 C);'
-        % (FW['src'], 1e3 * FW['v30'], 1e3 * FW['v35'], 1e3 * FW['tc']))
-    out('  sampled %.0f us after startTransmit, only when the modelled U.FL power >= %.0f dBm.' % (1e6 * FW['t_sample'], FW['min_dbm']))
-    out('Criteria: a missing antenna must read above the threshold and a VSWR-2 antenna below it, in every case (both')
-    out('  PA models, every phase, band, -40/25/85 C).  PASS: still true with the actual power 1 dB off the firmware\'s')
-    out('  model (unit gain spread, loss spread, supply); MARGINAL: true at the model power only; FAIL: misread.')
+    out('  Power = the matched-antenna power at the U.FL: 27 dBm (the firmware\'s lowest checked level), 30 (US; the 1 W')
+    out('  probe), 33, 35 and 36 dBm (3.6-4.0 V).  Temperatures -40, 0, 25, 60, 85 C.')
+    d = DIODES['typ']
+    out('  Diode %s: IS %.2e A (typ), N %.3f, RS %.1f ohm, EG %.2f eV, XTI 2; corners IS %.2e / %.2e A (VF limits at 1 mA),'
+        % (dp, d['is25'], d['n'], d['rs'], d['eg'], DIODES['VF max']['is25'], DIODES['VF min']['is25']))
+    out('  EG %.2f / %.2f eV; CJ %.2f pF (%.2f max as a corner).  The two diodes are separate parts: unmatched pairings are run'
+        % (DIODES['EG low']['eg'], DIODES['EG high']['eg'], 1e12 * B.DIODE_RF[B.DIODE_PART]['cj'],
+           1e12 * B.DIODE_RF[B.DIODE_PART]['cj_max']))
+    out('  (%d: reflected / forward = %s).  BAT68: IF-VF curves at -40/25/85 C fitted (N 0.932, RS 9.2, EG 0.65, within 4 mV);'
+        % (len(PAIRS), ', '.join('%s/%s' % p for p in PAIRS)))
+    out('  the table\'s VF 318 typ / 340 max mV at 1 mA set IS; 296 mV ASSUMED as the low corner.  DC: mean diode current over')
+    out('  an RF cycle = V / 100 k + leak (checked against ngspice below).  ADC floor: a reading below %.0f mV is not trusted.'
+        % (1e3 * ADC_FLOOR))
+    out('Criteria: a ratio threshold (fixed, or of the form R25 x exp(b (T-25) + c (P-30)) with the board temperature and the')
+    out('  firmware\'s modelled power) must separate every missing case from every VSWR-2 case at every level and temperature,')
+    out('  both PA models, every diode pairing: PASS with >= 1 dB of margin each side (and FWD_DET above the ADC floor),')
+    out('  MARGINAL if the window is open but narrower, FAIL if it closes.')
     b = B.Board()
     pa36 = PA(3.6)
     tab = det_table(b, pa36=pa36)
+    rd = det_readings(tab, pairs=PAIRS)
+    typ = {k: v for k, v in rd.items() if k[3] == ('typ', 'typ')}
     out()
-    out('  RF peak across the BAT15 junction (V), min-max over both PA models, phase and band [model A / model B ranges]:')
-    for (p, name), (lo, hi, vt, per) in tab.items():
-        out('   %2.0f dBm %-8s %.3f-%.3f V   [A %.3f-%.3f, B %.3f-%.3f]' % (p, name, lo, hi, per['A'][0], per['A'][1],
-                                                                       per['B'][0], per['B'][1]))
-    out()
-    out('  REFL_DET (V), typical BAT15, as designed (1 nF at the cathode), min-max; and the firmware threshold:')
-    out('   P       antenna     ' + ''.join('     %4d C          ' % t for t in DET_TEMPS))
-    for p in (30.0, 35.0):
+    out('  Typical diodes (both models, every phase and band): FWD_DET, REFL_DET (V) and REFL / FWD:')
+    out('   P       antenna     T      FWD_DET         REFL_DET        ratio')
+    for p in (27.0, 30.0, 35.0):
         for name, gm in ANTS:
-            lo, hi = tab[(p, name)][:2]
-            out('   %2.0f dBm  %-9s  ' % (p, name) + ''.join('   %.3f-%.3f V    ' % (det_vdc(lo, t), det_vdc(hi, t))
-                                                           for t in DET_TEMPS))
-        out('   %2.0f dBm  threshold  ' % p + ''.join('      %.3f V        ' % fw_threshold(p, t) for t in DET_TEMPS))
-    m = det_margins(tab)
+            for t in (-40, 25, 85):
+                vr, vf, ra = typ[(p, name, t, ('typ', 'typ'))]
+                out('   %2.0f dBm  %-9s %4d C   %.3f-%.3f V   %.3f-%.3f V   %.3f-%.3f' % (
+                    p, name, t, vf.min(), vf.max(), vr.min(), vr.max(), ra.min(), ra.max()))
+    # 1) one fixed ratio
+    hi_t, lo_t = ratio_window(typ, DET_POWERS)
+    hi_a, lo_a = ratio_window(rd, DET_POWERS)
     out()
-    out('  Margins (mV; positive = read correctly), typical BAT15, as designed:')
-    out('   P        T      threshold   missing min  margin   |  VSWR-2 max  margin  | matched max   | power error'
-        ' allowed (dB): missing / VSWR 2')
-    pm_all = []
-    for (p, t), r in m.items():
-        pmiss = power_margin_db(tab, p, t, 'missing')
-        pv2 = power_margin_db(tab, p, t, 'vswr2')
-        pm_all.append((pmiss, pv2))
-        out('   %2.0f dBm %5d C   %5.0f        %5.0f       %+5.0f    |   %5.0f     %+5.0f   |   %5.0f       |   %+5.1f / %+5.1f'
-            % (p, t, 1e3 * r['thr'], 1e3 * r['miss'], 1e3 * r['m_miss'], 1e3 * r['vswr2'], 1e3 * r['m_vswr2'],
-               1e3 * r['matched'], pmiss, pv2))
-    mm = min(r['m_miss'] for r in m.values())
-    mv = min(r['m_vswr2'] for r in m.values())
-    pmin = min(min(a, c) for a, c in pm_all)
-    v = 'PASS' if pmin >= 1.0 else ('MARGINAL' if (mm > 0 and mv > 0) else 'FAIL')
-    ma = det_margins(det_model(tab, 'A'))
-    mb = det_margins(det_model(tab, 'B'))
-    summ('8', 'detector vs firmware thresholds (typical BAT15, as designed)', v,
-         'missing antenna: model A (saturated PA) reads down to %.0f mV %s the threshold at some cable lengths, model B '
-         '%+.0f mV; VSWR 2 at least %.0f mV below it (30/35 dBm, -40..85 C)%s'
-         % (1e3 * abs(min(r['m_miss'] for r in ma.values())), 'BELOW' if min(r['m_miss'] for r in ma.values()) < 0 else 'above',
-            1e3 * min(r['m_miss'] for r in mb.values()), 1e3 * mv,
-            '' if pmin < 0 else '; tolerates %.1f dB of power error' % pmin))
+    out('  (1) One fixed ratio over 27-36 dBm and -40..85 C: VSWR 2 up to %.3f, missing down to %.3f with typical diodes'
+        ' (%+.1f dB); %.3f / %.3f over every pairing (%+.1f dB)' % (hi_t, lo_t, R.db20(lo_t / hi_t), hi_a, lo_a,
+                                                                    R.db20(lo_a / hi_a)))
+    # 2) compensated threshold, by level: find the lowest level from which it works
+    out('  (2) Threshold compensated for temperature and level, fitted over every pairing, from a lowest level up:')
+    fits = {}
+    for p0 in DET_POWERS:
+        pw = tuple(p for p in DET_POWERS if p >= p0)
+        f = fit_threshold(rd, pw)
+        fmin = min(float(rd[k][1].min()) for k in rd if k[0] == p0)
+        fits[p0] = (f, fmin)
+        out('      from %2.0f dBm: margin %+5.1f dB each side; R(30 dBm, 25 C) %.3f, %+.2f %%/C, %+.1f %%/dB; FWD_DET >= %.3f V'
+            % (p0, 20 * f[3] / math.log(10), math.exp(f[0]), 100 * (math.exp(f[1]) - 1), 100 * (math.exp(f[2]) - 1), fmin))
+    ok = [p0 for p0 in DET_POWERS if 20 * fits[p0][0][3] / math.log(10) >= 1.0 and fits[p0][1] >= ADC_FLOOR]
+    p_lo = min(ok) if ok else None
+    fsel = fits[p_lo][0] if p_lo is not None else fits[max(DET_POWERS)][0]
+    th = thr_fn(fsel)
+    out('  -> %s' % ('works (>= 1 dB, FWD_DET above the ADC floor) from %.0f dBm up' % p_lo if p_lo is not None else
+                     'no level range gives 1 dB of margin with FWD_DET above the ADC floor'))
+    # 3) the two-condition rule
     out()
-    out('  The same, per PA model (worst over 30/35 dBm, -40/25/85 C; mV, missing / VSWR 2):')
-    for model, lab in (('A', 'model A (saturated PA)'), ('B', 'model B (50-ohm source)')):
-        mc = det_margins(det_model(tab, model))
-        out('   %-26s %+5.0f / %+5.0f   (missing reads %s)' % (lab, 1e3 * min(r['m_miss'] for r in mc.values()),
-                                                               1e3 * min(r['m_vswr2'] for r in mc.values()),
-                                                               ', '.join('%.0f' % (1e3 * mc[(p, t)]['miss']) for p, t in mc)))
-    v30, v35, tcb, half = best_thresholds(tab)
+    out('  (3) Two conditions: fault if FWD_DET < Fmin(P, T) (the amplifier is not delivering what the model says - with a')
+    out('      saturated PA that is what an open does at some cable lengths) OR REFL/FWD > R(P, T):')
+    best2 = None
+    for p0 in DET_POWERS:
+        pw = tuple(p for p in DET_POWERS if p >= p0)
+        cf, rf2, cl = two_rule(rd, pw)
+        mg = min(min(g, m) for g, m, _, _ in cl.values())
+        flo = min(fm for _, _, fm, _ in cl.values())
+        out('      from %2.0f dBm: worst margin %+5.1f dB (good antenna / missing, every pairing); Fmin(30 dBm, 25 C) %.3f V,'
+            ' %+.2f %%/C, %+.1f %%/dB (lowest %.3f V); R(30, 25) %.3f, %+.2f %%/C, %+.1f %%/dB'
+            % (p0, mg, math.exp(cf[0]), 100 * (math.exp(cf[1]) - 1), 100 * (math.exp(cf[2]) - 1), flo,
+               math.exp(rf2[0]), 100 * (math.exp(rf2[1]) - 1), 100 * (math.exp(rf2[2]) - 1)))
+        if best2 is None and mg >= 1.0 and flo >= ADC_FLOOR:
+            best2 = (p0, cf, rf2, cl)
+    if best2:
+        p0, cf, rf2, cl = best2
+        out('  -> two conditions work (>= 1 dB, Fmin above the ADC floor) from %.0f dBm up.  Per level and temperature'
+            ' (margin dB good / missing):' % p0)
+        for p in [x for x in DET_POWERS if x >= p0]:
+            out('      %2.0f dBm: ' % p + ',  '.join('%d C %+.1f / %+.1f (Fmin %.3f V, R %.3f)' % (
+                t, cl[(p, t)][0], cl[(p, t)][1], cl[(p, t)][2], cl[(p, t)][3]) for t in DET_TEMPS))
+        summ('8', 'ratio detector (%s), two conditions (FWD_DET low or ratio high)' % dp,
+             'PASS' if p0 <= 30.0 else 'MARGINAL',
+             'works from %.0f dBm (every pairing, both PA models, -40..85 C), worst margin %+.1f dB; Fmin(30 dBm, 25 C) %.3f V'
+             ' %+.2f %%/C %+.1f %%/dB; R(30 dBm, 25 C) %.3f %+.2f %%/C %+.1f %%/dB'
+             % (p0, min(min(g, m) for g, m, _, _ in cl.values()), math.exp(cf[0]), 100 * (math.exp(cf[1]) - 1),
+                100 * (math.exp(cf[2]) - 1), math.exp(rf2[0]), 100 * (math.exp(rf2[1]) - 1), 100 * (math.exp(rf2[2]) - 1)))
+        # the firmware's power model against the real power: +-1 dB (unit gain, loss, supply)
+        fm_f = lambda p, t: math.exp(cf[0] + cf[1] * (t - 25) + cf[2] * (p - 30))
+        th_f = thr_fn(rf2)
+        res_dp = {}
+        for dpw in (-1.0, 1.0):
+            rdp = det_readings(tab, pairs=PAIRS, dp=dpw)
+            g, m = 99.0, 99.0
+            for k, (vr, vf, ra) in rdp.items():
+                if k[0] < p0:
+                    continue
+                fm, r_ = fm_f(k[0], k[2]), th_f(k[0], k[2])
+                if k[1] == 'missing':
+                    m = min(m, 8.686 * float(np.maximum(np.log(fm / np.maximum(vf, 1e-6)),
+                                                        np.log(np.maximum(ra, 1e-9) / r_)).min()))
+                else:
+                    g = min(g, 8.686 * float(np.minimum(np.log(np.maximum(vf, 1e-6) / fm),
+                                                        np.log(r_ / np.maximum(ra, 1e-9))).min()))
+            res_dp[dpw] = (g, m)
+        out('      real power 1 dB below the firmware model: good antenna %+.1f dB, missing %+.1f dB;'
+            ' 1 dB above: good %+.1f dB, missing %+.1f dB  (worst over every pairing, model, phase, T)'
+            % (res_dp[-1.0] + res_dp[1.0]))
+        # the same rule fitted with the 1 dB built in: good antennas at -1 dB, missing at +1 dB
+        rdm, rdp_ = det_readings(tab, pairs=PAIRS, dp=-1.0), det_readings(tab, pairs=PAIRS, dp=1.0)
+        rdc = {k: (rdp_[k] if k[1] == 'missing' else rdm[k]) for k in rd}
+        best3 = None
+        for p1 in DET_POWERS:
+            pw = tuple(p for p in DET_POWERS if p >= p1)
+            c3, r3, cl3 = two_rule(rdc, pw)
+            mg3 = min(min(g, m) for g, m, _, _ in cl3.values())
+            if best3 is None and mg3 > 0 and min(fm for _, _, fm, _ in cl3.values()) >= ADC_FLOOR:
+                best3 = (p1, c3, r3, cl3, mg3)
+        if best3:
+            p1, c3, r3, cl3, mg3 = best3
+            out('  -> fitted with +-1 dB of power error built in (good antennas 1 dB low, missing 1 dB high): works from %.0f dBm,'
+                ' worst margin %+.1f dB:' % (p1, mg3))
+            out('     Fmin(P, T) = %.3f V x %.4f^(T-25) x %.3f^(P-30);  R(P, T) = %.3f x %.4f^(T-25) x %.3f^(P-30)'
+                % (math.exp(c3[0]), math.exp(c3[1]), math.exp(c3[2]), math.exp(r3[0]), math.exp(r3[1]), math.exp(r3[2])))
+            for p in [x for x in DET_POWERS if x >= p1]:
+                out('      %2.0f dBm: ' % p + ',  '.join('%d C %+.1f / %+.1f (Fmin %.3f V, R %.3f)' % (
+                    t, cl3[(p, t)][0], cl3[(p, t)][1], cl3[(p, t)][2], cl3[(p, t)][3]) for t in DET_TEMPS))
+            summ('8', 'two conditions, fitted with +-1 dB of power-model error', 'PASS' if (p1 <= 30 and mg3 >= 1) else
+                 ('MARGINAL' if p1 <= 30 else 'FAIL'),
+                 'from %.0f dBm, worst margin %+.1f dB: Fmin %.3f V x %.4f^(T-25) x %.3f^(P-30), R %.3f x %.4f^(T-25) x '
+                 '%.3f^(P-30)' % (p1, mg3, math.exp(c3[0]), math.exp(c3[1]), math.exp(c3[2]), math.exp(r3[0]),
+                                  math.exp(r3[1]), math.exp(r3[2])))
+        else:
+            summ('8', 'two conditions, fitted with +-1 dB of power-model error', 'FAIL', 'no level range works')
+        summ('8', 'two conditions with +-1 dB between the power model and the real power',
+             'PASS' if min(min(v) for v in res_dp.values()) > 0 else 'MARGINAL',
+             '-1 dB: good antenna %+.1f, missing %+.1f dB; +1 dB: good %+.1f, missing %+.1f dB (a negative good-antenna'
+             ' margin = a false "antenna missing" and a 1 W retry, not a missed fault)' % (res_dp[-1.0] + res_dp[1.0]))
+    else:
+        summ('8', 'ratio detector (%s), two conditions (FWD_DET low or ratio high)' % dp, 'FAIL', 'no level range works')
+    # margins table with the selected threshold
     out()
-    out('  Window: contrast between the lowest missing reading and the highest VSWR-2 reading (typical BAT15, both models):')
-    for p in (30.0, 35.0):
-        out('   %2.0f dBm: ' % p + ',  '.join('%d C %.0f .. %.0f mV' % (t, 1e3 * m[(p, t)]['vswr2'], 1e3 * m[(p, t)]['miss'])
-                                         for t in DET_TEMPS) + '   (junction amplitude ratio %.1f dB)'
-            % R.db20(tab[(p, 'missing')][0] / tab[(p, 'VSWR 2')][1]))
-    thr_b = lambda p, t: v30 * (v35 / v30) ** ((p - 30.0) / 5.0) + tcb * (t - 25.0)
-    out('  Thresholds centred in that window (same form as the firmware): V30 %.0f mV, V35 %.0f mV, TC %.2f mV/C -> margin'
-        ' +-%.0f mV at worst (firmware now: %.0f / %.0f mV, %.1f mV/C)' % (1e3 * v30, 1e3 * v35, 1e3 * tcb, 1e3 * half,
-                                                                         1e3 * FW['v30'], 1e3 * FW['v35'], 1e3 * FW['tc']))
-    out('  With those thresholds (worst margin, mV, missing / VSWR 2):')
-    best_rows = []
-    for dn in DIODES:
-        mc = det_margins(tab, diode=dn, thr=thr_b)
-        best_rows.append(('BAT15 ' + dn, min(r['m_miss'] for r in mc.values()), min(r['m_vswr2'] for r in mc.values())))
-    for dp in (-1.0, 1.0):
-        mc = det_margins(tab, dp=dp, thr=thr_b)
-        best_rows.append(('actual power %+.0f dB vs the model' % dp, min(r['m_miss'] for r in mc.values()),
-                          min(r['m_vswr2'] for r in mc.values())))
-    for name, a, c in best_rows:
-        out('   %-40s %+6.0f / %+6.0f%s' % (name, 1e3 * a, 1e3 * c, '   <- misread' if min(a, c) < 0 else ''))
-    # corners
+    out('  Margins with that threshold (dB, + = read correctly; typical pair [worst pairing]):')
+    out('   P        T     threshold   VSWR-2 max          missing min         matched max   FWD_DET min (V)')
+    rows = []
+    for p in DET_POWERS:
+        for t in DET_TEMPS:
+            tr = th(p, t)
+            v2 = float(rd[(p, 'VSWR 2', t, ('typ', 'typ'))][2].max())
+            mi = float(rd[(p, 'missing', t, ('typ', 'typ'))][2].min())
+            ma = float(rd[(p, 'matched', t, ('typ', 'typ'))][2].max())
+            v2w = max(float(rd[(p, 'VSWR 2', t, pr)][2].max()) for pr in PAIRS)
+            miw = min(float(rd[(p, 'missing', t, pr)][2].min()) for pr in PAIRS)
+            fm = min(float(rd[(p, n_, t, pr)][1].min()) for n_, _ in ANTS for pr in PAIRS)
+            rows.append((p, t, tr, R.db20(tr / v2), R.db20(mi / tr), R.db20(tr / v2w), R.db20(miw / tr), fm))
+            out('   %2.0f dBm %4d C   %.3f    %.3f (%+5.1f) [%+5.1f]   %.3f (%+5.1f) [%+5.1f]   %.3f        %.3f%s' % (
+                p, t, tr, v2, R.db20(tr / v2), R.db20(tr / v2w), mi, R.db20(mi / tr), R.db20(miw / tr), ma, fm,
+                '   <- below the ADC floor' if fm < ADC_FLOOR else ''))
+    in_rng = [r for r in rows if p_lo is not None and r[0] >= p_lo]
+    m_typ = min(min(r[3], r[4]) for r in rows if r[0] >= (p_lo or 99)) if in_rng else min(min(r[3], r[4]) for r in rows)
+    m_all = min(min(r[5], r[6]) for r in in_rng) if in_rng else min(min(r[5], r[6]) for r in rows)
+    m30 = min(min(r[5], r[6]) for r in rows if r[0] == 30.0)
+    f30 = min(r[7] for r in rows if r[0] == 30.0)
+    v = 'PASS' if (p_lo is not None and p_lo <= 30.0) else ('MARGINAL' if p_lo is not None else 'FAIL')
+    summ('8', 'ratio detector (%s), compensated threshold' % dp, v,
+         'works from %s; at the 30 dBm probe worst margin %+.1f dB, FWD_DET >= %.3f V; fixed ratio: %+.1f dB (typical), '
+         '%+.1f dB (every pairing)' % ('%.0f dBm' % p_lo if p_lo is not None else 'no level', m30, f30,
+                                       R.db20(lo_t / hi_t) / 2, R.db20(lo_a / hi_a) / 2))
+    # sensitivity
     out()
-    out('  Sensitivity, firmware thresholds (worst margin over 30/35 dBm and -40/25/85 C, mV; missing / VSWR 2):')
-    corner_rows = []
-    for dn in DIODES:
-        mc = det_margins(tab, diode=dn)
-        a, c = min(r['m_miss'] for r in mc.values()), min(r['m_vswr2'] for r in mc.values())
-        corner_rows.append(('BAT15 ' + dn, a, c))
-    for dp in (-1.0, 1.0):
-        mc = det_margins(tab, dp=dp)
-        corner_rows.append(('actual power %+.0f dB vs the model' % dp, min(r['m_miss'] for r in mc.values()),
-                            min(r['m_vswr2'] for r in mc.values())))
-    for gap in (round(B.GEOM['gap'] - 0.02, 3), round(B.GEOM['gap'] + 0.02, 3)):
-        tg = det_table(b, gap=gap, pa36=pa36)
-        mc = det_margins(tg)
-        corner_rows.append(('coupler gap %.2f mm (etch)' % gap, min(r['m_miss'] for r in mc.values()),
-                            min(r['m_vswr2'] for r in mc.values())))
-    tpl = det_table(b, cathode='placed', pa36=pa36)
-    mc = det_margins(tpl)
-    corner_rows.append(('1 nF / 100 k as PLACED (21 mm away)', min(r['m_miss'] for r in mc.values()),
-                        min(r['m_vswr2'] for r in mc.values())))
-    for name, a, c in corner_rows:
-        out('   %-40s %+6.0f / %+6.0f%s' % (name, 1e3 * a, 1e3 * c, '   <- misread' if min(a, c) < 0 else ''))
-    worst_c = min(min(a, c) for _, a, c in corner_rows if not _.startswith('1 nF'))
-    bad = [n for n, a, c in corner_rows if min(a, c) < 0 and not n.startswith('1 nF')]
-    summ('8', 'detector over BAT15 data-sheet VF limits, EG, gap +-0.02 mm, +-1 dB',
-         'PASS' if worst_c > 0.02 else ('MARGINAL' if worst_c > 0 else 'FAIL'),
-         'worst margin %+.0f mV%s' % (1e3 * worst_c, (' (misread: ' + '; '.join(bad) + ')') if bad else ''))
-    out()
-    out('  As placed (src/placement.json): REFL_DET\'s 1 nF (C82) and 100 k (R52) sit by the nRF52840, ~21 mm of 0.1 mm track')
-    out('  from the diode.  The cathode is then not at RF ground; REFL_DET ranges (typical BAT15):')
-    for p in (30.0, 35.0):
-        for name, gm in ANTS:
-            lo, hi = tpl[(p, name)][:2]
-            out('   %2.0f dBm  %-9s  ' % (p, name) + ''.join('   %.3f-%.3f V    ' % (det_vdc(lo, t), det_vdc(hi, t))
-                                                           for t in DET_TEMPS))
-    pl = min(min(r['m_miss'], r['m_vswr2']) for r in mc.values())
-    summ('8', 'detector with the 1 nF / 100 k as placed (21 mm from the diode)', 'PASS' if pl > 0.02 else
-         ('MARGINAL' if pl > 0 else 'FAIL'), 'worst margin %+.0f mV; move C82/R52 to the diode (layout)' % (1e3 * pl))
+    out('  Sensitivity, with that threshold (typical diodes; worst margin dB from %s, VSWR 2 / missing):'
+        % ('%.0f dBm' % p_lo if p_lo else '27 dBm'))
+    sens = []
+    pw = tuple(p for p in DET_POWERS if p >= (p_lo or 27.0))
+    for lab, kw in (('coupler gap %.2f mm (etch)' % round(B.GEOM['gap'] - 0.02, 3), dict(gap=round(B.GEOM['gap'] - 0.02, 3))),
+                    ('coupler gap %.2f mm (etch)' % round(B.GEOM['gap'] + 0.02, 3), dict(gap=round(B.GEOM['gap'] + 0.02, 3))),
+                    ('CJ %.2f pF (data-sheet max)' % (1e12 * B.DIODE_RF[B.DIODE_PART]['cj_max']),
+                     dict(cj=B.DIODE_RF[B.DIODE_PART]['cj_max'])),
+                    ('REFL_DET 1 nF / 100 k as PLACED (21 mm)', dict(cathode='placed'))):
+        tb = det_table(b, pa36=pa36, powers=pw, **kw)
+        rdx = det_readings(tb)
+        mv2 = min(R.db20(th(k[0], k[2]) / float(v_[2].max())) for k, v_ in rdx.items() if k[1] == 'VSWR 2')
+        mmi = min(R.db20(float(v_[2].min()) / th(k[0], k[2])) for k, v_ in rdx.items() if k[1] == 'missing')
+        sens.append((lab, mv2, mmi))
+        out('   %-42s %+5.1f / %+5.1f%s' % (lab, mv2, mmi, '   <- misread' if min(mv2, mmi) < 0 else ''))
     # timing
     out()
-    a_m30 = tab[(30.0, 'missing')][0]
-    a_v35 = tab[(35.0, 'VSWR 2')][1]
-    tr1, tau = det_rise(a_m30, -40)
-    tr2, _ = det_rise(a_v35, 85)
-    out('  Timing: after the RF reaches full power REFL_DET reaches 99 %% of its final value in %.1f us (missing, 30 dBm,'
-        ' -40 C) / %.1f us (VSWR 2, 35 dBm, 85 C); it decays with 100 k x 1 nF = %.0f us.  The %.0f us sample therefore reads'
+    a_m = float(tab[(30.0, 'missing', 'A')][0].min())
+    tr1, tau = det_rise(a_m, -40)
+    tr2, _ = det_rise(float(tab[(30.0, 'matched', 'B')][1].min()), -40)
+    out('  Timing (30 dBm, -40 C): REFL_DET (missing, worst phase) reaches 99 %% of its final value %.0f us after the RF is at'
+        ' full power, FWD_DET %.0f us; decay 100 k x 1 nF = %.0f us.  The %.0f us sample (from startTransmit) needs the RF at'
         % (1e6 * tr1, 1e6 * tr2, 1e6 * tau, 1e6 * FW['t_sample']))
-    out('  the steady level if the RF is at full power by ~%.0f us after startTransmit (SX1262 start-up + ramp + APC LDO: not'
+    out('  full power by ~%.0f us.  Read both channels in one SAADC scan so a still-rising level moves both alike.'
         % (1e6 * (FW['t_sample'] - max(tr1, tr2))))
-    out('  modelled; check on the bench, README).')
     # stress on the detector parts
     out()
-    worst_rev, worst_term, rev_b = 0.0, 0.0, 0.0
+    worst_rev, worst_term = 0.0, 0.0
     for vpa in (2.7, 3.6, 4.0):
         pdbm = float(s7['resA'][vpa][0][1])
         tb = det_table(b, pa36=pa36, powers=(pdbm,))
-        per = tb[(pdbm, 'missing')][3]
-        hi = tb[(pdbm, 'missing')][1]
-        vrev = det_vdc(hi, 85) + hi
-        vrb = det_vdc(per['B'][1], 85) + per['B'][1]
-        vt = tb[(pdbm, 'missing')][2]
-        worst_rev, worst_term, rev_b = max(worst_rev, vrev), max(worst_term, vt), max(rev_b, vrb)
-        out('  VPA %.1f V (%.1f dBm), antenna missing: BAT15 reverse peak %.2f V model A / %.2f V model B (VR max 4 V),'
-            ' REFL_DET up to %.2f V (nRF pin max 3.6 V), 49.9 R up to %.0f mW (0402 rated 63 mW)'
-            % (vpa, pdbm, vrev, vrb, det_vdc(hi, 85), vt ** 2 / (2 * 49.9) * 1e3))
-    summ('8', 'detector parts with the antenna missing, VPA 4.0 V', 'PASS' if worst_rev < 0.95 * 4 and worst_term ** 2 / 99.8 < 0.044
-         else ('MARGINAL' if worst_rev <= 4 else 'FAIL'),
-         'BAT15 reverse peak %.2f V model A, %.2f V model B (4 V max); 49.9 R %.0f mW (63 mW; a 0.75 ms pulse when the'
-         ' cut-off works)' % (worst_rev, rev_b, worst_term ** 2 / 99.8 * 1e3))
+        rev, term = 0.0, 0.0
+        for name, gm in ANTS:
+            for m in ('A', 'B'):
+                ar, af, vt = tb[(pdbm, name, m)]
+                for a in (ar, af):
+                    rev = max(rev, float(np.max(det_v(a, 85, 'VF min') + a)))
+                term = max(term, float(vt.max()))
+        worst_rev, worst_term = max(worst_rev, rev), max(worst_term, term)
+        out('  VPA %.1f V (%.1f dBm), every antenna state, both models: diode reverse peak %.2f V, 49.9 R (each) %.0f mW'
+            ' (0805 0.5 W: %.0f %% of its 85 C rating)' % (vpa, pdbm, rev, term ** 2 / (2 * 49.9) * 1e3,
+                                                           100 * term ** 2 / (2 * 49.9) / r0805_rating(85, p70=0.5)))
+    vr_max = {'BAT68_04W': 8.0, 'BAT15': 4.0}.get(B.DIODE_PART, 4.0)
+    prt = worst_term ** 2 / (2 * 49.9) / r0805_rating(85, p70=0.5)
+    summ('8', 'detector parts, antenna missing, VPA 4.0 V', 'PASS' if (worst_rev <= 0.7 * vr_max and prt <= 0.7) else
+         ('MARGINAL' if worst_rev <= 0.95 * vr_max else 'FAIL'),
+         '%s reverse peak %.2f V = %.0f %% of %.0f V; 49.9 R %.0f mW = %.0f %% of its 85 C rating (continuous, not just the'
+         ' 0.75 ms pulse)' % (dp, worst_rev, 100 * worst_rev / vr_max, vr_max, worst_term ** 2 / 99.8 * 1e3, 100 * prt))
     # SPICE check
     out()
-    out('  ngspice cross-check (model B, 915 MHz, typical BAT15 with RS 6 ohm and CJ 0.2 pF in the SPICE model, Thevenin')
-    out('  source at the anode from the board model, 25 us transient from the averaged value):')
+    out('  ngspice cross-check of the reflected detector (model B, 915 MHz, typical diode as a SPICE model with RS, CJ;')
+    out('  Thevenin source at the anode from the board model; 25 us transient from the averaged value):')
     sp = spice_check(b, [(30.0, 1.0 / 3.0, 'max', 85, 'VSWR 2 (worst phase)'), (30.0, 1.0, 'min', -40, 'missing (worst phase)'),
-                         (30.0, 0.0, 'max', 25, 'matched'), (35.0, 1.0 / 3.0, 'max', 85, 'VSWR 2 (worst phase)'),
-                         (35.0, 1.0, 'min', -40, 'missing (worst phase)'), (35.0, 1.0, 'max', 25, 'missing (best phase)')])
-    plot_detector(tab, tpl)
-    return dict(tab=tab, margins=m, corners=corner_rows, spice=sp, placed=tpl, best=(v30, v35, tcb, half),
-                best_rows=best_rows)
+                         (35.0, 1.0 / 3.0, 'max', 85, 'VSWR 2 (worst phase)'), (35.0, 1.0, 'min', -40, 'missing (worst phase)'),
+                         (35.0, 1.0, 'max', 25, 'missing (best phase)')])
+    plot_detector(rd, th)
+    return dict(tab=tab, rd=rd, fit=fsel, p_lo=p_lo, rows=rows, sens=sens, spice=sp, fits=fits,
+                fixed=(hi_t, lo_t, hi_a, lo_a), rev=worst_rev, term=worst_term, two=best2)
 
 
-def plot_detector(tab, tpl):
-    fig, ax = plt.subplots(1, 2, figsize=(12, 4.4))
-    ts = np.linspace(-40, 85, 26)
-    for a, p in zip(ax, (30.0, 35.0)):
-        for (name, gm), col in zip(ANTS, (C3, C1, C2)):
-            lo, hi = tab[(p, name)][:2]
-            a.fill_between(ts, [det_vdc(lo, t) for t in ts], [det_vdc(hi, t) for t in ts], color=col, alpha=0.35, lw=0,
-                           label='%s (as designed)' % name)
-            lo2, hi2 = tpl[(p, name)][:2]
-            a.plot(ts, [det_vdc(lo2, t) for t in ts], color=col, lw=1, ls=':')
-            a.plot(ts, [det_vdc(hi2, t) for t in ts], color=col, lw=1, ls=':')
-        a.plot(ts, [fw_threshold(p, t) for t in ts], color='k', lw=1.8, label='firmware threshold')
-        a.set_title('%.0f dBm at the U.FL: REFL_DET, typical BAT15 (dotted: 1 nF as placed)' % p, fontsize=9)
-        a.set_xlabel('board temperature, C')
-        a.set_ylabel('V')
+def plot_detector(rd, th):
+    fig, ax = plt.subplots(1, 3, figsize=(15, 4.4))
+    cols = {'matched': C3, 'VSWR 2': C1, 'missing': C2}
+    for a, t in zip(ax, (-40, 25, 85)):
+        for name, gm in ANTS:
+            lo = [min(float(rd[(p, name, t, pr)][2].min()) for pr in PAIRS) for p in DET_POWERS]
+            hi = [max(float(rd[(p, name, t, pr)][2].max()) for pr in PAIRS) for p in DET_POWERS]
+            a.fill_between(DET_POWERS, np.maximum(lo, 1e-4), np.maximum(hi, 1e-4), color=cols[name], alpha=0.35, lw=0,
+                           label=name)
+        a.plot(DET_POWERS, [th(p, t) for p in DET_POWERS], color='k', lw=1.8, label='ratio threshold')
+        a.set_yscale('log')
+        a.set_ylim(1e-3, 3)
+        a.set_xlabel('power at the U.FL into a matched antenna, dBm')
+        a.set_ylabel('REFL_DET / FWD_DET')
+        a.set_title('%d C: every phase, band, both PA models, every diode pairing' % t, fontsize=9)
         a.grid(alpha=0.25)
-        a.legend(fontsize=7, loc='upper left')
+        a.legend(fontsize=7, loc='lower right')
     fig.tight_layout()
-    fig.savefig(os.path.join(HERE, 'detector.png'), dpi=110)
+    fig.savefig(os.path.join(HERE, 'detector%s.png' % ('_' + B.DIODE_PART if os.environ.get('RF_DIODE') else '')), dpi=110)
     plt.close(fig)
 
 
@@ -1821,6 +1944,19 @@ def main():
     out('Antenna filter FL1 = %s; missing-antenna detector coupler %.1f mm x %.2f mm gap (src/layout.py).'
         % (FLT, B.GEOM['cpl_len'], B.GEOM['gap']))
     out()
+    if os.environ.get('RF_DIODE'):
+        # comparison run: the detector study only, with another diode in the same places (results_<diode>.txt)
+        b = B.Board()
+        ckt = b.tx_out(with_pa=True)
+        resA = {}
+        for vpa in (2.7, 3.6, 4.0):
+            pa = PA(vpa)
+            v0, _ = pa.solve(ckt, FB, 0.0)
+            resA[vpa] = (R.w_to_dbm(np.abs(v0['ANT'][0]) ** 2 / (2 * R.Z0)), None, None, pa)
+        study8(dict(resA=resA))
+        with open(os.path.join(HERE, 'results_%s.txt' % B.DIODE_PART), 'w') as fh:
+            fh.write('\n'.join(LINES) + '\n')
+        return
     flt_fit_report()
     s1 = study1()
     study1f()

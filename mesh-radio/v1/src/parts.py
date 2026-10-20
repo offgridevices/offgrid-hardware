@@ -379,7 +379,8 @@ for v, code, lc in [('0R', '0R', 'C106231'), ('22R', '22R', 'C114765'), ('330R',
                     ('267k', '267K', 'C327360'), ('301k', '301K', 'C171693'), ('330k', '330K', 'C138006'), ('383k', '383K', 'C163468'),
                     ('510k', '510K', 'C137961'), ('562k', '562K', 'C273337'), ('1M', '1M', 'C138033'), ('1.5M', '1M5', 'C138034')]:
     res('R' + v, v, '0402', 'RC0402FR-07%sL' % code, lc)
-res('R49.9R', '49.9R', '0402', 'RC0402FR-0749R9L', 'C87044')
+# the antenna detector's coupler termination: 85 mW with the antenna off (sim/rf study 8), so 0805 0.5 W pulse-proof
+res('R49.9R_0805', '49.9R', '0805', 'CRCW080549R9FKEAHP', 'C4088942', VISHAY, '1% 0.5 W pulse-proof')
 res('R68_0805', '68R', '0805', 'RC0805FR-0768RL', 'C137498')
 # the pad's first resistor takes the most power (sim/rf: 118 mW at +22 dBm drive)
 res('R68_0805_AS', '68R', '0805', 'RCS080568R0FKEA', 'C2114866', VISHAY, '1% 0.4 W anti-surge')
@@ -418,10 +419,16 @@ _two('D', 'RB060MM', 'RB060MM-30TR', ROHM, 'C308720', 'og:SOD-123FL', 'RB060MM-3
 # 33 V stand-off clears a 12 V panel at -40 C (26 V), 53 V clamp is under the MAX17608's 60 V
 _two('D', 'SMF33CA', 'SMF33CA', LITTELFUSE, 'C1851347', 'og:SOD-123FL', 'SMF33CA',
      'TVS 33 V bidirectional 200 W, SOD-123FL', ('Device', 'D_TVS'))
-# the missing-antenna detector's diode (zero-bias RF Schottky, pin 1 cathode)
-_two('D', 'BAT15', 'BAT1502ELE6327XTMA1', ('Infineon Technologies', 'Germany'), 'C533619',
-     'og:TSLP-2-19_L1.0-W0.6-P0.65-RD', 'BAT15-02EL', 'RF Schottky detector diode, TSLP-2', ('Device', 'D_Schottky'),
-     {'K': '1', 'A': '2'})
+# the missing-antenna detector's diodes (two: forward and reflected; sim/rf study 8).  Infineon BAT68-04W,
+# an 8 V RF Schottky series pair in SOT-323: 1 = D1 anode, 3 = D1 cathode / D2 anode, 2 = D2 cathode (Infineon
+# BAT68 data sheet 2011-06-15, pin diagram).  Only D1 is used; circuit.py ties pin 2 to pin 3, which shorts D2.
+# Chosen 20 Oct over the BAT15-02EL (4 V: the antenna-off reverse peak reached 5.7 V) and the BAT62 (40 V):
+# every single BAT62 package is obsolete at DigiKey (-02V, -03W, -02LS) and none is stocked at LCSC.
+PARTS['BAT68_04W'] = ic(
+    'BAT6804WH6327XTSA1', ('Infineon Technologies', 'Germany'), 'C6129734', '', 'og:SOT-323',
+    'RF Schottky diode pair (series) 8 V, CT <= 1 pF, VF 318 mV at 1 mA, SOT-323 (detector: D1 only)',
+    [('1', 'A1', P), ('3', 'K1/A2', P), ('2', 'K2', P)],
+    left=['1'], right=['3', '2'], prefix='D')
 _two('D', 'ZENER4V7', 'UDZVTE-174.7B', ROHM, 'C209560', 'og:SOD-323FL', '4.7V', 'Zener 4.7 V 200 mW, SOD-323FL',
      ('Device', 'D_Zener'), {'K': '1', 'A': '2'})
 # USB eFuse EN clamp since 19 Oct: 1 uA at 2.5 V (the 4.7 V part: 2 uA at 1 V), so its leakage at the
@@ -479,8 +486,8 @@ PARTS['HDR_2x10']['assembled'] = False
 # DigiKey number yet (docs/part-audit.md lists them).
 DIGIKEY = {
     'LFCG1000': '3157-LFCG-1000+CT-ND',
-    'BAT15': 'BAT1502ELE6327XTMA1CT-ND',
-    'R49.9R': '311-49.9LRCT-ND',
+    'BAT68_04W': 'BAT6804WH6327XTSA1CT-ND',  # 7,598 in stock, INR 43.95@1 / 30.39@10 / 23.50@100, 20 Oct 2026
+    'R49.9R_0805': '541-49.9TCT-ND',  # 178,810 in stock, INR 18.15@1 / 8.98@10 / 5.12@100, 20 Oct 2026
     'L3.6nH_0805': '490-16042-1-ND',  # sim/rf fixes, checked 19 Oct
     'L3.2nH_0805': '490-16041-1-ND',  # sim/rf fixes, checked 19 Oct
     'HV2.0pF': '490-8124-1-ND',  # sim/rf fixes, checked 19 Oct

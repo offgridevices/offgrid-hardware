@@ -35,7 +35,7 @@ NETS_SX_TX = ['LORA_VRPA', 'LORA_RFO', 'LORA_TXA', 'LORA_TXB', 'LORA_TXC', 'LORA
 NETS_PA_OUT = ['VPA', 'PA_OUT', 'PA_M1', 'PA_2F0']
 NETS_LPF = ['PA_M2', 'PA_M3', 'PA_TX']
 NETS_ANT = ['ANT']
-NETS_DET = ['REFL_CPL', 'REFL_DET']
+NETS_DET = ['REFL_CPL', 'REFL_DET', 'FWD_DET']
 NETS_RX = ['LNA_INM', 'LNA_AI']
 NETS_BLE = ['NRF_ANT', 'BLE_50R', 'BLE_T', 'BLE_FEED']
 # trace lengths between blocks, mm.  lpf_sw and sw_lfcn (switch RF1 -> filter RF IN) are the pad-to-pad
@@ -86,9 +86,26 @@ def coupler_params(gap=None):
 # REFL_DET as placed (src/placement.json, 20 Oct): the 1 nF and 100 k sit ~21 mm from the diode, by the nRF52840;
 # a 0.1 mm track over In1 is ~63 ohm, eeff 3.32 (coupler.py field solve, 0.6 mm to any pour).
 REFL_DET_TRACK = dict(length=21.0, z0=63.0, ee=3.32)
-# BAT15-02EL (Infineon data sheet v1.0, 2018-06-30): LS 0.4 nH typ; C 0.20 typ / 0.24 max pF at 0 V;
-# RF (differential, 10-50 mA) 8 typ / 10 max ohm.  RF model: Ls + Rs + Cj (junction node REFL_J).
-BAT15_RF = dict(ls=0.4e-9, rs=8.0, cj=0.20e-12)
+# Detector diode RF models: Ls + Rs + Cj (junction node REFL_J / FWD_J), by the part circuit.py fits.
+#   BAT15-02EL (Infineon data sheet v1.0, 2018-06-30): LS 0.4 nH; C 0.20 typ / 0.24 max pF at 0 V; RF 8 / 10 ohm.
+#   BAT68-04W (Infineon BAT68 data sheet 2011-06-15): LS 1.4 nH (SOT323); CT 0.75 pF at 0 V, ~0.6 pF at 1 V,
+#   0.55 pF at 4 V (fig.), <= 1 pF max; RS 9.2 ohm (fit to the IF-VF curves, sim/rf/run.py); D2 shorted.
+DIODE_RF = {'BAT15': dict(ls=0.4e-9, rs=8.0, cj=0.20e-12, cj_max=0.24e-12),
+            'BAT68_04W': dict(ls=1.4e-9, rs=9.2, cj=0.65e-12, cj_max=1.0e-12)}
+
+
+def _det_diode(net):
+    for c in COMPS:
+        if parts.PARTS[c.part]['kind'] == 'D' and net in c.pins.values() and 'REFL_CPL' in c.pins.values():
+            return c
+    return None
+
+
+DIODE_REFL = _det_diode('REFL_DET')
+DIODE_FWD = _det_diode('FWD_DET')          # None before the 20 Oct ratio detector
+# RF_DIODE=BAT15 (environment) runs the studies with another diode in the same places, for comparison
+DIODE_PART = os.environ.get('RF_DIODE') or DIODE_REFL.part
+BAT15_RF = DIODE_RF['BAT15']               # kept for older scripts
 
 
 def _filter_ref():
@@ -231,12 +248,12 @@ class Board:
         """The antenna filter circuit.py fits (FL1), RF IN at a."""
         return self.lfcg(ckt, a, b) if FL_PART == 'LFCG1000' else self.lfcn(ckt, a, b)
 
-    def ant_section(self, c, a, cathode='designed', gap=None, lines=None):
+    def ant_section(self, c, a, cathode='designed', gap=None, lines=None, cj=None):
         """Filter RF OUT (node a) -> flt_cpl line -> detector coupler main line (the 47 nH ESD shunt at
         esd_from_end before the coupler's U.FL end) -> cpl_ufl line -> U.FL ('ANT').  Coupled line: filter
         end -> stub -> 49.9 R (REFL_T); U.FL end -> stub -> BAT15 (anode REFL_A, junction REFL_J, cathode
         REFL_K).  cathode='designed': 1 nF and 100 k at the cathode; 'placed': REFL_K -> 21 mm track ->
-        1 nF + 100 k (REFL_C), as src/placement.json has them; 'open': the 49.9 R but no diode; None: no
+        1 nF + 100 k (REFL_C), as src/placement.json has them; 'open': the 49.9 Rs but no diode; None: no
         detector parts at all (coupled line open: never used for the board)."""
         L = dict(self.lines, **(lines or {}))
         p = coupler_params(gap)
@@ -251,13 +268,25 @@ class Board:
             return c
         c.add2('CPL_B1', 'REFL_T', R.Line(L['cpl_stub']), 'stub_term')
         c.add2('CPL_B2', 'REFL_A', R.Line(L['cpl_stub']), 'stub_diode')
-        term = [x.ref for x in rf_parts(['REFL_CPL']) if parts.PARTS[x.part]['kind'] == 'R']
-        self.add_parts(c, ['REFL_CPL'], only=term, remap={'REFL_CPL': 'REFL_T'})
+        # terminations: the 49.9 R at the filter end (REFL_T) and, since 20 Oct, a second one at the U.FL end by the
+        # reflected diode (REFL_A); circuit.py's notes say which end each is
+        term = [x for x in rf_parts(['REFL_CPL']) if parts.PARTS[x.part]['kind'] == 'R']
+        t_flt = [x.ref for x in term if 'U.FL end' not in x.note]
+        t_ufl = [x.ref for x in term if 'U.FL end' in x.note]
+        self.add_parts(c, ['REFL_CPL'], only=t_flt, remap={'REFL_CPL': 'REFL_T'})
+        self.add_parts(c, ['REFL_CPL'], only=t_ufl, remap={'REFL_CPL': 'REFL_A'})
         if cathode == 'open':           # the diode's anode left open (Thevenin source for the SPICE check)
             return c
-        d = BAT15_RF
-        c.add('REFL_A', 'REFL_J', R.Ind(d['ls'], 1e9, 1e9, 0, d['rs']), 'BAT15_LsRs')
-        c.add('REFL_J', 'REFL_K', R.Cap(d['cj'], 0.0, 0.0), 'BAT15_Cj')
+        d = dict(DIODE_RF[DIODE_PART])
+        if cj is not None:
+            d['cj'] = cj
+        c.add('REFL_A', 'REFL_J', R.Ind(d['ls'], 1e9, 1e9, 0, d['rs']), 'Drefl_LsRs')
+        c.add('REFL_J', 'REFL_K', R.Cap(d['cj'], 0.0, 0.0), 'Drefl_Cj')
+        if DIODE_FWD is not None:
+            # the forward diode sits at the 49.9 R (the coupled line's filter end), its 1 nF + 100 k at its cathode
+            c.add('REFL_T', 'FWD_J', R.Ind(d['ls'], 1e9, 1e9, 0, d['rs']), 'Dfwd_LsRs')
+            c.add('FWD_J', 'FWD_K', R.Cap(d['cj'], 0.0, 0.0), 'Dfwd_Cj')
+            self.add_parts(c, ['FWD_DET'], remap={'FWD_DET': 'FWD_K'})
         if cathode == 'placed':
             t = REFL_DET_TRACK
             c.add2('REFL_K', 'REFL_C', R.Line(t['length'], z0=t['z0'], eps_eff=t['ee']), 'refl_det_track')
@@ -298,7 +327,7 @@ class Board:
         self.add_parts(c, ['PA_M1', 'PA_M2'], only=[DCBLOCK_OUT])
         return c
 
-    def tx_out(self, with_pa=True, lines=None, cathode='designed', gap=None):
+    def tx_out(self, with_pa=True, lines=None, cathode='designed', gap=None, cj=None):
         """PA output network (optional) + LPF + line + switch + line + antenna filter + detector coupler
         (with its ESD shunt and detector) + line; antenna node 'ANT' (the U.FL)."""
         L = dict(self.lines, **(lines or {}))
@@ -310,7 +339,7 @@ class Board:
         self.sky13330(c, 'SW2', 'SW1', isolated=None)
         c.add2('SW1', 'ANT_SW', R.Line(L['sw_lfcn']), 'line_sw_lfcn')
         self.ant_filter(c, 'ANT_SW', 'LF_OUT')
-        self.ant_section(c, 'LF_OUT', cathode=cathode, gap=gap, lines=lines)
+        self.ant_section(c, 'LF_OUT', cathode=cathode, gap=gap, lines=lines, cj=cj)
         return c
 
     def sw_to_ant(self, lines=None):

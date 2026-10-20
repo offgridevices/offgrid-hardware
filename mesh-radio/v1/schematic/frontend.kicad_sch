@@ -658,6 +658,129 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "og:BAT68_04W"
+			(pin_names
+				(offset 0.508)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "D"
+				(at -7.62 6.35 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "BAT68_04W"
+				(at -7.62 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "BAT68_04W_0_1"
+				(rectangle
+					(start -7.62 5.08)
+					(end 7.62 -2.54)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "BAT68_04W_1_1"
+				(pin passive line
+					(at -10.16 2.54 0)
+					(length 2.54)
+					(name "A1"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 10.16 2.54 180)
+					(length 2.54)
+					(name "K1/A2"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 10.16 0 180)
+					(length 2.54)
+					(name "K2"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.016 1.016)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "og:BGA7L1BN6"
 			(pin_names
 				(offset 0.508)
@@ -1842,181 +1965,6 @@
 						(effects
 							(font
 								(size 1.016 1.016)
-							)
-						)
-					)
-				)
-			)
-			(embedded_fonts no)
-		)
-		(symbol "og_device:D_Schottky_BAT15"
-			(pin_numbers
-				(hide yes)
-			)
-			(pin_names
-				(offset 1.016)
-				(hide yes)
-			)
-			(exclude_from_sim no)
-			(in_bom yes)
-			(on_board yes)
-			(in_pos_files yes)
-			(duplicate_pin_numbers_are_jumpers no)
-			(property "Reference" "D"
-				(at 0 2.54 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Value" "D_Schottky"
-				(at 0 -2.54 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Footprint" ""
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Datasheet" ""
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Description" "Schottky diode"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "ki_keywords" "diode Schottky"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "ki_fp_filters" "TO-???* *_Diode_* *SingleDiode* D_*"
-				(at 0 0 0)
-				(show_name no)
-				(do_not_autoplace no)
-				(hide yes)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(symbol "D_Schottky_BAT15_0_1"
-				(polyline
-					(pts
-						(xy -1.905 0.635)
-						(xy -1.905 1.27)
-						(xy -1.27 1.27)
-						(xy -1.27 -1.27)
-						(xy -0.635 -1.27)
-						(xy -0.635 -0.635)
-					)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 1.27 1.27)
-						(xy 1.27 -1.27)
-						(xy -1.27 0)
-						(xy 1.27 1.27)
-					)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 1.27 0)
-						(xy -1.27 0)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-			)
-			(symbol "D_Schottky_BAT15_1_1"
-				(pin passive line
-					(at -3.81 0 0)
-					(length 2.54)
-					(name "K"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 3.81 0 180)
-					(length 2.54)
-					(name "A"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "2"
-						(effects
-							(font
-								(size 1.27 1.27)
 							)
 						)
 					)
@@ -4057,8 +4005,197 @@
 		)
 	)
 	(symbol
+		(lib_id "og:BAT68_04W")
+		(at 203.2 50.8 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "530cbd95-8693-7897-63d7-efe7696747f6")
+		(property "Reference" "D9"
+			(at 195.58 44.22 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "BAT6804WH6327XTSA1"
+			(at 195.58 55.84 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "og:SOT-323"
+			(at 203.2 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "BAT6804WH6327XTSA1"
+			(at 203.2 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "Infineon Technologies"
+			(at 203.2 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "BAT6804WH6327XTSA1CT-ND"
+			(at 203.2 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C6129734"
+			(at 203.2 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "RF Schottky diode pair (series) 8 V, CT <= 1 pF, VF 318 mV at 1 mA, SOT-323 (detector: D1 only)"
+			(at 203.2 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
+					(reference "D9")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 193.04 48.26)
+			(xy 190.5 48.26)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e5093e6d-bfb8-c67b-563c-9c0a3d5df0cb")
+	)
+	(global_label "REFL_CPL"
+		(shape passive)
+		(at 190.5 48.26 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "0604721c-98b7-c2a4-04e5-88202b6a3fe8")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 190.5 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+				(hide yes)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 213.36 48.26)
+			(xy 215.9 48.26)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ead495f8-76e8-a1f1-2481-cf1bdab893f4")
+	)
+	(global_label "REFL_DET"
+		(shape passive)
+		(at 215.9 48.26 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "4083aa82-c251-661a-7e5c-873c3cbe2414")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 215.9 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 213.36 50.8)
+			(xy 215.9 50.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1d182887-6cc4-0a46-c18c-1bc5baa741df")
+	)
+	(global_label "REFL_DET"
+		(shape passive)
+		(at 215.9 50.8 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "3dff1270-29da-5fe8-2e3b-c016790b7816")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 215.9 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(symbol
 		(lib_id "og:UFL")
-		(at 195.58 50.8 0)
+		(at 241.3 50.8 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -4066,7 +4203,7 @@
 		(dnp no)
 		(uuid "773419eb-fbb6-7325-2197-5182efb13909")
 		(property "Reference" "J4"
-			(at 190.5 44.22 0)
+			(at 236.22 44.22 0)
 			(effects
 				(font
 					(size 1 1)
@@ -4075,7 +4212,7 @@
 			)
 		)
 		(property "Value" "U.FL-R-SMT-1(80)"
-			(at 190.5 55.84 0)
+			(at 236.22 55.84 0)
 			(effects
 				(font
 					(size 1 1)
@@ -4084,7 +4221,7 @@
 			)
 		)
 		(property "Footprint" "og:RF-SMD_FRF05002-JSS103M"
-			(at 195.58 50.8 0)
+			(at 241.3 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4093,7 +4230,7 @@
 			)
 		)
 		(property "MPN" "U.FL-R-SMT-1(80)"
-			(at 195.58 50.8 0)
+			(at 241.3 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4102,7 +4239,7 @@
 			)
 		)
 		(property "Manufacturer" "Hirose Electric"
-			(at 195.58 50.8 0)
+			(at 241.3 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4111,7 +4248,7 @@
 			)
 		)
 		(property "DigiKey" "26-U.FL-R-SMT-1(80)CT-ND"
-			(at 195.58 50.8 0)
+			(at 241.3 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4120,7 +4257,7 @@
 			)
 		)
 		(property "LCSC" "C88374"
-			(at 195.58 50.8 0)
+			(at 241.3 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4129,7 +4266,7 @@
 			)
 		)
 		(property "Description" "U.FL coaxial receptacle, 50 ohm (LoRa antenna)"
-			(at 195.58 50.8 0)
+			(at 241.3 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4148,57 +4285,57 @@
 	)
 	(wire
 		(pts
-			(xy 203.2 48.26)
-			(xy 205.74 48.26)
+			(xy 248.92 48.26)
+			(xy 251.46 48.26)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "8343387a-a46b-e12d-32bc-dc94adedccee")
+		(uuid "bd09a1d7-0784-ebe1-029f-63efaa0f2241")
 	)
 	(wire
 		(pts
-			(xy 203.2 50.8)
-			(xy 205.74 50.8)
+			(xy 248.92 50.8)
+			(xy 251.46 50.8)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "a2f08667-0156-3676-9cad-57dbf12da255")
+		(uuid "4d32213f-28ad-a111-5854-829cbf62715c")
 	)
 	(wire
 		(pts
-			(xy 205.74 48.26)
-			(xy 205.74 50.8)
+			(xy 251.46 48.26)
+			(xy 251.46 50.8)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "bbaddf58-f6e0-98a9-60f4-1fc4dacdba5e")
+		(uuid "100f2825-8f44-2902-2882-072675072a37")
 	)
 	(junction
-		(at 205.74 50.8)
+		(at 251.46 50.8)
 		(diameter 0)
 		(color 0 0 0 0)
-		(uuid "80e63d3b-b369-1d20-f3d4-bf2318d2027c")
+		(uuid "da4ea817-a417-f0a5-c0c1-19542912a4d2")
 	)
 	(wire
 		(pts
-			(xy 205.74 50.8)
-			(xy 210.82 50.8)
+			(xy 251.46 50.8)
+			(xy 256.54 50.8)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "cf42df69-fe23-da74-5d8c-35e51241e37a")
+		(uuid "4295b266-8ad4-1715-ace5-6ad94f32dc7c")
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 210.82 50.8 90)
+		(at 256.54 50.8 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom no)
@@ -4206,7 +4343,7 @@
 		(dnp no)
 		(uuid "49fd97fd-d438-e5ee-8606-85991650432f")
 		(property "Reference" "#PWRFRO006"
-			(at 210.82 47.6 0)
+			(at 256.54 47.6 0)
 			(effects
 				(font
 					(size 1 1)
@@ -4215,7 +4352,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 210.82 54.8 0)
+			(at 256.54 54.8 0)
 			(effects
 				(font
 					(size 1 1)
@@ -4233,18 +4370,18 @@
 	)
 	(wire
 		(pts
-			(xy 187.96 48.26)
-			(xy 185.42 48.26)
+			(xy 233.68 48.26)
+			(xy 231.14 48.26)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "9d39f152-14bc-3f73-e657-3c875e244511")
+		(uuid "f4dda561-6502-7f8d-7098-dd0a3bb994d3")
 	)
 	(global_label "ANT"
 		(shape passive)
-		(at 185.42 48.26 180)
+		(at 231.14 48.26 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -4252,9 +4389,9 @@
 			)
 			(justify right)
 		)
-		(uuid "6b9b2e63-c3e2-22e7-8d3d-3ae7aa0c0633")
+		(uuid "50234988-2785-26ee-b7ab-9582181b7456")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 185.42 48.26 0)
+			(at 231.14 48.26 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4266,7 +4403,7 @@
 	)
 	(symbol
 		(lib_id "og:BGA7L1BN6")
-		(at 231.14 50.8 0)
+		(at 279.4 50.8 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -4274,7 +4411,7 @@
 		(dnp no)
 		(uuid "f1d05e1a-5fae-6b8f-b04b-33c1b91630f4")
 		(property "Reference" "U12"
-			(at 226.06 44.22 0)
+			(at 274.32 44.22 0)
 			(effects
 				(font
 					(size 1 1)
@@ -4283,7 +4420,7 @@
 			)
 		)
 		(property "Value" "BGA7L1BN6E6327XTSA1"
-			(at 226.06 58.38 0)
+			(at 274.32 58.38 0)
 			(effects
 				(font
 					(size 1 1)
@@ -4292,7 +4429,7 @@
 			)
 		)
 		(property "Footprint" "og:TSNP-6_L1.1-W0.7-P0.40-BL"
-			(at 231.14 50.8 0)
+			(at 279.4 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4301,7 +4438,7 @@
 			)
 		)
 		(property "MPN" "BGA7L1BN6E6327XTSA1"
-			(at 231.14 50.8 0)
+			(at 279.4 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4310,7 +4447,7 @@
 			)
 		)
 		(property "Manufacturer" "Infineon Technologies"
-			(at 231.14 50.8 0)
+			(at 279.4 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4319,7 +4456,7 @@
 			)
 		)
 		(property "DigiKey" "BGA7L1BN6E6327XTSA1CT-ND"
-			(at 231.14 50.8 0)
+			(at 279.4 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4328,7 +4465,7 @@
 			)
 		)
 		(property "LCSC" "C534173"
-			(at 231.14 50.8 0)
+			(at 279.4 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4337,7 +4474,7 @@
 			)
 		)
 		(property "Description" "LNA 716-960 MHz, 13.6 dB, NF 0.75 dB, 4.9 mA, with bypass, TSNP-6"
-			(at 231.14 50.8 0)
+			(at 279.4 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4356,57 +4493,57 @@
 	)
 	(wire
 		(pts
-			(xy 238.76 50.8)
-			(xy 241.3 50.8)
+			(xy 287.02 50.8)
+			(xy 289.56 50.8)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "98851d17-c516-7ff5-e661-b46deca90734")
+		(uuid "cfc485a6-dc33-9132-0fb1-62db0dd70d4f")
 	)
 	(wire
 		(pts
-			(xy 238.76 53.34)
-			(xy 241.3 53.34)
+			(xy 287.02 53.34)
+			(xy 289.56 53.34)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "5357a2cf-bcd6-db8b-3c18-be7e04810dbb")
+		(uuid "b12f3bf0-399c-b381-a78e-82f651190d4e")
 	)
 	(wire
 		(pts
-			(xy 241.3 50.8)
-			(xy 241.3 53.34)
+			(xy 289.56 50.8)
+			(xy 289.56 53.34)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "480a7da7-bd8e-9c71-7a40-bffccfefbf59")
+		(uuid "a13d798b-f0e1-214f-8506-078682a20cd8")
 	)
 	(junction
-		(at 241.3 53.34)
+		(at 289.56 53.34)
 		(diameter 0)
 		(color 0 0 0 0)
-		(uuid "e8c4b406-2020-a194-7348-ed893c36e7e2")
+		(uuid "c733648b-ad63-5f8b-39ae-0f6b454ba557")
 	)
 	(wire
 		(pts
-			(xy 241.3 53.34)
-			(xy 246.38 53.34)
+			(xy 289.56 53.34)
+			(xy 294.64 53.34)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "2075363f-7754-9c9f-c8aa-e1e7adb9392b")
+		(uuid "1d4cbd30-1d96-1772-9733-b3aa4b012751")
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 246.38 53.34 90)
+		(at 294.64 53.34 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom no)
@@ -4414,7 +4551,7 @@
 		(dnp no)
 		(uuid "4b929359-98dc-d97b-8260-e15ceea14203")
 		(property "Reference" "#PWRFRO007"
-			(at 246.38 50.14 0)
+			(at 294.64 50.14 0)
 			(effects
 				(font
 					(size 1 1)
@@ -4423,7 +4560,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 246.38 57.34 0)
+			(at 294.64 57.34 0)
 			(effects
 				(font
 					(size 1 1)
@@ -4441,18 +4578,18 @@
 	)
 	(wire
 		(pts
-			(xy 223.52 48.26)
-			(xy 220.98 48.26)
+			(xy 271.78 48.26)
+			(xy 269.24 48.26)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "f28211f5-3c6d-5e25-bb1f-50a4962e32ef")
+		(uuid "e11d7ec2-5805-80e8-aa35-872d3c4e3c37")
 	)
 	(global_label "LNA_AI"
 		(shape passive)
-		(at 220.98 48.26 180)
+		(at 269.24 48.26 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -4460,9 +4597,9 @@
 			)
 			(justify right)
 		)
-		(uuid "72dfbe06-5553-326a-d320-2ccaa3e870cd")
+		(uuid "5a2f842a-9234-0827-f57e-78a448b1eef0")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 220.98 48.26 0)
+			(at 269.24 48.26 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4474,18 +4611,18 @@
 	)
 	(wire
 		(pts
-			(xy 223.52 50.8)
-			(xy 218.44 50.8)
+			(xy 271.78 50.8)
+			(xy 266.7 50.8)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "f306435d-4b8b-6bd7-fb14-314c803b90b4")
+		(uuid "dbfffc4c-0df7-3a4b-4c4c-c5cb10b6c736")
 	)
 	(symbol
 		(lib_id "og_power:3V3")
-		(at 218.44 50.8 90)
+		(at 266.7 50.8 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom no)
@@ -4493,7 +4630,7 @@
 		(dnp no)
 		(uuid "fccc14de-2994-32a4-a0ee-f469453fa281")
 		(property "Reference" "#PWRFRO008"
-			(at 218.44 47.6 0)
+			(at 266.7 47.6 0)
 			(effects
 				(font
 					(size 1 1)
@@ -4503,7 +4640,7 @@
 			)
 		)
 		(property "Value" "3V3"
-			(at 214.94 50.8 0)
+			(at 263.2 50.8 0)
 			(effects
 				(font
 					(size 1 1)
@@ -4522,18 +4659,18 @@
 	)
 	(wire
 		(pts
-			(xy 223.52 53.34)
-			(xy 220.98 53.34)
+			(xy 271.78 53.34)
+			(xy 269.24 53.34)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "5f539766-24f1-c89e-da0f-73429d33de88")
+		(uuid "daa564b3-ef43-cab0-e834-dc07d80c5b8f")
 	)
 	(global_label "LNA_EN"
 		(shape passive)
-		(at 220.98 53.34 180)
+		(at 269.24 53.34 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -4541,9 +4678,9 @@
 			)
 			(justify right)
 		)
-		(uuid "3ac13105-6a75-1b19-91d2-8091231a692a")
+		(uuid "ec56405a-8ab7-9430-664c-80a80a06a028")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 220.98 53.34 0)
+			(at 269.24 53.34 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4555,18 +4692,18 @@
 	)
 	(wire
 		(pts
-			(xy 238.76 48.26)
-			(xy 241.3 48.26)
+			(xy 287.02 48.26)
+			(xy 289.56 48.26)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "09d96d84-ca95-887e-a3ef-1130555ef45f")
+		(uuid "183e4bb8-8cca-b73d-d934-7627b4ce141e")
 	)
 	(global_label "LNA_OUT"
 		(shape passive)
-		(at 241.3 48.26 0)
+		(at 289.56 48.26 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -4574,9 +4711,198 @@
 			)
 			(justify left)
 		)
-		(uuid "4b461cdb-a1b8-cb83-0149-d534b06f5322")
+		(uuid "2fce29db-a51a-9ae5-24cd-c529e8147e2b")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 241.3 48.26 0)
+			(at 289.56 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(symbol
+		(lib_id "og:BAT68_04W")
+		(at 322.58 50.8 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "2543728e-db07-4e9f-04bd-42e5b2f02d91")
+		(property "Reference" "D12"
+			(at 314.96 44.22 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "BAT6804WH6327XTSA1"
+			(at 314.96 55.84 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "og:SOT-323"
+			(at 322.58 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "BAT6804WH6327XTSA1"
+			(at 322.58 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "Infineon Technologies"
+			(at 322.58 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "BAT6804WH6327XTSA1CT-ND"
+			(at 322.58 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C6129734"
+			(at 322.58 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "RF Schottky diode pair (series) 8 V, CT <= 1 pF, VF 318 mV at 1 mA, SOT-323 (detector: D1 only)"
+			(at 322.58 50.8 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
+					(reference "D12")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 312.42 48.26)
+			(xy 309.88 48.26)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ec701193-8dbf-0269-1fd1-1c38bff7199f")
+	)
+	(global_label "REFL_CPL"
+		(shape passive)
+		(at 309.88 48.26 180)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right)
+		)
+		(uuid "4830f956-c91e-7dff-3013-f460e520379e")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 309.88 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+				(hide yes)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 332.74 48.26)
+			(xy 335.28 48.26)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "bbd86d6f-ee72-fe99-869a-4d9241549c8a")
+	)
+	(global_label "FWD_DET"
+		(shape passive)
+		(at 335.28 48.26 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "40c9b693-688e-0ee7-2e21-e2f17c473bac")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 335.28 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 332.74 50.8)
+			(xy 335.28 50.8)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f360e652-e774-f468-4761-ce26bd01b732")
+	)
+	(global_label "FWD_DET"
+		(shape passive)
+		(at 335.28 50.8 0)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "feb4c7df-a2d8-d625-ce26-ffda5126c951")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 335.28 50.8 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9960,7 +10286,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "og:R_0402"
+		(property "Footprint" "og:R_0805"
 			(at 63.5 157.48 0)
 			(effects
 				(font
@@ -9969,7 +10295,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "RC0402FR-0749R9L"
+		(property "MPN" "CRCW080549R9FKEAHP"
 			(at 63.5 157.48 0)
 			(effects
 				(font
@@ -9978,7 +10304,7 @@
 				(hide yes)
 			)
 		)
-		(property "Manufacturer" "Yageo"
+		(property "Manufacturer" "Vishay Dale"
 			(at 63.5 157.48 0)
 			(effects
 				(font
@@ -9987,7 +10313,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "311-49.9LRCT-ND"
+		(property "DigiKey" "541-49.9TCT-ND"
 			(at 63.5 157.48 0)
 			(effects
 				(font
@@ -9996,7 +10322,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C87044"
+		(property "LCSC" "C4088942"
 			(at 63.5 157.48 0)
 			(effects
 				(font
@@ -10005,7 +10331,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Resistor 49.9R 1% 0402"
+		(property "Description" "Resistor 49.9R 1% 0.5 W pulse-proof 0805"
 			(at 63.5 157.48 0)
 			(effects
 				(font
@@ -10968,6 +11294,344 @@
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
 					(reference "#PWRFRO056")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 139.7 157.48 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "4b829ffa-b19e-5f7b-0e37-b0d730ccbe2f")
+		(property "Reference" "C99"
+			(at 141.5 156.48 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "1nF"
+			(at 141.5 159.08 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "og:C_0402"
+			(at 139.7 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "GRM1555C1H102JA01D"
+			(at 139.7 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "Murata"
+			(at 139.7 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "490-3244-1-ND"
+			(at 139.7 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C76947"
+			(at 139.7 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Capacitor 1nF 50V C0G 0402"
+			(at 139.7 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
+					(reference "C99")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 139.7 153.67)
+			(xy 139.7 151.13)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "79dddea1-f2e0-6fd4-06bf-859952322dff")
+	)
+	(global_label "FWD_DET"
+		(shape passive)
+		(at 139.7 151.13 90)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "27ef1dd4-cfd6-5eb4-4e44-884a976182d4")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 139.7 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 139.7 161.29)
+			(xy 139.7 166.37)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0d7de397-f108-06f9-1cea-86e5316fba36")
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 139.7 166.37 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "503fdeca-991f-2c65-b972-0dbd1f4f6790")
+		(property "Reference" "#PWRFRO057"
+			(at 139.7 163.17 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 139.7 170.37 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
+					(reference "#PWRFRO057")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 152.4 157.48 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "7e205251-9953-1c7c-c828-5a0654801ee2")
+		(property "Reference" "R74"
+			(at 154.2 156.48 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "100k"
+			(at 154.2 159.08 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "og:R_0402"
+			(at 152.4 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "MPN" "RC0402FR-07100KL"
+			(at 152.4 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Manufacturer" "Yageo"
+			(at 152.4 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "DigiKey" "311-100KLRCT-ND"
+			(at 152.4 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "LCSC" "C60491"
+			(at 152.4 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor 100k 1% 0402"
+			(at 152.4 157.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
+					(reference "R74")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 152.4 153.67)
+			(xy 152.4 151.13)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "39e39c65-8272-da88-79c9-2bdf9740f593")
+	)
+	(global_label "FWD_DET"
+		(shape passive)
+		(at 152.4 151.13 90)
+		(fields_autoplaced yes)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "046bb42d-c87d-926f-733a-ff003f9021e2")
+		(property "Intersheetrefs" "${INTERSHEET_REFS}"
+			(at 152.4 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+				(hide yes)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 152.4 161.29)
+			(xy 152.4 166.37)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7e5a2824-0679-b854-234b-54988ee2e27b")
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 152.4 166.37 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom no)
+		(on_board no)
+		(dnp no)
+		(uuid "bf0b65f5-57dd-d7fd-0c72-5e4723eb346c")
+		(property "Reference" "#PWRFRO058"
+			(at 152.4 163.17 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 152.4 170.37 0)
+			(effects
+				(font
+					(size 1 1)
+				)
+			)
+		)
+		(instances
+			(project "mesh-radio"
+				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
+					(reference "#PWRFRO058")
 					(unit 1)
 				)
 			)
@@ -12514,162 +13178,8 @@
 		)
 	)
 	(symbol
-		(lib_id "og_device:D_Schottky_BAT15")
-		(at 121.92 193.04 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "530cbd95-8693-7897-63d7-efe7696747f6")
-		(property "Reference" "D9"
-			(at 121.92 190.44 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-			)
-		)
-		(property "Value" "BAT15-02EL"
-			(at 121.92 196.04 0)
-			(effects
-				(font
-					(size 1 1)
-				)
-			)
-		)
-		(property "Footprint" "og:TSLP-2-19_L1.0-W0.6-P0.65-RD"
-			(at 121.92 193.04 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "MPN" "BAT1502ELE6327XTMA1"
-			(at 121.92 193.04 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Manufacturer" "Infineon Technologies"
-			(at 121.92 193.04 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "DigiKey" "BAT1502ELE6327XTMA1CT-ND"
-			(at 121.92 193.04 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "LCSC" "C533619"
-			(at 121.92 193.04 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "RF Schottky detector diode, TSLP-2"
-			(at 121.92 193.04 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(instances
-			(project "mesh-radio"
-				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
-					(reference "D9")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 118.11 193.04)
-			(xy 115.57 193.04)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "377253cc-0383-0454-57d2-f8128429849b")
-	)
-	(global_label "REFL_DET"
-		(shape passive)
-		(at 115.57 193.04 180)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right)
-		)
-		(uuid "a4afcbfb-4566-487a-8ba6-52e1b38cc7a2")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 115.57 193.04 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify right)
-				(hide yes)
-			)
-		)
-	)
-	(wire
-		(pts
-			(xy 125.73 193.04)
-			(xy 128.27 193.04)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "2583e086-e1f9-8c37-f9d9-929f53eced1d")
-	)
-	(global_label "REFL_CPL"
-		(shape passive)
-		(at 128.27 193.04 0)
-		(fields_autoplaced yes)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left)
-		)
-		(uuid "180f5f5d-2d35-f000-67d9-af710485332d")
-		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 128.27 193.04 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(justify left)
-				(hide yes)
-			)
-		)
-	)
-	(symbol
 		(lib_id "Device:C")
-		(at 165.1 193.04 90)
+		(at 119.38 193.04 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12677,7 +13187,7 @@
 		(dnp no)
 		(uuid "d8a8d4c5-264a-3020-2ef9-d4ecb3cfc72a")
 		(property "Reference" "C83"
-			(at 165.1 190.44 0)
+			(at 119.38 190.44 0)
 			(effects
 				(font
 					(size 1 1)
@@ -12685,7 +13195,7 @@
 			)
 		)
 		(property "Value" "1nF"
-			(at 165.1 196.04 0)
+			(at 119.38 196.04 0)
 			(effects
 				(font
 					(size 1 1)
@@ -12693,7 +13203,7 @@
 			)
 		)
 		(property "Footprint" "og:C_0402"
-			(at 165.1 193.04 0)
+			(at 119.38 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12702,7 +13212,7 @@
 			)
 		)
 		(property "MPN" "GRM1555C1H102JA01D"
-			(at 165.1 193.04 0)
+			(at 119.38 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12711,7 +13221,7 @@
 			)
 		)
 		(property "Manufacturer" "Murata"
-			(at 165.1 193.04 0)
+			(at 119.38 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12720,7 +13230,7 @@
 			)
 		)
 		(property "DigiKey" "490-3244-1-ND"
-			(at 165.1 193.04 0)
+			(at 119.38 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12729,7 +13239,7 @@
 			)
 		)
 		(property "LCSC" "C76947"
-			(at 165.1 193.04 0)
+			(at 119.38 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12738,7 +13248,7 @@
 			)
 		)
 		(property "Description" "Capacitor 1nF 50V C0G 0402"
-			(at 165.1 193.04 0)
+			(at 119.38 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12757,18 +13267,18 @@
 	)
 	(wire
 		(pts
-			(xy 161.29 193.04)
-			(xy 158.75 193.04)
+			(xy 115.57 193.04)
+			(xy 113.03 193.04)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "62629a25-c6c4-480e-8f7b-e48ccea25395")
+		(uuid "1fafc70b-b8e9-715e-114c-e5c0597d1a24")
 	)
 	(global_label "RX_SW"
 		(shape passive)
-		(at 158.75 193.04 180)
+		(at 113.03 193.04 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -12776,9 +13286,9 @@
 			)
 			(justify right)
 		)
-		(uuid "780dcf4c-b463-e13d-fa2f-00d05b5ae833")
+		(uuid "6a439179-8b20-e1ba-a907-aa43a5796f63")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 158.75 193.04 0)
+			(at 113.03 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12790,18 +13300,18 @@
 	)
 	(wire
 		(pts
-			(xy 168.91 193.04)
-			(xy 171.45 193.04)
+			(xy 123.19 193.04)
+			(xy 125.73 193.04)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "ed03cdbd-0eeb-c7eb-5b97-d7066bfe9380")
+		(uuid "1fbab353-da47-dbd5-688f-caf5adf43553")
 	)
 	(global_label "LNA_INM"
 		(shape passive)
-		(at 171.45 193.04 0)
+		(at 125.73 193.04 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -12809,9 +13319,9 @@
 			)
 			(justify left)
 		)
-		(uuid "ed4414cb-3538-26d7-a97a-ca81708ba6f1")
+		(uuid "7089b969-e099-35b1-b6bc-fa1bc80e22f4")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 171.45 193.04 0)
+			(at 125.73 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12823,7 +13333,7 @@
 	)
 	(symbol
 		(lib_id "Device:L")
-		(at 208.28 193.04 90)
+		(at 162.56 193.04 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -12831,7 +13341,7 @@
 		(dnp no)
 		(uuid "7501112d-8d8f-deba-c25f-a786260091c8")
 		(property "Reference" "L19"
-			(at 208.28 190.44 0)
+			(at 162.56 190.44 0)
 			(effects
 				(font
 					(size 1 1)
@@ -12839,7 +13349,7 @@
 			)
 		)
 		(property "Value" "11nH"
-			(at 208.28 196.04 0)
+			(at 162.56 196.04 0)
 			(effects
 				(font
 					(size 1 1)
@@ -12847,7 +13357,7 @@
 			)
 		)
 		(property "Footprint" "og:L_0402"
-			(at 208.28 193.04 0)
+			(at 162.56 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12856,7 +13366,7 @@
 			)
 		)
 		(property "MPN" "LQW15AN11NJ00D"
-			(at 208.28 193.04 0)
+			(at 162.56 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12865,7 +13375,7 @@
 			)
 		)
 		(property "Manufacturer" "Murata"
-			(at 208.28 193.04 0)
+			(at 162.56 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12874,7 +13384,7 @@
 			)
 		)
 		(property "DigiKey" "490-6766-1-ND"
-			(at 208.28 193.04 0)
+			(at 162.56 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12883,7 +13393,7 @@
 			)
 		)
 		(property "LCSC" "C167465"
-			(at 208.28 193.04 0)
+			(at 162.56 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12892,7 +13402,7 @@
 			)
 		)
 		(property "Description" "Inductor 11nH 0402 wire-wound RF"
-			(at 208.28 193.04 0)
+			(at 162.56 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12911,18 +13421,18 @@
 	)
 	(wire
 		(pts
-			(xy 204.47 193.04)
-			(xy 201.93 193.04)
+			(xy 158.75 193.04)
+			(xy 156.21 193.04)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "9c09ea2d-7d67-7844-7ed9-2a1d3d690533")
+		(uuid "038f948a-7e4f-c2a2-fb1f-81d77877d305")
 	)
 	(global_label "LNA_INM"
 		(shape passive)
-		(at 201.93 193.04 180)
+		(at 156.21 193.04 180)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -12930,9 +13440,9 @@
 			)
 			(justify right)
 		)
-		(uuid "a030072e-9b4e-bc0c-2a1f-f486551d23ba")
+		(uuid "2169da8f-aeb1-30d3-6b0f-30362dcb2db3")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 201.93 193.04 0)
+			(at 156.21 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -12944,18 +13454,18 @@
 	)
 	(wire
 		(pts
-			(xy 212.09 193.04)
-			(xy 214.63 193.04)
+			(xy 166.37 193.04)
+			(xy 168.91 193.04)
 		)
 		(stroke
 			(width 0)
 			(type default)
 		)
-		(uuid "b45da689-1218-571d-fb5b-3382ced78ebe")
+		(uuid "cf77516f-d756-64c2-31a4-be89225f8f47")
 	)
 	(global_label "LNA_AI"
 		(shape passive)
-		(at 214.63 193.04 0)
+		(at 168.91 193.04 0)
 		(fields_autoplaced yes)
 		(effects
 			(font
@@ -12963,9 +13473,9 @@
 			)
 			(justify left)
 		)
-		(uuid "e5580582-24b1-8cf6-0e5d-9fcb929978ba")
+		(uuid "7127c586-a1d6-833c-5065-ca2012036714")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
-			(at 214.63 193.04 0)
+			(at 168.91 193.04 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13016,8 +13526,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "c1f4d942-2986-54d3-2b93-957308b6bfac")
-		(property "Reference" "#FLGFRO57"
+		(uuid "8669575c-dd32-4777-db87-5d508af36d37")
+		(property "Reference" "#FLGFRO59"
 			(at 15.24 210.16 0)
 			(effects
 				(font
@@ -13037,7 +13547,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
-					(reference "#FLGFRO57")
+					(reference "#FLGFRO59")
 					(unit 1)
 				)
 			)
@@ -13084,8 +13594,8 @@
 		(in_bom no)
 		(on_board no)
 		(dnp no)
-		(uuid "a4602f2a-f9cf-e1bd-2f86-fe843106f519")
-		(property "Reference" "#FLGFRO58"
+		(uuid "6741a6f7-f076-edc6-8f85-48a311f62460")
+		(property "Reference" "#FLGFRO60"
 			(at 45.72 210.16 0)
 			(effects
 				(font
@@ -13105,7 +13615,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
-					(reference "#FLGFRO58")
+					(reference "#FLGFRO60")
 					(unit 1)
 				)
 			)

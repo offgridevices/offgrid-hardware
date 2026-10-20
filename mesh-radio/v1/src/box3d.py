@@ -19,6 +19,9 @@ BOXES = {
     # Toshiba SSM10N954L, TCSPED-302701 chip-scale package: about
     # 3.0 x 1.7 mm, 0.11 mm thick (approximate: the lands span 2.82 x 1.26)
     'BOX_TCSPED-302701': (2.98, 1.68, 0.11),
+    # Infineon PG-SOT323 (BAT68-04W): body 1.25 x 2.0 mm (leads along x, as
+    # KiCad's SOT-323_SC-70 footprint), 0.9 mm high (Infineon package outline)
+    'BOX_SOT-323': (1.25, 2.0, 0.9),
 }
 
 

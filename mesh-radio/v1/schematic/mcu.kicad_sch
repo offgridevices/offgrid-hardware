@@ -3909,7 +3909,7 @@
 		)
 		(uuid "06914ba0-68dd-7f55-028b-d8d5256300bf")
 	)
-	(global_label "PA_SRC_SYS"
+	(global_label "FWD_DET"
 		(shape passive)
 		(at 74.93 48.26 0)
 		(fields_autoplaced yes)
@@ -3919,7 +3919,7 @@
 			)
 			(justify left)
 		)
-		(uuid "50643338-1164-0c56-e041-77c8bacf3407")
+		(uuid "0dd1f827-72a0-70a7-685f-02e5071dc4d1")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 74.93 48.26 0)
 			(effects
@@ -5163,7 +5163,7 @@
 		)
 		(uuid "a84b6f74-e586-85e9-cdfd-1a921c0ddefd")
 	)
-	(global_label "GPS_RESET"
+	(global_label "PA_SRC_SYS"
 		(shape passive)
 		(at 74.93 147.32 0)
 		(fields_autoplaced yes)
@@ -5173,7 +5173,7 @@
 			)
 			(justify left)
 		)
-		(uuid "56ef4cef-3397-8666-74e6-34b19d12a89c")
+		(uuid "cf7bedb3-ef99-4a00-20c5-754e0b582374")
 		(property "Intersheetrefs" "${INTERSHEET_REFS}"
 			(at 74.93 147.32 0)
 			(effects

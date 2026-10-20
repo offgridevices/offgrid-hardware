@@ -96,6 +96,7 @@ def build():
     global COMPS, _count
     COMPS, _count = [], {}
     inputs(); charger(); system(); mcu(); radio(); frontend(); pa_power(); ports()
+    detector_fwd()
     return COMPS
 
 
@@ -314,7 +315,7 @@ def mcu():
     _block[0] = 'mcu'
     gpio = {
         'D2': 'XL1', 'F2': 'XL2',
-        'A12': 'PA_SRC_SYS', 'B13': 'DRONE_OK', 'J1': 'SOLAR_OK', 'K2': 'VBAT_SENSE',
+        'A12': 'FWD_DET', 'B13': 'DRONE_OK', 'J1': 'SOLAR_OK', 'K2': 'VBAT_SENSE',
         'L1': 'TEMP_ALERT', 'M2': 'DISP_SCK', 'N1': 'DISP_MOSI', 'L24': 'CHG_CE_N', 'J24': 'IO6',
         'T2': 'DISP_MISO', 'U1': 'DISP_CS', 'AD8': 'I2C_SDA', 'AC9': 'I2C_SCL',
         'AD10': 'DRONE_RX', 'AC11': 'DRONE_TX', 'AD12': 'GPS_PPS', 'AC13': 'NRF_RESET',
@@ -322,7 +323,7 @@ def mcu():
         'AD20': 'CHG_STAT1', 'AC21': 'CHG_STAT2', 'G1': 'DISP_DC', 'H2': 'DISP_RST',
         'B11': 'IO1', 'A10': 'IO2', 'B9': 'REFL_DET', 'A8': 'CHG_TS',
         'AD22': 'BTN_USER', 'Y23': 'PA_PWR_EN', 'W24': 'IO5', 'V23': 'LED_GREEN', 'U24': 'LED_BLUE',
-        'T23': 'LNA_EN', 'R24': 'LORA_NRESET', 'P23': 'PA_EN', 'P2': 'DISP_BL', 'R1': 'GPS_RESET',
+        'T23': 'LNA_EN', 'R24': 'LORA_NRESET', 'P23': 'PA_EN', 'P2': 'DISP_BL', 'R1': 'PA_SRC_SYS',
         'A20': 'LORA_NSS', 'B19': 'LORA_SCK', 'B17': 'LORA_MOSI', 'A16': 'LORA_MISO', 'B15': 'LORA_BUSY',
         'A14': 'LORA_DIO1',
     }
@@ -437,11 +438,26 @@ def frontend():
     # antenna path: LFCG-1000+ low-pass, 47 nH shunt to ground (ESD, ~transparent at 915 MHz), U.FL
     add('FL', 'LFCG1000', {'8': 'ANT_SW', '4': 'ANT', '1': GND, '2': GND, '3': GND, '5': GND, '6': GND, '7': GND},
         note='antenna low-pass')
-    # missing-antenna detector: a printed line beside the ANT line (layout.py),
-    # terminated in 49.9 R at its filter end; at its U.FL end the reflected
-    # wave is rectified into REFL_DET (P0.30, AIN6).  With the antenna off, firmware
-    # sees it ~1 ms into a packet and cuts the amplifier (sim/rf follow-up).
-    R('R49.9R', 'REFL_CPL'); add('D', 'BAT15', {'2': 'REFL_CPL', '1': 'REFL_DET'}, note='reflected-wave detector')
+    # missing-antenna detector, a ratio detector: a printed line beside the ANT
+    # line (layout.py: 5.5 mm, 0.10 mm gap), terminated in 49.9 R at BOTH ends.
+    # REFL_CPL is one net, but where each part sits on that line matters:
+    #   - this 49.9 R and the FORWARD diode (FWD_DET, P0.02/AIN0, added in
+    #     detector_fwd() below) sit at the coupled line's FILTER end, where the
+    #     forward wave couples;
+    #   - the REFLECTED diode (REFL_DET, P0.30/AIN6), here, and the second 49.9 R
+    #     (detector_fwd()) sit at its U.FL end.
+    # Swapping the ends swaps the two readings.  Firmware compares REFL_DET with
+    # FWD_DET (sim/rf study 8), so cable length and the amplifier's own power
+    # cancel.  The second 49.9 R is what makes the forward reading clean: with
+    # the U.FL end left to the diode alone (high impedance) the reflected wave's
+    # coupled copy bounces off it back to the forward diode and, at some cable
+    # lengths, cancels the forward reading (sim/rf, 20 Oct).  BAT68-04W: Infineon 8 V Schottky series pair, only D1 used (pin 2
+    # tied to pin 3 shorts D2); the BAT15's 4 V was exceeded with the antenna
+    # off.  The 49.9 R is an 0805 0.5 W pulse-proof part (85 mW with the
+    # antenna off).
+    R('R49.9R_0805', 'REFL_CPL', note='coupler termination: at the filter end')
+    add('D', 'BAT68_04W', {'1': 'REFL_CPL', '3': 'REFL_DET', '2': 'REFL_DET'},
+        note='reflected-wave detector: at the U.FL end of the coupled line')
     C('C1n', 'REFL_DET'); R('R100k', 'REFL_DET')
     L('L47nH', 'ANT', GND, note='antenna ESD shunt')
     add('J', 'UFL', {'1': 'ANT', '2': GND, '3': GND}, note='LoRa antenna')
@@ -459,7 +475,7 @@ def pa_power():
     # switched the mux over, and its 100 us gap reset the TPS63810
     # (sim/burst).  IN2 = charger SYS.  With no cell fitted the charger
     # holds BAT_P up and the mux would pick it: firmware then sets
-    # PA_SRC_SYS (P0.02), whose N-FET pulls PR1 low so IN2 is used.  OV1/OV2 pulled up = both inputs off; the N-FET pulls
+    # PA_SRC_SYS (P1.09), whose N-FET pulls PR1 low so IN2 is used.  OV1/OV2 pulled up = both inputs off; the N-FET pulls
     # them low while the amplifier is enabled (PA_PWR_EN), so its 0.3 mA runs
     # only when firmware wants the amplifier.  ILM 22.1 k -> 4.5 A; ST unused
     # (grounded, per the datasheet).
@@ -515,11 +531,17 @@ def ports():
                             '6': None, '7': None, '9': None, '10': None}, note='drone ESD')
     # GPS add-on, JST-SH 6: 1 3V3 (switched), 2 GPS TX, 3 GPS RX, 4 PPS, 5 RESET, 6 GND.
     # Firmware sets these pins to inputs whenever GPS power is off, so the
-    # processor never feeds an unpowered module through its pins.
+    # processor never feeds an unpowered module through its pins.  Pin 5 is
+    # not wired to the processor (P1.09 went to PA_SRC_SYS, P0.02 to the
+    # antenna detector): 100 k to the switched 3V3_GPS holds a module's
+    # active-low RESET released (a module without its own pull-up would
+    # otherwise float in and out of reset), costs nothing with GPS off (no
+    # back-feed: the pull-up's supply is off too) and is harmless to a module
+    # that uses pin 5 as an output.  It stays on the ESD array.
     add('J', 'JST_SH6', {'1': '3V3_GPS', '2': 'GPS_P2', '3': 'GPS_P3', '4': 'GPS_P4', '5': 'GPS_P5', '6': GND,
                          '7': None, '8': None}, note='GPS add-on')
     R('R470R', 'GPS_P2', 'GPS_RX'); R('R470R', 'GPS_TX', 'GPS_P3')
-    R('R470R', 'GPS_P4', 'GPS_PPS'); R('R470R', 'GPS_RESET', 'GPS_P5')
+    R('R470R', 'GPS_P4', 'GPS_PPS'); R('R100k', 'GPS_P5', '3V3_GPS', note='GPS RESET held released')
     add('D', 'TPD4E05U06', {'1': 'GPS_P2', '2': 'GPS_P3', '4': 'GPS_P4', '5': 'GPS_P5', '3': GND, '8': GND,
                             '6': None, '7': None, '9': None, '10': None}, note='GPS ESD')
     add('U', 'TPS22916', {'A2': '3V3', 'B2': 'GPS_EN', 'A1': '3V3_GPS', 'B1': GND}, note='GPS power switch')
@@ -535,3 +557,17 @@ def ports():
     add('SW', 'SKRP', {'1': 'BTN_USER', '2': 'BTN_USER', '3': GND, '4': GND}, note='user')
     R('R1k', 'LED_GREEN', 'LED_G_A'); add('LED', 'LED_G', {'2': 'LED_G_A', '1': GND}, note='green')
     R('R220R', 'LED_BLUE', 'LED_B_A'); add('LED', 'LED_B', {'2': 'LED_B_A', '1': GND}, note='blue')
+
+
+def detector_fwd():
+    """The missing-antenna detector's forward diode (frontend page).  Built last
+    so the parts added on 20 Oct take new reference numbers and every existing
+    part (and src/placement.json) keeps its own."""
+    _block[0] = 'frontend'
+    # forward wave: anode on REFL_CPL AT THE 49.9 R (filter end of the coupled
+    # line), its own 1 nF + 100 k, into P0.02/AIN0
+    add('D', 'BAT68_04W', {'1': 'REFL_CPL', '3': 'FWD_DET', '2': 'FWD_DET'},
+        note='forward-wave detector: at the 49.9 R (filter end of the coupled line)')
+    C('C1n', 'FWD_DET'); R('R100k', 'FWD_DET')
+    # the coupled line's U.FL end: its own 49.9 R, beside the reflected diode
+    R('R49.9R_0805', 'REFL_CPL', note='coupler termination: at the U.FL end, by the reflected diode')

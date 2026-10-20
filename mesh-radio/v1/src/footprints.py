@@ -543,12 +543,18 @@ STD = {
     'R_0603': ('Resistor_SMD', 'R_0603_1608Metric'),
     'R_0805': ('Resistor_SMD', 'R_0805_2012Metric'),
     'R_1206': ('Resistor_SMD', 'R_1206_3216Metric'),
+    # Infineon BAT68-04W (PG-SOT323): pads 1 and 2 on one side, 3 alone on the
+    # other, as Infineon's pin diagram; KiCad's IPC land pattern
+    'SOT-323': ('Package_TO_SOT_SMD', 'SOT-323_SC-70'),
     'L_0402': ('Inductor_SMD', 'L_0402_1005Metric'),
     'L_0603': ('Inductor_SMD', 'L_0603_1608Metric'),
     'L_0805': ('Inductor_SMD', 'L_0805_2012Metric'),
     'TestPoint_Pad_1.0mm': ('TestPoint', 'TestPoint_Pad_D1.0mm'),
     'MountingHole_2.2mm_M2_Pad': ('MountingHole', 'MountingHole_2.2mm_M2_Pad'),
 }
+
+# KiCad footprints whose 3D model is not in the image: a box from box3d.py instead
+STD_MODEL = {'SOT-323': 'BOX_SOT-323'}
 
 def _model_path(fn):
     return fn.replace('${KICAD10_3DMODEL_DIR}', KIMOD)
@@ -594,8 +600,11 @@ def std_fp(name, lib, kname):
                 mdl.m_Filename = alt
         models.append(mdl)
     fp.Models().clear()
-    for mdl in models:
-        fp.Models().append(mdl)
+    if name in STD_MODEL:
+        _model(fp, '${KIPRJMOD}/og.3dshapes/%s.stpZ' % STD_MODEL[name])
+    else:
+        for mdl in models:
+            fp.Models().append(mdl)
     fp.SetLibDescription(fp.GetLibDescription() + ' (KiCad %s:%s; no silkscreen; courtyard 0.10 mm)' % (lib, kname))
     return fp
 
