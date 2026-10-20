@@ -40,6 +40,7 @@ def plane_fanout(path):
     b = pcbnew.LoadBoard(path)
     ball_escapes(b)
     outer_escapes(b)
+    join_pads(b)
     # no via within POFV's 0.45 mm of a part's drilled hole (the plug pegs,
     # the header pins): a ring round each, for the fan-out only
     tmp = []
@@ -65,6 +66,61 @@ def plane_fanout(path):
     b.Save(path)
     log('plane fan-out: %d vias, %d ground pads with no via of their own %s' % (n, len(failed), failed[:12]))
     return failed
+
+
+def join_pads(b, reach=1.6, log=log):
+    """A part's neighbouring pads of one supply or signal net (a power
+    FET's drain pins, a regulator's paired inputs) joined on their own
+    layer before routing, as a designer would: Freerouting left most of
+    these clusters unjoined (12 of the 72 gaps after the first round were
+    the CSD25310Q2's own BAT_P pins).  For each part and net, a minimum
+    spanning tree of its pads, edges up to `reach` mm, each a track as wide
+    as the narrower pad (at most the net's class width) that clears every
+    other net by 0.12 mm.  Ground (the planes) and RF nets are left out."""
+    import fanout
+    from shapely.geometry import LineString
+    layers = [l for l in b.GetEnabledLayers().CuStack()]
+    obs = fanout.Obstacles(b, layers)
+    want = {n: board.HEAVY_ROUTE_W for n in board.HEAVY}
+    want.update({n: board.POWER_ROUTE_W for n in board.POWER})
+    skip = set(PLANES) | set(board.RF_NETS) | set(board.RF_EXTRA)
+    n_ = 0
+    for fp in b.GetFootprints():
+        groups = {}
+        for p in fp.Pads():
+            net = p.GetNetname()
+            if not net or net in skip or p.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
+                continue
+            L = pcbnew.F_Cu if p.IsOnLayer(pcbnew.F_Cu) else pcbnew.B_Cu
+            groups.setdefault((net, L), []).append(p)
+        for (net, L), ps in groups.items():
+            if len(ps) < 2:
+                continue
+            xy = [(p.GetPosition().x / 1e6, p.GetPosition().y / 1e6) for p in ps]
+            sz = [min(p.GetSize().x, p.GetSize().y) / 1e6 for p in ps]
+            # Prim's tree over the pads
+            inn, edges = {0}, []
+            while len(inn) < len(ps):
+                best = min(((i, j) for i in inn for j in range(len(ps)) if j not in inn),
+                           key=lambda e: (xy[e[0]][0] - xy[e[1]][0]) ** 2 + (xy[e[0]][1] - xy[e[1]][1]) ** 2)
+                inn.add(best[1]); edges.append(best)
+            for i, j in edges:
+                (x0, y0), (x1, y1) = xy[i], xy[j]
+                if (x1 - x0) ** 2 + (y1 - y0) ** 2 > reach ** 2:
+                    continue
+                w = min(sz[i], sz[j], want.get(net, board.SIG if net != '3V3' else 0.15))
+                g = LineString([(x0, y0), (x1, y1)]).buffer(w / 2)
+                if not obs.clear(g, net, [L], 0.12):
+                    continue
+                t = pcbnew.PCB_TRACK(b)
+                t.SetStart(pcbnew.VECTOR2I(int(x0 * 1e6), int(y0 * 1e6)))
+                t.SetEnd(pcbnew.VECTOR2I(int(x1 * 1e6), int(y1 * 1e6)))
+                t.SetWidth(pcbnew.FromMM(w)); t.SetLayer(L); t.SetNet(ps[i].GetNet()); t.SetLocked(True)
+                b.Add(t)
+                obs.add(g, net, [L])
+                n_ += 1
+    log('pad joins: %d tracks between a part\'s own pads of one net' % n_)
+    return n_
 
 
 def outer_escapes(b, refs=('NRF52840',), log=log):
