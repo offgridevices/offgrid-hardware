@@ -19,7 +19,7 @@ RUN apt-get update -qq \
 RUN pip3 install --break-system-packages -q numpy shapely Pillow matplotlib pypdf \
       uharfbuzz fonttools pymupdf scipy scikit-image kikit \
  && pip3 install --break-system-packages -q --no-deps gerbonara
-# 3D models of the standard R/C chips, for the renders: only these files
+# 3D models of the standard R/C chips and the 3 x 3 QFN-16, for the renders: only these files
 # out of Debian's kicad-packages3d (apt checks the package against its
 # signed index)
 RUN cd /tmp && apt-get update -qq && apt-get download -qq kicad-packages3d \
@@ -30,6 +30,9 @@ RUN cd /tmp && apt-get update -qq && apt-get download -qq kicad-packages3d \
       ./usr/share/kicad/3dmodels/Capacitor_SMD.3dshapes/C_0402_1005Metric.step \
       ./usr/share/kicad/3dmodels/Capacitor_SMD.3dshapes/C_0603_1608Metric.step \
       ./usr/share/kicad/3dmodels/Capacitor_SMD.3dshapes/C_0805_2012Metric.step \
+      ./usr/share/kicad/3dmodels/Capacitor_SMD.3dshapes/C_1206_3216Metric.step \
+      ./usr/share/kicad/3dmodels/Resistor_SMD.3dshapes/R_1206_3216Metric.step \
+      ./usr/share/kicad/3dmodels/Package_DFN_QFN.3dshapes/QFN-16-1EP_3x3mm_P0.5mm_EP1.7x1.7mm.step \
  && rm kicad-packages3d_*.deb && rm -rf /var/lib/apt/lists/*
 ENV KICAD10_3DMODEL_DIR=/usr/share/kicad/3dmodels
 COPY freerouting-1.9.0.jar /opt/freerouting-1.9.0.jar

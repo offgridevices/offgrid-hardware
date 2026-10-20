@@ -177,4 +177,15 @@
 		(uuid "ffedea0c-0129-469a-911f-2d0e0987812e")
 	)
 	(embedded_fonts no)
+	(model "${KIPRJMOD}/og.3dshapes/OSC-SMD_4P-L2.0-W1.6-H0.8.stpZ"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
 )

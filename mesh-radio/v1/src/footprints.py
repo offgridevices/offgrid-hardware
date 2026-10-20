@@ -162,7 +162,11 @@ FIXUPS = {
     # (ground).  circuit.py names the ground pin '2' only (the symbol has
     # one ground pin), so pad 4 is numbered 2 as well: both are then the
     # same net and neither is left floating.
-    'CRYSTAL-SMD_4P-L2.0-W1.6-BL_CXAN-211': {'rename': {'4': '2'}},
+    # EasyEDA has no 3D model for it: the same-size 2.0 x 1.6 mm ECS
+    # oscillator body stands in (renders and STEP only)
+    'CRYSTAL-SMD_4P-L2.0-W1.6-BL_CXAN-211': {'rename': {'4': '2'}, 'model': 'OSC-SMD_4P-L2.0-W1.6-H0.8'},
+    # Toshiba SSM10N954L: no 3D model anywhere; a plain box (box3d.py)
+    'CSP-10L_SSM10N954L': {'model': 'BOX_TCSPED-302701'},
     # ECS-TXO-20CSMV4 TCXO (C54284784): EasyEDA has no entry for that LCSC
     # number, so the raw file is C19858587's, the same ECS 2.0 x 1.6 mm
     # 4-pad package.  Pads counter-clockwise from 1 at the bottom left.
@@ -405,6 +409,11 @@ def _pth_pad(fp, num, x, y, d, drill, square=False, mask=True):
     fp.Add(p)
     return p
 
+def _model(fp, path):
+    m = pcbnew.FP_3DMODEL()
+    m.m_Filename = path
+    fp.Models().append(m)
+
 def _new(name, desc, attr=pcbnew.FP_SMD):
     fp = pcbnew.FOOTPRINT(None)
     fp.SetFPID(pcbnew.LIB_ID('og', name))
@@ -455,6 +464,9 @@ def qpa9510_fp():
         _smd_pad(fp, str(13 + i), -o, -R, *B)          # 13-16 top, right to left
     ep = _smd_pad(fp, '17', 0, 0, 1.50, 1.50)
     ep.SetLocalSolderPasteMargin(MM(-0.10))
+    # KiCad's standard 3 x 3 mm QFN-16 body (its paddle is 1.7 mm, hidden
+    # under the part; renders and STEP only)
+    _model(fp, '${KICAD10_3DMODEL_DIR}/Package_DFN_QFN.3dshapes/QFN-16-1EP_3x3mm_P0.5mm_EP1.7x1.7mm.step')
     # (the nine paddle vias are board vias, placed by board.py at PA_VIAS:
     # a fab fills and caps vias; holes drawn as footprint pads it may not)
     # body with the pin-1 corner chamfer, as on Qorvo's drawing
@@ -484,6 +496,7 @@ def coilcraft_0908sq_fp():
     F, E, D = 0.64, 2.80, 1.12
     _smd_pad(fp, '1', -D / 2, 0, F, E)
     _smd_pad(fp, '2', D / 2, 0, F, E)
+    _model(fp, '${KIPRJMOD}/og.3dshapes/BOX_Coilcraft_0908SQ.stpZ')   # a plain box (box3d.py)
     a, b = 1.473 / 2, 2.134 / 2
     _rect(fp, pcbnew.F_Fab, -MM(a), -MM(b), MM(a), MM(b), 0.1)
     x = max(D / 2 + F / 2, a) + 0.10; y = max(E / 2, b) + 0.10
