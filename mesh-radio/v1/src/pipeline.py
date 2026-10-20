@@ -38,6 +38,8 @@ def plane_fanout(path):
     outside it on a stub; exposed pads get a grid."""
     import fanout
     b = pcbnew.LoadBoard(path)
+    if ROUTE_IN1:
+        rf_reference_keepouts(b)
     ball_escapes(b)
     outer_escapes(b)
     join_pads(b)
@@ -66,6 +68,32 @@ def plane_fanout(path):
     b.Save(path)
     log('plane fan-out: %d vias, %d ground pads with no via of their own %s' % (n, len(failed), failed[:12]))
     return failed
+
+
+def rf_reference_keepouts(b, margin=0.6, log=log):
+    """With In1 routed (ROUTE_IN1): In1 stays solid ground under every RF
+    line (the line, its coplanar gap and `margin` beyond), where it is the
+    line's reference: rule areas on In1 with no tracks or vias of any net."""
+    from shapely.geometry import LineString
+    from shapely.ops import unary_union
+    gl = pcb.layer_id(pcb.INNER['gnd'])
+    band = []
+    for t in b.GetTracks():
+        if t.GetClass() == 'PCB_VIA' or t.GetLayer() != pcbnew.F_Cu:
+            continue
+        if t.GetNetname() in board.RF_NETS + board.RF_EXTRA:
+            s_, e_ = t.GetStart(), t.GetEnd()
+            band.append(LineString([(s_.x / 1e6, s_.y / 1e6), (e_.x / 1e6, e_.y / 1e6)])
+                        .buffer(t.GetWidth() / 2e6 + board.RF_GAP + margin))
+    k = 0
+    for q in _simple(unary_union(band)):
+        if q.area < 0.02:
+            continue
+        pts = [(x - pcb.CX, y - pcb.CY) for x, y in list(q.exterior.coords)[:-1]]
+        pcb.rule_area(b, pts, [gl], tracks=True, vias=True, pads=False, pours=False, name='RF reference: In1 solid')
+        k += 1
+    log('RF reference: %d areas on In1 kept solid' % k)
+    return k
 
 
 def join_pads(b, reach=1.6, log=log):
@@ -296,9 +324,9 @@ def routing_keepouts(b):
         # nothing on it and joins ground pads through it (without it, In1
         # was "a power layer with no plane, treated as a signal layer" and
         # took signals)
-        if not z.GetIsRuleArea() and not (z.GetNetname() == 'GND' and z.GetLayerSet().Contains(gl)):
+        if not z.GetIsRuleArea() and (ROUTE_IN1 or not (z.GetNetname() == 'GND' and z.GetLayerSet().Contains(gl))):
             pcb.remove(b, z)
-    for gl in [pcb.INNER['gnd']] + ([pcb.INNER['gnd2']] if 'gnd2' in pcb.INNER else []):
+    for gl in ([] if ROUTE_IN1 else [pcb.INNER['gnd']]) + ([pcb.INNER['gnd2']] if 'gnd2' in pcb.INNER else []):
         b.SetLayerType(pcb.layer_id(gl), pcbnew.LT_POWER)
     hx, hy, w = pcb.HX, pcb.HY, EDGE
     for x0, y0, x1, y1 in ((-hx, -hy, hx, -hy + w), (-hx, hy - w, hx, hy), (-hx, -hy, -hx + w, hy),
@@ -309,7 +337,8 @@ def routing_keepouts(b):
 
 
 def setup_routers():
-    finish.ROUTE_LAYERS = [pcbnew.F_Cu] + [pcb.layer_id(n) for n in pcb.INNER['sig']] + [pcbnew.B_Cu]
+    finish.ROUTE_LAYERS = ([pcbnew.F_Cu] + ([pcb.layer_id(pcb.INNER['gnd'])] if ROUTE_IN1 else [])
+                           + [pcb.layer_id(n) for n in pcb.INNER['sig']] + [pcbnew.B_Cu])
     # 0.025 mm cells (the SX1262's and the chips' 0.5 mm pitch), searched in
     # a window round each connection first
     finish.SIG_W, finish.SIG_CL = board.SIG, board.SIG   # the board's default net class
@@ -326,8 +355,8 @@ def setup_routers():
     # ground is the plane; the RF lines are drawn already (locked)
     route.DROP_NETS = tuple(PLANES) + tuple(board.RF_NETS) + tuple(board.RF_EXTRA)
     route.AUTOROUTE = dict(via_costs=40, plane_via_costs=5, start_ripup_costs=100, fanout=False,
-                           directions={'F.Cu': 'horizontal', 'In2.Cu': 'vertical', 'In3.Cu': 'horizontal',
-                                       'In4.Cu': 'vertical', 'B.Cu': 'horizontal'})
+                           directions={'F.Cu': 'horizontal', 'In1.Cu': 'vertical', 'In2.Cu': 'vertical',
+                                       'In3.Cu': 'horizontal', 'In4.Cu': 'vertical', 'B.Cu': 'horizontal'})
 
 
 def widths(comps):
@@ -470,6 +499,9 @@ def finish_tail(fin, work, w, cl):
 
 
 ROUND_PASSES = int(os.environ.get('ROUND_PASSES', 5))   # Freerouting passes per saved round
+# In1 carries signals too, except under the RF lines and the antenna
+# (rf_reference_keepouts); trial option until it proves out
+ROUTE_IN1 = bool(int(os.environ.get('ROUTE_IN1', 0)))
 
 
 def run(work, passes=40, from_routed=False):
