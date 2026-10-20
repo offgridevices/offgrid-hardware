@@ -415,6 +415,8 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #ifndef OFFGRID_REFL_MIN_DBM
 #define OFFGRID_REFL_MIN_DBM 30 // packets modelled below this are not checked
 #endif
+// The six constants below are overridden together (define all six).
+#ifndef OFFGRID_ANT_FMIN30_MV
 #if defined(OFFGRID_ANT_FIT_ROBUST) && (OFFGRID_ANT_FIT_ROBUST == 1)
 // sim/rf study 8, fitted with +-1 dB of power-model error; works from 33 dBm
 #define OFFGRID_ANT_FMIN30_MV 70.0f
@@ -431,6 +433,7 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #define OFFGRID_ANT_R30 0.245f
 #define OFFGRID_ANT_R_KT 1.0101f
 #define OFFGRID_ANT_R_KP 1.051f
+#endif
 #endif
 #ifndef OFFGRID_ANT_RETRY_MS
 #define OFFGRID_ANT_RETRY_MS 30000
