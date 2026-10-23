@@ -1,0 +1,15 @@
+# CadQuery, for heatsink.py's CAD files (the STEP, STL and DXF, and the 3D
+# views), in an environment of its own: it brings numpy 2.5 and its own
+# VTK, and Ubuntu's shapely and scipy (requirements.txt) are built for
+# numpy 1.26.  make.py needs it only when the ESC or the heatsink's
+# parameters change (heatsink.current() false).  From ridge-3/:
+#   python3.12 -m venv .venv-cq
+#   .venv-cq/bin/pip install -r requirements-cadquery.txt
+#   CADQUERY_PYTHON=$PWD/.venv-cq/bin/python python3.12 src/make.py esc
+# The versions that made the committed heatsink files (pip resolves the
+# rest of CadQuery's dependencies):
+cadquery==2.8.0
+cadquery-ocp==7.9.3.1.1
+ezdxf==1.4.4
+vtk==9.6.2
+numpy==2.5.3

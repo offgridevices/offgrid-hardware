@@ -1,0 +1,15 @@
+# video/.venv (Python 3.11): Blender as a Python module, for make_video.py.
+# make_video.py creates the venv and installs these on its first run.  The
+# versions that made the Ridge 3 videos (Python 3.11.15):
+bpy==4.5.14
+numpy==1.26.4
+Pillow==12.3.0
+imageio-ffmpeg==0.6.0   # bundles ffmpeg 7.0.2 (static): the MP4 and the music
+# What pip resolved for bpy
+certifi==2026.7.22
+charset-normalizer==3.5.1
+Cython==3.3.0
+idna==3.20
+requests==2.34.2
+urllib3==2.8.0
+zstandard==0.25.0

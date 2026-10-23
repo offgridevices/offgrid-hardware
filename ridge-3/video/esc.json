@@ -1,0 +1,14 @@
+{
+  "title": [
+    "Ridge 3",
+    "4-in-1 ESC"
+  ],
+  "highlights": {
+    "top": "12 high-side FETs, current amplifiers, FET thermistors",
+    "bottom": "4 motor processors, 4 gate drivers, 12 low-side FETs, shunts"
+  },
+  "timeline": {
+    "hold": 3.2667
+  },
+  "music": "music/observatory-32750ms.wav"
+}

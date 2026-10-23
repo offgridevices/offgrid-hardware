@@ -1,0 +1,1089 @@
+# -*- coding: utf-8 -*-
+"""Complete the last few connections Freerouting leaves unrouted.
+
+A plain grid maze router: RES mm cells (0.05 mm; the ESC's FINISH_RES,
+0.025 mm) on ROUTE_LAYERS, which pipeline.setup_routers sets from the
+board's layout module (the FC's F.Cu, In2, In3 and B.Cu; the ESC's F.Cu,
+In2, In3, In5 and B.Cu), a via allowed wherever a via fits.  Every other net's copper is inflated by
+(clearance + half the track width) and drawn as an obstacle; the route
+must stay clear of it.  One connection at a time, cheapest path by A*,
+bends and vias cost extra so paths come out short and tidy.  KiCad's own
+DRC checks the result afterwards - this router is never trusted alone.
+"""
+import heapq, math
+import numpy as np
+import pcbnew
+import pcb
+from PIL import Image, ImageDraw
+from shapely.geometry import LineString, Point, Polygon
+from shapely.ops import unary_union
+
+def MM(v): return pcbnew.FromMM(float(v))
+RES = 0.05                      # mm per cell
+
+def mm(v): return v / 1e6
+
+class Grid:
+    def __init__(self, board, layers, clearance, track_w, via_d, edge=0.3, clmap=None, soft_nets=None,
+                 window=None):
+        """window: (x0, y0, x1, y1) mm, the part of the board the grid
+        covers (its border is kept free like the board edge); default the
+        whole board."""
+        bb = board.GetBoardEdgesBoundingBox()
+        if window is None:
+            window = (mm(bb.GetLeft()), mm(bb.GetTop()), mm(bb.GetRight()), mm(bb.GetBottom()))
+        self.window = window
+        self.x0, self.y0 = window[0], window[1]
+        self.W = int(math.ceil((window[2] - window[0]) / RES)) + 1
+        self.H = int(math.ceil((window[3] - window[1]) / RES)) + 1
+        self.board, self.layers = board, layers
+        self.cl, self.tw, self.vd, self.edge = clearance, track_w, via_d, edge
+        self.clmap = clmap or {}
+        self.soft_nets = set(soft_nets or ())
+
+    def px(self, x, y):
+        return ((x - self.x0) / RES, (y - self.y0) / RES)
+
+    def cell(self, x, y):
+        return (int(round((x - self.x0) / RES)), int(round((y - self.y0) / RES)))
+
+    def xy(self, i, j):
+        return (self.x0 + i * RES, self.y0 + j * RES)
+
+    def _draw(self, img, geom):
+        d = ImageDraw.Draw(img)
+        gs = geom.geoms if hasattr(geom, 'geoms') else [geom]
+        for g in gs:
+            if g.is_empty:
+                continue
+            if not g.interiors:
+                d.polygon([self.px(x, y) for x, y in g.exterior.coords], fill=1)
+                continue
+            # a polygon with holes (an inner pour round its windows): drawn
+            # on its own with the holes cleared, then added, so the holes
+            # do not clear what else is drawn there
+            tmp = Image.new('1', img.size, 0)
+            dt = ImageDraw.Draw(tmp)
+            dt.polygon([self.px(x, y) for x, y in g.exterior.coords], fill=1)
+            for r in g.interiors:
+                dt.polygon([self.px(x, y) for x, y in r.coords], fill=0)
+            img.paste(1, mask=tmp)
+
+    def netcl(self, net):
+        return self.clmap.get(net, self.cl)
+
+    def copper(self, net_exclude):
+        """Per-layer list of (geometry, clearance) of copper not on
+        net_exclude, plus geometry of copper on it."""
+        other = {l: [] for l in self.layers}; same = {l: [] for l in self.layers}
+        self.soft = {l: [] for l in self.layers}
+        self.inner_zones = {}
+        self.same_via_holes = []
+        self.pofv_holes = []
+        holes = []
+        b = self.board
+        wx0, wy0, wx1, wy1 = self.window
+        def out(bb):
+            # wholly outside the grid (with a margin for clearances)
+            return (mm(bb.GetRight()) < wx0 - 1 or mm(bb.GetLeft()) > wx1 + 1 or
+                    mm(bb.GetBottom()) < wy0 - 1 or mm(bb.GetTop()) > wy1 + 1)
+        for fp in b.GetFootprints():
+            if out(fp.GetBoundingBox()):
+                continue
+            for pad in fp.Pads():
+                for l in self.layers:
+                    if pad.IsOnLayer(l):
+                        sp = pad.GetEffectivePolygon(l)
+                        for k in range(sp.OutlineCount()):
+                            ol = sp.Outline(k)
+                            g = Polygon([(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())])
+                            if pad.GetNetname() == net_exclude and pad.GetNetname():
+                                same[l].append(g)
+                            else:
+                                other[l].append((g, self.netcl(pad.GetNetname())))
+                if pad.GetDrillSize().x > 0:
+                    p = pad.GetPosition()
+                    holes.append(Point(mm(p.x), mm(p.y)).buffer(mm(pad.GetDrillSize().x) / 2))
+        for t in b.GetTracks():
+            if out(t.GetBoundingBox()):
+                continue
+            soft = (t.GetNetname() in self.soft_nets and t.GetNetname() != net_exclude and not t.IsLocked())
+            if t.GetClass() == 'PCB_VIA':
+                p = t.GetPosition()
+                # at least VIA_RING of ring: other copper then keeps the
+                # hole-to-copper rule from a thin-ringed via's hole
+                r = max(mm(t.GetWidth(pcbnew.F_Cu)) / 2, mm(t.GetDrillValue()) / 2 + VIA_RING)
+                g = Point(mm(p.x), mm(p.y)).buffer(r)
+                for l in self.layers:
+                    if soft:
+                        self.soft[l].append((g, self.netcl(t.GetNetname()), t.GetNetname()))
+                    elif t.GetNetname() == net_exclude:
+                        same[l].append(g)
+                    else:
+                        other[l].append((g, self.netcl(t.GetNetname())))
+                if t.GetNetname() == net_exclude:
+                    # a new via of this net must still keep its hole clear of this one's
+                    self.same_via_holes.append(Point(mm(p.x), mm(p.y)).buffer(mm(t.GetDrillValue()) / 2))
+                if POFV_GAP and mm(t.GetDrillValue()) >= POFV_DRILL - 1e-3:
+                    # filled (via-in-pad) vias keep POFV_GAP to every other hole
+                    self.pofv_holes.append(Point(mm(p.x), mm(p.y)).buffer(mm(t.GetDrillValue()) / 2))
+            elif t.GetLayer() in self.layers:
+                s, e = t.GetStart(), t.GetEnd()
+                g = LineString([(mm(s.x), mm(s.y)), (mm(e.x), mm(e.y))]).buffer(mm(t.GetWidth()) / 2)
+                if soft:
+                    self.soft[t.GetLayer()].append((g, self.netcl(t.GetNetname()), t.GetNetname()))
+                elif t.GetNetname() == net_exclude:
+                    same[t.GetLayer()].append(g)
+                else:
+                    other[t.GetLayer()].append((g, self.netcl(t.GetNetname())))
+        for z in b.Zones():
+            if z.GetIsRuleArea():
+                continue
+            # (z.GetLayer() is not the zone's layer for every zone: ask the set)
+            for l in self.layers:
+                if not (z.GetLayerSet().Contains(l) and z.IsFilled()):
+                    continue
+                fp_ = z.GetFilledPolysList(l)
+                inner = l not in (pcbnew.F_Cu, pcbnew.B_Cu)
+                for k in range(fp_.OutlineCount()):
+                    ol = fp_.Outline(k)
+                    ring = lambda c: [(mm(c.CPoint(q).x), mm(c.CPoint(q).y)) for q in range(c.PointCount())]
+                    # an inner pour's holes are room to route (a battery
+                    # plane's windows for signals, esc_layout.SIG_WINDOW);
+                    # the outer layers' pours keep their outline
+                    hs = [ring(fp_.CHole(k, h)) for h in range(fp_.HoleCount(k))] if inner else []
+                    g = Polygon(ring(ol), [h for h in hs if len(h) > 2])
+                    if z.GetNetname() == net_exclude:
+                        same[l].append(g)
+                    elif l in (pcbnew.F_Cu, pcbnew.B_Cu):
+                        other[l].append((g, self.netcl(z.GetNetname())))
+                    else:
+                        # an inner-layer pour only keeps tracks out: a via
+                        # through it just gets a clearance hole in the fill
+                        self.inner_zones.setdefault(l, []).append((g, self.netcl(z.GetNetname())))
+        return other, same, holes
+
+    def build(self, net):
+        other, same, holes = self.copper(net)
+        self.block = {}; self.vblock = None
+        M = RES * 1.2                     # grid rounding margin
+        mine = self.netcl(net)
+        vmask = Image.new('1', (self.W, self.H), 0)
+        for l in self.layers:
+            img = Image.new('1', (self.W, self.H), 0)
+            for g, c in other[l]:
+                c = max(c, mine)
+                self._draw(img, g.buffer(c + self.tw / 2 + M, 8)); self._draw(vmask, g.buffer(c + self.vd / 2 + M, 8))
+            for g in holes:
+                self._draw(img, g.buffer(0.3 + self.tw / 2 + M, 8)); self._draw(vmask, g.buffer(0.3 + self.vd / 2 + M, 8))
+            for g, c in self.inner_zones.get(l, []):
+                self._draw(img, g.buffer(max(c, mine) + self.tw / 2 + M, 8))
+            self.block[l] = np.array(img, dtype=bool)
+        drill = getattr(self, 'vdrill', VIA_DRILL)
+        for g in self.same_via_holes:
+            self._draw(vmask, g.buffer(HOLE_TO_HOLE + drill / 2 + M, 8))
+        for g in self.pofv_holes:
+            self._draw(vmask, g.buffer(POFV_GAP + drill / 2 + M, 8))
+        # inner layers: a via may not hit another net's pad or via there either
+        for l in (pcbnew.In1_Cu, pcbnew.In2_Cu):
+            pass
+        for z in self.board.Zones():
+            if z.GetIsRuleArea() and (z.GetDoNotAllowTracks() or z.GetDoNotAllowVias()):
+                ol = z.Outline().Outline(0)
+                g = Polygon([(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())])
+                if z.GetDoNotAllowTracks():
+                    for l in self.layers:
+                        if z.GetLayerSet().Contains(l):
+                            img = Image.fromarray(self.block[l]); self._draw(img, g.buffer(self.tw / 2 + M)); self.block[l] = np.array(img, dtype=bool)
+                if z.GetDoNotAllowVias():
+                    self._draw(vmask, g.buffer(self.vd / 2 + M))
+        # board edge: everything outside the outline shrunk by the edge
+        # clearance (the outline itself, not the bounding box of the edge
+        # graphics, which their line width widens, and with the corner slots)
+        e = int(math.ceil((self.edge + self.tw / 2) / RES)); ev = int(math.ceil((self.edge + self.vd / 2) / RES))
+        for l in self.layers:
+            self.block[l][:e, :] = True; self.block[l][-e:, :] = True
+            self.block[l][:, :e] = True; self.block[l][:, -e:] = True
+        vb = np.array(vmask, dtype=bool)
+        vb[:ev, :] = True; vb[-ev:, :] = True; vb[:, :ev] = True; vb[:, -ev:] = True
+        ps = pcbnew.SHAPE_POLY_SET()
+        if self.board.GetBoardPolygonOutlines(ps, False) and ps.OutlineCount():
+            ol = ps.Outline(0)
+            outline = Polygon([(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())])
+            for pad, masks in ((self.tw / 2, [self.block[l] for l in self.layers]), (self.vd / 2, [vb])):
+                img = Image.new('1', (self.W, self.H), 0)
+                self._draw(img, outline.buffer(-(self.edge + pad + M), 8))
+                inside = np.array(img, dtype=bool)
+                for m in masks:
+                    m |= ~inside
+        self.vblock = vb
+        # soft (rippable) copper: passable at a price
+        self.sblock = {}
+        vs = Image.new('1', (self.W, self.H), 0)
+        for l in self.layers:
+            img = Image.new('1', (self.W, self.H), 0)
+            for g, c, _ in self.soft[l]:
+                c = max(c, mine)
+                self._draw(img, g.buffer(c + self.tw / 2 + M, 8)); self._draw(vs, g.buffer(c + self.vd / 2 + M, 8))
+            self.sblock[l] = np.array(img, dtype=bool)
+        self.vsoft = np.array(vs, dtype=bool)
+        return same
+
+# Copper layers the maze router may use.  Boards with an inner signal
+# layer (the ESC's In2 is a VBAT ring round a routable centre) add it.
+ROUTE_LAYERS = [pcbnew.F_Cu, pcbnew.B_Cu]
+
+def _same_cells(grid, same, layer):
+    img = Image.new('1', (grid.W, grid.H), 0)
+    for g in same[layer]:
+        grid._draw(img, g)
+    return np.array(img, dtype=bool)
+
+# Via the maze router drops (a board may set smaller ones, see esc_layout)
+VIA_D, VIA_DRILL = 0.45, 0.25
+# Nets whose vias are bigger than VIA_D / VIA_DRILL: {net: (diameter, drill)}
+# (a supply's current path: pipeline.setup_routers from the layout's VIA_BY_NET)
+VIA_BY_NET = {}
+# Every via is an obstacle with at least this ring (see route.VIA_RING)
+VIA_RING = 0.0
+HOLE_TO_HOLE = 0.25
+# JLCPCB via-in-pad (POFV): the in-pad vias (0.3 mm drill here; every
+# 0.3 mm-drill via is treated as one) keep more than 0.45 mm hole to hole
+# from any other hole.  None switches this off.
+POFV_GAP, POFV_DRILL = 0.46, 0.3
+
+
+# WINDOW (mm): a search may first stay within this margin of the two
+# islands' bounding box, and cover the whole board only if that finds
+# nothing.  Off: on the ESC it neither sped the searches up (the expansions
+# dominate, not the grid) nor routed as much (local paths block others).
+WINDOW = None
+
+
+def route_connection(board, net, a_items, b_items, clearance=0.1, track_w=0.1, via_d=None, via_drill=None,
+                     max_expand=None, clmap=None, soft_nets=None, rip_cost=60, victims_out=None):
+    """Route from copper island A to island B of `net`.  a_items/b_items are
+    lists of shapely geometries per layer: {layer: [geom,...]}.  The search
+    budget (cells expanded) scales with the grid's cell count per mm^2."""
+    if max_expand is None:
+        max_expand = int(3_000_000 * (0.05 / RES) ** 2)
+    bb = board.GetBoardEdgesBoundingBox()
+    full = (mm(bb.GetLeft()), mm(bb.GetTop()), mm(bb.GetRight()), mm(bb.GetBottom()))
+    win = full
+    if WINDOW is not None:
+        bx = [g.bounds for items in (a_items, b_items) for gl in items.values() for g in gl]
+        win = (max(full[0], min(b[0] for b in bx) - WINDOW), max(full[1], min(b[1] for b in bx) - WINDOW),
+               min(full[2], max(b[2] for b in bx) + WINDOW), min(full[3], max(b[3] for b in bx) + WINDOW))
+    for w in ([win, full] if win != full else [full]):
+        res = _route_in(board, net, a_items, b_items, clearance, track_w, via_d, via_drill, max_expand, clmap,
+                        soft_nets, rip_cost, victims_out, w)
+        if res:
+            return res
+    return None
+
+
+def _route_in(board, net, a_items, b_items, clearance, track_w, via_d, via_drill, max_expand, clmap, soft_nets,
+              rip_cost, victims_out, window):
+    own_d, own_drill = VIA_BY_NET.get(net, (VIA_D, VIA_DRILL))
+    via_d = own_d if via_d is None else via_d
+    via_drill = own_drill if via_drill is None else via_drill
+    layers = list(ROUTE_LAYERS)
+    g = Grid(board, layers, clearance, track_w, via_d, clmap=clmap, soft_nets=soft_nets, window=window)
+    g.vdrill = via_drill
+    g.build(net)
+    src = {}; dst = {}
+    for li, l in enumerate(layers):
+        src[li] = _same_cells(g, a_items, l) if l in a_items else np.zeros((g.H, g.W), bool)
+        dst[li] = _same_cells(g, b_items, l) if l in b_items else np.zeros((g.H, g.W), bool)
+    # targets: cells inside B copper; sources: cells inside A copper (allowed even if blocked)
+    tgt = np.argwhere(np.logical_or.reduce([dst[li] for li in range(len(layers))]))
+    if len(tgt) == 0:
+        return None
+    tc = tgt.mean(axis=0)
+    H, W = g.H, g.W
+    INF = 1 << 60
+    cost = {}
+    pq = []
+    for li in range(len(layers)):
+        for (j, i) in np.argwhere(src[li]):
+            k = (li, i, j); cost[k] = 0
+            heapq.heappush(pq, (0, 0, k, None, None))
+    came = {}
+    dirs = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)]
+    vcost = 40; bend = 3
+    found = None; n = 0
+    while pq and n < max_expand:
+        f, c, k, prev, pdir = heapq.heappop(pq)
+        if k in came:
+            continue
+        came[k] = (prev, pdir)
+        li, i, j = k
+        n += 1
+        if dst[li][j, i]:
+            found = k; break
+        blk = g.block[layers[li]]; sb = g.sblock[layers[li]]
+        for d in dirs:
+            ni, nj = i + d[0], j + d[1]
+            if not (0 <= ni < W and 0 <= nj < H):
+                continue
+            nk = (li, ni, nj)
+            if nk in came:
+                continue
+            free_end = src[li][nj, ni] or dst[li][nj, ni]
+            if blk[nj, ni] and not free_end:
+                continue
+            step = 1.414 if d[0] and d[1] else 1.0
+            nc = c + step + (bend if pdir is not None and pdir != d else 0)
+            if sb[nj, ni] and not free_end:
+                nc += rip_cost if not sb[j, i] else step * 2
+            if nc < cost.get(nk, INF):
+                cost[nk] = nc
+                h = math.hypot(ni - tc[1], nj - tc[0]) * 0.9
+                heapq.heappush(pq, (nc + h, nc, nk, k, d))
+        # via (through all layers) to any other routing layer
+        if not g.vblock[j, i]:
+            for lj in range(len(layers)):
+                if lj == li:
+                    continue
+                ok_other = (not g.block[layers[lj]][j, i]) or src[lj][j, i] or dst[lj][j, i]
+                if not ok_other:
+                    continue
+                nk = (lj, i, j)
+                if nk in came:
+                    continue
+                nc = c + vcost + (rip_cost if g.vsoft[j, i] else 0)
+                if nc < cost.get(nk, INF):
+                    cost[nk] = nc
+                    h = math.hypot(i - tc[1], j - tc[0]) * 0.9
+                    heapq.heappush(pq, (nc + h, nc, nk, k, 'via'))
+    if not found:
+        return None
+    # walk back
+    path = []
+    k = found
+    while k is not None:
+        path.append(k)
+        k = came[k][0]
+    path.reverse()
+    if victims_out is not None:
+        # which rippable nets does this path run through?
+        for (li, i, j) in path:
+            l = layers[li]
+            if g.sblock[l][j, i] or g.vsoft[j, i]:
+                x, y = g.xy(i, j)
+                pt = Point(x, y)
+                for geom, c, n in g.soft[l]:
+                    if n not in victims_out and geom.distance(pt) < max(c, g.netcl(net)) + track_w / 2 + via_d / 2 + 0.07:
+                        victims_out.add(n)
+    # emit copper
+    netinfo = board.FindNet(net)
+    segs = 0; vias = 0
+    run = [path[0]]
+    def flush(run):
+        nonlocal segs
+        if len(run) < 2:
+            return
+        # simplify collinear points
+        pts = [run[0]]
+        for a, b2, c2 in zip(run, run[1:], run[2:]):
+            if (b2[1] - a[1], b2[2] - a[2]) != (c2[1] - b2[1], c2[2] - b2[2]):
+                pts.append(b2)
+        pts.append(run[-1])
+        l = layers[run[0][0]]
+        for p, q in zip(pts, pts[1:]):
+            x1, y1 = g.xy(p[1], p[2]); x2, y2 = g.xy(q[1], q[2])
+            t = pcbnew.PCB_TRACK(board)
+            t.SetStart(pcbnew.VECTOR2I(MM(x1), MM(y1))); t.SetEnd(pcbnew.VECTOR2I(MM(x2), MM(y2)))
+            t.SetWidth(MM(track_w)); t.SetLayer(l); t.SetNet(netinfo); board.Add(t); segs += 1
+    for p in path[1:]:
+        if p[0] != run[-1][0]:
+            flush(run)
+            x, y = g.xy(p[1], p[2])
+            v = pcbnew.PCB_VIA(board); v.SetPosition(pcbnew.VECTOR2I(MM(x), MM(y)))
+            v.SetWidth(MM(via_d)); v.SetDrill(MM(via_drill)); v.SetNet(netinfo); board.Add(v); vias += 1
+            run = [p]
+        else:
+            run.append(p)
+    flush(run)
+    return segs, vias
+
+def islands(board, net):
+    """Group a net's copper into connected islands using KiCad's connectivity."""
+    board.BuildConnectivity()
+    conn = board.GetConnectivity()
+    items = []
+    for fp in board.GetFootprints():
+        for pad in fp.Pads():
+            if pad.GetNetname() == net:
+                items.append(pad)
+    for t in board.GetTracks():
+        if t.GetNetname() == net:
+            items.append(t)
+    # union-find on items connected per KiCad
+    parent = list(range(len(items)))
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]; a = parent[a]
+        return a
+    idx = {id(x): n for n, x in enumerate(items)}
+    for n, it in enumerate(items):
+        for c in conn.GetConnectedItems(it) if hasattr(conn, 'GetConnectedItems') else []:
+            m = idx.get(id(c))
+            if m is not None:
+                parent[find(n)] = find(m)
+    groups = {}
+    for n in range(len(items)):
+        groups.setdefault(find(n), []).append(items[n])
+    return list(groups.values())
+
+def _geom_of(item):
+    """{layer: [shapely geometry]} for a pad, track or via."""
+    out = {}
+    cls = item.GetClass()
+    if cls == 'PAD':
+        for l in ROUTE_LAYERS:
+            if item.IsOnLayer(l):
+                sp = item.GetEffectivePolygon(l)
+                for k in range(sp.OutlineCount()):
+                    ol = sp.Outline(k)
+                    out.setdefault(l, []).append(Polygon([(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y))
+                                                          for q in range(ol.PointCount())]))
+    elif cls == 'PCB_VIA':
+        p = item.GetPosition()
+        g = Point(mm(p.x), mm(p.y)).buffer(mm(item.GetWidth(pcbnew.F_Cu)) / 2)
+        out = {l: [g] for l in ROUTE_LAYERS}
+    elif cls in ('PCB_TRACK', 'PCB_ARC'):
+        s, e = item.GetStart(), item.GetEnd()
+        if item.GetLayer() in ROUTE_LAYERS:
+            out[item.GetLayer()] = [LineString([(mm(s.x), mm(s.y)), (mm(e.x), mm(e.y))]).buffer(mm(item.GetWidth()) / 2)]
+    return out
+
+def finish_board(pcb_in, pcb_out, drc_json, rules=None, rounds=3, clmap=None):
+    """Route every connection KiCad's DRC reports as unconnected."""
+    import json, subprocess
+    src = pcb_in
+    for r in range(rounds):
+        subprocess.run(['kicad-cli', 'pcb', 'drc', '--refill-zones', '--format', 'json',
+                        '-o', drc_json, src], capture_output=True)
+        rep = json.load(open(drc_json))
+        pairs = rep['unconnected_items']
+        if not pairs:
+            if src != pcb_out:
+                import shutil; shutil.copy(src, pcb_out)
+            return 0
+        b = pcbnew.LoadBoard(src)
+        pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+        byid = {}
+        for fp in b.GetFootprints():
+            for p in fp.Pads():
+                byid[p.m_Uuid.AsString()] = p
+        for t in b.GetTracks():
+            byid[t.m_Uuid.AsString()] = t
+        done = 0
+        for u in pairs:
+            its = [byid.get(i['uuid']) for i in u['items']]
+            if None in its:
+                continue
+            net = its[0].GetNetname()
+            wide = (rules or {}).get(net, 0.1)
+            res = route_connection(b, net, _geom_of(its[0]), _geom_of(its[1]), track_w=wide, clmap=clmap)
+            print('   finish %-12s %s' % (net, 'routed (%d segments, %d vias)' % res if res else 'NO PATH'))
+            done += bool(res)
+        b.Save(pcb_out)
+        src = pcb_out
+        if done == 0:
+            break
+    subprocess.run(['kicad-cli', 'pcb', 'drc', '--refill-zones', '--format', 'json', '-o', drc_json, pcb_out],
+                   capture_output=True)
+    return len(json.load(open(drc_json))['unconnected_items'])
+
+def _net_components(board, net):
+    """Connected copper islands of one net, by geometry (pads, tracks, vias
+    that touch).  Returns list of {layer: [geoms]}."""
+    items = []
+    for fp in board.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname() == net:
+                items.append(_geom_of(p))
+    for t in board.GetTracks():
+        if t.GetNetname() == net:
+            items.append(_geom_of(t))
+    # filled pours of the net join what they touch
+    for z in board.Zones():
+        if z.GetIsRuleArea() or z.GetNetname() != net or not z.IsFilled():
+            continue
+        for l in ROUTE_LAYERS:
+            if not z.GetLayerSet().Contains(l):
+                continue
+            fp_ = z.GetFilledPolysList(l)
+            for k in range(fp_.OutlineCount()):
+                ol = fp_.Outline(k)
+                pts = [(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())]
+                if len(pts) >= 3:
+                    items.append({l: [Polygon(pts).buffer(0)]})
+    n = len(items)
+    parent = list(range(n))
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]; a = parent[a]
+        return a
+    for i in range(n):
+        for j in range(i + 1, n):
+            for l in items[i]:
+                if l in items[j] and any(a.intersects(b) for a in items[i][l] for b in items[j][l]):
+                    parent[find(i)] = find(j); break
+    comps = {}
+    for i in range(n):
+        c = comps.setdefault(find(i), {})
+        for l, gs in items[i].items():
+            c.setdefault(l, []).extend(gs)
+    return list(comps.values())
+
+def _dist(a, b):
+    d = 1e9
+    for l in a:
+        if l in b:
+            for x in a[l]:
+                for y in b[l]:
+                    d = min(d, x.distance(y))
+    if d == 1e9:     # different layers only: distance ignoring layer
+        for x in [g for gs in a.values() for g in gs]:
+            for y in [g for gs in b.values() for g in gs]:
+                d = min(d, x.distance(y))
+    return d
+
+def route_taps(board, taps, clmap=None, layers=None, via=None, log=print):
+    """Join the low-current pins of supply nets to the rest of their net at
+    their own, narrower width, before the autorouter fills the board: a
+    feedback divider's top, a converter's bias pin and its capacitor, a
+    small regulator's input.  The net's full width is for the paths that
+    carry its current; these pins cannot carry it, and a feedback line
+    should be thin anyway.  taps: {(ref, pad number): width}.  Where the
+    net has pours on the routing layers (a converter's output, at its
+    capacitors), a tap is joined straight to the nearest of them and to
+    nothing else, so it stays a branch of its own, carrying none of the
+    net's current: joined to a load's pad instead, the autorouter can feed
+    that load through it (hide_taps keeps it from doing so later).  A net
+    without pours has its tap joined to its nearest island until that holds
+    a pad that is not a tap.  Returns the taps left unjoined."""
+    global ROUTE_LAYERS, VIA_D, VIA_DRILL
+    saved = ROUTE_LAYERS, VIA_D, VIA_DRILL
+    if layers:
+        ROUTE_LAYERS = list(layers)
+    if via:
+        VIA_D, VIA_DRILL = via
+    left = []
+    try:
+        pads = {(fp.GetReference(), p.GetNumber()): p for fp in board.GetFootprints() for p in fp.Pads()}
+        for key, w in sorted(taps.items()):
+            pad = pads[key]
+            net = pad.GetNetname()
+            trunk = []
+            for z in board.Zones():
+                if not z.GetIsRuleArea() and z.GetNetname() == net and z.IsFilled():
+                    for l in ROUTE_LAYERS:
+                        if z.GetLayerSet().Contains(l):
+                            fp_ = z.GetFilledPolysList(l)
+                            for k in range(fp_.OutlineCount()):
+                                ol = fp_.Outline(k)
+                                pts = [(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())]
+                                if len(pts) >= 3:
+                                    trunk.append({l: [Polygon(pts).buffer(0)]})
+            poured = bool(trunk)
+            if not poured:
+                trunk = [_geom_of(p) for k, p in pads.items() if p.GetNetname() == net and k not in taps]
+            for _ in range(8):
+                comps = _net_components(board, net)
+                mine = [c for c in comps if _touch(c, _geom_of(pad))]
+                if not mine or any(_touch(mine[0], t) for t in trunk):
+                    break
+                others = [c for c in comps if c is not mine[0]]
+                if poured:
+                    others = [c for c in others if any(_touch(c, t) for t in trunk)]
+                if not others:
+                    left.append(key)
+                    break
+                before = set(t.m_Uuid.AsString() for t in board.GetTracks())
+                # the nearest island first; if it is walled in, the next ones.
+                # To a pour, on the pad's own layer first: a via would join
+                # the net's plane too, a second path in parallel with the
+                # net's own
+                tries = [list(ROUTE_LAYERS)]
+                if poured:
+                    own = [l for l in ROUTE_LAYERS if pad.IsOnLayer(l)]
+                    if own and own != tries[0]:
+                        tries.insert(0, own)
+                every = ROUTE_LAYERS
+                res = None
+                for ls in tries:
+                    ROUTE_LAYERS = ls
+                    for near in sorted(others, key=lambda c: _dist(mine[0], c))[:4]:
+                        res = route_connection(board, net, mine[0], near, track_w=w, clmap=clmap,
+                                               via_d=VIA_D, via_drill=VIA_DRILL)
+                        if res:
+                            break
+                    ROUTE_LAYERS = every
+                    if res:
+                        break
+                if not res:
+                    left.append(key)
+                    break
+                for t in board.GetTracks():
+                    if t.m_Uuid.AsString() not in before:
+                        t.SetLocked(True)
+            else:
+                left.append(key)
+            log('   tap %-10s %s.%s at %.2f mm%s' % (net, key[0], key[1], w, ' NOT JOINED' if key in left else ''))
+    finally:
+        ROUTE_LAYERS, VIA_D, VIA_DRILL = saved
+    return left
+
+
+TAP = '~tap'
+
+
+def hide_taps(board, taps):
+    """While the routers work (pipeline.py): each tap's pad and the copper
+    route_taps joined it with go to a net of their own (the net's name with
+    '~tap', in the net's class), so every router sees them as another net's
+    copper.  None can then take a load's current through a feedback line or
+    end a track on one.  show_taps puts them back.  Returns how many taps
+    were hidden."""
+    import pcb
+    pads = {(fp.GetReference(), p.GetNumber()): p for fp in board.GetFootprints() for p in fp.Pads()}
+    ns = board.GetDesignSettings().m_NetSettings
+    k = 0
+    for key in sorted(taps):
+        pad = pads[key]
+        stub, others, poured = pcb.tap_stub(board, pad)
+        # its own net, in its net's class: the autorouter keeps the
+        # clearance the real net needs from it
+        cls = pad.GetNetClassName()
+        net = pcb.add_net(board, pad.GetNetname() + TAP)
+        ns.SetNetclassPatternAssignment(net.GetNetname(), cls)
+        net.SetNetClass(ns.GetNetClassByName(cls))
+        if hasattr(ns, 'RecomputeEffectiveNetclasses'):
+            ns.RecomputeEffectiveNetclasses()
+        for item in [pad] + stub:
+            item.SetNet(net)
+        k += 1
+    return k
+
+
+def show_taps(board):
+    """hide_taps undone: every item on a '~tap' net back on its own net, and
+    the '~tap' nets removed.  Returns how many nets it put back."""
+    hidden = [n for n in board.GetNetsByName().keys() if str(n).endswith(TAP)]
+    for name in hidden:
+        name = str(name)
+        net, real = board.FindNet(name), board.FindNet(name[:-len(TAP)])
+        for item in [p for fp in board.GetFootprints() for p in fp.Pads()] + list(board.GetTracks()):
+            if item.GetNetCode() == net.GetNetCode():
+                item.SetNet(real)
+        board.Remove(net)
+    return len(hidden)
+
+
+def hidden_taps(board):
+    """The '~tap' nets hide_taps made: routers must leave them alone."""
+    return [str(n) for n in board.GetNetsByName().keys() if str(n).endswith(TAP)]
+
+
+def _touch(a, b):
+    return any(x.intersects(y) for l in a if l in b for x in a[l] for y in b[l])
+
+
+def route_net(board, net, track_w=0.1, clmap=None, lock=True, soft_nets=None, victims_out=None):
+    """Join every island of `net`, nearest pair first.  Returns islands left."""
+    for _ in range(20):
+        comps = _net_components(board, net)
+        if len(comps) <= 1:
+            return 0
+        best = None
+        for i in range(len(comps)):
+            for j in range(i + 1, len(comps)):
+                d = _dist(comps[i], comps[j])
+                if best is None or d < best[0]:
+                    best = (d, i, j)
+        _, i, j = best
+        before = set(t.m_Uuid.AsString() for t in board.GetTracks())
+        res = route_connection(board, net, comps[i], comps[j], track_w=track_w, clmap=clmap,
+                               soft_nets=soft_nets, victims_out=victims_out)
+        if not res:
+            return len(comps) - 1
+        if lock:
+            for t in board.GetTracks():
+                if t.m_Uuid.AsString() not in before:
+                    t.SetLocked(True)
+    return len(_net_components(board, net)) - 1
+
+def mst_length(board, net):
+    pts = []
+    for fp in board.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname() == net:
+                q = p.GetPosition(); pts.append((q.x / 1e6, q.y / 1e6))
+    if len(pts) < 2:
+        return 0.0
+    used = [pts[0]]; rest = pts[1:]; tot = 0.0
+    while rest:
+        d, k = min((min(math.hypot(a[0] - b[0], a[1] - b[1]) for a in used), i) for i, b in enumerate(rest))
+        tot += d; used.append(rest.pop(k))
+    return tot
+
+def route_all(board, skip, widths=None, clmap=None, order=None):
+    """Route every net not in `skip`, shortest first.  Returns failed nets."""
+    nets = set()
+    for fp in board.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname():
+                nets.add(p.GetNetname())
+    nets -= set(skip)
+    todo = sorted(nets, key=lambda n: mst_length(board, n)) if order is None else order
+    failed = []
+    for n in todo:
+        left = route_net(board, n, track_w=(widths or {}).get(n, 0.1), clmap=clmap, lock=False)
+        if left:
+            failed.append(n)
+    return failed
+
+
+def rip_up(board, net):
+    n = 0
+    for t in list(board.GetTracks()):
+        if t.GetNetname() == net and not t.IsLocked():
+            pcb.remove(board, t); n += 1
+    return n
+
+def route_all_ripup(board, skip, widths=None, clmap=None, max_rounds=400, log=print):
+    """Route every net not in `skip`, shortest first.  A net that cannot get
+    through may cross other router-made nets at a price; those nets are
+    ripped up and queued again.  Tracks made before this call (locked or
+    not) are never touched."""
+    nets = set()
+    for fp in board.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname():
+                nets.add(p.GetNetname())
+    nets -= set(skip)
+    queue = sorted(nets, key=lambda n: mst_length(board, n))
+    mine = set()
+    tries = {}
+    rounds = 0
+    while queue and rounds < max_rounds:
+        rounds += 1
+        net = queue.pop(0)
+        tries[net] = tries.get(net, 0) + 1
+        w = (widths or {}).get(net, 0.1)
+        # first try without disturbing anyone
+        left = route_net(board, net, track_w=w, clmap=clmap, lock=False)
+        if left == 0:
+            mine.add(net); continue
+        victims = set()
+        left = route_net(board, net, track_w=w, clmap=clmap, lock=False, soft_nets=mine - {net},
+                         victims_out=victims)
+        if left:
+            log('   %s: no path even with rip-up' % net)
+            continue
+        # rip the victims out and re-queue them; the path we just laid was
+        # computed around their copper, so re-route this net cleanly after
+        rip_up(board, net)
+        for v in victims:
+            rip_up(board, v); mine.discard(v)
+        left = route_net(board, net, track_w=w, clmap=clmap, lock=False)
+        if left == 0:
+            mine.add(net)
+        else:
+            queue.append(net)
+        for v in victims:
+            if v not in queue:
+                queue.append(v)
+        log('   %s: ripped up %s' % (net, sorted(victims)))
+    failed = [n for n in nets if len(_net_components(board, n)) > 1]
+    return failed
+
+def unrouted_nets(board):
+    """Nets whose copper is still in more than one piece."""
+    nets = set(p.GetNetname() for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetname())
+    return sorted(n for n in nets if len(_net_components(board, n)) > 1)
+
+def repair(board, nets, protect=(), widths=None, clmap=None, max_rips=4, max_rounds=200, log=print):
+    """Finish `nets` by rip-up and re-route.  A blocked net may run through
+    the copper of any other signal net that has unlocked tracks (nets in
+    `protect` never); those nets are torn up and routed again afterwards.
+    A net torn up `max_rips` times becomes fixed, so this cannot cycle."""
+    protect = set(protect)
+    # pre-routed (locked) signal nets are fair game too; power stays put
+    for t in board.GetTracks():
+        if t.GetNetname() not in protect:
+            t.SetLocked(False)
+    rips = {}
+    queue = list(nets)
+    rounds = 0
+    while queue and rounds < max_rounds:
+        rounds += 1
+        net = queue.pop(0)
+        w = (widths or {}).get(net, 0.1)
+        if route_net(board, net, track_w=w, clmap=clmap, lock=False) == 0:
+            continue
+        soft = set(t.GetNetname() for t in board.GetTracks() if not t.IsLocked()) - protect - {net}
+        soft = {n for n in soft if rips.get(n, 0) < max_rips}
+        victims = set()
+        if route_net(board, net, track_w=w, clmap=clmap, lock=False, soft_nets=soft, victims_out=victims):
+            log('   repair %-12s no path even through other nets' % net)
+            continue
+        rip_up(board, net)
+        for v in victims:
+            rip_up(board, v); rips[v] = rips.get(v, 0) + 1
+        left = route_net(board, net, track_w=w, clmap=clmap, lock=False)
+        log('   repair %-12s %s, tore up %s' % (net, 'routed' if not left else 'still open', sorted(victims)))
+        if left:
+            rips[net] = rips.get(net, 0) + 1
+            if rips[net] <= max_rips:
+                queue.append(net)
+        for v in victims:
+            if v not in queue:
+                queue.append(v)
+    return unrouted_nets(board)
+
+
+def repair_tx(board, nets, protect=(), widths=None, clmap=None, max_rounds=60, max_victims=4, log=print,
+              keep_locked=False):
+    """Rip-up and re-route, one transaction at a time.  An open net may be
+    routed through the copper of other (unprotected) signal nets.  First
+    only the pieces of those nets that its new path runs into are taken out
+    and each net's ends are joined again round the path; if that fails, the
+    nets are torn up whole and routed again after it.  Either attempt is
+    kept only if afterwards the open net is joined and every torn-up net
+    has no more islands than before; otherwise every track and via is put
+    back as it was.  Locked tracks and vias of other nets may be torn up
+    too, unless keep_locked.  Returns the nets still open."""
+    protect = set(protect)
+    if not keep_locked:
+        for t in board.GetTracks():
+            if t.GetNetname() not in protect:
+                t.SetLocked(False)
+
+    def islands(n):
+        return len(_net_components(board, n))
+
+    def snapshot():
+        return set(t.m_Uuid.AsString() for t in board.GetTracks())
+
+    def rollback(before, removed):
+        for t in list(board.GetTracks()):
+            if t.m_Uuid.AsString() not in before:
+                pcb.remove(board, t)
+        for t in removed:
+            if t.m_Uuid.AsString() in before:
+                board.Add(t)
+
+    def rip(n, removed):
+        for t in list(board.GetTracks()):
+            if t.GetNetname() == n and not t.IsLocked():
+                removed.append(t); pcb.remove(board, t)
+
+    queue = list(nets)
+    tried = set()
+    rounds = 0
+    while queue and rounds < max_rounds:
+        rounds += 1
+        net = queue.pop(0)
+        w = (widths or {}).get(net, 0.1)
+        if route_net(board, net, track_w=w, clmap=clmap, lock=False) == 0:
+            log('   repair %-12s routed' % net)
+            continue
+        if net in tried:
+            continue
+        tried.add(net)
+        before = snapshot(); removed = []
+        soft = set(t.GetNetname() for t in board.GetTracks() if not t.IsLocked()) - protect - {net}
+        victims = set()
+        if route_net(board, net, track_w=w, clmap=clmap, lock=False, soft_nets=soft, victims_out=victims) \
+                or not victims or len(victims) > max_victims:
+            rollback(before, removed)
+            log('   repair %-12s no path (%d victims)' % (net, len(victims)))
+            continue
+        score0 = {v: islands(v) for v in victims}
+        # local: keep the new path, take out only what it runs into
+        new = [t for t in board.GetTracks() if t.m_Uuid.AsString() not in before]
+        for t in _in_the_way(board, new, victims, clmap):
+            removed.append(t); pcb.remove(board, t)
+        for v in victims:
+            removed.extend(_drop_floating(board, v))
+        ok = True
+        for v in sorted(victims):
+            route_net(board, v, track_w=(widths or {}).get(v, 0.1), clmap=clmap, lock=False)
+            if islands(v) > score0[v]:
+                ok = False
+                break
+        if ok:
+            log('   repair %-12s routed, patched %s' % (net, sorted(victims)))
+            continue
+        rollback(before, removed)
+        # whole: tear the nets up and route them again after this one
+        before = snapshot(); removed = []
+        rip(net, removed)
+        for v in victims:
+            rip(v, removed)
+        ok = route_net(board, net, track_w=w, clmap=clmap, lock=False) == 0
+        for v in sorted(victims):
+            route_net(board, v, track_w=(widths or {}).get(v, 0.1), clmap=clmap, lock=False)
+            if islands(v) > score0[v]:
+                ok = False
+        if ok:
+            log('   repair %-12s routed, re-routed %s' % (net, sorted(victims)))
+        else:
+            rollback(before, removed)
+            log('   repair %-12s rolled back (victims %s)' % (net, sorted(victims)))
+    return unrouted_nets(board)
+
+
+def _in_the_way(board, new, nets, clmap=None, clearance=0.1):
+    """Unlocked tracks and vias of `nets` that break clearance to the
+    tracks and vias in `new`."""
+    clmap = clmap or {}
+    mine = {}
+    for t in new:
+        for l, gs in _geom_all(t).items():
+            mine.setdefault(l, []).extend((g, clmap.get(t.GetNetname(), clearance)) for g in gs)
+    out = []
+    for t in board.GetTracks():
+        if t.GetNetname() not in nets or t.IsLocked():
+            continue
+        c = clmap.get(t.GetNetname(), clearance)
+        if any(g.distance(h) < max(c, ch) - 1e-4
+               for l, gs in _geom_all(t).items() for g in gs for h, ch in mine.get(l, [])):
+            out.append(t)
+    return out
+
+
+def _geom_all(item):
+    """_geom_of, with a via on every copper layer it passes (it is drilled
+    through all of them, routed or not)."""
+    if item.GetClass() == 'PCB_VIA':
+        p = item.GetPosition()
+        r = max(mm(item.GetWidth(pcbnew.F_Cu)) / 2, mm(item.GetDrillValue()) / 2 + VIA_RING)
+        g = Point(mm(p.x), mm(p.y)).buffer(r)
+        return {l: [g] for l in pcb.CU_ALL}
+    return _geom_of(item)
+
+
+def _drop_floating(board, net):
+    """Remove the net's unlocked track pieces that no longer reach a pad or
+    a pour of the net.  Returns what was removed."""
+    items = []
+    for fp in board.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname() == net:
+                items.append((None, _geom_all(p)))
+    for z in board.Zones():
+        if z.GetIsRuleArea() or z.GetNetname() != net or not z.IsFilled():
+            continue
+        for l in ROUTE_LAYERS:
+            if z.GetLayerSet().Contains(l):
+                fp_ = z.GetFilledPolysList(l)
+                for k in range(fp_.OutlineCount()):
+                    ol = fp_.Outline(k)
+                    pts = [(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())]
+                    if len(pts) >= 3:
+                        items.append((None, {l: [Polygon(pts).buffer(0)]}))
+    anchored = len(items)
+    for t in board.GetTracks():
+        if t.GetNetname() == net:
+            items.append((t, _geom_all(t)))
+    parent = list(range(len(items)))
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]; a = parent[a]
+        return a
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            gi, gj = items[i][1], items[j][1]
+            if any(a.intersects(b) for l in gi if l in gj for a in gi[l] for b in gj[l]):
+                parent[find(i)] = find(j)
+    roots = set(find(i) for i in range(anchored))
+    out = []
+    for i in range(anchored, len(items)):
+        t = items[i][0]
+        if find(i) not in roots and not t.IsLocked():
+            out.append(t); pcb.remove(board, t)
+    return out
+
+
+def repair_orders(board, nets, protect=(), widths=None, clmap=None, tries=40, max_victims=10, seed=1,
+                  passes=2, log=print, keep_locked=False):
+    """Rip-up and re-route in random orders, one jam at a time.  For each
+    open net: a 'soft' route (other signal nets may be crossed, at a cost)
+    names the nets in its way.  The net and those nets are torn up and
+    routed again in up to `tries` random orders (seeded: the same board
+    gives the same result); the first order in which the net joins up and
+    no torn-up net has more islands than before is kept, otherwise every
+    track and via is put back.  Locked copper of other nets may be torn up
+    too, unless keep_locked.  Returns the nets still open."""
+    import random
+    rnd = random.Random(seed)
+    protect = set(protect)
+    if not keep_locked:
+        for t in board.GetTracks():
+            if t.GetNetname() not in protect:
+                t.SetLocked(False)
+
+    def islands(n):
+        return len(_net_components(board, n))
+
+    def snapshot():
+        return set(t.m_Uuid.AsString() for t in board.GetTracks())
+
+    def rollback(before, removed):
+        for t in list(board.GetTracks()):
+            if t.m_Uuid.AsString() not in before:
+                pcb.remove(board, t)
+        for t in removed:
+            board.Add(t)
+
+    def rip(n, removed):
+        for t in list(board.GetTracks()):
+            if t.GetNetname() == n and not t.IsLocked():
+                removed.append(t); pcb.remove(board, t)
+
+    def width(n):
+        return (widths or {}).get(n, 0.1)
+
+    def attempt(net):
+        if islands(net) <= 1:
+            return True
+        before = snapshot()
+        soft = set(t.GetNetname() for t in board.GetTracks() if not t.IsLocked()) - protect - {net}
+        victims = set()
+        route_net(board, net, track_w=width(net), clmap=clmap, lock=False, soft_nets=soft, victims_out=victims)
+        for t in list(board.GetTracks()):
+            if t.m_Uuid.AsString() not in before:
+                pcb.remove(board, t)
+        group = {net} | (victims - protect)
+        if len(group) > max_victims + 1:
+            log('   orders %-12s %d nets in the way, too many' % (net, len(group) - 1))
+            return False
+        base = {n: islands(n) for n in group}
+        for k in range(tries):
+            before = snapshot(); removed = []
+            for n in group:
+                rip(n, removed)
+            order = sorted(group - {net}); rnd.shuffle(order)
+            order = [net] + order if k % 2 == 0 else order[:len(order) // 2] + [net] + order[len(order) // 2:]
+            for n in order:
+                route_net(board, n, track_w=width(n), clmap=clmap, lock=False)
+            now = {n: islands(n) for n in group}
+            if now[net] == 1 and all(now[n] <= base[n] for n in group):
+                log('   orders %-12s routed on try %d, re-routed %s' % (net, k, sorted(group - {net})))
+                return True
+            rollback(before, removed)
+        log('   orders %-12s no order worked (%d tries, nets %s)' % (net, tries, sorted(group)))
+        return False
+
+    todo = list(nets)
+    for _ in range(passes):
+        todo = [n for n in todo if not attempt(n)]
+        if not todo:
+            break
+    return [n for n in unrouted_nets(board) if n in set(nets)]
