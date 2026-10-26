@@ -1,0 +1,52 @@
+#!/bin/sh
+#
+# LayerCam service (BusyBox init).  Starts the network, then the camera
+# software, and starts it again if it ever stops.  Not yet run on a board.
+#
+
+DIR=/usr/share/layercam            # the Python package (layercam/)
+CONF=/userdata/layercam/layercam.ini
+LOG=/var/log/layercam.log
+PIDFILE=/var/run/layercam.pid
+
+start() {
+	printf "Starting layercam: "
+	mkdir -p /userdata/layercam
+	# Luckfox's default camera app holds the sensor; the SDK ships this script
+	# for exactly that (luckfox_pico_rkmpi_example calls it too)
+	[ -x /oem/usr/bin/RkLunch-stop.sh ] && /oem/usr/bin/RkLunch-stop.sh >/dev/null 2>&1
+	command -v RkLunch-stop.sh >/dev/null 2>&1 && RkLunch-stop.sh >/dev/null 2>&1
+	# the Wi-Fi module's driver (the SDK builds it as a module, like its wifi_start.sh)
+	if ! grep -q bcmdhd /proc/modules 2>/dev/null; then
+		for ko in /oem/usr/ko/bcmdhd.ko /lib/modules/bcmdhd.ko; do
+			[ -f $ko ] && insmod $ko && break
+		done
+	fi
+	# a supervisor loop: the service restarts itself after a settings change (exec),
+	# and this brings it back after a crash
+	(
+		while true; do
+			cd $DIR && python3 -m layercam --config $CONF >>$LOG 2>&1
+			sleep 5
+		done
+	) &
+	echo $! > $PIDFILE
+	echo "OK"
+}
+
+stop() {
+	printf "Stopping layercam: "
+	[ -f $PIDFILE ] && kill $(cat $PIDFILE) 2>/dev/null
+	pkill -f "python3 -m layercam" 2>/dev/null
+	pkill layercam-media 2>/dev/null
+	rm -f $PIDFILE
+	echo "OK"
+}
+
+case "$1" in
+	start) start ;;
+	stop) stop ;;
+	restart|reload) stop; sleep 1; start ;;
+	*) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac
+exit $?

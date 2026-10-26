@@ -12,8 +12,16 @@ fingerprint =
 ssid =
 # empty for an open network
 password =
-# the setup access point (LayerCam-XXXX) passphrase, 8-63 characters
-ap_password = layercam-setup
+# the setup access point's passphrase, 8-63 characters; empty = this camera's
+# own, made from its SoC serial number (tools/layercam-ap.py prints it, and the
+# serial console shows it when the access point opens)
+ap_password =
+# 2.4 (2.4 GHz only, less heat) or any
+band = 2.4
+# 802.11 power save between transfers
+power_save = true
+# transmit power cap in dBm; 0 = the driver's default
+tx_power_dbm = 10
 
 [connect]
 enabled = true
@@ -41,10 +49,12 @@ enabled = true
 # auto: udp, falling back to poll when no trigger comes
 trigger = auto
 udp_port = 8514
-# the total G4 hold in the slicer snippet, ms
-dwell_ms = 1600
+# the total G4 hold in the slicer snippet (2 x G4 P600), ms
+dwell_ms = 1200
 # wait this long after the head stops before taking the frame, ms
 settle_ms = 150
+# video size: 1920x1080, or the full sensor 2304x1296 (snapshots use the same)
+resolution = 1920x1080
 fps = 30
 # H.264 QP (camera) or CRF (ffmpeg): lower = better and bigger
 quality = 28
@@ -94,15 +104,47 @@ command = ffmpeg -loglevel error -f v4l2 -i /dev/video0 -frames:v 1 -q:v 3 -y {o
 flip = none
 # reported to Connect: 0, 90, 180, 270
 rotation = 0
+# between pictures when no print is on: standby (sensor and ISP stopped) or stream (2 fps)
+idle = standby
+# from standby, let the exposure settle this long before a picture, ms
+wake_ms = 1000
+# sensor frame rate during a print (a fresh frame within three frame times)
+print_fps = 10
+# live view: frame rate, and how long it runs before stopping by itself (s)
+live_fps = 10
+live_max_s = 120
 
 [ir]
-# auto (IR LEDs whenever dark), printing (only while printing), day, night, off
+# auto (IR at night), printing (IR at night during prints only), day, night, off.
+# The IR LEDs light only around each night picture and during live view.
 mode = auto
 # volts on the light sensor: below dark_v for hold_s is night, above light_v for hold_s is day
 dark_v = 0.10
 light_v = 0.25
 hold_s = 5.0
+# IR LED brightness, percent
 led_duty = 100
+# the LEDs ramp up and down over this long, ms
+ramp_ms = 150
+# LEDs on this long before a night picture, for the exposure to follow, ms
+flash_settle_ms = 500
+
+[thermal]
+# the RV1106's own temperature sensor (TSADC), millidegrees
+zone = /sys/class/thermal/thermal_zone0/temp
+# from here: lower frame rates and JPEG quality, no live view, LED duty capped
+throttle_c = 90.0
+# from here also: no Prusa Connect uploads (timelapse frames continue)
+no_upload_c = 105.0
+# from here the camera stops...
+stop_c = 115.0
+# ...until the SoC is back under this
+resume_c = 95.0
+# each lower level returns this far under its threshold
+hysteresis_k = 5.0
+throttle_fps = 5
+throttle_quality = 70
+throttle_led_duty = 50
 
 [web]
 port = 80

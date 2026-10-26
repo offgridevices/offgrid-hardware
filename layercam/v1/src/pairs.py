@@ -8,15 +8,17 @@ pitch, so the two stay coupled through every bend and come out the same
 length (each pair turns as far left as right).  Ends: the tracks fan out
 onto their pads at 45 degrees.
 
-  MIPI  (F, over the In1 ground plane, 0.10 / 0.15 mm, 100 ohm)
+  MIPI  (F, over the In1 ground plane, 0.12 / 0.15 mm, 100 ohm)
         from the SoC's top row (pins 123-128) up its left side, round the
         lens window's left (outside the holder screw), across above the
         window and up into the camera connector J2.  D0, clock and D1 keep
         their order the whole way; at J2 they spread to its 1.5 mm pitch.
-  USB   (0.12 / 0.15 mm, 90 ohm)
+  USB   (0.14 / 0.15 mm, 90 ohm)
         from the cable connector J1 right and down on F, left of the MIPI
         lanes; through two vias to B at the SoC's corner, which the 0.9 V
-        buck fills on F; back up to F beside the SoC's pins 26 / 27.
+        buck fills on F; back up to F beside the SoC's pins 26 / 27.  A
+        ground via beside each pair of signal vias carries the return
+        current from plane to plane where the pair changes layer.
 
 Coordinates are the board's (x right, y down, mm, origin on the lens
 axis), the same as layout_main.py.
@@ -27,8 +29,9 @@ import pcb
 
 # (P net, N net, P on the -offset side) per lane, D0 / clock / D1
 MIPI = (('CSI_D0P', 'CSI_D0N'), ('CSI_CKP', 'CSI_CKN'), ('CSI_D1P', 'CSI_D1N'))
-MIPI_W, MIPI_S = 0.10, 0.15
-USB_W, USB_S = 0.12, 0.15
+from board import DIFF
+MIPI_W, MIPI_S = DIFF['main']['MIPI'][1:]
+USB_W, USB_S = DIFF['main']['USB'][1:]
 CHAMFER = 1.0
 
 # the lanes' waypoints, one value per lane (D0, clock, D1)
@@ -128,6 +131,41 @@ def usb(b):
         _draw(b, [via2] + t, USB_W, pcbnew.F_Cu, net)
 
 
+def gnd_via_near(b, centre, rmin=0.75, rmax=1.6):
+    """A ground via as close to `centre` as fits (0.25 mm steps out, every
+    15 degrees): clear of every pad, track and via of another net by the
+    fanout's clearance, inside the board."""
+    import power
+    from shapely.geometry import Point, LineString
+    vr = pcb.VIA[0] / 2
+    obst = []
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname() != 'GND':
+                for lay in (pcbnew.F_Cu, pcbnew.B_Cu):
+                    if p.IsOnLayer(lay):
+                        obst.append(power._pad_poly(p, lay))
+    for t in b.GetTracks():
+        if t.GetNetname() == 'GND':
+            continue
+        if t.GetClass() == 'PCB_VIA':
+            obst.append(Point(pcb.xy(t.GetPosition())).buffer(t.GetWidth(pcbnew.F_Cu) / 2e6))
+        else:
+            obst.append(LineString([pcb.xy(t.GetStart()), pcb.xy(t.GetEnd())]).buffer(t.GetWidth() / 2e6))
+    edge = pcb.board_polygon().buffer(-(0.3 + vr))
+    r = rmin
+    while r <= rmax:
+        for k in range(24):
+            a = math.radians(15 * k)
+            q = Point(centre[0] + r * math.cos(a), centre[1] + r * math.sin(a))
+            v = q.buffer(vr)
+            if edge.contains(q) and all(o.distance(v) >= power.CLR for o in obst):
+                pcb.via(b, q.x, q.y, 'GND')
+                return q.x, q.y
+        r += 0.25
+    raise SystemExit('pairs: no room for a ground via near (%.2f, %.2f)' % centre)
+
+
 def lengths(b):
     """Each pair net's routed length, mm (tracks only)."""
     out = {}
@@ -151,4 +189,8 @@ def pin28(b):
 def draw(b):
     mipi(b)
     usb(b)
-    return pin28(b)
+    done = pin28(b)
+    # the USB pair's two layer changes: a ground via beside each
+    gnd_via_near(b, (USB_F1[-1][0], USB_VIA1))
+    gnd_via_near(b, (USB_VIA2, USB_B[-1][1]))
+    return done

@@ -22,7 +22,18 @@ class Helper(unittest.TestCase):
         self.cam.close()
 
     def test_snapshot_and_commands(self):
+        with self.assertRaises(capture.CameraError):
+            self.cam.snapshot(80)               # the helper starts asleep (sensor in standby)
+        self.assertFalse(self.cam.awake)
+        self.cam.wake(10)
+        self.assertTrue(self.cam.awake)
         self.assertEqual(self.cam.snapshot(80), capture.TINY_JPEG)
+        self.cam.wake(5)                        # awake already: just the rate
+        self.cam.sleep()
+        self.assertFalse(self.cam.awake)
+        with self.assertRaises(capture.CameraError):
+            self.cam.snapshot(80)
+        self.cam.wake(10)
         self.assertEqual(self.cam.resolution(), (2304, 1296))
         self.cam.night(True)
         with self.assertRaises(capture.CameraError):
@@ -30,6 +41,7 @@ class Helper(unittest.TestCase):
 
     def test_timelapse_to_mp4(self):
         folder = os.path.join(tempfile.mkdtemp(), 'rec-1')
+        self.cam.wake(10)
         rec = recording.H264Recording(self.cam, folder, 'Benchy', 274, fps=30)
         for _ in range(25):
             rec.add_frame()
@@ -46,13 +58,15 @@ class Helper(unittest.TestCase):
 
     def test_helper_crash_mid_print(self):
         folder = os.path.join(tempfile.mkdtemp(), 'rec-2')
+        self.cam.wake(10)
         rec = recording.H264Recording(self.cam, folder, 'x', fps=30)
         for _ in range(10):
             rec.add_frame()
         with self.assertRaises(capture.CameraError):
             self.cam.command('DIE')
         self.cam.next_start = 0                 # skip the 5 s restart pause
-        rec.add_frame()                         # restarts the helper and the stream, then takes the frame
+        rec.add_frame()                         # restarts the helper awake, reopens the stream, takes the frame
+        self.assertTrue(self.cam.awake)
         rec.finish()
         self.assertEqual(rec.frames, 11)
         # the helper's new stream begins on its first access unit again (an IDR with SPS/PPS)
@@ -60,6 +74,42 @@ class Helper(unittest.TestCase):
         out = os.path.join(folder, 'out.mp4')
         body.write(out)
         self.assertEqual(int(h264util.probe(out)['nb_read_frames']), 11)
+
+
+@unittest.skipUnless(h264util.have_ffmpeg(), 'needs ffmpeg and ffprobe with libx264')
+class HelperOffline(unittest.TestCase):
+    def test_jpeg_frames_through_the_hardware_encoder(self):
+        """No ffmpeg on the camera: the frames go through layercam-media --encode-jpegs."""
+        from unittest import mock
+        aus = h264util.make_aus(320, 180, 12, gop=6)
+        tmp = tempfile.mkdtemp()
+        wrapper = os.path.join(tmp, 'layercam-media')
+        with open(wrapper, 'w') as f:
+            f.write('#!/bin/sh\nexec "%s" "%s" "%s" "$@"\n' % (sys.executable, FAKE, aus))
+        os.chmod(wrapper, 0o755)
+        folder = os.path.join(tmp, 'rec-5')
+        rec = recording.JpegRecording(capture.FakeCamera(), folder, 'J')
+        for _ in range(12):
+            rec.add_frame()
+        rec.finish()
+        with mock.patch('layercam.recording.shutil.which', return_value=None):
+            body = recording.body_for(folder, helper=wrapper)
+        self.assertEqual(body.frames, 12)
+        self.assertEqual(recording.load_meta(folder)['kind'], 'h264')
+        self.assertFalse(os.path.exists(os.path.join(folder, 'frames')))
+        out = os.path.join(tmp, 'o.mp4')
+        body.write(out)
+        self.assertEqual(int(h264util.probe(out)['nb_read_frames']), 12)
+
+    def test_nothing_to_encode_with(self):
+        from unittest import mock
+        folder = os.path.join(tempfile.mkdtemp(), 'rec-6')
+        rec = recording.JpegRecording(capture.FakeCamera(), folder, 'J')
+        rec.add_frame()
+        rec.finish()
+        with mock.patch('layercam.recording.shutil.which', return_value=None):
+            with self.assertRaises(RuntimeError):
+                recording.body_for(folder, helper='/nonexistent/layercam-media')
 
 
 class Jpeg(unittest.TestCase):

@@ -206,6 +206,24 @@ def validate():
     return rows
 
 
+def usb_routed_length():
+    """Track length of USB_DP / USB_DM on the routed USB board, if it is there."""
+    path = os.path.join(V1, 'usb', 'layercam-usb.kicad_pcb')
+    if not os.path.exists(path):
+        return 14.0, 'estimated from the placement: receptacle at y 4, cable connector at y 12.5'
+    s = open(path).read()
+    tot = {}
+    for m in re.finditer(r'\(segment\s+\(start ([\d.-]+) ([\d.-]+)\)\s+\(end ([\d.-]+) ([\d.-]+)\)\s+\(width ([\d.]+)\)'
+                         r'\s+\(layer "[^"]+"\)\s+\(net "([^"]+)"', s):
+        x1, y1, x2, y2, wd, net = m.groups()
+        if net in ('USB_DP', 'USB_DM'):
+            tot[net] = tot.get(net, 0) + math.hypot(float(x2) - float(x1), float(y2) - float(y1))
+    if not tot:
+        return 14.0, 'estimated from the placement'
+    return max(tot.values()), ('routed usb/layercam-usb.kicad_pcb: D+ %.1f mm, D- %.1f mm of track including the '
+                               'joins between the receptacle\'s two rows' % (tot.get('USB_DP', 0), tot.get('USB_DM', 0)))
+
+
 # ---------------------------------------------------------------- the cases
 def main_case(name):
     nets, w, s = DIFF['main'][name]
@@ -374,13 +392,14 @@ def run():
           warn=True)
     # electrical length on the USB board: ~ 12 mm from the receptacle to J2 (layout_usb.py)
     tpd = math.sqrt(zu['eodd']) / fs.C_LIGHT * 1e-3 * 1e12        # ps/mm
-    L_usb = 14.0
-    w_('The USB board\'s pair is about %.0f mm long (receptacle at y 4, cable connector at y 12.5, ESD on the way): '
-       '%.0f ps of flight time at %.1f ps/mm, against USB 2.0 high speed\'s 500 ps minimum edge (10-90 %%). A line '
-       'shorter than about a sixth of the edge (%.0f ps) behaves as a lumped element; this one is close to it, so its '
-       'impedance matters little next to the cable and connectors (the 6-wire SH cable to the main board is unshielded, '
-       'parallel wires: roughly 100-150 ohm differential, not controlled).\n'
-       % (L_usb, L_usb * tpd, tpd, 500 / 6))
+    L_usb, src = usb_routed_length()
+    gamma = (zu['Zdiff'] - 90) / (zu['Zdiff'] + 90)
+    w_('The USB board\'s pair is %.0f mm long (%s): %.0f ps of flight time at %.1f ps/mm, against USB 2.0 high '
+       'speed\'s 500 ps minimum edge (10-90 %%). That is past the lumped limit (a sixth of the edge, %.0f ps), so the '
+       'impedance does show: %.1f ohm against 90 reflects %.0f %% of each edge, small next to the receiver\'s margin '
+       'and to the SH cable after it (6 unshielded parallel wires at 1 mm pitch: roughly 100-150 ohm differential, not '
+       'controlled), and the D+ / D- length difference (%s) is mostly the joins between the receptacle\'s two '
+       'contact rows.\n' % (L_usb, src, L_usb * tpd, tpd, 500 / 6, zu['Zdiff'], 100 * abs(gamma), 'see above'))
     return L, results, rec, zu, (wb, sb, gb, zb)
 
 
@@ -409,8 +428,8 @@ def main():
                   min(u[5], u[6]), max(u[5], u[6])))
     wb, sb, gb, zb = best_usb
     w('- **USB board %.2f / %.2f mm: %.1f ohm.** A 2-layer 1.2 mm board cannot put a plane close under the pair; the '
-      'side fill sets the impedance. %.2f / %.3f mm with the fill where it is gives %.1f ohm. The run (about 14 mm) is '
-      'electrically short for USB 2.0 and the SH cable after it is uncontrolled anyway: WARN, not FAIL.'
+      'side fill sets the impedance. %.2f / %.3f mm with the fill where it is gives %.1f ohm. A 6 %% reflection on a '
+      'short run ahead of an uncontrolled cable: WARN, not FAIL.'
       % (DIFF['usb']['USB'][1], DIFF['usb']['USB'][2], zu['Zdiff'], wb, sb, zb['Zdiff']))
     w('- USB layer change on the main board (pairs.py: F to B and back): no ground via beside the signal vias '
       '(stitching keeps 1.2 mm off every via). Add one ground via within about 1 mm of each transition so the '

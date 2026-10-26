@@ -50,13 +50,18 @@ class DayNight:
 
 
 def ir_plan(mode, light_state, printing):
-    """-> (filter, leds): filter 'day' (IR-cut in) or 'night' (out); leds on/off."""
+    """-> (filter, leds): filter 'day' (IR-cut in) or 'night' (out); leds:
+    whether night pictures may light the IR LEDs.  They are never on
+    continuously: only for the moments around each picture (and live view),
+    because lit continuously they and their resistors are the hottest
+    thing in the housing (sim/thermal.md, night case)."""
     if mode == 'day' or mode == 'off':
         return 'day', False
     if mode == 'night':
         return 'night', True
     night = light_state == 'night'
-    # the filter follows the light; in 'printing' mode the LEDs wait for a print
+    # the filter follows the light; in 'printing' mode the LEDs wait for a print.
+    # The filter coil is pulsed only when this answer changes (Service.update_ir).
     return ('night' if night else 'day'), (night and (printing or mode == 'auto'))
 
 
@@ -93,12 +98,15 @@ PATTERNS = {
     'offline': [(100, 100)],                         # fast blink: joining Wi-Fi
     'recording': [(150, 150), (150, 1550)],          # double blink: a timelapse is recording
     'ok': [(1, 0)],                                  # steady: on the network, idle
+    'hot': [(1500, 300)],                            # long on, short off: hot, camera throttled or stopped
 }
 
 
-def led_state(setup_ap, wifi_up, error, recording):
+def led_state(setup_ap, wifi_up, error, recording, thermal='normal'):
     if setup_ap:
         return 'setup'
+    if thermal != 'normal':
+        return 'hot'
     if not wifi_up:
         return 'offline'
     if error:
@@ -171,6 +179,32 @@ class Sysfs:
                 self._gpio(board.IRCUT_A, 0)
                 self._gpio(board.IRCUT_B, 0)
         except OSError:
+            pass
+
+    def ir_ramp(self, start, end, ramp_ms, step_ms=20):
+        """Change the IR LED duty gradually: no 0.14 A step on the 5 V input
+        (three strings of about 47 mA, sim/power.md)."""
+        steps = max(1, int(ramp_ms / step_ms))
+        for i in range(1, steps + 1):
+            self.ir_leds(start + (end - start) * i / steps)
+            if i < steps:
+                time.sleep(step_ms / 1000.0)
+
+    def temperature(self, zone):
+        """The SoC's temperature in C from a thermal zone (millidegrees), or None."""
+        try:
+            return int(_read(self.root + zone)) / 1000.0
+        except (OSError, ValueError):
+            return None
+
+    def cpu_speed(self, fast):
+        """Lowest operating point unless fast: scaling_max_freq, which works
+        under any governor (Luckfox's kernel defaults to ondemand)."""
+        base = self.root + '/sys/devices/system/cpu/cpu0/cpufreq'
+        try:
+            freqs = sorted(int(f) for f in _read(base + '/scaling_available_frequencies').split())
+            _write(base + '/scaling_max_freq', freqs[-1] if fast else freqs[0])
+        except (OSError, ValueError, IndexError):
             pass
 
     def ir_leds(self, duty_percent):

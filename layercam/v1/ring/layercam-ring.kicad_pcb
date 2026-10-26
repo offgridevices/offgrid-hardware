@@ -1503,7 +1503,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "39R"
+		(property "Value" "47R"
 			(at 0 -1.83 130)
 			(layer "B.Fab")
 			(hide yes)
@@ -1553,7 +1553,7 @@
 				(justify mirror)
 			)
 		)
-		(property "LCSC" "C22198"
+		(property "LCSC" "C17969"
 			(at 0 0 130)
 			(layer "B.Fab")
 			(hide yes)
@@ -1671,7 +1671,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "39R"
+		(property "Value" "47R"
 			(at 0 -1.83 175)
 			(layer "B.Fab")
 			(hide yes)
@@ -1721,7 +1721,7 @@
 				(justify mirror)
 			)
 		)
-		(property "LCSC" "C22198"
+		(property "LCSC" "C17969"
 			(at 0 0 175)
 			(layer "B.Fab")
 			(hide yes)
@@ -1839,7 +1839,7 @@
 				(justify mirror)
 			)
 		)
-		(property "Value" "39R"
+		(property "Value" "47R"
 			(at 0 -1.83 235)
 			(layer "B.Fab")
 			(hide yes)
@@ -1889,7 +1889,7 @@
 				(justify mirror)
 			)
 		)
-		(property "LCSC" "C22198"
+		(property "LCSC" "C17969"
 			(at 0 0 235)
 			(layer "B.Fab")
 			(hide yes)

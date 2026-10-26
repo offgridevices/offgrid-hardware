@@ -16,7 +16,12 @@ DEFAULTS = {
     'wifi': {
         'ssid': '',
         'password': '',
-        'ap_password': 'layercam-setup',   # the setup access point's WPA2 passphrase
+        # the setup access point's WPA2 passphrase; empty = this camera's own,
+        # made from the SoC's serial number (tools/layercam-ap.py prints it)
+        'ap_password': '',
+        'band': '2.4',                 # 2.4 (2.4 GHz only: less heat, sim/thermal.md) or any
+        'power_save': True,            # 802.11 power save between transfers
+        'tx_power_dbm': 10,            # transmit power cap; 0 = the driver's default
     },
     'connect': {
         'enabled': True,
@@ -36,8 +41,9 @@ DEFAULTS = {
         'enabled': True,
         'trigger': 'auto',             # udp (slicer snippet), poll (PrusaLink Z), auto (udp, else poll)
         'udp_port': 8514,
-        'dwell_ms': 1600,              # the total G4 hold in the slicer snippet
+        'dwell_ms': 1200,              # the total G4 hold in the slicer snippet (2 x G4 P600)
         'settle_ms': 150,              # wait this long after the head stops before the frame
+        'resolution': '1920x1080',     # 1920x1080, or the full sensor 2304x1296
         'fps': 30,
         'quality': 28,                 # H.264 QP (rkmpi) or CRF (ffmpeg): lower is better and bigger
         'keep_cancelled': True,        # upload the video of a cancelled print too
@@ -73,13 +79,31 @@ DEFAULTS = {
         'command': 'ffmpeg -loglevel error -f v4l2 -i /dev/video0 -frames:v 1 -q:v 3 -y {out}',
         'flip': 'none',                # none, h, v, both
         'rotation': 0,                 # reported to Connect only
+        'idle': 'standby',             # between pictures when not printing: standby (sensor off) or stream (2 fps)
+        'wake_ms': 1000,               # from standby: let exposure settle this long before the picture
+        'print_fps': 10,               # sensor rate during a print (a fresh frame within 3 frame times)
+        'live_fps': 10,
+        'live_max_s': 120,             # live view stops by itself after this long
     },
     'ir': {
-        'mode': 'auto',                # auto (LEDs whenever dark), printing (dark and printing), day, night, off
+        'mode': 'auto',                # auto (IR at night), printing (IR at night during prints only), day, night, off
         'dark_v': 0.10,                # light sensor below this for hold_s: night
         'light_v': 0.25,               # above this for hold_s: day
         'hold_s': 5.0,
-        'led_duty': 100,               # IR LED brightness, percent
+        'led_duty': 100,               # IR LED brightness, percent (lit only around each night picture)
+        'ramp_ms': 150,                # LED brightness ramps up and down over this long
+        'flash_settle_ms': 500,        # LEDs on this long before the picture, for the exposure to follow
+    },
+    'thermal': {
+        'zone': '/sys/class/thermal/thermal_zone0/temp',   # the RV1106's TSADC (soc-thermal)
+        'throttle_c': 90.0,            # lower rates, no live view, LED duty capped
+        'no_upload_c': 105.0,          # also no Connect uploads
+        'stop_c': 115.0,               # camera stopped...
+        'resume_c': 95.0,              # ...until below this
+        'hysteresis_k': 5.0,
+        'throttle_fps': 5,
+        'throttle_quality': 70,
+        'throttle_led_duty': 50,
     },
     'web': {
         'port': 80,
@@ -98,6 +122,9 @@ CHOICES = {
     ('camera', 'backend'): ('rkmpi', 'command', 'fake'),
     ('camera', 'flip'): ('none', 'h', 'v', 'both'),
     ('ir', 'mode'): ('auto', 'printing', 'day', 'night', 'off'),
+    ('wifi', 'band'): ('2.4', 'any'),
+    ('timelapse', 'resolution'): ('1920x1080', '2304x1296'),
+    ('camera', 'idle'): ('standby', 'stream'),
     ('connect', 'interval'): (10, 30, 60),
     ('camera', 'rotation'): (0, 90, 180, 270),
 }
@@ -223,8 +250,19 @@ def validate(cfg):
         e.append('connect.quality must be 30-95')
     if cfg.get('wifi', 'password') and not 8 <= len(cfg.get('wifi', 'password')) <= 63:
         e.append('wifi.password must be 8-63 characters (WPA2), or empty for an open network')
-    if not 8 <= len(cfg.get('wifi', 'ap_password')) <= 63:
-        e.append('wifi.ap_password must be 8-63 characters')
+    if cfg.get('wifi', 'ap_password') and not 8 <= len(cfg.get('wifi', 'ap_password')) <= 63:
+        e.append('wifi.ap_password must be 8-63 characters, or empty for the camera\'s own')
+    if not 0 <= cfg.get('wifi', 'tx_power_dbm') <= 20:
+        e.append('wifi.tx_power_dbm must be 0-20')
+    th = cfg.section('thermal')
+    if not th['throttle_c'] < th['no_upload_c'] < th['stop_c'] or not th['resume_c'] < th['stop_c']:
+        e.append('thermal: throttle_c < no_upload_c < stop_c and resume_c < stop_c')
+    if not 0 <= th['throttle_led_duty'] <= 100 or not 1 <= th['throttle_fps'] <= 30:
+        e.append('thermal.throttle_led_duty must be 0-100 and thermal.throttle_fps 1-30')
+    if not 1 <= cfg.get('camera', 'print_fps') <= 30 or not 1 <= cfg.get('camera', 'live_fps') <= 30:
+        e.append('camera.print_fps and camera.live_fps must be 1-30')
+    if not 10 <= cfg.get('camera', 'live_max_s') <= 900:
+        e.append('camera.live_max_s must be 10-900')
     if len(cfg.get('wifi', 'ssid').encode()) > 32:
         e.append('wifi.ssid is longer than 32 bytes')
     if not 1 <= cfg.get('timelapse', 'udp_port') <= 65535:

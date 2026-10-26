@@ -1,0 +1,39 @@
+#!/bin/sh
+# Copy LayerCam's board files into a Luckfox Pico SDK checkout:
+#
+#   board/install-into-sdk.sh ~/luckfox-pico [path/to/layercam-media]
+#
+# then in the SDK: ./build.sh lunch (pick LayerCam_v1), ./build.sh.
+# The C helper is built separately (native/Makefile); without it the image
+# boots but the camera software has no camera.  Not yet run.
+set -e
+SDK=${1:?usage: $0 SDK_PATH [layercam-media binary]}
+HELPER=${2:-}
+HERE=$(cd "$(dirname "$0")/.." && pwd)
+CFG=$SDK/project/cfg/BoardConfig_IPC
+OVL=$CFG/overlay/overlay-layercam
+
+cp "$HERE/dts/rv1106g-layercam-v1.dts" "$SDK/sysdrv/source/kernel/arch/arm/boot/dts/"
+cp "$HERE/board/sdk/layercam.config" "$SDK/sysdrv/source/kernel/arch/arm/configs/"
+cp "$HERE/board/sdk/BoardConfig-SPI_NAND-Buildroot-RV1106_LayerCam_v1-IPC.mk" "$CFG/"
+
+# (no dtb list to edit: the SDK builds $(RK_KERNEL_DTS:dts=img) by name,
+# as it does for Luckfox's own device trees, which are not in that list either)
+
+# Buildroot packages
+BR=$SDK/sysdrv/tools/board/buildroot/luckfox_pico_defconfig
+grep -q BR2_PACKAGE_CIFS_UTILS "$BR" || grep '^BR2_' "$HERE/board/sdk/buildroot.fragment" >> "$BR"
+
+# the overlay: scripts, the Python package, the helper
+rm -rf "$OVL"
+mkdir -p "$OVL/usr/share/layercam"
+cp -a "$HERE/board/rootfs/." "$OVL/"
+cp -a "$HERE/layercam" "$OVL/usr/share/layercam/"
+find "$OVL" -name __pycache__ -prune -exec rm -rf {} +
+cp "$HERE/board/layercam.ini.example" "$OVL/usr/share/layercam/"
+if [ -n "$HELPER" ]; then
+	install -m 755 "$HELPER" "$OVL/usr/bin/layercam-media"
+else
+	echo "note: no layercam-media given; build native/ and run this again with its path"
+fi
+echo "LayerCam files installed into $SDK"

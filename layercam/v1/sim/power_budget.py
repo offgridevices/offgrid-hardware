@@ -87,14 +87,16 @@ L_TOL = 0.20                        # inductors +-20 % (parts list)
 # Changjiang FPA252012D (JLCPCB catalogue, read 26 Oct 2026): rated (heating) / saturation current, DCR
 INDUCTORS = {'L1U5': dict(irms=2.9, isat=3.6, dcr=0.060), 'L2U2': dict(irms=2.4, isat=3.0, dcr=0.084),
              'L4U7': dict(irms=1.6, isat=2.1, dcr=0.200)}
-# Samsung MLCC DC-bias: fraction of nominal left at a bias (read approximately from Samsung's
-# characteristic-data curves for these case sizes and ratings; ASSUMED to +-10 %), X5R -15 % at 85 C
-DCBIAS = {'C22U': [(0, 1.0), (0.9, 0.88), (1.4, 0.78), (1.8, 0.70), (3.3, 0.45), (3.6, 0.40)],
-          'C10U': [(0, 1.0), (0.9, 0.93), (1.4, 0.86), (1.8, 0.80), (3.3, 0.60), (5.0, 0.42), (5.25, 0.40)],
-          'C1U': [(0, 1.0), (3.3, 0.85), (5.0, 0.75)], 'C4U7': [(0, 1.0), (1.0, 0.85)],
+# MLCC DC bias: fraction of nominal left at a bias.  The parts are now Murata X6S / X7S (parts.py:
+# GRM188C80J226ME15D 22u 6.3 V X6S 0603, GRM188C81A106MA73D 10u 10 V X6S 0603, GRM155C80J475MEAAD 4.7u 6.3 V
+# X6S 0402, GRM155C71A105KE11D 1u 10 V X7S 0402).  Murata's SimSurfing curves could not be reached (403); these
+# fractions are ASSUMED from typical high-CV X6S / X7S behaviour in these case sizes (to +-10 %).
+DCBIAS = {'C22U': [(0, 1.0), (0.9, 0.85), (1.4, 0.74), (1.8, 0.65), (3.3, 0.40), (3.6, 0.36)],
+          'C10U': [(0, 1.0), (0.9, 0.92), (1.4, 0.84), (1.8, 0.77), (3.3, 0.55), (5.0, 0.38), (5.25, 0.36)],
+          'C1U': [(0, 1.0), (3.3, 0.78), (5.0, 0.65)], 'C4U7': [(0, 1.0), (1.0, 0.80)],
           'C100N': [(0, 1.0), (5.0, 0.90)]}
 NOMINAL = {'C22U': 22e-6, 'C10U': 10e-6, 'C1U': 1e-6, 'C4U7': 4.7e-6, 'C100N': 0.1e-6}
-X5R_HOT = 0.85
+X5R_HOT = 0.85                      # X6S / X7S lose up to 22 % at their 105 / 125 C; ~15 % near 100 C (ASSUMED)
 
 # Supply: Prusa's camera port on the printer's mainboard: "Input: 5VDC 1 A" (Prusa product page for the
 # Buddy3D camera); USB tolerance at the receptacle
@@ -112,19 +114,45 @@ CABLE_R = 0.06                      # USB board + SH cable + contacts, round tri
 # SC3336 module: 3.3 V into its own LDOs; sensor ~ 150-200 mW class (SmartSens flyer gives none):
 # ASSUMED 0.06 A typical, 0.08 A max.  W25N02KV: 25 / 35 mA read (typ / max, Winbond).
 # IR-cut coil 20 ohm at 3.3 V through the DRV8837 (280 mOhm HS + LS): pulses of 100-500 ms.
+# Snapshot mode (the product's requirement, coordinator 26 Oct 2026): Prusa Connect takes a still at most
+# every 10 s and the timelapse one full-resolution frame per layer.  Modelled as: between shots the SC3336 in
+# software standby (not streaming), the CPU at its lowest DVFS point with ISP / VENC / NPU clock-gated, Wi-Fi
+# associated on 2.4 GHz in power-save; each shot wakes the sensor, settles exposure, grabs and JPEG-encodes a
+# frame and uploads it: ACTIVE_S of the SHOT_S period at the streaming loads.  At night the IR LEDs light for
+# LED_ON_S of each shot.  All currents below are ASSUMED (no published RV1106 idle figure was found; Luckfox
+# publishes only the Core1106 maximum): idle core 0.18 A is ~15 % of that maximum (a Cortex-A7 at its lowest
+# OPP plus always-on logic); DDR 0.05 A with little traffic; sensor standby 5 mA; Wi-Fi 2.4 GHz power-save with
+# a ~0.8 Mbit/s average upload (one ~1 MB JPEG per 10 s) about 0.05 A average.
+SHOT_S, ACTIVE_S, LED_ON_S = 10.0, 1.5, 2.0
+_k = ACTIVE_S / SHOT_S
+
+
+def _avg(idle, active):
+    return idle * (1 - _k) + active * _k
+
+
 CASES = {
-    'day': dict(desc='day: streaming 3 MP 30 fps, Wi-Fi average, IR LEDs off',
+    'snap_day': dict(desc='snapshot, day: one still every 10 s, idle between (REQUIREMENT CASE)',
+                     v09=_avg(0.18, 0.60), ddr=_avg(0.05, 0.12), v18=0.03, soc33=0.04, nand=_avg(0.0, 0.02),
+                     cam=_avg(0.005, 0.06), wifi=0.05, ircut=0.0, led=False),
+    'snap_night': dict(desc='snapshot, night: the same, IR LEDs on for 2 s of each 10 s (REQUIREMENT CASE)',
+                       v09=_avg(0.18, 0.60), ddr=_avg(0.05, 0.12), v18=0.03, soc33=0.04, nand=_avg(0.0, 0.02),
+                       cam=_avg(0.005, 0.06), wifi=0.05, ircut=0.0, led=True, led_duty=LED_ON_S / SHOT_S),
+    'snap_burst': dict(desc='snapshot, night, during a shot (seconds): streaming loads, Wi-Fi transmitting, LEDs on',
+                       v09=0.60, ddr=0.12, v18=0.035, soc33=0.06, nand=0.02, cam=0.06, wifi=0.32, ircut=0.0, led=True),
+    'day': dict(desc='live view, day: streaming 3 MP 30 fps, Wi-Fi average, IR LEDs off (reported only)',
                 v09=0.60, ddr=0.12, v18=0.035, soc33=0.06, nand=0.005, cam=0.06, wifi=0.12, ircut=0.0, led=False),
-    'night': dict(desc='night: the same with the six IR LEDs on at 100 %',
+    'night': dict(desc='live view, night: the same with the six IR LEDs on at 100 % (reported only)',
                   v09=0.60, ddr=0.12, v18=0.035, soc33=0.06, nand=0.005, cam=0.06, wifi=0.12, ircut=0.0, led=True),
-    'worst': dict(desc='worst sustained: SoC at the measured maximum +15 % hot leakage, DDR max, Wi-Fi '
-                       'transmitting continuously, IR LEDs on at the high-current corner',
+    'worst': dict(desc='worst sustained (stress bound): SoC at the measured maximum +15 % hot leakage, DDR max, '
+                       'Wi-Fi transmitting continuously, IR LEDs on at the high-current corner',
                   v09=1.21 * 1.15, ddr=0.30, v18=0.045, soc33=0.094, nand=0.035, cam=0.08, wifi=0.40, ircut=0.0,
                   led='max'),
     'peak': dict(desc='peak (milliseconds): worst plus a 1 A Wi-Fi burst and an IR-cut pulse',
                  v09=1.21 * 1.15, ddr=0.30, v18=0.045, soc33=0.094, nand=0.035, cam=0.08, wifi=1.0, ircut=None,
                  led='max'),
 }
+REQUIRED = ('snap_day', 'snap_night')
 # LEDs: JNJ-LTJI0106W90 850 nm: VF 1.4 typ / 2.1 max at 100 mA, 25 C (datasheet); at ~55 mA about 0.1 V
 # less (typical 850 nm AlGaAs curve, ASSUMED); -1.5 mV/K (typical, ASSUMED); IF 100 mA max, Tj 115 C max.
 # Radiant power 40 mW at 100 mA typ: about 40 % of that is light at these currents, the rest heat.
@@ -188,8 +216,13 @@ def led_string(vsys, r, vf):
     return i
 
 
+def string_resistor():
+    """The part code of the ring's string resistors (VSYS to a string anode)."""
+    return [c.part for c in COMPS['ring'] if c.ref.startswith('R') and 'VSYS' in c.pins.values()][0]
+
+
 def led_cases(r=None):
-    r = r or _val(part_of('ring', [c.ref for c in COMPS['ring'] if c.part.startswith('R39')][0]))
+    r = r or _val(string_resistor())
     vf_typ = VF100_TYP - VF_LOW_I
     vf_hot = vf_typ + VF_TC * (90 - 25)                # LED junction ~ 90 C (thermal.py)
     vf_max = VF100_MAX - VF_LOW_I
@@ -259,10 +292,12 @@ def solve_case(case, vin=VSYS[1]):
     if c['led']:
         _, lc = led_cases()
         sel = lc['high (5.25 V, typical VF hot, R -1 %)'] if c['led'] == 'max' else lc['nominal (5.0 V, typical VF, LEDs warm)']
-        i_led = 3 * sel['i']
-        h['ring resistors'] = 3 * sel['pr']
-        h['ring LEDs'] = 6 * sel['i'] * sel['vf'] * (1 - LED_WALL_PLUG)
-        h['Q1'] = (3 * sel['i']) ** 2 * 0.05
+        duty = c.get('led_duty', 1.0)
+        i_led = 3 * sel['i'] * duty
+        h['ring resistors'] = 3 * sel['pr'] * duty
+        h['ring LEDs'] = 6 * sel['i'] * sel['vf'] * (1 - LED_WALL_PLUG) * duty
+        h['Q1'] = (3 * sel['i']) ** 2 * 0.05 * duty
+        out['led_on'] = dict(sel, duty=duty, led_heat_each=sel['i'] * sel['vf'] * (1 - LED_WALL_PLUG))
         led_v = sel['v']
     else:
         led_v = vin
@@ -273,6 +308,12 @@ def solve_case(case, vin=VSYS[1]):
     out['heat_total'] = sum(h.values()) + out['i_vsys'] ** 2 * CABLE_R
     h['cable, connectors'] = out['i_vsys'] ** 2 * CABLE_R
     return out
+
+
+def led_on(case):
+    """For thermal.py: while the LEDs are lit, each LED's heat and each resistor's power (W)."""
+    lo = solve_case(case).get('led_on')
+    return (lo['led_heat_each'], lo['pr']) if lo else (0.0, 0.0)
 
 
 def heat(case):
@@ -311,27 +352,32 @@ def run():
       'over the USB-C cable. LayerCam presents 5.1 k Rd on both CC lines and reads nothing back, so it must live within '
       'whatever the port gives without negotiation.\n')
     w('| case | VSYS current | against 1 A |\n|---|---|---|')
-    for k in ('day', 'night', 'worst', 'peak'):
+    for k in ('snap_day', 'snap_night', 'snap_burst', 'day', 'night', 'worst', 'peak'):
         i = sol[k]['i_vsys']
         w('| %s | %.2f A | %s |' % (k, i, 'within' if i <= SOURCE_A else 'OVER by %.0f %%' % (100 * (i / SOURCE_A - 1))))
     w('')
-    check(sol['night']['i_vsys'] <= 0.8 * SOURCE_A, 'night streaming draws %.2f A, under 80 %% of the port\'s 1 A'
-          % sol['night']['i_vsys'])
+    for k in REQUIRED:
+        check(sol[k]['i_vsys'] <= 0.5 * SOURCE_A, '%s draws %.2f A on average, under half the port\'s 1 A'
+              % (k, sol[k]['i_vsys']))
+    check(sol['snap_burst']['i_vsys'] <= 0.8 * SOURCE_A, 'a night snapshot (seconds) draws %.2f A, under 80 %% of '
+          'the port\'s 1 A' % sol['snap_burst']['i_vsys'])
+    check(sol['night']['i_vsys'] <= 0.8 * SOURCE_A, 'live view at night draws %.2f A, under 80 %% of the port\'s 1 A'
+          % sol['night']['i_vsys'], warn=True)
     check(sol['worst']['i_vsys'] <= SOURCE_A,
-          'worst sustained %.2f A against the port\'s 1 A rating' % sol['worst']['i_vsys'], warn=True)
+          'worst sustained (stress bound) %.2f A against the port\'s 1 A rating' % sol['worst']['i_vsys'], warn=True)
     check(sol['peak']['i_vsys'] <= 1.5 * SOURCE_A,
           'millisecond peak %.2f A (the 10 uF caps on VSYS carry the edge; the port must not trip)'
           % sol['peak']['i_vsys'], warn=True)
 
     # ------------------------------------------------ each rail
     w('## Each regulator\n')
-    w('| rail | regulator | divider | Vout nom (corners) | allowed | load typ / worst | rating | L | '
+    w('| rail | regulator | divider | Vout nom (corners) | allowed | load in a shot / worst | rating | L | '
       'ripple / peak (L -20 %, fsw min) | Isat | Irms rating | efficiency (worst) | C out effective |')
     w('|---|---|---|---|---|---|---|---|---|---|---|---|---|')
     for r in rails():
         lo, nom, hi = vout_range(*r['div'], r['reg']['vref'])
         code, Lval, ii = ind(r['L'])
-        typ = loads('night')[r['load']]
+        typ = loads('snap_burst')[r['load']]
         wc = loads('worst')[r['load']]
         pk = loads('peak')[r['load']]
         b = buck(r['reg'], VSYS[2], nom, max(wc, pk), Lval * (1 - L_TOL), ii['dcr'], fsw=r['reg']['fsw_min'])
@@ -368,7 +414,7 @@ def run():
     w('The ripple and peak column is at the corner that maximises them: 5.25 V in, inductance -20 %, the switching '
       'frequency at its datasheet minimum (EA3036C 1.0 MHz; TLV62569 has none, 1.2 MHz assumed), at the larger of '
       'the worst sustained and peak loads. *C out effective* sums every ceramic on the rail at its bias and at 85 C '
-      '(X5R -15 %).\n')
+      '(-15 %, X6S / X7S near 100 C).\n')
 
     ea_out = sum(loads('peak')[k] * v for k, v in (('v33', 3.33), ('ddr', 1.36), ('v18', 1.8)))
     check(ea_out < 6.0, 'EA3036C total output %.2f W at peak, under its 6 W limit' % ea_out)
@@ -453,7 +499,7 @@ def run():
       '4.7-5.25 V supply, so the resistor sees a small, very variable remainder.\n'
       % (ilo['i'] * 1e3, ihi['i'] * 1e3, ihi['i'] / max(ilo['i'], 1e-9)))
     check(ihi['i'] <= LED_IMAX, 'LED current %.0f mA at the high corner under the 100 mA rating' % (ihi['i'] * 1e3))
-    check(ihi['pr'] <= 0.5 * 0.25, '39 R power %.3f W at the high corner within half its 0.25 W (it derates above '
+    check(ihi['pr'] <= 0.5 * 0.25, '%.0f R power' % r + ' %.3f W at the high corner within half its 0.25 W (it derates above '
           '70 C; thermal.py checks it at the ring\'s temperature)' % ihi['pr'], warn=True)
     check(ihi['i'] / max(ilo['i'], 1e-9) < 2.0, 'IR brightness spread %.1f : 1 between corners' %
           (ihi['i'] / max(ilo['i'], 1e-9)), warn=True)
@@ -496,8 +542,48 @@ def run():
     return L, sol
 
 
+def verdict(sol):
+    V = []
+    v = V.append
+    _, lc = led_cases()
+    rs = _val(string_resistor())
+    hi = lc['high (5.25 V, typical VF hot, R -1 %)']
+    lo = lc['low (4.75 V, maximum VF cold, R +1 %)']
+    nom = lc['nominal (5.0 V, typical VF, LEDs warm)']
+    fails = [c for c in checks if c[0] == 'FAIL']
+    v('## Verdict\n')
+    v('**%s** In snapshot mode (the requirement) the camera averages %.2f A by day and %.2f A by night, %.2f A '
+      'during a night shot, all well inside the port\'s 1 A. Live view and the stress bound are reported only.\n'
+      % ('PASS with WARNs.' if not fails else '%d FAIL.' % len(fails), sol['snap_day']['i_vsys'],
+         sol['snap_night']['i_vsys'], sol['snap_burst']['i_vsys']))
+    for r in rails():
+        lo_, nom_, hi_ = vout_range(*r['div'], r['reg']['vref'])
+        v('- %s: %.0fk / %.0fk = %.3f V (%.3f-%.3f) in %.3f-%.3f.' % (r['name'], r['div'][0] / 1e3, r['div'][1] / 1e3,
+                                                                    nom_, lo_, hi_, *r['allowed']))
+    v('- Regulators carry their worst loads with room (0.9 V %.2f of 2 A; EA3036C channels at most %.2f of 1 A; '
+      'Wi-Fi %.1f A peak of 2 A); every inductor peak is under 80 %% of its saturation current.'
+      % (loads('worst')['v09'], max(loads('peak')[k] for k in ('v33', 'ddr', 'v18')), loads('peak')['wifi']))
+    v('- IR LED strings with %.0f R: %.0f mA nominal, %.0f-%.0f mA over the supply and VF spread; %.3f W per resistor '
+      'at the high corner while lit (lit %.0f %% of the time in snapshot mode; thermal.md checks its derating).'
+      % (rs, nom['i'] * 1e3, lo['i'] * 1e3, hi['i'] * 1e3, hi['pr'], 100 * LED_ON_S / SHOT_S))
+    v('- The 1 u / 4.7 u / 10 u / 22 u capacitors are now Murata X7S / X6S (125 / 105 C). DC-bias fractions for them '
+      'are assumed (SimSurfing not reachable); the 0.9 V rail\'s %.0f uF effective is still past TI\'s tested range '
+      'for the TLV62569: check its load step on the bench.' % (caps_eff('main', 'VDD_0V9', 0.9) * 1e6))
+    v('- Remaining WARNs: the stress bound against the 1 A port, the LED brightness spread '
+      '(a constant-current sink would remove it), L1 / L5 saturating at the TLV62569\'s typical current limit, '
+      '%.0f uF on VSYS at hot plug.' % ((sum(NOMINAL.get(k, 0) * n for k, n in caps_on('main', 'VSYS').items()) +
+                                         sum(NOMINAL.get(k, 0) * n for k, n in caps_on('usb', 'VSYS').items())) * 1e6))
+    v('- Not verified: every snapshot-mode current (ASSUMED, see the CASES comment: measure idle, shot and upload '
+      'currents on the first board), the FPA252012D datasheet, Murata DC-bias curves, the loops with this much '
+      'output capacitance.')
+    v('')
+    return V
+
+
 def main():
     L, sol = run()
+    i = [k for k, x in enumerate(L) if x.startswith('## Loads per')][0]
+    L[i:i] = verdict(sol)
     w = L.append
     w('## Checks\n')
     for s, what in checks:

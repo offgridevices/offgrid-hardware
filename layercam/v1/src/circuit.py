@@ -94,13 +94,15 @@ def main_power():
     # 1.8 V and the DDR together, then 3.3 V last; RC delays on the enables
     # (EN threshold 1.4 V from 5 V: 0.33 RC).  0.9 V: enable tied to 5 V.
     #   TLV62569 (U2): 1 EN, 2 GND, 3 SW, 4 VIN, 5 FB; 0.6 V reference.
-    #   VDD_0V9 = 0.6 x (1 + 47k / 100k) = 0.882 V (CPU, logic, NPU;
-    #   0.85-0.95 V; Luckfox's value; 2 A for the 1.21 A measured peak)
+    #   VDD_0V9 = 0.6 x (1 + 51k / 100k) = 0.906 V (CPU, logic, NPU;
+    #   0.85-0.95 V; 2 A for the 1.21 A measured peak).  Luckfox's 47k
+    #   gives 0.882 V, whose low tolerance corner (0.859 V) leaves no room
+    #   for a load step above 0.85 V (sim/power.md).
     add('U', 'TLV62569', {'1': 'VSYS', '2': GND, '3': 'SW_0V9', '4': 'VSYS', '5': 'FB_0V9'}, B,
         '0.9 V buck', ref='U2')
     cap('C10U', 'VSYS', GND, B, '0.9 V buck input')
     add('L', 'L2U2', {'1': 'SW_0V9', '2': 'VDD_0V9'}, B, '0.9 V inductor', ref='L1')
-    res('R47K', 'VDD_0V9', 'FB_0V9', B, '0.9 V feedback top')
+    res('R51K', 'VDD_0V9', 'FB_0V9', B, '0.9 V feedback top')
     res('R100K', 'FB_0V9', GND, B, '0.9 V feedback bottom')
     cap('C22U', 'VDD_0V9', GND, B, '0.9 V output')
     cap('C22U', 'VDD_0V9', GND, B, '0.9 V output')
@@ -138,13 +140,15 @@ def main_power():
 
     # The Wi-Fi module's own 3.3 V (U4): it draws 1 A peaks when it
     # transmits, which must not dip the SoC's rails.
-    #   3.3 V = 0.6 x (1 + 100k / 22k) = 3.327 V (VBAT 3.2-4.8 V)
+    #   VWIFI = 0.6 x (1 + 100k / 20k) = 3.60 V (VBAT 3.0-4.8 V, full RF
+    #   from 3.2 V): at 3.3 V a 1 A transmit burst dipped it to about
+    #   3.14 V (sim/power.md)
     add('U', 'TLV62569', {'1': 'VSYS', '2': GND, '3': 'SW_WIFI', '4': 'VSYS', '5': 'FB_WIFI'}, B,
         'Wi-Fi buck', ref='U4')
     cap('C10U', 'VSYS', GND, B, 'Wi-Fi buck input')
     add('L', 'L2U2', {'1': 'SW_WIFI', '2': 'VWIFI'}, B, 'Wi-Fi inductor', ref='L5')
     res('R100K', 'VWIFI', 'FB_WIFI', B, 'Wi-Fi feedback top')
-    res('R22K', 'FB_WIFI', GND, B, 'Wi-Fi feedback bottom')
+    res('R20K', 'FB_WIFI', GND, B, 'Wi-Fi feedback bottom')
     cap('C22U', 'VWIFI', GND, B, 'Wi-Fi buck output')
     cap('C22U', 'VWIFI', GND, B, 'Wi-Fi buck output')
 
@@ -446,12 +450,15 @@ def main_mechanics():
 def ring():
     B = 'ring'
     add('J', 'SH6V', dict(RING_CABLE, **{'7': None, '8': None}), B, 'cable', ref='J1')
-    # three strings of two LEDs: 5 V -> 39R -> LED -> LED -> LED_K.
-    # (5.0 - 2 x 1.45) / 39 = 54 mA per string; 0.11 W in each 0.25 W
-    # resistor.  IR LED: pad 1 anode, pad 2 cathode.
+    # three strings of two LEDs: 5 V -> 47R -> LED -> LED -> LED_K.
+    # (5.0 - 2 x 1.4) / 47 = 47 mA per string, 0.10 W in each 0.25 W
+    # resistor (39R gave 18-74 mA over the tolerances and 0.17 W, over the
+    # resistor's rating derated to the ring's temperature: sim/power.md).
+    # The LEDs are lit only while a night frame is taken (the firmware).
+    # IR LED: pad 1 anode, pad 2 cathode.
     for s in range(3):
         a, m = 'STR%d_A' % (s + 1), 'STR%d_M' % (s + 1)
-        res('R39R_1206', 'VSYS', a, B, 'string %d resistor' % (s + 1))
+        res('R47R_1206', 'VSYS', a, B, 'string %d resistor' % (s + 1))
         add('D', 'IRLED', {'1': a, '2': m}, B, 'IR LED %d' % (2 * s + 1))
         add('D', 'IRLED', {'1': m, '2': 'LED_K'}, B, 'IR LED %d' % (2 * s + 2))
     # light sensor behind the front window: TEMT6000 pads 1, 2 emitter,

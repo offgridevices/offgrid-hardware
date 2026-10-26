@@ -8,8 +8,14 @@ and the hardware encoders, and answers one command per line on its stdin:
     VFRAME                         -> FRAME <offset> <size> <key>
     VSTOP                          -> OK
     NIGHT <0|1>                    -> OK            (ISP grey mode for IR light)
+    WAKE <fps>                     -> OK            (start ISP and sensor stream at fps)
+    FPS <fps>                      -> OK            (change the rate while awake)
+    SLEEP                          -> OK            (stop them: sensor in standby)
     PING                           -> OK <width> <height>
     any failure                    -> ERR <text>
+
+The helper starts asleep and only takes pictures awake; the service decides
+when (thermal.Policy).
 
 Frames are taken fresh: the helper drops what the VI channel had queued
 before the command arrived, so a frame never predates the head stopping.
@@ -45,13 +51,18 @@ class MediaHelper:
         self.size = None
         self.next_start = 0.0
         self.video_on = False
+        self.awake_fps = 0             # 0: asleep
 
     def _start(self):
         if time.monotonic() < self.next_start:
             raise CameraError('camera helper restarting')
         self.next_start = time.monotonic() + 5
         log.info('starting %s', ' '.join(self.argv))
-        self.proc = subprocess.Popen(self.argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
+        try:
+            self.proc = subprocess.Popen(self.argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
+        except OSError as e:
+            raise CameraError('cannot start the camera helper: %s' % e)
+        self.awake_fps = 0                      # a new helper starts asleep
         line = self._readline(timeout=30)       # the ISP takes a few seconds to start
         if not line.startswith('READY'):
             self._kill()
@@ -102,22 +113,29 @@ class MediaHelper:
         """-> (reply line, binary payload or None)."""
         with self.lock:
             if self.proc is None or self.proc.poll() is not None:
-                was_recording = self.video_on
+                want = self.awake_fps
                 self._start()
-                if was_recording and not cmd.startswith('VSTART'):
-                    raise CameraError('camera helper restarted; video must be restarted')
-            try:
-                self.proc.stdin.write((cmd + '\n').encode())
-                self.proc.stdin.flush()
-            except (BrokenPipeError, OSError):
-                self._kill()
-                raise CameraError('camera helper stopped')
-            line = self._readline()
-            if line.startswith('ERR'):
-                raise CameraError(line[4:] or 'helper error')
-            if line.startswith('JPEG '):
-                return line, self._read(int(line.split()[1]))
-            return line, None
+                # a restarted helper starts asleep with no video: wake it as it
+                # was; a VFRAME then fails once and the recording opens the
+                # stream again (recording.H264Recording.add_frame)
+                if want and not cmd.startswith(('WAKE', 'SLEEP')):
+                    self._send('WAKE %d' % want)
+                    self.awake_fps = want
+            return self._send(cmd)
+
+    def _send(self, cmd):
+        try:
+            self.proc.stdin.write((cmd + '\n').encode())
+            self.proc.stdin.flush()
+        except (BrokenPipeError, OSError):
+            self._kill()
+            raise CameraError('camera helper stopped')
+        line = self._readline()
+        if line.startswith('ERR'):
+            raise CameraError(line[4:] or 'helper error')
+        if line.startswith('JPEG '):
+            return line, self._read(int(line.split()[1]))
+        return line, None
 
     def snapshot(self, quality=80):
         line, data = self.command('SNAP %d' % quality)
@@ -127,6 +145,21 @@ class MediaHelper:
 
     def night(self, on):
         self.command('NIGHT %d' % (1 if on else 0))
+
+    def wake(self, fps):
+        if self.awake and self.awake_fps == fps:
+            return
+        self.command(('FPS %d' if self.awake else 'WAKE %d') % fps)
+        self.awake_fps = fps
+
+    def sleep(self):
+        if self.awake:
+            self.command('SLEEP')
+        self.awake_fps = 0
+
+    @property
+    def awake(self):
+        return bool(self.awake_fps) and self.proc is not None and self.proc.poll() is None
 
     def video_start(self, path, fps, qp, gop):
         self.command('VSTART %s %d %d %d' % (path, fps, qp, gop))
@@ -188,6 +221,14 @@ class CommandCamera:
     def night(self, on):
         pass
 
+    awake = True
+
+    def wake(self, fps):
+        pass
+
+    def sleep(self):
+        pass
+
     def video_start(self, *a):
         raise NotSupported('no hardware encoder')
 
@@ -219,7 +260,8 @@ def from_config(cfg):
     c = cfg.section('camera')
     if c['backend'] == 'rkmpi':
         flip = {'none': 0, 'h': 1, 'v': 2, 'both': 3}[c['flip']]
-        return MediaHelper([c['helper'], '--iq', c['iq_dir'], '--flip', str(flip)])
+        w, h = cfg.get('timelapse', 'resolution').split('x')
+        return MediaHelper([c['helper'], '--iq', c['iq_dir'], '--flip', str(flip), '--width', w, '--height', h])
     if c['backend'] == 'command':
         return CommandCamera(c['command'])
     return FakeCamera()

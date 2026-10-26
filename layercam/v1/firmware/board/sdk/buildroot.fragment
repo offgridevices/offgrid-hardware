@@ -1,0 +1,14 @@
+# Buildroot packages LayerCam needs on top of luckfox_pico_defconfig
+# (sysdrv/tools/board/buildroot/, Buildroot 2023.02.6).  That defconfig
+# already has BR2_PACKAGE_PYTHON3=y, BR2_PACKAGE_PYTHON3_SSL=y,
+# BR2_PACKAGE_CA_CERTIFICATES=y and BR2_PACKAGE_NTP=y.
+#
+# SMB upload: mount.cifs
+BR2_PACKAGE_CIFS_UTILS=y
+# NFS upload: mount.nfs
+BR2_PACKAGE_NFS_UTILS=y
+# Wi-Fi power save and transmit power cap (layercam-net)
+BR2_PACKAGE_IW=y
+# Optional: makes the video from JPEG frames when the hardware encoder is not
+# used (camera.backend = command); not needed on LayerCam itself
+# BR2_PACKAGE_FFMPEG=y

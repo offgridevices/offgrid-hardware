@@ -116,7 +116,7 @@ The pair runs on F with ground fill beside it (stitch.py, 0.18 mm away) and the 
 
 Closest to 90 ohm with the fill where stitch.py puts it: **0.25 / 0.127 mm, 91.4 ohm**.
 
-The USB board's pair is about 14 mm long (receptacle at y 4, cable connector at y 12.5, ESD on the way): 80 ps of flight time at 5.7 ps/mm, against USB 2.0 high speed's 500 ps minimum edge (10-90 %). A line shorter than about a sixth of the edge (83 ps) behaves as a lumped element; this one is close to it, so its impedance matters little next to the cable and connectors (the 6-wire SH cable to the main board is unshielded, parallel wires: roughly 100-150 ohm differential, not controlled).
+The USB board's pair is 25 mm long (routed usb/layercam-usb.kicad_pcb: D+ 18.1 mm, D- 25.1 mm of track including the joins between the receptacle's two rows): 144 ps of flight time at 5.7 ps/mm, against USB 2.0 high speed's 500 ps minimum edge (10-90 %). That is past the lumped limit (a sixth of the edge, 83 ps), so the impedance does show: 101.9 ohm against 90 reflects 6 % of each edge, small next to the receiver's margin and to the SH cable after it (6 unshielded parallel wires at 1 mm pitch: roughly 100-150 ohm differential, not controlled), and the D+ / D- length difference (see above) is mostly the joins between the receptacle's two contact rows.
 
 ## Checks
 
@@ -135,7 +135,7 @@ The USB board's pair is about 14 mm long (receptacle at y 4, cable connector at 
 
 - **MIPI 0.10 / 0.15 mm: 106.0 ohm bare, 104.9 ohm beside the ground fill: inside 100 +-10 %, but high.** A 0.015 mm over-etch takes it to 114.5 ohm (outside). Recommended: **0.120 / 0.150 mm** (98.8 / 97.8 ohm; 92.3-106.0 across the etch). The receiver end is forgiving (RV1106 MIPI ZID 80-125 ohm; two lanes well under 1 Gbit/s for 2304 x 1296 at 30 fps RAW10), so the current rule would very likely work; the change costs nothing.
 - **USB (main) 0.12 / 0.15 mm: 98.8 ohm bare, 97.8 beside the fill: at the top edge of 90 +-10 %** (106.0 with a 0.015 mm over-etch). Recommended: **0.140 / 0.150 mm** (92.7 / 91.7 ohm; 87.0-98.9 across the etch).
-- **USB board 0.20 / 0.15 mm: 101.9 ohm.** A 2-layer 1.2 mm board cannot put a plane close under the pair; the side fill sets the impedance. 0.25 / 0.127 mm with the fill where it is gives 91.4 ohm. The run (about 14 mm) is electrically short for USB 2.0 and the SH cable after it is uncontrolled anyway: WARN, not FAIL.
+- **USB board 0.20 / 0.15 mm: 101.9 ohm.** A 2-layer 1.2 mm board cannot put a plane close under the pair; the side fill sets the impedance. 0.25 / 0.127 mm with the fill where it is gives 91.4 ohm. A 6 % reflection on a short run ahead of an uncontrolled cable: WARN, not FAIL.
 - USB layer change on the main board (pairs.py: F to B and back): no ground via beside the signal vias (stitching keeps 1.2 mm off every via). Add one ground via within about 1 mm of each transition so the return current can move between In1 and In4.
 
 **no FAIL, 3 WARN**

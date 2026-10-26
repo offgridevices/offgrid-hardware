@@ -38,7 +38,7 @@ def is_small(c):
     p = parts.PARTS.get(c.part) or parts.PADS.get(c.part)
     fp = p['fp']
     return c.ref[0] in SMALL and fp.startswith(('Resistor_SMD', 'Capacitor_SMD', 'Inductor_SMD')) \
-        and c.part not in ('R39R_1206',)
+        and c.part not in ('R47R_1206',)
 
 
 def place(b, comps, layout, small_height, avoid=None):

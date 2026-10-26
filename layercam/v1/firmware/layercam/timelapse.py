@@ -52,7 +52,7 @@ class ZLayers:
 
 
 class Timelapse:
-    def __init__(self, trigger='auto', dwell_ms=1600, settle_ms=150, capture_ms=250,
+    def __init__(self, trigger='auto', dwell_ms=1000, settle_ms=150, capture_ms=250,
                  keep_cancelled=True, idle_timeout_s=1800, have_printer=True, clock=time.monotonic):
         self.mode = trigger
         self.dwell, self.settle, self.capture = dwell_ms, settle_ms, capture_ms

@@ -2,7 +2,7 @@
 """A small 2D electrostatic field solver for PCB transmission lines.
 
 Finite-volume Laplace solution on a non-uniform rectilinear grid: nodes on
-every material and conductor edge, cells graded from 2 um at those edges up
+every material and conductor edge, cells graded from 1 um at those edges up
 to 40 um.  Each conductor is a set of fixed-potential nodes; the charge on
 it is the flux leaving its nodes (Gauss), so the capacitance matrix comes
 straight from the solution.  Solving once with the dielectrics and once in

@@ -99,7 +99,14 @@ class RateLimit:
         return max(0.0, self.next_ok - self.clock())
 
     def sent(self):
-        self.next_ok = self.clock() + self.interval
+        self.last = self.clock()
+        self.next_ok = self.last + self.interval
+
+    def hurry(self):
+        """Next upload as soon as the service allows (a button press, a test),
+        not at the configured interval; never sooner than 10 s after the last."""
+        last = getattr(self, 'last', None)
+        self.next_ok = min(self.next_ok, last + MIN_INTERVAL) if last is not None else 0.0
 
     def back_off(self, seconds):
         self.next_ok = max(self.next_ok, self.clock() + seconds)

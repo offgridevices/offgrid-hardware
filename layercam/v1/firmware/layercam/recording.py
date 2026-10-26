@@ -5,8 +5,10 @@ Two ways, chosen by what the camera can do:
 H264Recording (the camera's hardware encoder, the default on LayerCam):
 each frame is encoded into H.264 the moment it is taken and appended to
 video.h264; video.idx gets one "offset size" line per frame.  No frames are
-stored, so a 1000-layer print needs about 45 MB, not 1000 JPEGs (300-500 kB
-each at 2304 x 1296, 400 MB: more than the whole NAND).  At the end
+stored: consecutive layer frames differ little, so most are small P-frames
+(an estimate of 20-60 kB each at 2304 x 1296 until measured on the board,
+so tens of MB for a 1000-layer print), where 1000 JPEGs of 300-500 kB would
+need more than the whole 256 MB NAND.  At the end
 mp4.Mp4Body streams it out as an MP4.  A power cut loses at most the frame
 being written: the index is flushed after every frame.
 
@@ -141,23 +143,51 @@ def ffmpeg_cmd(frames_dir, fps, crf, out):
             '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-movflags', '+faststart', out]
 
 
-def body_for(folder, run=subprocess.run):
+def encode_with_helper(helper, folder, meta, run=subprocess.run):
+    """JPEG frames -> video.h264 + video.idx with the camera's hardware
+    encoder (layercam-media --encode-jpegs), where there is no ffmpeg."""
+    frames = os.path.join(folder, 'frames')
+    lst = os.path.join(folder, 'frames.txt')
+    with open(lst, 'w') as f:
+        for n in sorted(os.listdir(frames)):
+            if n.endswith('.jpg'):
+                f.write(os.path.join(frames, n) + '\n')
+    h264 = os.path.join(folder, 'video.h264')
+    if os.path.exists(h264):
+        os.unlink(h264)
+    r = run([helper, '--encode-jpegs', lst, h264, '--fps', str(meta['fps']), '--qp', str(meta['quality'])],
+            capture_output=True, timeout=3600, check=True)
+    with open(os.path.join(folder, 'video.idx'), 'w') as idx:
+        for line in r.stdout.decode('ascii', 'replace').splitlines():
+            p = line.split()
+            if len(p) == 4 and p[0] == 'FRAME':
+                idx.write('%s %s %s\n' % (p[1], p[2], p[3]))
+    meta['kind'] = 'h264'
+    _save_meta(folder, meta)
+    shutil.rmtree(frames, ignore_errors=True)
+    os.unlink(lst)
+
+
+def body_for(folder, helper=None, run=subprocess.run):
     """The upload body for a finished recording folder, or None if it has no frames."""
     meta = load_meta(folder)
     if not meta or not meta.get('frames'):
         return None
     name = meta['name'] + '.mp4'
+    if meta['kind'] == 'jpeg' and not os.path.exists(os.path.join(folder, 'video.mp4')):
+        if shutil.which('ffmpeg'):
+            out = os.path.join(folder, 'video.mp4')
+            run(ffmpeg_cmd(os.path.join(folder, 'frames'), meta['fps'], meta['quality'], out + '.tmp.mp4'), check=True)
+            os.replace(out + '.tmp.mp4', out)
+            shutil.rmtree(os.path.join(folder, 'frames'), ignore_errors=True)
+        elif helper and os.path.exists(helper):
+            encode_with_helper(helper, folder, meta, run)
+        else:
+            raise RuntimeError('no ffmpeg and no layercam-media to make the video from JPEG frames')
     if meta['kind'] == 'h264':
         b = mp4.Mp4Body(os.path.join(folder, 'video.h264'), os.path.join(folder, 'video.idx'), meta['fps'], name)
         return b if b.frames else None
-    out = os.path.join(folder, 'video.mp4')
-    if not os.path.exists(out):
-        if not shutil.which('ffmpeg'):
-            raise RuntimeError('no ffmpeg to make the video from JPEG frames')
-        run(ffmpeg_cmd(os.path.join(folder, 'frames'), meta['fps'], meta['quality'], out + '.tmp.mp4'), check=True)
-        os.replace(out + '.tmp.mp4', out)
-        shutil.rmtree(os.path.join(folder, 'frames'), ignore_errors=True)
-    return FileBody(out, name)
+    return FileBody(os.path.join(folder, 'video.mp4'), name)
 
 
 def list_recordings(storage):

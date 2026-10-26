@@ -30,10 +30,12 @@ POWER = {
 }
 PLANE_NETS = {'main': ('GND', 'VDD_0V9', 'VCC_3V3'), 'usb': ('GND',), 'ring': ()}
 # differential pairs (width, gap) for 100 ohm (MIPI) and 90 ohm (USB) on
-# the outer layers over the 0.1 mm prepreg (sim/impedance.md)
-DIFF = {'main': {'MIPI': (['CSI_D0P', 'CSI_D0N', 'CSI_D1P', 'CSI_D1N', 'CSI_CKP', 'CSI_CKN'], 0.10, 0.15),
-                 'USB': (['USB_DP', 'USB_DM'], 0.12, 0.15)},
-        'ring': {}, 'usb': {'USB': (['USB_DP', 'USB_DM'], 0.2, 0.15)}}
+# the outer layers over the 0.1 mm prepreg, centred in the etch tolerance
+# (sim/impedance.md: 98.8 and 92.7 ohm on the main board, 91 ohm on the
+# 2-layer USB board)
+DIFF = {'main': {'MIPI': (['CSI_D0P', 'CSI_D0N', 'CSI_D1P', 'CSI_D1N', 'CSI_CKP', 'CSI_CKN'], 0.12, 0.15),
+                 'USB': (['USB_DP', 'USB_DM'], 0.14, 0.15)},
+        'ring': {}, 'usb': {'USB': (['USB_DP', 'USB_DM'], 0.25, 0.13)}}
 
 
 def build(board, path, rounds=6):

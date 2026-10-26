@@ -2,7 +2,10 @@
 
     GET  /                 the page: live picture, status, settings
     GET  /snapshot.jpg     one fresh frame
-    GET  /stream.mjpg      multipart MJPEG, about 2 frames a second
+    POST /api/live         {"seconds": N}: live view for up to camera.live_max_s;
+                           refused when the SoC is hot (thermal.py)
+    POST /api/live/stop
+    GET  /stream.mjpg      multipart MJPEG, about 2 frames a second, while live view is on
     GET  /api/status       JSON
     GET  /api/config       JSON, secrets shown only as set / not set
     POST /api/config       JSON {"section.key": value, ...}; an empty secret keeps the old one
@@ -28,7 +31,8 @@ img{width:100%;background:#000;border-radius:6px}fieldset{border:1px solid #ccc;
 label{display:flex;justify-content:space-between;gap:8px;margin:4px 0}input,select{width:55%}
 button{padding:8px 14px;margin:4px 4px 4px 0}#msg{white-space:pre-wrap;color:#a40}code{font-size:90%}
 </style></head><body>
-<h2>LayerCam</h2><img id="live" src="/stream.mjpg" alt="live picture">
+<h2>LayerCam</h2><img id="live" src="/snapshot.jpg" alt="picture">
+<button onclick="live()">Live view (2 min)</button><button onclick="still()">Still picture</button>
 <p id="status">...</p><div id="msg"></div>
 <form id="f"></form>
 <button onclick="save()">Save and apply</button><button onclick="test()">Send a snapshot to Connect</button>
@@ -53,6 +57,10 @@ async function save(){const body={}; for(const el of document.getElementById('f'
   if(el.type==='password'&&!el.value)continue; body[el.name]=el.type==='checkbox'?el.checked:el.value;}
  const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
  const j=await r.json(); document.getElementById('msg').textContent=j.ok?'Saved. Applying...':j.errors.join('\\n'); load();}
+async function live(){const r=await fetch('/api/live',{method:'POST',headers:{'Content-Type':'application/json'},body:'{"seconds":120}'});
+ const j=await r.json(); if(j.ok){document.getElementById('live').src='/stream.mjpg?'+Date.now();}
+ else document.getElementById('msg').textContent=j.error;}
+function still(){fetch('/api/live/stop',{method:'POST'}); document.getElementById('live').src='/snapshot.jpg?'+Date.now();}
 async function test(){const j=await (await fetch('/api/connect-test',{method:'POST'})).json();
  document.getElementById('msg').textContent=j.ok?'Snapshot sent':'Connect: '+j.error;}
 load(); status(); setInterval(status,3000);
@@ -131,6 +139,8 @@ class Handler(BaseHTTPRequestHandler):
                                         'choices': {'%s.%s' % sk: list(v) for sk, v in config_mod.CHOICES.items()}})
             if p == '/snapshot.jpg':
                 return self._send(200, self.app.snapshot(85), 'image/jpeg')
+            if p == '/stream.mjpg' and not self.app.live_active():
+                return self._send(409, {'error': 'live view is off: POST /api/live first'})
             if p == '/stream.mjpg':
                 return self._stream()
             if p == '/videos/':
@@ -167,6 +177,16 @@ class Handler(BaseHTTPRequestHandler):
         if p == '/api/connect-test':
             ok, err = self.app.connect_test()
             return self._send(200 if ok else 502, {'ok': ok, 'error': err})
+        if p == '/api/live':
+            try:
+                seconds = int(json.loads(raw or b'{}').get('seconds', 120))
+            except (ValueError, AttributeError):
+                return self._send(400, {'ok': False, 'error': 'seconds'})
+            ok, err = self.app.start_live(seconds)
+            return self._send(200 if ok else 409, {'ok': ok, 'error': err})
+        if p == '/api/live/stop':
+            self.app.stop_live()
+            return self._send(200, {'ok': True})
         self._send(404, {'error': 'not found'})
 
     def _stream(self):
@@ -177,8 +197,9 @@ class Handler(BaseHTTPRequestHandler):
         if not self.app.stream_slot.acquire(blocking=False):
             return              # two viewers at most: the camera has other work
         try:
-            end = time.monotonic() + 600     # a forgotten tab stops after 10 minutes
-            while time.monotonic() < end:
+            # only while live view is on (POST /api/live): it ends by itself,
+            # and when the SoC gets hot
+            while self.app.live_active():
                 jpg = self.app.snapshot(70)
                 self.wfile.write(b'--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n' % len(jpg))
                 self.wfile.write(jpg + b'\r\n')
@@ -203,7 +224,7 @@ class Handler(BaseHTTPRequestHandler):
         meta = recording.load_meta(folder)
         if not meta or meta.get('state') == 'recording':
             return self._send(404, {'error': 'no finished video'})
-        body = recording.body_for(folder)
+        body = recording.body_for(folder, self.app.cfg.get('camera', 'helper'))
         if body is None:
             return self._send(404, {'error': 'empty'})
         self.send_response(200)

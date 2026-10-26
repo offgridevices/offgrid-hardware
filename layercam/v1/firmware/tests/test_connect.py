@@ -96,6 +96,15 @@ class RateAndAnswers(unittest.TestCase):
         self.assertTrue(self.c.send_snapshot(lambda q: TINY_JPEG))
         self.assertEqual(len(self.sent), 2)
 
+    def test_hurry_keeps_the_minimum(self):
+        self.c.limit = connect.RateLimit(60, self.clock)
+        self.assertTrue(self.c.send_snapshot(lambda q: TINY_JPEG))
+        self.clock.t = 5
+        self.c.limit.hurry()
+        self.assertFalse(self.c.limit.ready())
+        self.clock.t = 10
+        self.assertTrue(self.c.limit.ready())       # 10 s after the last, not 60
+
     def test_interval_never_below_10s(self):
         self.assertEqual(connect.RateLimit(1).interval, 10.0)
 

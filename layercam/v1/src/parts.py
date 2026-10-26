@@ -124,21 +124,25 @@ PARTS = {
     'R18K': R('18k', 'C25762', '0402WGF1802TCE'),
     'R22K': R('22k', 'C25768', '0402WGF2202TCE'),
     'R47K': R('47k', 'C25792', '0402WGF4702TCE'),
+    'R51K': R('51k', 'C25794', '0402WGF5102TCE'),
+    'R20K': R('20k', 'C25765', '0402WGF2002TCE'),
     'R100K': R('100k', 'C25741', '0402WGF1003TCE'),
     'R127K': R('127k', 'C25751', '0402WGF1273TCE'),
     'R200K': R('200k', 'C25764', '0402WGF2003TCE'),
     'R1M': R('1M', 'C26083', '0402WGF1004TCE'),
-    'R39R_1206': R('39R', 'C22198', '1206W4F390JT5E', fp=R1206, desc='Resistor 39R 1% 0.25 W 1206 (IR LED string)'),
+    'R47R_1206': R('47R', 'C17969', '1206W4F470JT5E', fp=R1206, desc='Resistor 47R 1% 0.25 W 1206 (IR LED string)'),
     # ------------------------------------------------------------ capacitors
     'C12P': C('12pF', C0402, 'C1547', '0402CG120J500NT', '50V C0G 0402', 'FH (Fenghua)'),
     'C18P': C('18pF', C0402, 'C1549', '0402CG180J500NT', '50V C0G 0402', 'FH (Fenghua)'),
     'C1N': C('1nF', C0402, 'C1523', '0402B102K500NT', '50V X7R 0402', 'FH (Fenghua)'),
     'C10N': C('10nF', C0402, 'C15195', 'CL05B103KB5NNNC', '50V X7R 0402'),
     'C100N': C('100nF', C0402, 'C1525', 'CL05B104KO5NNNC', '16V X7R 0402'),
-    'C1U': C('1uF', C0402, 'C52923', 'CL05A105KA5NQNC', '25V X5R 0402'),
-    'C4U7': C('4.7uF', C0402, 'C23733', 'CL05A475MP5NRNC', '10V X5R 0402'),
-    'C10U': C('10uF', C0603, 'C19702', 'CL10A106KP8NNNC', '10V X5R 0603'),
-    'C22U': C('22uF', C0603, 'C59461', 'CL10A226MQ8NRNC', '6.3V X5R 0603'),
+    # the 1-22 uF parts are X6S / X7S (105 / 125 C), not X5R (85 C): the
+    # board runs near 85 C in a 65 C chamber (sim/thermal.md)
+    'C1U': C('1uF', C0402, 'C437522', 'GRM155C71A105KE11D', '10V X7S 0402', 'Murata'),
+    'C4U7': C('4.7uF', C0402, 'C464981', 'GRM155C80J475MEAAD', '6.3V X6S 0402', 'Murata'),
+    'C10U': C('10uF', C0603, 'C576470', 'GRM188C81A106MA73D', '10V X6S 0603', 'Murata'),
+    'C22U': C('22uF', C0603, 'C393031', 'GRM188C80J226ME15D', '6.3V X6S 0603', 'Murata'),
 }
 
 # Copper-only footprints: nothing is bought or placed for these.

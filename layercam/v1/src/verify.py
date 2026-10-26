@@ -39,11 +39,11 @@ def ohms(part):
 
 # rail -> (feedback net, reference V, low limit, high limit, what sets the limits)
 RAILS = {
-    'VDD_0V9': ('FB_0V9', 0.6, 0.85, 0.95, 'RV1106 core, Luckfox boards run 0.88-0.9 V'),
+    'VDD_0V9': ('FB_0V9', 0.6, 0.85, 0.95, 'RV1106 core'),
     'VCC_3V3': ('FB_3V3', 0.6, 3.0, 3.465, 'VCCIO 3.3 V +-5 %'),
     'VCC_DDR': ('FB_DDR', 0.6, 1.283, 1.45, 'DDR3L 1.35 V'),
     'VCC_1V8': ('FB_1V8', 0.6, 1.71, 1.89, '1.8 V +-5 %'),
-    'VWIFI': ('FB_WIFI', 0.6, 3.0, 3.6, 'AP6256 VBAT, run at 3.3 V'),
+    'VWIFI': ('FB_WIFI', 0.6, 3.2, 4.8, 'AP6256 VBAT, full RF from 3.2 V'),
 }
 
 

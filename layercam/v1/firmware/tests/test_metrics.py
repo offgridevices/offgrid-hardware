@@ -7,7 +7,7 @@
             "%s v=%ii %i\\n" (integer), "%s v=T %i\\n" (event),
             "%s error=\\"...\\" %i\\n", custom "%s%s %i\\n"
 """
-import socket, threading, time, unittest
+import socket, time, unittest
 
 from layercam import metrics
 
