@@ -380,9 +380,11 @@ def main_wifi():
         ref='Y3')
     cap('C12P', 'XTAL37_IN', GND, B, '37.4 MHz load')
     cap('C12P', 'XTAL37_OUT', GND, B, '37.4 MHz load')
-    # sleep clock: 1 OUT, 2 GND, 3 OE (high = on), 4 VDD
-    add('Y', 'OSC32K', {'1': 'WIFI_LPO', '2': GND, '3': 'VCC_3V3', '4': 'VCC_3V3'}, B, '32 kHz oscillator',
-        ref='Y4')
+    # sleep clock, +-30 ppm needed (AP6256 7): the TG-3541CE TCXO.  1 OE
+    # (high = on, must not float), 2 VCC, 3 TEST (to VCC), 4 OUT, 5/7/8
+    # TEST (to GND), 9 GND, 6/10 not connected
+    add('Y', 'TCXO32K', {'1': 'VCC_3V3', '2': 'VCC_3V3', '3': 'VCC_3V3', '4': 'WIFI_LPO', '5': GND, '6': None,
+                         '7': GND, '8': GND, '9': GND, '10': None}, B, '32 kHz oscillator', ref='Y4')
     cap('C100N', 'VCC_3V3', GND, B, '32 kHz oscillator supply')
     # SDIO: 22R in the clock at the SoC, 10k pull-ups on CMD and data
     res('R22R', 'SD_CLK_SOC', 'SD_CLK', B, 'SDIO clock series R')
@@ -427,11 +429,12 @@ def main_camera():
     cap('C10U', 'VCC_3V3', GND, B, 'camera supply')
     cap('C100N', 'VCC_3V3', GND, B, 'camera supply')
 
-    # IR-cut filter: DRV8837 (U7) 1 VM, 2 OUT1, 3 OUT2, 4 GND, 5 IN2, 6 IN1,
+    # IR-cut filter: DRV8210P (U7; pin for pin the DRV8837, rated to 125 C)
+    # 1 VM, 2 OUT1, 3 OUT2, 4 GND, 5 IN2, 6 IN1,
     # 7 nSLEEP, 8 VCC, 9 pad.  3.3 V across the 20 ohm coil (Commonlands:
     # 3.3 V for 100-500 ms); the driver pulses it.  IN1 and IN2 have
     # pull-downs inside: the bridge is off until Linux drives it.
-    add('U', 'DRV8837', {'1': 'VCC_3V3', '2': 'IRCUT_1', '3': 'IRCUT_2', '4': GND, '5': 'IRCUT_B',
+    add('U', 'DRV8210P', {'1': 'VCC_3V3', '2': 'IRCUT_1', '3': 'IRCUT_2', '4': GND, '5': 'IRCUT_B',
                          '6': 'IRCUT_A', '7': 'VCC_3V3', '8': 'VCC_3V3', '9': GND}, B, 'IR-cut driver',
         ref='U7')
     cap('C1U', 'VCC_3V3', GND, B, 'IR-cut driver VM')

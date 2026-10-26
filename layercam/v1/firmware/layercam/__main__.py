@@ -19,7 +19,7 @@ def main(argv=None):
     logging.basicConfig(level=logging.DEBUG if a.verbose else logging.INFO,
                         format='%(asctime)s %(name)s %(levelname)s %(message)s')
     if a.check:
-        errs = config.load(a.config).errors()
+        errs = config.load(a.config, strict=False, aside=False).errors()
         print('\n'.join(errs) or 'settings OK')
         return 1 if errs else 0
     service.Service(a.config, a.port).run()

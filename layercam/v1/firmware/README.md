@@ -6,9 +6,12 @@ a print it takes one frame per layer, with the head parked out of the way,
 makes them into an MP4 video named after the print, and uploads the video
 to S3 (or MinIO, Backblaze B2, a NAS), a WebDAV/HTTP folder, an SMB share or
 an NFS export. It switches to infrared at night, and is set up from a phone.
+It has no button: Wi-Fi setup and reset, updates and recovery all work
+without one (a switch's plastic is rated 70-85 C; in the chamber it would
+sit at about 90 C).
 
 > **Status: written, tested on a PC, not yet run on the board.** No board
-> exists yet. The Python service passes its 130 host tests, including a
+> exists yet. The Python service passes its 180 host tests, including a
 > whole print from PrusaLink and layer triggers to an uploaded MP4 (against
 > fakes). The C camera helper, the device tree, the SDK board config and the
 > init scripts have been checked as far as a PC can (the C against the real
@@ -30,7 +33,7 @@ tested on a PC; none of it has run on the board yet.
 | Live picture for setup; day/night with IR | ✅ live view on request (2 minutes, refused when hot); IR-cut from the light sensor with hysteresis, IR LEDs lit only around each night picture |
 | Works in a 65 C chamber | ⚠️ the firmware does all it can (below: sensor asleep between pictures, 1080p, lowest CPU speed, Wi-Fi power save on 2.4 GHz, IR LEDs flashed, a thermal governor that throttles, skips uploads, then stops the camera); sim/thermal.md shows the sealed housing still runs hot while streaming, so the hardware has to change too |
 | 1080p timelapse | ✅ 1920 x 1080 by default (`timelapse.resolution`), the full 2304 x 1296 sensor selectable |
-| First-boot Wi-Fi setup, one settings file, button, status LED | ✅ setup access point and page; `layercam.ini`; long press = forget Wi-Fi; LED patterns below |
+| Wi-Fi setup, reset and updates with no button; one settings file; status LED | ✅ setup access point and page at first boot and when the saved network stays unreachable; three short power-ups forget the Wi-Fi; a USB serial console (`layercam-setup`) when plugged into a computer; signed app updates from the page, started on trial and rolled back if they do not stay up; full images over USB without opening the camera; `layercam.ini`; LED patterns below |
 | Runs on the Luckfox SDK's Buildroot | ✅ Python 3.8+ standard library only (Buildroot's `python3` is already in `luckfox_pico_defconfig`), one small C helper |
 
 ## What runs where
@@ -41,14 +44,18 @@ tested on a PC; none of it has run on the board yet.
                           │  HTTP: PrusaLink /api/v1/status, /api/v1/job
                           ▼
  LayerCam (RV1106, Linux)
-   S99layercam ─► python3 -m layercam        (the service, layercam/)
+   S21layercam-gesture ─► counts short power-ups (gesture.py)
+   S50usbdevice ─► USB serial console: layercam-setup (setupcli.py)
+   S99layercam ─► picks the version (update.py) ─► python3 -m layercam
                     ├─ metrics listener      triggers from the printer
                     ├─ PrusaLink poller      job name, start/finish/cancel, Z
                     ├─ timelapse logic       when to start, shoot, finish
                     ├─ Connect sender        snapshots to Prusa Connect
                     ├─ uploader              finished videos
-                    ├─ panel                 button, light sensor, IR, LED
-                    ├─ web                   setup page, live picture
+                    ├─ Wi-Fi                 the network, or the setup access point
+                    ├─ panel                 light sensor, IR, temperature, BOOT pad
+                    ├─ web                   setup page, live picture, updates
+                    ├─ status LED
                     └─ layercam-media        C helper (native/): sensor, ISP,
                                              JPEG and H.264 hardware encoders
 ```
@@ -140,12 +147,17 @@ SC3336 camera. Checked against SDK commit `824b817f` (22 Mar 2026).
    headers in `project/app/component/third_libs/include/libjpeg9`).
 3. **Copy LayerCam's files into the SDK:**
    ```
-   board/install-into-sdk.sh ~/luckfox-pico native/layercam-media
+   UPDATE_PUBKEY=update.pub board/install-into-sdk.sh ~/luckfox-pico native/layercam-media
    ```
    This copies the device tree, the kernel option fragment and the board
-   config, adds two packages to `luckfox_pico_defconfig`, and makes the
-   overlay `overlay-layercam` (the init script, the network script, the
-   Python package in `/usr/share/layercam`, the helper in `/usr/bin`).
+   config, adds three packages to `luckfox_pico_defconfig`, and makes the
+   overlay `overlay-layercam`: the init scripts (`S21layercam-gesture`,
+   `S50usbdevice` and `S99usb0config`, which replace Luckfox's adb/RNDIS
+   ones, `S99layercam`), `layercam-net` and `layercam-setup`, the Python
+   package in `/usr/share/layercam`, the helper in `/usr/bin`, and
+   `/etc/layercam/` (the update key, `rootfs-version`). `update.pub` is the
+   public half of the key that signs app updates (*Updates*); without it
+   the cameras refuse every update.
 4. **Build:** `./build.sh lunch` (choose `RV1106_LayerCam_v1`), then `./build.sh`.
    The image is `output/image/update.img`.
 
@@ -176,7 +188,12 @@ SMB upload), `BR2_PACKAGE_NFS_UTILS` (mount.nfs, NFS upload) and
 `CONFIG_CFG80211` (the SDK's bcmdhd builds its cfg80211 interface only with
 it), `CONFIG_RFKILL` and `CONFIG_RFKILL_RK` (Rockchip's `wlan-platdata`
 driver, which hands bcmdhd its GPIOs), `CONFIG_CIFS`. GPIO sysfs, the
-SARADC, gpio-leds, PWM, tmpfs and NFS are already in the defconfig.
+SARADC, gpio-leds, PWM, tmpfs and NFS are already in the defconfig, and so
+is what the no-button parts need: the USB gadget with configfs and its
+CDC-ACM function (`CONFIG_USB_GADGET`, `CONFIG_USB_CONFIGFS`,
+`CONFIG_USB_CONFIGFS_ACM`) for the USB console, and
+`CONFIG_SYSCON_REBOOT_MODE` (rv1106.dtsi's `reboot-mode` node has
+`mode-loader`) for `reboot-loader`.
 
 ### The device tree
 
@@ -194,7 +211,7 @@ as the Pro Max, the SDIO Wi-Fi as the Pico Ultra W. Every pin is the one
 | IQ file | | module `CMK-OT2119-PC1`, lens `30IRC-F16` |
 | IR-cut H-bridge IN1 / IN2 | GPIO1_A0 / GPIO1_A1 | plain GPIOs, held low with pull-downs (pinctrl hog) |
 | IR LED switch | PWM3_IR_M1 (GPIO1_B0) | `&pwm3` on `pwm3m1_pins` (its default `pwm3m0` would take BT_WAKE) |
-| button | SARADC_IN0 | `&saradc` (1.8 V reference); the evb's `adc-keys` node removed |
+| BOOT pad TP5 (MaskROM strap; no button) | SARADC_IN0 | `&saradc` (1.8 V reference): read only to warn if it leaks towards ground (`hw.boot_pad_problem`); the evb's `adc-keys` node removed, it would poll this pin as volume keys |
 | light sensor | SARADC_IN1 | `&saradc` |
 | status LED | GPIO1_C0 | `gpio-leds`, `/sys/class/leds/status` |
 | Wi-Fi SDIO, 3.3 V | SDMMC0 | `&sdmmc`, `no-1-8-v`, `non-removable`, `mmc-pwrseq` |
@@ -203,42 +220,110 @@ as the Pro Max, the SDIO Wi-Fi as the Pico Ultra W. Every pin is the one
 | 32.768 kHz sleep clock | | the board's own oscillator, always on: nothing in the tree |
 | Bluetooth (wired, unused) | UART1_M0 + GPIO0_A1/A2/A4 | `wireless-bluetooth`, disabled |
 | console | UART2_M1, 115200 | `fiq_debugger` (rv1106.dtsi default) |
+| USB-C, USB 2.0 | OTG controller | `&usbdrd_dwc3` `dr_mode = "peripheral"`: the board is a USB device only (Rd on CC, no VBUS switch, no ID pin), which `otg` would have to guess; the setup console is a configfs gadget on it; MaskROM and the U-Boot loader flash over the same port without Linux |
 | not fitted | | `gmac`, `i2s0_8ch`, `acodec` disabled (`acodec`'s amplifier GPIO on the Pro Max is our IRCUT_B) |
 
-## Flashing (USB-C, MaskROM)
+## Flashing a new board (BOOT pads, MaskROM)
 
-1. Hold the side button, plug the camera into the computer with USB-C,
-   release. The button pulls SARADC_IN0 low while the SoC starts, which
-   puts it in MaskROM mode (`src/circuit.py`).
-2. In the SDK: `./rkflash.sh update` (it runs Rockchip's
-   `tools/linux/Linux_Upgrade_Tool/upgrade_tool uf output/image/update.img`).
-   On Windows, use the flashing tool Luckfox's documentation gives for the
+The test pads sit in a row on the board's round edge: **TP4** 5 V, **TP1**
+console TX, **TP2** console RX, **TP3** ground, **TP5** BOOT. BOOT is the
+SoC's MaskROM strap (SARADC_IN0, 10k up to 1.8 V, 1 nF, 100R to the pad),
+so shorting it to ground is harmless.
+
+1. Bridge **TP5 BOOT** and **TP3 G** with tweezers, plug the USB-C into the
+   computer, keep the bridge for a second, then lift it. The boot ROM
+   finds BOOT low and waits for flashing over USB (`upgrade_tool ld`, or
+   `lsusb`, shows a Rockchip device in *Maskrom*). Only a blank board, or
+   one whose loader is broken, needs this.
+2. In the SDK: `./rkflash.sh update` (`upgrade_tool uf output/image/update.img`):
+   the loader, the partition table and every partition, `/userdata` empty.
+   On Windows, the flashing tool Luckfox's documentation gives for the
    Pico boards with the same file (not checked here).
-3. The kernel console is on test pads TP1 (TX), TP2 (RX), TP3 (ground),
-   115200 baud, 3.3 V.
+3. It starts by itself: the status LED blinks slowly (setup access point),
+   the computer finds a USB serial port (the setup console), and the kernel
+   console is on TP1 (TX), TP2 (RX), TP3 (ground), 115200 baud, 3.3 V,
+   where the camera also prints its access point name and passphrase.
+
+## Updates
+
+**The camera software, over the air.** The Python package changes most,
+so it updates without a computer (`layercam/update.py`):
+
+1. Once: make a signing key, `python3 tools/layercam-sign.py keygen update.key`,
+   keep `update.key` off the cameras, and build the image with its public
+   half (`UPDATE_PUBKEY=update.pub board/install-into-sdk.sh ...`), which
+   lands in `/etc/layercam/update-keys` on the rootfs.
+2. Each release: raise `VERSION` in `layercam/__init__.py`, then
+   `python3 tools/layercam-sign.py pack update.key layercam-0.2.1.lcup`.
+3. Install: on the setup page, *software* > *Install update*; or, with the
+   package already on the camera, `update FILE` on the USB console. The
+   LED flickers while it is checked.
+
+The camera takes a package only if: Ed25519-signed (in plain Python,
+checked against RFC 8032's vectors and OpenSSL) by a key in
+`/etc/layercam/update-keys`, which an app update cannot change; made for
+`LayerCam v1`; newer than what runs (an older signed version could bring
+an old bug back; `--allow-downgrade` on the USB console overrides);
+`min_rootfs` no newer than the image's `/etc/layercam/rootfs-version`; the
+payload's SHA-256 and every file's SHA-256 match the signed manifest, with
+no other file and no path outside `layercam/`; and the new code imports.
+It is unpacked to `/userdata/layercam/app/slots/<version>/`; the factory
+copy in `/usr/share/layercam` is never touched.
+
+Before every start, `S99layercam` asks the factory copy of `update.py`
+which copy to run. A new version is on trial: it has 3 starts to stay up
+for 90 s, then it is kept and older ones are deleted; if it does not, the
+last good version (or the factory one) runs again and the page says so.
+`layercam-setup update --status` shows the state, `update --factory` goes
+back to the rootfs's own version.
+
+**A full image (kernel, rootfs, C helper), over USB without opening the
+camera.** On the USB console, `reboot-loader` restarts into U-Boot's USB
+download mode (*Loader* in `upgrade_tool ld`); then, in the SDK,
+`./rkflash.sh rootfs`, `./rkflash.sh oem` and `./rkflash.sh boot` (last:
+it restarts the camera) write those partitions and keep `/userdata`, so
+the settings, the Connect token and fingerprint, and the videos stay.
+`./rkflash.sh update` would write an empty `/userdata`. rkdeveloptool
+speaks the same protocol (not tried with these SPI NAND images). If the
+camera no longer starts far enough for the console, the BOOT pads (above)
+always work.
+
+**Why no A/B system or recovery partition.** The 256 MB NAND is full:
+env 256K, idblock 256K, U-Boot 512K, boot 4M, oem 30M, userdata 90M,
+rootfs 130M. A second rootfs would need 130M more. The SDK's recovery
+(`RK_ENABLE_RECOVERY`: a kernel and BusyBox ramdisk in a `recovery`
+partition, a `misc` partition, an `update_ota.tar` written with
+`flash_eraseall`/`nandwrite`) would fit in about 8M taken from userdata,
+but its `RkLunch-recovery.sh` looks for the package on an SD card, so it
+needs adapting to read it from `/userdata`, and a new partition table
+means flashing once with `update` (settings lost). Writing the rootfs over
+the air without a second copy risks a camera that only the BOOT pads can
+bring back after a power cut, so v1 updates the software over the air and
+the image over USB.
 
 ## Setting it up
 
-1. **Read the camera's setup passphrase first.** Every camera has its
-   own access point name and passphrase, made from its SoC's serial number
-   (the RV1106's one-time-programmable id, which the kernel shows as
-   `Serial` in `/proc/cpuinfo`). Either:
-   - plug the camera into a computer by USB-C (it boots from the port) and
-     run `python3 tools/layercam-ap.py`, which reads the serial over adb and
-     prints the name and passphrase (`python3 tools/layercam-ap.py SERIAL`
-     does the same from a serial number you already have, for a label); or
-   - watch the serial console (TP1/TP2, 115200): the camera prints
-     `LayerCam setup: Wi-Fi LayerCam-XXXX, passphrase xxxx-xxxx-xxxx` each
-     time the access point opens.
+The camera's own setup access point is **LayerCam-XXXX**, with a
+passphrase made from its SoC's serial number (the RV1106's
+one-time-programmable id, `Serial` in `/proc/cpuinfo`), so every camera
+has its own. To read it, any of:
 
-   A camera whose SoC shows no serial falls back to its random
-   fingerprint, and then only the console shows the passphrase.
-   `wifi.ap_password` replaces it with your own.
-2. **First boot:** with no Wi-Fi configured the camera opens the setup
-   access point **LayerCam-XXXX** and the status LED blinks slowly. Join
-   it with a phone and open `http://192.168.4.1` (any web name resolves to
-   the camera there, so most phones offer the page by themselves).
-3. On the page, fill in at least:
+- plug the camera into a computer by USB-C and type `ap` on its USB
+  console (below), or run `python3 tools/layercam-ap.py --port /dev/ttyACM0`;
+- `python3 tools/layercam-ap.py SERIAL` from a serial number you already
+  have (for a label);
+- the serial console (TP1/TP2, 115200) prints `LayerCam setup: Wi-Fi
+  LayerCam-XXXX, passphrase xxxx-xxxx-xxxx` each time the access point opens.
+
+A camera whose SoC shows no serial falls back to its random fingerprint,
+and then the USB and serial consoles show the passphrase.
+`wifi.ap_password` replaces it with your own.
+
+1. **First boot** (or no network saved): the setup access point opens and
+   the status LED blinks slowly. Join it with a phone and open
+   `http://192.168.4.1` (any web name resolves to the camera there, so most
+   phones offer the page by themselves).
+2. On the page, fill in at least:
    - **wifi**: your network and password (WPA2; empty for an open network).
    - **connect.token**: in Prusa Connect, open the printer, *Camera* > *Add
      new camera* > *other camera*, copy the token. **Use it within 15
@@ -249,13 +334,62 @@ as the Pro Max, the SDIO Wi-Fi as the Pico Ultra W. Every pin is the one
    - **upload**: a target, or `none` to keep the videos on the camera
      (download them from the page).
    - **web.password**: without it anyone on your network can open the page.
-4. Save. The camera joins your network, and its address appears in Prusa
+3. Save. The camera joins your network, and its address appears in Prusa
    Connect (camera info) and on the router. Put that address in the slicer
-   snippet's `start.gcode` ([`slicer/README.md`](slicer/README.md)).
-5. Every setting is in one file, `/userdata/layercam/layercam.ini`;
+   snippet's `start.gcode` ([`slicer/README.md`](slicer/README.md)). If the
+   password was mistyped, the access point is back after 2 minutes.
+4. Every setting is in one file, `/userdata/layercam/layercam.ini`;
    [`board/layercam.ini.example`](board/layercam.ini.example) lists them
-   all with their defaults and what they do. It can be copied there over
-   USB instead of using the page.
+   all with their defaults and what they do. A setting the camera cannot
+   use falls back to its default and is listed on the page: a mistake in
+   the file never stops the camera.
+
+### Wi-Fi without a button
+
+| | When | What happens |
+|---|---|---|
+| a. setup access point | first boot, or no network saved | the access point and the page, until a network is saved; LED slow blink |
+| b. network unreachable | the saved network not joined for `wifi.fallback_ap_min` (10 minutes; 2 for a network just entered) | the access point opens too. Every `wifi.retry_s` (2 minutes), while no phone is joined to it, the camera tries the saved network for up to 45 s; once connected the access point closes. One radio, so the two take turns (`net.WifiSupervisor`) |
+| c. power-cycle gesture | three short power-ups in a row | the network, its password and any own access point passphrase are forgotten; the access point opens (a) |
+| d. USB console | plugged into a computer | `wifi`, `reset-wifi`, `set`, `ap`, `status`, `update`, `reboot-loader` on a USB serial port |
+
+**The gesture (c).** Plug in; after a few seconds (the boot, to measure on
+the board) the LED flashes quickly once: that power-up is counted. Unplug
+within 5 s. Plug in again: two flashes; unplug. Plug in a third time and
+leave it: three flashes, then the slow blink of the setup access point. A
+power-up that stays on 5 s past its flashes sets the count back to 0, so
+ordinary use, a printer switched off and on, or a power cut never adds up
+to it. The time *between* power-ups cannot be measured (the RTC has no
+battery), so there is no strict 30-second window: what matters is that
+the three come in a row. The count is one tiny file on `/userdata`
+(`bootcount`), written when the power-up is counted and again 5 s later,
+nothing after; UBIFS spreads those writes over the whole volume, and the
+NAND's 100 000 erases per block are far beyond any number of boots
+(`layercam/gesture.py`). The Connect token, PrusaLink, upload settings and
+`web.password` stay.
+
+**The USB console (d).** Plugged into a computer, the camera is a USB
+serial port (CDC-ACM: `/dev/ttyACM0` on Linux, `/dev/cu.usbmodem*` on
+macOS, a COM port on Windows 10 and later; no driver needed). Open it with
+any terminal (`screen /dev/ttyACM0`, picocom, PuTTY), press Enter, type
+`help`:
+
+```
+status                       version, network, service, problems
+ap                           the setup access point's name and passphrase
+wifi "My Network" "password" join this network (wifi NAME --open: no password)
+reset-wifi                   as the gesture
+show / get / set KEY VALUE   any setting, checked as on the page; secrets never shown
+update FILE | --status | --factory
+reboot, reboot-loader        restart; restart into the USB loader (Updates)
+```
+
+It is a fixed set of commands, not a shell, and replaces the Luckfox
+image's adb and USB network (an unauthenticated root shell on the cable).
+Whoever holds the camera can use it, as they could the gesture; it can set
+a forgotten `web.password`. On the printer's USB port, which only gives
+power, nothing enumerates it and it waits. The same commands work on the
+serial console pads as `layercam-setup ...`.
 
 **Upload targets:** `s3` signs requests with SigV4 (keys need `PutObject`
 on the bucket; `s3_addressing = path` for MinIO and NAS stores); `http`
@@ -267,22 +401,20 @@ upload is retried after 10 s, 1, 5, 15 and 60 minutes, and the video stays
 on the camera if all fail. The camera keeps the last `keep_local` uploaded
 videos.
 
-### Button and status LED
-
-| Button | Does |
-|---|---|
-| held at power-up | MaskROM (flashing), in the SoC's boot ROM |
-| short press | send a snapshot to Connect now |
-| held 5 s | forget Wi-Fi and open the setup access point |
+### Status LED
 
 | LED | Means |
 |---|---|
-| steady on | on the network, idle |
-| double blink | recording a timelapse |
-| fast blink | joining Wi-Fi |
-| slow blink (1 s) | setup access point is on (closes after 30 minutes if Wi-Fi is set) |
-| three blinks, pause | something needs attention: see the setup page (Connect refused the token, PrusaLink unreachable, a frame lost, storage low) |
+| a few quick flashes right after power-up | the power-cycle gesture counted this power-up (1, 2 or 3 flashes) |
+| flicker | installing an update: leave the power on |
+| slow blink (1 s) | setup access point is on (a, b or c above) |
 | long on, short off | hot: the thermal governor is throttling or has stopped the camera (the page says how hot) |
+| fast blink | joining Wi-Fi, or trying the saved network again |
+| three blinks, pause | something needs attention: see the page or `status` on the USB console (Connect refused the token, PrusaLink unreachable, a frame lost, storage low, the BOOT pad leaking) |
+| double blink | recording a timelapse |
+| steady on | on the network, idle |
+
+Most urgent first: only the first that applies shows.
 
 **Night:** below 0.10 V on the light sensor for 5 s (around 10 lux; about
 0.5 V is 50 lux) the IR-cut filter opens and the picture turns grey; above
@@ -308,12 +440,12 @@ GPIO, ADC and PWM are skipped when their files are missing.
 ## Tests
 
 ```
-python3 -m unittest            # from this folder; 130 tests, about 7 s
+python3 -m unittest            # from this folder; 180 tests, about 10 s
 ```
 
 | File | What it checks |
 |---|---|
-| `test_connect.py` | snapshot and camera-info requests: URL, headers (Token, Fingerprint, User-Agent, Content-Type, Content-Length), 1 MB limit, token and fingerprint lengths, only documented camera-info keys; rate limit (10 s, back-off after 429/503), stop after 401/403/422, quality lowered for size, a button press never beats the 10 s minimum |
+| `test_connect.py` | snapshot and camera-info requests: URL, headers (Token, Fingerprint, User-Agent, Content-Type, Content-Length), 1 MB limit, token and fingerprint lengths, only documented camera-info keys; rate limit (10 s, back-off after 429/503), stop after 401/403/422, quality lowered for size, a test from the page never beats the 10 s minimum |
 | `test_prusalink.py` | Digest auth against a fake printer that checks it as Buddy does (no qop, stale nonce), RFC 2617's own example, API key, unreachable printer; status/job parsing for printing, finished, stopped, idle, no job (204); video names |
 | `test_metrics.py` | line protocol (floats, integers, strings with spaces and escapes, events, tags, errors), Buddy's syslog header, trigger age from the datagram's timestamps, MeatPack-style missing space, a real UDP socket |
 | `test_timelapse.py` | start/layer/finish/cancel, duplicate and out-of-order triggers, missed triggers counted, late triggers warned, trigger before PrusaLink sees the job, a new job without an end, pause, the Z fallback (Z hops filtered), UDP-only and poll-only modes, thinning, no-PrusaLink timeout |
@@ -322,16 +454,21 @@ python3 -m unittest            # from this folder; 130 tests, about 7 s
 | `test_mp4.py` | SPS parsing (hand-built SPS, with cropping), NAL splitting, and MP4s at 2304 x 1296 and 320 x 180 checked by ffprobe and decoded by ffmpeg, including a frame cut off by a power loss |
 | `test_recording.py` | the C helper's protocol against a stand-in (asleep until woken, rate changes), a whole H.264 timelapse to MP4, the helper crashing mid-print, JPEG frames with thinning, ffmpeg and hardware-encoder paths, pruning (unsent videos never deleted) |
 | `test_service.py` | the whole service: fake printer, five layers (one sent twice), print finishes, the MP4 arrives at the upload server with five frames, named after the job; the page's password and hidden secrets; a missing camera helper does not stop the service |
-| `test_config.py` | types, validation of every rule, the example file lists exactly the real settings, file written 0600, typos rejected, secrets never sent back, the page form |
-| `test_hw.py` | day/night hysteresis and hold time, flicker, IR plan per mode, button short/long, LED priorities, sysfs writes (ADC, IR-cut pulse order, PWM) against a fake `/sys` |
+| `test_config.py` | types, validation of every rule, the example file lists exactly the real settings, file written 0600, typos rejected, secrets never sent back, the page form; the service's lenient load: a bad value keeps its default, an unknown key (a typo, a newer version's) is kept in the file, a section given twice is read, an unreadable file is moved aside, the page can still save |
+| `test_hw.py` | day/night hysteresis and hold time, flicker, IR plan per mode, LED priorities (updating, setup, hot, offline, error, recording, ok; every pattern distinct; no `Button` left), the BOOT pad warning, sysfs writes (ADC, IR-cut pulse order, PWM) against a fake `/sys` |
+| `test_gesture.py` | the power-cycle gesture on a fake clock with fake flash that keeps what was written when the plug is pulled: three short power-ups reset (the third at once), ordinary power-ups never add up and write twice each, one long power-up cancels, the 5 s edge, a power-up cut before it is counted; the count file (torn or garbage reads 0), the init script's call, and the service forgetting network, password and own AP passphrase but keeping `web.password` |
+| `test_wifi.py` | when the setup access point opens and closes, on a fake clock: first boot, connected, exactly 10 minutes unreachable, retries every 2 minutes for 45 s, connected on a retry (and the full 10 minutes again after), never cut off while a phone is on it, 2 minutes for a network just entered, fallback off; `iw` station count; the service driving a stand-in `layercam-net` |
+| `test_setupcli.py` | the USB console: argument parsing (quoted names, `--open`, `--`, refused commands, no shell), each command against a settings file (validated like the page, SIGHUP to the service, the short fallback for a new network, secrets never printed, a forgotten `web.password` set, unknown keys kept, `reset-wifi` as the gesture, `reboot-loader`), the console loop fed line by line, and the real loop on a pseudo-terminal |
+| `test_update.py` | Ed25519 against RFC 8032's vectors and OpenSSL; packages: good, wrong key, no keys, same/older version, needs a newer image, wrong product, a changed manifest, payload or extra member, junk, unsafe paths even when signed; the signing tool; the keys file; trial start, kept after it stays up, rollback after 3 failed starts (to the last good version or the factory one), code that does not import never installed, a missing slot, factory reset, the init script's question with a broken state file; an upload to the setup page |
 | `test_net.py` | WPA PSK against the IEEE 802.11i test vector, wpa_supplicant/hostapd/dnsmasq files, 2.4 GHz channel list, power settings; the setup access point's name and passphrase per device (stable, different per serial, readable alphabet), `/proc/cpuinfo` serial parsing, the host tool |
-| `test_pins.py` | `pincheck.py`: `layercam/board.py` and the device tree against `src/circuit.py` (30 checks); proved to catch a moved LED, a wrong PWM pin and a swapped IR-cut pin; `src/check_firmware.run()` as the board build calls it |
+| `test_pins.py` | `pincheck.py`: `layercam/board.py` and the device tree against `src/circuit.py` (34 checks: also no button in the circuit, TP5 through 100R to SARADC_IN0, the evb's ADC keys removed, the USB controller a device); proved to catch a moved LED, a wrong PWM pin, a swapped IR-cut pin, a button put back, the ADC keys back and a host-mode USB port; `src/check_firmware.run()` as the board build calls it |
 | `test_thermal.py` | the governor's levels, hysteresis, jumps and unreadable sensor; what each level allows; IR LED duty capping and the ramp's steps; the camera power policy; temperature and CPU speed through a fake `/sys`; the service under heat: asleep between pictures, live view time-limited and refused when hot, quality capped, Connect skipped from 105 C, frames lost only at 115 C and the camera back under 95 C, LEDs lit only around a night picture and capped at 50 % when throttled, IR-cut pulsed once |
 | `test_slicer.py` | the snippets use only G-codes checked in Buddy's source, the park position (PrusaSlicer local variables) inside the CORE One's limits, lines under 96 characters, hold = `dwell_ms`, metric on only around the trigger, and an emulation of Buddy's metrics buffer showing the padding sends the trigger at once |
 
 The MP4, recording and whole-service tests need `ffmpeg` and `ffprobe`
 with libx264 on the PC (they make the test video); without them they are
-skipped. Result on 26 Oct 2026, Python 3.13 and 3.11: **130 pass, 0 skipped**.
+skipped. Result on 26 Oct 2026, Python 3.13 and 3.11: **180 pass, 0 skipped**;
+pyflakes finds nothing.
 
 Checked on a PC but not as tests: the device tree, run through `cpp` with
 the SDK's includes and parsed with Zephyr's `dtlib` (every label and
@@ -339,6 +476,9 @@ reference resolves; the LED, Wi-Fi and sensor GPIO cells are the right
 pins); the C helper, `gcc -fsyntax-only -Wall -Wextra` against
 luckfox_pico_rkmpi_example's headers and the SDK's libjpeg9 headers, with
 and without `HAVE_LIBJPEG` (`make check`); the shell scripts, `sh -n`.
+After the no-button change the device tree was parsed again the same way:
+no `adc-keys` node, `dr_mode = "peripheral"`, the `reboot-mode` node's
+`mode-loader` present.
 
 ## Facts checked against their sources (26 Oct 2026)
 
@@ -359,6 +499,10 @@ and without `HAVE_LIBJPEG` (`make check`); the shell scripts, `sh -n`.
 | SoC serial: `cpuinfo` node reads the OTP `id` cell (`CONFIG_ROCKCHIP_CPUINFO=y`); TSADC thermal zone (`CONFIG_ROCKCHIP_THERMAL=y`); cpufreq with `ondemand` as the default governor | SDK `rv1106.dtsi`, `luckfox_rv1106_linux_defconfig` |
 | PrusaSlicer `{local name = value}` variables in custom G-code | PrusaSlicer 2.9.6 `src/libslic3r/PlaceholderParser.cpp` |
 | Heat: the housing's temperatures streaming, the IR LED strings' current | `sim/thermal.md`, `sim/power.md` (this revision) |
+| USB: the OTG controller's `dr_mode` (`otg` in rv1106.dtsi, `peripheral` on Luckfox's boards); gadget, configfs and CDC-ACM built in; Luckfox's `S50usbdevice` (adb + RNDIS, gadget `rockchip`) and `S99usb0config`, and where they are installed; overlays applied last, with rsync | SDK `rv1106.dtsi`, `rv1106g-luckfox-pico-pro-max.dts`, `luckfox_rv1106_linux_defconfig`, `sysdrv/tools/board/android-tools/S50usbdevice` and `Makefile`, `sysdrv/Makefile`, `project/build.sh` (`post_overlay`) |
+| Loader mode: `reboot-mode` with `mode-loader = BOOT_BL_DOWNLOAD`, `CONFIG_SYSCON_REBOOT_MODE=y`; `rkflash.sh` `update` = `upgrade_tool uf` (all partitions, userdata included), `rootfs`/`oem`/`boot` = `upgrade_tool di` one partition; the SDK's recovery and `update_ota.tar` | SDK `rv1106.dtsi`, `luckfox_rv1106_linux_defconfig`, `project/rkflash.sh`, `project/build.sh` (`build_recovery`, `build_ota`), `project/scripts/RkLunch-recovery.sh` |
+| Buildroot's python3 always has ctypes (selects libffi); its zlib module is optional and not in `luckfox_pico_defconfig`, so update packages are plain tar | Buildroot 2023.02.6 `package/python3/Config.in` |
+| Ed25519 | RFC 8032 (section 6 code, section 7.1 vectors); OpenSSL 3.0 |
 
 ## Limits
 
@@ -394,11 +538,31 @@ and without `HAVE_LIBJPEG` (`make check`); the shell scripts, `sh -n`.
   level 5.0 or higher; JPEG quality lowered as needed for Connect's 1 MB).
 - **Night pictures are grey** (ISP grey mode under IR), as any IR camera.
 - **The setup passphrase is derived, not random**: anyone who knows the
-  SoC's serial number (on the console, over adb on the USB-C cable) and
-  this code can work it out. The access point is only on at first boot or
-  after a 5-second press; set `web.password` once the camera is on your
-  network. adb over the USB-C port is what the Luckfox image offers;
-  not checked on this board.
+  SoC's serial number (on the consoles, in the USB serial number) and this
+  code can work it out. The access point is on only with no network saved
+  or while the saved one is unreachable (a-c above); set `web.password`
+  once the camera is on your network.
+- **The no-button parts have run on a PC only.** Still to see on the
+  board: how long the boot takes to the gesture's flashes (the 5 s window
+  starts there); the configfs gadget enumerating on Linux, macOS and
+  Windows (the composite class codes are there for Windows' usbser), and
+  staying quiet on the printer's port; `reboot-loader` (ctypes `reboot(2)`
+  with "loader") landing in U-Boot's Rockusb; `rkflash.sh rootfs/oem/boot`
+  in that mode; the update's import check and trial start on the board's
+  Python; `iw` listing the access point's stations. The USB ids
+  (1d6b:0104) are a development placeholder: a shipped product needs its
+  own.
+- **One radio for two jobs**: while the saved network is unreachable the
+  access point and the retries take turns (the access point is off for up
+  to 45 s every 2 minutes, never while a phone is on it). bcmdhd may do
+  both at once (AP+STA), not tried.
+- **Luckfox's image still has an SSH server** (`S50sshd` from
+  `overlay-luckfox-buildroot-init`) with Buildroot's root password
+  `luckfox`: disable it or set a password before shipping. adb and the USB
+  network are gone (`S50usbdevice` replaced).
+- **Updates over the air are the camera software only**; the kernel,
+  rootfs and C helper come with a full image over USB (*Updates*). No A/B
+  system, no recovery partition (no room in 256 MB).
 - **The clock comes from NTP after Wi-Fi is up** (the RTC has no battery);
   until then TLS to Connect and S3 signatures fail and are retried.
 - **Z fallback frames show the head** wherever it is; only the slicer
@@ -418,18 +582,25 @@ layercam/                  the service (Python, standard library only)
   metrics.py                 printer's UDP metrics   timelapse.py  when to shoot (pure logic)
   capture.py                 camera backends         recording.py  frames on disk, video bodies
   mp4.py                     H.264 -> MP4, streamed  upload.py     S3, HTTP, SMB, NFS
-  sigv4.py                   AWS SigV4               hw.py         button, light, IR, LED
-  net.py                     Wi-Fi files, setup AP   web.py        setup page, live view
+  sigv4.py                   AWS SigV4               hw.py         light, IR, LED, BOOT pad
+  net.py                     Wi-Fi files, setup AP,  web.py        setup page, live view,
+                             when to open it                       update upload
   thermal.py                 heat governor, policy   board.py      pins (from circuit.py)
+  gesture.py                 power-cycle gesture     setupcli.py   layercam-setup (USB console)
+  update.py                  signed app updates,     ed25519.py    signatures (RFC 8032)
+                             trial, rollback
 pincheck.py                pins against src/circuit.py (tests and the board build: src/check_firmware.py)
-tools/layercam-ap.py       prints a camera's setup access point name and passphrase
+tools/layercam-ap.py       prints a camera's setup access point name and passphrase (serial or USB console)
+tools/layercam-sign.py     update signing key; makes and checks .lcup packages
 native/                    layercam-media (C): sensor, ISP, JPEG and H.264 encoders; Makefile
 dts/                       the board's device tree
 board/
   layercam.ini.example     every setting with its default
   install-into-sdk.sh      copies all of this into a Luckfox SDK checkout
   sdk/                     board config, kernel options, Buildroot packages
-  rootfs/                  /etc/init.d/S99layercam, /usr/bin/layercam-net
+  rootfs/                  /etc/init.d/: S21layercam-gesture, S50usbdevice (USB console),
+                           S99usb0config (empty), S99layercam; /usr/bin/: layercam-net,
+                           layercam-setup; /etc/layercam/: update-keys, rootfs-version
 slicer/                    PrusaSlicer custom G-code and how it works
 tests/                     host tests (python3 -m unittest), test data, a stand-in helper
 ```

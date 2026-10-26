@@ -214,30 +214,33 @@ def _coerce(default, value, name):
         raise ConfigError('%s: %r is not a %s' % (name, value, type(default).__name__))
 
 
-def load(path, strict=True):
+def load(path, strict=True, aside=True):
     """Read the file.  strict: unknown keys and bad values are an error (a
     typo would otherwise be silently ignored).  Not strict (the service, the
     USB console): the camera must start whatever is in the file, so a bad
     value keeps its default, an unknown key (a typo, or a setting of a newer
     version after a rollback) is kept as it is, and both are listed in
     errors(); a file that cannot be read at all is moved aside to
-    layercam.ini.bad and the defaults are used (the setup access point opens)."""
+    layercam.ini.bad (unless aside is False: --check only reports) and the
+    defaults are used (the setup access point opens)."""
     cfg = Config(path=path)
     if not os.path.exists(path):
         return cfg
-    cp = configparser.ConfigParser(interpolation=None)
+    # not strict: a section or key given twice (a hand edit) is read, the last one wins
+    cp = configparser.ConfigParser(interpolation=None, strict=strict)
     try:
         with open(path) as f:
             cp.read_file(f)
     except (configparser.Error, UnicodeDecodeError, OSError) as e:
         if strict:
             raise
-        try:
-            os.replace(path, path + '.bad')
-        except OSError:
-            pass
-        cfg.problems.append('%s could not be read (%s): moved to %s.bad, defaults used'
-                            % (path, str(e).splitlines()[0], os.path.basename(path)))
+        if aside:
+            try:
+                os.replace(path, path + '.bad')
+            except OSError:
+                pass
+        cfg.problems.append('%s could not be read (%s)%s' % (path, str(e).splitlines()[0], (
+            ': moved to %s.bad, defaults used' % os.path.basename(path)) if aside else ''))
         return cfg
     for s in cp.sections():
         for k, v in cp[s].items():

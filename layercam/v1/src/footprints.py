@@ -264,6 +264,44 @@ def smd_pad_fp(name, d, desc=''):
     return fp
 
 
+def tcxo_tg3541_fp():
+    """Epson TG-3541CE (32.768 kHz TCXO, 3.2 x 2.5 mm, 10 terminals), the
+    land pattern from Epson's datasheet rev 2.0, package upright: pins 1-5
+    down the left column, 6-10 up the right; two columns 2.0 mm apart, pads
+    0.9 mm across, 0.7 mm long at the corners and 0.4 mm inside, 0.7 mm
+    pitch.  The package's metal test pads on its short sides stay clear of
+    copper (nothing is drawn there)."""
+    name = 'TG-3541CE'
+    fp = pcbnew.FOOTPRINT(None)
+    fp.SetFPID(pcbnew.LIB_ID('lc', name))
+    fp.SetAttributes(pcbnew.FP_SMD)
+    fp.SetLibDescription('Epson TG-3541CE 32.768 kHz TCXO, 3.2 x 2.5 mm')
+    ys = [-1.55, -0.70, 0.0, 0.70, 1.55]
+    pos = {str(k + 1): (-1.0, ys[k]) for k in range(5)}
+    pos.update({str(10 - k): (1.0, ys[k]) for k in range(5)})
+    for num, (x, y) in pos.items():
+        p = pcbnew.PAD(fp)
+        p.SetNumber(num); p.SetAttribute(pcbnew.PAD_ATTRIB_SMD); p.SetShape(pcbnew.F_Cu, pcbnew.PAD_SHAPE_RECT)
+        h = 0.7 if abs(y) > 1.0 else 0.4
+        p.SetSize(pcbnew.F_Cu, pcbnew.VECTOR2I(MM(0.9), MM(h)))
+        p.SetFPRelativePosition(pcbnew.VECTOR2I(MM(x), MM(y)))
+        ls = pcbnew.LSET(); ls.AddLayer(pcbnew.F_Cu); ls.AddLayer(pcbnew.F_Mask); ls.AddLayer(pcbnew.F_Paste)
+        p.SetLayerSet(ls)
+        fp.Add(p)
+    for lay, (hx, hy), w in ((pcbnew.F_CrtYd, (1.7, 2.15), 0.05), (pcbnew.F_Fab, (1.25, 1.6), 0.1)):
+        r = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_RECT)
+        r.SetStart(pcbnew.VECTOR2I(MM(-hx), MM(-hy))); r.SetEnd(pcbnew.VECTOR2I(MM(hx), MM(hy)))
+        r.SetLayer(lay); r.SetWidth(MM(w)); fp.Add(r)
+    # pin 1 on the fab drawing
+    c = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_CIRCLE)
+    c.SetCenter(pcbnew.VECTOR2I(MM(-0.85), MM(-1.25))); c.SetEnd(pcbnew.VECTOR2I(MM(-0.75), MM(-1.25)))
+    c.SetLayer(pcbnew.F_Fab); c.SetWidth(MM(0.1)); fp.Add(c)
+    fp.Reference().SetLayer(pcbnew.F_Fab); fp.Reference().SetTextSize(pcbnew.VECTOR2I(MM(0.5), MM(0.5)))
+    fp.Reference().SetTextThickness(MM(0.08))
+    fp.Value().SetVisible(False)
+    return fp
+
+
 def hole_fp(name, d, keep_f, keep_b, desc):
     """Unplated mounting hole, d mm, with a round courtyard on each side:
     keep_f on F (the back face: screw head or washer), keep_b on B (the
@@ -297,7 +335,8 @@ def main():
         _save(LIB, clean_easyeda(path)); n += 1
     for fp in (smd_pad_fp('PAD_TP', 1.0, desc='Test pad, SMD, 1.0 mm'),
                hole_fp('MOUNT_M2', 2.2, 2.1, 2.0, 'M2 screw hole 2.2 mm: head r 2.1 behind, boss r 2.0 in front'),
-               hole_fp('MOUNT_M1V6', 1.8, 1.9, 1.0, 'M1.6 screw hole 1.8 mm: washer r 1.9 behind')):
+               hole_fp('MOUNT_M1V6', 1.8, 1.9, 1.0, 'M1.6 screw hole 1.8 mm: washer r 1.9 behind'),
+               tcxo_tg3541_fp()):
         _save(LIB, fp); n += 1
     print('wrote %d footprints to %s' % (n, LIB))
 

@@ -96,9 +96,9 @@ class T(unittest.TestCase):
         c.path = p
         c.save()
         with open(p, 'a') as f:
-            f.write('\n[future]\nnew_thing = 3\n[connect]\ntypo_key = 1\n')
+            f.write('\n[future]\nnew_thing = 3\n')
         with open(p) as f:
-            text = f.read().replace('interval = 30', 'interval = often')
+            text = f.read().replace('interval = 30', 'interval = often\ntypo_key = 1')
         with open(p, 'w') as f:
             f.write(text)
         with self.assertRaises(config.ConfigError):
@@ -115,6 +115,9 @@ class T(unittest.TestCase):
         again = config.load(p, strict=False)
         self.assertEqual(again.get('connect', 'interval'), 60)
         self.assertEqual(again.extra, {('future', 'new_thing'): '3', ('connect', 'typo_key'): '1'})
+        with open(p, 'w') as f:
+            f.write('[wifi]\nssid = One\n[wifi]\nssid = Two\n')    # edited by hand: a section twice
+        self.assertEqual(config.load(p, strict=False).get('wifi', 'ssid'), 'Two')
         with open(p, 'w') as f:
             f.write('[wifi\nssid = x\n\x00')
         broken = config.load(p, strict=False)

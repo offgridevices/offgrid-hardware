@@ -88,12 +88,12 @@ def bom_cpl(board, out_dir, name, board_name):
             w.writerow([p['value'], ','.join(sorted(refs, key=_natural)), fpname(p), lcsc])
     with open(os.path.join(out_dir, '%s-bom-pcbway.csv' % name), 'w', newline='') as f:
         w = csv.writer(f)
-        w.writerow(['Item #', 'Designator', 'Qty', 'Manufacturer Part Number', 'Description', 'Value',
-                    'Package/Footprint', 'Type', 'LCSC Part #', 'Side'])
+        w.writerow(['Item #', 'Designator', 'Qty', 'Manufacturer', 'Manufacturer Part Number', 'Description', 'Value',
+                    'Package/Footprint', 'Type', 'LCSC Part #', 'Digi-Key Part #', 'Side'])
         for i, (lcsc, (p, refs)) in enumerate(groups.items(), 1):
             sides = sorted(set('Bottom' if fp.IsFlipped() else 'Top' for fp, q in asm if q['lcsc'] == lcsc))
-            w.writerow([i, ','.join(sorted(refs, key=_natural)), len(refs), p['mpn'], p['desc'], p['value'],
-                        fpname(p), 'THT' if p.get('tht') else 'SMD', lcsc, '+'.join(sides)])
+            w.writerow([i, ','.join(sorted(refs, key=_natural)), len(refs), p['maker'], p['mpn'], p['desc'], p['value'],
+                        fpname(p), 'THT' if p.get('tht') else 'SMD', lcsc, p.get('dk', ''), '+'.join(sides)])
     with open(os.path.join(out_dir, '%s-cpl-jlcpcb.csv' % name), 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['Designator', 'Mid X', 'Mid Y', 'Layer', 'Rotation'])

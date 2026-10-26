@@ -58,20 +58,26 @@ PARTS = {
     'TLV62569': dict(fp='lc:SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR', lcsc='C141836', mpn='TLV62569DBVR',
                      value='TLV62569', maker='Texas Instruments', kind='U',
                      desc='2 A synchronous buck, 0.6 V reference, SOT-23-5, Tj to 125 degC'),
-    'DRV8837': dict(fp='lc:WSON-8_L2.0-W2.0-P0.50-TL-EP', lcsc='C39159', mpn='DRV8837DSGR', value='DRV8837',
-                    maker='Texas Instruments', kind='U', desc='H-bridge 1.8 A, for the IR-cut filter, WSON-8 2 x 2'),
+    # DRV8210P: TI's pin-for-pin DRV8837 with a 125 degC ambient rating
+    'DRV8210P': dict(fp='lc:WSON-8_L2.0-W2.0-P0.50-TL-EP', lcsc='C5218852', mpn='DRV8210PDSGR', value='DRV8210P',
+                     dk='296-DRV8210PDSGRCT-ND', maker='Texas Instruments', kind='U',
+                     desc='H-bridge, for the IR-cut filter, WSON-8 2 x 2, -40..125 degC'),
     'AO3400A': dict(fp='lc:SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR', lcsc='C20917', mpn='AO3400A', value='AO3400A',
                     maker='Alpha & Omega', kind='Q', desc='N-MOSFET 30 V 5.7 A, logic level, SOT-23 (IR LED switch)'),
-    'OSC32K': dict(fp='lc:OSC-SMD_4P-L3.2-W1.5', lcsc='C6277865', mpn='ASH7KW-32.768KHZ-L-T',
-                   value='32.768kHz', maker='Abracon', kind='Y',
-                   desc='32.768 kHz CMOS oscillator 1.2-5.5 V, -40..85 degC (the Wi-Fi module\'s sleep clock)'),
-    'XTAL24M': dict(fp='lc:CRYSTAL-SMD_4P-L3.2-W2.5-BL', lcsc='C70590', mpn='X322524MOB4SI', value='24MHz',
-                    maker='YXC', kind='Y', desc='Crystal 24 MHz 12 pF 10 ppm, 3225'),
+    # the Wi-Fi module's sleep clock must hold +-30 ppm: a tuning-fork
+    # oscillator drifts -100..-150 ppm at 80-90 degC; this TCXO holds
+    # +-3.4 ppm to 85 degC and +-8 to 105 degC (Epson TG-3541CE rev 2.0)
+    'TCXO32K': dict(fp='lc:TG-3541CE', lcsc='C1987384', mpn='TG-3541CE 32.7680KXA0', value='32.768kHz',
+                    dk='114-TG-3541CE32.7680KXA0CT-ND', maker='Epson', kind='Y',
+                    desc='32.768 kHz TCXO, CMOS out, 1.5-5.5 V, -40..105 degC, 3.2 x 2.5 mm'),
+    'XTAL24M': dict(fp='lc:CRYSTAL-SMD_4P-L3.2-W2.5-BL', lcsc='C435181', mpn='ECS-240-12-33Q-JES-TR', value='24MHz',
+                    dk='XC2150CT-ND', maker='ECS', kind='Y', desc='Crystal 24 MHz 12 pF, 3225, -40..125 degC'),
     'XTAL37M4': dict(fp='lc:CRYSTAL-SMD_4P-L3.2-W2.5-BL_1', lcsc='C2981708', mpn='3225-37.4-12-10-10/A',
                      value='37.4MHz', maker='Shenzhen Crystal', kind='Y',
                      desc='Crystal 37.4 MHz 12 pF, 10 ppm tolerance and stability, -40..85 degC, 3225'),
-    'XTAL32K': dict(fp='lc:FC-135R_L3.2-W1.5', lcsc='C32346', mpn='Q13FC13500004', value='32.768kHz',
-                    maker='Epson', kind='Y', desc='Crystal 32.768 kHz 12.5 pF (the SoC\'s RTC), 3215'),
+    'XTAL32K': dict(fp='lc:FC-135R_L3.2-W1.5', lcsc='C1985607', mpn='ABS07AIG-32.768KHZ-1-T', value='32.768kHz',
+                    dk='535-ABS07AIG-32.768KHZ-1-TCT-ND', maker='Abracon', kind='Y',
+                    desc='Crystal 32.768 kHz 12.5 pF (the SoC\'s RTC), 3215, -40..125 degC'),
     'LED_GRN': dict(fp='lc:LED0603-RD', lcsc='C12624', mpn='KT-0603G', value='green', maker='Hubei KENTO',
                     kind='LED', desc='LED green 0603 (status)'),
     # ------------------------------------------------------------ connectors, switch
@@ -86,8 +92,11 @@ PARTS = {
                  maker='Molex', kind='J', desc='PicoBlade 1.25 mm 2 pin, right angle, SMD, -40..105 degC'),
     'UFL': dict(fp='lc:RF-SMD_FRF05002-JSS103M', lcsc='C88374', mpn='U.FL-R-SMT-1(80)', value='U.FL',
                 maker='Hirose', kind='J', desc='U.FL coaxial receptacle (Wi-Fi antenna), -40..90 degC'),
-    'USBC': dict(fp='lc:USB-C_SMD-TYPE-C-31-M-12_1', lcsc='C165948', mpn='TYPE-C-31-M-12', value='USB-C',
-                 maker='Korean Hroparts', kind='J', desc='USB-C receptacle, USB 2.0, 16 contacts (rated -30..80 degC)'),
+    # GCT's USB4105 fits the HRO TYPE-C-31-M-12 land (pads, tabs, pegs and
+    # mouth position checked against GCT's drawing) and is rated to 85 degC
+    'USBC': dict(fp='lc:USB-C_SMD-TYPE-C-31-M-12_1', lcsc='C5184243', mpn='USB4105-GF-A-120', value='USB-C',
+                 dk='2073-USB4105-GF-A-120CT-ND', maker='GCT', kind='J',
+                 desc='USB-C receptacle, USB 2.0, 16 contacts, 1.2 mm board, -40..85 degC'),
     'USBLC6': dict(fp='lc:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL', lcsc='C7519', mpn='USBLC6-2SC6', value='USBLC6-2SC6',
                    maker='STMicroelectronics', kind='U', desc='USB ESD protection, SOT-23-6'),
     'SMF6V0': dict(fp='lc:SOD-123FL_L2.8-W1.8-LS3.7-BI', lcsc='C353271', mpn='SMF6.0CA', value='SMF6.0CA',
@@ -100,12 +109,15 @@ PARTS = {
                      maker='Vishay', kind='Q',
                      desc='Ambient light phototransistor, eye response (blind to the 850 nm LEDs), -40..100 degC'),
     # ------------------------------------------------------------ inductors, beads
-    'L1U5': dict(fp='lc:IND-SMD_L2.5-W2.0', lcsc='C29780704', mpn='FPA252012D-1R5MT0', value='1.5uH',
-                 maker='Fenghua', kind='L', desc='Inductor 1.5 uH 2.9 A, 2520'),
-    'L2U2': dict(fp='lc:IND-SMD_L2.5-W2.0', lcsc='C29780705', mpn='FPA252012D-2R2MT0', value='2.2uH',
-                 maker='Fenghua', kind='L', desc='Inductor 2.2 uH 2.4 A, 2520'),
-    'L4U7': dict(fp='lc:IND-SMD_L2.5-W2.0', lcsc='C29780707', mpn='FPA252012D-4R7MT0', value='4.7uH',
-                 maker='Fenghua', kind='L', desc='Inductor 4.7 uH 1.6 A, 2520 (the Wi-Fi module\'s own buck)'),
+    # Murata DFE252012F: rated -40..125 degC with self-heating (the parts
+    # first chosen had no published temperature rating); same 2520 land
+    'L1U5': dict(fp='lc:IND-SMD_L2.5-W2.0', lcsc='C909806', mpn='DFE252012F-1R5M=P2', value='1.5uH',
+                 dk='490-13054-1-ND', maker='Murata', kind='L', desc='Inductor 1.5 uH 2.7 A sat, 2520'),
+    'L2U2': dict(fp='lc:IND-SMD_L2.5-W2.0', lcsc='C576403', mpn='DFE252012F-2R2M=P2', value='2.2uH',
+                 dk='490-13055-1-ND', maker='Murata', kind='L', desc='Inductor 2.2 uH 2.3 A sat, 2520'),
+    'L4U7': dict(fp='lc:IND-SMD_L2.5-W2.0', lcsc='C668313', mpn='DFE252012F-4R7M=P2', value='4.7uH',
+                 dk='490-13051-1-ND', maker='Murata', kind='L',
+                 desc='Inductor 4.7 uH 1.5 A sat, 2520 (the Wi-Fi module\'s own buck)'),
     'BEAD': dict(fp=L0402, lcsc='C76891', mpn='BLM15PD121SN1D', value='120R@100MHz', maker='Murata', kind='L',
                  desc='Ferrite bead 120 ohm at 100 MHz, 1.3 A, 0402'),
     # ------------------------------------------------------------ resistors
