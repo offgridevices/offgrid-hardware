@@ -31,7 +31,14 @@ case "$1" in
 		# -b: keep trying in the background; the service watches for the address
 		udhcpc -i $IF -b -t 10 -T 3 -x hostname:layercam >/dev/null 2>&1
 		# TLS (Connect, S3) and S3's signatures need the right time; the RTC has no battery
-		(sleep 10; ntpd -n -q -p pool.ntp.org >/dev/null 2>&1) &
+		# Buildroot's ntp package replaces BusyBox's ntpd: there -p is a pid file,
+		# the servers come from /etc/ntp.conf, and -g allows the first big step
+		# (without it a clock still at 1970 is never set)
+		if ntpd --help 2>&1 | grep -q BusyBox; then
+			(sleep 10; ntpd -n -q -p pool.ntp.org >/dev/null 2>&1) &
+		else
+			(sleep 10; ntpd -g -n -q >/dev/null 2>&1) &
+		fi
 		;;
 	ap)
 		stop_all

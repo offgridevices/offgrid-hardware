@@ -1,7 +1,8 @@
 #!/bin/sh
 #
 # The power-cycle gesture (layercam/gesture.py): count this power-up as early
-# as possible, right after S20linkmount has mounted /userdata.  Three short
+# as possible, right after S20linkmount has mounted /userdata and before
+# S21appinit loads the media drivers (the "-" sorts it first).  Three short
 # power-ups in a row forget the Wi-Fi settings.  Runs in the background (it
 # waits 5 s before clearing the count), from the factory copy of the software.
 # Not yet run on a board.

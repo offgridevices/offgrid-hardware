@@ -8,8 +8,9 @@ export LF_ORIGIN_BOARD_CONFIG=BoardConfig-SPI_NAND-Buildroot-RV1106_LayerCam_v1-
 export RK_CHIP=rv1106
 
 # LayerCam: no rkipc; the camera software (S99layercam) owns the sensor.
-# If the SDK insists on an app type, keep RKIPC_RV1106: S99layercam stops it
-# (RkLunch-stop.sh) before starting.
+# If the SDK insists on an app type, RKIPC_RV1106 can be built: LayerCam's
+# S21appinit only loads the media drivers and never starts rkipc (an
+# unauthenticated RTSP stream and web server).
 # export RK_APP_TYPE=RKIPC_RV1106
 
 export RK_BOOTARGS_CMA_SIZE="66M"
@@ -51,5 +52,10 @@ export LF_WIFI_PSK=""
 
 export RK_PRE_BUILD_OEM_SCRIPT=luckfox-buildroot-oem-pre.sh
 export RK_PRE_BUILD_USERDATA_SCRIPT=luckfox-userdata-pre.sh
-# LayerCam: our files (board/rootfs) as one more overlay, after Luckfox's
-export RK_POST_OVERLAY="overlay-luckfox-config overlay-luckfox-buildroot-init overlay-luckfox-buildroot-shadow overlay-luckfox-wifibt-firmware overlay-layercam"
+# LayerCam: our files (board/rootfs) as the last overlay.  Of Luckfox's only
+# the Wi-Fi firmware is kept: overlay-luckfox-buildroot-shadow sets root's
+# password to "luckfox" and shares / read-write over Samba, -buildroot-init
+# starts sshd with root password login and runs /root/main.py at boot, and
+# -config loads pin settings from a block device that on this partition
+# table is not its own (README.md, Security).
+export RK_POST_OVERLAY="overlay-luckfox-wifibt-firmware overlay-layercam"

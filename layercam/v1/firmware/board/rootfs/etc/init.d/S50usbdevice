@@ -13,14 +13,21 @@
 # (the boot ROM's own USB code, BOOT pads) or the U-Boot loader
 # (layercam-setup reboot-loader), which run before Linux.
 #
-# The USB ids are the Linux Foundation's "multifunction composite gadget"
-# (1d6b:0104), fine for development; a shipped product needs its own
-# vendor/product id.  CDC-ACM needs no driver on Linux, macOS or Windows 10+.
+# The USB vendor:product id comes from /etc/layercam/usb-id, set at build
+# time (USB_ID=vvvv:pppp board/install-into-sdk.sh).  The default, the Linux
+# Foundation's "multifunction composite gadget" 1d6b:0104, is for
+# development only: a camera that is sold needs its own id.  CDC-ACM needs
+# no driver on Linux, macOS or Windows 10+.  No adb, no USB network.
 
 G=/sys/kernel/config/usb_gadget/layercam
 PIDFILE=/var/run/layercam-console.pid
-VID=0x1d6b
-PID=0x0104
+USB_ID=$(cat /etc/layercam/usb-id 2>/dev/null)
+case "$USB_ID" in
+	[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) ;;
+	*) USB_ID=1d6b:0104 ;;
+esac
+VID=0x${USB_ID%%:*}
+PID=0x${USB_ID##*:}
 
 gadget() {
 	grep -q " /sys/kernel/config " /proc/mounts || mount -t configfs none /sys/kernel/config || return 1

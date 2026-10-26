@@ -1,5 +1,5 @@
-Item #,Designator,Qty,Manufacturer Part Number,Description,Value,Package/Footprint,Type,LCSC Part #,Side
-1,J1,1,BM06B-SRSS-TB(LF)(SN),"JST SH 1.0 mm 6 pin, vertical, SMD",SH 6,CONN-SMD-6P-P1.00_BM06B-SRSS-TB-LF-SN,SMD,C160392,Bottom
-2,"R1,R2,R3",3,1206W4F470JT5E,Resistor 47R 1% 0.25 W 1206 (IR LED string),47R,R_1206_3216Metric,SMD,C17969,Bottom
-3,"D1,D2,D3,D4,D5,D6",6,JNJ-LTJI0106W90/14mil-D/850NM,"IR LED 850 nm, 100 mA, 90 degrees, 2835, -40..100 degC (pad 1 anode)",850nm,LED-SMD_L3.5-W2.8-R-RD_RED-1,SMD,C7500094,Top
-4,Q1,1,TEMT6000X01,"Ambient light phototransistor, eye response (blind to the 850 nm LEDs), -40..100 degC",TEMT6000,SENSORS-SMD_TEMT6000X01,SMD,C94098,Top
+Item #,Designator,Qty,Manufacturer,Manufacturer Part Number,Description,Value,Package/Footprint,Type,LCSC Part #,Digi-Key Part #,Side
+1,J1,1,JST,BM06B-SRSS-TB(LF)(SN),"JST SH 1.0 mm 6 pin, vertical, SMD",SH 6,CONN-SMD-6P-P1.00_BM06B-SRSS-TB-LF-SN,SMD,C160392,,Bottom
+2,"R1,R2,R3",3,UNI-ROYAL,1206W4F470JT5E,Resistor 47R 1% 0.25 W 1206 (IR LED string),47R,R_1206_3216Metric,SMD,C17969,,Bottom
+3,"D1,D2,D3,D4,D5,D6",6,JNJ,JNJ-LTJI0106W90/14mil-D/850NM,"IR LED 850 nm, 100 mA, 90 degrees, 2835, -40..100 degC (pad 1 anode)",850nm,LED-SMD_L3.5-W2.8-R-RD_RED-1,SMD,C7500094,,Top
+4,Q1,1,Vishay,TEMT6000X01,"Ambient light phototransistor, eye response (blind to the 850 nm LEDs), -40..100 degC",TEMT6000,SENSORS-SMD_TEMT6000X01,SMD,C94098,,Top

@@ -9,6 +9,7 @@ Open hardware from [OffGrid Devices](https://github.com/offgridevices). One fold
 | [`print-hub/`](print-hub/) v1 | Print Hub: 86 × 50 mm, five switched USB ports for a resin printer's accessories, ESP32-S3 on Wi-Fi and USB, USB-PD in, printed enclosure | v1 designed, not yet built |
 | [`smokebreak/`](smokebreak/) v1 | SmokeBreak: handheld smoke stopper and LiPo checker, 2S–14S, 2.25" screen, printed case | v1 designed, not yet built |
 | [`ridge-3/`](ridge-3/) rev 2 | Ridge 3: a 36 × 36 mm flight controller with HD or analog video and a separate 4-in-1 ESC on a machined heatsink, for 3" FPV quads | Revision 2 designed and simulated, not yet ordered |
+| [`layercam/`](layercam/) v1 | LayerCam: a camera for the inside of a Prusa CORE One, in Prusa's own Buddy3D case — RV1106 Linux SoC, 1080p wide angle with IR night vision, Prusa Connect, per-layer timelapse to a NAS or S3; three boards, 6 layers for the main one | v1 designed, not yet built |
 
 The packet logger's firmware and analysis tooling live in
 [`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab); Ridge 3's and Ridge 3 Lite's firmware is in each board's own folder.

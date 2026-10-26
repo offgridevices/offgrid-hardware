@@ -100,7 +100,7 @@ PARTS = {
     'USBLC6': dict(fp='lc:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL', lcsc='C7519', mpn='USBLC6-2SC6', value='USBLC6-2SC6',
                    maker='STMicroelectronics', kind='U', desc='USB ESD protection, SOT-23-6'),
     'SMF6V0': dict(fp='lc:SOD-123FL_L2.8-W1.8-LS3.7-BI', lcsc='C353271', mpn='SMF6.0CA', value='SMF6.0CA',
-                   maker='Leiditech', kind='D', desc='TVS 5 V bidirectional 200 W, SOD-123FL'),
+                   maker='Leiditech', kind='D', desc='TVS 6 V stand-off, bidirectional, 200 W, SOD-123FL'),
     # ------------------------------------------------------------ LED ring
     'IRLED': dict(fp='lc:LED-SMD_L3.5-W2.8-R-RD_RED-1', lcsc='C7500094', mpn='JNJ-LTJI0106W90/14mil-D/850NM',
                   value='850nm', maker='JNJ', kind='LED',

@@ -1,7 +1,7 @@
 """The power-cycle gesture: three short power-ups in a row forget the Wi-Fi
 settings and open the setup access point.  The camera has no button.
 
-Run once per boot, as early as the init scripts allow (S21layercam-gesture,
+Run once per boot, as early as the init scripts allow (S21-layercam-gesture,
 right after /userdata is mounted), from the factory copy:
 
     python3 -S -m layercam.gesture /userdata/layercam

@@ -1,5 +1,5 @@
 (version 1)
-# JLCPCB limits the board-setup numbers cannot express on their own:
+# Fab limits the board-setup numbers cannot express on their own:
 # plated hole to track 0.28 mm (component holes; vias are drilled with the
 # copper and keep the 0.2 mm hole clearance).
 (rule "plated component hole to track"

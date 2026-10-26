@@ -44,7 +44,7 @@ tested on a PC; none of it has run on the board yet.
                           │  HTTP: PrusaLink /api/v1/status, /api/v1/job
                           ▼
  LayerCam (RV1106, Linux)
-   S21layercam-gesture ─► counts short power-ups (gesture.py)
+   S21-layercam-gesture ─► counts short power-ups (gesture.py)
    S50usbdevice ─► USB serial console: layercam-setup (setupcli.py)
    S99layercam ─► picks the version (update.py) ─► python3 -m layercam
                     ├─ metrics listener      triggers from the printer
@@ -151,7 +151,7 @@ SC3336 camera. Checked against SDK commit `824b817f` (22 Mar 2026).
    ```
    This copies the device tree, the kernel option fragment and the board
    config, adds three packages to `luckfox_pico_defconfig`, and makes the
-   overlay `overlay-layercam`: the init scripts (`S21layercam-gesture`,
+   overlay `overlay-layercam`: the init scripts (`S21-layercam-gesture`,
    `S50usbdevice` and `S99usb0config`, which replace Luckfox's adb/RNDIS
    ones, `S99layercam`), `layercam-net` and `layercam-setup`, the Python
    package in `/usr/share/layercam`, the helper in `/usr/bin`, and
@@ -598,7 +598,7 @@ board/
   layercam.ini.example     every setting with its default
   install-into-sdk.sh      copies all of this into a Luckfox SDK checkout
   sdk/                     board config, kernel options, Buildroot packages
-  rootfs/                  /etc/init.d/: S21layercam-gesture, S50usbdevice (USB console),
+  rootfs/                  /etc/init.d/: S21-layercam-gesture, S50usbdevice (USB console),
                            S99usb0config (empty), S99layercam; /usr/bin/: layercam-net,
                            layercam-setup; /etc/layercam/: update-keys, rootfs-version
 slicer/                    PrusaSlicer custom G-code and how it works

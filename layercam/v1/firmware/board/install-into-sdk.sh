@@ -1,10 +1,13 @@
 #!/bin/sh
 # Copy LayerCam's board files into a Luckfox Pico SDK checkout:
 #
-#   [UPDATE_PUBKEY=update.pub] board/install-into-sdk.sh ~/luckfox-pico [path/to/layercam-media]
+#   [UPDATE_PUBKEY=update.pub] [USB_ID=vvvv:pppp] board/install-into-sdk.sh ~/luckfox-pico [path/to/layercam-media]
 #
 # UPDATE_PUBKEY: the public key (tools/layercam-sign.py keygen) whose
 # signatures the cameras accept on app updates; without it they refuse all.
+# USB_ID: the USB vendor:product id of the setup console.  The default,
+# 1d6b:0104 (Linux Foundation, multifunction composite gadget), is for
+# development only: a camera that is sold needs its own id.
 # then in the SDK: ./build.sh lunch (pick LayerCam_v1), ./build.sh.
 # The C helper is built separately (native/Makefile); without it the image
 # boots but the camera software has no camera.  Not yet run.
@@ -22,9 +25,16 @@ cp "$HERE/board/sdk/BoardConfig-SPI_NAND-Buildroot-RV1106_LayerCam_v1-IPC.mk" "$
 # (no dtb list to edit: the SDK builds $(RK_KERNEL_DTS:dts=img) by name,
 # as it does for Luckfox's own device trees, which are not in that list either)
 
-# Buildroot packages
+# Buildroot packages and options: the fragment's settings, "# X is not set"
+# lines included (the later line wins in a defconfig), between markers so a
+# second run replaces them
 BR=$SDK/sysdrv/tools/board/buildroot/luckfox_pico_defconfig
-grep -q BR2_PACKAGE_CIFS_UTILS "$BR" || grep '^BR2_' "$HERE/board/sdk/buildroot.fragment" >> "$BR"
+sed -i '/^# >>> LayerCam/,/^# <<< LayerCam/d' "$BR"
+{
+	echo "# >>> LayerCam (board/sdk/buildroot.fragment)"
+	grep -E '^BR2_|^# BR2_[A-Z0-9_]+ is not set$' "$HERE/board/sdk/buildroot.fragment"
+	echo "# <<< LayerCam"
+} >> "$BR"
 
 # the overlay: scripts, the Python package, the helper
 rm -rf "$OVL"
@@ -39,6 +49,10 @@ if [ -n "${UPDATE_PUBKEY:-}" ]; then
 else
 	echo "note: no UPDATE_PUBKEY: these cameras will refuse every app update (README.md, Updates)"
 fi
+USB_ID=${USB_ID:-1d6b:0104}
+echo "$USB_ID" | grep -qE '^[0-9a-fA-F]{4}:[0-9a-fA-F]{4}$' || { echo "error: USB_ID must be vvvv:pppp"; exit 1; }
+echo "$USB_ID" > "$OVL/etc/layercam/usb-id"
+[ "$USB_ID" = 1d6b:0104 ] && echo "note: USB id 1d6b:0104 is a development placeholder: set USB_ID before selling cameras"
 if [ -n "$HELPER" ]; then
 	install -m 755 "$HELPER" "$OVL/usr/bin/layercam-media"
 else
