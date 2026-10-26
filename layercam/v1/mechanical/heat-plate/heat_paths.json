@@ -37,6 +37,58 @@
    "r_pad_bottom": 1.4567953463775778,
    "r_metal": 9.17954911433172,
    "note": "1.5 mm 5052 sheet, bent twice, flange in the lid pocket on a 0.5 mm pad"
+  },
+  "hs14x6": {
+   "r_top": 11.813186568079672,
+   "g_air": 0.007364,
+   "g_amb": 0.0,
+   "a_out_used": 0.0,
+   "size": 14.0,
+   "h": 6.0,
+   "cy": -18.4,
+   "note": "14 x 14 x 6 aluminium heatsink on 3M 8810 tape at board (0, 18.4)",
+   "r_tape": 3.0880937245586444
+  },
+  "hs14x10": {
+   "r_top": 12.541991378463008,
+   "g_air": 0.011172,
+   "g_amb": 0.0,
+   "a_out_used": 0.0,
+   "size": 14.0,
+   "h": 10.0,
+   "cy": -15.9,
+   "note": "14 x 14 x 10 aluminium heatsink (LCSC C286230) at board (0, 15.9)",
+   "r_tape": 3.810397798278501
+  },
+  "hs14_pad_best": {
+   "r_top": 11.933924189027298,
+   "g_air": 0.006411999999999999,
+   "g_amb": 0.0003449809026902053,
+   "a_out_used": 0.00028071417379336983,
+   "size": 14.0,
+   "h": 5.0,
+   "cy": -17.9,
+   "note": "14 x 14 x 5 heatsink with a 5.0 mm TG-A6200 on its fin tops pressed into the case, at board (0, 17.90): the best pad contact any stock 14 x 14 can make",
+   "r_tape": 3.2077543994324063,
+   "pad": {
+    "t": 5.0,
+    "k": 6.2
+   },
+   "contact_mm2": 13.749999999999986,
+   "g_contact": 0.0003781779016480058,
+   "shell_mm": 7.167418181818182,
+   "min_gap": 3.0639999999999965
+  },
+  "cu20x6_if_it_fitted": {
+   "r_top": 11.766803778106574,
+   "g_air": 0.01292,
+   "g_amb": 0.0,
+   "a_out_used": 0.0,
+   "size": 20.0,
+   "h": 6.0,
+   "cy": -19.4,
+   "note": "20 x 20 x 6 copper (does NOT fit; modelled to show the ceiling)",
+   "r_tape": 3.0540925815762225
   }
  },
  "sheet": {
@@ -202,26 +254,33 @@
    "footprint clear of LED1 (mm)",
    0.9000000000000002,
    0.5
-  ],
-  [
-   "sheet",
-   "against the real case STLs: deepest point inside plastic (mm)",
-   -0.3519919864168801,
-   0.0
-  ],
-  [
-   "cnc",
-   "against the real case STLs: deepest point inside plastic (mm)",
-   -0.35194045283547776,
-   0.0
-  ],
-  [
-   "heatsink",
-   "against the real case STLs: deepest point inside plastic (mm)",
-   -0.519412297774974,
-   0.0
   ]
  ],
+ "stock_fit": {
+  "sink_14": {
+   "6.0": [
+    -18.9,
+    0.6289999999999978,
+    12.3
+   ],
+   "8.0": [
+    -17.4,
+    0.7779999999999987,
+    11.15
+   ],
+   "10.0": [
+    -15.9,
+    0.9139999999999944,
+    9.650000000000002
+   ]
+  },
+  "sink_20": {
+   "3.0": null,
+   "5.0": null,
+   "6.0": null,
+   "11.0": null
+  }
+ },
  "stack": {
   "soc_top_z": 21.700000000000003,
   "lid_under_z": 38.5,

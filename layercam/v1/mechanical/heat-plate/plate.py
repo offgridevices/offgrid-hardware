@@ -348,6 +348,130 @@ def drawing(sheet, cnc, hs, flat, paths):
     plt.close(fig)
 
 
+# ---------------------------------------------------------------- off-the-shelf heatsinks, more of them
+K_CU_SINK = 390.0
+H_FIN = 11.0          # W/m^2K on a heatsink's outer envelope inside the case (radiation + still air), estimate
+H_FIN_INNER = 3.0     # on fin faces between fins (they see each other; air barely moves), estimate
+
+
+def ceiling_map():
+    """housing_ceiling.json (measure.py): ceiling Z and plastic thickness above the board round the SoC."""
+    d = json.load(open(os.path.join(HERE, 'housing_ceiling.json')))
+    return (np.array(d['xs']), np.array(d['ys']), np.array(d['ceil'], float), np.array(d['thick'], float))
+
+
+def module_clear(cy, size):
+    """True if a size x size footprint centred at (0, cy) stays 0.5 mm off the camera module (it sits on the
+    board's back face from lens Y -8.4 up, Z 21.9 to about 26: no heatsink can overlap it)."""
+    return cy + size / 2 <= MODULE[1] - 0.5
+
+
+def fit(size, cy, h, pad=0.0):
+    """Lowest clearance (mm) between the heatsink (+ uncompressed pad) and the case over its footprint, the
+    soc overlap, and whether it clears the module.  < 0 means it does not fit."""
+    xs, ys, C, Tk = ceiling_map()
+    m = (np.abs(xs)[None, :] <= size / 2) & (np.abs(ys - cy)[:, None] <= size / 2)
+    top = SOC_TOP_Z + TAPE['t'] + h
+    return float(np.nanmin(np.where(m, C, np.nan)) - top), module_clear(cy, size)
+
+
+def tallest(size, heights, step=0.1):
+    """For each stock height, the best centre (towards +Y from the SoC) where it fits with 0.5 mm to spare."""
+    out = {}
+    for h in heights:
+        best = None
+        for cy in np.round(np.arange(SOC_Y - 3.0, SOC_Y + 6.0, step), 2):
+            c, mod = fit(size, cy, h)
+            ov = SOC_W - max(0.0, abs(cy - SOC_Y) + SOC_W / 2 - size / 2)
+            if c >= 0.5 and mod and ov >= 0.75 * SOC_W:
+                if best is None or abs(cy - SOC_Y) < abs(best[0] - SOC_Y):
+                    best = (round(cy, 2), c, ov)
+        out[h] = best
+    return out
+
+
+def sink_path(size, h, cy, base=1.5, fins=None, k=None, pad=None, label=''):
+    """Thermal path of an off-the-shelf heatsink on 3M 8810 tape at lens (0, cy); with pad = (thickness,
+    k) a gap pad on its fin tops, pressed against the case where the case comes within the pad's reach:
+    the shell conducts to the outside like the block's lid path."""
+    k = k or 200.0
+    fins = fins if fins is not None else max(3, int(size / 2.8))
+    ov_y = min(cy + size / 2, SOC_Y + SOC_W / 2) - max(cy - size / 2, SOC_Y - SOC_W / 2)
+    overlap = SOC_W * ov_y
+    r_tape = TAPE['t'] * 1e-3 / (TAPE['k'] * overlap * 1e-6) + INTERFACE_R
+    r_base = 0.5 * base * 1e-3 / (k * overlap * 1e-6) + 0.3      # through the base + spreading (estimate)
+    env = size ** 2 + 4 * size * h
+    fin_faces = fins * 2 * size * (h - base)
+    g_air = (H_FIN * env + H_FIN_INNER * max(fin_faces - 2 * size * (h - base), 0)) * 1e-6
+    d = dict(r_top=THETA_JC_SOC + r_tape + r_base, g_air=g_air, g_amb=0.0, a_out_used=0.0, size=size, h=h, cy=cy,
+             note=label, r_tape=r_tape)
+    if pad:
+        tp, kp = pad
+        xs, ys, C, Tk = ceiling_map()
+        top = SOC_TOP_Z + TAPE['t'] + h
+        m0 = (np.abs(xs)[None, :] <= size / 2) & (np.abs(ys - cy)[:, None] <= size / 2)
+        gmin = float(np.nanmin(np.where(m0, C - top, np.nan)))
+        if tp is None:
+            # the thickest stock pad that is squeezed no more than 40 % where the case comes closest
+            ok = [t for t in (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0) if 0.6 * t <= gmin]
+            tp = max(ok) if ok else 0.0
+        cell = (xs[1] - xs[0]) * (ys[1] - ys[0]) * 1e-6
+        m = (np.abs(xs)[None, :] <= size / 2) & (np.abs(ys - cy)[:, None] <= size / 2)
+        gap = C - top                                  # the pad must fill this
+        touch = m & (gap <= tp) & (gap > 0)
+        g_cells, area = 0.0, 0.0
+        for j, i in zip(*np.nonzero(touch)):
+            r = gap[j, i] * 1e-3 / (kp * cell) + Tk[j, i] * 1e-3 / (0.20 * cell)
+            g_cells += 1 / r
+            area += cell
+        if area > 0:
+            # outside: the patch plus what the plastic spreads to (fin length of a 0.2 W/mK wall)
+            t_mean = float(np.nanmean(Tk[touch]))
+            spread = math.sqrt(0.20 * t_mean * 1e-3 / (2 * 14.0))
+            a_out = area + 2 * math.sqrt(area) * 4 * spread / 2 + math.pi * spread ** 2
+            r_out = 1 / (14.0 * a_out)
+            g_amb = 1 / (1 / g_cells + r_out)
+        else:
+            t_mean, a_out, g_amb = float('nan'), 0.0, 0.0
+        d.update(g_amb=g_amb, a_out_used=a_out, pad=dict(t=tp, k=kp), contact_mm2=area * 1e6, g_contact=g_cells,
+                 shell_mm=t_mean, min_gap=float(np.nanmin(np.where(m, gap, np.nan))))
+    return d
+
+
+def stock_sinks():
+    """The off-the-shelf choices the coordinator asked about."""
+    out = {}
+    t14 = tallest(14.0, (6.0, 8.0, 10.0))
+    t20 = tallest(20.0, (3.0, 5.0, 6.0, 11.0))
+    out['fits'] = dict(sink_14=t14, sink_20=t20)
+    # (1) the 14 x 14 x 6 aluminium on tape (the baseline off-the-shelf option)
+    out['hs14x6'] = sink_path(14.0, 6.0, -18.4, k=200.0,
+                              label='14 x 14 x 6 aluminium heatsink on 3M 8810 tape at board (0, 18.4)')
+    # (2) the tallest 14 x 14 that fits: 10 mm at board (0, 15.9)
+    c10 = t14.get(10.0)
+    cy10 = c10[0] if c10 else -15.9
+    out['hs14x10'] = sink_path(14.0, 10.0, cy10, k=200.0,
+                               label='14 x 14 x 10 aluminium heatsink (LCSC C286230) at board (0, %.1f)' % -cy10)
+    # (3) a gap pad on the fin tops pressed into the case: search height, position and stock pad thickness for
+    # the best conduction into the shell (pad squeezed <= 40 % where the case comes closest, SoC covered >= 75 %)
+    best = None
+    for hh in (4.0, 5.0, 6.0, 8.0, 10.0):
+        for cyy in np.round(np.arange(SOC_Y - 3.0, SOC_Y + 6.0, 0.25), 2):
+            ov = SOC_W - max(0.0, abs(cyy - SOC_Y) + SOC_W / 2 - 7.0)
+            if not module_clear(cyy, 14.0) or ov < 0.75 * SOC_W:
+                continue
+            d = sink_path(14.0, hh, cyy, k=200.0, pad=(None, PAD['k']))
+            if d['pad']['t'] > 0 and (best is None or d['g_amb'] > best['g_amb']):
+                best = d
+    best['note'] = ('14 x 14 x %.0f heatsink with a %.1f mm TG-A6200 on its fin tops pressed into the case, at board '
+                    '(0, %.2f): the best pad contact any stock 14 x 14 can make' % (best['h'], best['pad']['t'], -best['cy']))
+    out['hs14_pad_best'] = best
+    # (4) 20 x 20 x 6 copper, modelled AS IF it fitted (it does not): the gain fins could give at best
+    out['cu20x6_if_it_fitted'] = sink_path(20.0, 6.0, SOC_Y, k=K_CU_SINK,
+                                           label='20 x 20 x 6 copper (does NOT fit; modelled to show the ceiling)')
+    return out
+
+
 def main():
     sheet = sheet_bracket()
     cnc = cnc_block()
@@ -357,12 +481,15 @@ def main():
     hs[0].export(os.path.join(HERE, 'heatsink_14x14x6.stl'))
     res = checks({'sheet': (sheet[0], 'sheet'), 'cnc': (cnc[0], 'cnc'), 'heatsink': (hs[0], 'heatsink')})
     paths = thermal(sheet, cnc, hs)
+    stock = stock_sinks()
+    fits = stock.pop('fits')
+    paths.update(stock)
     m3, d3, flat = sheet
     drawing(sheet, cnc, hs, flat, paths)
     info = dict(paths=paths, sheet=dict(d3, flat=flat, mass_g=m3.volume * 2.68e-3),
                 cnc=dict(foot=cnc[1]['foot'], column=cnc[1]['column'], flange=cnc[1]['flange'],
                          flange_z=cnc[1]['flange_z'], mass_g=cnc[0].volume * 2.70e-3),
-                heatsink=hs[1], checks=res,
+                heatsink=hs[1], checks=res, stock_fit={k: {str(h): v for h, v in d.items()} for k, d in fits.items()},
                 stack=dict(soc_top_z=SOC_TOP_Z, lid_under_z=LID_UNDER_Z, gap=LID_UNDER_Z - SOC_TOP_Z))
     json.dump(info, open(os.path.join(HERE, 'heat_paths.json'), 'w'), indent=1, default=float)
     for r in res:

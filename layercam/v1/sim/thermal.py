@@ -669,6 +669,9 @@ def main():
     keep = HEATPATH
     comp = {}
     for key, lab_ in ((None, 'none (bare board)'), ('heatsink', '1: 14 x 14 x 6 heatsink on tape'),
+                      ('hs14x10', '1b: 14 x 14 x 10 heatsink (tallest 14 mm that fits)'),
+                      ('hs14_pad_best', '1c: 14 x 14 heatsink + gap pad pressed into the shell (best case)'),
+                      ('cu20x6_if_it_fitted', '1d: 20 x 20 x 6 copper (does NOT fit; as if it did)'),
                       ('cnc', '2: CNC 6061 block, gap pads'), ('sheet', '3: bent 1.5 mm 5052 sheet, gap pads')):
         HEATPATH = hps[key] if key else None
         r = case_run(board, 'snap_night')
@@ -691,6 +694,32 @@ def main():
     HEATPATH = keep
     SUMMARY['comp'] = comp
     w('')
+    # why fins inside the sealed case barely help: the conductances in series, snap_night at 65 C
+    HEATPATH = None
+    r0 = case_run(board, 'snap_night')
+    HEATPATH = keep
+    a_rest = A_OUT - ring_paths(T_AMB, 12)[3]
+    g_out = r0['h_out'] * a_rest
+    g_wall = K_PLASTIC * A_OUT * 0.85 / WALL_T
+    q_b = r0['q_board']
+    g_bw = q_b / max(float(np.nanmean(r0['T'])) - r0['t_w'], 1e-6)
+    hs = hps['heatsink']
+    g_hs = 1 / (hs['r_top'] + 1 / hs['g_air'])
+    pb = hps['hs14_pad_best']
+    SUMMARY['why'] = dict(g_out=g_out, g_wall=g_wall, g_bw=g_bw, g_hs=g_hs, g_pad=pb['g_amb'],
+                          pad_area=pb['contact_mm2'], pad_shell=pb['shell_mm'], g_cnc=hps['cnc']['g_amb'])
+    w('**Why fins inside the sealed case barely help** (snap_night at 65 C, bare board): every watt has to cross '
+      'two bottlenecks in series. Board to the inside of the case (faces and edge, across still air): %.3f W/K. '
+      'Case to the chamber (outside convection and radiation over %.0f cm^2): %.3f W/K; the 2 mm wall itself '
+      '%.2f W/K is not the limit. A 14 x 14 x 6 heatsink adds only %.4f W/K from the junction to the *same* inside '
+      'air (theta-JC 8.4 K/W + tape + its %.0f K/W to the air in series), about %.0f %% of what the board already '
+      'has, and nothing to the case-to-chamber step. A 20 x 20 copper one would add about %.4f W/K. A gap pad from '
+      'a stock heatsink into the shell touches at best %.0f mm^2 of a %.1f mm-thick plastic wall: %.4f W/K. The '
+      'block\'s flange gets %.4f W/K into the chamber through 3.35 mm of lid over ~2.2 cm^2, which is why it is the '
+      'only one that moves the limit.\n'
+      % (g_bw, a_rest * 1e4, g_out, g_wall, g_hs, 1 / hs['g_air'], 100 * g_hs / g_bw,
+         1 / (hps['cu20x6_if_it_fitted']['r_top'] + 1 / hps['cu20x6_if_it_fitted']['g_air']), pb['contact_mm2'],
+         pb['shell_mm'], pb['g_amb'], hps['cnc']['g_amb']))
 
     # ------------------------------------------------ parts list against 65 C
     w('## Every part\'s rating against the chamber\n')
@@ -807,7 +836,9 @@ def verdict(board, allres):
                                                                                               'day', 'night')))
     v('')
     v('Heat paths (snap_night at 65 C; chamber limit for snapshot mode):\n')
-    for key, lab in ((None, 'bare board'), ('heatsink', '1 heatsink 14x14x6'), ('cnc', '2 CNC block'),
+    for key, lab in ((None, 'bare board'), ('heatsink', '1 heatsink 14x14x6'), ('hs14x10', '1b heatsink 14x14x10'),
+                     ('hs14_pad_best', '1c heatsink + pad into the shell'),
+                     ('cu20x6_if_it_fitted', '1d 20x20x6 copper (does not fit)'), ('cnc', '2 CNC block'),
                      ('sheet', '3 bent sheet')):
         c = comp[key]
         v('- %s: RV1106 %.1f, AP6256 %.1f, SC3336 %.1f C; snapshot in rating to **%.1f C** (first: %s); live view to '

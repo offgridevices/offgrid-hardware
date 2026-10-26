@@ -9,6 +9,9 @@ heat towards the lid's vent window were designed and modelled:
 |---|---|---|---|---|---|---|---|
 | none | - | 60.7 C | 95 / 88 / 88 C | 31 / 29 C | - | - | - |
 | 1 | 14 x 14 x 6 mm aluminium heatsink on thermal tape | 62.4 C | 93 / 87 / 87 C | 35 / 33 C | nothing | stick it on | about $0.3 |
+| 1b | 14 x 14 x 10 mm heatsink (LCSC C286230), the tallest 14 mm part that fits, at board (0, 15.9) | 63.3 C | 91 / 86 / 87 C | 36 / 34 C | overhangs the package 3.6 mm towards the module | stick it on | about $0.3 |
+| 1c | best stock 14 x 14 (5 mm tall, board (0, 17.9)) + 5 mm TG-A6200 on the fin tops pressed into the shell | 62.5 C | 93 / 87 / 87 C | 35 / 33 C | nothing | fiddly | about $3 |
+| 1d | 20 x 20 x 6 copper, **does not fit** (modelled as if it did) | 63.5 C | 91 / 86 / 86 C | 37 / 35 C | - | - | - |
 | **2** | **CNC 6061 block, black anodised, two gap pads** | **65.7 C** | **87 / 84 / 84 C** | **42 / 41 C** | **nothing** | **drop it in before the lid** | **$4-8 at 100, $15-30 at 5** |
 | 3 | bent 1.5 mm 5052 sheet, black anodised, two gap pads | 65.1 C | 88 / 85 / 85 C | 41 / 39 C | nothing | the same as 2 | $1.5-3 at 100, $8-15 at 5 |
 
@@ -120,6 +123,23 @@ anodised.
 - The 1.5 mm web costs about 7 K/W more than the block's column
   (junction to part 19.0 K/W); downstream it is the same lid path.
 
+## Why a bigger off-the-shelf heatsink is no answer
+
+- **20 x 20 mm does not fit at any height** (`plate.py`, `housing_ceiling.json`). Centred near the SoC, its -Y
+  edge runs into the case's rounded end, where the ceiling is Z 21-24 at X +-10. Moved towards +Y to clear that,
+  it lands on the camera module, which sits on the board's back face from Y -8.4 at Z 21.9-26. It would also sit
+  on U2 (SOT-23-5, 1.45 mm) at board (-9.4, 25.2). Generic 20 x 20 x 6 copper heatsinks with tape
+  (Amazon / AliExpress, many sellers) are the part the question had in mind; modelled as if they fitted they
+  reach only 63.5 C.
+- **Fins inside the sealed case only stir the same trapped air.** In snap_night the board reaches the inside of
+  the case through 0.048 W/K, and the case reaches the chamber through 0.141 W/K. A 14 x 14 x 6 heatsink adds
+  0.006 W/K from the junction to that same inside air (theta-JC 8.4 K/W plus its own 149 K/W to the air) and
+  nothing to the case-to-chamber step. A 20 x 20 copper one would add 0.011 W/K.
+- **A gap pad from a stock heatsink into the shell does not help either.** Over the SoC's -Y half the shell is
+  the case's solid rounded end: 5-10 mm of plastic, sloping. The best any stock 14 x 14 can do with a 5 mm pad
+  is about 14 mm^2 of contact on 7 mm of plastic, 0.0003 W/K. The block's flange reaches the 3.35 mm lid over
+  about 2.2 cm^2 instead: 0.010 W/K straight to the chamber.
+
 ## Option 1: off-the-shelf heatsink
 
 - **Size:** a 14 x 14 mm heatsink can only be **6 mm** tall at the SoC. The
@@ -141,7 +161,10 @@ anodised.
 
 ## Files
 
-- `plate.py`: the parametric geometry, clearance checks and thermal paths.
+- `plate.py`: the parametric geometry, clearance checks and thermal paths, for the three parts and the stock
+  heatsinks above.
+- `measure.py` -> `housing_ceiling.json`: the case's ceiling and plastic thickness round the SoC, measured from
+  the STLs; `plate.py` reads it.
   - Run it with `tools/kd python3 mechanical/heat-plate/plate.py` from
     layercam/v1. Set `HOUSING_DIR` to check against the case STLs.
 - `cnc_block.stl`, `sheet_bracket.stl`, `heatsink_14x14x6.stl`: the parts in

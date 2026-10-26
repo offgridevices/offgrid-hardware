@@ -28,6 +28,9 @@ Heat paths (snap_night at 65 C; chamber limit for snapshot mode):
 
 - bare board: RV1106 95.1, AP6256 87.9, SC3336 88.0 C; snapshot in rating to **60.7 C** (first: crystals Y2 / Y3, oscillator Y4); live view to 31 C / 29 C.
 - 1 heatsink 14x14x6: RV1106 92.6, AP6256 86.9, SC3336 87.0 C; snapshot in rating to **62.4 C** (first: crystals Y2 / Y3, oscillator Y4); live view to 35 C / 33 C.
+- 1b heatsink 14x14x10: RV1106 91.4, AP6256 86.4, SC3336 86.6 C; snapshot in rating to **63.3 C** (first: SC3336 sensor (camera module)); live view to 36 C / 34 C.
+- 1c heatsink + pad into the shell: RV1106 92.5, AP6256 86.9, SC3336 87.0 C; snapshot in rating to **62.5 C** (first: crystals Y2 / Y3, oscillator Y4); live view to 35 C / 33 C.
+- 1d 20x20x6 copper (does not fit): RV1106 90.9, AP6256 86.3, SC3336 86.4 C; snapshot in rating to **63.5 C** (first: SC3336 sensor (camera module)); live view to 37 C / 35 C.
 - 2 CNC block: RV1106 86.7, AP6256 84.0, SC3336 84.2 C; snapshot in rating to **65.7 C** (first: SC3336 sensor (camera module)); live view to 42 C / 41 C.
 - 3 bent sheet: RV1106 88.0, AP6256 84.6, SC3336 84.8 C; snapshot in rating to **65.1 C** (first: SC3336 sensor (camera module)); live view to 41 C / 39 C.
 
@@ -338,8 +341,13 @@ The three parts in `mechanical/heat-plate/` (plate.py computes each path from it
 |---|---|---|---|---|---|---|---|
 | none (bare board) | - | - | - | 95.1 / 87.9 / 88.0 / 90.1 | 0.00 / 0.00 | **60.7 C** (crystals Y2 / Y3, oscillator Y4) | 31 C / 29 C |
 | 1: 14 x 14 x 6 heatsink on tape | 12.0 | - | 149 | 92.6 / 86.9 / 87.0 / 88.3 | 0.07 / 0.00 | **62.4 C** (crystals Y2 / Y3, oscillator Y4) | 35 C / 33 C |
+| 1b: 14 x 14 x 10 heatsink (tallest 14 mm that fits) | 12.5 | - | 90 | 91.4 / 86.4 / 86.6 / 87.4 | 0.10 / 0.00 | **63.3 C** (SC3336 sensor (camera module)) | 36 C / 34 C |
+| 1c: 14 x 14 heatsink + gap pad pressed into the shell (best case) | 11.9 | 2899 | 156 | 92.5 / 86.9 / 87.0 / 88.2 | 0.07 / 0.01 | **62.5 C** (crystals Y2 / Y3, oscillator Y4) | 35 C / 33 C |
+| 1d: 20 x 20 x 6 copper (does NOT fit; as if it did) | 11.8 | - | 77 | 90.9 / 86.3 / 86.4 / 87.1 | 0.11 / 0.00 | **63.5 C** (SC3336 sensor (camera module)) | 37 C / 35 C |
 | 2: CNC 6061 block, gap pads | 12.2 | 96 | 203 | 86.7 / 84.0 / 84.2 / 83.8 | 0.21 / 0.18 | **65.7 C** (SC3336 sensor (camera module)) | 42 C / 41 C |
 | 3: bent 1.5 mm 5052 sheet, gap pads | 19.0 | 115 | 238 | 88.0 / 84.6 / 84.8 / 84.7 | 0.18 / 0.15 | **65.1 C** (SC3336 sensor (camera module)) | 41 C / 39 C |
+
+**Why fins inside the sealed case barely help** (snap_night at 65 C, bare board): every watt has to cross two bottlenecks in series. Board to the inside of the case (faces and edge, across still air): 0.048 W/K. Case to the chamber (outside convection and radiation over 112 cm^2): 0.141 W/K; the 2 mm wall itself 1.07 W/K is not the limit. A 14 x 14 x 6 heatsink adds only 0.0062 W/K from the junction to the *same* inside air (theta-JC 8.4 K/W + tape + its 149 K/W to the air in series), about 13 % of what the board already has, and nothing to the case-to-chamber step. A 20 x 20 copper one would add about 0.0112 W/K. A gap pad from a stock heatsink into the shell touches at best 14 mm^2 of a 7.2 mm-thick plastic wall: 0.0003 W/K. The block's flange gets 0.0104 W/K into the chamber through 3.35 mm of lid over ~2.2 cm^2, which is why it is the only one that moves the limit.
 
 ## Every part's rating against the chamber
 
