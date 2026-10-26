@@ -1,0 +1,12 @@
+firmware/build/
+sim/hil/harness
+sim/spice/wave.txt
+sim/spice/result.txt
+sim/spice/_run.cir
+sim/spice/ngspice.log
+sim/spice/meas_*.txt
+logs/
+erc.rpt
+sim/spice/wave_*
+sim/spice/meas_*
+freerouting.json

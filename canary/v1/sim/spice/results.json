@@ -1,0 +1,42 @@
+{
+ "results": {
+  "0.5m": {
+   "vds_peak_V": 5.393,
+   "supply_peak_A": 0.322,
+   "vbus_min_V": 4.952,
+   "supply_avg_A": 0.122,
+   "clamp_peak_A": 0.335,
+   "gate_V": 3.296
+  },
+  "1m": {
+   "vds_peak_V": 5.384,
+   "supply_peak_A": 0.283,
+   "vbus_min_V": 4.957,
+   "supply_avg_A": 0.097,
+   "clamp_peak_A": 0.292,
+   "gate_V": 3.296
+  },
+  "2m": {
+   "vds_peak_V": 5.367,
+   "supply_peak_A": 0.231,
+   "vbus_min_V": 4.965,
+   "supply_avg_A": 0.084,
+   "clamp_peak_A": 0.239,
+   "gate_V": 3.296
+  },
+  "4m": {
+   "vds_peak_V": 5.354,
+   "supply_peak_A": 0.195,
+   "vbus_min_V": 4.962,
+   "supply_avg_A": 0.079,
+   "clamp_peak_A": 0.206,
+   "gate_V": 3.296
+  }
+ },
+ "checks": {
+  "drain peak < 30 V (AO3400A Vds max) with margin (< 8 V)": true,
+  "VBUS dip > 4.5 V (LDO keeps 3.3 V, dropout ~0.25 V)": true,
+  "clamp diode peak < 1 A (B5819W If(av) 1 A)": true,
+  "gate reaches > 3 V (Rds(on) regime)": true
+ }
+}
