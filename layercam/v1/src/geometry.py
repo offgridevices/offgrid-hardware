@@ -1,0 +1,106 @@
+# -*- coding: utf-8 -*-
+"""Every mechanical number the boards share with the housing.
+
+The housing is Prusa's own printed case for the Buddy3D camera (Printables
+model 1343977: buddy-camera-bottom-r2, -top-r1, -lid-r1), unchanged.  These
+numbers were measured from its STEP and STL files on 26 Oct 2026
+(docs/housing.md has the method and the sections).
+
+The "lens frame": origin on the lens axis at the outer front face, +Z
+towards the back (into the case), X and Y across the front face as seen from
+BEHIND the camera (the way the boards are drawn), +Y towards the case's
+straight edge, -Y towards its round edge.  Board coordinates (pcb.py) are
+these X, Y with KiCad's y pointing down the screen, so board y = -Y.
+"""
+
+# ---------------------------------------------------------------- main board
+# Four printed bosses (pilot holes for M2 self-tapping screws, Ø1.7, 5.55
+# deep).  Their tops are the board seat: the board's FRONT face (the lens
+# side) rests on them at Z = 19.3.
+SEAT_Z = 19.3
+SCREWS = [(-16.07, -21.15), (16.08, -21.15), (-16.07, 20.95), (16.08, 20.95)]
+SCREW_D = 2.2                 # board hole for an M2 (clearance)
+BOSS_D = 3.5                  # the boss under the board: no part within this on the front
+
+# The pocket at the seat, Z 19.4-20.9, measured, then 0.4 mm clearance; the
+# board takes a simpler outline inside that: straight sides at X = +-19.0,
+# a straight edge at Y = +22.9 (the pocket's bump beyond it is left free for
+# wires), and an arc at -Y through (0, -29.2), centre (0, 2.1).
+MAIN_HALF_W = 19.0
+MAIN_TOP_Y = 22.9
+# ... and a tab into the pocket's bump at the middle of the straight edge
+# (measured: the bump is 15.0 wide at Y 24.4 with the clearance), so the
+# Wi-Fi module fits between the edge and the lens holder
+MAIN_TAB = [(-8.5, 22.9), (-7.0, 24.4), (7.0, 24.4), (8.5, 22.9)]
+MAIN_ARC_C = (0.0, 2.1)
+MAIN_ARC_R = 31.3
+
+# Free height above each face (from the housing, lens frame Z):
+#   front (lens side, Z < 19.3): down to Z 9.5 over the whole board (so
+#     9.8 mm), and to the LED ring at Z ~3.6 in a circle round the lens.
+#   back (Z > 20.9 with a 1.6 mm board): 7.7 mm everywhere, 10 mm inside
+#     X +-13.6, Y -18..15, 17.5 mm in the lid's vent window X -11..12,
+#     Y -20..10.
+FRONT_FREE = 9.8
+BACK_FREE = 7.7
+BACK_FREE_CENTRE = 10.0
+
+# The lens bore in the front face: Ø14.9, Z 0-3.6.  The lens's front must be
+# no wider; lens + holder + IR-cut, from the camera module's sensor board to
+# the front face, must fit Z 2-19.3.
+BORE_D = 14.9
+
+# ---------------------------------------------------------------- LED ring
+# Six IR LED holes Ø2.4 at R 13.0, every 60 degrees from +X; a light window
+# Ø5.8 at (0, -14.15).  The ring board sits at Z 2.0-3.6 on two locating
+# pins at (+-8.5, 0.2).
+LED_R = 13.0
+LED_ANGLES = [0, 60, 120, 180, 240, 300]
+LED_HOLE_D = 2.4
+LIGHT_WINDOW = (0.0, -14.15)
+LIGHT_WINDOW_D = 5.8
+RING_PINS = [(-8.5, 0.2), (8.5, 0.2)]
+RING_Z = (2.0, 3.6)
+
+# ---------------------------------------------------------------- USB-C board
+# A separate board slides into two grooves in the top shell, behind an
+# obround opening (9.4 x 3.8 mm) in the shell's -X facet.  In the slot's own
+# frame (u along the plug, out of the case; v along the receptacle's long
+# side; n the board normal) the grooves take a board 22.0 wide
+# (v -7.9 .. +14.1) and 1.2 thick (n -2.6 .. -1.4) whose edge stops at the
+# wall's inside face (u = -1.7); the opening is centred at v 0, n +0.2.
+USB_W = 22.0
+USB_L = 16.0
+USB_T = 1.2
+USB_V0 = -7.9                 # the board's edge at v = -7.9; the receptacle centre at v = 0
+
+# ---------------------------------------------------------------- camera stack
+# The SC3336 (B) module sits BEHIND the main board, its sensor face towards
+# the board's back face, 1.0 mm away (two M1.6 x 1.0 nylon washers on the
+# holder screws).  The sensor looks forward through a window in the main
+# board; the CLA219 IR-cut holder sits on the board's front face over the
+# window, and two M1.6 screws through the module's holder holes, the
+# washers and the board clamp all three.  Lens: Towin CCL127028MPR
+# (2.8 mm, F2.5, IR corrected, TTL 20.9): its front lands ~0.2 mm behind
+# the housing's front face (docs/housing.md has the stack).
+MODULE_W, MODULE_H = 25.0, 24.0            # SC3336 (B); its FFC connector edge towards +Y
+MODULE_SHIM = 1.0                          # gap between the module's sensor face and the board
+MODULE_PCB_T = 1.2
+WINDOW = (14.4, 14.4)                      # through the main board, centred on the lens axis
+HOLDER_SCREWS = [(-9.0, 0.0), (9.0, 0.0)]  # CLA219 and the module's holder holes, 18 mm apart
+HOLDER_SCREW_D = 1.8                       # M1.6 clearance
+HOLDER_BOX = (-10.6, -9.8, 10.6, 9.8)      # CLA219 body and ears on the front face (X0, Y0, X1, Y1)
+# parts on the back face under the module must clear the 1.0 mm shim
+UNDER_MODULE_MAX_H = 0.6
+
+# ---------------------------------------------------------------- LED ring board
+RING_OUT_R = 16.5
+RING_IN_R = 9.55                           # the housing's collar is R 9.3
+RING_KEYS_DEG = [0, 90, 180]               # the collar's keys at +X, +Y, -X (lens frame)
+RING_KEY_R = 10.7
+RING_KEY_W = 2.8
+
+# ---------------------------------------------------------------- USB board frame
+# board coordinates: x along the receptacle's long side (v), y into the
+# case from the mouth (-u); the mouth's centre at (0, 0) on the board edge
+USB_BOX = (USB_V0, 0.0, USB_V0 + USB_W, USB_L)
