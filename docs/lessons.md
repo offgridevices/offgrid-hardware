@@ -27,6 +27,21 @@ board's `docs/` keeps its own dated checks).
   works when its MCU sits on the FET copper and tracks it; check in the
   thermal model that the sensor reaches its limit before the FETs reach
   theirs.
+- **In a sealed plastic case the wall is the limit, not the chip.** On
+  LayerCam (a camera in a printer's 65 °C chamber) a stick-on heatsink took
+  only 2 °C off: it moves heat into the trapped air, which still has to
+  leave through the same plastic. Only a part that reaches the outside
+  (metal pressed against the thinnest wall, at the vents) moved the limit.
+  Model the path to the outside air first; size the fins last.
+- **Run the hot product only as hard as its job needs.** LayerCam's video
+  pipeline at full rate put the SoC at its limit; Prusa Connect only takes
+  a still every 10 s, so the camera sleeps its sensor between shots and
+  the same hardware runs 30 °C cooler.
+- **Check every part's rating against the box's temperature, not the
+  room's.** At 85-90 °C board temperature the cheap choices fail first:
+  X5R capacitors (85 °C), tactile switches (70 °C), USB-C receptacles
+  (80 °C), a tuning-fork 32 kHz clock (drifts -100 to -150 ppm, past a Wi-Fi
+  module's +-30 ppm sleep-clock limit, whatever its temperature grade).
 
 ## Switching and transients
 
@@ -71,6 +86,17 @@ board's `docs/` keeps its own dated checks).
   ports came on with no charger at all; the review caught it. Gate every
   switch-on on the supply being there, and switch everything off when it
   goes. (Print Hub v1)
+- **Read the module's drawing for where its optical axis is.** LayerCam's
+  camera module has its lens 8.4 mm from one edge and 15.6 mm from the
+  other; placing to a centred outline put the camera's cable socket under
+  the module.
+- **Check a mirrored module's pins after the flip.** A module on the back
+  face is mirrored: the crystal, antenna and buck parts placed for the
+  unflipped pin-out ended 17 mm from their pins. Place them from the pad
+  positions read off the placed footprint.
+- **A placer that cannot place a part must stop the build.** An unplaced
+  part sits at the origin, which on LayerCam is inside the lens window; a
+  warning in a long log is not enough.
 
 ## Tools
 
@@ -119,6 +145,12 @@ board's `docs/` keeps its own dated checks).
 - **EasyEDA's 3D models can sit off their own land** (the HRO
   TYPE-C-31-M-12 by 2.55 mm). Look at a render before trusting the STEP for
   an enclosure; correct it with a model offset in the footprint.
+- **Python default arguments are read once, at import.** `def f(c=pcb.CLEAR)`
+  kept the first board's clearance after `pcb.configure()` switched boards;
+  read module settings inside the function.
+- **Give each concurrent tool run its own files.** Two boards routed in one
+  work folder shared `route0.dsn` / `.ses` names and overwrote each other;
+  name them after the board.
 
 ## Mechanical
 

@@ -30,7 +30,7 @@ Closed forms first (no coplanar ground; the IPC-2141 single-line formula is know
 | pair | w / gap (mm) | IPC-2141 Z0 / Zdiff | H-J Z0 / Zdiff (no mask) | H-J + mask Z0 / Zdiff | solver Z0 (single) | solver Zdiff, no fill | solver Zdiff, fill at 0.177 | solver Zcm | target |
 |---|---|---|---|---|---|---|---|---|---|
 | MIPI | 0.120 / 0.150 | 56.1 / 99.5 | 60.2 / 106.9 | 57.6 / 102.2 | 57.3 | 98.8 | 97.8 | 32.2 | 100 +-10 % |
-| USB | 0.140 / 0.150 | 51.8 / 91.9 | 56.0 / 99.4 | 53.7 / 95.3 | 53.4 | 92.7 | 91.7 | 30.0 | 90 +-10 % |
+| USB | 0.150 / 0.130 | 49.8 / 86.0 | 54.1 / 93.5 | 52.0 / 89.7 | 51.7 | 87.6 | 86.7 | 29.4 | 90 +-10 % |
 
 ### Sensitivity (MIPI 0.12 / 0.15, field solver, no fill)
 
@@ -89,7 +89,7 @@ Field solver, solder mask on, ground fill at 0.177 mm beside the pair (the fill 
 | 0.150 | 0.250 | 96.5 | 95.4 | 48.3 | 27.5 |
 
 - **MIPI**: 0.120 / 0.150 mm (the smallest change from the board's rule that is within 4 % of target and stays inside +-10 % for a track 0.015 mm narrower or wider at the same pitch) gives 98.8 ohm bare, 97.8 ohm beside the fill; 106.0 / 92.3 ohm with the etch error.
-- **USB**: 0.140 / 0.150 mm (the smallest change from the board's rule that is within 4 % of target and stays inside +-10 % for a track 0.015 mm narrower or wider at the same pitch) gives 92.7 ohm bare, 91.7 ohm beside the fill; 98.9 / 87.0 ohm with the etch error.
+- **USB**: 0.140 / 0.127 mm (the smallest change from the board's rule that is within 4 % of target and stays inside +-10 % for a track 0.015 mm narrower or wider at the same pitch) gives 89.8 ohm bare, 88.9 ohm beside the fill; 96.2 / 83.8 ohm with the etch error.
 
 Ordering with JLCPCB's impedance control (they adjust the widths to their process) is the other half of the fix: state 100 ohm differential on L1/L6 for the MIPI class and 90 ohm for USB.
 
@@ -133,7 +133,7 @@ PCBWay's published regular 6-layer 1.6 mm build (No. 1 of their laminated-struct
 | pair | w / gap (mm) | Zdiff with mask, bare / beside the fill | Zdiff without mask | track 0.015 mm narrower / wider | target |
 |---|---|---|---|---|---|
 | MIPI | **0.12 / 0.150** | 102.0 / 100.6 | 111.1 | 109.2 / 95.3 | 100 +-10 % |
-| USB | **0.15 / 0.127** | 90.3 / 89.1 | 98.0 | 96.3 / 84.4 | 90 +-10 % |
+| USB | **0.15 / 0.130** | 90.7 / 89.5 | 98.4 | 96.8 / 84.9 | 90 +-10 % |
 | USB board (2-layer 1.2 mm, fill 0.18 mm away) | **0.25 / 0.13** | 92.1 (fill) | - | 97.0 / 87.1 | 90 +-10 % |
 
 The USB board's core +10 % (a 1.32 mm board) moves it to 92.1 ohm: the side fill dominates. The housing's grooves take 1.2 mm; PCBWay's +-10 % thickness tolerance allows 1.08-1.32 mm, so ask for +-0.1 mm or check the fit.
@@ -164,31 +164,31 @@ That sums to 1.484 mm of laminate and copper, 1.55 mm finished as PCBWay states 
 - PASS solver within 1.5 % of microstrip w/h 2, t 0, er 4.1 (-0.85 %)
 - PASS main MIPI 0.12 / 0.15: Zdiff 98.8 (bare) / 97.8 (with fill) against 100 +-10 % (90-110)
 - PASS main MIPI 0.12 / 0.15 with the track 0.015 mm narrower / wider (same pitch): 106.0 / 92.3 ohm against 90-110
-- PASS main USB 0.14 / 0.15: Zdiff 92.7 (bare) / 91.7 (with fill) against 90 +-10 % (81-99)
-- PASS main USB 0.14 / 0.15 with the track 0.015 mm narrower / wider (same pitch): 98.9 / 87.0 ohm against 81-99
+- PASS main USB 0.15 / 0.13: Zdiff 87.6 (bare) / 86.7 (with fill) against 90 +-10 % (81-99)
+- PASS main USB 0.15 / 0.13 with the track 0.015 mm narrower / wider (same pitch): 93.5 / 82.0 ohm against 81-99
 - PASS recommended main MIPI 0.120 / 0.150: 98.8 / 97.8 ohm, 92.3-106.0 across +-0.015 mm etch, inside 90-110
-- PASS recommended main USB 0.140 / 0.150: 92.7 / 91.7 ohm, 87.0-98.9 across +-0.015 mm etch, inside 81-99
+- PASS recommended main USB 0.140 / 0.127: 89.8 / 88.9 ohm, 83.8-96.2 across +-0.015 mm etch, inside 81-99
 - PASS USB board 0.25 / 0.13 with fill at 0.18: Zdiff 92.1 against 90 +-10 %
 - PASS adopted MIPI 0.12 / 0.15: 92.3-106.0 ohm across fill and etch, inside 90-110
 - PASS adopted USB 0.14 / 0.15: 87.0-98.9 ohm across fill and etch, inside 81-99
 - PASS adopted USB board 0.25 / 0.13: 87.1-97.0 ohm across fill and etch, inside 81-99
 - PASS PCBWay MIPI 0.12 / 0.150: 95.3-109.2 ohm across fill and etch, inside 90-110
 - PASS the current rule MIPI 0.12 / 0.15 on PCBWay's stackup: 102.0 ohm
-- PASS PCBWay USB 0.15 / 0.127: 84.4-96.3 ohm across fill and etch, inside 81-99
-- PASS the current rule USB 0.14 / 0.15 on PCBWay's stackup: 96.1 ohm
+- PASS PCBWay USB 0.15 / 0.130: 84.9-96.8 ohm across fill and etch, inside 81-99
+- PASS the current rule USB 0.15 / 0.13 on PCBWay's stackup: 90.7 ohm
 - PASS PCBWay USB board 0.25 / 0.13: 87.1-97.0 ohm
 - WARN src/pcb.py STACKUP6 describes PCBWay's build (now: 0.0994 mm, Dk 4.1 next to the outer layers)
 
 ## Verdict
 
 - **PCBWay MIPI: 0.12 / 0.150 mm** (the current rule, kept) -> 102.0 ohm (95.3-109.2 across fill and a +-0.015 mm etch).
-- **PCBWay USB: 0.15 / 0.127 mm** (change from 0.14 / 0.15) -> 90.3 ohm (84.4-96.3 across fill and a +-0.015 mm etch).
+- **PCBWay USB: 0.15 / 0.130 mm** (the current rule, kept) -> 90.7 ohm (84.9-96.8 across fill and a +-0.015 mm etch).
 - **PCBWay USB board: 0.25 / 0.130 mm** (the current rule, kept) -> 92.1 ohm (87.1-97.0 across fill and a +-0.015 mm etch).
 
 JLCPCB figures (the earlier fab), for reference:
 
 - **MIPI 0.12 / 0.15 mm: 98.8 ohm bare, 97.8 beside the fill, 92.3-106.0 across a +-0.015 mm etch: PASS** (target 100 +-10 %).
-- **USB (main) 0.14 / 0.15 mm: 92.7 ohm bare, 91.7 beside the fill, 87.0-98.9 across a +-0.015 mm etch: PASS** (target 90 +-10 %).
+- **USB (main) 0.15 / 0.13 mm: 87.6 ohm bare, 86.7 beside the fill, 82.0-93.5 across a +-0.015 mm etch: PASS** (target 90 +-10 %).
 - **USB board 0.25 / 0.13 mm: 92.1 ohm with the ground fill beside it: PASS.** The side fill sets the impedance on a 2-layer 1.2 mm board; ordering without it the pair would read higher (table above).
 - Order with JLCPCB impedance control: 100 ohm differential on L1/L6 for the MIPI class, 90 ohm for USB.
 
