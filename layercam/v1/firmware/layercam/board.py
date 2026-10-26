@@ -31,7 +31,7 @@ IRCUT_A = gpio_number(PINS['IRCUT_A'])
 IRCUT_B = gpio_number(PINS['IRCUT_B'])
 
 # SARADC channels (in_voltageN_raw)
-ADC_BUTTON = 0                   # SARADC_IN0, 10k up to 1.8 V, the button pulls it to ground
+ADC_BOOT_PAD = 0                 # SARADC_IN0: the BOOT pad (TP5), MaskROM strap; 10k up to 1.8 V. Read for diagnostics only
 ADC_LIGHT = 1                    # SARADC_IN1, TEMT6000 across 22k: ~0.5 V at 50 lux
 ADC_DEVICE = '/sys/bus/iio/devices/iio:device0'
 

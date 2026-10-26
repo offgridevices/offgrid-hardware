@@ -47,16 +47,25 @@ FIXED = {
     'L5': (16.0, -14.4, 90, F),
     'Y1': (9.6, 22.2, 90, F),         # 24 MHz at the SoC's OSC pins (68/69, right side)
     'LED1': (8.8, 14.0, 0, F),        # status, in the lid's vent window
-    # test pads along the round edge: 5V, then the console's TX RX G for
-    # a 3.3 V USB-serial lead, then BOOT beside G for tweezers (away from 5V)
-    'TP4': (-1.6, 27.7, 0, F), 'TP1': (1.4, 27.7, 0, F), 'TP2': (3.4, 27.6, 0, F), 'TP3': (5.4, 27.4, 0, F),
+    # test pads along the round edge: 5V on its own, 6 mm away; then the
+    # console's TX RX G for a 3.3 V USB-serial lead, then BOOT beside G for
+    # tweezers
+    'TP4': (-4.4, 27.4, 0, F), 'TP1': (1.4, 27.7, 0, F), 'TP2': (3.4, 27.6, 0, F), 'TP3': (5.4, 27.4, 0, F),
     'TP5': (7.4, 27.0, 0, F),
     # B, the front face
     'U6': (0.0, -16.4, 0, B),         # AP6256 between the lens holder and the top edge (in the tab)
-    'Y3': (9.6, -12.6, 90, B),        # 37.4 MHz
-    'Y4': (9.6, -17.4, 90, B),        # 32.768 kHz oscillator
-    'J5': (-11.0, -16.0, 270, B),     # U.FL, by the module's antenna pin
-    'L6': (-9.6, -11.8, 0, B),        # Wi-Fi internal buck inductor
+    # round the AP6256 (U6, on B, mirrored: its antenna pin 2 at (-5.9,
+    # -12.8), crystal pins 10/11 at (-5.9, -20.0 / -20.9), buck pins 21 / 23
+    # at (3.6, -22.3) / (5.9, -20.9), sleep clock pin 24 at (5.9, -20.0))
+    'Y3': (-8.6, -20.45, 180, B),     # 37.4 MHz: pad 1 by pin 10, pad 3 round to pin 11
+    'L6': (8.6, -20.6, 90, B),        # Wi-Fi internal buck inductor, by pins 21 and 23
+    'Y4': (9.8, -16.6, 90, B),        # 32.768 kHz oscillator, by pin 24
+    # the antenna feed: pin 2 -> shunt C90 -> series R90 -> shunt C91 -> J5,
+    # in a line along y -12.8 (pairs.py draws the 50 ohm track)
+    'C90': (-7.0, -13.31, 90, B),
+    'R90': (-8.2, -12.8, 180, B),
+    'C91': (-9.4, -13.31, 90, B),
+    'J5': (-11.3, -12.8, 270, B),     # U.FL, its signal pin towards U6
     'J4': (-16.0, 3.0, 90, B),        # LED ring cable (the ring's connector is behind it)
     'Q1': (-15.6, 10.6, 0, B),        # IR LED switch
     'J3': (15.9, 3.0, 270, B),        # IR-cut lead (the CLA219's motor is on this side)

@@ -38,6 +38,10 @@ DIFF = {'main': {'MIPI': (['CSI_D0P', 'CSI_D0N', 'CSI_D1P', 'CSI_D1N', 'CSI_CKP'
         'ring': {}, 'usb': {'USB': (['USB_DP', 'USB_DM'], 0.25, 0.13)}}
 
 
+# the antenna feed: 50 ohm microstrip on B over In4 (sim/impedance.md)
+RF_W = 0.18
+
+
 def build(board, path, rounds=6):
     """Build the board; a small part that ends up with a plane pad and no
     room for its via is moved: the board is built again with that spot
@@ -84,6 +88,8 @@ def _build(board, path, avoid):
     for w in sorted(set(POWER[board].values())):
         group = [n for n, x in POWER[board].items() if x == w]
         pcb.netclass(b, ('Power_%g' % w).replace('.', '_'), group, w)
+    if board == 'main':
+        pcb.netclass(b, 'RF', ['ANT_FEED', 'ANT'], RF_W)
     for name, (nets, w, gap) in DIFF[board].items():
         pcb.netclass(b, name, nets, w, diff_w=w, diff_gap=gap)
     pcb.rule_area_shape(b, pcb.edge_band(), pcb.cu_layers(), name='edge clearance')

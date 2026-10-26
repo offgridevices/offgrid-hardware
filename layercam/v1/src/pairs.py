@@ -186,8 +186,19 @@ def pin28(b):
     return {('U1', '28')}
 
 
+def antenna(b):
+    """The AP6256's antenna pin to the U.FL through the pi match, one
+    straight 50 ohm track on B over the In4 ground (board.RF_W)."""
+    from board import RF_W
+    pts = [pcb.pad_at(b, 'U6', '2'), pcb.pad_at(b, 'C90', '1'), pcb.pad_at(b, 'R90', '1')]
+    pcb.track(b, pts, RF_W, pcbnew.B_Cu, 'ANT_FEED')
+    pts = [pcb.pad_at(b, 'R90', '2'), pcb.pad_at(b, 'C91', '1'), pcb.pad_at(b, 'J5', '1')]
+    pcb.track(b, pts, RF_W, pcbnew.B_Cu, 'ANT')
+
+
 def draw(b):
     mipi(b)
+    antenna(b)
     usb(b)
     done = pin28(b)
     # the USB pair's two layer changes: a ground via beside each

@@ -1,8 +1,11 @@
-"""The board's small hardware: light sensor and button (SARADC), IR-cut
+"""The board's small hardware: light sensor and BOOT pad (SARADC), IR-cut
 H-bridge (two GPIOs), IR LEDs (PWM), status LED (gpio-leds).  Linux sysfs
-only, so nothing to install.  The decisions (when is it dark, what did the
-button mean, which LED pattern) are pure classes, tested on the host; the
-Sysfs* classes are the thin part that touches files.
+only, so nothing to install.  The decisions (when is it dark, which LED
+pattern, is the BOOT pad leaking) are pure functions, tested on the host;
+the Sysfs class is the thin part that touches files.
+
+There is no button (its plastic would sit above its rating in the printer):
+Wi-Fi setup and reset, updates and recovery work without one (README.md).
 """
 import glob, os, threading, time
 
@@ -65,44 +68,40 @@ def ir_plan(mode, light_state, printing):
     return ('night' if night else 'day'), (night and (printing or mode == 'auto'))
 
 
-class Button:
-    """Pressed shorter than long_s: 'short' on release.  Held long_s: 'long'
-    once, while still held (so the LED can answer before it is let go)."""
+# The BOOT pad (TP5) is the SoC's MaskROM strap: SARADC_IN0, 10k up to 1.8 V,
+# 100R to the pad.  Bridged to ground while the camera powers up, the boot ROM
+# waits for flashing over USB; Linux never sees that.  Once running, the
+# pin should read 1.8 V.  Lower means something leaks to ground (flux,
+# moisture, a crushed cap): the next power-up may then stop in MaskROM and
+# the camera would look dead.  Read now and then and reported, nothing else.
+BOOT_PAD_LOW_V = 1.2
 
-    def __init__(self, long_s=5.0, debounce_s=0.05):
-        self.long, self.debounce = long_s, debounce_s
-        self.down_at = None
-        self.fired = False
 
-    def feed(self, pressed, now):
-        if pressed:
-            if self.down_at is None:
-                self.down_at, self.fired = now, False
-            elif not self.fired and now - self.down_at >= self.long:
-                self.fired = True
-                return 'long'
-            return None
-        if self.down_at is None:
-            return None
-        held, fired = now - self.down_at, self.fired
-        self.down_at = None
-        if not fired and held >= self.debounce:
-            return 'short'
+def boot_pad_problem(volts):
+    if volts is None or volts >= BOOT_PAD_LOW_V:
         return None
+    return ('BOOT pad at %.2f V (should be 1.8 V): something leaks to ground there, and the camera may '
+            'start in flashing mode at the next power-up; clean the pads (TP5, TP3)' % volts)
 
 
 # status LED: one green LED, so meaning is in the rhythm.  (on ms, off ms) pairs, repeated.
+# (Right after power-up, before the service runs, a few quick flashes are the
+# power-cycle gesture counting: gesture.py.)
 PATTERNS = {
+    'updating': [(50, 50)],                          # flicker: installing an update, leave the power on
     'setup': [(1000, 1000)],                         # slow blink: setup access point is on
+    'hot': [(1500, 300)],                            # long on, short off: hot, camera throttled or stopped
+    'offline': [(100, 100)],                         # fast blink: joining Wi-Fi (or trying it again)
     'error': [(150, 150), (150, 150), (150, 1500)],  # three blinks: something needs attention (see the page)
-    'offline': [(100, 100)],                         # fast blink: joining Wi-Fi
     'recording': [(150, 150), (150, 1550)],          # double blink: a timelapse is recording
     'ok': [(1, 0)],                                  # steady: on the network, idle
-    'hot': [(1500, 300)],                            # long on, short off: hot, camera throttled or stopped
 }
 
 
-def led_state(setup_ap, wifi_up, error, recording, thermal='normal'):
+def led_state(setup_ap, wifi_up, error, recording, thermal='normal', updating=False):
+    """The one pattern to show, most urgent first (the order of PATTERNS)."""
+    if updating:
+        return 'updating'
     if setup_ap:
         return 'setup'
     if thermal != 'normal':
@@ -144,10 +143,8 @@ class Sysfs:
         except (OSError, ValueError):
             return None
 
-    def button_pressed(self):
-        v = self.volts(board.ADC_BUTTON)
-        # 10k up to 1.8 V, the switch pulls it to ground through 100R
-        return v is not None and v < 0.3
+    def boot_pad_volts(self):
+        return self.volts(board.ADC_BOOT_PAD)
 
     def light_volts(self):
         return self.volts(board.ADC_LIGHT)

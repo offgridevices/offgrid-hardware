@@ -126,6 +126,37 @@ The USB board's pair is 25 mm long (routed usb/layercam-usb.kicad_pcb: D+ 17.7 m
 | USB | 0.14 / 0.15 | 92.7 | 91.7 | 98.9 / 87.0 | 90 +-10 % |
 | USB board | 0.25 / 0.13 | 100.9 | 92.1 | 97.0 / 87.1 | 90 +-10 % |
 
+## PCBWay (the fab now chosen)
+
+PCBWay's published regular 6-layer 1.6 mm build (No. 1 of their laminated-structure list, 1 oz outer and inner): outer layers over **2116 prepreg, 0.1195 mm pressed, Dk 4.45**; inner copper 1 oz (0.035 mm); cores 0.43 mm Dk 4.6; 7628 0.175 mm Dk 4.74 in the middle; 1.55 mm finished +-10 %. Minimum track / space 0.1 mm (5 / 6 mil "normal" on 1 oz outer layers), minimum drill 0.15 mm, impedance +-10 %. Via-in-pad (resin fill and copper cap) is an extra-cost option to request, not standard as on JLCPCB's 6-layer service. Mask: not published by PCBWay; JLCPCB's LPI figures assumed (bare figures alongside). Minimum gap 0.127 mm (main board), 0.13 mm (USB board).
+
+| pair | w / gap (mm) | Zdiff with mask, bare / beside the fill | Zdiff without mask | track 0.015 mm narrower / wider | target |
+|---|---|---|---|---|---|
+| MIPI | **0.12 / 0.150** | 102.0 / 100.6 | 111.1 | 109.2 / 95.3 | 100 +-10 % |
+| USB | **0.15 / 0.127** | 90.3 / 89.1 | 98.0 | 96.3 / 84.4 | 90 +-10 % |
+| USB board (2-layer 1.2 mm, fill 0.18 mm away) | **0.25 / 0.13** | 92.1 (fill) | - | 97.0 / 87.1 | 90 +-10 % |
+
+The USB board's core +10 % (a 1.32 mm board) moves it to 92.1 ohm: the side fill dominates. The housing's grooves take 1.2 mm; PCBWay's +-10 % thickness tolerance allows 1.08-1.32 mm, so ask for +-0.1 mm or check the fit.
+
+### src/pcb.py for PCBWay
+
+STACKUP6, layer by layer (KiCad thicknesses in mm; the mask entries unchanged):
+
+```
+(layer "F.Cu" (type "copper") (thickness 0.0350))
+(layer "dielectric 1" (type "prepreg") (color "FR4 natural") (thickness 0.1195) (material "2116") (epsilon_r 4.45) (loss_tangent 0.02))
+(layer "In1.Cu" (type "copper") (thickness 0.0350))
+(layer "dielectric 2" (type "core") (color "FR4 natural") (thickness 0.4300) (material "FR4") (epsilon_r 4.60) (loss_tangent 0.02))
+(layer "In2.Cu" (type "copper") (thickness 0.0350))
+(layer "dielectric 3" (type "prepreg") (color "FR4 natural") (thickness 0.1750) (material "7628") (epsilon_r 4.74) (loss_tangent 0.02))
+(layer "In3.Cu" (type "copper") (thickness 0.0350))
+(layer "dielectric 4" (type "core") (color "FR4 natural") (thickness 0.4300) (material "FR4") (epsilon_r 4.60) (loss_tangent 0.02))
+(layer "In4.Cu" (type "copper") (thickness 0.0350))
+(layer "dielectric 5" (type "prepreg") (color "FR4 natural") (thickness 0.1195) (material "2116") (epsilon_r 4.45) (loss_tangent 0.02))
+(layer "B.Cu" (type "copper") (thickness 0.0350))
+```
+That sums to 1.484 mm of laminate and copper, 1.55 mm finished as PCBWay states (the masks add 0.02). STACKUP2 keeps its form (core = thickness - 0.07, epsilon_r 4.5) for PCBWay's 1.2 mm 2-layer. The board comment and the DRC floor change too: PCBWay's 0.1 mm minimum track and space replace JLCPCB's 0.09 mm (pcb.configure keeps 0.127 except round the RV1106), and via-in-pad must be ordered as resin-filled and capped.
+
 ## Checks
 
 - PASS solver within 1.5 % of stripline b 0.4, w 0.2, t 0, er 4 (-0.56 %)
@@ -141,12 +172,24 @@ The USB board's pair is 25 mm long (routed usb/layercam-usb.kicad_pcb: D+ 17.7 m
 - PASS adopted MIPI 0.12 / 0.15: 92.3-106.0 ohm across fill and etch, inside 90-110
 - PASS adopted USB 0.14 / 0.15: 87.0-98.9 ohm across fill and etch, inside 81-99
 - PASS adopted USB board 0.25 / 0.13: 87.1-97.0 ohm across fill and etch, inside 81-99
+- PASS PCBWay MIPI 0.12 / 0.150: 95.3-109.2 ohm across fill and etch, inside 90-110
+- PASS the current rule MIPI 0.12 / 0.15 on PCBWay's stackup: 102.0 ohm
+- PASS PCBWay USB 0.15 / 0.127: 84.4-96.3 ohm across fill and etch, inside 81-99
+- PASS the current rule USB 0.14 / 0.15 on PCBWay's stackup: 96.1 ohm
+- PASS PCBWay USB board 0.25 / 0.13: 87.1-97.0 ohm
+- WARN src/pcb.py STACKUP6 describes PCBWay's build (now: 0.0994 mm, Dk 4.1 next to the outer layers)
 
 ## Verdict
+
+- **PCBWay MIPI: 0.12 / 0.150 mm** (the current rule, kept) -> 102.0 ohm (95.3-109.2 across fill and a +-0.015 mm etch).
+- **PCBWay USB: 0.15 / 0.127 mm** (change from 0.14 / 0.15) -> 90.3 ohm (84.4-96.3 across fill and a +-0.015 mm etch).
+- **PCBWay USB board: 0.25 / 0.130 mm** (the current rule, kept) -> 92.1 ohm (87.1-97.0 across fill and a +-0.015 mm etch).
+
+JLCPCB figures (the earlier fab), for reference:
 
 - **MIPI 0.12 / 0.15 mm: 98.8 ohm bare, 97.8 beside the fill, 92.3-106.0 across a +-0.015 mm etch: PASS** (target 100 +-10 %).
 - **USB (main) 0.14 / 0.15 mm: 92.7 ohm bare, 91.7 beside the fill, 87.0-98.9 across a +-0.015 mm etch: PASS** (target 90 +-10 %).
 - **USB board 0.25 / 0.13 mm: 92.1 ohm with the ground fill beside it: PASS.** The side fill sets the impedance on a 2-layer 1.2 mm board; ordering without it the pair would read higher (table above).
 - Order with JLCPCB impedance control: 100 ohm differential on L1/L6 for the MIPI class, 90 ohm for USB.
 
-**no FAIL, 0 WARN**
+**no FAIL, 1 WARN**

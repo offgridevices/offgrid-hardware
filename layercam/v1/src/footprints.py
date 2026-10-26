@@ -91,9 +91,14 @@ def _area(pts):
 #             screen) where EasyEDA's model does not sit on its own land
 #   'drop_unnamed': leave out the pads with no number (the module's
 #             thermal vias: the board places its own ground vias)
+#   'paste_grid': {pad: (n, side)}: the pad's paste as n x n squares of
+#             `side` mm instead of one sheet (a large exposed pad: about
+#             55 % coverage, so the part neither floats nor voids)
 FIXUPS = {
     # the AP6256's EasyEDA land is the AP6212 family's (same 12 x 12, 44
     # pads + three test points); its model is the AP6212's
+    # the RV1106's 7 x 7 mm exposed pad: 4 x 4 windows of 1.3 mm (55 %)
+    'QFN-128_L12.3-W12.3-P0.35-TL-EP7.0-1': {'paste_grid': {'129': (4, 1.3)}},
 }
 
 def _fix_pad(name, p):
@@ -212,7 +217,31 @@ def clean_easyeda(path):
     # round-trip through KiCad so the file is in its native format
     fp = pcbnew.FootprintLoad(LIB, name)
     fp.SetFPID(pcbnew.LIB_ID('lc', name))
+    for num, (n, side) in FIXUPS.get(name, {}).get('paste_grid', {}).items():
+        _paste_grid(fp, num, n, side)
     return fp
+
+
+def _paste_grid(fp, num, n, side):
+    pad = next(p for p in fp.Pads() if p.GetNumber() == num)
+    ls = pad.GetLayerSet()
+    ls.RemoveLayer(pcbnew.F_Paste)
+    pad.SetLayerSet(ls)
+    c = pad.GetFPRelativePosition()
+    w = pad.GetSize(pcbnew.F_Cu).x / 1e6
+    pitch = w / n
+    for i in range(n):
+        for j in range(n):
+            p = pcbnew.PAD(fp)
+            p.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+            p.SetShape(pcbnew.F_Cu, pcbnew.PAD_SHAPE_RECT)
+            p.SetSize(pcbnew.F_Cu, pcbnew.VECTOR2I(int(side * 1e6), int(side * 1e6)))
+            pl = pcbnew.LSET()
+            pl.AddLayer(pcbnew.F_Paste)
+            p.SetLayerSet(pl)
+            p.SetFPRelativePosition(pcbnew.VECTOR2I(c.x + int((i - (n - 1) / 2) * pitch * 1e6),
+                                                   c.y + int((j - (n - 1) / 2) * pitch * 1e6)))
+            fp.Add(p)
 
 def smd_pad_fp(name, d, desc=''):
     """Round SMD test pad on F: a probe or a soldered wire reaches it."""

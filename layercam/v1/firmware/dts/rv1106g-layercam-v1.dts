@@ -26,8 +26,10 @@
 		bootargs = "earlycon=uart8250,mmio32,0xff4c0000 console=ttyFIQ0 rootwait snd_soc_core.prealloc_buffer_size_kbytes=16 coherent_pool=0";
 	};
 
-	/* the evb's ADC keys sit on our button's channel; the camera
-	 * software reads the button from SARADC_IN0 itself */
+	/* No keys: the camera has no button.  The evb's adc-keys would poll
+	 * SARADC_IN0, which here is the BOOT pad (TP5), the boot ROM's MaskROM
+	 * strap, and report it as volume keys.  The camera software reads the
+	 * pin only to warn when it leaks towards ground (layercam/hw.py). */
 	/delete-node/ adc-keys;
 
 	vcc_1v8: vcc-1v8 {
@@ -158,7 +160,11 @@
 	status = "disabled";
 };
 
-/********** USB-C: device only (flashing, adb) **********/
+/********** USB-C: device only (the layercam-setup console, CDC-ACM) **********/
+/* peripheral, not otg: the USB-C has Rd on CC and no VBUS switch, so it is
+ * never a host, and with no ID pin or role switch otg could only guess.
+ * MaskROM (BOOT pads) and U-Boot's loader (reboot loader) flash over the
+ * same port without Linux, so nothing here affects them. */
 &u2phy {
 	status = "okay";
 };
@@ -181,7 +187,7 @@
 	status = "okay";
 };
 
-/********** ADC: SARADC_IN0 button, SARADC_IN1 light sensor; 1.8 V reference **********/
+/********** ADC: SARADC_IN0 BOOT pad (diagnostics only), SARADC_IN1 light sensor; 1.8 V reference **********/
 &saradc {
 	status = "okay";
 	vref-supply = <&vcc_1v8>;

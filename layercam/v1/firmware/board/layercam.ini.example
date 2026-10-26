@@ -1,6 +1,9 @@
 # LayerCam settings.  On the camera: /userdata/layercam/layercam.ini
-# (the setup page writes it; you can also copy this file there and edit it).
-# Every key is listed with its default.  Comments go on their own lines.
+# (the setup page and the USB console's layercam-setup write it; you can also
+# copy this file there and edit it).  Every key is listed with its default.
+# Comments go on their own lines.  A key the camera does not know is kept but
+# not used, and a value it cannot use falls back to the default; both are
+# listed on the setup page and by `layercam-setup status`.
 
 [device]
 # shown in Prusa Connect, 1-32 characters
@@ -9,12 +12,15 @@ name = LayerCam
 fingerprint =
 
 [wifi]
+# the network to join; empty = the setup access point (first boot, after the
+# power-cycle gesture or `layercam-setup reset-wifi`)
 ssid =
 # empty for an open network
 password =
 # the setup access point's passphrase, 8-63 characters; empty = this camera's
-# own, made from its SoC serial number (tools/layercam-ap.py prints it, and the
-# serial console shows it when the access point opens)
+# own, made from its SoC serial number (tools/layercam-ap.py prints it, so do
+# `ap` on the USB console and the serial console when the access point opens).
+# Cleared by a Wi-Fi reset.
 ap_password =
 # 2.4 (2.4 GHz only, less heat) or any
 band = 2.4
@@ -22,6 +28,13 @@ band = 2.4
 power_save = true
 # transmit power cap in dBm; 0 = the driver's default
 tx_power_dbm = 10
+# saved network not reachable for this many minutes: the setup access point
+# opens as well (2 minutes for a network just entered); 0 = never
+fallback_ap_min = 10
+# while that access point is on and no phone is joined to it, try the saved
+# network again this often (seconds; each try takes the access point off for
+# up to 45 s); once connected the access point closes
+retry_s = 120
 
 [connect]
 enabled = true

@@ -1,8 +1,10 @@
 #!/bin/sh
 # Copy LayerCam's board files into a Luckfox Pico SDK checkout:
 #
-#   board/install-into-sdk.sh ~/luckfox-pico [path/to/layercam-media]
+#   [UPDATE_PUBKEY=update.pub] board/install-into-sdk.sh ~/luckfox-pico [path/to/layercam-media]
 #
+# UPDATE_PUBKEY: the public key (tools/layercam-sign.py keygen) whose
+# signatures the cameras accept on app updates; without it they refuse all.
 # then in the SDK: ./build.sh lunch (pick LayerCam_v1), ./build.sh.
 # The C helper is built separately (native/Makefile); without it the image
 # boots but the camera software has no camera.  Not yet run.
@@ -31,6 +33,12 @@ cp -a "$HERE/board/rootfs/." "$OVL/"
 cp -a "$HERE/layercam" "$OVL/usr/share/layercam/"
 find "$OVL" -name __pycache__ -prune -exec rm -rf {} +
 cp "$HERE/board/layercam.ini.example" "$OVL/usr/share/layercam/"
+if [ -n "${UPDATE_PUBKEY:-}" ]; then
+	grep -E '^[0-9a-fA-F]{64}$' "$UPDATE_PUBKEY" >> "$OVL/etc/layercam/update-keys" \
+		|| { echo "error: $UPDATE_PUBKEY holds no 64-hex-digit public key"; exit 1; }
+else
+	echo "note: no UPDATE_PUBKEY: these cameras will refuse every app update (README.md, Updates)"
+fi
 if [ -n "$HELPER" ]; then
 	install -m 755 "$HELPER" "$OVL/usr/bin/layercam-media"
 else

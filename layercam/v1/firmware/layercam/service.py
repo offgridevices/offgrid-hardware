@@ -1,10 +1,17 @@
 """The running camera: ties the parts together.
 
 Threads: the metrics listener (UDP triggers), the PrusaLink poller, the
-panel (button 20 times a second; light sensor, IR and temperature once a
-second), Connect snapshots, the uploader, the web server, the status LED.
-They talk to the main loop through one queue; only the main loop changes
-the timelapse.
+panel (light sensor, IR and temperature once a second, the BOOT pad once a
+minute), Wi-Fi (join the network or open the setup access point:
+net.WifiSupervisor), Connect snapshots, the uploader, the web server, the
+status LED.  They talk to the main loop through one queue; only the main
+loop changes the timelapse.
+
+There is no button.  Wi-Fi is set up from the setup access point or the USB
+console (setupcli.py), forgotten with the power-cycle gesture (gesture.py:
+it leaves a request file that run() acts on), and the software is updated
+from the page or the console (update.py).  SIGHUP (sent by the USB console
+after a change) restarts the service with the new settings.
 
 Heat sets how it runs (sim/thermal.md; thermal.py): the sensor sleeps
 between pictures unless a print is on, the IR LEDs light only around a
@@ -12,21 +19,39 @@ night picture, the CPU stays at its lowest speed except while uploading,
 live view is asked for and ends by itself, and the SoC's temperature
 throttles, then stops, all of it.
 """
-import logging, os, queue, shutil, sys, threading, time
+import logging, os, queue, shutil, signal, sys, threading, time
 from contextlib import contextmanager
 
-from . import (HARDWARE, VERSION, capture, config as config_mod, connect as connect_mod, hw, metrics, net,
-               prusalink, recording, thermal, timelapse, upload, web)
+from . import (HARDWARE, VERSION, capture, config as config_mod, connect as connect_mod, gesture, hw, metrics,
+               net, prusalink, recording, thermal, timelapse, update, upload, web)
 
 log = logging.getLogger('layercam')
+
+# the folder this copy of the software runs from: /usr/share/layercam (the
+# factory copy) or /userdata/layercam/app/slots/<version> (an update)
+RUNNING_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+EXIT_RESELECT = 3            # S99layercam: start whichever version update.select() picks
 
 
 class Service:
     def __init__(self, cfg_path, port=None, hw_root=''):
         self.cfg_path = cfg_path
-        self.cfg = config_mod.load(cfg_path)
+        self.cfg_dir = os.path.dirname(os.path.abspath(cfg_path))
+        # lenient: a typo or a setting from another version must not stop the camera
+        self.cfg = config_mod.load(cfg_path, strict=False)
         if config_mod.ensure_fingerprint(self.cfg):
             self.cfg.save()
+        self.root = hw_root
+        self.run_dir = hw_root + net.RUN_DIR
+        self.net_script = hw_root + '/usr/bin/layercam-net'
+        self.apps = update.AppStore(os.path.join(self.cfg_dir, 'app'), update.FACTORY_DIR)
+        self.updating = False
+        self.boot_pad = None
+        self.wifi_sup = None
+        self.wifi_up = False
+        self.reload_requested = False
+        self.good_after_s = update.GOOD_AFTER_S
+        self.started = time.monotonic()
         for e in self.cfg.errors():
             log.warning('setting: %s', e)
         self.port = port or self.cfg.get('web', 'port')
@@ -58,7 +83,6 @@ class Service:
         self.warning = None
         self.frames_lost_hot = 0
         self.setup_ap = False
-        self.ap_until = 0.0
         self.uploads = queue.Queue()
         self.upload_state = None
         self.stream_slot = threading.BoundedSemaphore(2)
@@ -142,7 +166,13 @@ class Service:
     # ------------------------------------------------------------ for the web page
     def status(self):
         r = self.rec
+        sup = self.wifi_sup
+        app = self.apps.state()
         return {'version': VERSION, 'hardware': HARDWARE, 'net': net.interface_info(), 'setup_ap': self.setup_ap,
+                'wifi': {'network': self.cfg.get('wifi', 'ssid'), 'connected': self.wifi_up,
+                         'access_point': self.setup_ap and (sup.reason if sup else 'setup')},
+                'app': {'running': VERSION, 'trial': bool(app['pending']), 'last': app['last']},
+                'boot_pad': self.boot_pad,
                 'printer': repr(self.printer) if self.printer else None, 'printer_error': self.printer_error,
                 'recording': {'name': r.meta['name'], 'frames': r.frames, 'missed': self.tl.missed,
                               'duplicates': self.tl.duplicates, 'stride': self.tl.stride,
@@ -190,19 +220,41 @@ class Service:
     def apply_config(self, new):
         """Save, then start again with the new settings (simplest way to be sure
         every part uses them)."""
-        wifi_changed = any(new.get('wifi', k) != self.cfg.get('wifi', k)
-                           for k in ('ssid', 'password', 'band', 'power_save', 'tx_power_dbm'))
+        if any(new.get('wifi', k) != self.cfg.get('wifi', k) for k in ('ssid', 'password')):
+            net.mark_new_network(self.run_dir)      # it may be mistyped: the access point comes back sooner
         new.save(self.cfg_path)
         time.sleep(0.5)          # let the page get its answer
-        if wifi_changed and new.get('wifi', 'ssid'):
-            net.write_files(new)
-            net.switch('sta')
-        self.restart()
+        self.restart()           # the new service joins the new network (wifi_loop)
 
-    def restart(self):
+    def install_update(self, path, allow_downgrade=False):
+        """A package from the page: checked, unpacked, started on trial (update.py)."""
+        self.updating = True
+        try:
+            v = self.apps.install(path, update.load_keys(self.root + update.KEYS_FILE), VERSION,
+                                  update.rootfs_version(self.root + update.ROOTFS_VERSION_FILE), allow_downgrade)
+            log.warning('update %s installed, restarting into it', v)
+            return True, 'version %s installed: the camera restarts into it now' % v
+        except (update.UpdateError, OSError) as e:
+            log.warning('update refused: %s', e)
+            return False, str(e)
+        finally:
+            self.updating = False
+
+    def on_camera_layout(self):
+        """Running from the factory copy or an installed slot (not a checkout on a PC)."""
+        here = os.path.realpath(RUNNING_DIR)
+        return here == os.path.realpath(self.apps.factory) or here.startswith(os.path.realpath(self.apps.root) + os.sep)
+
+    def restart(self, reselect=False):
+        """Start again with the settings in the file.  reselect: exit instead,
+        so S99layercam starts the version update.select() picks."""
         self.running = False
         self.lights(False)
         self.camera.close()
+        if reselect:
+            log.warning('exiting for the init script to start the selected version')
+            logging.shutdown()
+            os._exit(EXIT_RESELECT)
         os.execv(sys.executable, [sys.executable, '-m', 'layercam'] + sys.argv[1:])
 
     # ------------------------------------------------------------ threads
@@ -218,18 +270,65 @@ class Service:
             time.sleep(every)
 
     def panel(self):
-        button = hw.Button()
         n = 0
         while self.running:
-            ev = button.feed(self.hw.button_pressed(), time.monotonic())
-            if ev:
-                self.events.put(('button', ev))
-            if n % 20 == 0:
-                self.update_thermal()
-                self.update_ir()
-                self.apply_camera_state()
+            self.update_thermal()
+            self.update_ir()
+            self.apply_camera_state()
+            if n % 60 == 0:
+                self.check_boot_pad()
             n += 1
-            time.sleep(0.05)
+            time.sleep(1.0)
+
+    def check_boot_pad(self):
+        v = self.hw.boot_pad_volts()
+        problem = hw.boot_pad_problem(v)
+        if problem and problem != self.boot_pad:
+            log.warning(problem)
+        self.boot_pad = problem
+
+    # ------------------------------------------------------------ Wi-Fi
+    def take_wifi_reset(self):
+        """The power-cycle gesture (or layercam-setup reset-wifi) asked to forget the network."""
+        store = gesture.FileStore(self.cfg_dir)
+        if not store.reset_requested():
+            return False
+        log.warning('Wi-Fi reset requested: forgetting the network, opening the setup access point')
+        self.forget_wifi()
+        store.clear_request()            # after the save: a power cut in between only repeats it
+        return True
+
+    def forget_wifi(self):
+        # the access point's own passphrase too, so the one from the SoC serial
+        # (label, USB console, tools/layercam-ap.py) always works after a reset
+        for k in ('ssid', 'password', 'ap_password'):
+            self.cfg.set('wifi', k, '')
+        self.cfg.save()
+
+    def start_sta(self):
+        net.write_files(self.cfg, self.run_dir)
+        return net.switch('sta', self.net_script)
+
+    def wifi_loop(self):
+        """Keeps the Wi-Fi in the mode the supervisor asks for."""
+        sup = self.wifi_sup
+        applied, failed_at = None, None
+        while self.running:
+            now = time.monotonic()
+            clients = net.ap_clients() if applied == 'ap' else 0
+            self.wifi_up = applied == 'sta' and net.link_up()
+            want = sup.feed(now, self.wifi_up, clients)
+            if want != applied and (failed_at is None or now - failed_at >= 10):
+                if (self.start_ap() if want == 'ap' else self.start_sta()):
+                    if want == 'sta' and applied == 'ap':
+                        log.info('setup access point closed: trying %s', self.cfg.get('wifi', 'ssid'))
+                    applied, failed_at = want, None
+                else:
+                    if failed_at is None:
+                        log.warning('Wi-Fi: could not switch to %s (layercam-net)', want)
+                    failed_at = now
+            self.setup_ap = applied == 'ap'
+            time.sleep(1.0)
 
     def update_thermal(self, temp=None):
         before = self.gov.level
@@ -403,20 +502,10 @@ class Service:
                     log.warning('deleting %s (%s) to make room', m['name'], state)
                     shutil.rmtree(folder, ignore_errors=True)
 
-    def on_button(self, ev):
-        if ev == 'short' and self.connect:
-            self.connect.limit.hurry()
-        elif ev == 'long':
-            log.warning('button held: forgetting Wi-Fi, starting the setup access point')
-            self.cfg.set('wifi', 'ssid', '')
-            self.cfg.set('wifi', 'password', '')
-            self.cfg.save()
-            self.start_ap()
-
     def start_ap(self):
-        files = net.write_files(self.cfg)
-        self.setup_ap = net.switch('ap')
-        self.ap_until = time.monotonic() + 1800
+        net.write_files(self.cfg, self.run_dir)
+        if not net.switch('ap', self.net_script):
+            return False
         ssid, pw = net.setup_ap(self.cfg)
         msg = 'LayerCam setup: Wi-Fi %s, passphrase %s, then http://%s' % (ssid, pw, net.AP_ADDRESS)
         # on the serial console (TP1/TP2, 115200), not in the log file
@@ -425,8 +514,8 @@ class Service:
                 c.write('\n' + msg + '\n')
         except OSError:
             pass
-        log.info('setup access point %s open', ssid)
-        return files
+        log.info('setup access point %s open (%s)', ssid, self.wifi_sup.reason if self.wifi_sup else 'setup')
+        return True
 
     # ------------------------------------------------------------ main
     def recover(self):
@@ -443,8 +532,19 @@ class Service:
         blink.start()
         self.hw.cpu_speed(False)
         self.hw.ir_leds(0)
-        if not self.cfg.get('wifi', 'ssid'):
-            self.start_ap()
+        try:
+            os.makedirs(self.run_dir, exist_ok=True)
+            with open(os.path.join(self.run_dir, 'service.pid'), 'w') as f:
+                f.write('%d\n' % os.getpid())
+        except OSError:
+            pass
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGHUP, lambda *a: setattr(self, 'reload_requested', True))
+        self.take_wifi_reset()
+        w = self.cfg.section('wifi')
+        self.wifi_sup = net.WifiSupervisor(bool(w['ssid']), w['fallback_ap_min'] * 60, w['retry_s'],
+                                           new_network=net.take_new_network(self.run_dir))
+        threading.Thread(target=self.wifi_loop, name='wifi', daemon=True).start()
         self.web = web.serve(self, self.port)
         self.recover()
         threading.Thread(target=self.uploader, name='upload', daemon=True).start()
@@ -473,15 +573,27 @@ class Service:
                     self.last_trigger = ev
                     if self.cfg.get('timelapse', 'enabled'):
                         self.act(self.tl.trigger(ev))
-                elif kind == 'button':
-                    self.on_button(ev)
                 self.act(self.tl.tick())
             except Exception as e:      # one bad event must not stop the camera
                 self.warning = 'internal error: %s' % e
                 log.exception('main loop')
-            if self.setup_ap and time.monotonic() > self.ap_until and self.cfg.get('wifi', 'ssid'):
-                self.setup_ap = not net.switch('sta')
-            blink.state = hw.led_state(self.setup_ap, self.setup_ap or net.link_up(),
-                                       bool(self.warning or self.printer_error or
+            self.housekeeping()
+            blink.state = hw.led_state(self.setup_ap, self.setup_ap or self.wifi_up,
+                                       bool(self.warning or self.printer_error or self.boot_pad or
                                             (self.connect and self.connect.disabled)), self.rec is not None,
-                                       self.gov.level)
+                                       self.gov.level, self.updating)
+
+    def housekeeping(self):
+        """Once a loop: keep an update that has stayed up; restart when asked (SIGHUP)."""
+        if self.good_after_s is not None and time.monotonic() - self.started >= self.good_after_s:
+            self.good_after_s = None
+            try:
+                if self.apps.mark_good(RUNNING_DIR):
+                    log.warning('update %s stayed up: kept', VERSION)
+            except OSError as e:
+                log.warning('update state: %s', e)
+        if self.reload_requested:
+            log.info('SIGHUP: starting again with the saved settings')
+            want = self.apps.would_run()
+            self.restart(reselect=self.on_camera_layout() and
+                         os.path.realpath(want) != os.path.realpath(RUNNING_DIR))

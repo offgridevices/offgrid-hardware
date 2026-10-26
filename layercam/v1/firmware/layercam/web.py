@@ -10,6 +10,9 @@
     GET  /api/config       JSON, secrets shown only as set / not set
     POST /api/config       JSON {"section.key": value, ...}; an empty secret keeps the old one
     POST /api/connect-test send one snapshot to Connect now
+    GET  /api/update       the running version and the update state
+    POST /api/update       a signed update package (.lcup, the request body): checked,
+                           installed, and the camera restarts into it on trial (update.py)
     GET  /videos/          the recordings kept on the camera; /videos/<folder>.mp4 streams one
 
 With web.password set, everything asks for it (HTTP Basic, user "admin").
@@ -19,7 +22,7 @@ setup needs nothing but a phone.
 import base64, hmac, json, logging, os, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import config as config_mod, recording
+from . import VERSION, config as config_mod, recording, update
 
 log = logging.getLogger('web')
 
@@ -37,6 +40,8 @@ button{padding:8px 14px;margin:4px 4px 4px 0}#msg{white-space:pre-wrap;color:#a4
 <form id="f"></form>
 <button onclick="save()">Save and apply</button><button onclick="test()">Send a snapshot to Connect</button>
 <p><a href="/videos/">Timelapses on the camera</a></p>
+<fieldset><legend>software</legend><p id="ver"></p>
+<input type="file" id="pkg" accept=".lcup"> <button onclick="upd()">Install update</button></fieldset>
 <script>
 const secretNote='(set; leave empty to keep)';
 async function load(){
@@ -61,9 +66,15 @@ async function live(){const r=await fetch('/api/live',{method:'POST',headers:{'C
  const j=await r.json(); if(j.ok){document.getElementById('live').src='/stream.mjpg?'+Date.now();}
  else document.getElementById('msg').textContent=j.error;}
 function still(){fetch('/api/live/stop',{method:'POST'}); document.getElementById('live').src='/snapshot.jpg?'+Date.now();}
+async function upd(){const f=document.getElementById('pkg').files[0]; const m=document.getElementById('msg');
+ if(!f){m.textContent='Choose a .lcup update package first';return;} m.textContent='Checking '+f.name+'...';
+ try{const r=await fetch('/api/update',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:f});
+  const j=await r.json(); m.textContent=j.ok?j.message:'Update refused: '+j.error;}catch(e){m.textContent='Update: '+e;}}
+async function ver(){try{const u=await (await fetch('/api/update')).json();
+ document.getElementById('ver').textContent='Version '+u.running+(u.trial?' (on trial)':'')+(u.last?': '+u.last:'');}catch(e){}}
 async function test(){const j=await (await fetch('/api/connect-test',{method:'POST'})).json();
  document.getElementById('msg').textContent=j.ok?'Snapshot sent':'Connect: '+j.error;}
-load(); status(); setInterval(status,3000);
+load(); status(); ver(); setInterval(status,3000);
 </script></body></html>"""
 
 
@@ -71,6 +82,7 @@ def apply_form(cfg, form):
     """Copy submitted fields into a copy of cfg.  -> (new Config, errors)."""
     new = config_mod.Config(path=cfg.path)
     new.values = {s: dict(v) for s, v in cfg.values.items()}
+    new.extra = dict(cfg.extra)       # settings this version does not know stay in the file
     errors = []
     for name, value in form.items():
         if '.' not in name:
@@ -132,6 +144,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, PAGE.encode(), 'text/html; charset=utf-8')
             if p == '/api/status':
                 return self._send(200, self.app.status())
+            if p == '/api/update':
+                st = self.app.apps.state()
+                return self._send(200, {'running': VERSION, 'trial': bool(st['pending']), 'good': st['good'],
+                                        'failed': st['failed'], 'last': st['last']})
             if p == '/api/config':
                 cfg = self.app.cfg
                 return self._send(200, {'values': cfg.public(),
@@ -159,7 +175,12 @@ class Handler(BaseHTTPRequestHandler):
         if not self._authorised():
             return
         p = self.path
-        n = int(self.headers.get('Content-Length') or 0)
+        try:
+            n = int(self.headers.get('Content-Length') or 0)
+        except ValueError:
+            return self._send(400, {'error': 'Content-Length'})
+        if p == '/api/update':
+            return self._update(n)
         if n > 65536:
             return self._send(413, {'error': 'too large'})
         raw = self.rfile.read(n) if n else b''
@@ -188,6 +209,36 @@ class Handler(BaseHTTPRequestHandler):
             self.app.stop_live()
             return self._send(200, {'ok': True})
         self._send(404, {'error': 'not found'})
+
+    def _update(self, n):
+        if not 0 < n <= update.MAX_PACKAGE:
+            return self._send(413, {'ok': False, 'error': 'a package is 1 byte to %d MB' % (update.MAX_PACKAGE >> 20)})
+        folder = os.path.join(self.app.cfg_dir, 'app')
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, 'incoming.lcup')
+        try:
+            with open(path, 'wb') as f:
+                left = n
+                while left:
+                    chunk = self.rfile.read(min(65536, left))
+                    if not chunk:
+                        return self._send(400, {'ok': False, 'error': 'upload cut off'})
+                    f.write(chunk)
+                    left -= len(chunk)
+            ok, msg = self.app.install_update(path)
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+        if not ok:
+            return self._send(400, {'ok': False, 'error': msg})
+        self._send(200, {'ok': True, 'message': msg})
+
+        def later():
+            time.sleep(1.0)              # the answer reaches the page first
+            self.app.restart(reselect=self.app.on_camera_layout())
+        threading.Thread(target=later, daemon=True).start()
 
     def _stream(self):
         self.send_response(200)

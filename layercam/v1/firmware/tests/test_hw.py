@@ -1,5 +1,5 @@
-"""Light sensor hysteresis, IR plan, button, status LED, and the sysfs writes
-(against a fake /sys tree)."""
+"""Light sensor hysteresis, IR plan, status LED, the BOOT pad check, and the
+sysfs writes (against a fake /sys tree)."""
 import os, tempfile, unittest
 from unittest import mock
 
@@ -36,30 +36,25 @@ class DayNight(unittest.TestCase):
         self.assertEqual(hw.ir_plan('off', 'night', True), ('day', False))
 
 
-class ButtonAndLed(unittest.TestCase):
-    def test_short_long(self):
-        b = hw.Button(long_s=5)
-        self.assertIsNone(b.feed(True, 0))
-        self.assertEqual(b.feed(False, 0.3), 'short')
-        self.assertIsNone(b.feed(True, 10))
-        self.assertIsNone(b.feed(True, 14.9))
-        self.assertEqual(b.feed(True, 15.0), 'long')     # fires while held
-        self.assertIsNone(b.feed(True, 20))
-        self.assertIsNone(b.feed(False, 21))             # and not again on release
-
-    def test_bounce_ignored(self):
-        b = hw.Button()
-        b.feed(True, 0)
-        self.assertIsNone(b.feed(False, 0.01))
-
+class LedAndBootPad(unittest.TestCase):
     def test_led_priority(self):
-        self.assertEqual(hw.led_state(True, False, True, True), 'setup')
+        self.assertEqual(hw.led_state(True, False, True, True, 'hot', updating=True), 'updating')
+        self.assertEqual(hw.led_state(True, False, True, True, 'hot'), 'setup')
+        self.assertEqual(hw.led_state(False, True, True, True, 'throttle'), 'hot')
         self.assertEqual(hw.led_state(False, False, True, True), 'offline')
         self.assertEqual(hw.led_state(False, True, True, True), 'error')
         self.assertEqual(hw.led_state(False, True, False, True), 'recording')
         self.assertEqual(hw.led_state(False, True, False, False), 'ok')
         for p in hw.PATTERNS.values():
             self.assertTrue(all(on >= 0 and off >= 0 for on, off in p))
+        # every state led_state can return has a pattern, and they all differ
+        self.assertEqual(len({tuple(p) for p in hw.PATTERNS.values()}), len(hw.PATTERNS))
+        self.assertFalse(hasattr(hw, 'Button'))
+
+    def test_boot_pad(self):
+        self.assertIsNone(hw.boot_pad_problem(1.79))
+        self.assertIsNone(hw.boot_pad_problem(None))          # no ADC (a PC)
+        self.assertIn('BOOT pad at 0.40 V', hw.boot_pad_problem(0.4))
 
 
 class Sysfs(unittest.TestCase):
@@ -87,9 +82,10 @@ class Sysfs(unittest.TestCase):
             return f.read()
 
     def test_adc(self):
-        self.assertFalse(self.hw.button_pressed())
-        self.w(self.root + board.ADC_DEVICE + '/in_voltage0_raw', '10')
-        self.assertTrue(self.hw.button_pressed())
+        self.assertAlmostEqual(self.hw.boot_pad_volts(), 1023 * 1.7578125 / 1000)
+        self.assertIsNone(hw.boot_pad_problem(self.hw.boot_pad_volts()))
+        self.w(self.root + board.ADC_DEVICE + '/in_voltage0_raw', '300')      # 0.53 V: leaking
+        self.assertTrue(hw.boot_pad_problem(self.hw.boot_pad_volts()))
         self.assertAlmostEqual(self.hw.light_volts(), 57 * 1.7578125 / 1000)
 
     def test_ircut_pulse_then_off(self):
@@ -116,7 +112,7 @@ class Sysfs(unittest.TestCase):
     def test_missing_hardware_is_quiet(self):
         h = hw.Sysfs(tempfile.mkdtemp())
         self.assertIsNone(h.light_volts())
-        self.assertFalse(h.button_pressed())
+        self.assertIsNone(h.boot_pad_volts())
         h.ir_leds(100)
         h.set_led(True)
         with mock.patch('layercam.hw.time.sleep'):

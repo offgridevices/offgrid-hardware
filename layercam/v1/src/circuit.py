@@ -104,12 +104,17 @@ def main_power():
     add('L', 'L2U2', {'1': 'SW_0V9', '2': 'VDD_0V9'}, B, '0.9 V inductor', ref='L1')
     res('R51K', 'VDD_0V9', 'FB_0V9', B, '0.9 V feedback top')
     res('R100K', 'FB_0V9', GND, B, '0.9 V feedback bottom')
-    cap('C22U', 'VDD_0V9', GND, B, '0.9 V output')
+    # TI's feed-forward for a 100k bottom resistor (SLVSDG1C 8.2.2.3)
+    cap('C6P8', 'VDD_0V9', 'FB_0V9', B, '0.9 V feed-forward')
+    # one 22 uF here: with the SoC's own decoupling the rail has about
+    # 56 uF, inside TI's tested 10-47 uF effective once DC bias is counted
     cap('C22U', 'VDD_0V9', GND, B, '0.9 V output')
 
     # EA3036C (U3): three 1 A bucks.  CH1 3.3 V (last), CH2 1.36 V DDR3L,
     # CH3 1.8 V.  0.6 V reference.
-    #   3.3 V  = 0.6 x (1 + 100k / 22k)  = 3.327 V (VCCIO 3.0-3.465 V)
+    #   3.3 V  = 0.6 x (1 + 100k / 22.6k) = 3.255 V (VCCIO 3.0-3.465 V; the
+    #            EA3036C sits in PFM at these loads, which runs high, so
+    #            3.25 V as Luckfox's Core1106 rather than 3.3 V)
     #   DDR    = 0.6 x (1 + 127k / 100k) = 1.362 V (DDR3L 1.283-1.45 V)
     #   1.8 V  = 0.6 x (1 + 200k / 100k) = 1.800 V
     add('U', 'EA3036C', {'1': GND, '2': 'FB_1V8', '3': 'FB_DDR', '4': GND, '5': GND, '6': 'LX_DDR',
@@ -119,23 +124,31 @@ def main_power():
     for _ in range(3):
         cap('C10U', 'VSYS', GND, B, 'triple buck input')
     cap('C1U', 'VSYS', GND, B, 'triple buck VCC')
-    # enables: 1.8 V + DDR at 100k x 100 nF (3.3 ms), 3.3 V at 200k x 100 nF
+    # enables: 1.8 V + DDR at 100k x 330 nF, 3.3 V at 200k x 470 nF.  The
+    # EN threshold is anywhere in 0.4-1.4 V: from 5 V that is 2.7-11 ms
+    # (1.8 V / DDR), always after the 0.9 V buck's 0.8 ms soft start, and
+    # 7.8-31 ms (3.3 V), always after 1.8 V
     res('R100K', 'VSYS', 'EN_MID', B, '1.8 V / DDR enable delay R')
-    cap('C100N', 'EN_MID', GND, B, '1.8 V / DDR enable delay C')
+    cap('C330N', 'EN_MID', GND, B, '1.8 V / DDR enable delay C')
     res('R200K', 'VSYS', 'EN_3V3', B, '3.3 V enable delay R')
-    cap('C100N', 'EN_3V3', GND, B, '3.3 V enable delay C')
+    cap('C470N', 'EN_3V3', GND, B, '3.3 V enable delay C')
     add('L', 'L1U5', {'1': 'LX_3V3', '2': 'VCC_3V3'}, B, '3.3 V inductor', ref='L2')
     res('R100K', 'VCC_3V3', 'FB_3V3', B, '3.3 V feedback top')
-    res('R22K', 'FB_3V3', GND, B, '3.3 V feedback bottom')
+    res('R22K6', 'FB_3V3', GND, B, '3.3 V feedback bottom')
+    # 220 pF across each top resistor: Everanalog's application circuit
+    # (EA3036C v1.4 fig. 2) and every Luckfox EA3036C board
+    cap('C220P', 'VCC_3V3', 'FB_3V3', B, '3.3 V feed-forward')
     cap('C22U', 'VCC_3V3', GND, B, '3.3 V output')
     cap('C22U', 'VCC_3V3', GND, B, '3.3 V output')
     add('L', 'L1U5', {'1': 'LX_DDR', '2': 'VCC_DDR'}, B, 'DDR inductor', ref='L3')
     res('R127K', 'VCC_DDR', 'FB_DDR', B, 'DDR feedback top')
     res('R100K', 'FB_DDR', GND, B, 'DDR feedback bottom')
+    cap('C220P', 'VCC_DDR', 'FB_DDR', B, 'DDR feed-forward')
     cap('C22U', 'VCC_DDR', GND, B, 'DDR output')
     add('L', 'L1U5', {'1': 'LX_1V8', '2': 'VCC_1V8'}, B, '1.8 V inductor', ref='L4')
     res('R200K', 'VCC_1V8', 'FB_1V8', B, '1.8 V feedback top')
     res('R100K', 'FB_1V8', GND, B, '1.8 V feedback bottom')
+    cap('C220P', 'VCC_1V8', 'FB_1V8', B, '1.8 V feed-forward')
     cap('C22U', 'VCC_1V8', GND, B, '1.8 V output')
 
     # The Wi-Fi module's own 3.3 V (U4): it draws 1 A peaks when it
@@ -253,7 +266,7 @@ def main_soc():
     for _ in range(3):
         cap('C100N', 'VCC_1V8', GND, B, '1.8 V decoupling (DDR PLL, OSC/PLL)')
     cap('C1U', 'VCC_1V8', GND, B, '1.8 V decoupling (DDR PLL)')
-    for _ in range(6):
+    for _ in range(7):                  # one per 3.3 V pin: 13, 28, 43, 61, 81, 88, 108
         cap('C100N', 'VCC_3V3', GND, B, '3.3 V decoupling (VCCIO, PMU, USB)')
     cap('C10U', 'VCC_3V3', GND, B, '3.3 V bulk at the SoC')
     res('R1R', 'VCC_1V8', 'VCC_1V8_MIPI', B, 'MIPI supply filter R')
@@ -359,6 +372,7 @@ def main_wifi():
     cap('C22U', 'VWIFI', GND, B, 'Wi-Fi VBAT bulk')
     cap('C100N', 'VWIFI', GND, B, 'Wi-Fi VBAT HF')
     cap('C100N', 'VCC_3V3', GND, B, 'Wi-Fi VDDIO')
+    cap('C4U7', 'VCC_3V3', GND, B, 'Wi-Fi VDDIO bulk')       # as the ROCK 4C+
     add('L', 'L4U7', {'1': 'WIFI_LX', '2': 'WIFI_VLDO'}, B, 'Wi-Fi internal buck inductor', ref='L6')
     cap('C10U', 'WIFI_VLDO', GND, B, 'Wi-Fi internal buck output')
     # 37.4 MHz, 12 pF crystal, 12 pF caps (ROCK 4C+)
@@ -374,16 +388,18 @@ def main_wifi():
     res('R22R', 'SD_CLK_SOC', 'SD_CLK', B, 'SDIO clock series R')
     for n in ('SD_CMD', 'SD_D0', 'SD_D1', 'SD_D2', 'SD_D3'):
         res('R10K', n, 'VCC_3V3', B, 'SDIO pull-up')
-    res('R10K', 'SD_DET', GND, B, 'SDIO card-detect to ground')
+    # card detect held firmly low (1k against the pin's 16-43k pull-up at
+    # reset; 10k left it at 0.8-1.3 V, across the input threshold)
+    res('R1K', 'SD_DET', GND, B, 'SDIO card-detect to ground')
     # power-on controls held low until Linux raises them
     res('R100K', 'WL_REG_ON', GND, B, 'WL_REG_ON pull-down')
     res('R100K', 'BT_REG_ON', GND, B, 'BT_REG_ON pull-down')
     # antenna: 50 ohm feed -> pi match (0R through, both shunts empty until
     # tuned) -> U.FL.  An external 2.4/5 GHz flex antenna on a pigtail, as
     # Prusa's camera.
-    add('C', 'DNP_C0402', {'1': 'ANT_FEED', '2': GND}, B, 'antenna match shunt 1 (empty)')
-    res('R0R', 'ANT_FEED', 'ANT', B, 'antenna match series')
-    add('C', 'DNP_C0402', {'1': 'ANT', '2': GND}, B, 'antenna match shunt 2 (empty)')
+    add('C', 'DNP_C0402', {'1': 'ANT_FEED', '2': GND}, B, 'antenna match shunt 1 (empty)', ref='C90')
+    add('R', 'R0R', {'1': 'ANT_FEED', '2': 'ANT'}, B, 'antenna match series', ref='R90')
+    add('C', 'DNP_C0402', {'1': 'ANT', '2': GND}, B, 'antenna match shunt 2 (empty)', ref='C91')
     add('J', 'UFL', {'1': 'ANT', '2': GND, '3': GND}, B, 'antenna', ref='J5')
 
 
@@ -484,7 +500,9 @@ def usb():
     # USBLC6: I/O1 = D- (pins 1, 6), I/O2 = D+ (pins 3, 4), flow-through
     add('U', 'USBLC6', {'1': 'USB_DM', '2': GND, '3': 'USB_DP', '4': 'USB_DP', '5': 'VSYS', '6': 'USB_DM'},
         B, 'USB ESD', ref='U1')
-    add('D', 'SMF5V0', {'1': 'VSYS', '2': GND}, B, '5 V TVS', ref='D1')
+    # 6.0 V stand-off: above USB's 5.5 V VBUS maximum, so it does not
+    # leak when hot; clamps at 10.3 V
+    add('D', 'SMF6V0', {'1': 'VSYS', '2': GND}, B, '5 V TVS', ref='D1')
     cap('C10U', 'VSYS', GND, B, '5 V at the connector')
     add('J', 'SH6R', dict(USB_CABLE, **{'7': GND, '8': GND}), B, 'cable', ref='J2')
 

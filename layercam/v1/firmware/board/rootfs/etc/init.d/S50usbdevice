@@ -1,0 +1,82 @@
+#!/bin/sh
+#
+# USB-C as a USB device: one serial port (CDC-ACM, /dev/ttyGS0 here,
+# /dev/ttyACM0 or a COM port on the computer) with the layercam-setup
+# console on it.  Replaces the Luckfox image's S50usbdevice (adb + RNDIS:
+# an unauthenticated root shell and a network on the cable).  Not yet run
+# on a board.
+#
+# The controller is dr_mode = "peripheral" (dts/): the USB-C has Rd on CC
+# and no VBUS switch, it can only ever be a device.  Plugged into a computer
+# the port appears; on a charger or the printer's power-only port no host
+# enumerates it and the console just waits.  None of this touches MaskROM
+# (the boot ROM's own USB code, BOOT pads) or the U-Boot loader
+# (layercam-setup reboot-loader), which run before Linux.
+#
+# The USB ids are the Linux Foundation's "multifunction composite gadget"
+# (1d6b:0104), fine for development; a shipped product needs its own
+# vendor/product id.  CDC-ACM needs no driver on Linux, macOS or Windows 10+.
+
+G=/sys/kernel/config/usb_gadget/layercam
+PIDFILE=/var/run/layercam-console.pid
+VID=0x1d6b
+PID=0x0104
+
+gadget() {
+	grep -q " /sys/kernel/config " /proc/mounts || mount -t configfs none /sys/kernel/config || return 1
+	[ -d $G ] && return 0
+	mkdir -p $G || return 1
+	echo $VID > $G/idVendor
+	echo $PID > $G/idProduct
+	echo 0x0200 > $G/bcdDevice
+	echo 0x0200 > $G/bcdUSB
+	# a composite device with an interface association: what Windows needs
+	# to load its built-in usbser driver for the ACM function
+	echo 0xEF > $G/bDeviceClass
+	echo 0x02 > $G/bDeviceSubClass
+	echo 0x01 > $G/bDeviceProtocol
+	mkdir -p $G/strings/0x409
+	SERIAL=$(sed -n 's/^Serial[[:space:]]*:[[:space:]]*//p' /proc/cpuinfo)
+	echo "${SERIAL:-0000000000000000}" > $G/strings/0x409/serialnumber
+	echo "OffGrid" > $G/strings/0x409/manufacturer
+	echo "LayerCam v1 setup console" > $G/strings/0x409/product
+	mkdir -p $G/functions/acm.usb0
+	mkdir -p $G/configs/c.1/strings/0x409
+	echo "setup console" > $G/configs/c.1/strings/0x409/configuration
+	echo 500 > $G/configs/c.1/MaxPower
+	ln -s $G/functions/acm.usb0 $G/configs/c.1/
+}
+
+start() {
+	printf "Starting USB console: "
+	gadget || { echo "no configfs"; return 1; }
+	UDC=$(ls /sys/class/udc 2>/dev/null | head -n 1)
+	[ -n "$UDC" ] || { echo "no USB device controller"; return 1; }
+	[ "$(cat $G/UDC)" = "$UDC" ] || echo "$UDC" > $G/UDC
+	# the console, started again whenever it ends
+	(
+		while true; do
+			[ -c /dev/ttyGS0 ] && /usr/bin/layercam-setup --serve /dev/ttyGS0 >/dev/null 2>&1
+			sleep 2
+		done
+	) &
+	echo $! > $PIDFILE
+	echo "OK"
+}
+
+stop() {
+	printf "Stopping USB console: "
+	[ -f $PIDFILE ] && kill $(cat $PIDFILE) 2>/dev/null
+	pkill -f "layercam-setup --serve" 2>/dev/null
+	rm -f $PIDFILE
+	[ -d $G ] && echo "" > $G/UDC 2>/dev/null
+	echo "OK"
+}
+
+case "$1" in
+	start) start ;;
+	stop) stop ;;
+	restart|reload) stop; sleep 1; start ;;
+	*) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac
+exit 0

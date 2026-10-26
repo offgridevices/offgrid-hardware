@@ -90,7 +90,7 @@ PARTS = {
                  maker='Korean Hroparts', kind='J', desc='USB-C receptacle, USB 2.0, 16 contacts (rated -30..80 degC)'),
     'USBLC6': dict(fp='lc:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL', lcsc='C7519', mpn='USBLC6-2SC6', value='USBLC6-2SC6',
                    maker='STMicroelectronics', kind='U', desc='USB ESD protection, SOT-23-6'),
-    'SMF5V0': dict(fp='lc:SOD-123FL_L2.8-W1.8-LS3.7-BI', lcsc='C169425', mpn='SMF5.0CA', value='SMF5.0CA',
+    'SMF6V0': dict(fp='lc:SOD-123FL_L2.8-W1.8-LS3.7-BI', lcsc='C353271', mpn='SMF6.0CA', value='SMF6.0CA',
                    maker='Leiditech', kind='D', desc='TVS 5 V bidirectional 200 W, SOD-123FL'),
     # ------------------------------------------------------------ LED ring
     'IRLED': dict(fp='lc:LED-SMD_L3.5-W2.8-R-RD_RED-1', lcsc='C7500094', mpn='JNJ-LTJI0106W90/14mil-D/850NM',
@@ -123,6 +123,7 @@ PARTS = {
     'R22K': R('22k', 'C25768', '0402WGF2202TCE'),
     'R47K': R('47k', 'C25792', '0402WGF4702TCE'),
     'R51K': R('51k', 'C25794', '0402WGF5102TCE'),
+    'R22K6': R('22.6k', 'C26960', '0402WGF2262TCE'),
     'R20K': R('20k', 'C25765', '0402WGF2002TCE'),
     'R100K': R('100k', 'C25741', '0402WGF1003TCE'),
     'R127K': R('127k', 'C25751', '0402WGF1273TCE'),
@@ -130,13 +131,17 @@ PARTS = {
     'R1M': R('1M', 'C26083', '0402WGF1004TCE'),
     'R47R_1206': R('47R', 'C17969', '1206W4F470JT5E', fp=R1206, desc='Resistor 47R 1% 0.25 W 1206 (IR LED string)'),
     # ------------------------------------------------------------ capacitors
+    'C6P8': C('6.8pF', C0402, 'C1576', '0402CG6R8C500NT', '50V C0G 0402', 'FH (Fenghua)'),
     'C12P': C('12pF', C0402, 'C1547', '0402CG120J500NT', '50V C0G 0402', 'FH (Fenghua)'),
     'C18P': C('18pF', C0402, 'C1549', '0402CG180J500NT', '50V C0G 0402', 'FH (Fenghua)'),
+    'C220P': C('220pF', C0402, 'C39122', '0402CG221J500NT', '50V C0G 0402', 'FH (Fenghua)'),
     'C1N': C('1nF', C0402, 'C1523', '0402B102K500NT', '50V X7R 0402', 'FH (Fenghua)'),
     'C10N': C('10nF', C0402, 'C15195', 'CL05B103KB5NNNC', '50V X7R 0402'),
     'C100N': C('100nF', C0402, 'C1525', 'CL05B104KO5NNNC', '16V X7R 0402'),
     # the 1-22 uF parts are X6S / X7S (105 / 125 C), not X5R (85 C): the
     # board runs near 85 C in a 65 C chamber (sim/thermal.md)
+    'C330N': C('330nF', C0402, 'C18164591', 'TCC0402X7R334K100AT', '10V X7R 0402', 'CCTC'),
+    'C470N': C('470nF', C0402, 'C5448817', 'TCC0402X7R474K100AT', '10V X7R 0402', 'CCTC'),
     'C1U': C('1uF', C0402, 'C437522', 'GRM155C71A105KE11D', '10V X7S 0402', 'Murata'),
     'C4U7': C('4.7uF', C0402, 'C464981', 'GRM155C80J475MEAAD', '6.3V X6S 0402', 'Murata'),
     'C10U': C('10uF', C0603, 'C576470', 'GRM188C81A106MA73D', '10V X6S 0603', 'Murata'),

@@ -103,7 +103,7 @@ class RateLimit:
         self.next_ok = self.last + self.interval
 
     def hurry(self):
-        """Next upload as soon as the service allows (a button press, a test),
+        """Next upload as soon as the service allows (a test from the page),
         not at the configured interval; never sooner than 10 s after the last."""
         last = getattr(self, 'last', None)
         self.next_ok = min(self.next_ok, last + MIN_INTERVAL) if last is not None else 0.0

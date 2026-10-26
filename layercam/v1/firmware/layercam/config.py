@@ -22,6 +22,8 @@ DEFAULTS = {
         'band': '2.4',                 # 2.4 (2.4 GHz only: less heat, sim/thermal.md) or any
         'power_save': True,            # 802.11 power save between transfers
         'tx_power_dbm': 10,            # transmit power cap; 0 = the driver's default
+        'fallback_ap_min': 10,         # saved network unreachable this long: setup access point too; 0 = never
+        'retry_s': 120,                # meanwhile, try the saved network this often (when no phone is on the AP)
     },
     'connect': {
         'enabled': True,
@@ -140,6 +142,8 @@ class Config:
     def __init__(self, values=None, path=None):
         self.path = path
         self.values = {s: dict(keys) for s, keys in DEFAULTS.items()}
+        self.extra = {}            # (section, key) -> text: unknown settings kept as they are (lenient load)
+        self.problems = []         # what a lenient load could not use
         for (s, k), v in (values or {}).items():
             self.set(s, k, v)
 
@@ -162,13 +166,17 @@ class Config:
         return out
 
     def errors(self):
-        return validate(self)
+        return self.problems + validate(self)
 
     def save(self, path=None):
         path = path or self.path
         cp = configparser.ConfigParser(interpolation=None)
         for s, keys in self.values.items():
             cp[s] = {k: _text(v) for k, v in keys.items()}
+        for (s, k), v in self.extra.items():
+            if not cp.has_section(s):
+                cp.add_section(s)
+            cp[s][k] = v
         os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
         tmp = path + '.tmp'
         # 0600: the file holds the Wi-Fi password and the upload keys
@@ -206,16 +214,43 @@ def _coerce(default, value, name):
         raise ConfigError('%s: %r is not a %s' % (name, value, type(default).__name__))
 
 
-def load(path):
-    """Read the file; unknown keys are an error (a typo would otherwise be silently ignored)."""
+def load(path, strict=True):
+    """Read the file.  strict: unknown keys and bad values are an error (a
+    typo would otherwise be silently ignored).  Not strict (the service, the
+    USB console): the camera must start whatever is in the file, so a bad
+    value keeps its default, an unknown key (a typo, or a setting of a newer
+    version after a rollback) is kept as it is, and both are listed in
+    errors(); a file that cannot be read at all is moved aside to
+    layercam.ini.bad and the defaults are used (the setup access point opens)."""
     cfg = Config(path=path)
-    if os.path.exists(path):
-        cp = configparser.ConfigParser(interpolation=None)
+    if not os.path.exists(path):
+        return cfg
+    cp = configparser.ConfigParser(interpolation=None)
+    try:
         with open(path) as f:
             cp.read_file(f)
-        for s in cp.sections():
-            for k, v in cp[s].items():
+    except (configparser.Error, UnicodeDecodeError, OSError) as e:
+        if strict:
+            raise
+        try:
+            os.replace(path, path + '.bad')
+        except OSError:
+            pass
+        cfg.problems.append('%s could not be read (%s): moved to %s.bad, defaults used'
+                            % (path, str(e).splitlines()[0], os.path.basename(path)))
+        return cfg
+    for s in cp.sections():
+        for k, v in cp[s].items():
+            try:
                 cfg.set(s, k, v)
+            except ConfigError as e:
+                if strict:
+                    raise
+                if s in DEFAULTS and k in DEFAULTS[s]:
+                    cfg.problems.append('%s (default %s used)' % (e, _text(DEFAULTS[s][k])))
+                else:
+                    cfg.extra[(s, k)] = v
+                    cfg.problems.append('unknown setting %s.%s (kept in the file, not used)' % (s, k))
     return cfg
 
 
@@ -254,6 +289,10 @@ def validate(cfg):
         e.append('wifi.ap_password must be 8-63 characters, or empty for the camera\'s own')
     if not 0 <= cfg.get('wifi', 'tx_power_dbm') <= 20:
         e.append('wifi.tx_power_dbm must be 0-20')
+    if not 0 <= cfg.get('wifi', 'fallback_ap_min') <= 1440:
+        e.append('wifi.fallback_ap_min must be 0-1440 (0: never open the access point while a network is saved)')
+    if not 30 <= cfg.get('wifi', 'retry_s') <= 3600:
+        e.append('wifi.retry_s must be 30-3600')
     th = cfg.section('thermal')
     if not th['throttle_c'] < th['no_upload_c'] < th['stop_c'] or not th['resume_c'] < th['stop_c']:
         e.append('thermal: throttle_c < no_upload_c < stop_c and resume_c < stop_c')

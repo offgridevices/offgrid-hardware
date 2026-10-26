@@ -65,14 +65,25 @@ K_CU, K_FR4 = 385.0, 0.8
 # copper coverage per layer (ASSUMED for the routed board: outer layers signals + ground fill, inner
 # planes perforated by vias, In2 signals + fill)
 COVER = {'F.Cu': 0.55, 'In1.Cu': 0.90, 'In2.Cu': 0.50, 'In3.Cu': 0.85, 'In4.Cu': 0.90, 'B.Cu': 0.55}
-CU_T = {'F.Cu': 0.035, 'B.Cu': 0.035, 'In1.Cu': 0.0152, 'In2.Cu': 0.0152, 'In3.Cu': 0.0152, 'In4.Cu': 0.0152}
+# PCBWay's regular 6-layer 1.6 mm build (sim/impedance.md): 1 oz outer finished, 1 oz (0.035 mm) inner
+CU_T = {'F.Cu': 0.035, 'B.Cu': 0.035, 'In1.Cu': 0.035, 'In2.Cu': 0.035, 'In3.Cu': 0.035, 'In4.Cu': 0.035}
 DX = 0.5e-3                       # grid, m
 
 # footprints the heat is spread over (mm, centred on the part's place in layout_main.py)
 FOOT = {'U1': (9.0, 9.0), 'U2': (3.0, 1.7), 'L1': (2.5, 2.0), 'U3': (3.0, 3.0), 'L2': (2.5, 2.0),
         'L3': (2.5, 2.0), 'L4': (2.5, 2.0), 'U4': (3.0, 1.7), 'L5': (2.5, 2.0), 'U6': (12.0, 12.0),
         'U5': (8.0, 6.0), 'U7': (2.0, 2.0), 'Q1': (2.9, 1.3), 'J1': (4.0, 8.0)}
-SINK_R = None                     # K/W from the SoC area straight to the chamber (a metal lid + gap pad), None = none
+DESIGN_PATH = 'cnc'               # the heat path the design uses (the case sections below); None = bare board
+HEATPATH = None                   # a heat path from the RV1106's top (mechanical/heat-plate/heat_paths.json), None = none
+HEATPATHS_JSON = os.path.join(V1, 'mechanical', 'heat-plate', 'heat_paths.json')
+
+
+def heat_paths():
+    """The three heat paths designed in mechanical/heat-plate/plate.py: junction-to-part resistance r_top
+    (theta-JC top + pad / tape + metal), part to the air inside g_air, part to the chamber g_amb (through
+    the lid plastic and the slots), and the outer lid area that path uses."""
+    import json
+    return json.load(open(HEATPATHS_JSON))['paths']
 H_FORCED = 0.0                    # extra outside convection (chamber air moving), W/m^2K
 SENSOR_RISE = 3.0                 # the sensor die over its module board (estimate)
 EDGE_GAP = 0.6e-3                 # board edge to the housing pocket wall (0.4 mm clearance and more, geometry.py)
@@ -132,9 +143,9 @@ def sheet_conductance(scale=1.0):
 
 def ep_via_resistance():
     a = math.pi * ((VIA_DRILL / 2 + VIA_PLATE) ** 2 - (VIA_DRILL / 2) ** 2)
-    r_one = 0.115e-3 / (K_CU * a)          # F.Cu pad to In1, through the 0.0994 prepreg + copper
+    r_one = 0.155e-3 / (K_CU * a)          # F.Cu pad to In1, through PCBWay's 0.1195 mm 2116 + copper
     r_vias = r_one / N_EP_VIAS
-    r_fr4 = 0.0994e-3 / (0.3 * 49e-6)      # the prepreg under the 7 x 7 pad, in parallel
+    r_fr4 = 0.1195e-3 / (0.3 * 49e-6)      # the prepreg under the 7 x 7 pad, in parallel
     return 1 / (1 / r_vias + 1 / r_fr4)
 
 
@@ -200,13 +211,8 @@ class Board:
         g_wall[self.edge] += K_AIR * DX * 1.6e-3 / EDGE_GAP
         g_m = np.zeros(self.n)
         g_m[self.under_module] = g_mod_total / self.under_module.sum()
-        g_s = np.zeros(self.n)
-        if SINK_R:
-            m = self.mask(*self.place['U1'][:2], 10.0, 10.0)[self.inside]
-            g_s[m] = 1 / SINK_R / m.sum()
-        A = self.K + sp.diags(g_wall + g_m + g_s)
-        T = spla.spsolve(A.tocsc(), q + g_wall * t_wall + g_m * t_mod + g_s * self.t_amb)
-        self.q_sink = float((g_s * (T - self.t_amb)).sum())
+        A = self.K + sp.diags(g_wall + g_m)
+        T = spla.spsolve(A.tocsc(), q + g_wall * t_wall + g_m * t_mod)
         self.last = dict(q_wall=float((g_wall * (T - t_wall)).sum()), q_mod=float((g_m * (T - t_mod)).sum()),
                          q_edge=float((np.where(self.edge, K_AIR * DX * 1.6e-3 / EDGE_GAP, 0) * (T - t_wall)).sum()))
         full = np.full(self.X.shape, np.nan)
@@ -259,15 +265,20 @@ def run_case(board, heat, t_amb=T_AMB, vents=True, ring_contact=True, led_on=Non
     p_ring = heat.pop('ring resistors', 0.0) + heat.pop('ring LEDs', 0.0)
     p_cable = heat.pop('cable, connectors', 0.0)
     heat['J1'] = p_cable                            # half on the main board's connector, half on the USB board
+    p_soc = heat.get('U1', 0.0)
+    hp = HEATPATH
+    q_top = 0.0
+    t_s = t_amb + 20.0
     q = board.sources(heat)
     q_board = q.sum()
+    r_jb = R_DIE_EP + ep_via_resistance()
     a_mod = G.MODULE_W * G.MODULE_H * 1e-6
     g_gap = (K_AIR / (G.MODULE_SHIM * 1e-3) + 8.0) * a_mod      # module to board: 1 mm air + radiation
     t_w = t_amb + 10.0
     t_b = t_w + 20.0
     t_m = t_b
     board.t_amb = t_amb
-    for it in range(200):
+    for it in range(400):
         hF, hB = h_inside(t_b, t_w)
         T = board.solve(q, hF, hB, t_w, t_m, g_gap)
         t_b_new = float(np.nanmean(T))
@@ -283,13 +294,29 @@ def run_case(board, heat, t_amb=T_AMB, vents=True, ring_contact=True, led_on=Non
         q_ring_out = (t_ring - t_amb) / r_d
         t_air = (t_b_new + t_w) / 2
         q_vent = vent_flow_w(t_air, t_amb) if vents else 0.0
+        q_sink_amb = 0.0
+        if hp:
+            # the junction splits its heat between the board (exposed pad) and the part on its top
+            t_ep = float(np.nanmean(T[board.mask(*board.place['U1'][:2], 7.0, 7.0)]))
+            # junction and part solved together (2 x 2): P = (Tj-Tep)/rjb + (Tj-Ts)/rt,
+            # (Tj-Ts)/rt = g_air (Ts-Tair) + g_amb (Ts-Tamb)
+            g_air, g_amb, rt = hp['g_air'], hp['g_amb'], hp['r_top']
+            M = np.array([[1 / r_jb + 1 / rt, -1 / rt], [-1 / rt, 1 / rt + g_air + g_amb]])
+            tj, t_s = np.linalg.solve(M, [p_soc + t_ep / r_jb, g_air * t_air + g_amb * t_amb])
+            q_top_new = (tj - t_s) / rt
+            q_top = 0.5 * q_top + 0.5 * q_top_new
+            q_sink_amb = g_amb * (t_s - t_amb)
+            h2 = dict(heat)
+            h2['U1'] = p_soc - q_top
+            q = board.sources(h2)
         # everything else reaches the wall and leaves through it
-        q_into_wall = p_total - q_ring_out - q_vent - board.q_sink
-        a_rest = A_OUT - (spread if ring_contact else 0.0)
+        q_into_wall = p_total - q_ring_out - q_vent - q_sink_amb
+        a_rest = A_OUT - (spread if ring_contact else 0.0) - (hp['a_out_used'] if hp else 0.0)
         h_o = h_outside(t_w, t_amb)
         r_wall = WALL_T / (K_PLASTIC * A_OUT * 0.85) + 1 / (h_o * a_rest)
         t_w_new = t_amb + (q_into_wall + BED_RAD_W) * r_wall
-        if abs(t_w_new - t_w) < 2e-3 and abs(t_b_new - t_b) < 2e-3 and abs(t_m_new - t_m) < 2e-3:
+        if abs(t_w_new - t_w) < 2e-3 and abs(t_b_new - t_b) < 2e-3 and abs(t_m_new - t_m) < 2e-3 and \
+                (not hp or abs(q_top - q_top_new) < 1e-4):
             break
         t_w = 0.5 * t_w + 0.5 * t_w_new
         t_m = 0.5 * t_m + 0.5 * t_m_new
@@ -297,7 +324,8 @@ def run_case(board, heat, t_amb=T_AMB, vents=True, ring_contact=True, led_on=Non
     t_cam = t_m + SENSOR_RISE
     return dict(T=T, t_w=t_w, t_b=t_b, t_air=(t_b + t_w) / 2, t_ring=t_ring, q_vent=q_vent, q_ring_out=q_ring_out,
                 q_board=q_board, p_ring=p_ring, p_cam=p_cam, t_cam=t_cam, t_mod=t_m, h_in=(hF, hB), h_out=h_o,
-                heat=heat, heat_in=heat_in, flows=dict(board.last), p_total=p_total, t_amb=t_amb, led_on=led_on)
+                heat=heat, heat_in=heat_in, flows=dict(board.last), p_total=p_total, t_amb=t_amb, led_on=led_on,
+                q_top=q_top, t_sink=t_s if hp else None, q_sink_amb=q_sink_amb)
 
 
 # ---------------------------------------------------------------- per-part temperatures
@@ -305,7 +333,7 @@ def part_temps(board, res, case):
     T = res['T']
     heat = res['heat']
     out = []        # (name, temperature, limit, limit source)
-    p_soc = heat['U1']
+    p_soc = heat['U1'] - res.get('q_top', 0.0)      # what goes into the board (the rest leaves by the top)
     r_via = ep_via_resistance()
     t_ep = board.at(T, 'U1', 7.0, 7.0)
     # board at the package edge: a 1 mm band just outside the 12.3 mm body, on the centreline sides
@@ -341,7 +369,6 @@ def part_temps(board, res, case):
     out.append(('crystals Y2 / Y3, oscillator Y4', max(board.at(T, r, 3, 3, stat='max') for r in ('Y2', 'Y3', 'Y4')), 85,
                 '-40..85 C'))
     out.append(('status LED LED1', board.at(T, 'LED1', 2, 2, stat='max'), 85, '-40..85 C (KENTO)'))
-    out.append(('side button SW1 (TS24CA)', board.at(T, 'SW1', 4, 2, stat='max'), 70, '-20..70 C (catalogue)'))
     out.append(('camera FFC connector J2 (XF2M)', board.at(T, 'J2', 12, 4, stat='max'), 85, '-30..85 C incl. rise (Omron)'))
     out.append(('SH connectors J1 / J4 (JST)', max(board.at(T, r, 4, 8, stat='max') for r in ('J1', 'J4')), 85,
                 '-25..85 C incl. rise (JST)'))
@@ -393,7 +420,7 @@ def plot(board, res, name, title):
     T = res['T']
     ext = [board.xs[0], board.xs[-1], board.ys[-1], board.ys[0]]
     im = ax.imshow(T.T, extent=ext, origin='upper', cmap='inferno')
-    for ref in ('U1', 'U2', 'U3', 'U4', 'U6', 'U5', 'J1', 'J2', 'SW1'):
+    for ref in ('U1', 'U2', 'U3', 'U4', 'U6', 'U5', 'J1', 'J2'):
         x, y, side = board.place[ref]
         ax.text(x, y, ref, color='cyan', ha='center', va='center', fontsize=7)
     ax.set_title(title, fontsize=8)
@@ -461,7 +488,9 @@ def fmt_amb(a):
 
 
 def main():
-    global EPS_EFF, NU_GAP, H_FORCED, SINK_R
+    global EPS_EFF, NU_GAP, H_FORCED, HEATPATH
+    hps = heat_paths()
+    HEATPATH = hps[DESIGN_PATH] if DESIGN_PATH else None
     board = Board()
     L = []
     w = L.append
@@ -475,6 +504,9 @@ def main():
       'loads). The housing\'s time constant is many minutes, so a 10 s cycle is modelled by its average heat; the '
       'LED junctions and the string resistors are checked at their power while lit. Live view (`day`, `night`) and '
       'the stress bound are reported, not checked; live view gets a chamber limit and a firmware rule instead.\n')
+    w('Every case below includes the **%s heat path** from the RV1106\'s top (`mechanical/heat-plate/`, chosen in '
+      '*Heat paths compared*). The side button has been removed from the design (test pads instead).\n'
+      % DESIGN_PATH)
     w('Board: %.1f cm^2 a face; in-plane conductance %.4f W/K per square (copper coverage F %.0f %%, In1 %.0f %%, '
       'In2 %.0f %%, In3 %.0f %%, In4 %.0f %%, B %.0f %%). SoC exposed pad to the planes: %.2f K/W through %d filled '
       'vias.\n' % (board.area * 1e4, sheet_conductance(), *[100 * COVER[k] for k in
@@ -560,38 +592,39 @@ def main():
     # ------------------------------------------------ chamber limits
     w('## Highest chamber temperature per case\n')
     w('Bisection on the same model: the chamber temperature at which the first part reaches its limit.\n')
-    w('| case | every part inside its limit up to | the same without the 70 C button | RV1106 Tj 125 C at | '
+    w('| case | every part inside its limit up to (first part there) | RV1106 Tj 125 C at | '
       'RV1106 Tj 115 C (10 K margin) at |')
-    w('|---|---|---|---|---|')
+    w('|---|---|---|---|')
     for name, title, kind in CASES:
         h = power.heat(name)
         lo = power.led_on(name) if h.get('ring LEDs') else None
         a_all = ambient_limit(board, h, lambda b, r: within(b, r), led_on=lo)
-        a_nb = ambient_limit(board, h, lambda b, r: within(b, r, skip=('button',)), led_on=lo)
         a_125 = ambient_limit(board, h, lambda b, r: tj_of(b, r) <= 125, led_on=lo)
         a_115 = ambient_limit(board, h, lambda b, r: tj_of(b, r) <= 115, led_on=lo)
 
-        def lab(a, skip=()):
+        def lab(a):
             if a is None:
-                return 'never (%s)' % first_over(board, h, -20.0, skip, led_on=lo)
+                return 'never (%s)' % first_over(board, h, -20.0, (), led_on=lo)
             if a > 84.5:
                 return '85 C or more'
-            return '%.0f C (%s)' % (a, first_over(board, h, a + 0.5, skip, led_on=lo))
-        SUMMARY['lim'][name] = (a_all, a_nb, a_125, a_115)
-        w('| %s | %s | %s | %s | %s |' % (name, lab(a_all), lab(a_nb, ('button',)), fmt_amb(a_125), fmt_amb(a_115)))
+            return '%.1f C (%s)' % (a, first_over(board, h, a + 0.5, (), led_on=lo))
+        SUMMARY['lim'][name] = (a_all, a_all, a_125, a_115)
+        w('| %s | %s | %s | %s |' % (name, lab(a_all), fmt_amb(a_125), fmt_amb(a_115)))
     w('')
     lim_req = min(SUMMARY['lim'][n][0] if SUMMARY['lim'][n][0] is not None else -99 for n in ('snap_day', 'snap_night'))
-    check(lim_req >= T_AMB, 'snapshot mode keeps every part inside its rating up to a %s chamber (requirement %.0f C)'
-          % (fmt_amb(lim_req), T_AMB))
+    check(lim_req >= T_AMB, 'snapshot mode (heat path: %s) keeps every part inside its rating up to a %s chamber '
+          '(requirement %.0f C)' % (DESIGN_PATH, fmt_amb(lim_req), T_AMB))
+    check(lim_req >= T_AMB + 5, 'snapshot-mode margin %.1f K at 65 C, against a model uncertainty of about +-10 K'
+          % (lim_req - T_AMB), warn=True)
 
     # ------------------------------------------------ firmware rules for live view
     w('## Firmware rules (thermal governor)\n')
     w('The RV1106\'s TSADC reads its own junction (+-3 C). In a steady state every part sits at a fixed offset from '
       'it for a given load, so a junction temperature can stand in for the hottest part. For each mode: the junction '
-      'temperature at the chamber temperature where the first part (the 70 C button left out) reaches its rating. '
+      'temperature at the chamber temperature where the first part reaches its rating. '
       'Live view may run while the TSADC is below that reading, less the sensor\'s 3 C error; above it the firmware '
       'falls back to snapshot mode.\n')
-    w('| mode | chamber limit (first part, button left out) | RV1106 Tj there (steady state) | rule: allowed while '
+    w('| mode | chamber limit (first part) | RV1106 Tj there (steady state) | rule: allowed while '
       'TSADC below | at 65 C in snapshot mode the TSADC reads |')
     w('|---|---|---|---|---|')
     tj_snap = {n: tj_of(board, allres[n]) for n in ('snap_day', 'snap_night')}
@@ -615,52 +648,48 @@ def main():
     w('1. **Snapshot mode is the default**: CPU at its lowest OPP between shots, NPU off, sensor in standby, Wi-Fi '
       'power-save on 2.4 GHz.')
     w('2. **Live view** only while TSADC < %.0f C; crossing it ends live view (back to snapshot mode, the user sees '
-      '"live view paused: camera too warm"). In a 65 C chamber the snapshot-mode reading is already %.0f C, so live '
-      'view is refused there.' % (t_live, tj_snap['snap_night']))
+      '"live view paused: camera too warm"). In a 65 C chamber the snapshot-mode reading is %.0f C.'
+      % (t_live, tj_snap['snap_night']))
     w('3. TSADC > %.0f C in snapshot mode: stretch the interval to 30 s, cap Wi-Fi TX power, shorten the IR flash to '
       '1 s (the reading at which the first 85 C part reaches its rating in snapshot mode).' % t_snap)
     w('4. TSADC > 110 C: stop capturing (keep Wi-Fi associated, report the fault).')
     w('5. TSADC > 120 C: power the sensor and Wi-Fi down; Linux critical trip (shutdown) at 125 C.')
     w('')
 
-    # ------------------------------------------------ what it would take for live view
-    w('## What it would take (snapshot margin, live view at 65 C)\n')
-    w('*Throttled*: SoC heat -40 %, Wi-Fi on 2.4 GHz at reduced TX power (0.08 A average). *LEDs 30 %*: IR_PWM at 30 % '
-      'duty. *Al lid*: an aluminium lid or plate touching the SoC through a gap pad, 26 K/W from the SoC area to the '
-      'chamber.\n')
-
-    def mod(case, soc=1.0, wifi=None, led=1.0):
-        h = dict(power.heat(case))
-        h['U1'] *= soc
-        if wifi is not None:
-            h['U6'] = 3.33 * wifi
-        for k in ('ring LEDs', 'ring resistors', 'Q1'):
-            if k in h:
-                h[k] *= led
-        return h
-    p_idle = power.heat('snap_night')['U1']
-    soc_sleep = 1 - (0.13 * 0.85 * 0.906) / p_idle          # idle core 0.18 -> 0.05 A between shots
-    mrows = [('snapshot night + Al lid', mod('snap_night'), 26.0),
-             ('snapshot night, SoC suspended between shots (idle core 0.05 A, ASSUMED)', mod('snap_night', soc_sleep),
-              None),
-             ('snapshot night, SoC suspended + Al lid', mod('snap_night', soc_sleep), 26.0),
-             ('live day, throttled', mod('day', 0.6, 0.08), None),
-             ('live day, Al lid', mod('day'), 26.0),
-             ('live day, throttled + Al lid', mod('day', 0.6, 0.08), 26.0),
-             ('live night, throttled + LEDs 30 % + Al lid', mod('night', 0.6, 0.08, 0.3), 26.0)]
-    w('| change | heat (W) | at 65 C: RV1106 Tj / board max / AP6256 / sensor (C) | every part but the button inside '
-      'its rating up to |\n|---|---|---|---|')
-    for lab_, h, sink in mrows:
-        SINK_R = sink
-        r = run_case(board, h)
-        SUMMARY['mit'][lab_] = None
+    # ------------------------------------------------ the heat paths compared
+    w('## Heat paths from the RV1106 compared\n')
+    w('The three parts in `mechanical/heat-plate/` (plate.py computes each path from its geometry; README.md has '
+      'the parts). The junction splits its heat between the board (exposed pad, %.1f K/W) and the part on its top '
+      '(theta-JC top 8.4 K/W + pad or tape + metal); the part passes it to the air inside and, for the two that '
+      'reach the lid pocket, through the 3.35 mm lid and its slots to the chamber.\n' % (R_DIE_EP + ep_via_resistance()))
+    w('| heat path | junction to part (K/W) | part to chamber (K/W) | part to inside air (K/W) | snap_night at 65 C: '
+      'RV1106 / AP6256 / SC3336 / board max (C) | heat leaving by the top / straight out (W) | snapshot keeps every '
+      'part in rating up to | live view (day / night) every part in rating up to |')
+    w('|---|---|---|---|---|---|---|---|')
+    keep = HEATPATH
+    comp = {}
+    for key, lab_ in ((None, 'none (bare board)'), ('heatsink', '1: 14 x 14 x 6 heatsink on tape'),
+                      ('cnc', '2: CNC 6061 block, gap pads'), ('sheet', '3: bent 1.5 mm 5052 sheet, gap pads')):
+        HEATPATH = hps[key] if key else None
+        r = case_run(board, 'snap_night')
         pt = {nm: t for nm, t, lim, src in part_temps(board, r, None)}
-        a = ambient_limit(board, h, lambda b, rr: within(b, rr, skip=('button',)))
-        SUMMARY['mit'][lab_] = (pt['RV1106 junction (U1)'], float(np.nanmax(r['T'])), a)
-        w('| %s | %.2f | %.0f / %.0f / %.0f / %.0f | %s |' % (lab_, sum(h.values()), pt['RV1106 junction (U1)'],
-                                                            np.nanmax(r['T']), pt['AP6256 module (U6)'],
-                                                            pt['SC3336 sensor (camera module)'], fmt_amb(a)))
-        SINK_R = None
+        lims = []
+        for c in ('snap_day', 'snap_night', 'day', 'night'):
+            h = power.heat(c)
+            lims.append(ambient_limit(board, h, lambda b, rr: within(b, rr),
+                                      led_on=power.led_on(c) if h.get('ring LEDs') else None))
+        snap = min((x if x is not None else -99) for x in lims[:2])
+        first = first_over(board, power.heat('snap_night'), snap + 0.3, (), led_on=power.led_on('snap_night'))
+        comp[key] = dict(tj=pt['RV1106 junction (U1)'], ap=pt['AP6256 module (U6)'],
+                         cam=pt['SC3336 sensor (camera module)'], bmax=float(np.nanmax(r['T'])), snap=snap,
+                         first=first, live=(lims[2], lims[3]), q_top=r['q_top'], q_amb=r['q_sink_amb'])
+        hp = hps.get(key) if key else None
+        w('| %s | %s | %s | %s | %.1f / %.1f / %.1f / %.1f | %.2f / %.2f | **%.1f C** (%s) | %s / %s |'
+          % (lab_, '%.1f' % hp['r_top'] if hp else '-', '%.0f' % (1 / hp['g_amb']) if hp and hp['g_amb'] else '-',
+             '%.0f' % (1 / hp['g_air']) if hp else '-', comp[key]['tj'], comp[key]['ap'], comp[key]['cam'],
+             comp[key]['bmax'], r['q_top'], r['q_sink_amb'], snap, first, fmt_amb(lims[2]), fmt_amb(lims[3])))
+    HEATPATH = keep
+    SUMMARY['comp'] = comp
     w('')
 
     # ------------------------------------------------ parts list against 65 C
@@ -695,7 +724,6 @@ def main():
              ('JST SH BM06B / SM06B', '-25..85', 'SH connectors J1 / J4 (JST)'),
              ('Molex 53261 PicoBlade', '-40..105', 'PicoBlade J3'),
              ('Hirose U.FL', '-40..90', 'U.FL J5'),
-             ('TS24CA side button', '-20..70', 'side button SW1 (TS24CA)'),
              ('TYPE-C-31-M-12 USB-C', '-30..80', 'USB-C receptacle (USB board)'),
              ('USBLC6-2SC6, SMF5.0CA', 'TJ to 125 / 150', 'USB-C receptacle (USB board)'),
              ('JNJ 850 nm IR LED (junction while lit)', '-40..100, Tj 115', 'IR LEDs (ring), junction'),
@@ -755,66 +783,54 @@ def verdict(board, allres):
     V = []
     v = V.append
     t = {n: {nm: x for nm, x, lim, src in part_temps(board, allres[n], None)} for n in allres}
-    sd, sn = allres['snap_day'], allres['snap_night']
     lim = SUMMARY['lim']
+    comp = SUMMARY['comp']
     fails = [c for c in checks if c[0] == 'FAIL']
     warns = [c for c in checks if c[0] == 'WARN']
     req = min((lim[n][0] if lim[n][0] is not None else -99) for n in ('snap_day', 'snap_night'))
-    req_nb = min((lim[n][1] if lim[n][1] is not None else -99) for n in ('snap_day', 'snap_night'))
     v('## Verdict\n')
-    v('**Snapshot mode (the requirement) at 65 C: %s** (%d FAIL, %d WARN in the checks below). Every part stays '
-      'inside its rating in snapshot mode up to a **%s** chamber (%s leaving out the 70 C button).\n'
-      % ('PASS' if not fails else 'FAIL', len(fails), len(warns), fmt_amb(req), fmt_amb(req_nb)))
-
-    def key(n, k):
-        return t[n][k]
-    hr, tr, rating = resistor_check(sn, 'snap_night')
-    v('| at 65 C | snap_day | snap_night | live day | live night |\n|---|---|---|---|---|')
-    for lab, k in (('RV1106 junction', 'RV1106 junction (U1)'), ('AP6256', 'AP6256 module (U6)'),
-                   ('SC3336 sensor', 'SC3336 sensor (camera module)'), ('button SW1 (70 C)', 'side button SW1 (TS24CA)'),
-                   ('USB-C (80 C)', 'USB-C receptacle (USB board)'), ('board max', None), ('LED ring (average)', 'RING'),
-                   ('IR LED junction while lit', 'IR LEDs (ring), junction')):
+    v('**Snapshot mode at 65 C, with the %s heat path: %s** (%d FAIL, %d WARN). Every part stays inside its rating '
+      'up to a **%s** chamber: a margin of %.1f K, inside the model\'s +-10 K uncertainty, so the first board must be '
+      'measured in a 65 C oven before this is called a pass.\n'
+      % (DESIGN_PATH, 'PASS (marginal)' if not fails else 'FAIL', len(fails), len(warns), fmt_amb(req), req - T_AMB))
+    v('| at 65 C, %s heat path | snap_day | snap_night | live day | live night |\n|---|---|---|---|---|' % DESIGN_PATH)
+    for lab, k in (('RV1106 junction', 'RV1106 junction (U1)'), ('AP6256 (85 C)', 'AP6256 module (U6)'),
+                   ('SC3336 sensor (85 C)', 'SC3336 sensor (camera module)'), ('USB-C (80 C)', 'USB-C receptacle (USB board)'),
+                   ('crystals (85 C)', 'crystals Y2 / Y3, oscillator Y4'), ('board max', None),
+                   ('LED ring (average)', 'RING'), ('IR LED junction while lit', 'IR LEDs (ring), junction')):
         vals = []
         for n in ('snap_day', 'snap_night', 'day', 'night'):
             r = allres[n]
-            if k is None:
-                vals.append(float(np.nanmax(r['T'])))
-            elif k == 'RING':
-                vals.append(r['t_ring'])
-            else:
-                vals.append(t[n][k])
-        v('| %s | %s |' % (lab, ' | '.join('%.0f C' % x for x in vals)))
+            vals.append(float(np.nanmax(r['T'])) if k is None else (r['t_ring'] if k == 'RING' else t[n][k]))
+        v('| %s | %s |' % (lab, ' | '.join('%.1f C' % x for x in vals)))
     v('| heat in the housing | %s |' % ' | '.join('%.2f W' % allres[n]['p_total'] for n in ('snap_day', 'snap_night',
                                                                                               'day', 'night')))
     v('')
-    v('- String resistor (%s) while lit at night: %.3f W against %.3f W derated at the ring\'s %.0f C.'
-      % (parts.PARTS[power.string_resistor()]['value'], hr, rating, tr))
-    v('- Live view (reported): every part but the button stays in rating up to a %s chamber by day and %s by night; '
-      'the firmware rules above turn that into a TSADC threshold. The stress bound fits at no chamber temperature: '
-      'the firmware must never allow it.' % (fmt_amb(lim['day'][1]), fmt_amb(lim['night'][1])))
+    v('Heat paths (snap_night at 65 C; chamber limit for snapshot mode):\n')
+    for key, lab in ((None, 'bare board'), ('heatsink', '1 heatsink 14x14x6'), ('cnc', '2 CNC block'),
+                     ('sheet', '3 bent sheet')):
+        c = comp[key]
+        v('- %s: RV1106 %.1f, AP6256 %.1f, SC3336 %.1f C; snapshot in rating to **%.1f C** (first: %s); live view to '
+          '%s / %s.' % (lab, c['tj'], c['ap'], c['cam'], c['snap'], c['first'], fmt_amb(c['live'][0]),
+                        fmt_amb(c['live'][1])))
+    v('')
     over = {}
     for n in ('snap_day', 'snap_night'):
         for nm, x, lm, src in part_temps(board, allres[n], None):
-            if x > lm:
+            if x > lm - 3:
                 over[nm] = (max(x, over.get(nm, (0, 0))[0]), lm)
     if over:
-        v('- FAIL in snapshot mode at 65 C (worst of day / night): ' + '; '.join(
-            '%s %.0f C / %d C' % (nm, x, lm) for nm, (x, lm) in sorted(over.items(), key=lambda kv: kv[1][1] - kv[1][0])))
-    m = SUMMARY['mit']
-    v('- Fix that makes snapshot mode pass: an aluminium lid (or plate in the lid\'s vent window) on the SoC through '
-      'a gap pad: snap_night then RV1106 %.0f C, board %.0f C, every part but the button in rating to a %s chamber; '
-      'plus a button rated >= 85 C and a USB-C receptacle rated >= 85 C. Without the lid, suspending the SoC between '
-      'shots alone reaches %s.' % (m['snapshot night + Al lid'][0], m['snapshot night + Al lid'][1],
-                                    fmt_amb(m['snapshot night + Al lid'][2]),
-                                    fmt_amb(m['snapshot night, SoC suspended between shots (idle core 0.05 A, ASSUMED)'][2])))
-    wl = [c[1] for c in checks if c[0] == 'WARN']
-    if wl:
-        v('- WARN: AP6256 and SC3336 above 75 C in snapshot mode (AP6256 full RF and the sensor\'s best image end '
-          'there; both run, with more noise / less TX power).')
-    v('- Firmware governor: live view only while TSADC < %.0f C; snapshot mode stretches to 30 s above %.0f C; stop '
-      'at 110 C; shutdown 125 C.' % SUMMARY['gov'])
-    v('- Model uncertainty about +-10 K (the optimistic bracket is %.0f K lower on the SoC in snap_night). The '
-      'snapshot currents are ASSUMED: measure idle, shot and upload current on the first board and rerun.'
+        v('- Within 3 K of their rating in snapshot mode at 65 C: ' + '; '.join(
+            '%s %.1f / %d C' % (nm, x, lm) for nm, (x, lm) in sorted(over.items(), key=lambda kv: kv[1][1] - kv[1][0])))
+    hr, tr, rating = resistor_check(allres['snap_night'], 'snap_night')
+    v('- String resistor (%s) while lit at night: %.3f W against %.3f W derated at %.0f C.'
+      % (parts.PARTS[power.string_resistor()]['value'], hr, rating, tr))
+    v('- Live view stays a firmware-gated mode: every part in rating to %s by day and %s by night with the %s path. '
+      'Governor: live view only while TSADC < %.0f C; snapshot mode stretches to 30 s above %.0f C; stop at 110 C; '
+      'shutdown 125 C.' % (fmt_amb(lim['day'][0]), fmt_amb(lim['night'][0]), DESIGN_PATH, *SUMMARY['gov']))
+    v('- AP6256 and SC3336 run above 75 C in snapshot mode (full RF and best image end there): WARN, they work.')
+    v('- Model uncertainty about +-10 K (optimistic bracket %.0f K lower on the SoC); the snapshot currents are '
+      'ASSUMED. Measure on the first board and rerun.'
       % (t['snap_night']['RV1106 junction (U1)'] - SUMMARY.get('opt', t['snap_night']['RV1106 junction (U1)'])))
     v('')
     return V

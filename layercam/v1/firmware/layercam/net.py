@@ -1,8 +1,8 @@
 """Wi-Fi: join the home network, or open the setup access point.
 
-The Python side only writes the configuration files; board/rootfs/usr/bin/
-layercam-net starts wpa_supplicant + udhcpc, or hostapd + dnsmasq, from
-them.  The network name is written as hex and the passphrase as the derived
+The Python side decides (WifiSupervisor) and writes the configuration
+files; board/rootfs/usr/bin/layercam-net starts wpa_supplicant + udhcpc, or
+hostapd + dnsmasq, from them.  The network name is written as hex and the passphrase as the derived
 256-bit PSK (what wpa_passphrase prints), so no character in either can
 break the file, and the password itself is not stored in it.
 """
@@ -122,6 +122,96 @@ def switch(mode, script='/usr/bin/layercam-net'):
         return subprocess.run([script, mode], timeout=60).returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return False
+
+
+def ap_clients(ifname='wlan0', run=subprocess.run):
+    """Phones joined to the setup access point (iw's station list); 0 when unknown."""
+    try:
+        out = run(['iw', 'dev', ifname, 'station', 'dump'], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return 0
+    return sum(1 for line in out.splitlines() if line.startswith('Station '))
+
+
+NEW_NETWORK = 'new-network'
+
+
+def mark_new_network(run_dir=RUN_DIR):
+    """The network was just changed (page, USB console): give it a shorter
+    time to prove itself before the setup access point comes back.  In
+    /tmp: survives the service's restart, not a reboot."""
+    try:
+        os.makedirs(run_dir, exist_ok=True)
+        with open(os.path.join(run_dir, NEW_NETWORK), 'w') as f:
+            f.write('1\n')
+    except OSError:
+        pass
+
+
+def take_new_network(run_dir=RUN_DIR):
+    p = os.path.join(run_dir, NEW_NETWORK)
+    try:
+        os.unlink(p)
+        return True
+    except OSError:
+        return False
+
+
+class WifiSupervisor:
+    """Which mode the Wi-Fi should be in: 'sta' (join the saved network) or
+    'ap' (the setup access point).  Pure: the caller passes the time and
+    what it sees, so the timing is tested on a PC.
+
+    - No network saved (first boot, after the power-cycle gesture or
+      layercam-setup reset-wifi): the access point, until one is saved.
+    - Network saved: join it.  Not connected for fallback_s (wifi.
+      fallback_ap_min; new_fallback_s for a network just entered, which may
+      be mistyped): the access point opens, and every retry_s, while no
+      phone is on it, the camera tries the saved network again for
+      RETRY_WINDOW_S.  Connected: the access point stays off.
+
+    One radio, so "alongside" means taking turns: the AP6256 may do both at
+    once (bcmdhd's AP+STA), not tried on this board yet."""
+    RETRY_WINDOW_S = 45          # association, DHCP (udhcpc tries for 30 s)
+    BUSY_RECHECK_S = 30          # a phone is on the access point: look again this soon
+
+    def __init__(self, have_network, fallback_s=600, retry_s=120, new_network=False, new_fallback_s=120):
+        self.have_network = have_network
+        self.fallback_s, self.retry_s = fallback_s, retry_s
+        self.limit = min(new_fallback_s, fallback_s) if new_network and fallback_s else fallback_s
+        self.mode = 'sta' if have_network else 'ap'
+        self.reason = None if have_network else 'setup'
+        self.offline_since = None
+        self.next_retry = None
+        self.retry_until = None
+        self.connected = False
+
+    def feed(self, now, link_up, ap_clients=0):
+        if not self.have_network:
+            return 'ap'
+        if self.mode == 'sta':
+            if link_up:
+                self.connected = True
+                self.offline_since = self.retry_until = self.reason = None
+                self.limit = self.fallback_s        # this network works: the full time from now on
+                return 'sta'
+            self.connected = False
+            if self.retry_until is not None:          # a turn away from the access point
+                if now >= self.retry_until:
+                    self.mode, self.retry_until, self.next_retry = 'ap', None, now + self.retry_s
+                return self.mode
+            if self.offline_since is None:
+                self.offline_since = now
+            if self.limit > 0 and now - self.offline_since >= self.limit:
+                self.mode, self.reason, self.next_retry = 'ap', 'fallback', now + self.retry_s
+            return self.mode
+        # the access point is on, a network is saved: try it now and then
+        if now >= self.next_retry:
+            if ap_clients:
+                self.next_retry = now + self.BUSY_RECHECK_S   # someone is on the setup page
+            else:
+                self.mode, self.retry_until = 'sta', now + self.RETRY_WINDOW_S
+        return self.mode
 
 
 def interface_info(ifname='wlan0'):

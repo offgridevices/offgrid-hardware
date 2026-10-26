@@ -442,9 +442,125 @@ def planned(L):
     w_('')
 
 
+# PCBWay, the fab now chosen (27 Oct 2026).  Their published "Regular" 6-layer 1.6 mm build (pcbway.com
+# multi-layer laminated structure, No. 1: 1 oz finished outer, 1 oz inner, inner residual copper 70 %):
+#   L1 0.5 oz base plated to 1 oz | PP 2116 RC58 % Dk 4.45, 0.1195 mm pressed | L2 1 oz 0.035 | core 0.43 Dk 4.6 |
+#   L3 1 oz | PP 7628 RC46 % Dk 4.74, 0.175 mm pressed | L4 1 oz | core 0.43 Dk 4.6 | L5 1 oz |
+#   PP 2116 0.1195 | L6 0.5 oz plated to 1 oz.  1.45 mm after lamination, 1.55 mm finished, +-10 %.
+# (No. 24, for inner residual copper <= 40 %, has 0.1055 mm 2116 next to the outer layers: in1 / in4 here are
+# planes, so No. 1 applies.)  Capabilities: 4 / 4 mil (0.1 mm) minimum track / space (the advanced table calls
+# 5 / 6 mil "normal" on 1 oz outer layers), 0.15 mm minimum drill, impedance +-10 %.  PCBWay publishes no
+# solder-mask thickness or Dk and its own calculator leaves the mask out: the mask figures below are JLCPCB's
+# (typical LPI), ASSUMED; bare (no-mask) figures are given too.  2-layer 1.2 mm is standard (+-10 %):
+# one FR-4 core, 1 oz finished copper; Dk 4.5 ASSUMED (no figure published).
+PCBWAY6 = dict(h=0.1195, er=4.45, t=0.035, layers=[
+    ('F.Cu', 'copper', 0.035, None), ('dielectric 1', 'prepreg', 0.1195, 4.45, '2116'),
+    ('In1.Cu', 'copper', 0.035, None), ('dielectric 2', 'core', 0.43, 4.6, 'FR4'),
+    ('In2.Cu', 'copper', 0.035, None), ('dielectric 3', 'prepreg', 0.175, 4.74, '7628'),
+    ('In3.Cu', 'copper', 0.035, None), ('dielectric 4', 'core', 0.43, 4.6, 'FR4'),
+    ('In4.Cu', 'copper', 0.035, None), ('dielectric 5', 'prepreg', 0.1195, 4.45, '2116'),
+    ('B.Cu', 'copper', 0.035, None)])
+PCBWAY2 = dict(core=1.2 - 0.07, er=4.5, t=0.035)
+MIN_CLEAR_USB = 0.13
+
+
+def pcbway(L):
+    w_ = L.append
+    h, er, t = PCBWAY6['h'], PCBWAY6['er'], PCBWAY6['t']
+    gap_fill = read_clear_main() + FILL_EXTRA
+    w_('## PCBWay (the fab now chosen)\n')
+    w_('PCBWay\'s published regular 6-layer 1.6 mm build (No. 1 of their laminated-structure list, 1 oz outer and '
+       'inner): outer layers over **2116 prepreg, 0.1195 mm pressed, Dk 4.45**; inner copper 1 oz (0.035 mm); cores '
+       '0.43 mm Dk 4.6; 7628 0.175 mm Dk 4.74 in the middle; 1.55 mm finished +-10 %%. Minimum track / space 0.1 mm '
+       '(5 / 6 mil "normal" on 1 oz outer layers), minimum drill 0.15 mm, impedance +-10 %%. Via-in-pad (resin fill '
+       'and copper cap) is an extra-cost option to request, not standard as on JLCPCB\'s 6-layer service. Mask: '
+       'not published by PCBWay; JLCPCB\'s LPI figures assumed (bare figures alongside). Minimum gap '
+       '%.3f mm (main board), %.2f mm (USB board).\n' % (MIN_GAP, MIN_CLEAR_USB))
+    w_('| pair | w / gap (mm) | Zdiff with mask, bare / beside the fill | Zdiff without mask | track 0.015 mm '
+       'narrower / wider | target |\n|---|---|---|---|---|---|')
+    rows = {}
+    for name in ('MIPI', 'USB'):
+        w0, s0 = main_case(name)
+        tgt, tol = TARGET[name]
+        lo, hi = tgt * (1 - tol), tgt * (1 + tol)
+        cand = []
+        for wd in (0.10, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20):
+            for sd in (0.127, 0.15, 0.175, 0.20):
+                zp = solve(w=wd, s=sd, h=h, t=t, er=er)['Zdiff']
+                zf = solve(w=wd, s=sd, h=h, t=t, er=er, gnd_gap=gap_fill)['Zdiff']
+                cand.append((abs(zp - tgt) + abs(zf - tgt), wd, sd, zp, zf))
+        cand.sort()
+        zc = (solve(w=w0, s=s0, h=h, t=t, er=er)['Zdiff'], solve(w=w0, s=s0, h=h, t=t, er=er, gnd_gap=gap_fill)['Zdiff'])
+        cand.insert(0, (0, w0, s0) + zc)              # the board's own rule first: kept if it passes
+        for _, wd, sd, zp, zf in cand[:7]:
+            e1 = solve(w=wd - 0.015, s=sd + 0.015, h=h, t=t, er=er)['Zdiff']
+            e2 = solve(w=wd + 0.015, s=sd - 0.015, h=h, t=t, er=er)['Zdiff']
+            if all(lo <= z <= hi for z in (zp, zf, e1, e2)):
+                break
+        zbare = solve(w=wd, s=sd, h=h, t=t, er=er, mask=False)['Zdiff']
+        cur = solve(w=w0, s=s0, h=h, t=t, er=er)['Zdiff']
+        rows[name] = (wd, sd, zp, zf, e1, e2, zbare, w0, s0, cur)
+        w_('| %s | **%.2f / %.3f** | %.1f / %.1f | %.1f | %.1f / %.1f | %.0f +-%.0f %% |'
+           % (name, wd, sd, zp, zf, zbare, e1, e2, tgt, tol * 100))
+        check(all(lo <= z <= hi for z in (zp, zf, e1, e2)),
+              'PCBWay %s %.2f / %.3f: %.1f-%.1f ohm across fill and etch, inside %.0f-%.0f'
+              % (name, wd, sd, min(zp, zf, e1, e2), max(zp, zf, e1, e2), lo, hi))
+        check(lo <= cur <= hi, 'the current rule %s %.2f / %.2f on PCBWay\'s stackup: %.1f ohm' % (name, w0, s0, cur),
+              warn=True)
+    # USB board on PCBWay's 2-layer 1.2 mm
+    st = PCBWAY2
+    tgt, tol = TARGET['USB']
+    lo, hi = tgt * (1 - tol), tgt * (1 + tol)
+    gfill = MIN_CLEAR_USB + FILL_EXTRA
+    wu, su = DIFF['usb']['USB'][1:]
+    zcur = solve(w=wu, s=su, h=st['core'], t=st['t'], er=st['er'], gnd_gap=gfill)['Zdiff']
+    best = (wu, su, zcur)
+    if abs(zcur - tgt) > 0.05 * tgt:
+        for wd in (0.20, 0.25, 0.30, 0.35):
+            for sd in (0.13, 0.15, 0.20):
+                z = solve(w=wd, s=sd, h=st['core'], t=st['t'], er=st['er'], gnd_gap=gfill)['Zdiff']
+                if abs(z - tgt) < abs(best[2] - tgt):
+                    best = (wd, sd, z)
+    wd, sd, z = best
+    e1 = solve(w=wd - 0.015, s=sd + 0.015, h=st['core'], t=st['t'], er=st['er'], gnd_gap=gfill + 0.0075)['Zdiff']
+    e2 = solve(w=wd + 0.015, s=sd - 0.015, h=st['core'], t=st['t'], er=st['er'], gnd_gap=gfill - 0.0075)['Zdiff']
+    zt = solve(w=wd, s=sd, h=st['core'] * 1.1, t=st['t'], er=st['er'], gnd_gap=gfill)['Zdiff']
+    rows['USB board'] = (wd, sd, z, z, e1, e2)
+    w_('| USB board (2-layer 1.2 mm, fill %.2f mm away) | **%.2f / %.2f** | %.1f (fill) | - | %.1f / %.1f | 90 +-10 %% |'
+       % (gfill, wd, sd, z, e1, e2))
+    w_('')
+    w_('The USB board\'s core +10 %% (a 1.32 mm board) moves it to %.1f ohm: the side fill dominates. The housing\'s '
+       'grooves take 1.2 mm; PCBWay\'s +-10 %% thickness tolerance allows 1.08-1.32 mm, so ask for +-0.1 mm or check '
+       'the fit.\n' % zt)
+    check(all(lo <= x <= hi for x in (z, e1, e2)), 'PCBWay USB board %.2f / %.2f: %.1f-%.1f ohm' % (wd, sd, min(z, e1, e2),
+                                                                                                 max(z, e1, e2)))
+    # does pcb.STACKUP6 already describe PCBWay's build?
+    d1 = [x for x in ST6 if x[0] == 'dielectric 1'][0]
+    match = abs(d1[2] - 0.1195) < 1e-3 and abs((d1[3] or 0) - 4.45) < 1e-3
+    check(match, 'src/pcb.py STACKUP6 describes PCBWay\'s build (now: %.4f mm, Dk %s next to the outer layers)'
+          % (d1[2], d1[3]), warn=True)
+    w_('### src/pcb.py for PCBWay\n')
+    w_('STACKUP6, layer by layer (KiCad thicknesses in mm; the mask entries unchanged):\n')
+    w_('```')
+    for lay in PCBWAY6['layers']:
+        if lay[1] == 'copper':
+            w_('(layer "%s" (type "copper") (thickness %.4f))' % (lay[0], lay[2]))
+        else:
+            w_('(layer "%s" (type "%s") (color "FR4 natural") (thickness %.4f) (material "%s") (epsilon_r %.2f) '
+               '(loss_tangent 0.02))' % (lay[0], lay[1], lay[2], lay[4], lay[3]))
+    w_('```')
+    w_('That sums to %.3f mm of laminate and copper, 1.55 mm finished as PCBWay states (the masks add 0.02). '
+       'STACKUP2 keeps its form (core = thickness - 0.07, epsilon_r 4.5) for PCBWay\'s 1.2 mm 2-layer. The board '
+       'comment and the DRC floor change too: PCBWay\'s 0.1 mm minimum track and space replace JLCPCB\'s 0.09 mm '
+       '(pcb.configure keeps 0.127 except round the RV1106), and via-in-pad must be ordered as resin-filled and '
+       'capped.\n' % sum(x[2] for x in PCBWAY6['layers']))
+    return rows
+
+
 def main():
     L, results, rec, zu, best_usb = run()
     planned(L)
+    pw = pcbway(L)
     w = L.append
     w('## Checks\n')
     for s, what in checks:
@@ -452,6 +568,14 @@ def main():
     w('')
     fails = [c for c in checks if c[0] == 'FAIL']
     w('## Verdict\n')
+    for nm in ('MIPI', 'USB', 'USB board'):
+        r = pw[nm]
+        cur = DIFF['main'][nm][1:] if nm != 'USB board' else DIFF['usb']['USB'][1:]
+        w('- **PCBWay %s: %.2f / %.3f mm** (%s) -> %.1f ohm (%.1f-%.1f across fill and a +-0.015 mm etch).'
+          % (nm, r[0], r[1], 'the current rule, kept' if abs(r[0] - cur[0]) < 1e-6 and abs(r[1] - cur[1]) < 1e-6
+             else 'change from %.2f / %.2f' % tuple(cur), r[2], min(r[2:6]), max(r[2:6])))
+    w('')
+    w('JLCPCB figures (the earlier fab), for reference:\n')
     mw, ms = DIFF['main']['MIPI'][1:]
     uw, us = DIFF['main']['USB'][1:]
     m, us_ = results['MIPI'], results['USB']

@@ -1,10 +1,15 @@
 #!/bin/sh
 #
-# LayerCam service (BusyBox init).  Starts the network, then the camera
-# software, and starts it again if it ever stops.  Not yet run on a board.
+# LayerCam service (BusyBox init).  Starts the camera software (which runs
+# the Wi-Fi itself, layercam-net), and starts it again if it ever stops.
+# Before each start the factory copy of layercam/update.py picks which copy
+# of the software runs: an update on trial, the last good one, or the
+# factory copy in /usr/share/layercam (README.md, Updates).  Not yet run on
+# a board.
 #
 
-DIR=/usr/share/layercam            # the Python package (layercam/)
+DIR=/usr/share/layercam            # the factory copy of the Python package (layercam/)
+APPS=/userdata/layercam/app        # updates (layercam/update.py)
 CONF=/userdata/layercam/layercam.ini
 LOG=/var/log/layercam.log
 PIDFILE=/var/run/layercam.pid
@@ -23,11 +28,13 @@ start() {
 		done
 	fi
 	# a supervisor loop: the service restarts itself after a settings change (exec),
-	# and this brings it back after a crash
+	# exits with 3 to have a new version started, and this brings it back after a crash
 	(
 		while true; do
-			cd $DIR && python3 -m layercam --config $CONF >>$LOG 2>&1
-			sleep 5
+			RUN=$(cd $DIR && python3 -m layercam.update select --root $APPS --factory $DIR 2>>$LOG)
+			[ -f "$RUN/layercam/__main__.py" ] || RUN=$DIR
+			cd "$RUN" && python3 -m layercam --config $CONF >>$LOG 2>&1
+			[ $? -eq 3 ] || sleep 5
 		done
 	) &
 	echo $! > $PIDFILE

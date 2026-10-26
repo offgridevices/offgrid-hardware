@@ -83,9 +83,16 @@ def results(circuit_text, dts_text, board):
          'circuit.py: Bluetooth UART is UART1_M0')
     item('SARADC_IN%d' % board.ADC_LIGHT in pins.get('ALS', ''),
          'light sensor on SARADC channel %d (circuit.py: %s)' % (board.ADC_LIGHT, pins.get('ALS')))
-    item('SARADC_IN%d' % board.ADC_BUTTON in pins.get('BOOT_KEY', ''),
-         'button on SARADC channel %d (circuit.py: %s)' % (board.ADC_BUTTON, pins.get('BOOT_KEY')))
+    item('SARADC_IN%d' % board.ADC_BOOT_PAD in pins.get('BOOT_KEY', ''),
+         'BOOT pad on SARADC channel %d (circuit.py: %s)' % (board.ADC_BOOT_PAD, pins.get('BOOT_KEY')))
     has(r'&saradc \{[^}]*status = "okay"', 'SARADC enabled')
+    # no button: the firmware relies on none, and the evb's ADC keys must not claim the BOOT pad
+    item(not re.search(r"add\('SW'", circuit_text), 'circuit.py: no button (the firmware needs none)')
+    item(re.search(r"add\('TP', 'TP', \{'1': 'BOOT_SW'\}", circuit_text) and
+         re.search(r"res\('R100R', 'BOOT_KEY', 'BOOT_SW'", circuit_text),
+         'circuit.py: BOOT pad TP5 through 100R to SARADC_IN0')
+    has(r'/delete-node/ adc-keys;', 'evb ADC keys removed (SARADC_IN0 is the BOOT pad)')
+    has(r'&usbdrd_dwc3 \{[^}]*dr_mode = "peripheral"', 'USB controller is a device (setup console)')
     has(r'&sdmmc \{[^}]*no-1-8-v;', 'SDIO kept at 3.3 V')
     item('VCCIO4 = 3.3 V' in circuit_text, 'circuit.py: VCCIO4 (SDIO) at 3.3 V')
     return out

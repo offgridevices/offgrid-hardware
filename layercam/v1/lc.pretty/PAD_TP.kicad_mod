@@ -7,7 +7,7 @@
 	(property "Reference" ""
 		(at 0 0 0)
 		(layer "F.Fab")
-		(uuid "3bce277c-15d0-46ad-9ba3-d27147ea0261")
+		(uuid "098645b9-2e1c-4bd1-9e8e-e8ac4b555cac")
 		(effects
 			(font
 				(size 0.5 0.5)
@@ -19,7 +19,7 @@
 		(at 0 0 0)
 		(layer "F.Fab")
 		(hide yes)
-		(uuid "c171bae2-ee70-4dde-b915-d1f7cfae89be")
+		(uuid "1506c6ec-8474-400d-abb0-250b96459c7b")
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -30,7 +30,7 @@
 		(at 0 0 0)
 		(layer "F.Fab")
 		(hide yes)
-		(uuid "d68fc671-f811-4c7f-a0ac-62ac1eff0282")
+		(uuid "91e63182-77db-41a5-928b-f47e61e197f4")
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -41,7 +41,7 @@
 		(at 0 0 0)
 		(layer "F.Fab")
 		(hide yes)
-		(uuid "7baa5253-81d6-4f5e-90b1-5b37ce3274c1")
+		(uuid "437b4777-15d2-44d3-a0ea-f4fa678bb40c")
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -59,13 +59,13 @@
 		)
 		(fill no)
 		(layer "F.CrtYd")
-		(uuid "3bf78379-7776-4328-b254-6e5d7d07c417")
+		(uuid "269badef-2b7c-4fdf-9608-e470a4e198fd")
 	)
 	(pad "1" smd circle
 		(at 0 0)
 		(size 1 1)
 		(layers "F.Cu" "F.Mask")
-		(uuid "9f96ae37-faaf-4010-b378-c1f751394acf")
+		(uuid "ca0c85a0-9270-414e-9ccf-700b8044df68")
 	)
 	(embedded_fonts no)
 )

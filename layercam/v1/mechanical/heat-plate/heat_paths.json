@@ -1,0 +1,230 @@
+{
+ "paths": {
+  "heatsink": {
+   "r_top": 11.988093724558645,
+   "g_air": 0.0067339999999999995,
+   "g_amb": 0.0,
+   "a_out_used": 0.0,
+   "note": "14 x 14 x 6 mm black aluminium heatsink on 3M 8810 tape, centred at board (0, 18.4)",
+   "r_tape": 3.0880937245586444
+  },
+  "cnc": {
+   "r_pad_top": 0.48873194778919404,
+   "r_lid": 48.999531944769515,
+   "r_lid_out": 81.0212798721788,
+   "lid_out_area_cm2": 8.816026054051347,
+   "g_slots": 0.002728544964353342,
+   "h_slot": 11.368937351472258,
+   "g_amb": 0.010390819853633822,
+   "a_out_used": 0.0008816026054051347,
+   "r_top": 12.196404307709118,
+   "g_air": 0.004927299999999999,
+   "r_pad_bottom": 1.4760752688172043,
+   "r_metal": 2.320329038891913,
+   "note": "CNC 6061 block, flange in the lid pocket on a 0.5 mm pad"
+  },
+  "sheet": {
+   "r_pad_top": 0.5593508965760494,
+   "r_lid": 67.33397652355687,
+   "r_lid_out": 95.31566638729917,
+   "lid_out_area_cm2": 7.493896243491961,
+   "g_slots": 0.002546641966729785,
+   "h_slot": 11.368937351472258,
+   "g_amb": 0.008673755287334441,
+   "a_out_used": 0.0007493896243491961,
+   "r_top": 19.036344460709298,
+   "g_air": 0.004205799999999999,
+   "r_pad_bottom": 1.4567953463775778,
+   "r_metal": 9.17954911433172,
+   "note": "1.5 mm 5052 sheet, bent twice, flange in the lid pocket on a 0.5 mm pad"
+  }
+ },
+ "sheet": {
+  "foot": [
+   -6.0,
+   6.0,
+   -25.4,
+   -13.199999999999998,
+   22.750000000000004,
+   24.250000000000004
+  ],
+  "web": [
+   -6.0,
+   6.0,
+   -14.699999999999998,
+   -13.199999999999998,
+   22.750000000000004,
+   38.1
+  ],
+  "flange": [
+   -10.6,
+   10.6,
+   -14.699999999999998,
+   7.6,
+   36.6,
+   38.1
+  ],
+  "flat": {
+   "foot": 9.200000000000003,
+   "bend": 3.2986722862692828,
+   "web": 9.349999999999998,
+   "flange": 19.299999999999997,
+   "total": 44.44734457253856
+  },
+  "mass_g": 2.878476856826088
+ },
+ "cnc": {
+  "foot": [
+   -6.0,
+   6.0,
+   -25.4,
+   -13.399999999999999,
+   22.750000000000004,
+   24.750000000000004
+  ],
+  "column": [
+   -6.0,
+   6.0,
+   -20.0,
+   -13.399999999999999,
+   24.750000000000004,
+   35.6
+  ],
+  "flange": [
+   [
+    -5.8,
+    -20.3
+   ],
+   [
+    5.8,
+    -20.3
+   ],
+   [
+    7.7,
+    -19.5
+   ],
+   [
+    10.6,
+    -18.3
+   ],
+   [
+    10.6,
+    7.6
+   ],
+   [
+    -10.6,
+    7.6
+   ],
+   [
+    -10.6,
+    -18.3
+   ],
+   [
+    -7.7,
+    -19.5
+   ]
+  ],
+  "flange_z": [
+   35.6,
+   38.1
+  ],
+  "mass_g": 7.025183999999999
+ },
+ "heatsink": {
+  "h": 6.0,
+  "size": 14.0,
+  "cy": -18.4,
+  "z0": 21.950000000000003
+ },
+ "checks": [
+  [
+   "sheet",
+   "top of part",
+   38.1,
+   38.5
+  ],
+  [
+   "sheet",
+   "inside the lid pocket (mm into the wall, < 0 = clear)",
+   -0.40000000000000036,
+   -0.3
+  ],
+  [
+   "sheet",
+   "clear of the camera module (over its height)",
+   0.0,
+   0.5
+  ],
+  [
+   "sheet",
+   "footprint clear of LED1 (mm)",
+   1.9000000000000004,
+   0.5
+  ],
+  [
+   "cnc",
+   "top of part",
+   38.1,
+   38.5
+  ],
+  [
+   "cnc",
+   "inside the lid pocket (mm into the wall, < 0 = clear)",
+   -0.40000000000000036,
+   -0.3
+  ],
+  [
+   "cnc",
+   "clear of the camera module (over its height)",
+   0.0,
+   0.5
+  ],
+  [
+   "cnc",
+   "footprint clear of LED1 (mm)",
+   1.9000000000000001,
+   0.5
+  ],
+  [
+   "heatsink",
+   "top of part",
+   27.950000000000003,
+   38.5
+  ],
+  [
+   "heatsink",
+   "clear of the camera module (over its height)",
+   0.0,
+   0.5
+  ],
+  [
+   "heatsink",
+   "footprint clear of LED1 (mm)",
+   0.9000000000000002,
+   0.5
+  ],
+  [
+   "sheet",
+   "against the real case STLs: deepest point inside plastic (mm)",
+   -0.3519919864168801,
+   0.0
+  ],
+  [
+   "cnc",
+   "against the real case STLs: deepest point inside plastic (mm)",
+   -0.35194045283547776,
+   0.0
+  ],
+  [
+   "heatsink",
+   "against the real case STLs: deepest point inside plastic (mm)",
+   -0.519412297774974,
+   0.0
+  ]
+ ],
+ "stack": {
+  "soc_top_z": 21.700000000000003,
+  "lid_under_z": 38.5,
+  "gap": 16.799999999999997
+ }
+}
