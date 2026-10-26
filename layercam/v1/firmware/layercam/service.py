@@ -510,7 +510,7 @@ class Service:
         msg = 'LayerCam setup: Wi-Fi %s, passphrase %s, then http://%s' % (ssid, pw, net.AP_ADDRESS)
         # on the serial console (TP1/TP2, 115200), not in the log file
         try:
-            with open('/dev/console', 'w') as c:
+            with open(self.root + '/dev/console', 'w') as c:
                 c.write('\n' + msg + '\n')
         except OSError:
             pass

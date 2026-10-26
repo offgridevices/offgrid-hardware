@@ -14,10 +14,11 @@ other function works on the board chosen last.
   usb   origin on the receptacle's mouth centre.  F carries every part.
         x = v - 3.1 ... see layout_usb.py.
 
-The rules are JLCPCB's: the 6-layer tier for the main board (0.09 mm track
-and gap is its floor; this board uses 0.1 mm only round the RV1106's
-0.35 mm pins, 0.127 mm elsewhere; vias in pads are filled and capped free
-on 6-layer boards), the standard 2-layer tier for the ring and USB boards.
+The rules are PCBWay's (the boards are made and assembled there): on the
+6-layer main board 0.1 mm track and gap is its floor; this board uses 0.1 mm
+only round the RV1106's 0.35 mm pins, 0.127 mm elsewhere; vias in pads must
+be ordered resin-filled and capped (POFV).  The ring and USB boards: the
+standard 2-layer service.
 Much of this follows print-hub/v1/src/pcb.py.
 """
 import math, os
@@ -413,7 +414,7 @@ def drc(path, out_json):
 
 
 RULES = """(version 1)
-# JLCPCB limits the board-setup numbers cannot express on their own:
+# Fab limits the board-setup numbers cannot express on their own:
 # plated hole to track 0.28 mm (component holes; vias are drilled with the
 # copper and keep the 0.2 mm hole clearance).
 (rule "plated component hole to track"
@@ -429,9 +430,9 @@ def write_rules(board_path, extra=''):
     open(os.path.splitext(board_path)[0] + '.kicad_dru', 'w').write(RULES + extra)
 
 
-# JLCPCB's 6-layer 1.6 mm stackup JLC06161H-3313 (1 oz outer, 0.5 oz inner;
-# 3313 prepreg next to the outer layers, so 50 ohm and 100 ohm differential
-# outer-layer tracks reference In1 / In4 at 0.1 mm).  Green mask.
+# PCBWay's "Regular" 6-layer 1.6 mm build No. 1 (1 oz copper on every
+# layer; 2116 prepreg next to the outer layers, so the outer-layer pairs
+# reference In1 / In4 at 0.12 mm: sim/impedance.md).  Green mask.
 STACKUP6 = """\t\t(stackup
 \t\t\t(layer "F.SilkS" (type "Top Silk Screen") (color "White"))
 \t\t\t(layer "F.Paste" (type "Top Solder Paste"))

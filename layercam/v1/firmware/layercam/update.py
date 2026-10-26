@@ -72,17 +72,20 @@ def version_of(app_dir):
 
 
 def load_keys(path=KEYS_FILE):
-    """Public keys, one hex key per line ('#' starts a comment)."""
+    """Public keys, one hex key per line ('#' starts a comment).  A line that
+    is not a 32-byte key is skipped (it adds no trust)."""
     keys = []
     try:
         with open(path) as f:
             for line in f:
                 line = line.split('#', 1)[0].strip()
-                if line:
+                try:
                     k = bytes.fromhex(line)
-                    if len(k) == 32:
-                        keys.append(k)
-    except (OSError, ValueError):
+                except ValueError:
+                    continue
+                if len(k) == 32:
+                    keys.append(k)
+    except OSError:
         pass
     return keys
 

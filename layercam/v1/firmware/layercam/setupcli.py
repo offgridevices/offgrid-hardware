@@ -330,8 +330,11 @@ def serve(tty, env):
         pass
     rf = os.fdopen(fd, 'r', encoding='utf-8', errors='replace')
     wf = os.fdopen(os.dup(fd), 'w', encoding='utf-8', errors='replace')
-    with rf, wf:
-        serve_stream(rf, wf, env)
+    try:
+        with rf, wf:
+            serve_stream(rf, wf, env)
+    except OSError:
+        pass                # the host went away (EIO): the init script's loop starts it again
     return 0
 
 
