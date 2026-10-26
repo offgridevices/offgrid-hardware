@@ -27,6 +27,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import pcb
 
+BLOCKER = [None]         # debugging: what refused the last bridge
 LIMIT = 45.0 + 0.5       # degrees: the largest turn left as it is
 MAX_CUT = 1.0            # mm: the longest bridge track
 SHARE = 0.45             # a corner may use at most this much of a track that bends at both ends
@@ -141,7 +142,8 @@ def _bridge(node, u, v, ang, sign, s):
     return pts, a, c2
 
 
-def miter(path, clearance=pcb.CLEAR):
+def miter(path, clearance=None):
+    clearance = pcb.CLEAR if clearance is None else clearance
     b = pcbnew.LoadBoard(path)
     vias, pads = _blocked_points(b)
     # other nets' copper per layer, as shapes with their net
@@ -168,10 +170,14 @@ def miter(path, clearance=pcb.CLEAR):
 
     def clear(line, width, net, layer):
         tree, items = trees[layer]
-        g = line.buffer(width / 2 + clearance + 0.005, cap_style=1)
+        # a hair under the clearance: a bridge's ends lie on the tracks it
+        # joins, which may already sit at exactly the clearance from a
+        # neighbour (KiCad's DRC checks the result)
+        g = line.buffer(width / 2 + clearance - 0.002, cap_style=1)
         for i in tree.query(g):
             s, n = items[int(i)]
             if n != net and s.intersects(g):
+                BLOCKER[0] = (n, s.bounds)
                 return False
         return True
 
@@ -248,6 +254,8 @@ def miter(path, clearance=pcb.CLEAR):
                 s *= 0.7
             if not ok:
                 failed += 1
+                if os.environ.get('MITER_DEBUG'):
+                    print('   miter', net, round(node[0] - pcb.CX, 2), round(node[1] - pcb.CY, 2), why, BLOCKER[0])
                 left.append((why, round(ang), net, b.GetLayerName(layer), round(node[0] - pcb.CX, 2), round(node[1] - pcb.CY, 2)))
                 continue
             V = lambda q: pcbnew.VECTOR2I(int(round(q[0] * 1e6)), int(round(q[1] * 1e6)))

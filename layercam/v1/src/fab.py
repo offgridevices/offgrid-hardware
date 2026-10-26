@@ -236,15 +236,15 @@ def step(board, out_path):
 
 FP_LIB_TABLE = """(fp_lib_table
   (version 7)
-  (lib (name "ph")(type "KiCad")(uri "${KIPRJMOD}/ph.pretty")(options "")(descr "Print Hub footprints"))
+  (lib (name "lc")(type "KiCad")(uri "${KIPRJMOD}/../lc.pretty")(options "")(descr "LayerCam footprints"))
 )
 """
 
 
 def install(src_pcb, dest_dir, name):
     """Copy a finished board into its folder in the repo, with its project,
-    rules and a footprint table that finds ph.pretty (its 3D models already
-    point at ph.3dshapes beside it)."""
+    rules and a footprint table that finds ../lc.pretty (its 3D models
+    already point at ../lc.3dshapes)."""
     import shutil
     os.makedirs(dest_dir, exist_ok=True)
     base = os.path.splitext(src_pcb)[0]

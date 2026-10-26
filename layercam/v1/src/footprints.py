@@ -86,7 +86,7 @@ def _area(pts):
 #   'resize': {pad name: (w, h)} in the footprint's own axes (rotation 0)
 #   'trim':   {pad name: d} shortens a pad by d mm at its +y end (the pad
 #             keeps its -y end), footprint axes
-#   'model':  a 3D model (in ../ph.3dshapes) for a part EasyEDA has none for
+#   'model':  a 3D model (in ../lc.3dshapes) for a part EasyEDA has none for
 #   'model_offset': move the 3D model (mm, KiCad's 3D axes: +y is up the
 #             screen) where EasyEDA's model does not sit on its own land
 #   'drop_unnamed': leave out the pads with no number (the module's

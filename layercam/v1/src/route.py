@@ -203,17 +203,20 @@ def route(pcb_in, pcb_out, passes=60, rounds=4):
     carries the existing wiring over and works on what is left) until every
     connection is made or `rounds` runs out.  Returns the unrouted count."""
     work = os.path.dirname(os.path.abspath(pcb_out))
+    # the run's files named after its board: two boards routed in one work
+    # folder at once must not share them
+    stem = os.path.splitext(os.path.basename(pcb_out))[0]
     src = pcb_in
     best = None
     for r in range(rounds):
-        dsn = os.path.join(work, 'route%d.dsn' % r); ses = os.path.join(work, 'route%d.ses' % r)
+        dsn = os.path.join(work, '%s-%d.dsn' % (stem, r)); ses = os.path.join(work, '%s-%d.ses' % (stem, r))
         if r > 0:
             # Freerouting hangs ("normalization of net ... failed") on its own
             # near-degenerate wiring when that is fed back to it
             import pcb
             pcb.tidy_tracks(src)
         export_dsn(src, dsn)
-        freeroute(dsn, ses, passes=passes, log=os.path.join(work, 'freerouting%d.log' % r))
+        freeroute(dsn, ses, passes=passes, log=os.path.join(work, '%s-freerouting%d.log' % (stem, r)))
         import_ses(src, ses, pcb_out)
         n, _ = unrouted(pcb_out)
         print('  routing round %d: %d unrouted' % (r + 1, n))

@@ -7,7 +7,8 @@ JetBrains Mono 500.  White silk.
         the lockup, the button and the test pads, the licence.
         B (front): the connectors' names.
   ring  B: the name and revision (F rests on the housing).
-  usb   F: the name, the revision; B: the lockup.
+  usb   B (the face away from the parts): the lockup, the name and the
+        revision, along the bottom edge.
 
 Every label is placed where it touches no pad, hole or mask opening (the
 fab would clip it there), searched outwards from where it is meant to go.
@@ -23,7 +24,7 @@ NAME = 'LayerCam'
 REV = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).upper()
 CAP = 1.0
 # boxes kept free of stitching vias for the artwork (stitch.py), board mm
-ART = {'main': [(-6.5, 21.5, 6.5, 28.0)], 'usb': [(-6.5, 12.0, 0.0, 15.8)], 'ring': []}
+ART = {'main': [(-6.5, 21.5, 6.5, 28.0)], 'usb': [(-7.4, 10.4, 13.6, 15.5)], 'ring': []}
 
 
 def strip(b):
@@ -100,15 +101,14 @@ def draw(b):
         for ref, label in (('J4', 'Ring'), ('J3', 'IR-cut'), ('J5', 'Wi-Fi')):
             x, y = pcb.xy(b.FindFootprintByReference(ref).GetPosition())
             bot.put(text('sans', label, 0.8), x, y + 5.0, search=4.0, must=False)
-        lk, _ = brand.lockup_mm(14.0, mirror=True)
+        lk, _ = brand.lockup_mm(14.0)
         bot.put(lk, 0.0, 24.0, search=5.0, must=False)
     elif bd == 'ring':
         bot = Placer(b, 'B')
         bot.put(brand.line([('sans', NAME), ('mono', REV)], 0.9)[0], -11.0, -6.0, rot=0, search=5.0, must=False)
         bot.put(text('mono', 'IR 850', 0.8), 0.0, 13.0, search=4.0, must=False)
     elif bd == 'usb':
-        top = Placer(b, 'T')
-        top.put(brand.line([('sans', NAME), ('mono', REV)], 0.9)[0], -3.5, 14.2, search=4.0, must=False)
         bot = Placer(b, 'B')
-        lk, _ = brand.lockup_mm(12.0, mirror=True)
-        bot.put(lk, 3.0, 8.0, search=4.0, must=False)
+        lk, _ = brand.lockup_mm(10.0)
+        bot.put(lk, -2.2, 12.9, search=2.0)
+        bot.put(brand.line([('sans', NAME), ('mono', REV)], 0.9)[0], 9.0, 12.9, search=2.0)

@@ -1,0 +1,10 @@
+(version 1)
+# JLCPCB limits the board-setup numbers cannot express on their own:
+# plated hole to track 0.28 mm (component holes; vias are drilled with the
+# copper and keep the 0.2 mm hole clearance).
+(rule "plated component hole to track"
+  (condition "A.Type == 'Pad' && A.isPlated() && A.Pad_Type == 'Through-hole' && B.Type == 'Track'")
+  (constraint hole_clearance (min 0.28mm)))
+# Ground pads join the fills by at least one thermal spoke.
+(rule "one spoke is enough"
+  (constraint min_resolved_spokes 1))
