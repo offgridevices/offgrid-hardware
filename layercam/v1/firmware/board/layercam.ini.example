@@ -1,0 +1,110 @@
+# LayerCam settings.  On the camera: /userdata/layercam/layercam.ini
+# (the setup page writes it; you can also copy this file there and edit it).
+# Every key is listed with its default.  Comments go on their own lines.
+
+[device]
+# shown in Prusa Connect, 1-32 characters
+name = LayerCam
+# made on the first boot and never changed: Connect binds it to the token
+fingerprint =
+
+[wifi]
+ssid =
+# empty for an open network
+password =
+# the setup access point (LayerCam-XXXX) passphrase, 8-63 characters
+ap_password = layercam-setup
+
+[connect]
+enabled = true
+# Prusa Connect > your printer > Camera > Add new camera > other camera: copy the token.
+# Use it within 15 minutes, or Connect forgets the camera.
+token =
+url = https://camera-service.prusa3d.com
+# seconds between snapshots: 10, 30 or 60
+interval = 30
+# JPEG quality; lowered automatically to keep each snapshot under 1 MB
+quality = 80
+
+[prusalink]
+# the printer's address (its display: Settings > Network), e.g. 192.0.2.10
+host =
+user = maker
+# the printer's display: Settings > Network > PrusaLink, password
+password =
+api_key =
+poll_interval = 5
+
+[timelapse]
+enabled = true
+# udp: the slicer snippet's trigger; poll: PrusaLink's Z (head not parked);
+# auto: udp, falling back to poll when no trigger comes
+trigger = auto
+udp_port = 8514
+# the total G4 hold in the slicer snippet, ms
+dwell_ms = 1600
+# wait this long after the head stops before taking the frame, ms
+settle_ms = 150
+fps = 30
+# H.264 QP (camera) or CRF (ffmpeg): lower = better and bigger
+quality = 28
+# upload the video of a cancelled print too
+keep_cancelled = true
+storage = /userdata/layercam/timelapse
+# below this much free space, keep every other layer
+min_free_mb = 8
+# without PrusaLink: end a timelapse when no frame came for this long
+idle_timeout_min = 30
+
+[upload]
+# none, s3, http, smb, nfs
+target = none
+# finished videos kept on the camera after upload
+keep_local = 2
+s3_endpoint = https://s3.us-east-1.amazonaws.com
+s3_region = us-east-1
+s3_bucket =
+s3_prefix = layercam/
+s3_access_key =
+s3_secret_key =
+# auto, path (MinIO, NAS), virtual (AWS)
+s3_addressing = auto
+# a folder URL ending in /, e.g. https://nas.example/dav/timelapse/
+http_url =
+http_user =
+http_password =
+# //server/share, e.g. //192.0.2.20/prints
+smb_share =
+smb_user =
+smb_password =
+smb_dir = timelapse
+smb_version = 3.0
+# server:/path, e.g. 192.0.2.20:/volume1/prints
+nfs_export =
+nfs_dir = timelapse
+
+[camera]
+# rkmpi (LayerCam's hardware), command (a PC), fake (tests)
+backend = rkmpi
+helper = /usr/bin/layercam-media
+iq_dir = /etc/iqfiles
+# for backend = command: any program that writes one JPEG to {out}
+command = ffmpeg -loglevel error -f v4l2 -i /dev/video0 -frames:v 1 -q:v 3 -y {out}
+# none, h, v, both
+flip = none
+# reported to Connect: 0, 90, 180, 270
+rotation = 0
+
+[ir]
+# auto (IR LEDs whenever dark), printing (only while printing), day, night, off
+mode = auto
+# volts on the light sensor: below dark_v for hold_s is night, above light_v for hold_s is day
+dark_v = 0.10
+light_v = 0.25
+hold_s = 5.0
+led_duty = 100
+
+[web]
+port = 80
+# the setup page's password (user admin); empty = open to anyone on the network
+password =

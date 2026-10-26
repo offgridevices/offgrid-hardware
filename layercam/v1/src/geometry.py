@@ -35,6 +35,19 @@ MAIN_TAB = [(-8.5, 22.9), (-7.0, 24.4), (7.0, 24.4), (8.5, 22.9)]
 MAIN_ARC_C = (0.0, 2.1)
 MAIN_ARC_R = 31.3
 
+# The pocket's outline at the seat (lens frame X, Y), measured from Prusa's
+# STEP and shrunk by the 0.4 mm clearance: verify.py checks the main
+# board's outline lies inside it.
+POCKET = [
+    (-19.121, 22.999), (-9.512, 23.019), (-9.256, 23.134), (-7.178, 24.735), (-5.106, 25.938),
+    (-4.089, 26.869), (-2.892, 27.684), (-1.425, 28.283), (-0.001, 28.475), (1.437, 28.282),
+    (2.887, 27.691), (4.098, 26.869), (5.114, 25.938), (7.187, 24.735), (9.265, 23.134),
+    (9.521, 23.019), (19.129, 22.999), (19.129, -22.868), (17.487, -24.054), (14.800, -25.677),
+    (11.898, -27.047), (10.366, -27.631), (7.285, -28.536), (5.614, -28.890), (2.432, -29.302),
+    (0.794, -29.387), (-2.484, -29.298), (-5.666, -28.878), (-7.336, -28.522), (-10.415, -27.610),
+    (-13.745, -26.222), (-14.048, -26.264), (-14.360, -26.576), (-17.035, -25.060), (-19.121, -23.620),
+]
+
 # Free height above each face (from the housing, lens frame Z):
 #   front (lens side, Z < 19.3): down to Z 9.5 over the whole board (so
 #     9.8 mm), and to the LED ring at Z ~3.6 in a circle round the lens.
@@ -84,6 +97,13 @@ USB_V0 = -7.9                 # the board's edge at v = -7.9; the receptacle cen
 # (2.8 mm, F2.5, IR corrected, TTL 20.9): its front lands ~0.2 mm behind
 # the housing's front face (docs/housing.md has the stack).
 MODULE_W, MODULE_H = 25.0, 24.0            # SC3336 (B); its FFC connector edge towards +Y
+# the lens is not in the module's middle: Luckfox's drawing ("SC3336 3MP
+# Camera (B)", wiki.luckfox.com) puts the axis 8.4 from the far edge and
+# 15.6 from the connector edge (the holder holes, 18 apart, on the axis).
+# Its FFC connector is on the module's back, mouth at the edge, its 20
+# contacts centred on the axis, pin 1 at -X.
+MODULE_TO_FFC_EDGE = 15.6                  # lens axis to the module's connector edge (+Y)
+MODULE_TO_FAR_EDGE = 8.4                   # lens axis to the opposite edge (-Y)
 MODULE_SHIM = 1.0                          # gap between the module's sensor face and the board
 MODULE_PCB_T = 1.2
 WINDOW = (14.4, 14.4)                      # through the main board, centred on the lens axis

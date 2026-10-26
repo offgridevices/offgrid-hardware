@@ -386,10 +386,12 @@ def main_camera():
     #   1 GND, 2 MCLK, 3 GND, 4 D0P, 5 D0N, 6 GND, 7 CLKP, 8 CLKN, 9 GND,
     #   10 D1P, 11 D1N, 12 GND, 13 SCL, 14 SDA, 15 GND, 16 RESET, 17 GND,
     #   18 GND, 19 3.3 V, 20 3.3 V
-    # The module's connector and ours face each other across the module's
-    # edge, so a straight cable lands module pin k on our pin 21 - k:
-    # CAM_PIN_FLIP.  layout.py places the connector that way and
-    # verify.py checks every contact against the module's, by position.
+    # A flat cable keeps its conductors in order across its width, so a
+    # contact meets the one at the same x.  Seen from behind the board,
+    # the module's pin 1 is at -x (Luckfox's drawing, bottom view, turned
+    # over) and so is J2's, both rows centred on the lens axis: pin k
+    # meets pin k (CAM_PIN_FLIP False), with a same-side or opposite-side
+    # cable alike (J2 is dual-contact).  verify.py checks it by position.
     module = {1: GND, 2: 'CAM_MCLK', 3: GND, 4: 'CSI_D0P', 5: 'CSI_D0N', 6: GND, 7: 'CSI_CKP', 8: 'CSI_CKN',
               9: GND, 10: 'CSI_D1P', 11: 'CSI_D1N', 12: GND, 13: 'CAM_SCL', 14: 'CAM_SDA', 15: GND,
               16: 'CAM_RST', 17: GND, 18: GND, 19: 'VCC_3V3', 20: 'VCC_3V3'}
@@ -477,7 +479,7 @@ def usb():
     add('J', 'SH6R', dict(USB_CABLE, **{'7': GND, '8': GND}), B, 'cable', ref='J2')
 
 
-# the camera FFC: True when the two connectors face each other (layout.py)
+# the camera FFC: True if the cable crossed module pin k to our pin 21 - k
 CAM_PIN_FLIP = False
 
 

@@ -138,4 +138,4 @@ The USB board's pair is about 14 mm long (receptacle at y 4, cable connector at 
 - **USB board 0.20 / 0.15 mm: 101.9 ohm.** A 2-layer 1.2 mm board cannot put a plane close under the pair; the side fill sets the impedance. 0.25 / 0.127 mm with the fill where it is gives 91.4 ohm. The run (about 14 mm) is electrically short for USB 2.0 and the SH cable after it is uncontrolled anyway: WARN, not FAIL.
 - USB layer change on the main board (pairs.py: F to B and back): no ground via beside the signal vias (stitching keeps 1.2 mm off every via). Add one ground via within about 1 mm of each transition so the return current can move between In1 and In4.
 
-**every check passes**
+**no FAIL, 3 WARN**

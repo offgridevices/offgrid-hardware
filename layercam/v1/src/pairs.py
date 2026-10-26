@@ -37,8 +37,8 @@ U1_Y = 13.34                           # the SoC's top row
 LEFT_Y = (12.55, 11.8, 11.05)          # the run left above the SoC
 UP_X = (-11.95, -11.2, -10.45)         # the run up, outside the holder screw H5
 TOP_Y = (-12.05, -11.3, -10.55)        # the run right, below the NAND U5
-J2_X = (-2.0, -0.5, 1.0)               # centre of each lane's two J2 pads
-J2_Y, J2_END = -19.2, -18.0            # J2's pads; where the lanes split for them
+J2_X = (-3.0, -1.5, 0.0)               # centre of each lane's two J2 pads
+J2_Y, J2_END = -22.8, -21.6            # J2's pads; where the lanes split for them
 
 # USB: J1's pads 3 (D-) and 4 (D+), the SoC's 26 (D-) and 27 (D+)
 USB_F1 = [(-16.4, -2.0), (-13.75, -2.0), (-13.75, 13.1)]

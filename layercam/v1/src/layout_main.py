@@ -30,9 +30,12 @@ F, B = 'F', 'B'
 FIXED = {
     # F, the back face
     'U1': (0.0, 19.4, 0, F),          # RV1106G3: MIPI (top row, left) towards the camera FFC
-    'J2': (1.0, -17.2, 0, F),         # camera FFC; opening towards +y (the module's connector)
+    # camera FFC: opening towards +y, 2.3 mm short of the module's edge (the
+    # cable drops 2.3 mm from the module's connector to this one); centred
+    # on the lens axis like the module's, so pin k is in line with pin k
+    'J2': (0.0, -20.8, 0, F),
     'J1': (-16.4, -2.0, 90, F),       # USB cable from the USB board (on the case's -X side)
-    'U5': (-13.9, -15.6, 0, F),       # SPI NAND, top left (the bottom band is full)
+    'U5': (-15.8, -11.3, 90, F),      # SPI NAND, left of the camera module, above J1
     # the power stage in the strip right of the camera module
     'U3': (15.7, 0.6, 90, F),         # triple buck
     'L2': (15.9, -4.2, 0, F),         # 3.3 V
@@ -40,7 +43,7 @@ FIXED = {
     'L4': (15.9, 8.6, 0, F),          # 1.8 V
     'U2': (-9.4, 25.2, 90, F),         # 0.9 V buck, below-left of the SoC
     'L1': (-12.0, 21.6, 270, F),   # switch end next to U2's SW pin
-    'U4': (12.0, -16.6, 0, F),        # Wi-Fi 3.3 V buck, top right (the module is on B above it)
+    'U4': (11.8, -18.3, 0, F),        # Wi-Fi buck, top right, clear of the camera module
     'L5': (16.0, -14.4, 90, F),
     'Y1': (9.6, 22.2, 90, F),         # 24 MHz at the SoC's OSC pins (68/69, right side)
     'SW1': (10.0, 24.9, 180, F),      # side button at the round edge, under Prusa's printed key
@@ -169,8 +172,10 @@ def keepouts(side):
     ww, wh = G.WINDOW
     out.append((box(-ww / 2, -wh / 2, ww / 2, wh / 2).buffer(0.3), 0))
     if side == F:
-        mw, mh = G.MODULE_W / 2 + 0.15, G.MODULE_H / 2 + 0.15
-        out.append((box(-mw, -mh, mw, mh), G.UNDER_MODULE_MAX_H))
+        mw = G.MODULE_W / 2 + 0.15
+        # board y = -Y: the connector edge is at -y
+        out.append((box(-mw, -G.MODULE_TO_FFC_EDGE - 0.15, mw, G.MODULE_TO_FAR_EDGE + 0.15),
+                    G.UNDER_MODULE_MAX_H))
         for x, y in G.HOLDER_SCREWS:
             out.append((Point(x, -y).buffer(1.95), 0))     # the nylon washers
     else:
