@@ -173,7 +173,7 @@ def main_soc():
         '19': 'VCC_RTC',        # RTC_AVDD3V3: 3.3 V through 100R, 1 uF
         '20': 'RTC_XOUT', '21': 'RTC_XIN',
         '22': 'ALS',            # SARADC_IN1: the ring's light sensor, 0-1.8 V
-        '23': 'BOOT_KEY',       # SARADC_IN0: the button (MaskROM at power-up, a user key after)
+        '23': 'BOOT_KEY',       # SARADC_IN0: the BOOT pad (MaskROM at power-up)
         '24': 'VCC_1V8_ADC',    # SARADC_USB_AVDD1V8: 1R + 100 nF
         '25': 'USB_VBUSDET', '26': 'USB_DM', '27': 'USB_DP',
         '28': 'VCC_3V3',        # USB_AVDD3V3
@@ -289,14 +289,17 @@ def main_soc():
     res('R1K', 'NPOR', 'VCC_3V3', B, 'nPOR pull-up')
     cap('C10N', 'NPOR', GND, B, 'nPOR delay')
 
-    # the button: SARADC_IN0, 10k up to 1.8 V, 1 nF, 100R to the switch.
-    # Held while the camera powers up: MaskROM (flashing over USB).  After
-    # boot: the setup key (firmware/README.md).  The switch sits at the
-    # housing's round edge, under Prusa's printed flex key.
-    res('R10K', 'BOOT_KEY', 'VCC_1V8', B, 'button pull-up')
-    cap('C1N', 'BOOT_KEY', GND, B, 'button filter')
-    res('R100R', 'BOOT_KEY', 'BOOT_SW', B, 'button series R')
-    add('SW', 'BTN_SIDE', {'1': 'BOOT_SW', '2': GND, '3': None, '4': None}, B, 'button', ref='SW1')
+    # MaskROM: SARADC_IN0 held low while the camera powers up makes the
+    # SoC wait for flashing over USB.  No button (a switch's plastic is
+    # rated 70-85 C; this one would sit at 90 C): two pads, BOOT and
+    # ground side by side, bridged with tweezers while plugging in, only to
+    # recover a camera whose flash is empty or broken.  Everyday updates
+    # and Wi-Fi setup need no key (firmware/README.md).  10k up to 1.8 V,
+    # 1 nF, 100R to the pad.
+    res('R10K', 'BOOT_KEY', 'VCC_1V8', B, 'boot pull-up')
+    cap('C1N', 'BOOT_KEY', GND, B, 'boot filter')
+    res('R100R', 'BOOT_KEY', 'BOOT_SW', B, 'boot pad series R')
+    add('TP', 'TP', {'1': 'BOOT_SW'}, B, 'boot pad', ref='TP5')
 
     # status LED, 3.3 V GPIO, 1k (1.3 mA: plenty for an indicator)
     res('R1K', 'LED_STATUS', 'LED_STATUS_A', B, 'status LED R')

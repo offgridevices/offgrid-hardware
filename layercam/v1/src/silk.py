@@ -4,7 +4,7 @@ brand faces (brand.py): words in Instrument Sans 500, numbers and codes in
 JetBrains Mono 500.  White silk.
 
   main  F (back, under the lid's vents): "LayerCam" and the revision,
-        the lockup, the button and the test pads, the licence.
+        the lockup, the test pads, the licence.
         B (front): the connectors' names.
   ring  B: the name and revision (F rests on the housing).
   usb   B (the face away from the parts): the lockup, the name and the
@@ -89,9 +89,7 @@ def draw(b):
     if bd == 'main':
         import geometry as G
         top = Placer(b, 'T')
-        x, y = pcb.xy(b.FindFootprintByReference('SW1').GetPosition())
-        top.put(text('sans', 'Setup', 0.9), x - 3.6, y - 2.4)
-        for ref, label in (('TP1', 'TX'), ('TP2', 'RX'), ('TP3', 'G'), ('TP4', '5V')):
+        for ref, label in (('TP1', 'TX'), ('TP2', 'RX'), ('TP3', 'G'), ('TP4', '5V'), ('TP5', 'BOOT')):
             x, y = pcb.xy(b.FindFootprintByReference(ref).GetPosition())
             top.put(text('mono', label, 0.7), x, y - 1.4, search=2.0, must=False)
         top.put(brand.line([('sans', NAME), ('mono', REV)], 1.3)[0], 0.0, 23.2, search=5.0)

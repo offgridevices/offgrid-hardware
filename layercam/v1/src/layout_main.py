@@ -46,9 +46,11 @@ FIXED = {
     'U4': (11.8, -18.3, 0, F),        # Wi-Fi buck, top right, clear of the camera module
     'L5': (16.0, -14.4, 90, F),
     'Y1': (9.6, 22.2, 90, F),         # 24 MHz at the SoC's OSC pins (68/69, right side)
-    'SW1': (10.0, 24.9, 180, F),      # side button at the round edge, under Prusa's printed key
     'LED1': (8.8, 14.0, 0, F),        # status, in the lid's vent window
-    'TP1': (3.4, 27.6, 0, F), 'TP2': (5.4, 27.4, 0, F), 'TP3': (1.4, 27.7, 0, F), 'TP4': (-1.6, 27.7, 0, F),
+    # test pads along the round edge: 5V, then the console's TX RX G for
+    # a 3.3 V USB-serial lead, then BOOT beside G for tweezers (away from 5V)
+    'TP4': (-1.6, 27.7, 0, F), 'TP1': (1.4, 27.7, 0, F), 'TP2': (3.4, 27.6, 0, F), 'TP3': (5.4, 27.4, 0, F),
+    'TP5': (7.4, 27.0, 0, F),
     # B, the front face
     'U6': (0.0, -16.4, 0, B),         # AP6256 between the lens holder and the top edge (in the tab)
     'Y3': (9.6, -12.6, 90, B),        # 37.4 MHz
@@ -95,7 +97,7 @@ ANCHOR = {
     '24 MHz drive R': ('U1', '69'), '24 MHz load': ('Y1', '*'), '24 MHz bias': ('Y1', '1'),
     'RTC load': ('Y2', '*'),
     'nPOR pull-up': ('U1', '66'), 'nPOR delay': ('U1', '66'),
-    'button pull-up': ('U1', '23'), 'button filter': ('U1', '23'), 'button series R': ('SW1', '1'),
+    'boot pull-up': ('U1', '23'), 'boot filter': ('U1', '23'), 'boot pad series R': ('TP5', '1'),
     'status LED R': ('LED1', '2'),
     'NAND clock series R': ('U1', '48'), 'NAND /WP pull-up': ('U5', '3'), 'NAND /HOLD pull-up': ('U5', '7'),
     'NAND decoupling': ('U5', '8'),

@@ -86,8 +86,6 @@ PARTS = {
                  maker='Molex', kind='J', desc='PicoBlade 1.25 mm 2 pin, right angle, SMD, -40..105 degC'),
     'UFL': dict(fp='lc:RF-SMD_FRF05002-JSS103M', lcsc='C88374', mpn='U.FL-R-SMT-1(80)', value='U.FL',
                 maker='Hirose', kind='J', desc='U.FL coaxial receptacle (Wi-Fi antenna), -40..90 degC'),
-    'BTN_SIDE': dict(fp='lc:SW-SMD_2P-TS24CA', lcsc='C393942', mpn='TS24CA', value='button', maker='XKB',
-                     kind='SW', desc='Tactile switch, side push, 4.6 x 1.8 mm (rated -20..70 degC)'),
     'USBC': dict(fp='lc:USB-C_SMD-TYPE-C-31-M-12_1', lcsc='C165948', mpn='TYPE-C-31-M-12', value='USB-C',
                  maker='Korean Hroparts', kind='J', desc='USB-C receptacle, USB 2.0, 16 contacts (rated -30..80 degC)'),
     'USBLC6': dict(fp='lc:SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL', lcsc='C7519', mpn='USBLC6-2SC6', value='USBLC6-2SC6',
