@@ -40,6 +40,15 @@ class Pins(unittest.TestCase):
         swapped = self.circuit.replace("'IRCUT_A',        # GPIO1_A0", "'IRCUT_A',        # GPIO1_A1")
         self.assertNotEqual(swapped, self.circuit)
         self.assertTrue(problems(swapped, self.dts))
+        # a button back on the BOOT pad, the evb's ADC keys back, the USB port made a host
+        tp = "add('TP', 'TP', {'1': 'BOOT_SW'}, B, 'boot pad', ref='TP5')"
+        self.assertIn(tp, self.circuit)
+        button = self.circuit.replace(tp, "add('SW', 'TS24CA', {'1': 'BOOT_SW', '2': GND}, B, 'button', ref='SW1')")
+        self.assertEqual(len(problems(button, self.dts)), 2)
+        keys = self.dts.replace('/delete-node/ adc-keys;', '')
+        host = self.dts.replace('dr_mode = "peripheral"', 'dr_mode = "host"')
+        self.assertEqual(len(problems(self.circuit, keys)), 1)
+        self.assertEqual(len(problems(self.circuit, host)), 1)
 
     def test_board_build_entry(self):
         """src/check_firmware.run, as src/verify.py calls it."""

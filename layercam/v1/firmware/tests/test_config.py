@@ -87,6 +87,41 @@ class T(unittest.TestCase):
         with self.assertRaises(Exception):
             config.load(p)
 
+    def test_lenient_load_never_stops_the_camera(self):
+        """The service loads leniently: a typo, a bad value, a newer version's
+        setting (after a rollback) or a broken file must not crash-loop it."""
+        d = tempfile.mkdtemp()
+        p = os.path.join(d, 'layercam.ini')
+        c = good()
+        c.path = p
+        c.save()
+        with open(p, 'a') as f:
+            f.write('\n[future]\nnew_thing = 3\n[connect]\ntypo_key = 1\n')
+        with open(p) as f:
+            text = f.read().replace('interval = 30', 'interval = often')
+        with open(p, 'w') as f:
+            f.write(text)
+        with self.assertRaises(config.ConfigError):
+            config.load(p)                                         # strict (--check, tests) still says no
+        lc = config.load(p, strict=False)
+        self.assertEqual(lc.get('connect', 'interval'), 30)        # default kept
+        self.assertEqual(lc.get('wifi', 'ssid'), 'Workshop')       # the rest still read
+        errs = lc.errors()
+        self.assertTrue(any('connect.interval' in e and 'default 30 used' in e for e in errs), errs)
+        self.assertTrue(any('unknown setting future.new_thing' in e for e in errs), errs)
+        new, form_errs = web.apply_form(lc, {'connect.interval': '60'})
+        self.assertEqual(form_errs, [])                            # the page can still save
+        new.save()
+        again = config.load(p, strict=False)
+        self.assertEqual(again.get('connect', 'interval'), 60)
+        self.assertEqual(again.extra, {('future', 'new_thing'): '3', ('connect', 'typo_key'): '1'})
+        with open(p, 'w') as f:
+            f.write('[wifi\nssid = x\n\x00')
+        broken = config.load(p, strict=False)
+        self.assertEqual(broken.get('wifi', 'ssid'), '')           # defaults: the setup access point opens
+        self.assertTrue(os.path.exists(p + '.bad'))
+        self.assertTrue(any('could not be read' in e for e in broken.errors()))
+
     def test_resolution_reaches_the_helper(self):
         from layercam import capture
         c = config.Config()
