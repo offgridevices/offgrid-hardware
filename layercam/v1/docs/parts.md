@@ -11,7 +11,7 @@ ordering.
 
 ## Chosen for the chamber's heat
 
-Every part runs at 75-90 °C in a 65 °C chamber (`sim/thermal.md`), so
+Every part runs at 75-90 °C in a hot chamber (`sim/thermal.md`), so
 parts were picked for their temperature rating, not only their price:
 
 | Was | Now | Why |
@@ -89,8 +89,8 @@ is in `src/parts.py` and the BOMs.
 | Lens | Towin CCL127028MPR: M12, 2.8 mm, F2.5, IR corrected, about 137° diagonal | Towin (quote by email) |
 | IR-cut filter | CLA219 IR-cut holder for M12 lenses, 20 Ω coil on a 2-pin lead | Commonlands. The lead's plug is assumed to be a Molex PicoBlade (1.25 mm, J3): check it on the part in hand |
 | Camera cable | 20-way 0.5 mm FFC, 0.3 mm thick, about 15 mm, same-side contacts (opposite-side also works), not twisted | short lengths are often custom |
-| Heat block | black-anodised 6061 aluminium, `mechanical/heat-plate/` | PCBWay CNC |
-| Gap pads | t-Global TG-A6200, 1.5 mm (SoC) and 0.5 mm (lid) | Digi-Key |
+| SoC heatsink | 14 x 14 mm, 10 mm tall at most, aluminium (black better), with thermal tape | any Raspberry Pi heatsink kit; LCSC C286230 (XSD1690-058) |
+| (optional, for a 65 °C chamber) heat block | black-anodised 6061 aluminium and two TG-A6200 gap pads, `mechanical/heat-plate/` | PCBWay CNC, Digi-Key |
 | Wi-Fi antenna | 2.4 / 5 GHz flex antenna on a U.FL pigtail, about 100 mm | any |
 | Cables | two 6-way JST SH (1.0 mm) cables, about 60 mm | JST SH pre-crimped |
 | Screws | 4 x M2 self-tapping (board to case), 2 x M1.6 x 8 (holder and module), 2 nylon M1.6 x 1.0 washers | any |

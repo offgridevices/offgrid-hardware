@@ -189,6 +189,9 @@ def keepouts(side):
                     G.UNDER_MODULE_MAX_H))
         for x, y in G.HOLDER_SCREWS:
             out.append((Point(x, -y).buffer(1.95), 0))     # the nylon washers
+        hx, hy = G.HEATSINK_C
+        h = G.HEATSINK_SIZE / 2 + 0.2
+        out.append((box(hx - h, hy - h, hx + h, hy + h), G.UNDER_HEATSINK_MAX_H))
     else:
         x0, y0, x1, y1 = G.HOLDER_BOX
         out.append((box(x0, -y1, x1, -y0), 0))

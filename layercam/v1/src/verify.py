@@ -116,6 +116,15 @@ def heights():
         if placer.courtyard(fp, 'F').intersects(zone) and L.height(comps[fp.GetReference()].part) > G.UNDER_MODULE_MAX_H:
             bad.append(fp.GetReference())
     check(not bad, 'back face under the camera module: every part %.1f mm or lower %s' % (G.UNDER_MODULE_MAX_H, bad or ''))
+    hx, hy = G.HEATSINK_C
+    h = G.HEATSINK_SIZE / 2
+    from shapely.geometry import box
+    hs = box(hx - h, hy - h, hx + h, hy + h)
+    bad = [fp.GetReference() for fp in b.GetFootprints()
+           if not fp.IsFlipped() and fp.GetReference() not in ('U1',) and not fp.GetReference().startswith('H')
+           and placer.courtyard(fp, 'F').intersects(hs)
+           and L.height(comps[fp.GetReference()].part) > G.UNDER_HEATSINK_MAX_H]
+    check(not bad, 'back face under the SoC heatsink: every part %.1f mm or lower %s' % (G.UNDER_HEATSINK_MAX_H, bad or ''))
 
 
 def firmware():

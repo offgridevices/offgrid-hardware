@@ -113,6 +113,17 @@ HOLDER_BOX = (-10.6, -9.8, 10.6, 9.8)      # CLA219 body and ears on the front f
 # parts on the back face under the module must clear the 1.0 mm shim
 UNDER_MODULE_MAX_H = 0.6
 
+# ---------------------------------------------------------------- SoC heatsink
+# A stock 14 x 14 x 10 mm aluminium heatsink on thermal tape, stuck on the
+# RV1106 (back face).  The case's rounded end leaves 10 mm only from here:
+# centred at board (0, 15.9) it covers 9.65 mm of the 12.3 mm package and
+# overhangs its -y edge by 4.3 mm (mechanical/heat-plate/README.md).  Its
+# base sits on the package (0.85 mm) and the tape (0.25 mm): parts under
+# the overhang 0.9 mm or lower.
+HEATSINK_C = (0.0, 15.9)                   # board coordinates
+HEATSINK_SIZE = 14.0
+UNDER_HEATSINK_MAX_H = 0.9
+
 # ---------------------------------------------------------------- LED ring board
 RING_OUT_R = 16.5
 RING_IN_R = 9.55                           # the housing's collar is R 9.3

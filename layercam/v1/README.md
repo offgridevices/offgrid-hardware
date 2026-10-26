@@ -7,7 +7,7 @@ parked, makes the timelapse into an MP4 on the camera, and uploads it to a
 NAS or S3.
 
 Three boards in the case (main, LED ring, USB-C), a camera module and lens
-bought separately, and an aluminium heat block. Fab and assembly: PCBWay.
+bought separately, and a stick-on heatsink. Fab and assembly: PCBWay.
 
 **Status: designed, every check and simulation run; not yet built.**
 Nothing here has been made or powered.
@@ -23,7 +23,7 @@ Nothing here has been made or powered.
 | Requirement | Met? | How it is checked |
 |---|---|---|
 | Fit Prusa's Buddy3D case for the CORE One, case unchanged | **Yes, on paper.** The outlines come from Prusa's files, 0.5 mm clear | `src/verify.py` checks the main board is inside the measured pocket; `docs/housing.md`. Not yet tried in a printed case |
-| Survive a 65 °C chamber | **Yes, in snapshot mode with the heat block, by 0.7 K.** The model is good to about ±10 K | `sim/thermal.md`. A 65 °C oven test of the first board decides. Live video is limited to chambers under about 42 °C |
+| Survive a 65 °C chamber | **No: rated for 63 °C.** With the stock heatsink, snapshot mode keeps every part in rating up to a 63 °C chamber; the optional CNC block (`mechanical/heat-plate/`) reaches 65.7 °C. The model is good to about ±10 K | `sim/thermal.md`. An oven test of the first board decides. Live video is limited to cooler chambers (see Limits) |
 | 1080p, wide angle | **Yes.** 3 MP sensor (2304 x 1296); timelapse at 1920 x 1080 by default; 2.8 mm lens, about 137° diagonal | the lens's fit and focus are untested |
 | Night vision like the Buddy3D: IR LEDs, light sensor, day/night filter | **Yes.** Six 850 nm LEDs, a light sensor, an IR-cut filter | `sim/power.md` (LED currents) |
 | USB-C for power only; Wi-Fi | **Yes.** USB-C also flashes the firmware; Wi-Fi 5 (2.4 / 5 GHz) | |
@@ -71,8 +71,7 @@ grooves take 1.2 mm), parts on one side.
 
 **Bought separately** (`docs/parts.md`): the camera module, the lens, the
 IR-cut holder, the camera's flat cable, the Wi-Fi antenna, two 6-way JST SH
-cables, the heat block (PCBWay CNC, `mechanical/heat-plate/`) and its two
-gap pads, screws.
+cables, a 14 x 14 x 10 mm stick-on heatsink, screws.
 
 ## How to build one
 
@@ -88,8 +87,10 @@ gap pads, screws.
 4. Fit the LED ring in the front of the case and its cable to J4. Slide the
    USB-C board into its grooves and connect its cable to J1. Plug the
    antenna onto J5 and stick the antenna inside the case.
-5. Put the 1.5 mm gap pad on the SoC, the heat block on it, and the 0.5 mm
-   pad on the block's flange. Close the lid.
+5. Clean the SoC's top (the large chip on the back face) with alcohol and
+   press the heatsink on for 10 s, centred 3.5 mm towards the cable
+   socket J2 from the chip's middle (`mechanical/heat-plate/README.md`).
+   Close the lid.
 
 ## How to bring it up
 
@@ -109,11 +110,13 @@ Full steps in [`firmware/README.md`](firmware/README.md).
 ## Limits
 
 - **Not built.** Every result below is a design check or a simulation.
-- **65 °C is marginal.** With the heat block, snapshot mode keeps every
-  part in rating up to a 65.7 °C chamber in the model, which is good to
-  about ±10 K. The firmware's thermal governor slows the camera down and
-  then stops it before anything overheats. Live view is refused above a
-  board temperature of 85 °C (a chamber over about 42 °C).
+- **Rated for a 63 °C chamber, not 65 °C.** The case is sealed plastic;
+  with the stock heatsink, snapshot mode keeps every part in rating up to
+  63 °C in the model, which is good to about ±10 K. For 65 °C, fit the
+  optional CNC aluminium block instead (65.7 °C, `mechanical/heat-plate/`).
+  The firmware's thermal governor slows the camera down and then stops it
+  before anything overheats, and refuses live view when the board is hot
+  (thresholds in `sim/thermal.md`).
 - **The Wi-Fi module and the sensor run above 75 °C** in a 65 °C chamber,
   where the module's full radio performance and the sensor's best image
   quality end: expect some range and noise loss in a hot chamber.
@@ -123,8 +126,6 @@ Full steps in [`firmware/README.md`](firmware/README.md).
 - **The lens and the IR-cut holder's fit**, the focus, and the flat cable's
   bend are untested. The lens is a quoted part from Towin. The IR-cut
   holder's plug type is assumed (PicoBlade).
-- **The case's lid tolerance** sets the heat block's column height: measure
-  a printed case first (`mechanical/heat-plate/README.md`).
 - **The 37.4 MHz Wi-Fi crystal's load** follows the reference designs: measure
   its frequency on the first boards.
 - **USB IDs are a placeholder**, and the USB console needs a real

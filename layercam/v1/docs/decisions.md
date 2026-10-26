@@ -96,9 +96,15 @@ takes one frame per layer. So by default:
 A thermal governor slows down and then stops the camera before anything
 overheats.
 
-An aluminium plate presses on the SoC through a gap pad and lies in the
-lid's vent window, so the SoC's heat reaches the chamber air
-(`mechanical/heat-plate/`).
+A stock 14 x 14 x 10 mm heatsink on thermal tape sits on the SoC. That
+is the tallest that fits under the case's rounded end, so it rates the
+camera for a 63 °C chamber.
+
+A stuck-on heatsink only moves heat into the air trapped in the case. The
+case wall is the real limit. A CNC aluminium block that reaches the lid's
+vent slots gets past that wall and reaches 65.7 °C. It is designed
+(`mechanical/heat-plate/`) but optional: the user chose the part anyone
+can buy.
 
 Live view (a local preview) is allowed only while the board is cool.
 
