@@ -6,7 +6,8 @@ from layercam import config, web
 
 def good():
     return config.Config({('device', 'fingerprint'): 'a' * 32, ('connect', 'token'): 'T0nSPU2v05v0pJeKYFYV',
-                          ('wifi', 'ssid'): 'Workshop', ('wifi', 'password'): 'correct horse'})
+                          ('wifi', 'ssid'): 'Workshop', ('wifi', 'password'): 'correct horse',
+                          ('web', 'password'): 'page password'})
 
 
 class T(unittest.TestCase):

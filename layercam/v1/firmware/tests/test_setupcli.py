@@ -216,3 +216,99 @@ class Console(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def ssh_blob(*fields):
+    return b''.join(len(x).to_bytes(4, 'big') + x for x in fields)
+
+
+def ed25519_line(seed=b'\x07' * 32, comment='me@laptop'):
+    from layercam import ed25519
+    import base64
+    blob = ssh_blob(b'ssh-ed25519', ed25519.public_key(seed))
+    return 'ssh-ed25519 %s %s' % (base64.b64encode(blob).decode(), comment), blob
+
+
+class Ssh(unittest.TestCase):
+    """SSH is off until turned on here, with a key; off deletes the keys."""
+
+    def setUp(self):
+        d = tempfile.mkdtemp()
+        self.path = os.path.join(d, 'layercam.ini')
+        config.Config(path=self.path).save()
+        self.calls = []
+        self.env = setupcli.Env(self.path, root=os.path.join(d, 'root'),
+                                sshd=lambda action: self.calls.append(action) or True)
+        self.keys = os.path.join(d, 'ssh', 'authorized_keys')
+
+    def cli(self, line):
+        import shlex
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = setupcli.main(shlex.split(line), self.env)
+        return code, out.getvalue()
+
+    def test_off_by_default(self):
+        self.assertEqual(self.cli('ssh'), (0, 'ssh           off\n'))
+        self.assertIn('ssh           off', self.cli('status')[1])
+
+    def test_on_and_off(self):
+        line, blob = ed25519_line()
+        code, out = self.cli('ssh on ' + line)                  # pasted unquoted: three words
+        self.assertEqual(code, 0, out)
+        self.assertIn(setupcli.fingerprint(blob), out)
+        self.assertIn('ssh           on (keys only)', out)
+        self.assertEqual(self.calls, ['restart'])
+        self.assertEqual(os.stat(self.keys).st_mode & 0o777, 0o600)
+        self.assertEqual(os.stat(os.path.dirname(self.keys)).st_mode & 0o777, 0o700)
+        with open(self.keys) as f:
+            self.assertEqual(f.read(), line + '\n')
+        self.cli('ssh on ' + line)                               # the same key twice: once in the file
+        other, _ = ed25519_line(b'\x08' * 32, 'phone')
+        self.cli('ssh on "%s"' % other)
+        with open(self.keys) as f:
+            self.assertEqual(f.read().splitlines(), [line, other])
+        code, out = self.cli('ssh off')
+        self.assertEqual(code, 0)
+        self.assertFalse(os.path.exists(self.keys))
+        self.assertEqual(self.calls[-1], 'stop')
+        self.assertEqual(self.cli('ssh status')[1], 'ssh           off\n')
+
+    def test_refused_keys(self):
+        import base64
+        line, blob = ed25519_line()
+        rsa_1024 = 'ssh-rsa ' + base64.b64encode(ssh_blob(b'ssh-rsa', b'\x01\x00\x01', b'\x00' + b'\xff' * 128)).decode()
+        rsa_3072 = 'ssh-rsa ' + base64.b64encode(ssh_blob(b'ssh-rsa', b'\x01\x00\x01', b'\x00' + b'\xff' * 384)).decode()
+        wrong_type = 'ssh-rsa ' + line.split()[1]
+        bad = {
+            'ssh on': 'paste the line',
+            'ssh on -----BEGIN OPENSSH PRIVATE KEY----- abc': 'private key',
+            'ssh on command="/bin/sh" ' + line: 'paste a public key',
+            'ssh on ssh-ed25519 notbase64!!': 'damaged',
+            'ssh on ' + wrong_type: 'damaged',
+            'ssh on ' + rsa_1024: '2048 bits',
+            'ssh off ' + line: 'only goes with',
+            'ssh maybe': 'invalid choice',
+        }
+        for cmd, why in bad.items():
+            code, out = self.cli(cmd)
+            self.assertNotEqual(code, 0, cmd)
+            self.assertIn(why, out, cmd)
+        self.assertEqual(self.calls, [])
+        self.assertFalse(os.path.exists(self.keys))
+        self.assertEqual(self.cli('ssh on ' + rsa_3072)[0], 0)
+        self.cli("ssh on %s 'evil\"; rm -rf /'" % line)        # a comment cannot carry anything
+        with open(self.keys) as f:
+            self.assertTrue(all(set(ln) <= set('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/=@._- ')
+                                for ln in f.read().splitlines()))
+
+    def test_fingerprint_as_ssh_keygen(self):
+        import shutil, subprocess
+        if not shutil.which('ssh-keygen'):
+            self.skipTest('no ssh-keygen')
+        line, blob = ed25519_line()
+        p = os.path.join(tempfile.mkdtemp(), 'k.pub')
+        with open(p, 'w') as f:
+            f.write(line + '\n')
+        out = subprocess.run(['ssh-keygen', '-lf', p], capture_output=True, text=True).stdout
+        self.assertIn(setupcli.fingerprint(blob), out)

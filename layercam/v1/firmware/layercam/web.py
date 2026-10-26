@@ -15,9 +15,12 @@
                            installed, and the camera restarts into it on trial (update.py)
     GET  /videos/          the recordings kept on the camera; /videos/<folder>.mp4 streams one
 
-With web.password set, everything asks for it (HTTP Basic, user "admin").
-On the setup access point it is open until a password is set, so the first
-setup needs nothing but a phone.
+Everything asks for web.password (HTTP Basic, user "admin"); a wrong one
+costs a second.  Until one is set the page answers only on the setup access
+point (WPA2 with the camera's own passphrase) and on the camera itself
+(127.0.0.1), so the first setup needs nothing but a phone, and the page is
+never open on the home network: saving a network from the page needs a
+password too.  A forgotten one is set again on the USB console.
 """
 import base64, hmac, json, logging, os, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -78,6 +81,12 @@ load(); status(); ver(); setInterval(status,3000);
 </script></body></html>"""
 
 
+SETUP_NET = '192.168.4.'          # net.AP_ADDRESS's /24: phones on the setup access point
+NO_PASSWORD = ('This camera has no page password yet, so its page answers only on its setup access point.\n'
+               'Set one there (web.password), or plug the camera into a computer and type on its USB console:\n'
+               '    set web.password "your password"\n')
+
+
 def apply_form(cfg, form):
     """Copy submitted fields into a copy of cfg.  -> (new Config, errors)."""
     new = config_mod.Config(path=cfg.path)
@@ -97,6 +106,9 @@ def apply_form(cfg, form):
             new.set(s, k, value)
         except config_mod.ConfigError as e:
             errors.append(str(e))
+    if new.get('wifi', 'ssid') and not new.get('web', 'password'):
+        errors.append('web.password: set a page password first; once the camera is on your network '
+                      'the page is reachable there')
     return new, errors + new.errors()
 
 
@@ -107,18 +119,29 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *a):
         log.debug(fmt, *a)
 
+    def _open_without_password(self):
+        """No web.password yet: only the setup access point and the camera itself."""
+        ip = self.client_address[0]
+        if ip.startswith('127.') or ip == '::1':
+            return True
+        return bool(getattr(self.app, 'setup_ap', False)) and ip.startswith(SETUP_NET)
+
     def _authorised(self):
         pw = self.app.cfg.get('web', 'password')
         if not pw:
-            return True
+            if self._open_without_password():
+                return True
+            self._send(403, NO_PASSWORD.encode(), 'text/plain; charset=utf-8')
+            return False
         h = self.headers.get('Authorization', '')
         if h.startswith('Basic '):
             try:
                 user, _, given = base64.b64decode(h[6:]).decode().partition(':')
             except (ValueError, UnicodeDecodeError):
-                return False
+                user, given = '', ''
             if user == 'admin' and hmac.compare_digest(given.encode(), pw.encode()):
                 return True
+            time.sleep(1.0)          # slows guessing; each request has its own thread
         self.send_response(401)
         self.send_header('WWW-Authenticate', 'Basic realm="LayerCam"')
         self.send_header('Content-Length', '0')

@@ -161,5 +161,7 @@ throttle_led_duty = 50
 
 [web]
 port = 80
-# the setup page's password (user admin); empty = open to anyone on the network
+# the page's password (user admin), 8 characters or more.  Until one is set
+# the page answers only on the setup access point, and a network cannot be
+# saved from the page without it; the USB console can always set it.
 password =

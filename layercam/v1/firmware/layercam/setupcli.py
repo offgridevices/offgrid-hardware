@@ -16,6 +16,9 @@ macOS, a COM port on Windows; any baud rate).  Open it with a terminal
     set SECTION.KEY VALUE        checked like the setup page; empty "" clears
     update FILE [--allow-downgrade]   install a signed package already on the camera
     update --status | --factory  update state; or go back to the factory version
+    ssh on PUBLIC-KEY            turn SSH on for this key (paste the .pub line); keys only
+    ssh off                      SSH off, every key deleted, open sessions closed
+    ssh [status]                 on or off, the keys' and the camera's fingerprints
     reboot                       restart the camera
     reboot-loader                restart into the USB loader, for upgrade_tool /
                                  rkdeveloptool (a full image; no BOOT pads needed)
@@ -29,7 +32,7 @@ again with it.  The same program runs on the serial console pads.
 The init script runs it as `layercam-setup --serve /dev/ttyGS0`; it can
 also be run once with a command, e.g. `layercam-setup status`.
 """
-import argparse, contextlib, os, re, shlex, signal, subprocess, sys
+import argparse, base64, contextlib, hashlib, os, re, shlex, signal, subprocess, sys
 
 from . import HARDWARE, VERSION, config as config_mod, gesture, net, update
 
@@ -58,13 +61,17 @@ class Env:
     """Where things are, and the actions with effects outside the folder;
     the tests point it at a temporary folder and fakes."""
 
-    def __init__(self, config=CONFIG, root='', kill=os.kill, reboot=reboot_system, factory=update.FACTORY_DIR):
+    def __init__(self, config=CONFIG, root='', kill=os.kill, reboot=reboot_system, factory=update.FACTORY_DIR,
+                 sshd=None):
         self.config = config
         self.cfg_dir = os.path.dirname(os.path.abspath(config))
         self.root = root
         self.run_dir = root + net.RUN_DIR
         self.kill, self.reboot = kill, reboot
         self.apps = update.AppStore(os.path.join(self.cfg_dir, 'app'), factory)
+        self.ssh_dir = os.path.join(self.cfg_dir, 'ssh')
+        self.sshd = sshd or (lambda action: subprocess.call([root + '/etc/init.d/S50sshd', action],
+                                                            stdout=subprocess.DEVNULL) == 0)
 
     def service_pid(self):
         try:
@@ -92,6 +99,116 @@ class Refused(Exception):
     pass
 
 
+# ------------------------------------------------------------------ SSH (off unless turned on here)
+KEY_TYPES = ('ssh-ed25519', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521', 'ssh-rsa',
+             'sk-ssh-ed25519@openssh.com', 'sk-ecdsa-sha2-nistp256@openssh.com')
+
+
+def _ssh_string(blob, pos):
+    n = int.from_bytes(blob[pos:pos + 4], 'big')
+    if pos + 4 + n > len(blob):
+        raise ValueError('truncated')
+    return blob[pos + 4:pos + 4 + n], pos + 4 + n
+
+
+def fingerprint(blob):
+    """OpenSSH's SHA256 fingerprint of a key blob."""
+    return 'SHA256:' + base64.b64encode(hashlib.sha256(blob).digest()).decode().rstrip('=')
+
+
+def parse_public_key(text):
+    """One authorized_keys line from a pasted public key -> (line, fingerprint).
+    Only a bare key (no options such as command= or from=), of a known type,
+    whose base64 really is a key of that type; RSA from 2048 bits."""
+    if 'PRIVATE KEY' in text:
+        raise Refused('that is a private key: never paste it anywhere; paste the .pub file')
+    parts = text.split()
+    if len(parts) < 2 or parts[0] not in KEY_TYPES:
+        raise Refused('paste a public key, the one line of the .pub file: ssh-ed25519 AAAA... name')
+    try:
+        blob = base64.b64decode(parts[1], validate=True)
+        kind, pos = _ssh_string(blob, 0)
+        if kind.decode() != parts[0]:
+            raise ValueError('type')
+        if parts[0] == 'ssh-rsa':
+            _e, pos = _ssh_string(blob, pos)
+            n, pos = _ssh_string(blob, pos)
+            if int.from_bytes(n, 'big').bit_length() < 2048:
+                raise Refused('RSA keys shorter than 2048 bits are refused (ssh-ed25519 is best)')
+    except (ValueError, UnicodeDecodeError):
+        raise Refused('that key is damaged (copy the whole line again)')
+    comment = re.sub(r'[^A-Za-z0-9@._+-]', '', ' '.join(parts[2:]))[:64]
+    return ' '.join(p for p in (parts[0], parts[1], comment) if p), fingerprint(blob)
+
+
+def _read_keys(path):
+    try:
+        with open(path) as f:
+            return [ln.strip() for ln in f if ln.strip() and not ln.startswith('#')]
+    except OSError:
+        return []
+
+
+def _write_private(path, text):
+    tmp = path + '.tmp'
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w') as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def ssh_command(a, env):
+    d = env.ssh_dir
+    keys_path, flag = os.path.join(d, 'authorized_keys'), os.path.join(d, 'enabled')
+    if a.action == 'on':
+        if not a.key:
+            raise Refused('ssh on PUBLIC-KEY: paste the line of your .pub file after "ssh on"')
+        line, fp = parse_public_key(' '.join(a.key))
+        os.makedirs(d, mode=0o700, exist_ok=True)
+        os.chmod(d, 0o700)
+        keys = [k for k in _read_keys(keys_path) if k.split()[:2] != line.split()[:2]] + [line]
+        _write_private(keys_path, '\n'.join(keys) + '\n')
+        _write_private(flag, 'on\n')
+        ok = env.sshd('restart')
+        print('SSH on for key %s (%d key%s); passwords are never accepted%s'
+              % (fp, len(keys), '' if len(keys) == 1 else 's', '' if ok else ': but sshd did not start'))
+        ssh_status(env)
+        return
+    if a.action == 'off':
+        for p in (flag, keys_path):
+            try:
+                os.unlink(p)
+            except FileNotFoundError:
+                pass
+        env.sshd('stop')
+        print('SSH off: keys deleted, sshd stopped')
+        return
+    ssh_status(env)
+
+
+def ssh_enabled(env):
+    return os.path.exists(os.path.join(env.ssh_dir, 'enabled')) and bool(
+        _read_keys(os.path.join(env.ssh_dir, 'authorized_keys')))
+
+
+def ssh_status(env):
+    print('ssh           %s' % ('on (keys only)' if ssh_enabled(env) else 'off'))
+    if not ssh_enabled(env):
+        return
+    for k in _read_keys(os.path.join(env.ssh_dir, 'authorized_keys')):
+        p = k.split()
+        try:
+            print('  key         %s %s' % (fingerprint(base64.b64decode(p[1])), ' '.join(p[2:])))
+        except (ValueError, IndexError):
+            print('  key         (unreadable line)')
+    host = _read_keys(os.path.join(env.ssh_dir, 'ssh_host_ed25519_key.pub'))
+    if host:
+        print('  camera      %s (check this when ssh asks the first time)'
+              % fingerprint(base64.b64decode(host[0].split()[1])))
+
+
 class _Parser(argparse.ArgumentParser):
     """argparse that raises Refused instead of exiting: the console must keep running."""
 
@@ -116,6 +233,9 @@ def build_parser():
     w.add_argument('ssid')
     w.add_argument('password', nargs='?')
     w.add_argument('--open', action='store_true', help='a network without a password')
+    sh = cmd('ssh')
+    sh.add_argument('action', nargs='?', choices=['on', 'off', 'status'], default='status')
+    sh.add_argument('key', nargs='*')
     cmd('show').add_argument('section', nargs='?')
     cmd('get').add_argument('key')
     s = cmd('set')
@@ -134,11 +254,17 @@ HELP = __doc__.split('\n\n')[2].rstrip()
 
 def parse(argv):
     """-> argparse namespace; Refused (with argparse's message) on bad input."""
+    if argv[:2] == ['ssh', 'on']:
+        # whatever is pasted after "ssh on" is the key, even text starting with "-"
+        # (a private key's first line), which parse_public_key then refuses
+        return argparse.Namespace(cmd='ssh', action='on', key=argv[2:], config=None, serve=None)
     a = build_parser().parse_args(argv)
     if a.cmd == 'update' and sum((bool(a.file), a.status, a.factory)) != 1:
         raise Refused('update FILE, update --status or update --factory')
     if a.cmd == 'wifi' and not a.open and a.password is None:
         raise Refused('give the password: wifi SSID PASSWORD (or wifi SSID --open for a network without one)')
+    if a.cmd == 'ssh' and a.action != 'on' and a.key:
+        raise Refused('a key only goes with "ssh on"')
     if a.cmd == 'wifi' and a.open and a.password is not None:
         raise Refused('--open and a password: one or the other')
     if a.cmd in ('get', 'set') and not re.match(r'^[a-z_0-9]+\.[a-z_0-9]+$', a.key):
@@ -211,10 +337,16 @@ def run(a, env):
                                              else ' (not connected)')) if ssid else 'none saved: setup access point'))
         pid = env.service_pid()
         print('service       %s' % ('running (pid %d)' % pid if pid else 'not running'))
+        print('ssh           %s' % ('on (keys only)' if ssh_enabled(env) else 'off'))
+        if not cfg.get('web', 'password'):
+            print('problem       web.password is not set: the page answers only on the setup access point')
         if st['last']:
             print('update        %s' % st['last'])
         for e in cfg.errors():
             print('problem       %s' % e)
+        return
+    if c == 'ssh':
+        ssh_command(a, env)
         return
     if c == 'show':
         cfg = config_mod.load(env.config, strict=False)
@@ -237,6 +369,9 @@ def run(a, env):
         if len(a.ssid.encode()) > 32 or not a.ssid:
             raise Refused('a network name is 1-32 bytes')
         change(env, {('wifi', 'ssid'): a.ssid, ('wifi', 'password'): '' if a.open else a.password})
+        if not config_mod.load(env.config, strict=False).get('web', 'password'):
+            print('note: set web.password too (set web.password "..."): without it the page does not '
+                  'answer on your network')
         return
     if c == 'reset-wifi':
         gesture.FileStore(env.cfg_dir).request_reset()

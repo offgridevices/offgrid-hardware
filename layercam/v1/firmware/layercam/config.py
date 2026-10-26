@@ -109,7 +109,7 @@ DEFAULTS = {
     },
     'web': {
         'port': 80,
-        'password': '',                # setup page password (user "admin"); empty = open on the LAN
+        'password': '',                # page password (user "admin"), 8+ characters; empty = page only on the setup AP
     },
 }
 
@@ -337,6 +337,8 @@ def validate(cfg):
         e.append('upload.smb_share must look like //server/share')
     if t == 'nfs' and not re.match(r'^[^:\s]+:/\S*$', cfg.get('upload', 'nfs_export')):
         e.append('upload.nfs_export must look like server:/path')
+    if cfg.get('web', 'password') and not 8 <= len(cfg.get('web', 'password')) <= 128:
+        e.append('web.password must be 8-128 characters')
     if cfg.get('upload', 'keep_local') < 0:
         e.append('upload.keep_local must be 0 or more')
     return e

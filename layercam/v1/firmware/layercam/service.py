@@ -173,6 +173,7 @@ class Service:
                          'access_point': self.setup_ap and (sup.reason if sup else 'setup')},
                 'app': {'running': VERSION, 'trial': bool(app['pending']), 'last': app['last']},
                 'boot_pad': self.boot_pad,
+                'ssh': os.path.exists(os.path.join(self.cfg_dir, 'ssh', 'enabled')),
                 'printer': repr(self.printer) if self.printer else None, 'printer_error': self.printer_error,
                 'recording': {'name': r.meta['name'], 'frames': r.frames, 'missed': self.tl.missed,
                               'duplicates': self.tl.duplicates, 'stride': self.tl.stride,

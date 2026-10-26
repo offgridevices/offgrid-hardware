@@ -147,17 +147,21 @@ SC3336 camera. Checked against SDK commit `824b817f` (22 Mar 2026).
    headers in `project/app/component/third_libs/include/libjpeg9`).
 3. **Copy LayerCam's files into the SDK:**
    ```
-   UPDATE_PUBKEY=update.pub board/install-into-sdk.sh ~/luckfox-pico native/layercam-media
+   UPDATE_PUBKEY=update.pub USB_ID=vvvv:pppp board/install-into-sdk.sh ~/luckfox-pico native/layercam-media
    ```
    This copies the device tree, the kernel option fragment and the board
-   config, adds three packages to `luckfox_pico_defconfig`, and makes the
-   overlay `overlay-layercam`: the init scripts (`S21-layercam-gesture`,
-   `S50usbdevice` and `S99usb0config`, which replace Luckfox's adb/RNDIS
-   ones, `S99layercam`), `layercam-net` and `layercam-setup`, the Python
-   package in `/usr/share/layercam`, the helper in `/usr/bin`, and
-   `/etc/layercam/` (the update key, `rootfs-version`). `update.pub` is the
-   public half of the key that signs app updates (*Updates*); without it
-   the cameras refuse every update.
+   config, appends `board/sdk/buildroot.fragment` to `luckfox_pico_defconfig`
+   (three packages; root login off, dhcpcd out: *Security*), and makes the
+   overlay `overlay-layercam`, the only one besides Luckfox's Wi-Fi
+   firmware: the init scripts (`S21-layercam-gesture`, `S50usbdevice`,
+   `S50sshd`, `S21appinit`, `S99layercam` and the empty ones),
+   `/etc/shadow` and `/etc/ssh/sshd_config`, `layercam-net` and
+   `layercam-setup`, the Python package in `/usr/share/layercam`, the
+   helper in `/usr/bin`, and `/etc/layercam/` (the update key,
+   `rootfs-version`, `usb-id`). `update.pub` is the public half of the key
+   that signs app updates (*Updates*); without it the cameras refuse every
+   update. `USB_ID` is the product's USB vendor:product id; without it the
+   development placeholder 1d6b:0104 is used (*Limits*).
 4. **Build:** `./build.sh lunch` (choose `RV1106_LayerCam_v1`), then `./build.sh`.
    The image is `output/image/update.img`.
 
@@ -333,7 +337,8 @@ and then the USB and serial consoles show the passphrase.
      the printer: Settings > Network > PrusaLink).
    - **upload**: a target, or `none` to keep the videos on the camera
      (download them from the page).
-   - **web.password**: without it anyone on your network can open the page.
+   - **web.password** (8 characters or more): required before a network can
+     be saved; from then on the page always asks for it (user `admin`).
 3. Save. The camera joins your network, and its address appears in Prusa
    Connect (camera info) and on the router. Put that address in the slicer
    snippet's `start.gcode` ([`slicer/README.md`](slicer/README.md)). If the
@@ -381,6 +386,7 @@ wifi "My Network" "password" join this network (wifi NAME --open: no password)
 reset-wifi                   as the gesture
 show / get / set KEY VALUE   any setting, checked as on the page; secrets never shown
 update FILE | --status | --factory
+ssh on PUBLIC-KEY | off      SSH for this key only (Security); off deletes the keys
 reboot, reboot-loader        restart; restart into the USB loader (Updates)
 ```
 
@@ -424,6 +430,30 @@ the IR LEDs briefly (ramped up, 500 ms for the exposure, the frame, ramped
 down), and live view keeps them on while it runs; `ir.mode = printing`
 does this only during prints.
 
+## Security
+
+What the camera offers on the network is its page (port 80), the printer's
+metrics stream (UDP 8514, in), and, only while it is on, the setup access
+point's DHCP and DNS. Nothing else, unless the owner turns SSH on.
+
+| | LayerCam | Why |
+|---|---|---|
+| root account | no password at all (`*` in `/etc/shadow`; `# BR2_TARGET_ENABLE_ROOT_LOGIN is not set` in `buildroot.fragment`) | Luckfox's image gives every board root password `luckfox`. A per-camera password derived from the serial (as the access point's) would be no secret: the serial is on the USB console, in the USB serial number, on the kernel console, and the code is public. With no password nothing can be guessed; shell access is SSH with a key |
+| SSH | off. `ssh on KEY` on the USB console (paste the `.pub` line) turns it on for that key, keys only, root by key only, no passwords, no forwarding (`/etc/ssh/sshd_config`); keys and host key on `/userdata/layercam/ssh`; `ssh off` deletes the keys and stops sshd, sessions included; `ssh` shows the key and host fingerprints | Luckfox's overlay started sshd on every boot with `PermitRootLogin yes` and password login |
+| the page | always needs `web.password` (8+ characters; HTTP Basic, user `admin`; a wrong one costs a second). Until one is set it answers only on the setup access point (WPA2, the camera's own passphrase) and to the camera itself; a network cannot be saved from the page without one. A forgotten one: `set web.password "..."` on the USB console | before, an empty `web.password` left the page, the settings and the update upload open to anyone on the network |
+| Luckfox overlays | only `overlay-luckfox-wifibt-firmware` is kept (`RK_POST_OVERLAY`) | `-buildroot-shadow`: root's password and a Samba share of `/`, read-write as root; `-buildroot-init`: sshd as above, `/root/main.py` run at boot; `-config`: pin settings loaded from a partition that is not its own here |
+| rkipc | never started: LayerCam's `S21appinit` only loads the media drivers (the SDK's own one runs `RkLunch.sh`) | RTSP and a web server with no password, if it is ever in the image |
+| adb | not started (`S50usbdevice` replaced), `/usr/bin/adbd` replaced by a stub | an unauthenticated root shell, over USB and, in Luckfox's build, TCP 5555 |
+| ntpd, dhcpcd, telnet | `S49ntp`, `S41dhcpcd`, `S50telnet` empty; dhcpcd also out of the build | ntpd would answer NTP on the Wi-Fi (the clock is set once per connection by `layercam-net` instead); dhcpcd would fight `udhcpc` for wlan0; telnetd is not in Buildroot's BusyBox config, the stub makes sure |
+
+`pincheck.py` checks all of this in the board config, the fragment and the
+overlay (21 checks, also run by the board build through
+`src/check_firmware.py`), and `tests/test_image.py` shows each check fails
+when its file is put back the way Luckfox has it. What it cannot see is
+the built image itself: on the first board, check `netstat -tuln` (only
+80 and 8514, plus 53/67 with the access point on), that the kernel console
+asks for a login nobody has, and that `ssh` is refused until turned on.
+
 ## On a PC
 
 The service runs on any Linux or macOS machine with Python 3.8+, for
@@ -440,7 +470,7 @@ GPIO, ADC and PWM are skipped when their files are missing.
 ## Tests
 
 ```
-python3 -m unittest            # from this folder; 180 tests, about 10 s
+python3 -m unittest            # from this folder; 192 tests, about 10 s
 ```
 
 | File | What it checks |
@@ -458,7 +488,8 @@ python3 -m unittest            # from this folder; 180 tests, about 10 s
 | `test_hw.py` | day/night hysteresis and hold time, flicker, IR plan per mode, LED priorities (updating, setup, hot, offline, error, recording, ok; every pattern distinct; no `Button` left), the BOOT pad warning, sysfs writes (ADC, IR-cut pulse order, PWM) against a fake `/sys` |
 | `test_gesture.py` | the power-cycle gesture on a fake clock with fake flash that keeps what was written when the plug is pulled: three short power-ups reset (the third at once), ordinary power-ups never add up and write twice each, one long power-up cancels, the 5 s edge, a power-up cut before it is counted; the count file (torn or garbage reads 0), the init script's call, and the service forgetting network, password and own AP passphrase but keeping `web.password` |
 | `test_wifi.py` | when the setup access point opens and closes, on a fake clock: first boot, connected, exactly 10 minutes unreachable, retries every 2 minutes for 45 s, connected on a retry (and the full 10 minutes again after), never cut off while a phone is on it, 2 minutes for a network just entered, fallback off; `iw` station count; the service driving a stand-in `layercam-net` |
-| `test_setupcli.py` | the USB console: argument parsing (quoted names, `--open`, `--`, refused commands, no shell), each command against a settings file (validated like the page, SIGHUP to the service, the short fallback for a new network, secrets never printed, a forgotten `web.password` set, unknown keys kept, `reset-wifi` as the gesture, `reboot-loader`), the console loop fed line by line, and the real loop on a pseudo-terminal |
+| `test_setupcli.py` | the USB console: argument parsing (quoted names, `--open`, `--`, refused commands, no shell), each command against a settings file (validated like the page, SIGHUP to the service, the short fallback for a new network, secrets never printed, a forgotten `web.password` set, unknown keys kept, `reset-wifi` as the gesture, `reboot-loader`), the console loop fed line by line, and the real loop on a pseudo-terminal; `ssh on/off/status`: off by default, a pasted key (unquoted too), files 0600 in a 0700 folder, the same key once, sshd restarted and stopped, keys deleted on off; refused: no key, a private key, options such as `command=`, damaged base64, a type that does not match, RSA under 2048 bits; comments cleaned; fingerprints as `ssh-keygen -l` |
+| `test_image.py` | `pincheck.image_results`: root locked, no password in `/etc/shadow` or the fragment, Luckfox's shadow/init/config overlays out, sshd keys only and off unless turned on, no ntpd/dhcpcd/telnet/USB network/adb/rkipc, the USB id file; each check shown to fail with Luckfox's version of its file; the board build runs them; `install-into-sdk.sh` on a stand-in SDK (fragment block replaced on a second run and later than Luckfox's lines, USB id and update key written, a bad USB id refused, the placeholder warned about); the page: no password = only the setup access point and the camera itself (403 elsewhere), wrong password = 401 after a second, a network cannot be saved without a password |
 | `test_update.py` | Ed25519 against RFC 8032's vectors and OpenSSL; packages: good, wrong key, no keys, same/older version, needs a newer image, wrong product, a changed manifest, payload or extra member, junk, unsafe paths even when signed; the signing tool; the keys file; trial start, kept after it stays up, rollback after 3 failed starts (to the last good version or the factory one), code that does not import never installed, a missing slot, factory reset, the init script's question with a broken state file; an upload to the setup page |
 | `test_net.py` | WPA PSK against the IEEE 802.11i test vector, wpa_supplicant/hostapd/dnsmasq files, 2.4 GHz channel list, power settings; the setup access point's name and passphrase per device (stable, different per serial, readable alphabet), `/proc/cpuinfo` serial parsing, the host tool |
 | `test_pins.py` | `pincheck.py`: `layercam/board.py` and the device tree against `src/circuit.py` (34 checks: also no button in the circuit, TP5 through 100R to SARADC_IN0, the evb's ADC keys removed, the USB controller a device); proved to catch a moved LED, a wrong PWM pin, a swapped IR-cut pin, a button put back, the ADC keys back and a host-mode USB port; `src/check_firmware.run()` as the board build calls it |
@@ -467,7 +498,9 @@ python3 -m unittest            # from this folder; 180 tests, about 10 s
 
 The MP4, recording and whole-service tests need `ffmpeg` and `ffprobe`
 with libx264 on the PC (they make the test video); without them they are
-skipped. Result on 26 Oct 2026, Python 3.13 and 3.11: **180 pass, 0 skipped**;
+skipped, and the SSH fingerprint cross-check needs `ssh-keygen`. Result
+on 26 Oct 2026, Python 3.13 and 3.11: **191 pass, 1 skipped** (no
+`ssh-keygen` on that PC);
 pyflakes finds nothing.
 
 Checked on a PC but not as tests: the device tree, run through `cpp` with
@@ -503,6 +536,8 @@ no `adc-keys` node, `dr_mode = "peripheral"`, the `reboot-mode` node's
 | Loader mode: `reboot-mode` with `mode-loader = BOOT_BL_DOWNLOAD`, `CONFIG_SYSCON_REBOOT_MODE=y`; `rkflash.sh` `update` = `upgrade_tool uf` (all partitions, userdata included), `rootfs`/`oem`/`boot` = `upgrade_tool di` one partition; the SDK's recovery and `update_ota.tar` | SDK `rv1106.dtsi`, `luckfox_rv1106_linux_defconfig`, `project/rkflash.sh`, `project/build.sh` (`build_recovery`, `build_ota`), `project/scripts/RkLunch-recovery.sh` |
 | Buildroot's python3 always has ctypes (selects libffi); its zlib module is optional and not in `luckfox_pico_defconfig`, so update packages are plain tar | Buildroot 2023.02.6 `package/python3/Config.in` |
 | Ed25519 | RFC 8032 (section 6 code, section 7.1 vectors); OpenSSL 3.0 |
+| Luckfox overlays: `-buildroot-shadow` (root `$1$` hash of "luckfox", `smb.conf` sharing `/` read-write as root), `-buildroot-init` (`S50sshd` on every boot, `sshd_config` `PermitRootLogin yes`, `S99python` runs `/root/main.py`), `-config` (`luckfox-config load` at boot); `S21appinit` written by build.sh to run `RkLunch.sh` (rkipc, which also loads the drivers with `insmod_ko.sh`); `post_overlay` after the OEM packaging | SDK `project/cfg/BoardConfig_IPC/overlay/`, `project/build.sh` (`__PACKAGE_OEM`, `build_firmware`), rkipc `src/rv1106_ipc/RkLunch.sh` |
+| Buildroot services: `S50sshd` (openssh), `S49ntp` (ntp with ntpd, the default), `S41dhcpcd`, `S50telnet` only with BusyBox's standalone telnetd (off in the default BusyBox config); `BR2_TARGET_GENERIC_ROOT_PASSWD` depends on `BR2_TARGET_ENABLE_ROOT_LOGIN`; the ntp package's ntpd takes servers from `/etc/ntp.conf`, `-p` is a pid file, `-g` for the first big step | Buildroot 2023.02.6 `package/openssh`, `package/ntp`, `package/dhcpcd`, `package/busybox/busybox.mk` and `busybox.config`, `system/Config.in`, `package/skeleton-init-common/skeleton-init-common.mk` (root login off: `*` in `/etc/shadow`) |
 
 ## Limits
 
@@ -549,17 +584,21 @@ no `adc-keys` node, `dr_mode = "peripheral"`, the `reboot-mode` node's
   staying quiet on the printer's port; `reboot-loader` (ctypes `reboot(2)`
   with "loader") landing in U-Boot's Rockusb; `rkflash.sh rootfs/oem/boot`
   in that mode; the update's import check and trial start on the board's
-  Python; `iw` listing the access point's stations. The USB ids
-  (1d6b:0104) are a development placeholder: a shipped product needs its
-  own.
+  Python; `iw` listing the access point's stations; sshd turned on and
+  off from the console.
 - **One radio for two jobs**: while the saved network is unreachable the
   access point and the retries take turns (the access point is off for up
   to 45 s every 2 minutes, never while a phone is on it). bcmdhd may do
   both at once (AP+STA), not tried.
-- **Luckfox's image still has an SSH server** (`S50sshd` from
-  `overlay-luckfox-buildroot-init`) with Buildroot's root password
-  `luckfox`: disable it or set a password before shipping. adb and the USB
-  network are gone (`S50usbdevice` replaced).
+- **The USB id 1d6b:0104 is a placeholder and needs a real ID before
+  selling.** It is the Linux Foundation's id for a multifunction composite
+  gadget, fine for development. Set the product's own vendor:product id at
+  build time: `USB_ID=vvvv:pppp board/install-into-sdk.sh ...` (written to
+  `/etc/layercam/usb-id`, read by `S50usbdevice`; the script warns while
+  the placeholder is used).
+- **The page is plain HTTP** on the home network: `web.password` and the
+  settings cross it unencrypted (Basic authentication), as with most
+  printers' own pages.
 - **Updates over the air are the camera software only**; the kernel,
   rootfs and C helper come with a full image over USB (*Updates*). No A/B
   system, no recovery partition (no room in 256 MB).
@@ -598,9 +637,12 @@ board/
   layercam.ini.example     every setting with its default
   install-into-sdk.sh      copies all of this into a Luckfox SDK checkout
   sdk/                     board config, kernel options, Buildroot packages
-  rootfs/                  /etc/init.d/: S21-layercam-gesture, S50usbdevice (USB console),
-                           S99usb0config (empty), S99layercam; /usr/bin/: layercam-net,
-                           layercam-setup; /etc/layercam/: update-keys, rootfs-version
+  rootfs/                  /etc/init.d/: S21-layercam-gesture, S21appinit (drivers only),
+                           S50usbdevice (USB console), S50sshd (off unless turned on),
+                           S41dhcpcd, S49ntp, S50telnet, S99usb0config (empty), S99layercam;
+                           /etc/shadow (root locked), /etc/ssh/sshd_config (keys only);
+                           /usr/bin/: layercam-net, layercam-setup, adbd (stub);
+                           /etc/layercam/: update-keys, rootfs-version, usb-id
 slicer/                    PrusaSlicer custom G-code and how it works
 tests/                     host tests (python3 -m unittest), test data, a stand-in helper
 ```

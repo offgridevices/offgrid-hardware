@@ -98,13 +98,95 @@ def results(circuit_text, dts_text, board):
     return out
 
 
+def _text(path):
+    try:
+        with open(path) as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def _stub(text):
+    """An init script that does nothing: only comments and exit 0."""
+    if text is None:
+        return False
+    body = [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith('#')]
+    return body == ['exit 0']
+
+
+def image_results(firmware_dir=HERE):
+    """[(ok, description)]: no default password, no network service the owner
+    did not turn on, in what the build puts into the image (README.md,
+    Security).  Checks the board config, the Buildroot fragment and the
+    rootfs overlay, the files LayerCam controls."""
+    out = []
+    root = os.path.join(firmware_dir, 'board', 'rootfs')
+
+    def item(ok, what):
+        out.append((bool(ok), 'image: ' + what))
+
+    def rootfs(p):
+        return _text(os.path.join(root, p))
+
+    mk = _text(os.path.join(firmware_dir, 'board', 'sdk', 'BoardConfig-SPI_NAND-Buildroot-RV1106_LayerCam_v1-IPC.mk')) or ''
+    m = re.search(r'^export RK_POST_OVERLAY="([^"]*)"', mk, re.M)
+    overlays = m.group(1).split() if m else []
+    item(overlays and overlays[-1] == 'overlay-layercam', "LayerCam's overlay is applied last")
+    for bad in ('overlay-luckfox-buildroot-shadow', 'overlay-luckfox-buildroot-init', 'overlay-luckfox-config'):
+        item(m and bad not in overlays, '%s not used (root password, sshd with passwords, Samba share of /, '
+                                        'autostart scripts)' % bad)
+    frag = _text(os.path.join(firmware_dir, 'board', 'sdk', 'buildroot.fragment')) or ''
+    settings = [ln for ln in frag.splitlines() if re.match(r'^(BR2_|# BR2_\w+ is not set$)', ln)]
+    item('# BR2_TARGET_ENABLE_ROOT_LOGIN is not set' in settings, 'Buildroot gives root no password')
+    item(not any(ln.startswith(('BR2_TARGET_GENERIC_ROOT_PASSWD', 'BR2_TARGET_ENABLE_ROOT_LOGIN=y')) for ln in settings),
+         'no root password in the Buildroot fragment')
+    item(not any(re.match(r'^BR2_PACKAGE_(SAMBA4|DROPBEAR|LIGHTTPD|NGINX|BOA|THTTPD|VSFTPD|PROFTPD|TFTPD|'
+                          r'ANDROID_TOOLS_ADBD|BUSYBOX_SHOW_OTHERS_TELNETD)\b=y', ln) for ln in settings),
+         'no extra servers added in the Buildroot fragment')
+    shadow = rootfs('etc/shadow')
+    entries = [ln.split(':') for ln in (shadow or '').splitlines() if ln.strip()]
+    item(shadow is not None and any(e[0] == 'root' and e[1] in ('*', '!', '!*') for e in entries),
+         'root locked in /etc/shadow (no password)')
+    item(shadow is not None and all(len(e) > 1 and e[1] in ('*', '!', '!*', '!!') for e in entries),
+         'no account in /etc/shadow has a password')
+    cfg = rootfs('etc/ssh/sshd_config') or ''
+
+    def opt(name):
+        found = re.findall(r'^\s*%s\s+(\S+)' % name, cfg, re.M | re.I)
+        return found[0].lower() if found else None
+    item(opt('PasswordAuthentication') == 'no' and opt('KbdInteractiveAuthentication') == 'no'
+         and opt('PermitEmptyPasswords') == 'no', 'sshd: passwords refused')
+    item(opt('PermitRootLogin') in ('prohibit-password', 'without-password'), 'sshd: root by key only')
+    item((opt('AuthorizedKeysFile') or '').startswith('/userdata/layercam/ssh/'),
+         'sshd: keys only from the USB console (/userdata/layercam/ssh)')
+    s50 = rootfs('etc/init.d/S50sshd') or ''
+    gate, launch = s50.find('if ! enabled; then'), s50.find('/usr/sbin/sshd &&')
+    item('DIR=/userdata/layercam/ssh' in s50 and '[ -f $DIR/enabled ]' in s50 and 0 <= gate < launch,
+         'S50sshd starts sshd only when turned on from the USB console')
+    for name, why in (('S49ntp', 'ntpd server'), ('S41dhcpcd', 'dhcpcd'), ('S50telnet', 'telnet server'),
+                      ('S99usb0config', 'USB network')):
+        item(_stub(rootfs('etc/init.d/' + name)), 'no %s (%s is empty)' % (why, name))
+    app = rootfs('etc/init.d/S21appinit') or ''
+    item(app and 'RkLunch.sh' not in re.sub(r'#.*', '', app), 'S21appinit does not start rkipc (RTSP, web server)')
+    usb = rootfs('etc/init.d/S50usbdevice') or ''
+    code = re.sub(r'#.*', '', usb)
+    item(usb and 'acm.' in code and not re.search(r'adbd|ffs\.adb|rndis|ecm|ncm', code),
+         'USB: the setup console only, no adb or USB network')
+    adbd = rootfs('usr/bin/adbd') or ''
+    item('exit 1' in adbd and 'adbd' not in re.sub(r'#.*|echo.*', '', adbd), '/usr/bin/adbd replaced by a stub')
+    uid = (rootfs('etc/layercam/usb-id') or '').strip()
+    item(re.match(r'^[0-9a-f]{4}:[0-9a-f]{4}$', uid, re.I) and '/etc/layercam/usb-id' in usb,
+         'USB id set at build time (/etc/layercam/usb-id: %s)' % uid)
+    return out
+
+
 def run(firmware_dir=HERE, circuit_path=None):
     circuit_path = circuit_path or os.path.join(firmware_dir, '..', 'src', 'circuit.py')
     with open(circuit_path) as f:
         circuit_text = f.read()
     with open(os.path.join(firmware_dir, 'dts', 'rv1106g-layercam-v1.dts')) as f:
         dts_text = f.read()
-    return results(circuit_text, dts_text, board_module(firmware_dir))
+    return results(circuit_text, dts_text, board_module(firmware_dir)) + image_results(firmware_dir)
 
 
 if __name__ == '__main__':
