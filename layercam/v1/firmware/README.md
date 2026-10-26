@@ -8,7 +8,7 @@ to S3 (or MinIO, Backblaze B2, a NAS), a WebDAV/HTTP folder, an SMB share or
 an NFS export. It switches to infrared at night, and is set up from a phone.
 
 > **Status: written, tested on a PC, not yet run on the board.** No board
-> exists yet. The Python service passes its 108 host tests, including a
+> exists yet. The Python service passes its 130 host tests, including a
 > whole print from PrusaLink and layer triggers to an uploaded MP4 (against
 > fakes). The C camera helper, the device tree, the SDK board config and the
 > init scripts have been checked as far as a PC can (the C against the real
@@ -23,11 +23,13 @@ tested on a PC; none of it has run on the board yet.
 | Requirement | v1 |
 |---|---|
 | Snapshots in Prusa Connect / the Prusa app | ✅ Prusa's current Camera Service API (`camera-service.prusa3d.com`), every 10, 30 or 60 s; the layer frames (head parked) go to Connect too; under 1 MB and at most 6 a minute, as the service requires |
-| Per-layer timelapse, frame taken with the head parked | ✅ PrusaSlicer snippet ([`slicer/`](slicer/README.md)) parks the head and sends a trigger over the printer's metrics stream; the camera shoots during a 1 s hold |
+| Per-layer timelapse, frame taken with the head parked | ✅ PrusaSlicer snippet ([`slicer/`](slicer/README.md)) parks the head and sends a trigger over the printer's metrics stream; the camera shoots during a 1.2 s hold |
 | Know the print: name, start, finish, cancel; fallback trigger | ✅ PrusaLink `/api/v1/status` and `/api/v1/job` (Digest auth, user `maker`); without the snippet, frames on Z changes (head not parked) |
 | MP4 (H.264), hardware encoder, little storage | ✅ each frame encoded by the RV1106's encoder as it is taken and appended to one H.264 file; MP4 made on the fly at upload; ffmpeg path for a PC |
 | Upload to SMB, NFS, S3 (+ compatible), HTTP/WebDAV | ✅ all five; S3 signing (SigV4) in plain Python, tested against AWS's test suite |
-| Live picture for setup; day/night with IR | ✅ MJPEG on the setup page; IR-cut and IR LEDs from the light sensor, with hysteresis |
+| Live picture for setup; day/night with IR | ✅ live view on request (2 minutes, refused when hot); IR-cut from the light sensor with hysteresis, IR LEDs lit only around each night picture |
+| Works in a 65 C chamber | ⚠️ the firmware does all it can (below: sensor asleep between pictures, 1080p, lowest CPU speed, Wi-Fi power save on 2.4 GHz, IR LEDs flashed, a thermal governor that throttles, skips uploads, then stops the camera); sim/thermal.md shows the sealed housing still runs hot while streaming, so the hardware has to change too |
+| 1080p timelapse | ✅ 1920 x 1080 by default (`timelapse.resolution`), the full 2304 x 1296 sensor selectable |
 | First-boot Wi-Fi setup, one settings file, button, status LED | ✅ setup access point and page; `layercam.ini`; long press = forget Wi-Fi; LED patterns below |
 | Runs on the Luckfox SDK's Buildroot | ✅ Python 3.8+ standard library only (Buildroot's `python3` is already in `luckfox_pico_defconfig`), one small C helper |
 
@@ -63,8 +65,46 @@ metrics buffer, so the datagram leaves within milliseconds. The camera
 reads from the datagram how long ago the line ran, waits out the rest of a
 150 ms settle, drops the frames the sensor had queued from before, and
 encodes the next one into the video (about 70 ms of dropped frames plus the
-encode). The head holds for 1 s in all; the trigger is sent twice in case a
-datagram is lost. Details: [`slicer/README.md`](slicer/README.md).
+encode). At night the IR LEDs ramp up first and the exposure gets 500 ms
+to follow them, then they go off again. The head holds for 1.2 s in all;
+the trigger is sent twice in case a datagram is lost. Details:
+[`slicer/README.md`](slicer/README.md).
+
+## Heat and power
+
+sim/thermal.md: streaming 3 MP at 30 fps all the time puts the RV1106 at
+about 126 C in the sealed housing in a 65 C chamber (limit 125 C), with
+most other parts past their 85 C. So the camera does as little as it can
+(`layercam/thermal.py`):
+
+| | What the camera does | Why |
+|---|---|---|
+| no print | sensor and ISP **asleep** (VI channel stopped, the sensor driver puts the SC3336 in standby); woken for each Connect snapshot with `camera.wake_ms` (1 s) for the exposure, then asleep again | a picture every 10-60 s needs the sensor about 5 % of the time |
+| printing | sensor streaming at **10 fps** (`camera.print_fps`), not 30 | a layer trigger must be answered inside the 1.2 s hold, and rkaiq's auto exposure and white balance need frames to settle after a cold start (some hundreds of ms to a second: to measure on the board); at 10 fps a fresh frame is at most 0.3 s away |
+| video size | 1920 x 1080 (the ISP scales the 2304 x 1296 sensor; same 16:9) | fewer pixels through the ISP, encoder and DDR |
+| CPU | held at its lowest speed (`scaling_max_freq`) except while uploading (TLS, SHA-256) | the encoders are hardware; the CPU has little to do |
+| Wi-Fi | 2.4 GHz only (`wifi.band`), power save on, transmit power capped at 10 dBm (`iw`) | the AP6256 is the second-largest heat source (sim/thermal.md) |
+| IR LEDs | lit only around a night picture (ramped over 150 ms, `ir.flash_settle_ms` 500 ms before the frame) and during live view; never continuously | lit continuously the ring is the hottest part at night (sim/thermal.md) |
+| IR-cut | the coil is pulsed only when day/night changes | |
+| live view | only when asked for (setup page button, `POST /api/live`), at most `camera.live_max_s` (120 s), refused or stopped from 90 C | streaming 10 fps JPEG is the heaviest thing the camera can do |
+
+The **thermal governor** reads the SoC's own sensor (TSADC,
+`/sys/class/thermal/thermal_zone0/temp`) once a second:
+
+| SoC | Level | Effect |
+|---|---|---|
+| under 90 C | normal | as above |
+| from 90 C | throttle | frame rate 5 fps, JPEG quality at most 70, IR LED duty at most 50 %, no live view, CPU never boosted |
+| from 105 C | hot | as throttle, and **no Connect uploads**; timelapse frames continue (the print only happens once) |
+| from 115 C | stop | camera pipeline stopped, IR LEDs off, frames lost (counted on the page) |
+| back under 95 C | | from stop to the level the temperature calls for |
+
+Every level is left 5 K under where it was entered (`thermal.hysteresis_k`),
+so it does not flap. The level and the temperature are on the setup page,
+the change is logged, and the status LED shows *hot* (long on, short off)
+at any level above normal. All thresholds are settings (`[thermal]`).
+These numbers follow sim/thermal.md and sim/power.md; measure the board in
+a 65 C oven before trusting either.
 
 **Storage.** There is no SD card: 256 MB of SPI NAND for everything. A
 JPEG per layer at 2304 x 1296 is 300-500 kB, so a 1000-layer print would
@@ -128,7 +168,8 @@ Starting points: Buildroot `luckfox_pico_defconfig`, kernel
 **Buildroot packages** (`board/sdk/buildroot.fragment`): `python3`,
 `python3-ssl`, `ca-certificates` and `ntp` are already in
 `luckfox_pico_defconfig`; added are `BR2_PACKAGE_CIFS_UTILS` (mount.cifs,
-SMB upload) and `BR2_PACKAGE_NFS_UTILS` (mount.nfs, NFS upload).
+SMB upload), `BR2_PACKAGE_NFS_UTILS` (mount.nfs, NFS upload) and
+`BR2_PACKAGE_IW` (Wi-Fi power save and transmit power).
 `BR2_PACKAGE_FFMPEG` is optional (only for `camera.backend = command`).
 
 **Kernel options** (`board/sdk/layercam.config`): `CONFIG_WIRELESS`,
@@ -178,13 +219,26 @@ as the Pro Max, the SDIO Wi-Fi as the Pico Ultra W. Every pin is the one
 
 ## Setting it up
 
-1. **First boot:** with no Wi-Fi configured the camera opens a setup
-   access point **LayerCam-XXXX** (the last four characters of its
-   fingerprint), passphrase `layercam-setup`, and the status LED blinks
-   slowly. Join it with a phone and open `http://192.168.4.1` (any web
-   name resolves to the camera there, so most phones offer the page by
-   themselves).
-2. On the page, fill in at least:
+1. **Read the camera's setup passphrase first.** Every camera has its
+   own access point name and passphrase, made from its SoC's serial number
+   (the RV1106's one-time-programmable id, which the kernel shows as
+   `Serial` in `/proc/cpuinfo`). Either:
+   - plug the camera into a computer by USB-C (it boots from the port) and
+     run `python3 tools/layercam-ap.py`, which reads the serial over adb and
+     prints the name and passphrase (`python3 tools/layercam-ap.py SERIAL`
+     does the same from a serial number you already have, for a label); or
+   - watch the serial console (TP1/TP2, 115200): the camera prints
+     `LayerCam setup: Wi-Fi LayerCam-XXXX, passphrase xxxx-xxxx-xxxx` each
+     time the access point opens.
+
+   A camera whose SoC shows no serial falls back to its random
+   fingerprint, and then only the console shows the passphrase.
+   `wifi.ap_password` replaces it with your own.
+2. **First boot:** with no Wi-Fi configured the camera opens the setup
+   access point **LayerCam-XXXX** and the status LED blinks slowly. Join
+   it with a phone and open `http://192.168.4.1` (any web name resolves to
+   the camera there, so most phones offer the page by themselves).
+3. On the page, fill in at least:
    - **wifi**: your network and password (WPA2; empty for an open network).
    - **connect.token**: in Prusa Connect, open the printer, *Camera* > *Add
      new camera* > *other camera*, copy the token. **Use it within 15
@@ -195,10 +249,10 @@ as the Pro Max, the SDIO Wi-Fi as the Pico Ultra W. Every pin is the one
    - **upload**: a target, or `none` to keep the videos on the camera
      (download them from the page).
    - **web.password**: without it anyone on your network can open the page.
-3. Save. The camera joins your network, and its address appears in Prusa
+4. Save. The camera joins your network, and its address appears in Prusa
    Connect (camera info) and on the router. Put that address in the slicer
    snippet's `start.gcode` ([`slicer/README.md`](slicer/README.md)).
-4. Every setting is in one file, `/userdata/layercam/layercam.ini`;
+5. Every setting is in one file, `/userdata/layercam/layercam.ini`;
    [`board/layercam.ini.example`](board/layercam.ini.example) lists them
    all with their defaults and what they do. It can be copied there over
    USB instead of using the page.
@@ -228,12 +282,15 @@ videos.
 | fast blink | joining Wi-Fi |
 | slow blink (1 s) | setup access point is on (closes after 30 minutes if Wi-Fi is set) |
 | three blinks, pause | something needs attention: see the setup page (Connect refused the token, PrusaLink unreachable, a frame lost, storage low) |
+| long on, short off | hot: the thermal governor is throttling or has stopped the camera (the page says how hot) |
 
 **Night:** below 0.10 V on the light sensor for 5 s (around 10 lux; about
-0.5 V is 50 lux) the IR-cut filter opens, the picture turns grey and the IR
-LEDs come on; above 0.25 V for 5 s it switches back. Between the two
-nothing changes, so a flicker or a passing hand does not toggle it.
-`ir.mode = printing` lights the LEDs only during prints.
+0.5 V is 50 lux) the IR-cut filter opens and the picture turns grey; above
+0.25 V for 5 s it switches back. Between the two nothing changes, so a
+flicker or a passing hand does not toggle it. At night each picture lights
+the IR LEDs briefly (ramped up, 500 ms for the exposure, the frame, ramped
+down), and live view keeps them on while it runs; `ir.mode = printing`
+does this only during prints.
 
 ## On a PC
 
@@ -251,7 +308,7 @@ GPIO, ADC and PWM are skipped when their files are missing.
 ## Tests
 
 ```
-python3 -m unittest            # from this folder; 108 tests, about 7 s
+python3 -m unittest            # from this folder; 130 tests, about 7 s
 ```
 
 | File | What it checks |
@@ -263,17 +320,18 @@ python3 -m unittest            # from this folder; 108 tests, about 7 s
 | `test_sigv4.py` | AWS's SigV4 test suite (23 cases: canonical request, string to sign, Authorization header) and three S3 PUTs signed by botocore |
 | `test_upload.py` | S3 path and virtual-host addressing, what the server receives is what was signed, no chunked encoding; HTTP PUT; SMB and NFS mount commands, credentials file mode and clean-up, mount failure; retries |
 | `test_mp4.py` | SPS parsing (hand-built SPS, with cropping), NAL splitting, and MP4s at 2304 x 1296 and 320 x 180 checked by ffprobe and decoded by ffmpeg, including a frame cut off by a power loss |
-| `test_recording.py` | the C helper's protocol against a stand-in, a whole H.264 timelapse to MP4, the helper crashing mid-print, JPEG frames with thinning, ffmpeg and hardware-encoder paths, pruning (unsent videos never deleted) |
+| `test_recording.py` | the C helper's protocol against a stand-in (asleep until woken, rate changes), a whole H.264 timelapse to MP4, the helper crashing mid-print, JPEG frames with thinning, ffmpeg and hardware-encoder paths, pruning (unsent videos never deleted) |
 | `test_service.py` | the whole service: fake printer, five layers (one sent twice), print finishes, the MP4 arrives at the upload server with five frames, named after the job; the page's password and hidden secrets; a missing camera helper does not stop the service |
 | `test_config.py` | types, validation of every rule, the example file lists exactly the real settings, file written 0600, typos rejected, secrets never sent back, the page form |
 | `test_hw.py` | day/night hysteresis and hold time, flicker, IR plan per mode, button short/long, LED priorities, sysfs writes (ADC, IR-cut pulse order, PWM) against a fake `/sys` |
-| `test_net.py` | WPA PSK against the IEEE 802.11i test vector, wpa_supplicant/hostapd/dnsmasq files |
-| `test_pins.py` | `layercam/board.py` and the device tree against `src/circuit.py`; proved to catch a moved LED, a wrong PWM pin and a swapped IR-cut pin |
-| `test_slicer.py` | the snippets use only G-codes checked in Buddy's source, park inside the CORE One's limits, lines under 96 characters, hold = `dwell_ms`, metric on only around the trigger, and an emulation of Buddy's metrics buffer showing the padding sends the trigger at once |
+| `test_net.py` | WPA PSK against the IEEE 802.11i test vector, wpa_supplicant/hostapd/dnsmasq files, 2.4 GHz channel list, power settings; the setup access point's name and passphrase per device (stable, different per serial, readable alphabet), `/proc/cpuinfo` serial parsing, the host tool |
+| `test_pins.py` | `pincheck.py`: `layercam/board.py` and the device tree against `src/circuit.py` (30 checks); proved to catch a moved LED, a wrong PWM pin and a swapped IR-cut pin; `src/check_firmware.run()` as the board build calls it |
+| `test_thermal.py` | the governor's levels, hysteresis, jumps and unreadable sensor; what each level allows; IR LED duty capping and the ramp's steps; the camera power policy; temperature and CPU speed through a fake `/sys`; the service under heat: asleep between pictures, live view time-limited and refused when hot, quality capped, Connect skipped from 105 C, frames lost only at 115 C and the camera back under 95 C, LEDs lit only around a night picture and capped at 50 % when throttled, IR-cut pulsed once |
+| `test_slicer.py` | the snippets use only G-codes checked in Buddy's source, the park position (PrusaSlicer local variables) inside the CORE One's limits, lines under 96 characters, hold = `dwell_ms`, metric on only around the trigger, and an emulation of Buddy's metrics buffer showing the padding sends the trigger at once |
 
 The MP4, recording and whole-service tests need `ffmpeg` and `ffprobe`
 with libx264 on the PC (they make the test video); without them they are
-skipped. Result on 26 Oct 2026, Python 3.13 and 3.11: **108 pass, 0 skipped**.
+skipped. Result on 26 Oct 2026, Python 3.13 and 3.11: **130 pass, 0 skipped**.
 
 Checked on a PC but not as tests: the device tree, run through `cpp` with
 the SDK's includes and parsed with Zephyr's `dtlib` (every label and
@@ -297,6 +355,10 @@ and without `HAVE_LIBJPEG` (`make check`); the shell scripts, `sh -n`.
 | Board config, partitions, IQ file name, AP6256 firmware files, Buildroot packages, flashing script | SDK: `BoardConfig-SPI_NAND-Buildroot-RV1106_Luckfox_Pico_Pro_Max-IPC.mk`, `project/app/wifi_app/Makefile`, `luckfox_pico_defconfig`, `rkflash.sh` |
 | rockit MPI and rkaiq calls (VI, VENC JPEG/H.264 fixed QP, `SetJpegParam`, `setGrayMode`, `setMirrorFlip`, ISP init order) | luckfox_pico_rkmpi_example `include/` and `luckfox_mpi.cc`; SDK `simple_vi_bind_venc_jpeg.c`, `sample_comm_isp.c` |
 | SigV4 | AWS SigV4 test suite (from botocore); botocore 1.43.119 `S3SigV4Auth` |
+| Sensor frame rate through rkaiq's AE attributes (`stFrmRate.isFpsFix/FpsValue`); stop/prepare/start to sleep and wake the ISP | SDK `sample_comm_isp.c` (`SAMPLE_COMM_ISP_SetFrameRate`), rkaiq `rk_aiq_user_api2_ae.h`, `rk_aiq_user_api2_sysctl.h` |
+| SoC serial: `cpuinfo` node reads the OTP `id` cell (`CONFIG_ROCKCHIP_CPUINFO=y`); TSADC thermal zone (`CONFIG_ROCKCHIP_THERMAL=y`); cpufreq with `ondemand` as the default governor | SDK `rv1106.dtsi`, `luckfox_rv1106_linux_defconfig` |
+| PrusaSlicer `{local name = value}` variables in custom G-code | PrusaSlicer 2.9.6 `src/libslic3r/PlaceholderParser.cpp` |
+| Heat: the housing's temperatures streaming, the IR LED strings' current | `sim/thermal.md`, `sim/power.md` (this revision) |
 
 ## Limits
 
@@ -312,29 +374,39 @@ and without `HAVE_LIBJPEG` (`make check`); the shell scripts, `sh -n`.
   Buddy source, not watched on a CORE One. The datagrams and PrusaLink
   answers in the tests are built from the source's formats, not captured.
 - **Video size per frame is an estimate** (20-60 kB): measure it, and the
-  rootfs size, before trusting the 90/130 MB split.
+  rootfs size, before trusting the 90/130 MB userdata/rootfs split (kept
+  until measured).
+- **The heat measures are not measured.** How long rkaiq needs to settle
+  after a wake (`camera.wake_ms`, 1 s) and after the IR LEDs come on
+  (`ir.flash_settle_ms`, 500 ms), what 10 fps saves over 30, whether the
+  sensor really sits in standby with its stream off, and whether bcmdhd
+  honours `iw` power save and the transmit power cap: all to measure on
+  the board, with the SoC temperature read back from the page. The housing
+  still fails sim/thermal.md's 65 C case while streaming; the firmware
+  cannot fix that alone.
 - **device.type is reported as `Buddy3D`**: the Camera Service accepts only
   Buddy3D, ESP32, WEB, LINK or INTERNAL and none is exactly this board;
   manufacturer and model say OffGrid LayerCam. Whether Connect treats a
   Buddy3D camera differently (firmware offers, the camera protocol) is
   not documented; change it in `layercam/connect.py` if it does.
-- **Timelapse frames are full sensor size (2304 x 1296)**, H.264 Main
-  profile: that frame size needs level 5.0 or higher, which phones and
-  browsers from the last several years play; no 1080p option yet.
+- **Snapshots and video share one size** (one VI channel, to keep the ISP
+  idle): 1920 x 1080 by default, or both at the full 2304 x 1296 (H.264
+  level 5.0 or higher; JPEG quality lowered as needed for Connect's 1 MB).
 - **Night pictures are grey** (ISP grey mode under IR), as any IR camera.
-- **The setup access point uses a passphrase everyone can read here**
-  (`layercam-setup`, changeable). It is only on at first boot or after a
-  5-second press; set `web.password` once the camera is on your network.
+- **The setup passphrase is derived, not random**: anyone who knows the
+  SoC's serial number (on the console, over adb on the USB-C cable) and
+  this code can work it out. The access point is only on at first boot or
+  after a 5-second press; set `web.password` once the camera is on your
+  network. adb over the USB-C port is what the Luckfox image offers;
+  not checked on this board.
 - **The clock comes from NTP after Wi-Fi is up** (the RTC has no battery);
   until then TLS to Connect and S3 signatures fail and are retried.
 - **Z fallback frames show the head** wherever it is; only the slicer
   snippet gives clean frames. Vase mode (continuous Z) gives few frames.
-- **2.4 GHz and 5 GHz WPA2-Personal only**; no WPA3-only networks, no
-  enterprise Wi-Fi. No IPv6 shown to Connect.
+- **WPA2-Personal only, 2.4 GHz by default** (`wifi.band = any` allows
+  5 GHz); no WPA3-only networks, no enterprise Wi-Fi. No IPv6 shown to
+  Connect.
 - **Bluetooth is wired but unused.**
-- `src/circuit.py`'s docstring names `src/verify.py` as the device tree's
-  check; that script does not exist yet, so the check lives in
-  `tests/test_pins.py` here.
 
 ## Files
 
@@ -347,8 +419,10 @@ layercam/                  the service (Python, standard library only)
   capture.py                 camera backends         recording.py  frames on disk, video bodies
   mp4.py                     H.264 -> MP4, streamed  upload.py     S3, HTTP, SMB, NFS
   sigv4.py                   AWS SigV4               hw.py         button, light, IR, LED
-  net.py                     Wi-Fi files             web.py        setup page, MJPEG
-  board.py                   pins (from circuit.py)
+  net.py                     Wi-Fi files, setup AP   web.py        setup page, live view
+  thermal.py                 heat governor, policy   board.py      pins (from circuit.py)
+pincheck.py                pins against src/circuit.py (tests and the board build: src/check_firmware.py)
+tools/layercam-ap.py       prints a camera's setup access point name and passphrase
 native/                    layercam-media (C): sensor, ISP, JPEG and H.264 encoders; Makefile
 dts/                       the board's device tree
 board/

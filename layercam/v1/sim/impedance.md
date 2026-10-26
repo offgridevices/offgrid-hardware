@@ -29,22 +29,22 @@ Closed forms first (no coplanar ground; the IPC-2141 single-line formula is know
 
 | pair | w / gap (mm) | IPC-2141 Z0 / Zdiff | H-J Z0 / Zdiff (no mask) | H-J + mask Z0 / Zdiff | solver Z0 (single) | solver Zdiff, no fill | solver Zdiff, fill at 0.177 | solver Zcm | target |
 |---|---|---|---|---|---|---|---|---|---|
-| MIPI | 0.100 / 0.150 | 60.9 / 108.0 | 65.2 / 115.7 | 62.2 / 110.3 | 61.7 | 106.0 | 104.9 | 34.9 | 100 +-10 % |
-| USB | 0.120 / 0.150 | 56.1 / 99.5 | 60.2 / 106.9 | 57.6 / 102.2 | 57.3 | 98.8 | 97.8 | 32.2 | 90 +-10 % |
+| MIPI | 0.120 / 0.150 | 56.1 / 99.5 | 60.2 / 106.9 | 57.6 / 102.2 | 57.3 | 98.8 | 97.8 | 32.2 | 100 +-10 % |
+| USB | 0.140 / 0.150 | 51.8 / 91.9 | 56.0 / 99.4 | 53.7 / 95.3 | 53.4 | 92.7 | 91.7 | 30.0 | 90 +-10 % |
 
-### Sensitivity (MIPI 0.10 / 0.15, field solver, no fill)
+### Sensitivity (MIPI 0.12 / 0.15, field solver, no fill)
 
 | change | Zdiff (ohm) |
 |---|---|
-| as above | 106.0 |
-| no solder mask | 116.7 |
-| rectangular track (no etch) | 101.0 |
-| prepreg +10 % (0.109 mm) | 109.1 |
-| prepreg -10 % (0.089 mm) | 102.3 |
-| Dk 3.9 | 107.8 |
-| Dk 4.3 | 104.3 |
-| track -0.015 mm (over-etch) | 114.5 |
-| track +0.015 mm | 98.4 |
+| as above | 98.8 |
+| no solder mask | 107.9 |
+| rectangular track (no etch) | 94.5 |
+| prepreg +10 % (0.109 mm) | 102.0 |
+| prepreg -10 % (0.089 mm) | 95.1 |
+| Dk 3.9 | 100.5 |
+| Dk 4.3 | 97.2 |
+| track -0.015 mm (over-etch) | 106.0 |
+| track +0.015 mm | 92.3 |
 
 ## Widths and gaps that hit the targets (main board outer layers)
 
@@ -99,8 +99,8 @@ The pair runs on F with ground fill beside it (stitch.py, 0.18 mm away) and the 
 
 | w / gap (mm) | fill gap (mm) | Zdiff | Zcm | note |
 |---|---|---|---|---|
-| 0.20 / 0.15 | 0.18 | 101.9 | 55.1 | as designed |
-| 0.20 / 0.15 | none | 111.6 | 84.9 | if the fill is cut back near the pair |
+| 0.25 / 0.13 | 0.18 | 92.1 | 52.6 | as designed |
+| 0.25 / 0.13 | none | 100.9 | 80.2 | if the fill is cut back near the pair |
 | 0.20 / 0.127 | 0.18 | 96.8 | 55.6 | |
 | 0.20 / 0.150 | 0.18 | 101.9 | 55.1 | |
 | 0.20 / 0.200 | 0.18 | 110.8 | 54.0 | |
@@ -116,26 +116,37 @@ The pair runs on F with ground fill beside it (stitch.py, 0.18 mm away) and the 
 
 Closest to 90 ohm with the fill where stitch.py puts it: **0.25 / 0.127 mm, 91.4 ohm**.
 
-The USB board's pair is 25 mm long (routed usb/layercam-usb.kicad_pcb: D+ 18.1 mm, D- 25.1 mm of track including the joins between the receptacle's two rows): 144 ps of flight time at 5.7 ps/mm, against USB 2.0 high speed's 500 ps minimum edge (10-90 %). That is past the lumped limit (a sixth of the edge, 83 ps), so the impedance does show: 101.9 ohm against 90 reflects 6 % of each edge, small next to the receiver's margin and to the SH cable after it (6 unshielded parallel wires at 1 mm pitch: roughly 100-150 ohm differential, not controlled), and the D+ / D- length difference (see above) is mostly the joins between the receptacle's two contact rows.
+The USB board's pair is 25 mm long (routed usb/layercam-usb.kicad_pcb: D+ 17.7 mm, D- 25.1 mm of track including the joins between the receptacle's two rows): 144 ps of flight time at 5.7 ps/mm, against USB 2.0 high speed's 500 ps minimum edge (10-90 %). That is past the lumped limit (a sixth of the edge, 83 ps), so the impedance does show: 92.1 ohm against 90 reflects 1 % of each edge, small next to the receiver's margin and to the SH cable after it (6 unshielded parallel wires at 1 mm pitch: roughly 100-150 ohm differential, not controlled), and the D+ / D- length difference (see above) is mostly the joins between the receptacle's two contact rows.
+
+## The adopted widths (to go into board.py DIFF)
+
+| pair | w / gap (mm) | Zdiff bare | beside the fill | track 0.015 mm narrower / wider (same pitch) | target |
+|---|---|---|---|---|---|
+| MIPI | 0.12 / 0.15 | 98.8 | 97.8 | 106.0 / 92.3 | 100 +-10 % |
+| USB | 0.14 / 0.15 | 92.7 | 91.7 | 98.9 / 87.0 | 90 +-10 % |
+| USB board | 0.25 / 0.13 | 100.9 | 92.1 | 97.0 / 87.1 | 90 +-10 % |
 
 ## Checks
 
 - PASS solver within 1.5 % of stripline b 0.4, w 0.2, t 0, er 4 (-0.56 %)
 - PASS solver within 1.5 % of microstrip w/h 1, t 0, er 4.1 (-1.04 %)
 - PASS solver within 1.5 % of microstrip w/h 2, t 0, er 4.1 (-0.85 %)
-- PASS main MIPI 0.10 / 0.15: Zdiff 106.0 (bare) / 104.9 (with fill) against 100 +-10 % (90-110)
-- WARN main MIPI 0.10 / 0.15 with the track 0.015 mm narrower / wider (same pitch): 114.5 / 98.4 ohm against 90-110
-- PASS main USB 0.12 / 0.15: Zdiff 98.8 (bare) / 97.8 (with fill) against 90 +-10 % (81-99)
-- WARN main USB 0.12 / 0.15 with the track 0.015 mm narrower / wider (same pitch): 106.0 / 92.3 ohm against 81-99
+- PASS main MIPI 0.12 / 0.15: Zdiff 98.8 (bare) / 97.8 (with fill) against 100 +-10 % (90-110)
+- PASS main MIPI 0.12 / 0.15 with the track 0.015 mm narrower / wider (same pitch): 106.0 / 92.3 ohm against 90-110
+- PASS main USB 0.14 / 0.15: Zdiff 92.7 (bare) / 91.7 (with fill) against 90 +-10 % (81-99)
+- PASS main USB 0.14 / 0.15 with the track 0.015 mm narrower / wider (same pitch): 98.9 / 87.0 ohm against 81-99
 - PASS recommended main MIPI 0.120 / 0.150: 98.8 / 97.8 ohm, 92.3-106.0 across +-0.015 mm etch, inside 90-110
 - PASS recommended main USB 0.140 / 0.150: 92.7 / 91.7 ohm, 87.0-98.9 across +-0.015 mm etch, inside 81-99
-- WARN USB board 0.20 / 0.15 with fill at 0.18: Zdiff 101.9 against 90 +-10 %
+- PASS USB board 0.25 / 0.13 with fill at 0.18: Zdiff 92.1 against 90 +-10 %
+- PASS adopted MIPI 0.12 / 0.15: 92.3-106.0 ohm across fill and etch, inside 90-110
+- PASS adopted USB 0.14 / 0.15: 87.0-98.9 ohm across fill and etch, inside 81-99
+- PASS adopted USB board 0.25 / 0.13: 87.1-97.0 ohm across fill and etch, inside 81-99
 
 ## Verdict
 
-- **MIPI 0.10 / 0.15 mm: 106.0 ohm bare, 104.9 ohm beside the ground fill: inside 100 +-10 %, but high.** A 0.015 mm over-etch takes it to 114.5 ohm (outside). Recommended: **0.120 / 0.150 mm** (98.8 / 97.8 ohm; 92.3-106.0 across the etch). The receiver end is forgiving (RV1106 MIPI ZID 80-125 ohm; two lanes well under 1 Gbit/s for 2304 x 1296 at 30 fps RAW10), so the current rule would very likely work; the change costs nothing.
-- **USB (main) 0.12 / 0.15 mm: 98.8 ohm bare, 97.8 beside the fill: at the top edge of 90 +-10 %** (106.0 with a 0.015 mm over-etch). Recommended: **0.140 / 0.150 mm** (92.7 / 91.7 ohm; 87.0-98.9 across the etch).
-- **USB board 0.20 / 0.15 mm: 101.9 ohm.** A 2-layer 1.2 mm board cannot put a plane close under the pair; the side fill sets the impedance. 0.25 / 0.127 mm with the fill where it is gives 91.4 ohm. A 6 % reflection on a short run ahead of an uncontrolled cable: WARN, not FAIL.
-- USB layer change on the main board (pairs.py: F to B and back): no ground via beside the signal vias (stitching keeps 1.2 mm off every via). Add one ground via within about 1 mm of each transition so the return current can move between In1 and In4.
+- **MIPI 0.12 / 0.15 mm: 98.8 ohm bare, 97.8 beside the fill, 92.3-106.0 across a +-0.015 mm etch: PASS** (target 100 +-10 %).
+- **USB (main) 0.14 / 0.15 mm: 92.7 ohm bare, 91.7 beside the fill, 87.0-98.9 across a +-0.015 mm etch: PASS** (target 90 +-10 %).
+- **USB board 0.25 / 0.13 mm: 92.1 ohm with the ground fill beside it: PASS.** The side fill sets the impedance on a 2-layer 1.2 mm board; ordering without it the pair would read higher (table above).
+- Order with JLCPCB impedance control: 100 ohm differential on L1/L6 for the MIPI class, 90 ohm for USB.
 
-**no FAIL, 3 WARN**
+**no FAIL, 0 WARN**

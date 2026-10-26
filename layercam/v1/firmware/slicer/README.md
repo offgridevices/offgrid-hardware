@@ -3,7 +3,7 @@
 Four pieces of custom G-code for the **Prusa CORE One** printer profile in
 PrusaSlicer (Printer Settings > Custom G-code). With them, after every
 layer the printer moves the head to a corner, tells the camera, holds still
-for one second while the camera takes the frame, and carries on. The video
+for 1.2 seconds while the camera takes the frame, and carries on. The video
 then shows the print growing with no head in the way.
 
 | File | Goes into | What it does |
@@ -30,20 +30,21 @@ new name (e.g. "CORE One + LayerCam") so profile updates do not overwrite it.
    is Buddy's own safety check, `MetricsConfigChangePrompt` in
    `src/marlin_stubs/M330.cpp`.)
 3. On the camera's setup page, leave `timelapse.trigger` at `auto` and
-   `timelapse.dwell_ms` at 1000 (the two `G4 P500` holds).
+   `timelapse.dwell_ms` at 1200 (the two `G4 P600` holds).
 
 ## How a frame is taken
 
 ```
-G1 X2 Y218 F18000      the head goes to the back-left corner, 300 mm/s
+{local park_x = 2}{local park_y = 218}   the park position, set once
+G1 X{park_x} Y{park_y} F18000    the head goes to the back-left corner, 300 mm/s
 M400                   the printer waits until it is there and stopped
 M331 gcode             the printer starts reporting each G-code line it runs
 M118 OGCAM:LAYER:12    <- this line, reported over UDP, is the camera's trigger
 M118 _xxxx... x15      filler: fills the printer's report buffer so it is sent now
-G4 P500                hold still
+G4 P600                hold still
 M118 OGCAM:LAYER:12    the same trigger again, in case the first datagram was lost
 M118 _xxxx... x15
-G4 P500                hold still
+G4 P600                hold still
 M332 gcode             reporting off again
 G1 X{position[0]} Y{position[1]} F18000   back to where the slicer left the head
 ```
@@ -67,7 +68,7 @@ What happens on the printer, from the Buddy firmware's source
 - `M118` only echoes its text to the USB serial console
   (`lib/Marlin/Marlin/src/gcode/host/M118.cpp`); nothing appears on the
   screen and nothing moves.
-- `G4 P500` waits for all moves to finish and then 500 ms
+- `G4 P600` waits for all moves to finish and then 600 ms
   (`lib/Marlin/Marlin/src/gcode/motion/G4.cpp`).
 - The return move uses PrusaSlicer's `position` variable, the head's
   position when the custom G-code starts (PrusaSlicer 2.9.6
@@ -91,7 +92,12 @@ the `G4`s and `timelapse.dwell_ms` together).
   (X -2 to 252, Y -19 to 221: `include/marlin/Configuration_COREONE.h`).
   Prusa's own end-of-print park is X242 Y211 (back right). Pick the
   corner where the head hides least of the print from where your camera
-  looks, and change the park line if you move it.
+  looks, and change `park_x`/`park_y` in the `{local ...}` line (PrusaSlicer
+  local variables, 2.6 and later: `PlaceholderParser.cpp`) if you move it.
+- **Why 1.2 s:** at night the camera ramps the IR LEDs up and gives the
+  exposure 500 ms to follow them before the frame (the LEDs are never left
+  on: heat, sim/thermal.md); by day the frame is taken about 0.4 s in. The
+  camera warns on its page when a trigger arrives too late for the hold.
 - **No `G90`/`G91`.** On Buddy they set the extruder to absolute or
   relative too (`set_relative_mode` in `lib/Marlin/Marlin/src/gcode/gcode.h`,
   outside MK3 compatibility mode), which would undo the slicer's `M83`.
@@ -104,8 +110,8 @@ the `G4`s and `timelapse.dwell_ms` together).
   (`MAX_CMD_SIZE`, `Configuration_COREONE_adv.h`).
 - The first layer has no "After layer change" call in PrusaSlicer, so the
   first frame is layer 1 (the second layer).
-- **Cost:** about 1 s of hold plus two moves of up to ~300 mm at 300 mm/s,
-  2-3 s a layer: 8-12 minutes on a 250-layer print.
+- **Cost:** 1.2 s of hold plus two moves of up to ~300 mm at 300 mm/s,
+  2.5-3.5 s a layer: 10-15 minutes on a 250-layer print.
 - **Without the snippet**, the camera still makes a timelapse, from
   PrusaLink's Z height (`timelapse.trigger = auto` falls back after three
   layers with no trigger). Those frames show the head wherever it is.

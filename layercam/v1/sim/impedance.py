@@ -403,8 +403,48 @@ def run():
     return L, results, rec, zu, (wb, sb, gb, zb)
 
 
+# the widths the coordinator adopted (26 Oct 2026), checked here until board.py DIFF carries them
+PLANNED = {'MIPI': (0.12, 0.15), 'USB': (0.14, 0.15), 'USB board': (0.25, 0.13)}
+
+
+def planned(L):
+    w_ = L.append
+    h, er = _pp
+    t = _cu_out
+    gap_fill = read_clear_main() + FILL_EXTRA
+    st = ST2
+    w_('## The adopted widths (to go into board.py DIFF)\n')
+    w_('| pair | w / gap (mm) | Zdiff bare | beside the fill | track 0.015 mm narrower / wider (same pitch) | target |')
+    w_('|---|---|---|---|---|---|')
+    for name in ('MIPI', 'USB', 'USB board'):
+        wd, sd = PLANNED[name]
+        if name == 'USB board':
+            kw = dict(h=st['core'], t=st['cu'], er=st['er'])
+            zf = solve(w=wd, s=sd, gnd_gap=st['clear'] + FILL_EXTRA, **kw)['Zdiff']
+            zp = solve(w=wd, s=sd, **kw)['Zdiff']
+            e1 = solve(w=wd - 0.015, s=sd + 0.015, gnd_gap=st['clear'] + FILL_EXTRA + 0.0075, **kw)['Zdiff']
+            e2 = solve(w=wd + 0.015, s=sd - 0.015, gnd_gap=st['clear'] + FILL_EXTRA - 0.0075, **kw)['Zdiff']
+            tgt, tol = TARGET['USB']
+            zs = (zf, e1, e2)          # the fill is always there on the USB board
+        else:
+            kw = dict(h=h, t=t, er=er)
+            zp = solve(w=wd, s=sd, **kw)['Zdiff']
+            zf = solve(w=wd, s=sd, gnd_gap=gap_fill, **kw)['Zdiff']
+            e1 = solve(w=wd - 0.015, s=sd + 0.015, **kw)['Zdiff']
+            e2 = solve(w=wd + 0.015, s=sd - 0.015, **kw)['Zdiff']
+            tgt, tol = TARGET[name]
+            zs = (zp, zf, e1, e2)
+        w_('| %s | %.2f / %.2f | %.1f | %.1f | %.1f / %.1f | %.0f +-%.0f %% |' % (name, wd, sd, zp, zf, e1, e2, tgt,
+                                                                               tol * 100))
+        lo, hi = tgt * (1 - tol), tgt * (1 + tol)
+        check(all(lo <= z <= hi for z in zs), 'adopted %s %.2f / %.2f: %.1f-%.1f ohm across fill and etch, inside '
+              '%.0f-%.0f' % (name, wd, sd, min(zs), max(zs), lo, hi))
+    w_('')
+
+
 def main():
     L, results, rec, zu, best_usb = run()
+    planned(L)
     w = L.append
     w('## Checks\n')
     for s, what in checks:
@@ -414,26 +454,25 @@ def main():
     w('## Verdict\n')
     mw, ms = DIFF['main']['MIPI'][1:]
     uw, us = DIFF['main']['USB'][1:]
-    r = rec['MIPI']; u = rec['USB']
     m, us_ = results['MIPI'], results['USB']
-    w('- **MIPI %.2f / %.2f mm: %.1f ohm bare, %.1f ohm beside the ground fill: inside 100 +-10 %%, but high.** '
-      'A 0.015 mm over-etch takes it to %.1f ohm (outside). Recommended: **%.3f / %.3f mm** (%.1f / %.1f ohm; '
-      '%.1f-%.1f across the etch). The receiver end is forgiving (RV1106 MIPI ZID 80-125 ohm; two lanes well under '
-      '1 Gbit/s for 2304 x 1296 at 30 fps RAW10), so the current rule would very likely work; the change costs '
-      'nothing.' % (mw, ms, m[2]['Zdiff'], m[3]['Zdiff'], m[5], r[1], r[2], r[3]['Zdiff'], r[4]['Zdiff'],
-                    min(r[5], r[6]), max(r[5], r[6])))
-    w('- **USB (main) %.2f / %.2f mm: %.1f ohm bare, %.1f beside the fill: at the top edge of 90 +-10 %%** '
-      '(%.1f with a 0.015 mm over-etch). Recommended: **%.3f / %.3f mm** (%.1f / %.1f ohm; %.1f-%.1f across the '
-      'etch).' % (uw, us, us_[2]['Zdiff'], us_[3]['Zdiff'], us_[5], u[1], u[2], u[3]['Zdiff'], u[4]['Zdiff'],
-                  min(u[5], u[6]), max(u[5], u[6])))
+    for nm, res_, (tgt, tol) in (('MIPI', m, TARGET['MIPI']), ('USB (main)', us_, TARGET['USB'])):
+        wd, sd, zp, zf, z1, e1, e2 = res_
+        lo, hi = tgt * (1 - tol), tgt * (1 + tol)
+        ok = all(lo <= z <= hi for z in (zp['Zdiff'], zf['Zdiff'], e1, e2))
+        w('- **%s %.2f / %.2f mm: %.1f ohm bare, %.1f beside the fill, %.1f-%.1f across a +-0.015 mm etch: %s** '
+          '(target %.0f +-%.0f %%).' % (nm, wd, sd, zp['Zdiff'], zf['Zdiff'], min(e1, e2), max(e1, e2),
+                                         'PASS' if ok else 'WARN', tgt, tol * 100))
     wb, sb, gb, zb = best_usb
-    w('- **USB board %.2f / %.2f mm: %.1f ohm.** A 2-layer 1.2 mm board cannot put a plane close under the pair; the '
-      'side fill sets the impedance. %.2f / %.3f mm with the fill where it is gives %.1f ohm. A 6 %% reflection on a '
-      'short run ahead of an uncontrolled cable: WARN, not FAIL.'
-      % (DIFF['usb']['USB'][1], DIFF['usb']['USB'][2], zu['Zdiff'], wb, sb, zb['Zdiff']))
-    w('- USB layer change on the main board (pairs.py: F to B and back): no ground via beside the signal vias '
-      '(stitching keeps 1.2 mm off every via). Add one ground via within about 1 mm of each transition so the '
-      'return current can move between In1 and In4.')
+    tgt, tol = TARGET['USB']
+    ok = tgt * (1 - tol) <= zu['Zdiff'] <= tgt * (1 + tol)
+    w('- **USB board %.2f / %.2f mm: %.1f ohm with the ground fill beside it: %s.** The side fill sets the impedance on '
+      'a 2-layer 1.2 mm board; ordering without it the pair would read higher (table above).'
+      % (DIFF['usb']['USB'][1], DIFF['usb']['USB'][2], zu['Zdiff'], 'PASS' if ok else 'WARN'))
+    pv = open(os.path.join(V1, 'src', 'pairs.py')).read()
+    if not re.search(r"via\([^)]*'GND'", pv):
+        w('- USB layer change on the main board (pairs.py: F to B and back): no ground via beside the signal vias yet. '
+          'Add one within about 1 mm of each transition so the return current can move between In1 and In4.')
+    w('- Order with JLCPCB impedance control: 100 ohm differential on L1/L6 for the MIPI class, 90 ohm for USB.')
     w('')
     warns = [c for c in checks if c[0] == 'WARN']
     w('**%s, %d WARN**' % ('no FAIL' if not fails else '%d FAIL' % len(fails), len(warns)))

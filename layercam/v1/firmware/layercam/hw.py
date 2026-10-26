@@ -182,8 +182,8 @@ class Sysfs:
             pass
 
     def ir_ramp(self, start, end, ramp_ms, step_ms=20):
-        """Change the IR LED duty gradually: no 0.14 A step on the 5 V input
-        (three strings of about 47 mA, sim/power.md)."""
+        """Change the IR LED duty gradually, so all three LED strings
+        (sim/power.md has their current) do not step the 5 V input at once."""
         steps = max(1, int(ramp_ms / step_ms))
         for i in range(1, steps + 1):
             self.ir_leds(start + (end - start) * i / steps)
