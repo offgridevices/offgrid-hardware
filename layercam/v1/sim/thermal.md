@@ -24,8 +24,10 @@ Board: 17.2 cm^2 a face; in-plane conductance 0.0344 W/K per square (copper cove
 
 - String resistor (47R) while lit at night: 0.141 W against 0.234 W derated at the ring's 75 C.
 - Live view (reported): every part but the button stays in rating up to a 29 C chamber by day and 27 C by night; the firmware rules above turn that into a TSADC threshold. The stress bound fits at no chamber temperature: the firmware must never allow it.
-- FAILs: snap_day: AP6256 module (U6) 87.4 C against 85 C (operating max; full RF only to 75 C); snap_day: SC3336 sensor (camera module) 87.6 C against 85 C (operating max; best image to 60 C (SmartSens)); snap_day: W25N02KV flash (U5) 85.4 C against 85 C (-40..85 C (Winbond)); snap_day: DRV8837 (U7) 87.3 C against 85 C (ambient -40..85 C (TI)); snap_day: 24 MHz crystal Y1 89.3 C against 85 C (-40..85 C (YXC)); snap_day: crystals Y2 / Y3, oscillator Y4 89.5 C against 85 C (-40..85 C); snap_day: status LED LED1 88.6 C against 85 C (-40..85 C (KENTO)); snap_day: side button SW1 (TS24CA) 89.3 C against 70 C (-20..70 C (catalogue)); snap_day: camera FFC connector J2 (XF2M) 85.9 C against 85 C (-30..85 C incl. rise (Omron)); snap_day: SH connectors J1 / J4 (JST) 86.5 C against 85 C (-25..85 C incl. rise (JST)); snap_day: USB-C receptacle (USB board) 81.2 C against 80 C (-30..80 C (catalogue)); snap_night: AP6256 module (U6) 87.7 C against 85 C (operating max; full RF only to 75 C); snap_night: SC3336 sensor (camera module) 87.9 C against 85 C (operating max; best image to 60 C (SmartSens)); snap_night: W25N02KV flash (U5) 85.7 C against 85 C (-40..85 C (Winbond)); snap_night: DRV8837 (U7) 87.6 C against 85 C (ambient -40..85 C (TI)); snap_night: 24 MHz crystal Y1 89.6 C against 85 C (-40..85 C (YXC)); snap_night: crystals Y2 / Y3, oscillator Y4 89.8 C against 85 C (-40..85 C); snap_night: status LED LED1 88.9 C against 85 C (-40..85 C (KENTO)); snap_night: side button SW1 (TS24CA) 89.6 C against 70 C (-20..70 C (catalogue)); snap_night: camera FFC connector J2 (XF2M) 86.2 C against 85 C (-30..85 C incl. rise (Omron)); snap_night: SH connectors J1 / J4 (JST) 86.8 C against 85 C (-25..85 C incl. rise (JST)); snap_night: USB-C receptacle (USB board) 81.5 C against 80 C (-30..80 C (catalogue)); snapshot mode keeps every part inside its rating up to a 43 C chamber (requirement 65 C)
-- WARNs: snap_day: AP6256 module (U6) 87.4 C with 10 K margin (75 C); snap_day: SC3336 sensor (camera module) 87.6 C with 10 K margin (75 C); snap_night: AP6256 module (U6) 87.7 C with 10 K margin (75 C); snap_night: SC3336 sensor (camera module) 87.9 C with 10 K margin (75 C)
+- FAIL in snapshot mode at 65 C (worst of day / night): side button SW1 (TS24CA) 90 C / 70 C; crystals Y2 / Y3, oscillator Y4 90 C / 85 C; 24 MHz crystal Y1 90 C / 85 C; status LED LED1 89 C / 85 C; SC3336 sensor (camera module) 88 C / 85 C; AP6256 module (U6) 88 C / 85 C; DRV8837 (U7) 88 C / 85 C; SH connectors J1 / J4 (JST) 87 C / 85 C; USB-C receptacle (USB board) 81 C / 80 C; camera FFC connector J2 (XF2M) 86 C / 85 C; W25N02KV flash (U5) 86 C / 85 C
+- Fix that makes snapshot mode pass: an aluminium lid (or plate in the lid's vent window) on the SoC through a gap pad: snap_night then RV1106 82 C, board 78 C, every part but the button in rating to a 70 C chamber; plus a button rated >= 85 C and a USB-C receptacle rated >= 85 C. Without the lid, suspending the SoC between shots alone reaches 63 C.
+- WARN: AP6256 and SC3336 above 75 C in snapshot mode (AP6256 full RF and the sensor's best image end there; both run, with more noise / less TX power).
+- Firmware governor: live view only while TSADC < 94 C; snapshot mode stretches to 30 s above 88 C; stop at 110 C; shutdown 125 C.
 - Model uncertainty about +-10 K (the optimistic bracket is 2 K lower on the SoC in snap_night). The snapshot currents are ASSUMED: measure idle, shot and upload current on the first board and rerun.
 
 ## Snapshot, day (requirement)
@@ -313,15 +315,17 @@ The RV1106's TSADC reads its own junction (+-3 C). In a steady state every part 
 
 | mode | chamber limit (first part, button left out) | RV1106 Tj there (steady state) | rule: allowed while TSADC below | at 65 C in snapshot mode the TSADC reads |
 |---|---|---|---|---|
+| snapshot, day | 60 C | 91 C | **88 C** | 96 C |
+| snapshot, night | 60 C | 91 C | **88 C** | 96 C |
 | live view, day | 29 C | 97 C | **94 C** | 96 C |
 | live view, night | 27 C | 97 C | **94 C** | 96 C |
 
 Rule set, in order (to be tuned on a board in an oven):
 
-1. **Live view** only while TSADC < 94 C; when it is crossed, finish the current second and drop to snapshot mode (the user sees "live view paused: camera too warm").
-2. **Snapshot mode**, at any temperature: CPU at its lowest OPP between shots, NPU off, sensor in standby, Wi-Fi power-save on 2.4 GHz.
-3. TSADC > 101 C (the snapshot-mode reading at a 65 C chamber plus 5 K): stretch the snapshot interval to 30 s and cap Wi-Fi TX power; IR flash shortened to 1 s.
-4. TSADC > 115 C: stop capturing (keep Wi-Fi associated, report the fault).
+1. **Snapshot mode is the default**: CPU at its lowest OPP between shots, NPU off, sensor in standby, Wi-Fi power-save on 2.4 GHz.
+2. **Live view** only while TSADC < 94 C; crossing it ends live view (back to snapshot mode, the user sees "live view paused: camera too warm"). In a 65 C chamber the snapshot-mode reading is already 96 C, so live view is refused there.
+3. TSADC > 88 C in snapshot mode: stretch the interval to 30 s, cap Wi-Fi TX power, shorten the IR flash to 1 s (the reading at which the first 85 C part reaches its rating in snapshot mode).
+4. TSADC > 110 C: stop capturing (keep Wi-Fi associated, report the fault).
 5. TSADC > 120 C: power the sensor and Wi-Fi down; Linux critical trip (shutdown) at 125 C.
 
 ## What it would take (snapshot margin, live view at 65 C)
