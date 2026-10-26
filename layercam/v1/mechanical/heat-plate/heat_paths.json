@@ -50,8 +50,8 @@
    "r_tape": 3.0880937245586444
   },
   "hs14x10": {
-   "r_top": 12.541991378463008,
-   "g_air": 0.011172,
+   "r_top": 12.566564163050957,
+   "g_air": 0.0111384,
    "g_amb": 0.0,
    "a_out_used": 0.0,
    "size": 14.0,
@@ -254,6 +254,48 @@
    "footprint clear of LED1 (mm)",
    0.9000000000000002,
    0.5
+  ],
+  [
+   "hs14x10",
+   "top of part",
+   31.950000000000003,
+   38.5
+  ],
+  [
+   "hs14x10",
+   "clear of the camera module (over its height)",
+   0.0,
+   0.5
+  ],
+  [
+   "hs14x10",
+   "footprint clear of LED1 (mm)",
+   0.9000000000000002,
+   0.5
+  ],
+  [
+   "sheet",
+   "against the real case STLs: deepest point inside plastic (mm)",
+   -0.35199059935413596,
+   0.0
+  ],
+  [
+   "cnc",
+   "against the real case STLs: deepest point inside plastic (mm)",
+   -0.3519408614925504,
+   0.0
+  ],
+  [
+   "heatsink",
+   "against the real case STLs: deepest point inside plastic (mm)",
+   -0.63286518091622,
+   0.0
+  ],
+  [
+   "hs14x10",
+   "against the real case STLs: deepest point inside plastic (mm)",
+   -0.30362657246094427,
+   0.0
   ]
  ],
  "stock_fit": {

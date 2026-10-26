@@ -98,9 +98,11 @@ DEFAULTS = {
     },
     'thermal': {
         'zone': '/sys/class/thermal/thermal_zone0/temp',   # the RV1106's TSADC (soc-thermal)
-        'throttle_c': 90.0,            # lower rates, no live view, LED duty capped
+        # thresholds from sim/thermal.md (stock heatsink): each is where the
+        # first part reaches its rating in that mode, less the sensor's 3 K
+        'throttle_c': 87.0,            # lower rates, no live view, LED duty capped
         'no_upload_c': 105.0,          # also no Connect uploads
-        'stop_c': 115.0,               # camera stopped...
+        'stop_c': 110.0,               # camera stopped...
         'resume_c': 95.0,              # ...until below this
         'hysteresis_k': 5.0,
         'throttle_fps': 5,

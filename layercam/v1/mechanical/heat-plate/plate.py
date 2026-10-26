@@ -450,7 +450,9 @@ def stock_sinks():
     # (2) the tallest 14 x 14 that fits: 10 mm at board (0, 15.9)
     c10 = t14.get(10.0)
     cy10 = c10[0] if c10 else -15.9
-    out['hs14x10'] = sink_path(14.0, 10.0, cy10, k=200.0,
+    # LCSC C286230, XSD1690-058 (drawing "LY12", Refinelink): 14 x 14 x 10, base 1.6, 5 x 5 cross-cut pin fins
+    # 1.5 mm wide, LY12 (2A12) aluminium (~120 W/mK), black anodised
+    out['hs14x10'] = sink_path(14.0, 10.0, cy10, base=1.6, fins=5, k=120.0,
                                label='14 x 14 x 10 aluminium heatsink (LCSC C286230) at board (0, %.1f)' % -cy10)
     # (3) a gap pad on the fin tops pressed into the case: search height, position and stock pad thickness for
     # the best conduction into the shell (pad squeezed <= 40 % where the case comes closest, SoC covered >= 75 %)
@@ -479,7 +481,10 @@ def main():
     sheet[0].export(os.path.join(HERE, 'sheet_bracket.stl'))
     cnc[0].export(os.path.join(HERE, 'cnc_block.stl'))
     hs[0].export(os.path.join(HERE, 'heatsink_14x14x6.stl'))
-    res = checks({'sheet': (sheet[0], 'sheet'), 'cnc': (cnc[0], 'cnc'), 'heatsink': (hs[0], 'heatsink')})
+    hs10 = heatsink(h=10.0, cy=-15.9)            # the fitted part (LCSC C286230) at board (0, 15.9)
+    hs10[0].export(os.path.join(HERE, 'heatsink_14x14x10.stl'))
+    res = checks({'sheet': (sheet[0], 'sheet'), 'cnc': (cnc[0], 'cnc'), 'heatsink': (hs[0], 'heatsink'),
+                  'hs14x10': (hs10[0], 'heatsink')})
     paths = thermal(sheet, cnc, hs)
     stock = stock_sinks()
     fits = stock.pop('fits')

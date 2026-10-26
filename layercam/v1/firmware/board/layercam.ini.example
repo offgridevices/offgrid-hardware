@@ -146,11 +146,11 @@ flash_settle_ms = 500
 # the RV1106's own temperature sensor (TSADC), millidegrees
 zone = /sys/class/thermal/thermal_zone0/temp
 # from here: lower frame rates and JPEG quality, no live view, LED duty capped
-throttle_c = 90.0
+throttle_c = 87.0
 # from here also: no Prusa Connect uploads (timelapse frames continue)
 no_upload_c = 105.0
 # from here the camera stops...
-stop_c = 115.0
+stop_c = 110.0
 # ...until the SoC is back under this
 resume_c = 95.0
 # each lower level returns this far under its threshold

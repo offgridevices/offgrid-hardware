@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""LayerCam v1: temperatures inside Prusa's camera housing in a 65 C chamber.
+"""LayerCam v1: temperatures inside Prusa's camera housing in a 63 C chamber (the rating; 65 C reported).
 
     tools/kd python3 sim/thermal.py     writes sim/thermal.md and thermal_<case>.png, exits 1 on a FAIL
 
@@ -47,7 +47,8 @@ OUT = os.path.join(HERE, 'thermal.md')
 SIGMA = 5.670e-8
 
 # ---------------------------------------------------------------- environment and housing
-T_AMB = 65.0                      # CORE One chamber, the requirement
+T_AMB = 63.0                      # the requirement: the camera is rated for a chamber up to 63 C
+T_ORIG = 65.0                     # the original requirement (CORE One chamber), reported
 A_OUT = 125.6e-4                  # m^2, housing outer hull (STL)
 WALL_T, K_PLASTIC = 0.002, 0.20   # PETG / ASA wall, W/mK
 EPS_HOUSING = 0.90                # printed plastic in the infrared (any colour)
@@ -73,7 +74,7 @@ DX = 0.5e-3                       # grid, m
 FOOT = {'U1': (9.0, 9.0), 'U2': (3.0, 1.7), 'L1': (2.5, 2.0), 'U3': (3.0, 3.0), 'L2': (2.5, 2.0),
         'L3': (2.5, 2.0), 'L4': (2.5, 2.0), 'U4': (3.0, 1.7), 'L5': (2.5, 2.0), 'U6': (12.0, 12.0),
         'U5': (8.0, 6.0), 'U7': (2.0, 2.0), 'Q1': (2.9, 1.3), 'J1': (4.0, 8.0)}
-DESIGN_PATH = 'cnc'               # the heat path the design uses (the case sections below); None = bare board
+DESIGN_PATH = 'hs14x10'           # the heat path the design uses: a stock 14 x 14 x 10 heatsink on tape (the case sections below); None = bare board
 HEATPATH = None                   # a heat path from the RV1106's top (mechanical/heat-plate/heat_paths.json), None = none
 HEATPATHS_JSON = os.path.join(V1, 'mechanical', 'heat-plate', 'heat_paths.json')
 
@@ -484,7 +485,7 @@ def tj_of(board, res):
 
 
 def fmt_amb(a):
-    return 'never (not even at -20 C)' if a is None else ('85 C or more' if a > 84.5 else '%.0f C' % a)
+    return 'never (not even at -20 C)' if a is None else ('85 C or more' if a > 84.5 else '%.1f C' % a)
 
 
 def main():
@@ -494,7 +495,7 @@ def main():
     board = Board()
     L = []
     w = L.append
-    w('# LayerCam v1: temperatures in a 65 C chamber\n')
+    w('# LayerCam v1: temperatures in a @TA@ chamber\n')
     w('Computed by `sim/thermal.py`: the main board as a 2D plate on a 0.5 mm grid (outline from `src/geometry.py`, '
       'part places from `src/layout_main.py`, heat from `sim/power_budget.py`), inside Prusa\'s printed housing in a '
       '%.0f C chamber with still air. The model and every assumed number are listed at the end; the board is the '
@@ -516,6 +517,8 @@ def main():
     for name, title, kind in CASES:
         res = case_run(board, name)
         allres[name] = res
+        if name == 'snap_night':
+            SUMMARY['snap_night_res'] = res
         temps = part_temps(board, res, name)
         h = power.heat(name)
         w('## %s\n' % title)
@@ -614,7 +617,7 @@ def main():
     lim_req = min(SUMMARY['lim'][n][0] if SUMMARY['lim'][n][0] is not None else -99 for n in ('snap_day', 'snap_night'))
     check(lim_req >= T_AMB, 'snapshot mode (heat path: %s) keeps every part inside its rating up to a %s chamber '
           '(requirement %.0f C)' % (DESIGN_PATH, fmt_amb(lim_req), T_AMB))
-    check(lim_req >= T_AMB + 5, 'snapshot-mode margin %.1f K at 65 C, against a model uncertainty of about +-10 K'
+    check(lim_req >= T_AMB + 5, 'snapshot-mode margin %.1f K at @TA@, against a model uncertainty of about +-10 K'
           % (lim_req - T_AMB), warn=True)
 
     # ------------------------------------------------ firmware rules for live view
@@ -625,7 +628,7 @@ def main():
       'Live view may run while the TSADC is below that reading, less the sensor\'s 3 C error; above it the firmware '
       'falls back to snapshot mode.\n')
     w('| mode | chamber limit (first part) | RV1106 Tj there (steady state) | rule: allowed while '
-      'TSADC below | at 65 C in snapshot mode the TSADC reads |')
+      'TSADC below | at @TA@ in snapshot mode the TSADC reads |')
     w('|---|---|---|---|---|')
     tj_snap = {n: tj_of(board, allres[n]) for n in ('snap_day', 'snap_night')}
     rd = SUMMARY.setdefault('rule', {})
@@ -648,7 +651,7 @@ def main():
     w('1. **Snapshot mode is the default**: CPU at its lowest OPP between shots, NPU off, sensor in standby, Wi-Fi '
       'power-save on 2.4 GHz.')
     w('2. **Live view** only while TSADC < %.0f C; crossing it ends live view (back to snapshot mode, the user sees '
-      '"live view paused: camera too warm"). In a 65 C chamber the snapshot-mode reading is %.0f C.'
+      '"live view paused: camera too warm"). In a @TA@ chamber the snapshot-mode reading is %.0f C.'
       % (t_live, tj_snap['snap_night']))
     w('3. TSADC > %.0f C in snapshot mode: stretch the interval to 30 s, cap Wi-Fi TX power, shorten the IR flash to '
       '1 s (the reading at which the first 85 C part reaches its rating in snapshot mode).' % t_snap)
@@ -662,7 +665,7 @@ def main():
       'the parts). The junction splits its heat between the board (exposed pad, %.1f K/W) and the part on its top '
       '(theta-JC top 8.4 K/W + pad or tape + metal); the part passes it to the air inside and, for the two that '
       'reach the lid pocket, through the 3.35 mm lid and its slots to the chamber.\n' % (R_DIE_EP + ep_via_resistance()))
-    w('| heat path | junction to part (K/W) | part to chamber (K/W) | part to inside air (K/W) | snap_night at 65 C: '
+    w('| heat path | junction to part (K/W) | part to chamber (K/W) | part to inside air (K/W) | snap_night at @TA@: '
       'RV1106 / AP6256 / SC3336 / board max (C) | heat leaving by the top / straight out (W) | snapshot keeps every '
       'part in rating up to | live view (day / night) every part in rating up to |')
     w('|---|---|---|---|---|---|---|---|')
@@ -694,7 +697,7 @@ def main():
     HEATPATH = keep
     SUMMARY['comp'] = comp
     w('')
-    # why fins inside the sealed case barely help: the conductances in series, snap_night at 65 C
+    # why fins inside the sealed case barely help: the conductances in series, snap_night at @TA@
     HEATPATH = None
     r0 = case_run(board, 'snap_night')
     HEATPATH = keep
@@ -708,7 +711,7 @@ def main():
     pb = hps['hs14_pad_best']
     SUMMARY['why'] = dict(g_out=g_out, g_wall=g_wall, g_bw=g_bw, g_hs=g_hs, g_pad=pb['g_amb'],
                           pad_area=pb['contact_mm2'], pad_shell=pb['shell_mm'], g_cnc=hps['cnc']['g_amb'])
-    w('**Why fins inside the sealed case barely help** (snap_night at 65 C, bare board): every watt has to cross '
+    w('**Why fins inside the sealed case barely help** (snap_night at @TA@, bare board): every watt has to cross '
       'two bottlenecks in series. Board to the inside of the case (faces and edge, across still air): %.3f W/K. '
       'Case to the chamber (outside convection and radiation over %.0f cm^2): %.3f W/K; the 2 mm wall itself '
       '%.2f W/K is not the limit. A 14 x 14 x 6 heatsink adds only %.4f W/K from the junction to the *same* inside '
@@ -721,11 +724,11 @@ def main():
          1 / (hps['cu20x6_if_it_fitted']['r_top'] + 1 / hps['cu20x6_if_it_fitted']['g_air']), pb['contact_mm2'],
          pb['shell_mm'], pb['g_amb'], hps['cnc']['g_amb']))
 
-    # ------------------------------------------------ parts list against 65 C
+    # ------------------------------------------------ parts list against @TA@
     w('## Every part\'s rating against the chamber\n')
     w('From `src/parts.py` (descriptions, the JLCPCB catalogue\'s temperature field read 26 Oct 2026, the datasheets). '
       'Flagged against the snapshot-night case: a part rated below 85 C, over its rating, or within 10 K of it.\n')
-    w('| part | rated | snap_night at 65 C (C) | live night at 65 C (C) | flag (snapshot) |\n|---|---|---|---|---|')
+    w('| part | rated | snap_night at @TA@ (C) | live night at @TA@ (C) | flag (snapshot) |\n|---|---|---|---|---|')
     tsn = {nm: t for nm, t, lim, src in part_temps(board, allres['snap_night'], None)}
     tln = {nm: t for nm, t, lim, src in part_temps(board, allres['night'], None)}
     mean = {'s': float(np.nanmean(allres['snap_night']['T'])), 'l': float(np.nanmean(allres['night']['T']))}
@@ -818,11 +821,11 @@ def verdict(board, allres):
     warns = [c for c in checks if c[0] == 'WARN']
     req = min((lim[n][0] if lim[n][0] is not None else -99) for n in ('snap_day', 'snap_night'))
     v('## Verdict\n')
-    v('**Snapshot mode at 65 C, with the %s heat path: %s** (%d FAIL, %d WARN). Every part stays inside its rating '
+    v('**Snapshot mode at @TA@, with the %s heat path: %s** (%d FAIL, %d WARN). Every part stays inside its rating '
       'up to a **%s** chamber: a margin of %.1f K, inside the model\'s +-10 K uncertainty, so the first board must be '
-      'measured in a 65 C oven before this is called a pass.\n'
+      'measured in a @TA@ oven before this is called a pass.\n'
       % (DESIGN_PATH, 'PASS (marginal)' if not fails else 'FAIL', len(fails), len(warns), fmt_amb(req), req - T_AMB))
-    v('| at 65 C, %s heat path | snap_day | snap_night | live day | live night |\n|---|---|---|---|---|' % DESIGN_PATH)
+    v('| at @TA@, %s heat path | snap_day | snap_night | live day | live night |\n|---|---|---|---|---|' % DESIGN_PATH)
     for lab, k in (('RV1106 junction', 'RV1106 junction (U1)'), ('AP6256 (85 C)', 'AP6256 module (U6)'),
                    ('SC3336 sensor (85 C)', 'SC3336 sensor (camera module)'), ('USB-C (80 C)', 'USB-C receptacle (USB board)'),
                    ('crystals (85 C)', 'crystals Y2 / Y3, oscillator Y4'), ('board max', None),
@@ -835,7 +838,7 @@ def verdict(board, allres):
     v('| heat in the housing | %s |' % ' | '.join('%.2f W' % allres[n]['p_total'] for n in ('snap_day', 'snap_night',
                                                                                               'day', 'night')))
     v('')
-    v('Heat paths (snap_night at 65 C; chamber limit for snapshot mode):\n')
+    v('Heat paths (snap_night at @TA@; chamber limit for snapshot mode):\n')
     for key, lab in ((None, 'bare board'), ('heatsink', '1 heatsink 14x14x6'), ('hs14x10', '1b heatsink 14x14x10'),
                      ('hs14_pad_best', '1c heatsink + pad into the shell'),
                      ('cu20x6_if_it_fitted', '1d 20x20x6 copper (does not fit)'), ('cnc', '2 CNC block'),
@@ -851,7 +854,7 @@ def verdict(board, allres):
             if x > lm - 3:
                 over[nm] = (max(x, over.get(nm, (0, 0))[0]), lm)
     if over:
-        v('- Within 3 K of their rating in snapshot mode at 65 C: ' + '; '.join(
+        v('- Within 3 K of their rating in snapshot mode at @TA@: ' + '; '.join(
             '%s %.1f / %d C' % (nm, x, lm) for nm, (x, lm) in sorted(over.items(), key=lambda kv: kv[1][1] - kv[1][0])))
     hr, tr, rating = resistor_check(allres['snap_night'], 'snap_night')
     v('- String resistor (%s) while lit at night: %.3f W against %.3f W derated at %.0f C.'
@@ -867,10 +870,40 @@ def verdict(board, allres):
     return V
 
 
+def governor_box():
+    t_live, t_snap = SUMMARY['gov']
+    c = SUMMARY['comp']
+    lim = SUMMARY['lim']
+    req = min((lim[n][0] if lim[n][0] is not None else -99) for n in ('snap_day', 'snap_night'))
+    B = []
+    b = B.append
+    b('## Firmware thermal governor (TSADC = the RV1106\'s own junction sensor, +-3 C)\n')
+    b('With the %s heat path, at the design limits below:\n' % DESIGN_PATH)
+    b('| rule | TSADC threshold |\n|---|---|')
+    b('| live view (streaming) allowed only while the reading is below | **%.0f C** |' % t_live)
+    b('| snapshot mode: stretch the interval to 30 s, cap Wi-Fi TX power, IR flash 1 s, above | **%.0f C** |' % t_snap)
+    b('| stop capturing (Wi-Fi stays associated, fault reported) above | **110 C** |')
+    b('| power the sensor and Wi-Fi down above | **120 C** |')
+    b('| Linux critical trip (shutdown) at | **125 C** |')
+    b('')
+    tsn = {nm: t for nm, t, lim, src in part_temps(Board(), SUMMARY['snap_night_res'], None)}['RV1106 junction (U1)'] \
+        if SUMMARY.get('snap_night_res') else None
+    if tsn:
+        b('Each threshold is the steady-state junction temperature at which the first part reaches its rating in that '
+          'mode, less the TSADC\'s 3 C error. In snapshot mode at a %.0f C chamber the TSADC reads about %.0f C, so near '
+          'the rated maximum the firmware will stretch the interval to 30 s, and a live view started there ends '
+          'within minutes.\n' % (T_AMB, tsn))
+    b('Rating: snapshot mode keeps every part inside its rating up to a **%.1f C** chamber with the %s heat path '
+      '(requirement %.0f C). The original %.0f C requirement is **not met** with the stock heatsink; the optional CNC '
+      'block meets it by %.1f K (snapshot to %.1f C), the bent sheet by %.1f K.\n'
+      % (req, DESIGN_PATH, T_AMB, T_ORIG, c['cnc']['snap'] - T_ORIG, c['cnc']['snap'], c['sheet']['snap'] - T_ORIG))
+    return B
+
+
 if __name__ == '__main__':
     L, allres = main()
     i = [k for k, x in enumerate(L) if x.startswith('## Snapshot, day')][0]
-    L[i:i] = verdict(Board(), allres)
+    L[i:i] = governor_box() + verdict(Board(), allres)
     w = L.append
     w('## Checks\n')
     for s_, what in checks:
@@ -879,6 +912,7 @@ if __name__ == '__main__':
     fails = [c for c in checks if c[0] == 'FAIL']
     warns = [c for c in checks if c[0] == 'WARN']
     w('**%s, %d WARN**' % ('no FAIL' if not fails else '%d FAIL' % len(fails), len(warns)))
+    L = [x.replace('@TA@', '%.0f C' % T_AMB) for x in L]
     open(OUT, 'w').write('\n'.join(L) + '\n')
     print('\n'.join(L))
     for f in os.listdir(HERE):

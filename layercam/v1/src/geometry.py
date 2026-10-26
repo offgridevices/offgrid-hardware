@@ -119,10 +119,10 @@ UNDER_MODULE_MAX_H = 0.6
 # centred at board (0, 15.9) it covers 9.65 mm of the 12.3 mm package and
 # overhangs its -y edge by 4.3 mm (mechanical/heat-plate/README.md).  Its
 # base sits on the package (0.85 mm) and the tape (0.25 mm): parts under
-# the overhang 0.9 mm or lower.
+# the overhang 0.8 mm or lower (a 0.80 mm package leaves 1.05 mm under it).
 HEATSINK_C = (0.0, 15.9)                   # board coordinates
 HEATSINK_SIZE = 14.0
-UNDER_HEATSINK_MAX_H = 0.9
+UNDER_HEATSINK_MAX_H = 0.8
 
 # ---------------------------------------------------------------- LED ring board
 RING_OUT_R = 16.5

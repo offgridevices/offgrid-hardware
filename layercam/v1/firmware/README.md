@@ -93,17 +93,17 @@ most other parts past their 85 C. So the camera does as little as it can
 | Wi-Fi | 2.4 GHz only (`wifi.band`), power save on, transmit power capped at 10 dBm (`iw`) | the AP6256 is the second-largest heat source (sim/thermal.md) |
 | IR LEDs | lit only around a night picture (ramped over 150 ms, `ir.flash_settle_ms` 500 ms before the frame) and during live view; never continuously | lit continuously the ring is the hottest part at night (sim/thermal.md) |
 | IR-cut | the coil is pulsed only when day/night changes | |
-| live view | only when asked for (setup page button, `POST /api/live`), at most `camera.live_max_s` (120 s), refused or stopped from 90 C | streaming 10 fps JPEG is the heaviest thing the camera can do |
+| live view | only when asked for (setup page button, `POST /api/live`), at most `camera.live_max_s` (120 s), refused or stopped from 87 C | streaming 10 fps JPEG is the heaviest thing the camera can do |
 
 The **thermal governor** reads the SoC's own sensor (TSADC,
 `/sys/class/thermal/thermal_zone0/temp`) once a second:
 
 | SoC | Level | Effect |
 |---|---|---|
-| under 90 C | normal | as above |
-| from 90 C | throttle | frame rate 5 fps, JPEG quality at most 70, IR LED duty at most 50 %, no live view, CPU never boosted |
+| under 87 C | normal | as above |
+| from 87 C | throttle | frame rate 5 fps, JPEG quality at most 70, IR LED duty at most 50 %, no live view, CPU never boosted |
 | from 105 C | hot | as throttle, and **no Connect uploads**; timelapse frames continue (the print only happens once) |
-| from 115 C | stop | camera pipeline stopped, IR LEDs off, frames lost (counted on the page) |
+| from 110 C | stop | camera pipeline stopped, IR LEDs off, frames lost (counted on the page) |
 | back under 95 C | | from stop to the level the temperature calls for |
 
 Every level is left 5 K under where it was entered (`thermal.hysteresis_k`),
