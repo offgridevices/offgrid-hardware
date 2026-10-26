@@ -56,6 +56,11 @@ def build(board, path, rounds=6):
         for ref in stuck:
             fp = b.FindFootprintByReference(ref)
             avoid.setdefault(ref, []).append(placer.courtyard(fp, 'B' if fp.IsFlipped() else 'F'))
+    # a part left unplaced sits at the origin (in the lens window on the
+    # main board): never route such a board
+    if failed or stuck:
+        raise SystemExit('placement failed: no room for %s, no via room for %s'
+                         % (' '.join(failed) or '-', ' '.join(sorted(stuck)) or '-'))
     return b, failed
 
 

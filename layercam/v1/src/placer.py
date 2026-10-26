@@ -127,7 +127,7 @@ def place(b, comps, layout, small_height, avoid=None):
             region = region()
         spot = None
         r = 0.0
-        while r < 12.0 and not spot:
+        while r < 20.0 and not spot:
             n = max(1, int(2 * math.pi * r / 0.3)) if r else 1
             angs = sorted((away + 2 * math.pi * k / n for k in range(n)),
                           key=lambda a: abs(math.atan2(math.sin(a - away), math.cos(a - away))))

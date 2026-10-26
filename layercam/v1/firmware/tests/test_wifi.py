@@ -2,6 +2,7 @@
 (net.WifiSupervisor, on a fake clock), the phones-on-the-AP count, and the
 service driving layercam-net (a stand-in script that records its calls)."""
 import os, stat, tempfile, unittest
+from unittest import mock
 
 from layercam import config, net, service
 
@@ -128,6 +129,17 @@ class ServiceDrivesTheScript(unittest.TestCase):
         files = os.listdir(root + net.RUN_DIR)
         self.assertIn('hostapd.conf', files)
         self.assertIn('wpa_supplicant.conf', files)
+        # a restart for other settings: already on this network with the same files, so left alone
+        with mock.patch('layercam.net.interface_info', return_value={'wifi_ipv4': '192.0.2.40'}):
+            self.assertTrue(svc.start_sta(keep=True))
+            self.assertTrue(svc.start_ap(keep=True))           # on the network, not the AP: switched
+        with mock.patch('layercam.net.interface_info', return_value={'wifi_ipv4': net.AP_ADDRESS}):
+            self.assertTrue(svc.start_ap(keep=True))           # the AP already up: a phone on it stays
+            self.assertTrue(svc.start_sta(keep=True))          # leaving the AP always switches
+            svc.cfg.set('wifi', 'ssid', 'Other')
+            self.assertTrue(svc.start_ap(keep=True))           # files changed: switched
+        with open(calls) as f:
+            self.assertEqual(f.read().split(), ['ap', 'sta', 'ap', 'sta', 'ap'])
         os.unlink(script)
         self.assertFalse(svc.start_ap())                     # no script: reported, not raised
 

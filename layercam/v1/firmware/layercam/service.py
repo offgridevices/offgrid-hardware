@@ -305,9 +305,29 @@ class Service:
             self.cfg.set('wifi', k, '')
         self.cfg.save()
 
-    def start_sta(self):
+    def _net_files(self):
+        out = {}
+        for name in ('wpa_supplicant.conf', 'hostapd.conf', 'dnsmasq.conf', 'net.env'):
+            try:
+                with open(os.path.join(self.run_dir, name)) as f:
+                    out[name] = f.read()
+            except OSError:
+                out[name] = None
+        return out
+
+    def _write_net(self, mode, keep):
+        """Write the files; True when the radio is already in this mode with
+        the same files (keep: the first switch after a restart for other
+        settings, which must not drop the network or a phone on the page)."""
+        before = self._net_files()
         net.write_files(self.cfg, self.run_dir)
-        return net.switch('sta', self.net_script)
+        if not keep or before != self._net_files():
+            return False
+        ip = net.interface_info().get('wifi_ipv4')
+        return ip == net.AP_ADDRESS if mode == 'ap' else bool(ip) and ip != net.AP_ADDRESS
+
+    def start_sta(self, keep=False):
+        return self._write_net('sta', keep) or net.switch('sta', self.net_script)
 
     def wifi_loop(self):
         """Keeps the Wi-Fi in the mode the supervisor asks for."""
@@ -319,7 +339,8 @@ class Service:
             self.wifi_up = applied == 'sta' and net.link_up()
             want = sup.feed(now, self.wifi_up, clients)
             if want != applied and (failed_at is None or now - failed_at >= 10):
-                if (self.start_ap() if want == 'ap' else self.start_sta()):
+                keep = applied is None
+                if (self.start_ap(keep) if want == 'ap' else self.start_sta(keep)):
                     if want == 'sta' and applied == 'ap':
                         log.info('setup access point closed: trying %s', self.cfg.get('wifi', 'ssid'))
                     applied, failed_at = want, None
@@ -502,9 +523,8 @@ class Service:
                     log.warning('deleting %s (%s) to make room', m['name'], state)
                     shutil.rmtree(folder, ignore_errors=True)
 
-    def start_ap(self):
-        net.write_files(self.cfg, self.run_dir)
-        if not net.switch('ap', self.net_script):
+    def start_ap(self, keep=False):
+        if not self._write_net('ap', keep) and not net.switch('ap', self.net_script):
             return False
         ssid, pw = net.setup_ap(self.cfg)
         msg = 'LayerCam setup: Wi-Fi %s, passphrase %s, then http://%s' % (ssid, pw, net.AP_ADDRESS)
