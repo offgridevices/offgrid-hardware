@@ -288,7 +288,7 @@ def run_case(board, heat, t_amb=T_AMB, vents=True, ring_contact=True):
         h_o = h_outside(t_w, t_amb)
         r_wall = WALL_T / (K_PLASTIC * A_OUT * 0.85) + 1 / (h_o * a_rest)
         t_w_new = t_amb + (q_into_wall + BED_RAD_W) * r_wall
-        if abs(t_w_new - t_w) < 1e-4 and abs(t_b_new - t_b) < 1e-4 and abs(t_m_new - t_m) < 1e-4:
+        if abs(t_w_new - t_w) < 2e-3 and abs(t_b_new - t_b) < 2e-3 and abs(t_m_new - t_m) < 2e-3:
             break
         t_w = 0.5 * t_w + 0.5 * t_w_new
         t_m = 0.5 * t_m + 0.5 * t_m_new
@@ -395,7 +395,7 @@ def ambient_limit(board, heat, limit_fn, lo=-20.0, hi=85.0):
     """The highest chamber temperature at which limit_fn holds (bisection), or lo if it never does."""
     if not limit_fn(board, run_case(board, heat, t_amb=lo)):
         return None
-    for _ in range(16):
+    for _ in range(10):
         mid = (lo + hi) / 2
         ok = limit_fn(board, run_case(board, heat, t_amb=mid))
         lo, hi = (mid, hi) if ok else (lo, mid)
