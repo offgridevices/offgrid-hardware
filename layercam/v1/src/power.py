@@ -65,12 +65,13 @@ def _zone_poly(z):
     return Polygon([pcb.xy(o.CPoint(k)) for k in range(o.PointCount())])
 
 
-def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), refs=None, pins=True):
+def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), refs=None, pins=True, ring=None):
     """A via for every SMD pad on `nets`.  allowed: net -> polygon the via
     must lie in (a plane's extent).  pins=False: only the large pads' own
     vias and the short tracks into them; the other pads are left to the
     router, which places their vias where they block nothing.  Returns
-    (count, pads with no spot)."""
+    (count, pads with no spot).  ring: (polygon, refs) - only those parts'
+    pads may put a via in the polygon (a fine-pitch chip's escape band)."""
     via = via or pcb.VIA
     vr = via[0] / 2
     pads, holes = {'F': [], 'B': []}, []
@@ -110,6 +111,8 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
         v = Point(pt).buffer(vr)
         if not edge.contains(Point(pt)) or any(k.intersects(v) for k in keep):
             WHY[ref] = 'edge/keepout'; return False
+        if ring and ref not in ring[1] and ring[0].intersects(v):
+            WHY[ref] = 'escape band'; return False
         if allowed and net in allowed and not allowed[net].contains(Point(pt).buffer(vr + 0.1)):
             WHY[ref] = 'outside its plane'; return False
         if any(h.distance(v) < 0.25 for h in holes):

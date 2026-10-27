@@ -181,6 +181,16 @@ REGION = {
 BREAKOUT = 8.4        # half-width of the SoC's part-free breakout band (back face)
 
 
+def via_ring():
+    """The SoC's escape band, from its pads' outer ends to the part-free
+    band's edge: only the SoC's own pins put plane vias here.  The back
+    face's decoupling caps under it had put 38 there, a wall the signal
+    pins could not get through to their vias."""
+    cx, cy = FIXED['U1'][:2]
+    return (box(cx - BREAKOUT, cy - BREAKOUT, cx + BREAKOUT, cy + BREAKOUT)
+            .difference(box(cx - 6.0, cy - 6.0, cx + 6.0, cy + 6.0)), {'U1'})
+
+
 def keepouts(side):
     """Areas a part on `side` may not touch: (shapely geometry, max height
     allowed there or 0)."""

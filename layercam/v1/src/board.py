@@ -90,14 +90,15 @@ def _build(board, path, avoid):
     nets = PLANE_NETS[board]
     allowed = layout.plane_polys() if hasattr(layout, 'plane_polys') else None
     inward = getattr(layout, 'INWARD', ())
+    ring = layout.via_ring() if hasattr(layout, 'via_ring') else None
     small = {c.ref for c in comps if placer.is_small(c) and c.ref not in fixed}
     big = {c.ref for c in comps} - small
     d1, f1 = power.fanout(b, nets=nets, done_pads=manual, allowed=allowed, inward=inward, refs=big,
-                          pins=board not in ROUTER_PLANE_VIAS)
+                          pins=board not in ROUTER_PLANE_VIAS, ring=ring)
     failed = placer.place(b, comps, layout, layout.height, avoid)
     if failed:
         print('  NO ROOM for: %s' % ' '.join(failed))
-    d2, f2 = power.fanout(b, nets=nets, done_pads=manual, allowed=allowed, inward=inward, refs=small)
+    d2, f2 = power.fanout(b, nets=nets, done_pads=manual, allowed=allowed, inward=inward, refs=small, ring=ring)
     print('  plane vias: %d%s' % (d1 + d2, ('; NO SPOT for ' + ' '.join(f1 + f2)) if f1 + f2 else ''))
     for w in sorted(set(POWER[board].values())):
         group = [n for n, x in POWER[board].items() if x == w]
