@@ -65,17 +65,13 @@ def _zone_poly(z):
     return Polygon([pcb.xy(o.CPoint(k)) for k in range(o.PointCount())])
 
 
-def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), refs=None, pins=True, ring=None,
-           lean=None, stub_w=None):
+def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), refs=None, pins=True, ring=None):
     """A via for every SMD pad on `nets`.  allowed: net -> polygon the via
     must lie in (a plane's extent).  pins=False: only the large pads' own
     vias and the short tracks into them; the other pads are left to the
     router, which places their vias where they block nothing.  Returns
     (count, pads with no spot).  ring: (polygon, refs) - only those parts'
-    pads may put a via in the polygon (a fine-pitch chip's escape band).
-    lean: (ref, pad) -> (order, angle): the pads in that order, each first
-    tried at that angle off straight out (a fan of neighbouring pins);
-    stub_w: net -> the stub's width."""
+    pads may put a via in the polygon (a fine-pitch chip's escape band)."""
     via = via or pcb.VIA
     vr = via[0] / 2
     pads, holes = {'F': [], 'B': []}, []
@@ -171,10 +167,7 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
         lay = pcbnew.F_Cu if side == 'F' else pcbnew.B_Cu
         # large pads (exposed pads, mounting tabs) first: their own vias,
         # inside them, are what the part's other pads of that net reach
-        def order(t):
-            k = (t[0].GetReference(), t[1].GetNumber())
-            return (0, lean[k][0]) if lean and k in lean else (1, -t[2].area)
-        for fp, p, poly in sorted(pads[side], key=order):
+        for fp, p, poly in sorted(pads[side], key=lambda t: -t[2].area):
             net = p.GetNetname()
             if net not in nets or p.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
                 continue
@@ -238,44 +231,22 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
                 away += math.pi
             angs = sorted((away + k * math.pi / 8 for k in range(16)),
                           key=lambda a: abs(math.atan2(math.sin(a - away), math.cos(a - away))))
-            lk = (fp.GetReference(), p.GetNumber())
-            if lean and lk in lean:
-                pref = away + lean[lk][1]
-                angs = sorted((pref + k * math.pi / 24 for k in range(-24, 24)),
-                              key=lambda a: abs(math.atan2(math.sin(a - pref), math.cos(a - pref))))
             w = min(0.3, poly.bounds[2] - poly.bounds[0], poly.bounds[3] - poly.bounds[1])
-            if stub_w:
-                w = min(w, stub_w(net))
             spot = None
             first = None
-            # a fanned pin leaves straight out past its pad's end first, then
-            # turns: an angled stub from the pad's middle would clip its
-            # neighbour's pad
-            knee = None
-            if lean and lk in lean:
-                ray = LineString([(cx, cy), (cx + 10 * math.cos(away), cy + 10 * math.sin(away))])
-                hit = ray.intersection(poly.exterior)
-                ke = (Point(cx, cy).distance(hit) if not hit.is_empty else 0.3) + 0.1
-                knee = (cx + ke * math.cos(away), cy + ke * math.sin(away))
             for strict in (True, False):
                 for a in angs:
-                    if knee:
-                        r0, o = 0.0, knee
-                    else:
-                        ray = LineString([(cx, cy), (cx + 10 * math.cos(a), cy + 10 * math.sin(a))])
-                        hit = ray.intersection(poly.exterior)
-                        r0 = Point(cx, cy).distance(hit) if not hit.is_empty else 0.3
-                        o = (cx, cy)
+                    ray = LineString([(cx, cy), (cx + 10 * math.cos(a), cy + 10 * math.sin(a))])
+                    hit = ray.intersection(poly.exterior)
+                    r0 = Point(cx, cy).distance(hit) if not hit.is_empty else 0.3
                     for extra in (0.05, 0.15, 0.3, 0.5, 0.8, 1.2, 1.6, 2.0, 2.4, 2.8):
                         r = r0 + vr + extra
-                        pt = (o[0] + r * math.cos(a), o[1] + r * math.sin(a))
-                        path = [(cx, cy)] + ([knee] if knee else []) + [pt]
-                        seg = LineString(path).buffer(w / 2)
+                        pt = (cx + r * math.cos(a), cy + r * math.sin(a))
+                        seg = LineString([(cx, cy), pt]).buffer(w / 2)
                         seg_out = seg.difference(poly.buffer(0.01))
                         if clear(pt, seg_out if not seg_out.is_empty else Point(pt), net, fp.GetReference(), side,
                                  strict):
                             spot = pt
-                            spath = path
                             break
                         if DEBUG and '%s.%s' % (fp.GetReference(), p.GetNumber()) in DEBUG:
                             print('   ', fp.GetReference(), p.GetNumber(), strict, round(math.degrees(a)), extra,
@@ -306,55 +277,9 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
                     continue
                 failed.append('%s.%s(%s)' % (fp.GetReference(), p.GetNumber(), first or '?'))
                 continue
-            pcb.track(b, spath, w, lay, net)
+            pcb.track(b, [(cx, cy), spot], w, lay, net)
             pcb.via(b, spot[0], spot[1], net, d=via[0], drill=via[1])
             vias.append((Point(spot), net, vr))
-            tracks[side].append((LineString(spath).buffer(w / 2), net))
+            tracks[side].append((LineString([(cx, cy), spot]).buffer(w / 2), net))
             done += 1
     return done, failed
-
-
-def fan(fp, nets, spread=0.62, reach=1.2):
-    """For fanout's lean: a fine-pitch part's pins on `nets`, in runs of
-    neighbours along each side.  Each run fans out like a broom (its vias
-    `spread` apart at about `reach` out, where its pins are a pitch apart),
-    laid from the run's middle outwards: {(ref, pad): (order, angle)}."""
-    fx, fy = pcb.xy(fp.GetPosition())
-    sides = {}
-    for p in fp.Pads():
-        if p.GetNetname() not in nets or p.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
-            continue
-        x, y = pcb.xy(p.GetPosition())
-        sz = p.GetSize()
-        if sz.x == sz.y:
-            continue
-        # a long pad points away from the part: which side it is on
-        if (sz.y > sz.x) != (p.GetOrientationDegrees() % 180 == 90):
-            k = ('y', y > fy)
-        else:
-            k = ('x', x > fx)
-        sides.setdefault(k, []).append((p, x, y))
-    out = {}
-    n_order = 0
-    for (ax, pos), pl in sides.items():
-        along = (lambda t: t[1]) if ax == 'y' else (lambda t: t[2])
-        pl.sort(key=along)
-        away = (0.0, 1.0 if pos else -1.0) if ax == 'y' else (1.0 if pos else -1.0, 0.0)
-        t = (1.0, 0.0) if ax == 'y' else (0.0, 1.0)
-        sign = 1.0 if away[0] * t[1] - away[1] * t[0] > 0 else -1.0
-        runs, cur = [], [pl[0]]
-        for q in pl[1:]:
-            if along(q) - along(cur[-1]) < 0.5:
-                cur.append(q)
-            else:
-                runs.append(cur); cur = [q]
-        runs.append(cur)
-        for run in runs:
-            pitch = (along(run[-1]) - along(run[0])) / (len(run) - 1) if len(run) > 1 else spread
-            c = (len(run) - 1) / 2
-            for i, (p, x, y) in sorted(enumerate(run), key=lambda e: abs(e[0] - c)):
-                ang = sign * math.atan2((i - c) * max(0.0, spread - pitch), reach)
-                out[(fp.GetReference(), p.GetNumber())] = (n_order, ang)
-                n_order += 1
-    return out
-
