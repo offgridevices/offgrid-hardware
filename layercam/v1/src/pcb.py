@@ -354,10 +354,15 @@ def rule_area_shape(b, geom, layers, name=None, tracks=True, vias=True, pours=Fa
     return out
 
 
-def edge_band(width=0.35):
+# no track or via within this of any board edge (the fab asks 0.3 mm)
+EDGE_BAND = 0.35
+
+
+def edge_band(width=None):
     """The band just inside every board edge (outline and cut-outs) where
     no track or via may go: the fab's 0.3 mm copper-to-edge, which the
     router does not see on curved and inner edges."""
+    width = EDGE_BAND if width is None else width
     poly = board_polygon()
     return poly.difference(poly.buffer(-width, join_style=2)).buffer(0)
 

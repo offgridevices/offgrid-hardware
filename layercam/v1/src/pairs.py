@@ -152,7 +152,7 @@ def gnd_via_near(b, centre, rmin=0.75, rmax=1.6):
             obst.append(Point(pcb.xy(t.GetPosition())).buffer(t.GetWidth(pcbnew.F_Cu) / 2e6))
         else:
             obst.append(LineString([pcb.xy(t.GetStart()), pcb.xy(t.GetEnd())]).buffer(t.GetWidth() / 2e6))
-    edge = pcb.board_polygon().buffer(-(0.3 + vr))
+    edge = pcb.board_polygon().buffer(-(pcb.EDGE_BAND + vr + 0.01))  # clear of the edge band
     r = rmin
     while r <= rmax:
         for k in range(24):

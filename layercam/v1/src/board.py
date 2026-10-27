@@ -21,8 +21,11 @@ import pcb, circuit, placer, geometry as G
 
 # net classes: width for the current each carries
 POWER = {
-    'main': {'VSYS': 0.5, 'VDD_0V9': 0.5, 'SW_0V9': 0.5, 'VCC_3V3': 0.4, 'LX_3V3': 0.4, 'VCC_DDR': 0.4,
-             'LX_DDR': 0.4, 'VCC_1V8': 0.3, 'LX_1V8': 0.3, 'VWIFI': 0.5, 'SW_WIFI': 0.5, 'WIFI_LX': 0.4,
+    # no wider than the finest pins each net lands on, or the router cannot
+    # reach them: 0.25 at the EA3036C's 0.4 mm pitch, 0.2 at the RV1106's
+    # 0.35 mm (VCC_DDR, VCC_1V8); every rail here carries 1 A or less
+    'main': {'VSYS': 0.25, 'SW_0V9': 0.5, 'LX_3V3': 0.25, 'VCC_DDR': 0.2, 'LX_DDR': 0.25,
+             'VCC_1V8': 0.2, 'LX_1V8': 0.25, 'VWIFI': 0.4, 'SW_WIFI': 0.4, 'WIFI_LX': 0.4,
              'WIFI_VLDO': 0.4, 'LED_K': 0.4, 'IRCUT_1': 0.3, 'IRCUT_2': 0.3},
     'ring': {'VSYS': 0.4, 'LED_K': 0.4, 'STR1_A': 0.3, 'STR2_A': 0.3, 'STR3_A': 0.3,
              'STR1_M': 0.3, 'STR2_M': 0.3, 'STR3_M': 0.3},

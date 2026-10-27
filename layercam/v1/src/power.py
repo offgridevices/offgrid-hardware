@@ -76,7 +76,7 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
                     pads[side].append((fp, p, _pad_poly(p, lay)))
             if p.GetDrillSize().x > 0:
                 holes.append(Point(pcb.xy(p.GetPosition())).buffer(p.GetDrillSize().x / 2e6))
-    edge = pcb.board_polygon().buffer(-(0.3 + vr))
+    edge = pcb.board_polygon().buffer(-(pcb.EDGE_BAND + vr + 0.01))  # clear of the edge band
     keep = [_zone_poly(z) for z in b.Zones() if z.GetIsRuleArea() and z.GetDoNotAllowVias()
             and z.GetZoneName() != 'edge clearance']
     crts = {'F': {}, 'B': {}}
@@ -119,6 +119,11 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
         for g, n in inner:
             if n != net and g.distance(v) < CLR:
                 WHY[ref] = 'inner track ' + n; return False
+        # the stub to the via must clear other nets' vias too (it runs on
+        # the pad's face, where every via has copper)
+        for g, n, r in vias:
+            if n != net and g.distance(seg) < r + SEG_CLR:
+                WHY[ref] = 'via on the way ' + n; return False
         for g, n, r in vias:
             if g.distance(Point(pt)) < vr + r + max(CLR, 0.25 if n == net else CLR):
                 WHY[ref] = 'via ' + n; return False

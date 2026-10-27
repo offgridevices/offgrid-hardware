@@ -41,8 +41,8 @@ FIXED = {
     'L2': (15.9, -4.2, 0, F),         # 3.3 V
     'L3': (15.9, 5.2, 0, F),          # DDR
     'L4': (15.9, 8.6, 0, F),          # 1.8 V
-    'U2': (-9.4, 25.2, 90, F),         # 0.9 V buck, below-left of the SoC
-    'L1': (-12.0, 21.6, 270, F),   # switch end next to U2's SW pin
+    'U2': (-9.4, 25.0, 90, F),         # 0.9 V buck, below-left of the SoC
+    'L1': (-12.3, 21.3, 270, F),   # switch end next to U2's SW pin
     'U4': (11.8, -18.3, 0, F),        # Wi-Fi buck, top right, clear of the camera module
     'L5': (16.0, -14.4, 90, F),
     'Y1': (9.6, 22.2, 90, F),         # 24 MHz at the SoC's OSC pins (68/69, right side)
@@ -57,15 +57,15 @@ FIXED = {
     # round the AP6256 (U6, on B, mirrored: its antenna pin 2 at (-5.9,
     # -12.8), crystal pins 10/11 at (-5.9, -20.0 / -20.9), buck pins 21 / 23
     # at (3.6, -22.3) / (5.9, -20.9), sleep clock pin 24 at (5.9, -20.0))
-    'Y3': (-8.6, -20.45, 180, B),     # 37.4 MHz: pad 1 by pin 10, pad 3 round to pin 11
+    'Y3': (-9.1, -20.45, 180, B),     # 37.4 MHz: pad 1 by pin 10, pad 3 round to pin 11
     'L6': (8.6, -20.6, 90, B),        # Wi-Fi internal buck inductor, by pins 21 and 23
     'Y4': (9.8, -16.6, 90, B),        # 32.768 kHz oscillator, by pin 24
     # the antenna feed: pin 2 -> shunt C90 -> series R90 -> shunt C91 -> J5,
     # in a line along y -12.8 (pairs.py draws the 50 ohm track)
-    'C90': (-7.0, -13.31, 90, B),
-    'R90': (-8.2, -12.8, 180, B),
-    'C91': (-9.4, -13.31, 90, B),
-    'J5': (-11.3, -12.8, 270, B),     # U.FL, its signal pin towards U6
+    'C90': (-7.7, -13.31, 90, B),
+    'R90': (-9.2, -12.8, 180, B),
+    'C91': (-10.65, -13.31, 90, B),
+    'J5': (-12.8, -12.8, 270, B),     # U.FL, its signal pin towards U6
     'J4': (-16.0, 3.0, 90, B),        # LED ring cable (the ring's connector is behind it)
     'Q1': (-15.6, 10.6, 0, B),        # IR LED switch
     'J3': (15.9, 3.0, 270, B),        # IR-cut lead (the CLA219's motor is on this side)
