@@ -5,5 +5,5 @@
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
 REL=$(pwd | sed "s|^$ROOT||")
 SUDO=$( [ -w /var/run/docker.sock ] || echo sudo )
-exec $SUDO docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONHASHSEED=0 ${FANOUT_DEBUG:+-e FANOUT_DEBUG=$FANOUT_DEBUG} ${MITER_DEBUG:+-e MITER_DEBUG=1} ${FREEROUTING_TIMEOUT:+-e FREEROUTING_TIMEOUT=$FREEROUTING_TIMEOUT} ${PASSES:+-e PASSES=$PASSES} ${MAIN_BOARD:+-e MAIN_BOARD=$MAIN_BOARD} ${FR_EXTRA:+-e "FR_EXTRA=$FR_EXTRA"} \
-  -v "$ROOT":/w -w "/w$REL" ${KD_IMAGE:-ogkicad-layercam:1} "$@"
+exec $SUDO docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONHASHSEED=0 ${FANOUT_DEBUG:+-e FANOUT_DEBUG=$FANOUT_DEBUG} ${MITER_DEBUG:+-e MITER_DEBUG=1} ${FREEROUTING_TIMEOUT:+-e FREEROUTING_TIMEOUT=$FREEROUTING_TIMEOUT} ${PASSES:+-e PASSES=$PASSES} ${MAIN_BOARD:+-e MAIN_BOARD=$MAIN_BOARD} ${FR_EXTRA:+-e "FR_EXTRA=$FR_EXTRA"} ${FREEROUTING2:+-e "FREEROUTING2=$FREEROUTING2"} ${FR_FANOUT:+-e FR_FANOUT=1} \
+  -v "$ROOT":/w -w "/w$REL" ${KD_IMAGE:-ogkicad-layercam:2} "$@"

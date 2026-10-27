@@ -37,7 +37,7 @@ def run(bd, work, passes=int(os.environ.get('PASSES', 40))):
     log('== route (Freerouting)')
     from board import ROUTER_PLANE_VIAS
     route.DROP_NETS = () if bd in ROUTER_PLANE_VIAS else PLANE_NETS[bd]
-    route.FR2 = None
+    # route.FR2: Freerouting 2.x when FREEROUTING2 is set (route.py)
     inner = [l for l in pcb.cu_layers() if l not in (pcbnew.F_Cu, pcbnew.B_Cu)]
 
     def planes_only(b):

@@ -35,7 +35,7 @@ PLANE_NETS = {'main': ('GND', 'VDD_0V9', 'VCC_3V3'), 'usb': ('GND',), 'ring': ()
 # boards whose big parts' plane pins get their vias from the router (it
 # leaves gaps between them; vias placed beforehand, one per pin, walled the
 # pins next to them in): the plane nets are routed, to the planes
-ROUTER_PLANE_VIAS = {'main'}
+ROUTER_PLANE_VIAS = set()        # tried for 'main': 82 left unrouted against 52
 # differential pairs (width, gap) for 100 ohm (MIPI) and 90 ohm (USB) on
 # the outer layers over PCBWay's 0.12 mm prepreg, centred in the etch
 # tolerance (sim/impedance.md: 102 and 90 ohm on the main board, 92 ohm on

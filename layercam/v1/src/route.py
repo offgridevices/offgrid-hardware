@@ -12,7 +12,16 @@ import pcbnew
 
 JAR = os.environ.get('FREEROUTING_JAR', os.path.expanduser('~/freerouting-1.9.0.jar'))
 # Freerouting 2.4 (tools/Dockerfile installs it): used when set
+# Freerouting 2.x instead of 1.9.0: the command that runs it, e.g.
+# FREEROUTING2='/opt/java25/bin/java -jar /opt/freerouting-2.5.0.jar' (image
+# ogkicad-layercam:2, tools/Dockerfile)
 FR2 = os.environ.get('FREEROUTING2')
+# Freerouting's own fan-out pass first (an escape via at each SMD pin):
+# FR_FANOUT=1
+if os.environ.get('FR_FANOUT'):
+    AUTOROUTE_FANOUT = True
+else:
+    AUTOROUTE_FANOUT = False
 THREADS = 3
 
 # A board may add routing-only constraints (keepouts) to the copy exported
@@ -27,7 +36,7 @@ PRE_EXPORT = None
 #        directions={'F.Cu': 'horizontal', ...}, against=2.0)
 # fanout=True runs Freerouting's fan-out pass first: an escape via at each
 # SMD pin before general routing, so dense QFN pins keep a way out.
-AUTOROUTE = None
+AUTOROUTE = dict(fanout=True) if AUTOROUTE_FANOUT else None
 
 # Vias in SMD pads.  KiCad's DSN export forbids them (every via padstack
 # "(attach off)", no via_at_smd control); where both sides of a board are
@@ -153,8 +162,9 @@ def freeroute(dsn_path, ses_path, passes=20, timeout=None, log=None, extra=()):
     if FR2:
         # Freerouting 2.x: headless, multi-threaded optimiser; no usage
         # analytics leave the machine
-        cmd = [FR2, '-de', dsn_path, '-do', ses_path, '-mp', str(passes), '-mt', str(THREADS),
-               '--gui.enabled=false', '--usage_and_diagnostic_data.disable_analytics=true']
+        cmd = FR2.split() + ['-de', dsn_path, '-do', ses_path, '--router.autorouter.max_passes=%d' % passes,
+                             '-mt', str(THREADS), '--gui.enabled=false',
+                             '--usage_and_diagnostic_data.disable_analytics=true']
         cmd += os.environ.get('FR2_OPTS', '').split()
     else:
         cmd = ['xvfb-run', '-a', 'java', '-jar', JAR, '-de', dsn_path, '-do', ses_path, '-mp', str(passes)]
