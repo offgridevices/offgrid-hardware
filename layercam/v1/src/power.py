@@ -22,6 +22,8 @@ CLR = 0.15                     # fanout clearance: a little over the rules
 # a fanout track leaving a fine-pitch pad runs level with its neighbours' ends:
 # there it needs only the rules' clearance (a QFN's 0.35 pitch, 0.2 pads)
 SEG_CLR = 0.135
+BIG_PAD = 2.0                  # mm^2: a pad this large takes vias inside it
+VIA_PITCH = 1.0                # their grid
 WHY = {}                       # debugging: the last reason a spot was refused
 import os
 DEBUG = [d for d in os.environ.get("FANOUT_DEBUG", "").split(",") if d]
@@ -142,9 +144,24 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
 
     failed = []
     done = 0
+
+    def own_pad_ok(pt, net, side, skip):
+        """A via inside a pad of its own net: clear of everything else."""
+        v = Point(pt).buffer(vr)
+        for s in ('F', 'B'):
+            for fp2, p2, poly2 in pads[s]:
+                if p2.GetNetname() != net and poly2.distance(v) < CLR:
+                    return False
+        if any(n != net and g.distance(v) < CLR for s in ('F', 'B') for g, n in tracks[s]) or \
+                any(n != net and g.distance(v) < CLR for g, n in inner):
+            return False
+        return all(g.distance(Point(pt)) >= vr + r + (0.25 if n == net else CLR) for g, n, r in vias)
+
     for side in ('F', 'B'):
         lay = pcbnew.F_Cu if side == 'F' else pcbnew.B_Cu
-        for fp, p, poly in pads[side]:
+        # large pads (exposed pads, mounting tabs) first: their own vias,
+        # inside them, are what the part's other pads of that net reach
+        for fp, p, poly in sorted(pads[side], key=lambda t: -t[2].area):
             net = p.GetNetname()
             if net not in nets or p.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
                 continue
@@ -156,6 +173,43 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
             # a pad that already touches a via of its net needs none
             if any(n == net and g.distance(poly) < 0.01 for g, n, r in vias):
                 continue
+            if poly.area > BIG_PAD:
+                # vias in the pad (filled and capped): a grid at VIA_PITCH,
+                # each clear of the pad's edge
+                inside = poly.buffer(-(vr + 0.05))
+                x0, y0, x1, y1 = poly.bounds
+                nx = max(1, int((x1 - x0 - 2 * vr - 0.1) / VIA_PITCH) + 1)
+                ny = max(1, int((y1 - y0 - 2 * vr - 0.1) / VIA_PITCH) + 1)
+                put = 0
+                for i in range(nx):
+                    for j in range(ny):
+                        pt = (cx + (i - (nx - 1) / 2) * VIA_PITCH, cy + (j - (ny - 1) / 2) * VIA_PITCH)
+                        if inside.contains(Point(pt)) and own_pad_ok(pt, net, side, p):
+                            pcb.via(b, pt[0], pt[1], net, d=via[0], drill=via[1])
+                            vias.append((Point(pt), net, vr))
+                            put += 1
+                if put:
+                    done += 1
+                    continue
+            # a QFN's pin of the same net as its exposed pad: a short track
+            # straight in to that pad, whose vias serve both
+            ep = max((q for f2, q, pl in pads[side] if f2 is fp and q.GetNetname() == net and pl is not poly),
+                     key=lambda q: _pad_poly(q, lay).area, default=None)
+            if ep is not None and _pad_poly(ep, lay).area > BIG_PAD:
+                epoly = _pad_poly(ep, lay)
+                from shapely.ops import nearest_points
+                q = nearest_points(epoly, Point(cx, cy))[0]
+                w = min(0.3, poly.bounds[2] - poly.bounds[0], poly.bounds[3] - poly.bounds[1])
+                line = LineString([(cx, cy), (q.x, q.y)])
+                seg = line.buffer(w / 2).difference(poly.buffer(0.01)).difference(epoly.buffer(0.01))
+                if line.length < 2.0 and \
+                        all(p2.GetNetname() == net or poly2.distance(seg) >= SEG_CLR for _, p2, poly2 in pads[side]) \
+                        and all(n2 == net or g2.distance(seg) >= SEG_CLR for g2, n2 in tracks[side]) \
+                        and all(n2 == net or g2.distance(seg) >= r2 + SEG_CLR for g2, n2, r2 in vias):
+                    pcb.track(b, [(cx, cy), (q.x, q.y)], w, lay, net)
+                    tracks[side].append((line.buffer(w / 2), net))
+                    done += 1
+                    continue
             fx, fy = pcb.xy(fp.GetPosition())
             away = math.atan2(cy - fy, cx - fx) if (abs(cx - fx) + abs(cy - fy)) > 0.05 else -math.pi / 2
             # a long pad (a QFN's, a connector's) leaves along its length,
