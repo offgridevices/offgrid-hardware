@@ -1,27 +1,25 @@
 # -*- coding: utf-8 -*-
-"""LayerCam v1: impedance of the coupled pairs, from the stackups and the
-pair rules the boards are built with.
+"""LayerCam v1: impedance of the controlled tracks on PCBWay's stackups.
 
     tools/kd python3 sim/impedance.py      writes sim/impedance.md, exits 1 on a FAIL
 
-Sources of truth, read from the code (not copied):
-  src/board.py  DIFF      each pair class's width and gap
-  src/pcb.py    STACKUP6  JLC06161H-3313 layer thicknesses and Dk
-                STACKUP2  the 2-layer boards' core (thickness() - 0.07)
-                CLEAR     the netclass clearance; the ground fill keeps
-                          CLEAR + 0.05 (src/stitch.py) from other nets
-JLCPCB's own figures (jlcpcb.com/impedance, read 26 Oct 2026):
-  JLC06161H-3313: 35 um outer copper, 3313 prepreg 0.0994 mm, 15.2 um
-  inner copper, 0.55 mm cores, 2116 prepreg 0.1088 mm.  Dk: 3313 4.1,
-  2116 4.16, core 4.6.  Solder mask: 1.2 mil (30 um) on the substrate,
-  0.6 mil (15 um) on the copper, 1.2 mil between traces, Dk 3.8.
+Everything the boards are built with is read from the code, not copied:
+  src/pcb.py    STACKUP6   the main board's layers (thickness, Dk) - PCBWay's build
+                STACKUP2   the 2-layer boards' core: thickness() - 0.07, epsilon_r
+                configure  the netclass clearance CLEAR of each board
+  src/stitch.py            the ground fill keeps CLEAR + 0.05 from other nets
+  src/board.py  DIFF       each pair class's width and gap
+                RF_W       the antenna feed's width (B.Cu over In4)
+  src/geometry.py USB_T    the USB board's thickness
 
-Two methods: closed forms (IPC-2141; Hammerstad-Jensen microstrip with
-Wheeler's thickness correction as given in Wadell, "Transmission Line
-Design Handbook" 3.5; the IPC/Wadell edge-coupling factor; Wadell's
-coated-microstrip correction for the mask), and the 2D field solver in
-fieldsolve.py, checked here against exact results first.  The field
-solver is the one the verdict uses.
+PCBWay's published "Regular" 6-layer 1.6 mm build No. 1 (pcbway.com multi-layer laminated structure, read
+27 Oct 2026) is kept below only to check that STACKUP6 still matches it.  PCBWay publishes no solder-mask
+thickness or Dk (its own calculator leaves the mask out): typical LPI figures are assumed (15 um on copper,
+30 um on laminate, Dk 3.8) and the no-mask figures are given too.
+
+Field solver: fieldsolve.py (2D finite volume), checked here against Cohn's exact stripline and
+Hammerstad-Jensen's microstrip first.  Closed forms (IPC-2141, Hammerstad-Jensen) for the bare pairs as a
+sanity column.
 """
 import ast, math, os, re, sys
 import numpy as np
@@ -33,54 +31,99 @@ import fieldsolve as fs
 
 OUT = os.path.join(HERE, 'impedance.md')
 
-# ---------------------------------------------------------------- sources
+
+# ---------------------------------------------------------------- read the design
 def _src(name):
     return open(os.path.join(V1, 'src', name)).read()
 
 
-def read_diff():
-    tree = ast.parse(_src('board.py'))
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and getattr(node.targets[0], 'id', '') == 'DIFF':
+def _assign(src, name):
+    for node in ast.parse(src).body:
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], 'id', '') == name:
             return ast.literal_eval(node.value)
-    raise KeyError('DIFF')
+    raise KeyError(name)
 
 
 def read_stackup6():
     s = _src('pcb.py')
     blk = s[s.index('STACKUP6 = '):s.index('STACKUP2 = ')]
-    lay = re.findall(r'\(layer "([^"]+)" \(type "([^"]+)"\)(?: \(color "[^"]*"\))? \(thickness ([\d.]+)\)'
-                     r'(?: \(material "[^"]*"\) \(epsilon_r ([\d.]+)\))?', blk)
-    return [(n, t, float(th), float(er) if er else None) for n, t, th, er in lay]
+    out = []
+    for m in re.finditer(r'\(layer "([^"]+)" \(type "([^"]+)"\)(?: \(color "[^"]*"\))? \(thickness ([\d.]+)\)'
+                         r'(?: \(material "([^"]*)"\) \(epsilon_r ([\d.]+)\))?', blk):
+        n, t, th, mat, er = m.groups()
+        out.append(dict(name=n, type=t, t=float(th), material=mat, er=float(er) if er else None))
+    return out
 
 
 def read_stackup2():
     s = _src('pcb.py')
     er = float(re.search(r'STACKUP2 = .*?epsilon_r ([\d.]+)', s, re.S).group(1))
-    geo = _src('geometry.py')
-    usb_t = float(re.search(r'USB_T = ([\d.]+)', geo).group(1))
-    m = re.search(r"if board == 'main':.*?else:\s*LAYERS, TRACK, CLEAR, VIA = 2, ([\d.]+), ([\d.]+)", s, re.S)
-    return dict(core=usb_t - 0.07, er=er, cu=0.035, clear=float(m.group(2)))
+    cu = float(re.search(r'STACKUP2 = .*?"F.Cu" \(type "copper"\) \(thickness ([\d.]+)\)', s, re.S).group(1))
+    usb_t = float(re.search(r'USB_T = ([\d.]+)', _src('geometry.py')).group(1))
+    sub = float(re.search(r"STACKUP2 % \(thickness\(\) - ([\d.]+)\)", s).group(1))
+    return dict(core=usb_t - sub, er=er, cu=cu, board_t=usb_t)
 
 
-def read_clear_main():
+def read_clear(board):
     s = _src('pcb.py')
-    m = re.search(r"if board == 'main':\s*LAYERS, TRACK, CLEAR, VIA = 6, ([\d.]+), ([\d.]+)", s)
-    return float(m.group(2))
+    if board == 'main':
+        m = re.search(r"if board == 'main':\s*LAYERS, TRACK, CLEAR, VIA = 6, ([\d.]+), ([\d.]+)", s)
+    else:
+        m = re.search(r"else:\s*LAYERS, TRACK, CLEAR, VIA = 2, ([\d.]+), ([\d.]+)", s)
+    return float(m.group(1)), float(m.group(2))
 
 
-DIFF = read_diff()
+def read_fill_extra():
+    return float(re.search(r"clearance=pcb\.CLEAR \+ ([\d.]+)", _src('stitch.py')).group(1))
+
+
 ST6 = read_stackup6()
 ST2 = read_stackup2()
-FILL_EXTRA = 0.05                 # stitch.py: zone clearance = CLEAR + 0.05
+BOARD_SRC = _src('board.py')
+DIFF = _assign(BOARD_SRC, 'DIFF')
+RF_W = _assign(BOARD_SRC, 'RF_W')
+FILL_EXTRA = read_fill_extra()
+TRACK_MAIN, CLEAR_MAIN = read_clear('main')
+TRACK_USB, CLEAR_USB = read_clear('usb')
+FILL_MAIN = CLEAR_MAIN + FILL_EXTRA
+FILL_USB = CLEAR_USB + FILL_EXTRA
 
-# outer layer of the 6-layer board: F.Cu over dielectric 1 to In1
-_cu_out = [t for n, ty, t, e in ST6 if n == 'F.Cu'][0]
-_pp = [(t, e) for n, ty, t, e in ST6 if n == 'dielectric 1'][0]
-MASK = dict(on_sub=0.0305, on_cu=0.0152, er=3.8)      # JLCPCB: 1.2 / 0.6 mil, Dk 3.8
-ETCH = 0.0127                     # top of a track narrower by 0.5 mil a side (assumed, typical etch)
-TARGET = {'MIPI': (100.0, 0.10), 'USB': (90.0, 0.10)}
-MIN_W, MIN_GAP = 0.10, 0.127      # the rules the caller set for any new width / gap
+
+if os.environ.get('IMPEDANCE_STACKUP') == 'pcbway-no1':
+    # preview: PCBWay's published build in place of STACKUP6 (set when src/pcb.py has not caught up yet)
+    ST6 = [dict(name='F.Cu', type='copper', t=0.035, material=None, er=None),
+           dict(name='dielectric 1', type='prepreg', t=0.1195, material='2116', er=4.45),
+           dict(name='In1.Cu', type='copper', t=0.035, material=None, er=None),
+           dict(name='dielectric 2', type='core', t=0.43, material='FR4', er=4.6),
+           dict(name='In2.Cu', type='copper', t=0.035, material=None, er=None),
+           dict(name='dielectric 3', type='prepreg', t=0.175, material='7628', er=4.74),
+           dict(name='In3.Cu', type='copper', t=0.035, material=None, er=None),
+           dict(name='dielectric 4', type='core', t=0.43, material='FR4', er=4.6),
+           dict(name='In4.Cu', type='copper', t=0.035, material=None, er=None),
+           dict(name='dielectric 5', type='prepreg', t=0.1195, material='2116', er=4.45),
+           dict(name='B.Cu', type='copper', t=0.035, material=None, er=None)]
+    OUT = os.environ.get('IMPEDANCE_OUT', OUT)
+
+
+def layer(name):
+    return [x for x in ST6 if x['name'] == name][0]
+
+
+# the outer layers: F.Cu over dielectric 1 to In1, B.Cu over dielectric 5 to In4
+OUTER = {'F': dict(h=layer('dielectric 1')['t'], er=layer('dielectric 1')['er'], t=layer('F.Cu')['t'], ref='In1'),
+         'B': dict(h=layer('dielectric 5')['t'], er=layer('dielectric 5')['er'], t=layer('B.Cu')['t'], ref='In4')}
+
+# PCBWay's published build No. 1, for the check only (thickness after lamination, Dk)
+PCBWAY_NO1 = [('F.Cu', 0.035, None), ('dielectric 1', 0.1195, 4.45), ('In1.Cu', 0.035, None),
+              ('dielectric 2', 0.43, 4.6), ('In2.Cu', 0.035, None), ('dielectric 3', 0.175, 4.74),
+              ('In3.Cu', 0.035, None), ('dielectric 4', 0.43, 4.6), ('In4.Cu', 0.035, None),
+              ('dielectric 5', 0.1195, 4.45), ('B.Cu', 0.035, None)]
+
+MASK = dict(on_sub=0.0305, on_cu=0.0152, er=3.8)     # typical LPI (PCBWay publishes none): ASSUMED
+ETCH = 0.0127                     # track top narrower by 0.5 mil a side (typical etch): ASSUMED
+ETCH_TOL = 0.015                  # width error checked: +-0.015 mm at the same pitch
+TARGET = {'MIPI': (100.0, 0.10), 'USB': (90.0, 0.10), 'RF': (50.0, 0.10)}
+GAP_MIN = {'main': CLEAR_MAIN, 'usb': CLEAR_USB}
 
 checks = []
 
@@ -89,8 +132,9 @@ def check(ok, what, warn=False):
     checks.append(('PASS' if ok else ('WARN' if warn else 'FAIL'), what))
 
 
-# ---------------------------------------------------------------- closed forms
+# ---------------------------------------------------------------- closed forms (sanity column)
 def hj(w, h, t, er):
+    """Hammerstad-Jensen microstrip with Wheeler's thickness correction (Wadell 3.5.1)."""
     u = w / h
     th = t / h
     if t > 0:
@@ -108,52 +152,34 @@ def hj(w, h, t, er):
         a = 1 + math.log((x ** 4 + (x / 52) ** 2) / (x ** 4 + 0.432)) / 49 + math.log(1 + (x / 18.1) ** 3) / 18.7
         b = 0.564 * ((er - 0.9) / (er + 3)) ** 0.053
         return (er + 1) / 2 + (er - 1) / 2 * (1 + 10 / x) ** (-a * b)
-    eeff = ee(ur) * (z01(u1) / z01(ur)) ** 2
-    z = z01(ur) / math.sqrt(ee(ur))
-    return z, eeff
-
-
-def mask_factor(eeff, er_mask, c, h):
-    """Wadell's embedded-microstrip approximation used for the mask: a coat c
-    thick over the track pulls the effective permittivity towards the
-    coat's, eeff' = eeff exp(-2c/h) + er_mask (1 - exp(-2c/h)); Z scales as
-    sqrt(eeff / eeff').  Rough: a sanity check on the solver only."""
-    k = math.exp(-2 * c / h)
-    e2 = eeff * k + er_mask * (1 - k)
-    return math.sqrt(eeff / e2), e2
+    return z01(ur) / math.sqrt(ee(ur)), ee(ur) * (z01(u1) / z01(ur)) ** 2
 
 
 def closed_forms(w, s, h, t, er):
-    ipc_z0 = 87 / math.sqrt(er + 1.41) * math.log(5.98 * h / (0.8 * w + t))
-    z, ee = hj(w, h, t, er)
-    f, _ = mask_factor(ee, MASK['er'], MASK['on_cu'], h)
-    k = 1 - 0.48 * math.exp(-0.96 * s / h)
-    return dict(ipc_z0=ipc_z0, ipc_zd=2 * ipc_z0 * k, hj_z0=z, hj_zd=2 * z * k, hj_z0m=z * f, hj_zdm=2 * z * f * k,
-                eeff=ee)
+    ipc = 87 / math.sqrt(er + 1.41) * math.log(5.98 * h / (0.8 * w + t))
+    z, _ = hj(w, h, t, er)
+    k = 1 - 0.48 * math.exp(-0.96 * s / h) if s else 1.0
+    return dict(ipc_z0=ipc, ipc_zd=2 * ipc * k, hj_z0=z, hj_zd=2 * z * k)
 
 
 # ---------------------------------------------------------------- field-solver sections
-def microstrip_section(w, s, h, t, er, pair=True, mask=True, gnd_gap=None, etch=ETCH, er_mask=MASK['er'],
-                       top_gnd=None, er_top=None, hmin=0.001):
-    """Edge-coupled (or single) surface microstrip over a plane at y = 0.
-    gnd_gap: coplanar ground fill this far from each outer track edge.
-    top_gnd: a second plane at that height (stripline cases, not used)."""
+def microstrip_section(w, s, h, t, er, pair=True, mask=True, gnd_gap=None, etch=ETCH, hmin=0.001):
+    """Edge-coupled pair (or one track) on the surface over a plane at y = 0; gnd_gap: coplanar ground
+    fill this far from each outer track edge, to the sides of the domain."""
     xc = [-(s + w) / 2, (s + w) / 2] if pair else [0.0]
-    span = 2.0 + (s + 2 * w)
-    ytop = h + t + 1.5
+    span = 2.0 + (s + 2 * w) + 2 * h
+    ytop = h + t + 1.5 + h
     xf = [-span, span]
     for x in xc:
         xf += [x - w / 2, x + w / 2, x - w / 2 + etch, x + w / 2 - etch]
+    xo = None
     if gnd_gap is not None:
         xo = max(abs(x) for x in xc) + w / 2 + gnd_gap
         xf += [-xo, xo, -xo - etch, xo + etch]
     yf = [0, h, h + t, h + MASK['on_sub'], h + t + MASK['on_cu'], ytop]
-    xs = fs.axis(xf, -span, span, hmin=hmin)
-    ys = fs.axis(yf, 0, ytop, hmin=hmin)
-    sec = fs.Section(xs, ys)
+    sec = fs.Section(fs.axis(xf, -span, span, hmin=hmin), fs.axis(yf, 0, ytop, hmin=hmin))
 
     def halfw(Y):
-        # trapezoid: full width at the bottom (on the laminate), narrower at the top
         return w / 2 - etch * np.clip((Y - h) / t, 0, 1)
 
     def eps(X, Y):
@@ -162,17 +188,19 @@ def microstrip_section(w, s, h, t, er, pair=True, mask=True, gnd_gap=None, etch=
         if mask:
             m = (Y >= h) & (Y < h + MASK['on_sub'])
             for x in xc:
-                m |= (np.abs(X - x) <= halfw(np.minimum(Y, h + t)) + MASK['on_cu']) & (Y < h + t + MASK['on_cu']) & (Y >= h)
-            if gnd_gap is not None:
+                m |= (np.abs(X - x) <= halfw(np.minimum(Y, h + t)) + MASK['on_cu']) & (Y < h + t + MASK['on_cu']) \
+                    & (Y >= h)
+            if xo is not None:
                 m |= (np.abs(X) >= xo - MASK['on_cu']) & (Y < h + t + MASK['on_cu']) & (Y >= h)
-            e[m] = er_mask
+            e[m] = MASK['er']
         return e
     sec.set_eps(eps)
     tol = 1e-9
     for k, x in enumerate(xc, start=1):
         sec.add_conductor(k, lambda X, Y, x=x: (Y >= h - tol) & (Y <= h + t + tol) & (np.abs(X - x) <= halfw(Y) + tol))
-    if gnd_gap is not None:
-        sec.add_conductor(0, lambda X, Y: (Y >= h - tol) & (Y <= h + t + tol) & (np.abs(X) >= xo + etch * np.clip((Y - h) / t, 0, 1) - tol))
+    if xo is not None:
+        sec.add_conductor(0, lambda X, Y: (Y >= h - tol) & (Y <= h + t + tol)
+                          & (np.abs(X) >= xo + etch * np.clip((Y - h) / t, 0, 1) - tol))
     return sec, list(range(1, len(xc) + 1))
 
 
@@ -181,80 +209,135 @@ def solve(**kw):
     return fs.lines(sec, ks)
 
 
-# ---------------------------------------------------------------- self-checks of the solver
+def zdiff(w, s, lay, fill=None, mask=True, dw=0.0):
+    """Zdiff of a pair on outer layer lay ('F' / 'B' / 'usb'), the track dw wider (same pitch)."""
+    p = OUTER[lay] if lay in OUTER else dict(h=ST2['core'], er=ST2['er'], t=ST2['cu'])
+    g = None if fill is None else fill - dw / 2
+    return solve(w=w + dw, s=s - dw, h=p['h'], t=p['t'], er=p['er'], gnd_gap=g, mask=mask)['Zdiff']
+
+
+def z0(w, lay, fill=None, mask=True, dw=0.0):
+    p = OUTER[lay]
+    g = None if fill is None else fill - dw / 2
+    return solve(w=w + dw, s=0, h=p['h'], t=p['t'], er=p['er'], pair=False, gnd_gap=g, mask=mask)['Z0']
+
+
+# ---------------------------------------------------------------- solver checks
 def validate():
+    from scipy.special import ellipk
     rows = []
-    # 1) zero-thickness symmetric stripline, w = b/2, er 4: Cohn's exact formula
     b, w, er = 0.4, 0.2, 4.0
     k = 1 / math.cosh(math.pi * w / (2 * b))
-    from scipy.special import ellipk
     exact = 30 * math.pi / math.sqrt(er) * ellipk(k * k) / ellipk(1 - k * k)
-    xs = fs.axis([-w / 2, w / 2, -2, 2], -2, 2)
-    ys = fs.axis([0, b / 2, b], 0, b)
-    sec = fs.Section(xs, ys)
-    sec.cond[0, :] = sec.cond[-1, :] = -1          # open sides (Neumann): the plates are the reference
+    sec = fs.Section(fs.axis([-w / 2, w / 2, -2, 2], -2, 2), fs.axis([0, b / 2, b], 0, b))
+    sec.cond[0, :] = sec.cond[-1, :] = -1
     sec.cond[0, 0] = sec.cond[-1, 0] = sec.cond[0, -1] = sec.cond[-1, -1] = 0
     sec.set_eps(lambda X, Y: np.full_like(X, er))
     sec.add_conductor(1, lambda X, Y: (np.abs(Y - b / 2) < 1e-9) & (np.abs(X) <= w / 2 + 1e-9))
-    z = fs.lines(sec, [1])['Z0']
-    rows.append(('stripline b 0.4, w 0.2, t 0, er 4 (Cohn, exact)', exact, z))
-    # 2) zero-thickness microstrip, w/h 1, er 4.1: Hammerstad-Jensen (0.2 % of exact)
+    rows.append(('stripline b 0.4, w 0.2, t 0, er 4 (Cohn, exact)', exact, fs.lines(sec, [1])['Z0']))
     for wh in (1.0, 2.0):
-        hjz, _ = hj(wh * 0.1, 0.1, 0.0, 4.1)
-        r = solve(w=wh * 0.1, s=0, h=0.1, t=1e-4, er=4.1, pair=False, mask=False, etch=0.0)
-        rows.append(('microstrip w/h %.0f, t 0, er 4.1 (Hammerstad-Jensen)' % wh, hjz, r['Z0']))
+        ref, _ = hj(wh * 0.1, 0.1, 0.0, 4.1)
+        z = solve(w=wh * 0.1, s=0, h=0.1, t=1e-4, er=4.1, pair=False, mask=False, etch=0.0)['Z0']
+        rows.append(('microstrip w/h %.0f, t 0, er 4.1 (Hammerstad-Jensen)' % wh, ref, z))
     return rows
 
 
 def usb_routed_length():
-    """Track length of USB_DP / USB_DM on the routed USB board, if it is there."""
     path = os.path.join(V1, 'usb', 'layercam-usb.kicad_pcb')
     if not os.path.exists(path):
-        return 14.0, 'estimated from the placement: receptacle at y 4, cable connector at y 12.5'
-    s = open(path).read()
+        return None
     tot = {}
     for m in re.finditer(r'\(segment\s+\(start ([\d.-]+) ([\d.-]+)\)\s+\(end ([\d.-]+) ([\d.-]+)\)\s+\(width ([\d.]+)\)'
-                         r'\s+\(layer "[^"]+"\)\s+\(net "([^"]+)"', s):
+                         r'\s+\(layer "[^"]+"\)\s+\(net "([^"]+)"', open(path).read()):
         x1, y1, x2, y2, wd, net = m.groups()
         if net in ('USB_DP', 'USB_DM'):
             tot[net] = tot.get(net, 0) + math.hypot(float(x2) - float(x1), float(y2) - float(y1))
-    if not tot:
-        return 14.0, 'estimated from the placement'
-    return max(tot.values()), ('routed usb/layercam-usb.kicad_pcb: D+ %.1f mm, D- %.1f mm of track including the '
-                               'joins between the receptacle\'s two rows' % (tot.get('USB_DP', 0), tot.get('USB_DM', 0)))
+    return tot or None
 
 
-# ---------------------------------------------------------------- the cases
-def main_case(name):
-    nets, w, s = DIFF['main'][name]
-    return w, s
+# ---------------------------------------------------------------- the analysis
+def pair_rows(w_, name, w, s, lays, board='main'):
+    """Check one pair rule on its layers; return its row values."""
+    tgt, tol = TARGET[name if name != 'USB board' else 'USB']
+    lo, hi = tgt * (1 - tol), tgt * (1 + tol)
+    fill = FILL_MAIN if board == 'main' else FILL_USB
+    res = []
+    for lay in lays:
+        bare = zdiff(w, s, lay) if board == 'main' else None
+        fl = zdiff(w, s, lay, fill)
+        nar = zdiff(w, s, lay, fill, dw=-ETCH_TOL)
+        wid = zdiff(w, s, lay, fill, dw=+ETCH_TOL)
+        nomask = zdiff(w, s, lay, fill if board != 'main' else None, mask=False)
+        zs = [z for z in (bare, fl, nar, wid) if z is not None]
+        ok = all(lo <= z <= hi for z in zs)
+        w_('| %s | %s | %.3f / %.3f | %s | %.1f | %.1f / %.1f | %.1f | %.0f +-%.0f %% | %s |'
+           % (name, lay if lay in OUTER else 'F (2-layer)', w, s, '%.1f' % bare if bare else '-', fl, nar, wid, nomask,
+              tgt, tol * 100, 'PASS' if ok else 'FAIL'))
+        check(ok, '%s %.3f / %.3f on %s: %.1f-%.1f ohm (bare, beside the fill, +-%.3f mm etch) inside %.0f-%.0f'
+              % (name, w, s, lay if lay in OUTER else 'the USB board', min(zs), max(zs), ETCH_TOL, lo, hi))
+        check(s >= GAP_MIN[board] - 1e-9, '%s gap %.3f mm at or above the %s board\'s %.3f mm clearance'
+              % (name, s, board, GAP_MIN[board]))
+        res.append((lay, ok, zs))
+    return res
+
+
+def suggest_pair(name, w0, s0, lays, board='main'):
+    """The smallest change from (w0, s0) that passes on every layer it runs on."""
+    tgt, tol = TARGET[name if name != 'USB board' else 'USB']
+    lo, hi = tgt * (1 - tol), tgt * (1 + tol)
+    fill = FILL_MAIN if board == 'main' else FILL_USB
+    best = None
+    for w in np.round(np.arange(0.10, 0.36, 0.01), 3):
+        for s in (GAP_MIN[board], 0.15, 0.175, 0.20):
+            zs = []
+            for lay in lays:
+                zs += [zdiff(w, s, lay, fill), zdiff(w, s, lay, fill, dw=-ETCH_TOL), zdiff(w, s, lay, fill, dw=ETCH_TOL)]
+                if board == 'main':
+                    zs.append(zdiff(w, s, lay))
+            if all(lo <= z <= hi for z in zs):
+                d = abs(w - w0) + abs(s - s0)
+                if best is None or d < best[0]:
+                    best = (d, w, s, min(zs), max(zs))
+    return best
 
 
 def run():
     L = []
     w_ = L.append
-    h, er = _pp
-    t = _cu_out
-    clear = read_clear_main()
-    gap_fill = clear + FILL_EXTRA
-    w_('# LayerCam v1: impedance of the coupled pairs\n')
-    w_('Computed by `sim/impedance.py` (field solver `sim/fieldsolve.py`). Widths and gaps from `src/board.py` DIFF; '
-       'stackups from `src/pcb.py`; JLCPCB\'s published figures for JLC06161H-3313 (jlcpcb.com/impedance, read 26 Oct 2026).\n')
-    w_('## Stackup used\n')
-    w_('| | value | source |\n|---|---|---|')
-    w_('| outer copper (F.Cu / B.Cu) | %.3f mm (1 oz finished) | pcb.STACKUP6 = JLCPCB table |' % t)
-    w_('| L1-L2 / L5-L6 prepreg | 3313 x1, %.4f mm, Dk %.2f | pcb.STACKUP6 = JLCPCB table (Dk table: 3313 4.1) |' % (h, er))
-    w_('| inner copper | 0.0152 mm (0.5 oz) | JLCPCB |')
-    w_('| cores / middle prepreg | 0.55 mm Dk 4.6 / 2116 0.1088 mm Dk 4.16 | JLCPCB (not on the outer-layer path) |')
-    w_('| solder mask | %.1f um on laminate, %.1f um on copper, Dk %.1f | JLCPCB calculator parameters |'
-       % (MASK['on_sub'] * 1e3, MASK['on_cu'] * 1e3, MASK['er']))
-    w_('| track etch | top narrower by %.1f um each side (trapezoid) | assumed, typical |' % (ETCH * 1e3))
-    w_('| ground fill beside a pair (main) | %.3f mm from the track (CLEAR %.3f + %.2f) | src/pcb.py, src/stitch.py |'
-       % (gap_fill, clear, FILL_EXTRA))
-    w_('| USB board | 2 layers, core %.2f mm (USB_T %.1f - 0.07), Dk %.1f, 35 um copper, ground fill both sides at %.2f mm |'
-       ' pcb.STACKUP2, geometry.USB_T, stitch.py |' % (ST2['core'], ST2['core'] + 0.07, ST2['er'], ST2['clear'] + FILL_EXTRA))
-    w_('')
+    w_('# LayerCam v1: impedance of the controlled tracks (PCBWay)\n')
+    w_('Computed by `sim/impedance.py` (field solver `sim/fieldsolve.py`) from what the boards are built with: '
+       'stackups from `src/pcb.py` (STACKUP6, STACKUP2), pair rules from `src/board.py` (DIFF, RF_W), clearances '
+       'from `src/pcb.py` and `src/stitch.py`.\n')
 
+    # ------------------------------------------------ stackup
+    w_('## Stackup (src/pcb.py STACKUP6, PCBWay\'s regular 6-layer 1.6 mm build No. 1)\n')
+    w_('| layer | type | thickness (mm) | Dk |\n|---|---|---|---|')
+    for x in ST6:
+        if x['type'] in ('copper', 'prepreg', 'core'):
+            w_('| %s | %s%s | %.4f | %s |' % (x['name'], x['type'], ' ' + x['material'] if x['material'] else '', x['t'],
+                                           '%.2f' % x['er'] if x['er'] else '-'))
+    w_('')
+    mism = []
+    for name, t, er in PCBWAY_NO1:
+        try:
+            x = layer(name)
+        except IndexError:
+            mism.append(name + ' missing')
+            continue
+        if abs(x['t'] - t) > 1e-3 or (er and abs((x['er'] or 0) - er) > 1e-3):
+            mism.append('%s %.4f mm Dk %s (PCBWay: %.4f mm Dk %s)' % (name, x['t'], x['er'], t, er))
+    check(not mism, 'src/pcb.py STACKUP6 matches PCBWay\'s published build No. 1' +
+          ('' if not mism else ': ' + '; '.join(mism)))
+    w_('Outer layers: F.Cu over %.4f mm (Dk %.2f) to In1, B.Cu over %.4f mm (Dk %.2f) to In4; copper %.3f mm. '
+       'Solder mask (PCBWay publishes none, ASSUMED): %.0f um on copper, %.0f um on laminate, Dk %.1f. Track '
+       'etch: top %.1f um narrower a side (ASSUMED). USB board: 2 layers, %.2f mm board, core %.2f mm, Dk %.1f, '
+       'copper %.3f mm (STACKUP2). Ground fill: %.3f mm from other nets on the main board, %.3f mm on the USB '
+       'board (CLEAR + %.2f, stitch.py).\n'
+       % (OUTER['F']['h'], OUTER['F']['er'], OUTER['B']['h'], OUTER['B']['er'], OUTER['F']['t'], MASK['on_cu'] * 1e3,
+          MASK['on_sub'] * 1e3, MASK['er'], ETCH * 1e3, ST2['board_t'], ST2['core'], ST2['er'], ST2['cu'], FILL_MAIN,
+          FILL_USB, FILL_EXTRA))
+
+    # ------------------------------------------------ solver checks
     w_('## Field solver checked against exact results\n')
     w_('| case | reference (ohm) | solver (ohm) | error |\n|---|---|---|---|')
     for name, ref, z in validate():
@@ -263,342 +346,120 @@ def run():
         check(abs(err) < 0.015, 'solver within 1.5 %% of %s (%+.2f %%)' % (name.split(' (')[0], 100 * err))
     w_('')
 
-    # --------------------------------------------- main board, as designed
-    w_('## Main board, outer layers over In1 / In4, as designed\n')
-    w_('Closed forms first (no coplanar ground; the IPC-2141 single-line formula is known to read high for w/h near 1, '
-       'Hammerstad-Jensen is within about 1 % for the bare line); then the field solver, bare and with the ground fill '
-       'that stitch.py pours beside the pair. Zdiff = 2 Zodd, Zcm = Zeven / 2.\n')
-    w_('| pair | w / gap (mm) | IPC-2141 Z0 / Zdiff | H-J Z0 / Zdiff (no mask) | H-J + mask Z0 / Zdiff | '
-       'solver Z0 (single) | solver Zdiff, no fill | solver Zdiff, fill at %.3f | solver Zcm | target |' % gap_fill)
-    w_('|---|---|---|---|---|---|---|---|---|---|')
-    results = {}
-    for name in ('MIPI', 'USB'):
-        wd, sd = main_case(name)
-        cf = closed_forms(wd, sd, h, t, er)
-        z1 = solve(w=wd, s=sd, h=h, t=t, er=er, pair=False)
-        zp = solve(w=wd, s=sd, h=h, t=t, er=er)
-        zf = solve(w=wd, s=sd, h=h, t=t, er=er, gnd_gap=gap_fill)
-        tgt, tol = TARGET[name]
-        results[name] = (wd, sd, zp, zf, z1)
-        w_('| %s | %.3f / %.3f | %.1f / %.1f | %.1f / %.1f | %.1f / %.1f | %.1f | %.1f | %.1f | %.1f | %.0f +-%.0f %% |'
-           % (name, wd, sd, cf['ipc_z0'], cf['ipc_zd'], cf['hj_z0'], cf['hj_zd'], cf['hj_z0m'], cf['hj_zdm'],
-              z1['Z0'], zp['Zdiff'], zf['Zdiff'], zp['Zcm'], tgt, tol * 100))
-        lo, hi = tgt * (1 - tol), tgt * (1 + tol)
-        worst = min(zp['Zdiff'], zf['Zdiff'])
-        check(lo <= zp['Zdiff'] <= hi and lo <= zf['Zdiff'] <= hi,
-              'main %s %.2f / %.2f: Zdiff %.1f (bare) / %.1f (with fill) against %.0f +-%.0f %% (%.0f-%.0f)'
-              % (name, wd, sd, zp['Zdiff'], zf['Zdiff'], tgt, tol * 100, lo, hi))
-        e1 = solve(w=wd - 0.015, s=sd + 0.015, h=h, t=t, er=er)['Zdiff']
-        e2 = solve(w=wd + 0.015, s=sd - 0.015, h=h, t=t, er=er)['Zdiff']
-        results[name] = (wd, sd, zp, zf, z1, e1, e2)
-        check(lo <= e1 <= hi and lo <= e2 <= hi,
-              'main %s %.2f / %.2f with the track 0.015 mm narrower / wider (same pitch): %.1f / %.1f ohm against %.0f-%.0f'
-              % (name, wd, sd, e1, e2, lo, hi), warn=True)
-    w_('')
-
-    # sensitivity: what moves the number
-    wd, sd = main_case('MIPI')
-    w_('### Sensitivity (MIPI %.2f / %.2f, field solver, no fill)\n' % (wd, sd))
-    w_('| change | Zdiff (ohm) |\n|---|---|')
-    w_('| as above | %.1f |' % results['MIPI'][2]['Zdiff'])
-    for lab, kw in (('no solder mask', dict(mask=False)), ('rectangular track (no etch)', dict(etch=0.0)),
-                    ('prepreg +10 %% (%.3f mm)' % (h * 1.1), dict(h=h * 1.1)),
-                    ('prepreg -10 %% (%.3f mm)' % (h * 0.9), dict(h=h * 0.9)),
-                    ('Dk 3.9', dict(er=3.9)), ('Dk 4.3', dict(er=4.3)),
-                    ('track -0.015 mm (over-etch)', dict(w=wd - 0.015)), ('track +0.015 mm', dict(w=wd + 0.015))):
-        args = dict(w=wd, s=sd, h=h, t=t, er=er)
-        args.update(kw)
-        if 'w' in kw:
-            args['s'] = sd + (wd - kw['w'])          # same pitch: over-etch widens the gap
-        w_('| %s | %.1f |' % (lab, solve(**args)['Zdiff']))
-    w_('')
-
-    # --------------------------------------------- the widths that hit target
-    w_('## Widths and gaps that hit the targets (main board outer layers)\n')
-    w_('Field solver, solder mask on, ground fill at %.3f mm beside the pair (the fill stitch.py pours; where the three '
-       'MIPI lanes run side by side there is no fill between them, so the bare figure applies there). Rules: track >= %.3f mm, '
-       'gap >= %.3f mm.\n' % (gap_fill, MIN_W, MIN_GAP))
-    w_('| w (mm) | gap (mm) | Zdiff bare | Zdiff with fill | Zodd | Zcm |\n|---|---|---|---|---|---|')
-    grid = []
-    for wd in (0.09, 0.10, 0.11, 0.12, 0.13, 0.14, 0.15):
-        for sd in (0.127, 0.15, 0.175, 0.20, 0.25):
-            zp = solve(w=wd, s=sd, h=h, t=t, er=er)
-            zf = solve(w=wd, s=sd, h=h, t=t, er=er, gnd_gap=gap_fill)
-            grid.append((wd, sd, zp, zf))
-            w_('| %.3f | %.3f | %.1f | %.1f | %.1f | %.1f |' % (wd, sd, zp['Zdiff'], zf['Zdiff'], zp['Zodd'], zp['Zcm']))
-    w_('')
-    # the recommendation: inside +-4 % of target bare and beside the fill (so a
-    # +-0.015 mm etch still lands inside +-10 %), within the rules, and the
-    # smallest change from what the board has now
-    rec = {}
-    for name in ('MIPI', 'USB'):
-        tgt, tol = TARGET[name]
-        lo, hi = tgt * (1 - tol), tgt * (1 + tol)
-        w0, s0 = main_case(name)
-        cand = sorted([(round(abs(wd - w0) + abs(sd - s0), 4), abs(zp['Zdiff'] - tgt) + abs(zf['Zdiff'] - tgt),
-                        wd, sd, zp, zf) for wd, sd, zp, zf in grid
-                       if wd >= MIN_W - 1e-9 and sd >= MIN_GAP - 1e-9
-                       and abs(zp['Zdiff'] / tgt - 1) <= 0.04 and abs(zf['Zdiff'] / tgt - 1) <= 0.04],
-                      key=lambda r: (r[0], r[1]))
-        for _, _, wd, sd, zp, zf in cand:
-            e1 = solve(w=wd - 0.015, s=sd + 0.015, h=h, t=t, er=er)['Zdiff']
-            e2 = solve(w=wd + 0.015, s=sd - 0.015, h=h, t=t, er=er)['Zdiff']
-            if lo <= e1 <= hi and lo <= e2 <= hi:
-                rec[name] = (None, wd, sd, zp, zf, e1, e2)
-                break
-    for name in ('MIPI', 'USB'):
-        _, wd, sd, zp, zf, e1, e2 = rec[name]
-        tgt, tol = TARGET[name]
-        lo, hi = tgt * (1 - tol), tgt * (1 + tol)
-        w_('- **%s**: %.3f / %.3f mm (the smallest change from the board\'s rule that is within 4 %% of target and stays '
-           'inside +-10 %% for a track 0.015 mm narrower or wider at the same pitch) gives %.1f ohm bare, %.1f ohm '
-           'beside the fill; %.1f / %.1f ohm with the etch error.' % (name, wd, sd, zp['Zdiff'], zf['Zdiff'], e1, e2))
-        check(all(lo <= z <= hi for z in (zp['Zdiff'], zf['Zdiff'], e1, e2)),
-              'recommended main %s %.3f / %.3f: %.1f / %.1f ohm, %.1f-%.1f across +-0.015 mm etch, inside %.0f-%.0f'
-              % (name, wd, sd, zp['Zdiff'], zf['Zdiff'], min(e1, e2), max(e1, e2), lo, hi))
-    w_('')
-    w_('Ordering with JLCPCB\'s impedance control (they adjust the widths to their process) is the other half of the '
-       'fix: state 100 ohm differential on L1/L6 for the MIPI class and 90 ohm for USB.\n')
-
-    # --------------------------------------------- USB board
-    st = ST2
+    # ------------------------------------------------ pairs
+    w_('## Differential pairs\n')
+    w_('*Bare*: the pair alone over its plane; *fill*: with the ground fill %.3f mm beside it (stitch.py; where '
+       'MIPI lanes run side by side there is no fill between them, so the bare figure applies there). The etch '
+       'columns move the track %.3f mm narrower / wider at the same pitch, with the fill. Zdiff = 2 Zodd.\n'
+       % (FILL_MAIN, ETCH_TOL))
+    w_('| pair | layer | w / gap (mm) | bare | fill | narrower / wider | no mask | target | |')
+    w_('|---|---|---|---|---|---|---|---|---|')
+    pairs = {'MIPI': ('F',), 'USB': ('F', 'B')}
+    out = {}
+    for name, lays in pairs.items():
+        nets, w, s = DIFF['main'][name]
+        res = pair_rows(w_, name, w, s, lays)
+        out[name] = (w, s, res)
     nets, wu, su = DIFF['usb']['USB']
-    gfill = st['clear'] + FILL_EXTRA
-    w_('## USB board (2 layers, %.2f mm core)\n' % st['core'])
-    w_('The pair runs on F with ground fill beside it (stitch.py, %.2f mm away) and the B ground fill %.2f mm below: '
-       'a coplanar waveguide with ground, the side fill doing most of the work.\n' % (gfill, st['core']))
-    w_('| w / gap (mm) | fill gap (mm) | Zdiff | Zcm | note |\n|---|---|---|---|---|')
-    zu = solve(w=wu, s=su, h=st['core'], t=st['cu'], er=st['er'], gnd_gap=gfill)
-    zu_nofill = solve(w=wu, s=su, h=st['core'], t=st['cu'], er=st['er'])
-    w_('| %.2f / %.2f | %.2f | %.1f | %.1f | as designed |' % (wu, su, gfill, zu['Zdiff'], zu['Zcm']))
-    w_('| %.2f / %.2f | none | %.1f | %.1f | if the fill is cut back near the pair |' % (wu, su, zu_nofill['Zdiff'], zu_nofill['Zcm']))
-    best = None
-    rows = []
-    for wd in (0.20, 0.25, 0.30, 0.35):
-        for sd in (0.127, 0.15, 0.20):
-            z = solve(w=wd, s=sd, h=st['core'], t=st['cu'], er=st['er'], gnd_gap=gfill)
-            rows.append((wd, sd, z))
-            d = abs(z['Zdiff'] - 90)
-            if best is None or d < best[0]:
-                best = (d, wd, sd, gfill, z)
-    for wd, sd, z in rows:
-        w_('| %.2f / %.3f | %.2f | %.1f | %.1f | |' % (wd, sd, gfill, z['Zdiff'], z['Zcm']))
-    _, wb, sb, gb, zb = best
+    out['USB board'] = (wu, su, pair_rows(w_, 'USB board', wu, su, ('usb',), board='usb'))
     w_('')
-    w_('Closest to 90 ohm with the fill where stitch.py puts it: **%.2f / %.3f mm, %.1f ohm**.\n' % (wb, sb, zb['Zdiff']))
-    tgt, tol = TARGET['USB']
-    check(tgt * (1 - tol) <= zu['Zdiff'] <= tgt * (1 + tol),
-          'USB board %.2f / %.2f with fill at %.2f: Zdiff %.1f against 90 +-10 %%' % (wu, su, gfill, zu['Zdiff']),
-          warn=True)
-    # electrical length on the USB board: ~ 12 mm from the receptacle to J2 (layout_usb.py)
-    tpd = math.sqrt(zu['eodd']) / fs.C_LIGHT * 1e-3 * 1e12        # ps/mm
-    L_usb, src = usb_routed_length()
-    gamma = (zu['Zdiff'] - 90) / (zu['Zdiff'] + 90)
-    w_('The USB board\'s pair is %.0f mm long (%s): %.0f ps of flight time at %.1f ps/mm, against USB 2.0 high '
-       'speed\'s 500 ps minimum edge (10-90 %%). That is past the lumped limit (a sixth of the edge, %.0f ps), so the '
-       'impedance does show: %.1f ohm against 90 reflects %.0f %% of each edge, small next to the receiver\'s margin '
-       'and to the SH cable after it (6 unshielded parallel wires at 1 mm pitch: roughly 100-150 ohm differential, not '
-       'controlled), and the D+ / D- length difference (%s) is mostly the joins between the receptacle\'s two '
-       'contact rows.\n' % (L_usb, src, L_usb * tpd, tpd, 500 / 6, zu['Zdiff'], 100 * abs(gamma), 'see above'))
-    return L, results, rec, zu, (wb, sb, gb, zb)
-
-
-# the widths the coordinator adopted (26 Oct 2026), checked here until board.py DIFF carries them
-PLANNED = {'MIPI': (0.12, 0.15), 'USB': (0.14, 0.15), 'USB board': (0.25, 0.13)}
-
-
-def planned(L):
-    w_ = L.append
-    h, er = _pp
-    t = _cu_out
-    gap_fill = read_clear_main() + FILL_EXTRA
-    st = ST2
-    w_('## The adopted widths (to go into board.py DIFF)\n')
-    w_('| pair | w / gap (mm) | Zdiff bare | beside the fill | track 0.015 mm narrower / wider (same pitch) | target |')
-    w_('|---|---|---|---|---|---|')
-    for name in ('MIPI', 'USB', 'USB board'):
-        wd, sd = PLANNED[name]
-        if name == 'USB board':
-            kw = dict(h=st['core'], t=st['cu'], er=st['er'])
-            zf = solve(w=wd, s=sd, gnd_gap=st['clear'] + FILL_EXTRA, **kw)['Zdiff']
-            zp = solve(w=wd, s=sd, **kw)['Zdiff']
-            e1 = solve(w=wd - 0.015, s=sd + 0.015, gnd_gap=st['clear'] + FILL_EXTRA + 0.0075, **kw)['Zdiff']
-            e2 = solve(w=wd + 0.015, s=sd - 0.015, gnd_gap=st['clear'] + FILL_EXTRA - 0.0075, **kw)['Zdiff']
-            tgt, tol = TARGET['USB']
-            zs = (zf, e1, e2)          # the fill is always there on the USB board
+    cf = {n: closed_forms(DIFF['main'][n][1], DIFF['main'][n][2], OUTER['F']['h'], OUTER['F']['t'], OUTER['F']['er'])
+          for n in pairs}
+    w_('Closed forms for the bare pairs on F (no mask, no fill; IPC-2141 reads high for w/h near 1): ' +
+       '; '.join('%s IPC-2141 %.1f, Hammerstad-Jensen %.1f ohm' % (n, c['ipc_zd'], c['hj_zd']) for n, c in cf.items())
+       + '.\n')
+    sugg = {}
+    for name, (w, s, res) in out.items():
+        if not all(ok for lay, ok, zs in res):
+            board = 'usb' if name == 'USB board' else 'main'
+            lays = ('usb',) if board == 'usb' else pairs[name]
+            sugg[name] = suggest_pair(name, w, s, lays, board)
+    for name, sg in sugg.items():
+        if sg:
+            w_('- **%s: change to %.3f / %.3f mm** (%.1f-%.1f ohm on every layer it uses, across fill and etch).'
+               % (name, sg[1], sg[2], sg[3], sg[4]))
         else:
-            kw = dict(h=h, t=t, er=er)
-            zp = solve(w=wd, s=sd, **kw)['Zdiff']
-            zf = solve(w=wd, s=sd, gnd_gap=gap_fill, **kw)['Zdiff']
-            e1 = solve(w=wd - 0.015, s=sd + 0.015, **kw)['Zdiff']
-            e2 = solve(w=wd + 0.015, s=sd - 0.015, **kw)['Zdiff']
-            tgt, tol = TARGET[name]
-            zs = (zp, zf, e1, e2)
-        w_('| %s | %.2f / %.2f | %.1f | %.1f | %.1f / %.1f | %.0f +-%.0f %% |' % (name, wd, sd, zp, zf, e1, e2, tgt,
-                                                                               tol * 100))
-        lo, hi = tgt * (1 - tol), tgt * (1 + tol)
-        check(all(lo <= z <= hi for z in zs), 'adopted %s %.2f / %.2f: %.1f-%.1f ohm across fill and etch, inside '
-              '%.0f-%.0f' % (name, wd, sd, min(zs), max(zs), lo, hi))
-    w_('')
+            w_('- **%s**: no width / gap in the searched range passes; needs a different reference.' % name)
+    if sugg:
+        w_('')
 
-
-# PCBWay, the fab now chosen (27 Oct 2026).  Their published "Regular" 6-layer 1.6 mm build (pcbway.com
-# multi-layer laminated structure, No. 1: 1 oz finished outer, 1 oz inner, inner residual copper 70 %):
-#   L1 0.5 oz base plated to 1 oz | PP 2116 RC58 % Dk 4.45, 0.1195 mm pressed | L2 1 oz 0.035 | core 0.43 Dk 4.6 |
-#   L3 1 oz | PP 7628 RC46 % Dk 4.74, 0.175 mm pressed | L4 1 oz | core 0.43 Dk 4.6 | L5 1 oz |
-#   PP 2116 0.1195 | L6 0.5 oz plated to 1 oz.  1.45 mm after lamination, 1.55 mm finished, +-10 %.
-# (No. 24, for inner residual copper <= 40 %, has 0.1055 mm 2116 next to the outer layers: in1 / in4 here are
-# planes, so No. 1 applies.)  Capabilities: 4 / 4 mil (0.1 mm) minimum track / space (the advanced table calls
-# 5 / 6 mil "normal" on 1 oz outer layers), 0.15 mm minimum drill, impedance +-10 %.  PCBWay publishes no
-# solder-mask thickness or Dk and its own calculator leaves the mask out: the mask figures below are JLCPCB's
-# (typical LPI), ASSUMED; bare (no-mask) figures are given too.  2-layer 1.2 mm is standard (+-10 %):
-# one FR-4 core, 1 oz finished copper; Dk 4.5 ASSUMED (no figure published).
-PCBWAY6 = dict(h=0.1195, er=4.45, t=0.035, layers=[
-    ('F.Cu', 'copper', 0.035, None), ('dielectric 1', 'prepreg', 0.1195, 4.45, '2116'),
-    ('In1.Cu', 'copper', 0.035, None), ('dielectric 2', 'core', 0.43, 4.6, 'FR4'),
-    ('In2.Cu', 'copper', 0.035, None), ('dielectric 3', 'prepreg', 0.175, 4.74, '7628'),
-    ('In3.Cu', 'copper', 0.035, None), ('dielectric 4', 'core', 0.43, 4.6, 'FR4'),
-    ('In4.Cu', 'copper', 0.035, None), ('dielectric 5', 'prepreg', 0.1195, 4.45, '2116'),
-    ('B.Cu', 'copper', 0.035, None)])
-PCBWAY2 = dict(core=1.2 - 0.07, er=4.5, t=0.035)
-MIN_CLEAR_USB = 0.13
-
-
-def pcbway(L):
-    w_ = L.append
-    h, er, t = PCBWAY6['h'], PCBWAY6['er'], PCBWAY6['t']
-    gap_fill = read_clear_main() + FILL_EXTRA
-    w_('## PCBWay (the fab now chosen)\n')
-    w_('PCBWay\'s published regular 6-layer 1.6 mm build (No. 1 of their laminated-structure list, 1 oz outer and '
-       'inner): outer layers over **2116 prepreg, 0.1195 mm pressed, Dk 4.45**; inner copper 1 oz (0.035 mm); cores '
-       '0.43 mm Dk 4.6; 7628 0.175 mm Dk 4.74 in the middle; 1.55 mm finished +-10 %%. Minimum track / space 0.1 mm '
-       '(5 / 6 mil "normal" on 1 oz outer layers), minimum drill 0.15 mm, impedance +-10 %%. Via-in-pad (resin fill '
-       'and copper cap) is an extra-cost option to request, not standard as on JLCPCB\'s 6-layer service. Mask: '
-       'not published by PCBWay; JLCPCB\'s LPI figures assumed (bare figures alongside). Minimum gap '
-       '%.3f mm (main board), %.2f mm (USB board).\n' % (MIN_GAP, MIN_CLEAR_USB))
-    w_('| pair | w / gap (mm) | Zdiff with mask, bare / beside the fill | Zdiff without mask | track 0.015 mm '
-       'narrower / wider | target |\n|---|---|---|---|---|---|')
-    rows = {}
-    for name in ('MIPI', 'USB'):
-        w0, s0 = main_case(name)
-        tgt, tol = TARGET[name]
-        lo, hi = tgt * (1 - tol), tgt * (1 + tol)
-        cand = []
-        for wd in (0.10, 0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20):
-            for sd in (0.127, 0.15, 0.175, 0.20):
-                zp = solve(w=wd, s=sd, h=h, t=t, er=er)['Zdiff']
-                zf = solve(w=wd, s=sd, h=h, t=t, er=er, gnd_gap=gap_fill)['Zdiff']
-                cand.append((abs(zp - tgt) + abs(zf - tgt), wd, sd, zp, zf))
-        cand.sort()
-        zc = (solve(w=w0, s=s0, h=h, t=t, er=er)['Zdiff'], solve(w=w0, s=s0, h=h, t=t, er=er, gnd_gap=gap_fill)['Zdiff'])
-        cand.insert(0, (0, w0, s0) + zc)              # the board's own rule first: kept if it passes
-        for _, wd, sd, zp, zf in cand[:7]:
-            e1 = solve(w=wd - 0.015, s=sd + 0.015, h=h, t=t, er=er)['Zdiff']
-            e2 = solve(w=wd + 0.015, s=sd - 0.015, h=h, t=t, er=er)['Zdiff']
-            if all(lo <= z <= hi for z in (zp, zf, e1, e2)):
-                break
-        zbare = solve(w=wd, s=sd, h=h, t=t, er=er, mask=False)['Zdiff']
-        cur = solve(w=w0, s=s0, h=h, t=t, er=er)['Zdiff']
-        rows[name] = (wd, sd, zp, zf, e1, e2, zbare, w0, s0, cur)
-        w_('| %s | **%.2f / %.3f** | %.1f / %.1f | %.1f | %.1f / %.1f | %.0f +-%.0f %% |'
-           % (name, wd, sd, zp, zf, zbare, e1, e2, tgt, tol * 100))
-        check(all(lo <= z <= hi for z in (zp, zf, e1, e2)),
-              'PCBWay %s %.2f / %.3f: %.1f-%.1f ohm across fill and etch, inside %.0f-%.0f'
-              % (name, wd, sd, min(zp, zf, e1, e2), max(zp, zf, e1, e2), lo, hi))
-        check(lo <= cur <= hi, 'the current rule %s %.2f / %.2f on PCBWay\'s stackup: %.1f ohm' % (name, w0, s0, cur),
-              warn=True)
-    # USB board on PCBWay's 2-layer 1.2 mm
-    st = PCBWAY2
-    tgt, tol = TARGET['USB']
+    # ------------------------------------------------ RF
+    w_('## Antenna feed (RF netclass, 50 ohm single-ended)\n')
+    w_('ANT_FEED / ANT: one %.2f mm track on B.Cu over In4 (board.RF_W), about 5.5 mm from the AP6256\'s antenna pin '
+       'through the 0402 pi match to the U.FL, with the B ground fill %.3f mm away on both sides. Reported as a plain '
+       'microstrip and as the coplanar line with ground the fill makes (the one that is built).\n'
+       % (RF_W, FILL_MAIN))
+    tgt, tol = TARGET['RF']
     lo, hi = tgt * (1 - tol), tgt * (1 + tol)
-    gfill = MIN_CLEAR_USB + FILL_EXTRA
-    wu, su = DIFF['usb']['USB'][1:]
-    zcur = solve(w=wu, s=su, h=st['core'], t=st['t'], er=st['er'], gnd_gap=gfill)['Zdiff']
-    best = (wu, su, zcur)
-    if abs(zcur - tgt) > 0.05 * tgt:
-        for wd in (0.20, 0.25, 0.30, 0.35):
-            for sd in (0.13, 0.15, 0.20):
-                z = solve(w=wd, s=sd, h=st['core'], t=st['t'], er=st['er'], gnd_gap=gfill)['Zdiff']
-                if abs(z - tgt) < abs(best[2] - tgt):
-                    best = (wd, sd, z)
-    wd, sd, z = best
-    e1 = solve(w=wd - 0.015, s=sd + 0.015, h=st['core'], t=st['t'], er=st['er'], gnd_gap=gfill + 0.0075)['Zdiff']
-    e2 = solve(w=wd + 0.015, s=sd - 0.015, h=st['core'], t=st['t'], er=st['er'], gnd_gap=gfill - 0.0075)['Zdiff']
-    zt = solve(w=wd, s=sd, h=st['core'] * 1.1, t=st['t'], er=st['er'], gnd_gap=gfill)['Zdiff']
-    rows['USB board'] = (wd, sd, z, z, e1, e2)
-    w_('| USB board (2-layer 1.2 mm, fill %.2f mm away) | **%.2f / %.2f** | %.1f (fill) | - | %.1f / %.1f | 90 +-10 %% |'
-       % (gfill, wd, sd, z, e1, e2))
+    zm = z0(RF_W, 'B')
+    zc = z0(RF_W, 'B', FILL_MAIN)
+    zn = z0(RF_W, 'B', FILL_MAIN, dw=-ETCH_TOL)
+    zw = z0(RF_W, 'B', FILL_MAIN, dw=ETCH_TOL)
+    znm = z0(RF_W, 'B', FILL_MAIN, mask=False)
+    hjz, _ = hj(RF_W, OUTER['B']['h'], OUTER['B']['t'], OUTER['B']['er'])
+    w_('| width (mm) | microstrip (no fill) | with the fill (CPWG) | narrower / wider | no mask | Hammerstad-Jensen '
+       '(bare microstrip) | target |\n|---|---|---|---|---|---|---|')
+    w_('| %.3f | %.1f | %.1f | %.1f / %.1f | %.1f | %.1f | 50 +-10 %% |' % (RF_W, zm, zc, zn, zw, znm, hjz))
+    rf_ok = all(lo <= z <= hi for z in (zc, zn, zw))
+    check(rf_ok, 'RF %.3f mm on B with the fill: %.1f ohm (%.1f-%.1f across the etch) inside %.0f-%.0f'
+          % (RF_W, zc, min(zn, zw), max(zn, zw), lo, hi))
+    check(lo <= zm <= hi, 'RF %.3f mm on B as a plain microstrip (where the fill is cut back): %.1f ohm' % (RF_W, zm),
+          warn=True)
+    rf_best = None
+    for w in np.round(np.arange(0.10, 0.40, 0.005), 3):
+        z = z0(w, 'B', FILL_MAIN)
+        if rf_best is None or abs(z - tgt) < abs(rf_best[1] - tgt):
+            rf_best = (w, z)
+    zbm = z0(rf_best[0], 'B')
     w_('')
-    w_('The USB board\'s core +10 %% (a 1.32 mm board) moves it to %.1f ohm: the side fill dominates. The housing\'s '
-       'grooves take 1.2 mm; PCBWay\'s +-10 %% thickness tolerance allows 1.08-1.32 mm, so ask for +-0.1 mm or check '
-       'the fit.\n' % zt)
-    check(all(lo <= x <= hi for x in (z, e1, e2)), 'PCBWay USB board %.2f / %.2f: %.1f-%.1f ohm' % (wd, sd, min(z, e1, e2),
-                                                                                                 max(z, e1, e2)))
-    # does pcb.STACKUP6 already describe PCBWay's build?
-    d1 = [x for x in ST6 if x[0] == 'dielectric 1'][0]
-    match = abs(d1[2] - 0.1195) < 1e-3 and abs((d1[3] or 0) - 4.45) < 1e-3
-    check(match, 'src/pcb.py STACKUP6 describes PCBWay\'s build (now: %.4f mm, Dk %s next to the outer layers)'
-          % (d1[2], d1[3]), warn=True)
-    w_('### src/pcb.py for PCBWay\n')
-    w_('STACKUP6, layer by layer (KiCad thicknesses in mm; the mask entries unchanged):\n')
-    w_('```')
-    for lay in PCBWAY6['layers']:
-        if lay[1] == 'copper':
-            w_('(layer "%s" (type "copper") (thickness %.4f))' % (lay[0], lay[2]))
-        else:
-            w_('(layer "%s" (type "%s") (color "FR4 natural") (thickness %.4f) (material "%s") (epsilon_r %.2f) '
-               '(loss_tangent 0.02))' % (lay[0], lay[1], lay[2], lay[4], lay[3]))
-    w_('```')
-    w_('That sums to %.3f mm of laminate and copper, 1.55 mm finished as PCBWay states (the masks add 0.02). '
-       'STACKUP2 keeps its form (core = thickness - 0.07, epsilon_r 4.5) for PCBWay\'s 1.2 mm 2-layer. The board '
-       'comment and the DRC floor change too: PCBWay\'s 0.1 mm minimum track and space replace JLCPCB\'s 0.09 mm '
-       '(pcb.configure keeps 0.127 except round the RV1106), and via-in-pad must be ordered as resin-filled and '
-       'capped.\n' % sum(x[2] for x in PCBWAY6['layers']))
-    return rows
+    w_('50.0 ohm with the fill is reached at **%.3f mm** (%.1f ohm; %.1f ohm as a plain microstrip). %s\n'
+       % (rf_best[0], rf_best[1], zbm, 'The current %.2f mm is inside +-10 %%: no change needed.' % RF_W if rf_ok
+          else '**Change RF_W to %.3f mm.**' % rf_best[0]))
+    elen = 5.5 * math.sqrt(solve(w=RF_W, s=0, h=OUTER['B']['h'], t=OUTER['B']['t'], er=OUTER['B']['er'], pair=False,
+                                 gnd_gap=FILL_MAIN)['eeff']) / (299.792458 / 5.5)
+    w_('At 5.5 GHz the 5.5 mm run is %.2f wavelengths long, so its impedance matters (at 2.4 GHz %.2f).\n'
+       % (elen, elen * 2.45 / 5.5))
+
+    # ------------------------------------------------ USB board length
+    ln = usb_routed_length()
+    if ln:
+        w_('The routed USB board\'s pair: D+ %.1f mm, D- %.1f mm of track (including the joins between the '
+           'receptacle\'s two contact rows), about %.0f ps: close to the lumped limit for USB 2.0\'s 500 ps edges; '
+           'the 6-wire SH cable after it is uncontrolled anyway.\n'
+           % (ln.get('USB_DP', 0), ln.get('USB_DM', 0), max(ln.values()) * 5.7))
+    return L, out, sugg, (RF_W, zm, zc, zn, zw, rf_ok, rf_best)
 
 
 def main():
-    L, results, rec, zu, best_usb = run()
-    planned(L)
-    pw = pcbway(L)
+    L, out, sugg, rf = run()
     w = L.append
+    w('## Ordering\n')
+    w('Order with PCBWay\'s impedance control: **100 ohm differential on L1 (F.Cu) for the MIPI class, 90 ohm '
+      'differential on L1 / L6 (F.Cu, B.Cu) for USB, 50 ohm single-ended on L6 (B.Cu) for the antenna feed**, '
+      'all referenced to the adjacent ground plane (In1 / In4), +-10 %. Give them the widths below and let them '
+      'trim to their process; ask for their stackup report and the mask they use. The USB board (2-layer, 1.2 mm) '
+      'needs no impedance control (its pair is short and the fill sets it). Via-in-pad under the RV1106 must be '
+      'ordered as resin-filled and capped.\n')
     w('## Checks\n')
-    for s, what in checks:
-        w('- %s %s' % (s, what))
+    for s_, what in checks:
+        w('- %s %s' % (s_, what))
     w('')
     fails = [c for c in checks if c[0] == 'FAIL']
-    w('## Verdict\n')
-    for nm in ('MIPI', 'USB', 'USB board'):
-        r = pw[nm]
-        cur = DIFF['main'][nm][1:] if nm != 'USB board' else DIFF['usb']['USB'][1:]
-        w('- **PCBWay %s: %.2f / %.3f mm** (%s) -> %.1f ohm (%.1f-%.1f across fill and a +-0.015 mm etch).'
-          % (nm, r[0], r[1], 'the current rule, kept' if abs(r[0] - cur[0]) < 1e-6 and abs(r[1] - cur[1]) < 1e-6
-             else 'change from %.2f / %.2f' % tuple(cur), r[2], min(r[2:6]), max(r[2:6])))
-    w('')
-    w('JLCPCB figures (the earlier fab), for reference:\n')
-    mw, ms = DIFF['main']['MIPI'][1:]
-    uw, us = DIFF['main']['USB'][1:]
-    m, us_ = results['MIPI'], results['USB']
-    for nm, res_, (tgt, tol) in (('MIPI', m, TARGET['MIPI']), ('USB (main)', us_, TARGET['USB'])):
-        wd, sd, zp, zf, z1, e1, e2 = res_
-        lo, hi = tgt * (1 - tol), tgt * (1 + tol)
-        ok = all(lo <= z <= hi for z in (zp['Zdiff'], zf['Zdiff'], e1, e2))
-        w('- **%s %.2f / %.2f mm: %.1f ohm bare, %.1f beside the fill, %.1f-%.1f across a +-0.015 mm etch: %s** '
-          '(target %.0f +-%.0f %%).' % (nm, wd, sd, zp['Zdiff'], zf['Zdiff'], min(e1, e2), max(e1, e2),
-                                         'PASS' if ok else 'WARN', tgt, tol * 100))
-    wb, sb, gb, zb = best_usb
-    tgt, tol = TARGET['USB']
-    ok = tgt * (1 - tol) <= zu['Zdiff'] <= tgt * (1 + tol)
-    w('- **USB board %.2f / %.2f mm: %.1f ohm with the ground fill beside it: %s.** The side fill sets the impedance on '
-      'a 2-layer 1.2 mm board; ordering without it the pair would read higher (table above).'
-      % (DIFF['usb']['USB'][1], DIFF['usb']['USB'][2], zu['Zdiff'], 'PASS' if ok else 'WARN'))
-    pv = open(os.path.join(V1, 'src', 'pairs.py')).read()
-    if not re.search(r"via\([^)]*'GND'", pv):
-        w('- USB layer change on the main board (pairs.py: F to B and back): no ground via beside the signal vias yet. '
-          'Add one within about 1 mm of each transition so the return current can move between In1 and In4.')
-    w('- Order with JLCPCB impedance control: 100 ohm differential on L1/L6 for the MIPI class, 90 ohm for USB.')
-    w('')
     warns = [c for c in checks if c[0] == 'WARN']
+    w('## Verdict\n')
+    for name, (wd, sd, res) in out.items():
+        ok = all(r[1] for r in res)
+        zs = [z for r in res for z in r[2]]
+        sg = sugg.get(name)
+        w('- **%s %.3f / %.3f mm: %s** (%.1f-%.1f ohm)%s' % (name, wd, sd, 'PASS' if ok else 'FAIL', min(zs), max(zs),
+                                                            '' if ok or not sg else
+                                                            '; change to %.3f / %.3f mm' % (sg[1], sg[2])))
+    rw, zm, zc, zn, zw, rf_ok, rf_best = rf
+    w('- **RF %.3f mm on B: %s** (%.1f ohm with the fill, %.1f-%.1f across the etch; %.1f ohm as a plain '
+      'microstrip)%s' % (rw, 'PASS' if rf_ok else 'FAIL', zc, min(zn, zw), max(zn, zw), zm,
+                         '' if rf_ok else '; change to %.3f mm (%.1f ohm)' % rf_best))
+    w('- JLCPCB (the earlier fab, 0.0994 mm 3313 prepreg) is no longer modelled.')
+    w('')
     w('**%s, %d WARN**' % ('no FAIL' if not fails else '%d FAIL' % len(fails), len(warns)))
     open(OUT, 'w').write('\n'.join(L) + '\n')
     print('\n'.join(L))

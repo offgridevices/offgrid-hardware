@@ -48,7 +48,9 @@ VIA_IN_PAD = None
 VIA_RING = None
 
 # more Freerouting options for every run (e.g. ['-inc', 'Power'])
-EXTRA = []
+# more Freerouting options from the environment, e.g. FR_EXTRA='-mt 0' (no
+# route optimisation: the autorouter's result as it is, much faster)
+EXTRA = os.environ.get('FR_EXTRA', '').split()
 # nets Freerouting must not route at all (the plane nets): their pin lists
 # are emptied in the DSN, so their pads stand as plain obstacles.
 # Freerouting 2.4.1 ignores -inc and router.ignore_net_classes.
