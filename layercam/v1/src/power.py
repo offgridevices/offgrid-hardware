@@ -239,7 +239,7 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
                     ray = LineString([(cx, cy), (cx + 10 * math.cos(a), cy + 10 * math.sin(a))])
                     hit = ray.intersection(poly.exterior)
                     r0 = Point(cx, cy).distance(hit) if not hit.is_empty else 0.3
-                    for extra in (0.05, 0.15, 0.3, 0.5, 0.8, 1.2, 1.6, 2.0):
+                    for extra in (0.05, 0.15, 0.3, 0.5, 0.8, 1.2, 1.6, 2.0, 2.4, 2.8):
                         r = r0 + vr + extra
                         pt = (cx + r * math.cos(a), cy + r * math.sin(a))
                         seg = LineString([(cx, cy), pt]).buffer(w / 2)

@@ -1400,6 +1400,11 @@ def finish(path, log=print):
         for net, a, c in pairs:
             res = route_connection(b, net, _geom_of(a), _geom_of(c), width_of(widths, net))
             log('   kicad  %-14s %s' % (net, 'joined' if res else 'NO PATH'))
+    # an escape stub and via laid at placement (locked for Freerouting) that
+    # the route did not use: unlocked, so dedangle can take it off
+    for t in b.GetTracks():
+        if t.IsLocked() and t.GetNetname() not in protect:
+            t.SetLocked(False)
     n, dl = dedangle(b, log=log)
     log('  %d dangling stubs removed%s' % (n, ', %d left' % len(dl) if dl else ''))
     pcbnew.SaveBoard(path, b)

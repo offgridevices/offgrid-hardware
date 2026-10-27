@@ -103,7 +103,7 @@ ANCHOR = {
     'OTP/TSADC supply bead': ('U1', '96'), 'OTP/TSADC supply': ('U1', '96'),
     'Ethernet supply bead': ('U1', '101'), 'Ethernet supply': ('U1', '101'), 'Ethernet bias (PHY unused)': ('U1', '102'),
     'DRAM ZQ 240R 1 %': ('U1', '52'), 'RTC supply R': ('U1', '19'), 'RTC supply C': ('U1', '19'),
-    '24 MHz drive R': ('U1', '69'), '24 MHz load': ('Y1', '*'), '24 MHz bias': ('Y1', '1'),
+    '24 MHz drive R': ('Y1', '3'), '24 MHz load': ('Y1', '*'), '24 MHz bias': ('Y1', '1'),
     'RTC load': ('Y2', '*'),
     'nPOR pull-up': ('U1', '66'), 'nPOR delay': ('U1', '66'),
     'boot pull-up': ('U1', '23'), 'boot filter': ('U1', '23'), 'boot pad series R': ('TP5', '1'),
@@ -133,6 +133,9 @@ SIDE = {
     # the SoC's left-column filter caps on its own face: a via each beside
     # pins 19-30 had no room among the plane and USB vias there
     'ADC/USB supply filter C': F, 'codec supply': F, 'codec VCM': F, 'RTC supply C': F,
+    # on the back face, their SoC pin reaching them by its escape via: on
+    # the front they sat boxed in by the 0.9 V buck and by the crystal
+    'VBUS detect top': B, 'VBUS detect bottom': B, 'VBUS detect filter': B, '24 MHz drive R': B,
     'OTP/TSADC supply': B, 'Ethernet supply': B, 'DRAM ZQ 240R 1 %': B,
     '24 MHz load': F, 'RTC load': B, 'SDIO pull-up': B,
 }
