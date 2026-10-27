@@ -69,6 +69,9 @@ NOVIA = []                     # shapely shapes (board mm) barred to new vias (p
 EDGE_RULE = 'edge clearance'   # the edge band rule area: drawn from pcb.edge_band instead
 VERBOSE = False
 TIME_LIMIT = int(os.environ.get('FINISH_TIME', 3600))   # s for the rip-up stages
+# runs side by side on one board differ by this: the open nets' order and
+# the stages' order (0: as written below)
+SEED = int(os.environ.get('FINISH_SEED', 0))
 DEBUG_SAVE = None               # a path: region_reroute saves its last failed state there
 # the main board's In3 carries the 3.3 V fill round the 0.9 V core plane: a
 # connection with no way on F, In2 or B may hop through it.  Its 3.3 V fill
@@ -1374,6 +1377,9 @@ def finish(path, log=print):
     open_ = unrouted_nets(b, planes)
     log('  open nets: %d %s' % (len(open_), ' '.join(open_)))
     open_.sort(key=lambda n: mst_length(b, n))
+    rnd = random.Random(SEED)
+    if SEED:
+        rnd.shuffle(open_)
     for net in open_:
         left = route_net(b, net, width_of(widths, net))
         log('   maze   %-14s %s' % (net, 'routed' if not left else '%d islands left' % (left + 1)))
@@ -1383,10 +1389,14 @@ def finish(path, log=print):
     # then rip-up again with more patience; each stage only while time is left
     stages = [('negotiate', dict(budget=40)), ('region', dict(margin=1.5)), ('region', dict(margin=3.0)),
               ('negotiate', dict(budget=120, reach=0.8))]
+    if SEED % 3 == 1:
+        stages = [stages[3], stages[2], stages[0], stages[1]]
+    elif SEED % 3 == 2:
+        stages = [stages[2], stages[3], stages[1], stages[0]]
     for kind, kw in stages:
         if not left or time.time() - t0 > TIME_LIMIT:
             break
-        for net in list(left):
+        for net in (rnd.sample(left, len(left)) if SEED else list(left)):
             if time.time() - t0 > TIME_LIMIT:
                 log('  out of time (%d s)' % TIME_LIMIT)
                 break
