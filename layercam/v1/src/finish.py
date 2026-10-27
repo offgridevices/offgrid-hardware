@@ -70,13 +70,21 @@ EDGE_RULE = 'edge clearance'   # the edge band rule area: drawn from pcb.edge_ba
 VERBOSE = False
 TIME_LIMIT = int(os.environ.get('FINISH_TIME', 3600))   # s for the rip-up stages
 DEBUG_SAVE = None               # a path: region_reroute saves its last failed state there
+# the main board's In3 carries the 3.3 V fill round the 0.9 V core plane: a
+# connection with no way on F, In2 or B may hop through it.  Its 3.3 V fill
+# re-pours round the track; the 0.9 V plane is never crossed.  Each cell
+# there costs IN3_STEP more, so it is used only where nothing else goes.
+IN3 = os.environ.get('FINISH_IN3', '1') != '0'
+POUR_THROUGH = {pcbnew.In3_Cu: {'VCC_3V3'}}
+IN3_STEP = 3.0
+IN3_KEEP = 0.2                  # mm more between a track and the 0.9 V plane's outline
 
 
 def configure():
     global VIA_D, VIA_DRILL, ROUTE_LAYERS
     VIA_D, VIA_DRILL = pcb.VIA
-    ROUTE_LAYERS = ([pcbnew.F_Cu, pcbnew.In2_Cu, pcbnew.B_Cu] if pcb.LAYERS == 6
-                    else [pcbnew.F_Cu, pcbnew.B_Cu])
+    ROUTE_LAYERS = ([pcbnew.F_Cu, pcbnew.In2_Cu] + ([pcbnew.In3_Cu] if IN3 else []) + [pcbnew.B_Cu]
+                    if pcb.LAYERS == 6 else [pcbnew.F_Cu, pcbnew.B_Cu])
 
 
 # ---------------------------------------------------------------- net rules
@@ -295,9 +303,16 @@ class Grid:
                 if z.GetDoNotAllowVias():
                     self.fill(vb, g.buffer(vd / 2 + M, 6))
                 continue
+            zn = z.GetNetname()
+            for l in zl:
+                if l in POUR_THROUGH and zn not in POUR_THROUGH[l] and zn != net:
+                    # a plane the hop must go round: its outline, filled or not
+                    self.fill(self.block[l], _poly_set(z.Outline()).buffer(ti + IN3_KEEP, 6))
             if not z.IsFilled():
                 continue
             for l in zl:
+                if zn in POUR_THROUGH.get(l, ()):
+                    continue
                 g = _poly_set(z.GetFilledPolysList(l))
                 if g.is_empty or (z.GetNetname() == net and net):
                     continue
@@ -360,6 +375,7 @@ def _astar(G, src, dst, budget, ex=None, vex=None, free=None):
         return None, 0
     h = (ndimage.distance_transform_edt(~anyd) * H_WEIGHT).ravel().tolist()
     moves = [(k, di, dj, di + dj * W, 1.4142 if di and dj else 1.0) for k, (di, dj) in enumerate(_MOVES)]
+    lx = [IN3_STEP if l == pcbnew.In3_Cu else 0.0 for l in G.layers]
     INF = float('inf')
     g = {}
     closed = bytearray(L * N)
@@ -400,7 +416,7 @@ def _astar(G, src, dst, budget, ex=None, vex=None, free=None):
                 continue
             if di and dj and not (P[p + di] or P[p + dj * W]):
                 continue                       # no squeezing between two blocked cells
-            nc = c + step
+            nc = c + step * (1.0 + lx[li])
             if d < 8:
                 t = k - d if k >= d else d - k
                 nc += TURN[t if t <= 4 else 8 - t]
