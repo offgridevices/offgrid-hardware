@@ -47,11 +47,11 @@ FIXED = {
     'L5': (16.0, -14.4, 90, F),
     'Y1': (9.6, 22.2, 90, F),         # 24 MHz at the SoC's OSC pins (68/69, right side)
     'LED1': (8.8, 14.0, 0, F),        # status, in the lid's vent window
-    # test pads along the round edge: 5V on its own, 6 mm away; then the
-    # console's TX RX G for a 3.3 V USB-serial lead, then BOOT beside G for
-    # tweezers
-    'TP4': (-4.4, 27.4, 0, F), 'TP1': (1.4, 27.7, 0, F), 'TP2': (3.4, 27.6, 0, F), 'TP3': (5.4, 27.4, 0, F),
-    'TP5': (7.4, 27.0, 0, F),
+    # test pads, clear of the SoC's breakout band: the console's TX RX G
+    # for a 3.3 V USB-serial lead and BOOT beside G for tweezers, in the
+    # round edge's right corner; 5V on its own in the left one
+    'TP1': (9.2, 25.3, 0, F), 'TP2': (10.8, 25.1, 0, F), 'TP3': (12.4, 24.8, 0, F), 'TP5': (14.0, 24.3, 0, F),
+    'TP4': (-13.6, 25.2, 0, F),
     # B, the front face
     'U6': (0.0, -16.4, 0, B),         # AP6256 between the lens holder and the top edge (in the tab)
     # round the AP6256 (U6, on B, mirrored: its antenna pin 2 at (-5.9,
@@ -176,6 +176,9 @@ REGION = {
 }
 
 
+BREAKOUT = 8.4        # half-width of the SoC's part-free breakout band (back face)
+
+
 def keepouts(side):
     """Areas a part on `side` may not touch: (shapely geometry, max height
     allowed there or 0)."""
@@ -189,6 +192,11 @@ def keepouts(side):
                     G.UNDER_MODULE_MAX_H))
         for x, y in G.HOLDER_SCREWS:
             out.append((Point(x, -y).buffer(1.95), 0))     # the nylon washers
+        # the SoC's breakout band: no part within 1.8 mm outside its pins,
+        # so the router has room to bring 0.35 mm-pitch pins out to vias
+        cx, cy = FIXED['U1'][:2]
+        out.append((box(cx - BREAKOUT, cy - BREAKOUT, cx + BREAKOUT, cy + BREAKOUT)
+                    .difference(box(cx - 6.5, cy - 6.5, cx + 6.5, cy + 6.5)), 0))
         hx, hy = G.HEATSINK_C
         h = G.HEATSINK_SIZE / 2 + 0.2
         out.append((box(hx - h, hy - h, hx + h, hy + h), G.UNDER_HEATSINK_MAX_H))
