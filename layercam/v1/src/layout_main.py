@@ -235,6 +235,10 @@ def keepouts(side):
         cx, cy = FIXED['U1'][:2]
         out.append((box(cx - BREAKOUT, cy - BREAKOUT, cx + BREAKOUT, cy + BREAKOUT)
                     .difference(box(cx - 6.5, cy - 6.5, cx + 6.5, cy + 6.5)), 0))
+        # the pocket between the 0.9 V buck's inductor, the buck and the
+        # SoC's band: walled in by the switch node and their ground; a part
+        # there (C4, then R16) had no way out
+        out.append((box(-11.0, 20.4, -8.4, 23.2), 0))
         # the triple buck's breakout band: its 0.4 mm-pitch pins need room
         # between their pads and the input / enable caps
         ux, uy = FIXED['U3'][:2]
