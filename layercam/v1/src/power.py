@@ -65,9 +65,12 @@ def _zone_poly(z):
     return Polygon([pcb.xy(o.CPoint(k)) for k in range(o.PointCount())])
 
 
-def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), refs=None):
+def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), refs=None, pins=True):
     """A via for every SMD pad on `nets`.  allowed: net -> polygon the via
-    must lie in (a plane's extent).  Returns (count, pads with no spot)."""
+    must lie in (a plane's extent).  pins=False: only the large pads' own
+    vias and the short tracks into them; the other pads are left to the
+    router, which places their vias where they block nothing.  Returns
+    (count, pads with no spot)."""
     via = via or pcb.VIA
     vr = via[0] / 2
     pads, holes = {'F': [], 'B': []}, []
@@ -210,6 +213,8 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
                     tracks[side].append((line.buffer(w / 2), net))
                     done += 1
                     continue
+            if not pins:
+                continue
             fx, fy = pcb.xy(fp.GetPosition())
             away = math.atan2(cy - fy, cx - fx) if (abs(cx - fx) + abs(cy - fy)) > 0.05 else -math.pi / 2
             # a long pad (a QFN's, a connector's) leaves along its length,

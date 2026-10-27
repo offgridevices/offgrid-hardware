@@ -32,6 +32,10 @@ POWER = {
     'usb': {'VSYS': 0.4},
 }
 PLANE_NETS = {'main': ('GND', 'VDD_0V9', 'VCC_3V3'), 'usb': ('GND',), 'ring': ()}
+# boards whose big parts' plane pins get their vias from the router (it
+# leaves gaps between them; vias placed beforehand, one per pin, walled the
+# pins next to them in): the plane nets are routed, to the planes
+ROUTER_PLANE_VIAS = {'main'}
 # differential pairs (width, gap) for 100 ohm (MIPI) and 90 ohm (USB) on
 # the outer layers over PCBWay's 0.12 mm prepreg, centred in the etch
 # tolerance (sim/impedance.md: 102 and 90 ohm on the main board, 92 ohm on
@@ -88,7 +92,8 @@ def _build(board, path, avoid):
     inward = getattr(layout, 'INWARD', ())
     small = {c.ref for c in comps if placer.is_small(c) and c.ref not in fixed}
     big = {c.ref for c in comps} - small
-    d1, f1 = power.fanout(b, nets=nets, done_pads=manual, allowed=allowed, inward=inward, refs=big)
+    d1, f1 = power.fanout(b, nets=nets, done_pads=manual, allowed=allowed, inward=inward, refs=big,
+                          pins=board not in ROUTER_PLANE_VIAS)
     failed = placer.place(b, comps, layout, layout.height, avoid)
     if failed:
         print('  NO ROOM for: %s' % ' '.join(failed))
