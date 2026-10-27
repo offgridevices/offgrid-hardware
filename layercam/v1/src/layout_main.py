@@ -191,6 +191,29 @@ def via_ring():
             .difference(box(cx - 6.0, cy - 6.0, cx + 6.0, cy + 6.0)), {'U1'})
 
 
+def escapes(b):
+    """The SoC's signal pins that leave its face: a pin whose nearest other
+    pad is on the back face, or whose net runs more than 20 mm.  The rest
+    run out on F through the breakout band."""
+    import pcbnew, board
+    skip = set(board.PLANE_NETS['main']) | {n for v in board.DIFF['main'].values() for n in v[0]}
+    pads = {}
+    for fp in b.GetFootprints():
+        for q in fp.Pads():
+            pads.setdefault(q.GetNetname(), []).append((fp.GetReference(), q))
+    out = set()
+    for p in b.FindFootprintByReference('U1').Pads():
+        n = p.GetNetname()
+        if not n or n in skip or n.startswith('unconnected'):
+            continue
+        x, y = pcb.xy(p.GetPosition())
+        near = sorted((math.dist((x, y), pcb.xy(q.GetPosition())), q.IsOnLayer(pcbnew.F_Cu))
+                      for r, q in pads[n] if r != 'U1')
+        if near and (not near[0][1] or near[0][0] > 20):
+            out.add(n)
+    return {'U1': sorted(out)}
+
+
 def keepouts(side):
     """Areas a part on `side` may not touch: (shapely geometry, max height
     allowed there or 0)."""
@@ -219,6 +242,9 @@ def keepouts(side):
     else:
         x0, y0, x1, y1 = G.HOLDER_BOX
         out.append((box(x0, -y1, x1, -y0), 0))
+        # the SoC's escape band on the back face too: its pins' vias come
+        # through here, and a part's pad would stand where a via must go
+        out.append((via_ring()[0], 0))
         for x, y in G.SCREWS:
             out.append((Point(x, -y).buffer(G.BOSS_D / 2 + 0.3), 0))
     for x, y in G.SCREWS:

@@ -50,7 +50,7 @@ DIFF = {'main': {'MIPI': (['CSI_D0P', 'CSI_D0N', 'CSI_D1P', 'CSI_D1N', 'CSI_CKP'
 RF_W = 0.18
 
 
-def build(board, path, rounds=6):
+def build(board, path, rounds=12):
     """Build the board; a small part that ends up with a plane pad and no
     room for its via is moved: the board is built again with that spot
     barred to it (placer.place's `avoid`), up to `rounds` times."""
@@ -99,6 +99,16 @@ def _build(board, path, avoid):
     if failed:
         print('  NO ROOM for: %s' % ' '.join(failed))
     d2, f2 = power.fanout(b, nets=nets, done_pads=manual, allowed=allowed, inward=inward, refs=small, ring=ring)
+    if hasattr(layout, 'escapes'):
+        # a fine-pitch chip's signal pins that leave its face: a stub and a
+        # via each, laid out together before routing (locked, or Freerouting
+        # drops a via that has one connection so far)
+        for ref, esc in layout.escapes(b).items():
+            d3, f3 = power.fanout(b, nets=esc, refs={ref}, ring=ring)
+            print('  %s escapes: %d%s' % (ref, d3, ('; none for ' + ' '.join(f3)) if f3 else ''))
+            # a small part whose pad stands where an escape via must go
+            # moves, as one with no via room does
+            f2 = f2 + [f.split('(pad ')[1].rstrip(')') for f in f3 if '(pad ' in f]
     print('  plane vias: %d%s' % (d1 + d2, ('; NO SPOT for ' + ' '.join(f1 + f2)) if f1 + f2 else ''))
     for w in sorted(set(POWER[board].values())):
         group = [n for n, x in POWER[board].items() if x == w]
