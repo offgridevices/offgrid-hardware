@@ -104,7 +104,11 @@ def _build(board, path, avoid):
         # via each, laid out together before routing (locked, or Freerouting
         # drops a via that has one connection so far)
         for ref, esc in layout.escapes(b).items():
-            d3, f3 = power.fanout(b, nets=esc, refs={ref}, ring=ring)
+            # a run of neighbouring pins fans out, each stub as thin as
+            # the rules near the pins allow (a power pin's at its width)
+            lean = power.fan(b.FindFootprintByReference(ref), set(esc))
+            d3, f3 = power.fanout(b, nets=esc, refs={ref}, ring=ring, lean=lean,
+                                  stub_w=lambda n: POWER[board].get(n, 0.12))
             print('  %s escapes: %d%s' % (ref, d3, ('; none for ' + ' '.join(f3)) if f3 else ''))
             # a small part whose pad stands where an escape via must go
             # moves, as one with no via room does
