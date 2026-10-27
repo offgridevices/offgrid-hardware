@@ -44,8 +44,21 @@ def pour_and_stitch(path, art=()):
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     r = pcb.VIA[0] / 2
     edge = pcb.board_polygon().buffer(-0.6)
-    both = _filled(zs[pcbnew.F_Cu], pcbnew.F_Cu).intersection(_filled(zs[pcbnew.B_Cu], pcbnew.B_Cu)) \
-        .buffer(-(r + pcb.CLEAR + 0.1))
+    both = _filled(zs[pcbnew.F_Cu], pcbnew.F_Cu).intersection(_filled(zs[pcbnew.B_Cu], pcbnew.B_Cu))
+    if pcbnew.In2_Cu in zs:
+        # the via passes the signal layer In2 too: ground there as well
+        both = both.intersection(_filled(zs[pcbnew.In2_Cu], pcbnew.In2_Cu))
+    both = both.buffer(-(r + pcb.CLEAR + 0.1))
+    # the power planes (main board: In3's 0.9 V and 3.3 V): a ground via's
+    # clearance hole must not cut a narrow part of one off, so only well
+    # inside their copper
+    for l in pcb.cu_layers():
+        if l in (pcbnew.F_Cu, pcbnew.B_Cu, pcbnew.In2_Cu):
+            continue
+        other = [z for z in b.Zones() if not z.GetIsRuleArea() and z.IsOnLayer(l) and z.GetNetname() != 'GND']
+        if other:
+            cu = unary_union([_filled(z, l) for z in other])
+            both = both.intersection(cu.buffer(-(r + 0.2 + 0.5)))
     keep = [Polygon([pcb.xy(z.Outline().Outline(0).CPoint(k)) for k in range(z.Outline().Outline(0).PointCount())])
             for z in b.Zones() if z.GetIsRuleArea() and z.GetZoneName() != 'edge clearance']
     keep = unary_union(keep).buffer(0.3) if keep else Polygon()

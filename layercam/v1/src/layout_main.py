@@ -129,9 +129,11 @@ SIDE = {
     'core decoupling': B, 'core bulk': B, 'DDR decoupling': B, 'DDR bulk': B,
     '1.8 V decoupling (DDR PLL, OSC/PLL)': B, '1.8 V decoupling (DDR PLL)': B,
     '3.3 V decoupling (VCCIO, PMU, USB)': B, '3.3 V bulk at the SoC': B,
-    'MIPI supply filter C': B, 'MIPI supply bulk': B, 'ADC/USB supply filter C': B,
-    'codec supply': B, 'codec VCM': B, 'OTP/TSADC supply': B, 'Ethernet supply': B,
-    'DRAM ZQ 240R 1 %': B, 'RTC supply C': B,
+    'MIPI supply filter C': B, 'MIPI supply bulk': B,
+    # the SoC's left-column filter caps on its own face: a via each beside
+    # pins 19-30 had no room among the plane and USB vias there
+    'ADC/USB supply filter C': F, 'codec supply': F, 'codec VCM': F, 'RTC supply C': F,
+    'OTP/TSADC supply': B, 'Ethernet supply': B, 'DRAM ZQ 240R 1 %': B,
     '24 MHz load': F, 'RTC load': B, 'SDIO pull-up': B,
 }
 
@@ -197,6 +199,10 @@ def keepouts(side):
         cx, cy = FIXED['U1'][:2]
         out.append((box(cx - BREAKOUT, cy - BREAKOUT, cx + BREAKOUT, cy + BREAKOUT)
                     .difference(box(cx - 6.5, cy - 6.5, cx + 6.5, cy + 6.5)), 0))
+        # the triple buck's breakout band: its 0.4 mm-pitch pins need room
+        # between their pads and the input / enable caps
+        ux, uy = FIXED['U3'][:2]
+        out.append((box(ux - 2.9, uy - 2.9, ux + 2.9, uy + 2.9).difference(box(ux - 1.95, uy - 1.95, ux + 1.95, uy + 1.95)), 0))
         hx, hy = G.HEATSINK_C
         h = G.HEATSINK_SIZE / 2 + 0.2
         out.append((box(hx - h, hy - h, hx + h, hy + h), G.UNDER_HEATSINK_MAX_H))

@@ -7,9 +7,12 @@ Used by make.py --reroute.
                          coupled pairs, the plane vias (power.py)
   3. Freerouting 1.9     every other connection; the plane nets are left
                          out (ground; on the main board 0.9 V and 3.3 V)
-  4. every track corner cut to 45 degrees or less (miter.py)
-  5. ground fill and stitching (stitch.py)
-  6. KiCad DRC           must be 0 errors / 0 warnings / 0 unconnected
+  4. finish.py           the connections Freerouting leaves: a maze router
+                         with rip-up and re-route, plane necks re-opened,
+                         dangling stubs taken off
+  5. every track corner cut to 45 degrees or less (miter.py)
+  6. ground fill and stitching (stitch.py)
+  7. KiCad DRC           must be 0 errors / 0 warnings / 0 unconnected
 
     python3 pipeline.py main|ring|usb WORKDIR
 """
@@ -17,7 +20,7 @@ import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import pcbnew
-import pcb, board, route, stitch, miter
+import pcb, board, route, stitch, miter, finish
 
 
 def log(s):
@@ -49,6 +52,8 @@ def run(bd, work, passes=int(os.environ.get('PASSES', 40))):
     route.PRE_EXPORT = planes_only if inner else None
     left = route.route(placed, routed, passes=passes, rounds=4)
     log('  unrouted after Freerouting: %d' % left)
+    log('== finish (maze router, rip-up and re-route)')
+    unc, split = finish.finish(routed, log=log)
     log('== 45-degree corners')
     done, failed, left = miter.miter(routed)
     log('  %d corners cut; left at a joint or too tight: %s' % (done, left or 'none'))
