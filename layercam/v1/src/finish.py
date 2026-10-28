@@ -1286,23 +1286,24 @@ def _unconnected(b):
 
 
 def _via_dangling(c, v):
-    """A via joined to fewer than two things (track ends on it, pads it
-    stands in, fills of its net)."""
+    """A via joined on fewer than two layers (track ends on it, pads it
+    stands in, fills of its net): KiCad calls a via that only joins tracks
+    on one layer dangling, and the tracks meet without it."""
     p = v.GetPosition()
     r = v.GetWidth(pcbnew.F_Cu) / 2
-    n = 0
+    layers = set()
     for it in c.GetConnectedItems(v):
         if it.GetClass() in ('PCB_TRACK', 'PCB_ARC'):
             for q in (it.GetStart(), it.GetEnd()):
                 if (q.x - p.x) ** 2 + (q.y - p.y) ** 2 <= r * r:
-                    n += 1
+                    layers.add(it.GetLayer())
                     break
         elif it.GetClass() == 'PAD':
             if it.HitTest(p):
-                n += 1
+                layers |= {l for l in (pcbnew.F_Cu, pcbnew.B_Cu) if it.IsOnLayer(l)} or {-1}
         elif it.GetClass() == 'ZONE':
-            n += 1
-    return n < 2
+            layers |= set(it.GetLayerSet().Seq())
+    return len(layers) < 2
 
 
 def dedangle(b, log=print, rounds=30):
@@ -1338,6 +1339,12 @@ def dedangle(b, log=print, rounds=30):
                 left.append(t)
         if not progress:
             break
+    n = snap_joins(b)
+    if n:
+        log('   %d track ends snapped onto the copper they join' % n)
+    n = _bridge_vias(b)
+    if n:
+        log('   %d one-layer vias replaced by short tracks inside them' % n)
     b.BuildConnectivity()
     c = b.GetConnectivity()
     left = [t for t in b.GetTracks() if not t.IsLocked() and
@@ -1345,6 +1352,133 @@ def dedangle(b, log=print, rounds=30):
     for t in left:
         log('   dangling, but a join: %s %s at %s' % (t.GetClass(), t.GetNetname(), pcb.xy(t.GetPosition())))
     return removed, left
+
+
+def _bridge_vias(b):
+    """A via whose tracks all end on one layer is dangling to KiCad, yet
+    may be what joins them (their ends meet only through its copper): each
+    such end gets a short track to the via's centre, on its own layer and
+    inside the via's copper, then the via comes out.  Kept only if KiCad's
+    unconnected count does not rise.  Returns the vias replaced."""
+    _fill(b)
+    base = _unconnected(b)
+    done = 0
+    b.BuildConnectivity()
+    c = b.GetConnectivity()
+    for v in [t for t in b.GetTracks() if t.GetClass() == 'PCB_VIA' and not t.IsLocked()]:
+        if not _via_dangling(c, v):
+            continue
+        p0, r0 = v.GetPosition(), v.GetWidth(pcbnew.F_Cu) / 2
+        ends = []
+        for t in b.GetTracks():
+            if t.GetClass() != 'PCB_TRACK' or t.GetNetname() != v.GetNetname():
+                continue
+            for q in (t.GetStart(), t.GetEnd()):
+                if 100 < (q.x - p0.x) ** 2 + (q.y - p0.y) ** 2 <= r0 * r0:
+                    ends.append((pcb.xy(q), t.GetLayer(), t.GetWidth() / 1e6))
+        if not ends:
+            continue
+        before = _snapshot(b)
+        cx, cy = pcb.xy(p0)
+        for (x, y), l, w in ends:
+            pcb.track(b, [(x, y), (cx, cy)], w, l, v.GetNetname(), locked=False)
+        pcb.remove(b, v)
+        _fill(b)
+        if _unconnected(b) <= base:
+            done += 1
+        else:
+            _rollback(b, before, [v])
+        b.BuildConnectivity()
+        c = b.GetConnectivity()
+    return done
+
+
+def snap_joins(b):
+    """A track end that joins its net's copper in the middle of a track
+    (a T), or inside a via off its centre, is connected but KiCad calls it
+    dangling.  The T's track is split there and the end moved onto the
+    split point; an end inside a via is moved to its centre.  Returns the
+    ends moved."""
+    b.BuildConnectivity()
+    c = b.GetConnectivity()
+    tracks = [t for t in b.GetTracks() if t.GetClass() == 'PCB_TRACK']
+    vias = [t for t in b.GetTracks() if t.GetClass() == 'PCB_VIA']
+    moved = 0
+    for t in list(tracks):
+        if not c.TestTrackEndpointDangling(t, True):
+            continue
+        for which in ('start', 'end'):
+            e = t.GetStart() if which == 'start' else t.GetEnd()
+            ex, ey = pcb.xy(e)
+            ok = any(o is not t and o.GetNetname() == t.GetNetname() and o.GetLayer() == t.GetLayer() and
+                     any((q.x - e.x) ** 2 + (q.y - e.y) ** 2 < 100 for q in (o.GetStart(), o.GetEnd()))
+                     for o in tracks)
+            ok = ok or any(v.GetNetname() == t.GetNetname() and
+                           (v.GetPosition().x - e.x) ** 2 + (v.GetPosition().y - e.y) ** 2 < 100 for v in vias)
+            ok = ok or any(p.GetNetname() == t.GetNetname() and p.IsOnLayer(t.GetLayer()) and p.HitTest(e)
+                           for fp in b.GetFootprints() for p in fp.Pads())
+            if ok:
+                continue
+            target = None
+            for v in vias:
+                if v.GetNetname() == t.GetNetname():
+                    vx, vy = pcb.xy(v.GetPosition())
+                    if math.hypot(vx - ex, vy - ey) < _via_r(v):
+                        target = (vx, vy)
+                        break
+            if target is None:
+                for o in tracks:
+                    if o is t or o.GetNetname() != t.GetNetname() or o.GetLayer() != t.GetLayer():
+                        continue
+                    ln = _track_line(o)
+                    if ln.distance(Point(ex, ey)) < o.GetWidth() / 2e6:
+                        q = ln.interpolate(ln.project(Point(ex, ey)))
+                        a, z = pcb.xy(o.GetStart()), pcb.xy(o.GetEnd())
+                        if min(math.dist((q.x, q.y), a), math.dist((q.x, q.y), z)) < 0.01:
+                            target = (q.x, q.y)
+                            break
+                        # split o at q: o keeps its start, a new piece runs on
+                        o.SetEnd(pcb.P(q.x, q.y))
+                        pcb.track(b, [(q.x, q.y), z], o.GetWidth() / 1e6, o.GetLayer(), o.GetNetname(),
+                                  locked=False)
+                        tracks = [x for x in b.GetTracks() if x.GetClass() == 'PCB_TRACK']
+                        target = (q.x, q.y)
+                        break
+            if target is None:
+                # an overrun: the track crosses its net's copper and runs on
+                # past it; cut it back to just inside where it enters
+                f = t.GetEnd() if which == 'start' else t.GetStart()
+                fx, fy = pcb.xy(f)
+                line = LineString([(ex, ey), (fx, fy)])
+                l = t.GetLayer()
+                own = []
+                for o in tracks:
+                    if o is not t and o.GetNetname() == t.GetNetname() and o.GetLayer() == l:
+                        own.append(_track_line(o).buffer(o.GetWidth() / 2e6))
+                for v in vias:
+                    if v.GetNetname() == t.GetNetname():
+                        own.append(Point(pcb.xy(v.GetPosition())).buffer(_via_r(v)))
+                for fp in b.GetFootprints():
+                    for p in fp.Pads():
+                        if p.GetNetname() == t.GetNetname() and p.IsOnLayer(l):
+                            own.append(_pad_geom(p, l))
+                hit = line.intersection(unary_union(own)) if own else None
+                if hit is not None and not hit.is_empty:
+                    d = min(line.project(Point(q)) for g in getattr(hit, 'geoms', [hit])
+                            for q in (g.coords if hasattr(g, 'coords') else [g.coords[0]]))
+                    d = min(line.length, d + 0.02)
+                    if 0.005 < d < line.length - 0.005:
+                        q = line.interpolate(d)
+                        target = (q.x, q.y)
+            if target is not None:
+                if which == 'start':
+                    t.SetStart(pcb.P(*target))
+                else:
+                    t.SetEnd(pcb.P(*target))
+                moved += 1
+        b.BuildConnectivity()
+        c = b.GetConnectivity()
+    return moved
 
 
 # ---------------------------------------------------------------- KiCad's view
