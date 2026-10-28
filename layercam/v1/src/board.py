@@ -107,6 +107,13 @@ def _build(board, path, avoid):
     if failed:
         print('  NO ROOM for: %s' % ' '.join(failed))
     d2, f2 = power.fanout(b, nets=nets, done_pads=manual, allowed=allowed, inward=inward, refs=small, ring=ring)
+    # a pad its neighbours box in gets a via of its own, filled and capped
+    # (POFV, ordered for the SoC's pads anyway)
+    for ref, num in getattr(layout, 'PAD_VIAS', ()):
+        fp = b.FindFootprintByReference(ref)
+        p = next(q for q in fp.Pads() if q.GetNumber() == num)
+        x, y = pcb.xy(p.GetPosition())
+        pcb.via(b, x, y, p.GetNetname())
     if hasattr(layout, 'escapes'):
         # a fine-pitch chip's signal pins that leave its face: a stub and a
         # via each, laid out together before routing (locked, or Freerouting

@@ -133,7 +133,9 @@ SIDE = {
     'MIPI supply filter C': B, 'MIPI supply bulk': B,
     # the SoC's left-column filter caps on its own face: a via each beside
     # pins 19-30 had no room among the plane and USB vias there
-    'ADC/USB supply filter C': F, 'codec supply': F, 'codec VCM': F, 'RTC supply C': F,
+    'ADC/USB supply filter C': F, 'codec supply': F, 'codec VCM': F,
+    # under pin 19, by its escape via: on the front it landed 6 mm off
+    'RTC supply C': B,
     # on the back face, their SoC pin reaching them by its escape via: on
     # the front they sat boxed in by the 0.9 V buck and by the crystal
     'VBUS detect top': B, 'VBUS detect bottom': B, 'VBUS detect filter': B, '24 MHz drive R': B,
@@ -200,6 +202,11 @@ def via_ring():
     cx, cy = FIXED['U1'][:2]
     return (box(cx - BREAKOUT, cy - BREAKOUT, cx + BREAKOUT, cy + BREAKOUT)
             .difference(box(cx - 6.0, cy - 6.0, cx + 6.0, cy + 6.0)), {'U1'})
+
+
+# J3's contact 2 has contact 1 on one side and the connector's two tabs on
+# the others: no way out on B, so it drops straight through to In2
+PAD_VIAS = [('J3', '2')]
 
 
 def escapes(b):
