@@ -94,6 +94,23 @@ board's `docs/` keeps its own dated checks).
   face is mirrored: the crystal, antenna and buck parts placed for the
   unflipped pin-out ended 17 mm from their pins. Place them from the pad
   positions read off the placed footprint.
+- **Lay out a fine-pitch chip's escapes at placement, not in the router.**
+  LayerCam's RV1106 (QFN-128, 0.35 mm pitch) jammed every routing run at
+  the same pins until each pin that leaves the chip's face got a stub and a
+  via before routing, the pin between two other escapes first. Check the
+  via against the pitch: with 0.45 mm vias two escapes a pin apart leave
+  0.25 mm, too little for the pin between; 0.35 / 0.2 mm vias and 0.1 mm
+  stubs (in the fab's 6-layer rules) let it through.
+- **Keep the escape band clear on both faces.** Decoupling caps on the
+  back face under a QFN's pins put their own plane vias in the band its
+  signals must cross (38 on LayerCam).
+- **Look for pockets.** A spot walled in by a buck's switch node and its
+  ground (between the inductor, the buck and the SoC's band) trapped
+  whichever small part the placer put there, three in turn. Keep parts out
+  of such pockets, and put a feedback network where its plane can reach.
+- **Size a rail's tracks by its current, not by its being a rail.**
+  LayerCam's 1.8 V carries 0.05 A; at 0.2 mm it was the net every routing
+  run left open; at 0.127 mm it routed.
 - **A placer that cannot place a part must stop the build.** An unplaced
   part sits at the origin, which on LayerCam is inside the lens window; a
   warning in a long log is not enough.
@@ -148,6 +165,26 @@ board's `docs/` keeps its own dated checks).
 - **Python default arguments are read once, at import.** `def f(c=pcb.CLEAR)`
   kept the first board's clearance after `pcb.configure()` switched boards;
   read module settings inside the function.
+- **Freerouting reads every rule area as a keepout,** even one that only
+  scopes a DRC rule: a rule area round the SoC for a finer clearance made
+  it route nothing there (80 connections open). Leave such areas out of
+  the copy exported for it. (Freerouting 1.9.0, KiCad 10.0.7)
+- **Freerouting will not start a route from a pad that fixed copper
+  crowds** below its own clearance class, even by 0.001 mm: locked escape
+  stubs 0.126 mm from their neighbours against a 0.127 mm class left every
+  SoC net unrouted. Give it the fixed copper a hair smaller and put the
+  real sizes back after the import. (Freerouting 1.9.0)
+- **Freerouting 1.9 can crash on its own fed-back wiring** (a
+  NullPointerException in a later round): keep the best round and go on
+  with that.
+- **A repair step must be able to undo itself.** The finisher's plane
+  repair tore up nine signal nets' vias to rejoin one cut-off 3.3 V pad and
+  could not route them again; it now rolls back a round that leaves a net
+  open and joins the pad with a track instead.
+- **"Dangling" also means a track that runs past its joint,** or a via
+  that only joins one layer's tracks. Trim the overrun back to where it
+  enters the copper; replace such a via by short tracks inside its copper.
+  Keep each change only if nothing comes apart. (KiCad 10.0.7)
 - **Give each concurrent tool run its own files.** Two boards routed in one
   work folder shared `route0.dsn` / `.ses` names and overwrote each other;
   name them after the board.

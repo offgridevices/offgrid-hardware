@@ -155,8 +155,42 @@ pads. The layers, in order:
 
 The camera's MIPI lanes and the USB pair are drawn by script as coupled
 pairs (`src/pairs.py`), sized for 100 Ω and 90 Ω on the fab's stackup
-(`sim/impedance.md`). Everything else is routed by Freerouting and checked
-by KiCad's DRC.
+(`sim/impedance.md`). Everything else is routed by Freerouting, finished by
+`src/finish.py`, and checked by KiCad's DRC.
+
+## Routing the main board
+
+The RV1106's pins are 0.35 mm apart and the case leaves no room to make
+the board bigger. Every routing run jammed at the same few places, so
+each was fixed where it starts, not by routing harder:
+
+- **Escapes laid at placement.** Each SoC pin whose net leaves its face
+  (its nearest other pad is on the back, or the net runs over 20 mm) gets
+  a stub and a via before routing; a pin between two other escapes is
+  laid first. 36 of 37.
+- **Smaller vias for those escapes: 0.35 / 0.2 mm, 0.1 mm stubs.** With
+  the board's 0.45 mm vias, two escapes a pin apart left 0.25 mm between
+  them and the pin in the middle could not get out. At 0.35 mm a 0.1 mm
+  stub passes with 0.125 mm each side. The 0.2 mm drill and 0.075 mm ring
+  are inside the board's existing rules; the 0.1 mm gap is PCBWay's
+  6-layer floor and the DRC allows it only in the band round the SoC.
+- **An escape band kept clear.** No part on either face, and no other
+  part's plane via, within the 2.4 mm round the SoC's pins (the back-face
+  caps had put 38 vias there).
+- **Parts where their pins reach them.** The 0.9 V buck's feedback
+  network under the buck, the RTC supply cap under its pin, the VBUS
+  divider and the 24 MHz drive resistor on the back by their escapes; no
+  part in the pocket between the 0.9 V inductor and its buck (walled in by
+  the switch node); a filled via in J3's contact 2, which its neighbour
+  and the connector's tabs box in on the back.
+- **VCC_1V8 at 0.127 mm.** It carries 0.05 A; at 0.2 mm it was the net
+  every run left open.
+
+Cost: two via sizes and a 0.1 mm gap near the SoC on the order (both
+within the build already quoted), and the finisher's 8 mm of track
+through In3's 3.3 V fill. The routed board is the design of record:
+`make.py --reroute main` re-runs the whole chain, but Freerouting does not
+give the same board twice.
 
 ## Fab and assembly: PCBWay
 
