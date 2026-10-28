@@ -54,6 +54,12 @@ def run(bd, work, passes=int(os.environ.get('PASSES', 40))):
         for l in inner:
             if l != pcbnew.In2_Cu and not (in3 and l == pcbnew.In3_Cu):
                 b.SetLayerType(l, pcbnew.LT_POWER)
+        # the escape band's rule area only scopes a DRC rule; Freerouting
+        # would read it as a keepout over the whole band
+        for z in list(b.Zones()):
+            if z.GetIsRuleArea() and z.GetZoneName() == 'escape band':
+                b.Remove(z)
+                KEEP.append(z)
         if esc:
             # the escape band's stubs and vias keep 0.126 mm (its own DRC
             # rule); Freerouting knows only the 0.127 mm class clearance and
