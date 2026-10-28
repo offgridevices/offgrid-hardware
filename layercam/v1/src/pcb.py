@@ -431,8 +431,17 @@ RULES = """(version 1)
 """
 
 
+ESCAPE_RULE = '''# The main board's SoC escape band (layout_main.ESCAPE): 0.1 mm, PCBWay's
+# 6-layer floor, between its 0.35 mm-pitch pins' stubs and vias.
+(rule "SoC escape band"
+  (condition "A.intersectsArea('escape band') && B.intersectsArea('escape band')")
+  (constraint clearance (min 0.1mm)))
+'''
+
+
 def write_rules(board_path, extra=''):
-    open(os.path.splitext(board_path)[0] + '.kicad_dru', 'w').write(RULES + extra)
+    open(os.path.splitext(board_path)[0] + '.kicad_dru', 'w').write(
+        RULES + (ESCAPE_RULE if BOARD == 'main' else '') + extra)
 
 
 # PCBWay's "Regular" 6-layer 1.6 mm build No. 1 (1 oz copper on every

@@ -217,6 +217,22 @@ def escapes(b):
     return {'U1': sorted(out)}
 
 
+# The SoC's 0.35 mm-pitch pins: their escape (and plane) vias 0.35 / 0.2 mm
+# with 0.1 mm stubs.  With the board's 0.45 mm vias two escapes a pin apart
+# (0.7 mm) left 0.25 mm between them, no room for the pin in the middle; at
+# 0.35 mm a 0.1 mm stub passes with 0.125 mm each side.  0.126 mm keeps the
+# 0.2 mm copper-to-hole rule (0.075 mm ring + 0.125); in the band the gap
+# rule is PCBWay's 6-layer floor, 0.1 mm (pcb.ESCAPE_RULE).
+ESCAPE = dict(ref='U1', via=(0.35, 0.2), clr=0.126, w=0.1)
+
+
+def escape_area():
+    """Where the 0.1 mm escape-band clearance applies: the SoC's pins and
+    the band round them."""
+    cx, cy = FIXED['U1'][:2]
+    return box(cx - BREAKOUT, cy - BREAKOUT, cx + BREAKOUT, cy + BREAKOUT)
+
+
 def keepouts(side):
     """Areas a part on `side` may not touch: (shapely geometry, max height
     allowed there or 0)."""

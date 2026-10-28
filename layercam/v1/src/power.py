@@ -66,7 +66,7 @@ def _zone_poly(z):
 
 
 def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), refs=None, pins=True, ring=None,
-           lean=None, stub_w=None):
+           lean=None, stub_w=None, clr=None):
     """A via for every SMD pad on `nets`.  allowed: net -> polygon the via
     must lie in (a plane's extent).  pins=False: only the large pads' own
     vias and the short tracks into them; the other pads are left to the
@@ -75,7 +75,9 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
     pads may put a via in the polygon (a fine-pitch chip's escape band).
     lean: (ref, pad) -> (order, angle): the pads in that order, each first
     tried at that angle off straight out (a fan of neighbouring pins);
-    stub_w: net -> the stub's width."""
+    stub_w: net -> the stub's width; clr: the clearance to keep instead of
+    cl / sc (a fine-pitch chip's escape band has its own rule)."""
+    cl, sc = (clr, clr) if clr else (CLR, SEG_CLR)
     via = via or pcb.VIA
     vr = via[0] / 2
     pads, holes = {'F': [], 'B': []}, []
@@ -123,21 +125,21 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
             WHY[ref] = 'hole'; return False
         for s in ('F', 'B'):
             for fp2, p2, poly in pads[s]:
-                if p2.GetNetname() != net and (poly.distance(v) < CLR or (s == side and poly.distance(seg) < SEG_CLR)):
+                if p2.GetNetname() != net and (poly.distance(v) < cl or (s == side and poly.distance(seg) < sc)):
                     WHY[ref] = 'pad %s.%s' % (fp2.GetReference(), p2.GetNumber()); return False
             for g, n in tracks[s]:
-                if n != net and (g.distance(v) < CLR or (s == side and g.distance(seg) < SEG_CLR)):
+                if n != net and (g.distance(v) < cl or (s == side and g.distance(seg) < sc)):
                     WHY[ref] = 'track ' + n; return False
         for g, n in inner:
-            if n != net and g.distance(v) < CLR:
+            if n != net and g.distance(v) < cl:
                 WHY[ref] = 'inner track ' + n; return False
         # the stub to the via must clear other nets' vias too (it runs on
         # the pad's face, where every via has copper)
         for g, n, r in vias:
-            if n != net and g.distance(seg) < r + SEG_CLR:
+            if n != net and g.distance(seg) < r + sc:
                 WHY[ref] = 'via on the way ' + n; return False
         for g, n, r in vias:
-            if g.distance(Point(pt)) < vr + r + max(CLR, 0.25 if n == net else CLR):
+            if g.distance(Point(pt)) < vr + r + max(cl, 0.25 if n == net else cl):
                 WHY[ref] = 'via ' + n; return False
         # a via may pass under a part on the other face (it is filled and
         # capped, and that face's pads are checked above); not under one on
@@ -160,12 +162,12 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
         v = Point(pt).buffer(vr)
         for s in ('F', 'B'):
             for fp2, p2, poly2 in pads[s]:
-                if p2.GetNetname() != net and poly2.distance(v) < CLR:
+                if p2.GetNetname() != net and poly2.distance(v) < cl:
                     return False
-        if any(n != net and g.distance(v) < CLR for s in ('F', 'B') for g, n in tracks[s]) or \
-                any(n != net and g.distance(v) < CLR for g, n in inner):
+        if any(n != net and g.distance(v) < cl for s in ('F', 'B') for g, n in tracks[s]) or \
+                any(n != net and g.distance(v) < cl for g, n in inner):
             return False
-        return all(g.distance(Point(pt)) >= vr + r + (0.25 if n == net else CLR) for g, n, r in vias)
+        return all(g.distance(Point(pt)) >= vr + r + (0.25 if n == net else cl) for g, n, r in vias)
 
     for side in ('F', 'B'):
         lay = pcbnew.F_Cu if side == 'F' else pcbnew.B_Cu
@@ -216,9 +218,9 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
                 line = LineString([(cx, cy), (q.x, q.y)])
                 seg = line.buffer(w / 2).difference(poly.buffer(0.01)).difference(epoly.buffer(0.01))
                 if line.length < 2.0 and \
-                        all(p2.GetNetname() == net or poly2.distance(seg) >= SEG_CLR for _, p2, poly2 in pads[side]) \
-                        and all(n2 == net or g2.distance(seg) >= SEG_CLR for g2, n2 in tracks[side]) \
-                        and all(n2 == net or g2.distance(seg) >= r2 + SEG_CLR for g2, n2, r2 in vias):
+                        all(p2.GetNetname() == net or poly2.distance(seg) >= sc for _, p2, poly2 in pads[side]) \
+                        and all(n2 == net or g2.distance(seg) >= sc for g2, n2 in tracks[side]) \
+                        and all(n2 == net or g2.distance(seg) >= r2 + sc for g2, n2, r2 in vias):
                     pcb.track(b, [(cx, cy), (q.x, q.y)], w, lay, net)
                     tracks[side].append((line.buffer(w / 2), net))
                     done += 1
@@ -294,9 +296,9 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
                         continue
                     line = LineString([(cx, cy), (g.x, g.y)])
                     seg = line.buffer(w / 2)
-                    if all(p2.GetNetname() == net or poly2.distance(seg) >= SEG_CLR for _, p2, poly2 in pads[side]) \
-                            and all(n2 == net or g2.distance(seg) >= SEG_CLR for g2, n2 in tracks[side]) \
-                            and all(n2 == net or g2.distance(line) >= r2 + w / 2 + CLR for g2, n2, r2 in vias):
+                    if all(p2.GetNetname() == net or poly2.distance(seg) >= sc for _, p2, poly2 in pads[side]) \
+                            and all(n2 == net or g2.distance(seg) >= sc for g2, n2 in tracks[side]) \
+                            and all(n2 == net or g2.distance(line) >= r2 + w / 2 + cl for g2, n2, r2 in vias):
                         pcb.track(b, [(cx, cy), (g.x, g.y)], w, lay, net)
                         tracks[side].append((seg, net))
                         spot = True

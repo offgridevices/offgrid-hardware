@@ -93,8 +93,16 @@ def _build(board, path, avoid):
     ring = layout.via_ring() if hasattr(layout, 'via_ring') else None
     small = {c.ref for c in comps if placer.is_small(c) and c.ref not in fixed}
     big = {c.ref for c in comps} - small
-    d1, f1 = power.fanout(b, nets=nets, done_pads=manual, allowed=allowed, inward=inward, refs=big,
+    # a fine-pitch chip's pins (layout.ESCAPE: its ref, a smaller via, the
+    # band's clearance, the stub width) fan out at its own rules
+    esc = getattr(layout, 'ESCAPE', None)
+    d1, f1 = power.fanout(b, nets=nets, done_pads=manual, allowed=allowed, inward=inward,
+                          refs=big - ({esc['ref']} if esc else set()),
                           pins=board not in ROUTER_PLANE_VIAS, ring=ring)
+    if esc:
+        d0, f0 = power.fanout(b, nets=nets, done_pads=manual, allowed=allowed, inward=inward, refs={esc['ref']},
+                              ring=ring, via=esc['via'], clr=esc['clr'], stub_w=lambda n: esc['w'])
+        d1, f1 = d1 + d0, f1 + f0
     failed = placer.place(b, comps, layout, layout.height, avoid)
     if failed:
         print('  NO ROOM for: %s' % ' '.join(failed))
@@ -107,8 +115,9 @@ def _build(board, path, avoid):
             # the pins squeezed between two other escapes first (straight
             # out), the rest after, as thin as the rules near the pins allow
             lean = power.squeezed_first(b.FindFootprintByReference(ref), set(esc))
-            d3, f3 = power.fanout(b, nets=esc, refs={ref}, ring=ring, lean=lean,
-                                  stub_w=lambda n: POWER[board].get(n, 0.12))
+            e = getattr(layout, 'ESCAPE', {})
+            d3, f3 = power.fanout(b, nets=esc, refs={ref}, ring=ring, lean=lean, via=e.get('via'),
+                                  clr=e.get('clr'), stub_w=lambda n: e.get('w', 0.12))
             print('  %s escapes: %d%s' % (ref, d3, ('; none for ' + ' '.join(f3)) if f3 else ''))
             # a small part whose pad stands where an escape via must go
             # moves, as one with no via room does
@@ -122,6 +131,9 @@ def _build(board, path, avoid):
     for name, (nets, w, gap) in DIFF[board].items():
         pcb.netclass(b, name, nets, w, diff_w=w, diff_gap=gap)
     pcb.rule_area_shape(b, pcb.edge_band(), pcb.cu_layers(), name='edge clearance')
+    if hasattr(layout, 'escape_area'):
+        # where the escape band's own clearance applies (pcb.write_rules)
+        pcb.rule_area_shape(b, layout.escape_area(), pcb.cu_layers(), name='escape band', tracks=False, vias=False)
     pcbnew.SaveBoard(path, b)
     pcb.write_rules(path)
     stuck = {f.split('.')[0] for f in f2} & small
