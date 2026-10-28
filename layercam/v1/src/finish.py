@@ -1196,7 +1196,10 @@ def plane_repair(b, planes, protect, widths, rounds=4, log=print):
     whose pads fall in more than one group, the area near two of its
     groups' fills on one layer is barred to vias (NOVIA), every unlocked
     signal via in it is taken out with its net's copper there, and those
-    nets are routed again.  Returns the plane nets still split."""
+    nets are routed again.  A round that leaves a signal net open that was
+    joined before is undone (it once tore up nine nets round the SoC for one
+    cut-off pad); then the cut-off group is joined to the rest by a track of
+    the plane net instead.  Returns the plane nets still split."""
     left = []
     for r in range(rounds):
         _fill(b)
@@ -1205,6 +1208,8 @@ def plane_repair(b, planes, protect, widths, rounds=4, log=print):
         left = sorted(split)
         if not split:
             return []
+        before, originals = _snapshot(b), list(b.GetTracks())
+        open_before = set(unrouted_nets(b, planes))
         hit = set()
         for net, groups in split.items():
             fills = [_group_fill(b, net, g) for g in groups]
@@ -1240,7 +1245,37 @@ def plane_repair(b, planes, protect, widths, rounds=4, log=print):
             if route_net(b, n, width_of(widths, n)):
                 ok = negotiate(b, n, protect, widths, budget=60, log=log)
                 log('   plane repair: %s %s' % (n, 'routed' if ok else 'STILL OPEN'))
+        worse = set(unrouted_nets(b, planes)) - open_before
+        if worse:
+            _rollback(b, before, originals)
+            del NOVIA[:]
+            log('   plane repair undone: it left %s open' % ' '.join(sorted(worse)))
+            return _plane_tracks(b, planes, widths, log)
     _fill(b)
+    return sorted(n for n in planes if len(plane_groups(b, n)) > 1)
+
+
+def _plane_tracks(b, planes, widths, log=print):
+    """Join each cut-off group of a plane net to its main group with a
+    track of the net (the maze router, any route layer).  Returns the plane
+    nets still split."""
+    _fill(b)
+    for net in planes:
+        groups = plane_groups(b, net)
+        if len(groups) < 2:
+            continue
+        main = max(range(len(groups)), key=lambda k: len(groups[k]))
+        to = _group_fill(b, net, groups[main])
+        for k, g in enumerate(groups):
+            if k == main:
+                continue
+            frm = _group_fill(b, net, g)
+            for p in g:
+                for l, gs in _geom_of(p).items():
+                    frm.setdefault(l, []).extend(gs)
+            res = route_connection(b, net, frm, to, width_of(widths, net))
+            log('   plane %s: %d cut-off pads %s' % (net, len(g), 'joined by a track' if res else 'NOT joined'))
+        _fill(b)
     return sorted(n for n in planes if len(plane_groups(b, n)) > 1)
 
 
