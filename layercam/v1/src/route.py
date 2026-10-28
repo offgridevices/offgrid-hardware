@@ -229,8 +229,17 @@ def route(pcb_in, pcb_out, passes=60, rounds=4):
             import pcb
             pcb.tidy_tracks(src)
         export_dsn(src, dsn)
-        freeroute(dsn, ses, passes=passes, log=os.path.join(work, '%s-freerouting%d.log' % (stem, r)))
-        import_ses(src, ses, pcb_out)
+        try:
+            freeroute(dsn, ses, passes=passes, log=os.path.join(work, '%s-freerouting%d.log' % (stem, r)))
+            import_ses(src, ses, pcb_out)
+        except SystemExit as e:
+            # a later round that fails (Freerouting 1.9 has thrown a
+            # NullPointerException on its own fed-back wiring) leaves the
+            # best round so far; the first one has nothing to fall back on
+            if best is None:
+                raise
+            print('  routing round %d failed (%s): keeping round %d' % (r + 1, e, best[1] + 1))
+            break
         n, _ = unrouted(pcb_out)
         print('  routing round %d: %d unrouted' % (r + 1, n))
         if best is None or n < best[0]:
