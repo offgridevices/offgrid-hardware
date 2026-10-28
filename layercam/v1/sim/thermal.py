@@ -63,9 +63,53 @@ K_AIR = 0.0300                    # W/mK at ~ 85 C
 
 # ---------------------------------------------------------------- the main board
 K_CU, K_FR4 = 385.0, 0.8
-# copper coverage per layer (ASSUMED for the routed board: outer layers signals + ground fill, inner
-# planes perforated by vias, In2 signals + fill)
-COVER = {'F.Cu': 0.55, 'In1.Cu': 0.90, 'In2.Cu': 0.50, 'In3.Cu': 0.85, 'In4.Cu': 0.90, 'B.Cu': 0.55}
+# copper coverage per layer: measured on the routed board (main/layercam-main.kicad_pcb: its fills,
+# tracks and pads over the outline) where KiCad's Python is there, else these values, which are that
+# measurement (outer layers signals + ground fill, inner planes perforated by vias, In2 signals + fill)
+COVER = {'F.Cu': 0.667, 'In1.Cu': 0.890, 'In2.Cu': 0.656, 'In3.Cu': 0.836, 'In4.Cu': 0.890, 'B.Cu': 0.728}
+COVER_SRC = 'the routed board, measured on an earlier run'
+
+
+def measure_cover():
+    """Each copper layer's share of the outline on the routed main board."""
+    global COVER_SRC
+    try:
+        import pcbnew
+        import pcb
+    except ImportError:
+        return
+    path = os.path.join(V1, 'main', 'layercam-main.kicad_pcb')
+    if not os.path.exists(path):
+        return
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    pcb.configure('main')
+    b = pcbnew.LoadBoard(path)
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    area = pcb.board_polygon().area
+    for l in pcb.cu_layers():
+        ps = pcbnew.SHAPE_POLY_SET()
+        for z in b.Zones():
+            if not z.GetIsRuleArea() and z.GetLayerSet().Contains(l) and z.IsFilled():
+                ps.Append(z.GetFilledPolysList(l))
+        for t in b.GetTracks():
+            if t.IsOnLayer(l):
+                t.TransformShapeToPolygon(ps, l, 0, 5000, pcbnew.ERROR_INSIDE)
+        for fp in b.GetFootprints():
+            for p in fp.Pads():
+                if p.IsOnLayer(l):
+                    p.TransformShapeToPolygon(ps, l, 0, 5000, pcbnew.ERROR_INSIDE)
+        ps.Simplify()
+        polys = []
+        for i in range(ps.OutlineCount()):
+            o = ps.Outline(i)
+            ext = [pcb.xy(o.CPoint(k)) for k in range(o.PointCount())]
+            holes = [[pcb.xy(ps.Hole(i, h).CPoint(k)) for k in range(ps.Hole(i, h).PointCount())]
+                     for h in range(ps.HoleCount(i))]
+            if len(ext) > 2:
+                polys.append(Polygon(ext, holes).buffer(0))
+        COVER[b.GetLayerName(l)] = round(unary_union(polys).area / area, 3)
+    COVER_SRC = 'the routed board (%s), measured' % os.path.relpath(path, V1)
 # PCBWay's regular 6-layer 1.6 mm build (sim/impedance.md): 1 oz outer finished, 1 oz (0.035 mm) inner
 CU_T = {'F.Cu': 0.035, 'B.Cu': 0.035, 'In1.Cu': 0.035, 'In2.Cu': 0.035, 'In3.Cu': 0.035, 'In4.Cu': 0.035}
 DX = 0.5e-3                       # grid, m
@@ -490,6 +534,7 @@ def fmt_amb(a):
 
 def main():
     global EPS_EFF, NU_GAP, H_FORCED, HEATPATH
+    measure_cover()
     hps = heat_paths()
     HEATPATH = hps[DESIGN_PATH] if DESIGN_PATH else None
     board = Board()
@@ -498,8 +543,8 @@ def main():
     w('# LayerCam v1: temperatures in a @TA@ chamber\n')
     w('Computed by `sim/thermal.py`: the main board as a 2D plate on a 0.5 mm grid (outline from `src/geometry.py`, '
       'part places from `src/layout_main.py`, heat from `sim/power_budget.py`), inside Prusa\'s printed housing in a '
-      '%.0f C chamber with still air. The model and every assumed number are listed at the end; the board is the '
-      'placed design (routing changes the copper coverage, see the sensitivity).\n' % T_AMB)
+      '%.0f C chamber with still air. The model and every assumed number are listed at the end; each layer\'s '
+      'copper coverage is %s.\n' % (T_AMB, COVER_SRC))
     w('The requirement cases are **snapshot mode** (`snap_day`, `snap_night`): a still at most every 10 s, the sensor '
       'in standby, the CPU at its lowest DVFS point and Wi-Fi in power-save between shots (power_budget.py has the '
       'loads). The housing\'s time constant is many minutes, so a 10 s cycle is modelled by its average heat; the '
@@ -794,8 +839,8 @@ def main():
     w('- Inside: radiation board to wall with effective emissivity %.2f; still-air conduction across %.1f / %.1f mm '
       'gaps (F / B) with Nu %.1f; board edge to the pocket across %.1f mm of air.'
       % (EPS_EFF, GAP_F * 1e3, GAP_B * 1e3, NU_GAP, EDGE_GAP * 1e3))
-    w('- Copper coverage per layer as listed above (ASSUMED until the board is routed; rerun on the routed board, '
-      'docs/lessons.md: routing raised temperatures 15 K on Ridge 3).')
+    w('- Copper coverage per layer as listed above, from %s (docs/lessons.md: simulate heat on the routed '
+      'board; routing raised temperatures 15 K on Ridge 3).' % COVER_SRC)
     w('- RV1106: die to exposed pad %.0f K/W (ASSUMED) plus the computed via array; the datasheet thetaJB (%.1f K/W, '
       'JEDEC 2s2p) from the board at the package edge as the pessimistic reading; the higher is used.'
       % (R_DIE_EP, THETA_JB_SOC))
