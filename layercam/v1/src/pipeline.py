@@ -43,12 +43,28 @@ def run(bd, work, passes=int(os.environ.get('PASSES', 40))):
     # route.FR2: Freerouting 2.x when FREEROUTING2 is set (route.py)
     inner = [l for l in pcb.cu_layers() if l not in (pcbnew.F_Cu, pcbnew.B_Cu)]
 
+    # FR_IN3=1: Freerouting may route on In3 too, round the 0.9 V core
+    # plane and at three times the cost, through the 3.3 V fill (which pours
+    # round its tracks afterwards; the finisher checks the plane is whole)
+    in3 = bd == 'main' and os.environ.get('FR_IN3') == '1'
+
     def planes_only(b):
         # In1 / In4 ground, In3 the 0.9 V / 3.3 V planes: power layers in the
         # copy Freerouting sees, so it routes on F, In2 and B only
         for l in inner:
-            if l != pcbnew.In2_Cu:
+            if l != pcbnew.In2_Cu and not (in3 and l == pcbnew.In3_Cu):
                 b.SetLayerType(l, pcbnew.LT_POWER)
+        if in3:
+            for z in list(b.Zones()):
+                if not z.GetIsRuleArea() and z.GetLayerSet().Contains(pcbnew.In3_Cu):
+                    b.Remove(z)
+                    KEEP.append(z)
+            import layout_main
+            core = layout_main.plane_polys()['VDD_0V9'].buffer(0.3)
+            pcb.rule_area_shape(b, core, [pcbnew.In3_Cu], name='0.9 V plane', tracks=True, vias=False)
+    KEEP = []
+    if in3:
+        route.AUTOROUTE = dict(route.AUTOROUTE or {}, layer_costs={'In3.Cu': 3.0})
     route.PRE_EXPORT = planes_only if inner else None
     left = route.route(placed, routed, passes=passes, rounds=4)
     log('  unrouted after Freerouting: %d' % left)

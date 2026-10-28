@@ -292,7 +292,9 @@ class Grid:
                 else:
                     self.fill(self.block[t.GetLayer()], ln.buffer(w + ti, 6))
                     self.fill(vb, ln.buffer(w + vi, 6))
-        for z in b.Zones():
+        # the board's zones and rule areas, and those inside footprints (a
+        # module's keepout is a rule area of its own)
+        for z in list(b.Zones()) + [z for fp in b.GetFootprints() for z in fp.Zones()]:
             zl = [l for l in L if z.GetLayerSet().Contains(l)]
             if not zl:
                 continue

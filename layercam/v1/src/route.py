@@ -76,9 +76,10 @@ def _autoroute_block(a, layers):
     dirs = a.get('directions', {})
     for i, l in enumerate(layers):
         d = dirs.get(l, 'horizontal' if i % 2 == 0 else 'vertical')
+        k = a.get('layer_costs', {}).get(l, 1.0)
         lines += ['      (layer_rule %s' % l, '        (active on)', '        (preferred_direction %s)' % d,
-                  '        (preferred_direction_trace_costs 1.0)',
-                  '        (against_preferred_direction_trace_costs %.1f)' % a.get('against', 2.0), '      )']
+                  '        (preferred_direction_trace_costs %.1f)' % k,
+                  '        (against_preferred_direction_trace_costs %.1f)' % (k * a.get('against', 2.0)), '      )']
     lines.append('    )')
     return '\n'.join(lines) + '\n'
 
