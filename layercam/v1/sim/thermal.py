@@ -67,7 +67,7 @@ K_CU, K_FR4 = 385.0, 0.8
 # tracks and pads over the outline) where KiCad's Python is there, else these values, which are that
 # measurement (outer layers signals + ground fill, inner planes perforated by vias, In2 signals + fill)
 COVER = {'F.Cu': 0.667, 'In1.Cu': 0.890, 'In2.Cu': 0.656, 'In3.Cu': 0.836, 'In4.Cu': 0.890, 'B.Cu': 0.728}
-COVER_SRC = 'the routed board, measured on an earlier run'
+COVER_SRC = 'measured on the routed board (on an earlier run)'
 
 
 def measure_cover():
@@ -109,7 +109,7 @@ def measure_cover():
             if len(ext) > 2:
                 polys.append(Polygon(ext, holes).buffer(0))
         COVER[b.GetLayerName(l)] = round(unary_union(polys).area / area, 3)
-    COVER_SRC = 'the routed board (%s), measured' % os.path.relpath(path, V1)
+    COVER_SRC = 'measured on the routed board (%s)' % os.path.relpath(path, V1)
 # PCBWay's regular 6-layer 1.6 mm build (sim/impedance.md): 1 oz outer finished, 1 oz (0.035 mm) inner
 CU_T = {'F.Cu': 0.035, 'B.Cu': 0.035, 'In1.Cu': 0.035, 'In2.Cu': 0.035, 'In3.Cu': 0.035, 'In4.Cu': 0.035}
 DX = 0.5e-3                       # grid, m
@@ -839,7 +839,7 @@ def main():
     w('- Inside: radiation board to wall with effective emissivity %.2f; still-air conduction across %.1f / %.1f mm '
       'gaps (F / B) with Nu %.1f; board edge to the pocket across %.1f mm of air.'
       % (EPS_EFF, GAP_F * 1e3, GAP_B * 1e3, NU_GAP, EDGE_GAP * 1e3))
-    w('- Copper coverage per layer as listed above, from %s (docs/lessons.md: simulate heat on the routed '
+    w('- Copper coverage per layer as listed above, %s (docs/lessons.md: simulate heat on the routed '
       'board; routing raised temperatures 15 K on Ridge 3).' % COVER_SRC)
     w('- RV1106: die to exposed pad %.0f K/W (ASSUMED) plus the computed via array; the datasheet thetaJB (%.1f K/W, '
       'JEDEC 2s2p) from the board at the package edge as the pessimistic reading; the higher is used.'

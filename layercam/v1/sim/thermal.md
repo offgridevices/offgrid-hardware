@@ -1,6 +1,6 @@
 # LayerCam v1: temperatures in a 63 C chamber
 
-Computed by `sim/thermal.py`: the main board as a 2D plate on a 0.5 mm grid (outline from `src/geometry.py`, part places from `src/layout_main.py`, heat from `sim/power_budget.py`), inside Prusa's printed housing in a 63 C chamber with still air. The model and every assumed number are listed at the end; each layer's copper coverage is the routed board (main/layercam-main.kicad_pcb), measured.
+Computed by `sim/thermal.py`: the main board as a 2D plate on a 0.5 mm grid (outline from `src/geometry.py`, part places from `src/layout_main.py`, heat from `sim/power_budget.py`), inside Prusa's printed housing in a 63 C chamber with still air. The model and every assumed number are listed at the end; each layer's copper coverage is measured on the routed board (main/layercam-main.kicad_pcb).
 
 The requirement cases are **snapshot mode** (`snap_day`, `snap_night`): a still at most every 10 s, the sensor in standby, the CPU at its lowest DVFS point and Wi-Fi in power-save between shots (power_budget.py has the loads). The housing's time constant is many minutes, so a 10 s cycle is modelled by its average heat; the LED junctions and the string resistors are checked at their power while lit. Live view (`day`, `night`) and the stress bound are reported, not checked; live view gets a chamber limit and a firmware rule instead.
 
@@ -403,7 +403,7 @@ From `src/parts.py` (descriptions, the JLCPCB catalogue's temperature field read
 - Chamber 63 C, still air (no credit for the chamber fan); bed radiation 0.10 W on the front.
 - Housing: outer hull 125.6 cm^2, 2 mm walls at 0.20 W/mK, emissivity 0.90; natural convection 1.32 (dT/0.05 m)^0.25 plus linearised radiation outside. Lid slots: 240 mm^2 split in two halves 11 mm apart, Cd 0.6.
 - Inside: radiation board to wall with effective emissivity 0.75; still-air conduction across 8.5 / 9.8 mm gaps (F / B) with Nu 1.1; board edge to the pocket across 0.6 mm of air.
-- Copper coverage per layer as listed above, from the routed board (main/layercam-main.kicad_pcb), measured (docs/lessons.md: simulate heat on the routed board; routing raised temperatures 15 K on Ridge 3).
+- Copper coverage per layer as listed above, measured on the routed board (main/layercam-main.kicad_pcb) (docs/lessons.md: simulate heat on the routed board; routing raised temperatures 15 K on Ridge 3).
 - RV1106: die to exposed pad 3 K/W (ASSUMED) plus the computed via array; the datasheet thetaJB (12.5 K/W, JEDEC 2s2p) from the board at the package edge as the pessimistic reading; the higher is used.
 - TLV62569 psiJB 40.6 K/W (TI). EA3036C 15 K/W, inductors 60 K/W, AP6256 8 K/W above the board, LED junction 120 K/W above the ring: ASSUMED.
 - Camera module: one node coupled to the board across its 1 mm shim gap and to the lid from its back face; the sensor die 3 K above it.
