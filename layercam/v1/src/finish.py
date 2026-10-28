@@ -1345,6 +1345,9 @@ def dedangle(b, log=print, rounds=30):
     n = _bridge_vias(b)
     if n:
         log('   %d one-layer vias replaced by short tracks inside them' % n)
+    n = unfold(b)
+    if n:
+        log('   %d collinear or folded track pairs merged' % n)
     b.BuildConnectivity()
     c = b.GetConnectivity()
     left = [t for t in b.GetTracks() if not t.IsLocked() and
@@ -1352,6 +1355,47 @@ def dedangle(b, log=print, rounds=30):
     for t in left:
         log('   dangling, but a join: %s %s at %s' % (t.GetClass(), t.GetNetname(), pcb.xy(t.GetPosition())))
     return removed, left
+
+
+def unfold(b):
+    """Two segments of a net that meet end to end in a straight line, or
+    turn straight back (an escape stub that ran out past its pad and back
+    in to a via inside it), become one segment between their far ends: the
+    copper stays or shrinks, and a 180-degree corner goes.  Returns the
+    pairs merged."""
+    n = 0
+    while True:
+        tr = [t for t in b.GetTracks() if t.GetClass() == 'PCB_TRACK']
+        ends = {}
+        for t in tr:
+            for which, q in (('s', t.GetStart()), ('e', t.GetEnd())):
+                ends.setdefault((t.GetNetname(), t.GetLayer(), q.x, q.y), []).append((t, which))
+        done = False
+        for (net, l, x, y), at in ends.items():
+            if len(at) != 2:
+                continue
+            (t1, w1), (t2, w2) = at
+            if t1.GetWidth() != t2.GetWidth():
+                continue
+            a = t1.GetEnd() if w1 == 's' else t1.GetStart()
+            c = t2.GetEnd() if w2 == 's' else t2.GetStart()
+            u = (a.x - x, a.y - y)
+            v = (c.x - x, c.y - y)
+            la, lc = math.hypot(*u), math.hypot(*v)
+            if la == 0 or lc == 0:
+                continue
+            cos = (u[0] * v[0] + u[1] * v[1]) / (la * lc)
+            cross = abs(u[0] * v[1] - u[1] * v[0]) / (la * lc)
+            if cross > 1e-3 or abs(cos) < 0.999:
+                continue
+            # straight on, or straight back: one segment a-c
+            t1.SetStart(a); t1.SetEnd(c)
+            pcb.remove(b, t2)
+            n += 1
+            done = True
+            break
+        if not done:
+            return n
 
 
 def _bridge_vias(b):

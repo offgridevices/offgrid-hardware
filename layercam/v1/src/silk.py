@@ -64,11 +64,14 @@ class Placer:
         self.free = free
         self.used = []
 
-    def put(self, g, x, y, anchor='c', rot=0, search=6.0, step=0.25, must=True):
+    def put(self, g, x, y, anchor='c', rot=0, search=6.0, step=0.25, must=True, ok=None):
+        """ok(x, y): an extra test of a spot (a label nearest its own pad)."""
         mirror = self.side == 'B'
         for r in [i * step for i in range(int(search / step) + 1)]:
             for dx, dy in ([(0, 0)] if r == 0 else
                            [(r, 0), (-r, 0), (0, r), (0, -r), (r, r), (-r, r), (r, -r), (-r, -r)]):
+                if ok is not None and not ok(x + dx, y + dy):
+                    continue
                 gg = brand.place(g, x + dx, y + dy, anchor, rot, mirror)
                 if self.free.contains(gg.buffer(0.12)) and not any(u.intersects(gg.buffer(0.3)) for u in self.used):
                     self.used.append(gg)
@@ -89,10 +92,27 @@ def draw(b):
     if bd == 'main':
         import geometry as G
         top = Placer(b, 'T')
-        for ref, label in (('TP1', 'TX'), ('TP2', 'RX'), ('TP3', 'G'), ('TP4', '5V'), ('TP5', 'BOOT')):
-            x, y = pcb.xy(b.FindFootprintByReference(ref).GetPosition())
-            top.put(text('mono', label, 0.7), x, y - 1.4, search=2.0, must=False)
-        top.put(brand.line([('sans', NAME), ('mono', REV)], 1.3)[0], 0.0, 23.2, search=5.0)
+        # the bring-up pads: 5V on its own; the console and boot pads are a
+        # row 1.6 mm apart with no room for a label at any one of them (even
+        # a letter), so one legend names them left to right in their order
+        x, y = pcb.xy(b.FindFootprintByReference('TP4').GetPosition())
+        top.put(text('mono', '5V', 0.7), x, y - 1.4, search=2.0)
+        row = sorted((pcb.xy(b.FindFootprintByReference(r).GetPosition()), l)
+                     for r, l in (('TP1', 'TX'), ('TP2', 'RX'), ('TP3', 'G'), ('TP5', 'BOOT')))
+        cx = sum(p[0] for p, _ in row) / len(row)
+        cy = min(p[1] for p, _ in row)
+        legend = ' '.join(l for _, l in row)
+        if not any(top.put(text('mono', legend, h), cx, cy + dy, search=s, must=False)
+                   for h in (0.6, 0.5) for dy, s in ((-1.5, 2.0), (-2.5, 4.0), (1.5, 6.0))):
+            raise SystemExit('silk: no room for the %s legend' % legend)
+        # the name where it fits on the back face (the SoC's band and the
+        # heatsink take the middle): the first free spot of these
+        name = brand.line([('sans', NAME), ('mono', REV)], 1.3)[0]
+        for x, y in ((0.0, 23.2), (0.0, 27.2), (-11.0, 9.0), (11.0, 9.0), (-11.0, -6.0), (11.0, -12.0)):
+            if top.put(name, x, y, search=5.0, must=False):
+                break
+        else:
+            raise SystemExit('silk: no room for the name on the back face')
         top.put(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 0.7)[0], 0.0, 26.0,
                 search=4.0, must=False)
         bot = Placer(b, 'B')

@@ -261,7 +261,7 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
                 knee = (cx + ke * math.cos(away), cy + ke * math.sin(away))
             for strict in (True, False):
                 for a in angs:
-                    if knee:
+                    if knee and math.cos(a - away) > 0.1:
                         r0, o = 0.0, knee
                     else:
                         ray = LineString([(cx, cy), (cx + 10 * math.cos(a), cy + 10 * math.sin(a))])
@@ -271,7 +271,7 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
                     for extra in (0.05, 0.15, 0.3, 0.5, 0.8, 1.2, 1.6, 2.0, 2.4, 2.8):
                         r = r0 + vr + extra
                         pt = (o[0] + r * math.cos(a), o[1] + r * math.sin(a))
-                        path = [(cx, cy)] + ([knee] if knee else []) + [pt]
+                        path = [(cx, cy)] + ([knee] if o is knee else []) + [pt]
                         seg = LineString(path).buffer(w / 2)
                         seg_out = seg.difference(poly.buffer(0.01))
                         if clear(pt, seg_out if not seg_out.is_empty else Point(pt), net, fp.GetReference(), side,
