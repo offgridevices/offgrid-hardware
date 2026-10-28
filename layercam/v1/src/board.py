@@ -23,9 +23,11 @@ import pcb, circuit, placer, geometry as G
 POWER = {
     # no wider than the finest pins each net lands on, or the router cannot
     # reach them: 0.25 at the EA3036C's 0.4 mm pitch, 0.2 at the RV1106's
-    # 0.35 mm (VCC_DDR, VCC_1V8); every rail here carries 1 A or less
+    # 0.35 mm (VCC_DDR); every rail here carries 1 A or less.  VCC_1V8 is
+    # left at the default 0.127 mm: it carries 0.05 A (sim/power.md), and at
+    # 0.2 mm it was the net every routing run left open
     'main': {'VSYS': 0.25, 'SW_0V9': 0.5, 'LX_3V3': 0.25, 'VCC_DDR': 0.2, 'LX_DDR': 0.25,
-             'VCC_1V8': 0.2, 'LX_1V8': 0.25, 'VWIFI': 0.4, 'SW_WIFI': 0.4, 'WIFI_LX': 0.4,
+             'LX_1V8': 0.25, 'VWIFI': 0.4, 'SW_WIFI': 0.4, 'WIFI_LX': 0.4,
              'WIFI_VLDO': 0.4, 'LED_K': 0.4, 'IRCUT_1': 0.2, 'IRCUT_2': 0.2},
     'ring': {'VSYS': 0.4, 'LED_K': 0.4, 'STR1_A': 0.3, 'STR2_A': 0.3, 'STR3_A': 0.3,
              'STR1_M': 0.3, 'STR2_M': 0.3, 'STR3_M': 0.3},
