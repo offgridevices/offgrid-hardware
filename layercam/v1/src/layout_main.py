@@ -84,6 +84,7 @@ ANCHOR = {
     '5 V bulk': ('J1', '1'), '5 V HF': ('J1', '1'),
     'VBUS detect top': ('U1', '25'), 'VBUS detect bottom': ('U1', '25'), 'VBUS detect filter': ('U1', '25'),
     '0.9 V buck input': ('U2', '4'), '0.9 V feedback top': ('U2', '5'), '0.9 V feedback bottom': ('U2', '5'),
+    '0.9 V feed-forward': ('U2', '5'),
     '0.9 V output': ('L1', '2'),
     'triple buck input': ('U3', '10'), 'triple buck VCC': ('U3', '16'),
     '1.8 V / DDR enable delay R': ('U3', '8'), '1.8 V / DDR enable delay C': ('U3', '8'),
@@ -140,6 +141,9 @@ SIDE = {
     # its buck, walled in by the switch node and ground (every run left
     # VCC_1V8 open there)
     'ADC/USB supply filter R': B,
+    # the 0.9 V buck's feedback network under the buck: on the front it
+    # found room only 6 mm off, past the inductor, and FB_0V9 stayed open
+    '0.9 V feedback top': B, '0.9 V feedback bottom': B, '0.9 V feed-forward': B,
     'OTP/TSADC supply': B, 'Ethernet supply': B, 'DRAM ZQ 240R 1 %': B,
     '24 MHz load': F, 'RTC load': B, 'SDIO pull-up': B,
 }
@@ -311,7 +315,9 @@ def plane_polys():
     # the strip from the SoC's left side out to the buck's inductor and
     # output capacitors
     x0, y0, y1 = STRIP
-    strip = box(x0, cy + y0, cx - CORE_HALF, cy + y1).union(box(-15.5, cy - 6.5, cx - 8.0, cy + 5.0))
+    # (down under the buck too: its feedback network's 0.9 V end takes a via
+    # to this plane, beside the buck)
+    strip = box(x0, cy + y0, cx - CORE_HALF, cy + y1).union(box(-15.5, cy - 6.5, cx - 8.0, cy + 8.0))
     v09 = core.union(strip).intersection(pcb.board_polygon().buffer(-0.4))
     v33 = pcb.board_polygon().buffer(-0.4).difference(v09.buffer(0.4))
     return {'VDD_0V9': v09, 'VCC_3V3': v33, 'GND': pcb.board_polygon()}
