@@ -54,6 +54,16 @@ def run(bd, work, passes=int(os.environ.get('PASSES', 40))):
         for l in inner:
             if l != pcbnew.In2_Cu and not (in3 and l == pcbnew.In3_Cu):
                 b.SetLayerType(l, pcbnew.LT_POWER)
+        if esc:
+            # the escape band's stubs and vias keep 0.126 mm (its own DRC
+            # rule); Freerouting knows only the 0.127 mm class clearance and
+            # will not start a route from a pad that fixed copper already
+            # crowds: in its copy they are a hair smaller (put back below)
+            for t in b.GetTracks():
+                if t.IsLocked() and t.GetClass() == 'PCB_TRACK' and t.GetWidth() == pcbnew.FromMM(esc['w']):
+                    t.SetWidth(pcbnew.FromMM(esc['w'] - SHRINK))
+                elif t.IsLocked() and t.GetClass() == 'PCB_VIA' and t.GetWidth(pcbnew.F_Cu) == pcbnew.FromMM(esc['via'][0]):
+                    t.SetWidth(pcbnew.FromMM(esc['via'][0] - SHRINK))
         if in3:
             for z in list(b.Zones()):
                 if not z.GetIsRuleArea() and z.GetLayerSet().Contains(pcbnew.In3_Cu):
@@ -63,10 +73,21 @@ def run(bd, work, passes=int(os.environ.get('PASSES', 40))):
             core = layout_main.plane_polys()['VDD_0V9'].buffer(0.3)
             pcb.rule_area_shape(b, core, [pcbnew.In3_Cu], name='0.9 V plane', tracks=True, vias=False)
     KEEP = []
+    esc = getattr(__import__('layout_' + bd), 'ESCAPE', None)
+    SHRINK = 0.004
     if in3:
         route.AUTOROUTE = dict(route.AUTOROUTE or {}, layer_costs={'In3.Cu': 3.0})
     route.PRE_EXPORT = planes_only if inner else None
     left = route.route(placed, routed, passes=passes, rounds=4)
+    if esc:
+        # the session brings the shrunk escape copper back: its real sizes
+        b = pcbnew.LoadBoard(routed)
+        for t in b.GetTracks():
+            if t.GetClass() == 'PCB_TRACK' and t.GetWidth() == pcbnew.FromMM(esc['w'] - SHRINK):
+                t.SetWidth(pcbnew.FromMM(esc['w']))
+            elif t.GetClass() == 'PCB_VIA' and t.GetWidth(pcbnew.F_Cu) == pcbnew.FromMM(esc['via'][0] - SHRINK):
+                t.SetWidth(pcbnew.FromMM(esc['via'][0]))
+        pcbnew.SaveBoard(routed, b)
     log('  unrouted after Freerouting: %d' % left)
     log('== finish (maze router, rip-up and re-route)')
     unc, split = finish.finish(routed, log=log)
