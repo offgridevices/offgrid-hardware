@@ -22,6 +22,12 @@ ANCHOR = {'CC1 Rd': ('J1', 'A5'), 'CC2 Rd': ('J1', 'B5'), '5 V at the connector'
 SIDE = {'CC1 Rd': 'B', 'CC2 Rd': 'B'}
 
 
+# the badge's band on the back face (silk.py): no vias, so the ink is whole
+def art_keepout():
+    from shapely.geometry import box
+    return box(-13.6, 9.6, 7.4, 15.8)
+
+
 def keepouts(side):
     return []
 

@@ -44,6 +44,12 @@ for i, a in enumerate((35, 95, 140)):
 ANCHOR, SIDE = {}, {}
 
 
+# the badge at the bottom of the back face (silk.py): no vias
+def art_keepout():
+    from shapely.geometry import Point, box
+    return box(-8.0, 9.6, 8.0, 17.0).intersection(Point(0, 0).buffer(16.6))
+
+
 def keepouts(side):
     return []
 

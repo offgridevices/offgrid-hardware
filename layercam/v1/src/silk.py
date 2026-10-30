@@ -17,6 +17,7 @@ import os
 import pcbnew
 from shapely.geometry import Point, box
 from shapely.ops import unary_union
+from shapely import affinity
 import pcb, brand
 
 NAME = 'LayerCam'
@@ -24,7 +25,7 @@ NAME = 'LayerCam'
 REV = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).upper()
 CAP = 1.0
 # boxes kept free of stitching vias for the artwork (stitch.py), board mm
-ART = {'main': [(-6.5, 21.5, 6.5, 28.0)], 'usb': [(-13.6, 10.4, 7.4, 15.5)], 'ring': []}
+ART = {'main': [(-6.5, 21.5, 6.5, 28.0)], 'usb': [(-13.6, 9.6, 7.4, 15.8)], 'ring': []}
 
 
 def strip(b):
@@ -87,46 +88,111 @@ def text(fam, s, cap=CAP):
     return g
 
 
+# The badges: the OffGrid lockup, the board's name and its revision, and the
+# US flag where there is room for one at 5.26 mm of hoist (stars 0.32 mm,
+# the smallest the silkscreen keeps).  Each is set at an exact place on the
+# board's own axes; if anything there is in the way the build stops.  Text
+# 1.0 mm or larger and the lockup 7.7 mm or wider keep the strokes at the
+# fab's 0.15 mm (brand.thin_parts).
+NAMES = {'main': 'LayerCam Main', 'ring': 'LayerCam Ring', 'usb': 'LayerCam'}
+FLAG_HOIST = 5.26
+# main, back face, centred on the board's centre line over the lens window,
+# between its vias: the name above, the lockup below
+MAIN_NAME = (0.0, -14.35, 1.0)
+MAIN_LOCKUP = (0.0, -11.5, 7.7)
+# ring, back face: the lockup level and centred at the bottom, the name on
+# an arc beneath it, its baseline 15.45 mm from the centre
+RING_LOCKUP = (0.0, 12.15, 8.0)
+RING_ARC = (15.45, 1.0)
+# USB board, back face (no parts): the flag, then the lockup over the name and
+# revision, the two the flag's height, the pair centred on the board in the
+# band below the CC resistors (kept free of vias, layout_usb.ART)
+USB_BAND_Y = 12.7
+USB_LOCKUP_W = 7.7
+USB_GAP = 0.8
+
+
+def _set(placer, g, what):
+    """Put an artwork already in board coordinates, exactly there."""
+    if not placer.free.contains(g.buffer(0.12)) or any(u.intersects(g.buffer(0.3)) for u in placer.used):
+        raise SystemExit('silk: the %s does not fit where it is set' % what)
+    placer.used.append(g)
+    brand.add(placer.b, g, placer.layer)
+
+
+def _block(rows, lockup_w, cap, gap):
+    """The lockup over rows of type, each centred: geometry with its box
+    centred on the origin (y down, as read)."""
+    lk, _ = brand.lockup_mm(lockup_w)
+    lb = lk.bounds
+    parts = [affinity.translate(lk, -(lb[0] + lb[2]) / 2, -lb[1])]
+    y = lb[3] - lb[1]
+    for segs in rows:
+        t, _ = brand.line(segs, cap)
+        tb = t.bounds
+        y += gap
+        # rows on a cap-height grid: the baseline a cap below the gap
+        parts.append(affinity.translate(t, -(tb[0] + tb[2]) / 2, y + cap))
+        y += cap
+    g = unary_union(parts)
+    b0 = g.bounds
+    return affinity.translate(g, -(b0[0] + b0[2]) / 2, -(b0[1] + b0[3]) / 2)
+
+
 def draw(b):
     bd = pcb.BOARD
     if bd == 'main':
-        import geometry as G
         top = Placer(b, 'T')
+        x, y, cap = MAIN_NAME
+        _set(top, brand.place(brand.line([('sans', NAMES['main']), ('mono', REV)], cap)[0], x, y), 'name')
+        x, y, w = MAIN_LOCKUP
+        _set(top, brand.place(brand.lockup_mm(w)[0], x, y), 'lockup')
         # the bring-up pads: 5V on its own; the console and boot pads are a
         # row 1.6 mm apart with no room for a label at any one of them (even
         # a letter), so one legend names them left to right in their order
         x, y = pcb.xy(b.FindFootprintByReference('TP4').GetPosition())
-        top.put(text('mono', '5V', 0.7), x, y - 1.4, search=2.0)
+        top.put(text('mono', '5V', 0.8), x, y - 1.4, search=2.5)
         row = sorted((pcb.xy(b.FindFootprintByReference(r).GetPosition()), l)
                      for r, l in (('TP1', 'TX'), ('TP2', 'RX'), ('TP3', 'G'), ('TP5', 'BOOT')))
         cx = sum(p[0] for p, _ in row) / len(row)
         cy = min(p[1] for p, _ in row)
         legend = ' '.join(l for _, l in row)
-        if not any(top.put(text('mono', legend, h), cx, cy + dy, search=s, must=False)
-                   for h in (0.6, 0.5) for dy, s in ((-1.5, 2.0), (-2.5, 4.0), (1.5, 6.0))):
+        if not any(top.put(text('mono', legend, 0.8), cx, cy + dy, search=s, must=False)
+                   for dy, s in ((-1.5, 2.0), (-2.5, 4.0), (1.5, 6.0))):
             raise SystemExit('silk: no room for the %s legend' % legend)
-        # the name where it fits on the back face (the SoC's band and the
-        # heatsink take the middle): the first free spot of these
-        name = brand.line([('sans', NAME), ('mono', REV)], 1.3)[0]
-        for x, y in ((0.0, 23.2), (0.0, 27.2), (-11.0, 9.0), (11.0, 9.0), (-11.0, -6.0), (11.0, -12.0)):
-            if top.put(name, x, y, search=5.0, must=False):
-                break
-        else:
-            raise SystemExit('silk: no room for the name on the back face')
-        top.put(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 0.7)[0], 0.0, 26.0,
+        top.put(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 0.8)[0], 0.0, 26.0,
                 search=4.0, must=False)
         bot = Placer(b, 'B')
         for ref, label in (('J4', 'Ring'), ('J3', 'IR-cut'), ('J5', 'Wi-Fi')):
             x, y = pcb.xy(b.FindFootprintByReference(ref).GetPosition())
-            bot.put(text('sans', label, 0.8), x, y + 5.0, search=4.0, must=False)
-        lk, _ = brand.lockup_mm(14.0)
-        bot.put(lk, 0.0, 24.0, search=5.0, must=False)
+            bot.put(text('sans', label, 1.0), x, y + 5.0, search=4.0, must=False)
     elif bd == 'ring':
         bot = Placer(b, 'B')
-        bot.put(brand.line([('sans', NAME), ('mono', REV)], 0.9)[0], -11.0, -6.0, rot=0, search=5.0, must=False)
-        bot.put(text('mono', 'IR 850', 0.8), 0.0, 13.0, search=4.0, must=False)
+        x, y, w = RING_LOCKUP
+        _set(bot, brand.place(brand.lockup_mm(w)[0], x, y, mirror=True), 'lockup')
+        r, cap = RING_ARC
+        g = brand.arc_line([('sans', NAMES['ring']), ('mono', REV)], cap, r)
+        _set(bot, affinity.scale(g, -1, 1, origin=(0, 0)), 'name')          # read from the back
     elif bd == 'usb':
+        import geometry as G
         bot = Placer(b, 'B')
-        lk, _ = brand.lockup_mm(10.0)
-        bot.put(lk, 2.2, 12.9, search=2.0)
-        bot.put(brand.line([('sans', NAME), ('mono', REV)], 0.9)[0], -9.0, 12.9, search=2.0)
+        x0, _, x1, _ = G.USB_BOX
+        fl = brand.flag_mm(FLAG_HOIST)
+        rows = [[('sans', NAMES['usb'])], [('mono', 'USB-C'), ('mono', REV)]]
+        # the row gap that makes the block exactly the flag's height
+        lo, hi = 0.0, 1.5
+        for _ in range(30):
+            gap = (lo + hi) / 2
+            blk = _block(rows, USB_LOCKUP_W, 1.0, gap)
+            if blk.bounds[3] - blk.bounds[1] < fl.bounds[3] - fl.bounds[1]:
+                lo = gap
+            else:
+                hi = gap
+        fw, bw = fl.bounds[2] - fl.bounds[0], blk.bounds[2] - blk.bounds[0]
+        total = fw + USB_GAP + bw
+        # as read from the back (x mirrored): the flag on the left
+        cxv = -(x0 + x1) / 2                       # the board's centre in the back view
+        fl_v = affinity.translate(fl, cxv - total / 2 + fw / 2, USB_BAND_Y)
+        blk_v = affinity.translate(blk, cxv + total / 2 - bw / 2, USB_BAND_Y)
+        _set(bot, affinity.scale(fl_v, -1, 1, origin=(0, 0)), 'flag')
+        _set(bot, affinity.scale(blk_v, -1, 1, origin=(0, 0)), 'badge')

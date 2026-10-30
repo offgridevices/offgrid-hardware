@@ -306,3 +306,65 @@ def arrow_mm(length, text=None, cap=1.1, shaft=0.25, head=0.9, gap=0.5, mirror=F
     x0, y0, x1, y1 = g.bounds
     g = affinity.translate(g, -(x0 + x1) / 2, -(y0 + y1) / 2)
     return affinity.scale(g, -1, 1, origin=(0, 0)) if mirror else g
+
+
+# ---------------------------------------------------------------- the flag
+def _star(cx, cy, d):
+    """Five-pointed star, point up, circumscribed diameter d (y down)."""
+    R, r = d / 2, d / 2 * 0.381966
+    pts = []
+    for i in range(10):
+        a = math.radians(-90 + 36 * i)
+        rr = R if i % 2 == 0 else r
+        pts.append((cx + rr * math.cos(a), cy + rr * math.sin(a)))
+    return Polygon(pts)
+
+
+def flag_mm(hoist):
+    """The US flag centred on the origin (y down), drawn to the Flag Code /
+    Executive Order 10834: hoist A = 1, fly B = 1.9, union C = 7/13 by
+    D = 0.76, star spacing E = F = 0.054 and G = H = 0.063, star diameter
+    K = 0.0616, stripes L = 1/13.  One colour: the red stripes and the
+    union in ink, the white stripes and the 50 stars bare (as on
+    smokebreak/v1, src/art.py).  5.26 mm of hoist makes a 0.32 mm star."""
+    A = hoist
+    B_, C, D, E, G, K, L = 1.9 * A, 7 / 13 * A, 0.76 * A, 0.054 * A, 0.063 * A, 0.0616 * A, A / 13
+    x0, y0 = -B_ / 2, -A / 2
+    red = [box(x0, y0 + 2 * i * L, x0 + B_, y0 + (2 * i + 1) * L) for i in range(7)]
+    union = box(x0, y0, x0 + D, y0 + C)
+    stars = []
+    for row in range(9):
+        for k in (range(6) if row % 2 == 0 else range(5)):
+            sx = x0 + G * (2 * k + 1) if row % 2 == 0 else x0 + G * (2 * k + 2)
+            stars.append(_star(sx, y0 + E * (row + 1), K))
+    return unary_union(red + [union]).difference(unary_union(stars))
+
+
+# ---------------------------------------------------------------- type on an arc
+def arc_line(segments, cap, radius, gap_em=0.28):
+    """A line of brand type (as line()) set along the bottom of a circle
+    centred on the origin (y down): each glyph upright towards the centre,
+    its baseline on `radius`, the line centred on the bottom point and
+    reading left to right.  Glyphs keep their shape; only their places and
+    angles follow the arc."""
+    glyphs, x = [], 0.0
+    for i, (fam, s) in enumerate(segments):
+        s_ = s.upper() if fam == 'mono' else s
+        for j, ch in enumerate(s_):
+            if ch == ' ':
+                continue
+            # where this glyph starts: the advance of everything before it,
+            # shaped together (kerning included)
+            face = mono(500) if fam == 'mono' else sans(500)
+            trk = TRACKING[fam] * cap * face.upem / face.cap          # the line's tracking, in mm
+            off = styled(fam, s_[:j], cap)[1] + trk if j else 0.0
+            g, _ = styled(fam, ch, cap)
+            glyphs.append((x + off, g))
+        x += styled(fam, s_, cap)[1] + (gap_em * cap * 1000 / 720 if i + 1 < len(segments) else 0)
+    total = x
+    out = []
+    for gx, g in glyphs:
+        th = (gx - total / 2) / radius
+        g = affinity.rotate(g, -th, origin=(0, 0), use_radians=True)
+        out.append(affinity.translate(g, radius * math.sin(th), radius * math.cos(th)))
+    return unary_union(out)
