@@ -24,7 +24,7 @@ NAME = 'LayerCam'
 REV = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).upper()
 CAP = 1.0
 # boxes kept free of stitching vias for the artwork (stitch.py), board mm
-ART = {'main': [(-6.5, 21.5, 6.5, 28.0)], 'usb': [(-7.4, 10.4, 13.6, 15.5)], 'ring': []}
+ART = {'main': [(-6.5, 21.5, 6.5, 28.0)], 'usb': [(-13.6, 10.4, 7.4, 15.5)], 'ring': []}
 
 
 def strip(b):
@@ -128,5 +128,5 @@ def draw(b):
     elif bd == 'usb':
         bot = Placer(b, 'B')
         lk, _ = brand.lockup_mm(10.0)
-        bot.put(lk, -2.2, 12.9, search=2.0)
-        bot.put(brand.line([('sans', NAME), ('mono', REV)], 0.9)[0], 9.0, 12.9, search=2.0)
+        bot.put(lk, 2.2, 12.9, search=2.0)
+        bot.put(brand.line([('sans', NAME), ('mono', REV)], 0.9)[0], -9.0, 12.9, search=2.0)

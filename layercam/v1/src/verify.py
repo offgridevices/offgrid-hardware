@@ -94,6 +94,31 @@ def housing():
     pocket = Polygon([(x, -y) for x, y in G.POCKET])
     gap = pocket.exterior.distance(board) if pocket.contains(board) else -board.difference(pocket).area
     check(pocket.contains(board), 'main board inside the measured pocket (less 0.4 mm), closest %.2f mm' % gap)
+    usb_in_grooves()
+
+
+def usb_in_grooves():
+    """The USB board's outline, read from its board file, against the slot's
+    grooves (v USB_V0 .. USB_V0 + USB_W).  The board is drawn from its parts'
+    face, which faces the slot's +n; a right-handed placement then puts
+    board +x along -v (geometry.py), so the board's x range turned round
+    must lie in the grooves.  A board drawn with x = v would be a mirror
+    image: its long side lands where the grooves are short."""
+    import pcbnew
+    path = pcb.board_path('usb')
+    if not os.path.exists(path):
+        return
+    b = pcbnew.LoadBoard(path)
+    xs, ys = [], []
+    for d in b.GetDrawings():
+        if d.GetLayer() == pcbnew.Edge_Cuts:
+            for p in (d.GetStart(), d.GetEnd()):
+                xs.append(p.x / 1e6 - pcb.CX)
+                ys.append(p.y / 1e6 - pcb.CY)
+    v0, v1 = -max(xs), -min(xs)
+    ok = v0 >= G.USB_V0 - 0.05 and v1 <= G.USB_V0 + G.USB_W + 0.05 and min(ys) >= -0.05 and max(ys) <= G.USB_L + 0.05
+    check(ok, 'USB board in its grooves: v %.1f .. %.1f in %.1f .. %.1f (board x = -v), y %.1f .. %.1f'
+          % (v0, v1, G.USB_V0, G.USB_V0 + G.USB_W, min(ys), max(ys)))
 
 
 def heights():

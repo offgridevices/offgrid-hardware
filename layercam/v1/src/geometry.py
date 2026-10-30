@@ -132,6 +132,10 @@ RING_KEY_R = 10.7
 RING_KEY_W = 2.8
 
 # ---------------------------------------------------------------- USB board frame
-# board coordinates: x along the receptacle's long side (v), y into the
-# case from the mouth (-u); the mouth's centre at (0, 0) on the board edge
-USB_BOX = (USB_V0, 0.0, USB_V0 + USB_W, USB_L)
+# board coordinates: y into the case from the mouth (-u), the mouth's centre
+# at (0, 0) on the board edge, and x = -v.  The board is drawn from its parts'
+# face, which faces the slot's +n (the receptacle sits in the opening at
+# n +0.2); seen from there, with y into the case, v runs right to left.  (It
+# was once drawn with x = v: a mirror image, whose long side would have met
+# the wall where the grooves are short.  verify.py checks this.)
+USB_BOX = (-(USB_V0 + USB_W), 0.0, -USB_V0, USB_L)

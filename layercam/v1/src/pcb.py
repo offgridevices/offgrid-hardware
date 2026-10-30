@@ -11,8 +11,8 @@ other function works on the board chosen last.
         housing's X, y = -Y (geometry.py).  B is the lens side.
   ring  origin on the lens axis.  F is the ring's FRONT face (the LEDs,
         towards the front wall), seen from in front: x = -X, y = -Y.
-  usb   origin on the receptacle's mouth centre.  F carries every part.
-        x = v - 3.1 ... see layout_usb.py.
+  usb   origin on the receptacle's mouth centre, x along it, y into the
+        case.  F carries every part (layout_usb.py, geometry.USB_BOX).
 
 The rules are PCBWay's (the boards are made and assembled there): on the
 6-layer main board 0.1 mm track and gap is its floor; this board uses 0.1 mm

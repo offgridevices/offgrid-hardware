@@ -90,6 +90,13 @@ board's `docs/` keeps its own dated checks).
   camera module has its lens 8.4 mm from one edge and 15.6 mm from the
   other; placing to a centred outline put the camera's cable socket under
   the module.
+- **Check a board's handedness in its slot in 3D, not in plan.** LayerCam's
+  USB board was drawn from its parts' face with its x along the slot's v
+  axis; placed with that face towards the opening, x runs along -v, so the
+  board was a mirror image and its long side would have hit the wall where
+  the grooves are short. Writing down the placement as a rotation (det
+  +1) and checking the outline against the housing caught it; the check
+  promised in the docstring had never been written.
 - **Check a mirrored module's pins after the flip.** A module on the back
   face is mirrored: the crystal, antenna and buck parts placed for the
   unflipped pin-out ended 17 mm from their pins. Place them from the pad
