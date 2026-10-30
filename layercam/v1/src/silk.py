@@ -94,12 +94,14 @@ def text(fam, s, cap=CAP):
 # board's own axes; if anything there is in the way the build stops.  Text
 # 1.0 mm or larger and the lockup 7.7 mm or wider keep the strokes at the
 # fab's 0.15 mm (brand.thin_parts).
-NAMES = {'main': 'LayerCam Main', 'ring': 'LayerCam Ring', 'usb': 'LayerCam'}
+# every board 'LayerCam – <board>' and its revision (the USB board's block
+# is too narrow for one line: the line break stands for the dash)
+NAMES = {'main': 'LayerCam – Main', 'ring': 'LayerCam – Ring', 'usb': 'LayerCam'}
 FLAG_HOIST = 5.26
 # main, back face, centred on the board's centre line over the lens window,
-# between its vias: the name above, the lockup below
-MAIN_NAME = (0.0, -14.35, 1.0)
-MAIN_LOCKUP = (0.0, -11.5, 7.7)
+# threaded between its vias: the lockup, and the name below it
+MAIN_LOCKUP = (0.0, -14.6, 7.7)
+MAIN_NAME = (0.0, -11.75, 1.0)
 # ring, back face: the lockup level and centred at the bottom, the name on
 # an arc beneath it, its baseline 15.45 mm from the centre
 RING_LOCKUP = (0.0, 12.15, 8.0)
@@ -151,7 +153,9 @@ def draw(b):
         # row 1.6 mm apart with no room for a label at any one of them (even
         # a letter), so one legend names them left to right in their order
         x, y = pcb.xy(b.FindFootprintByReference('TP4').GetPosition())
-        top.put(text('mono', '5V', 0.8), x, y - 1.4, search=2.5)
+        if not any(top.put(text('mono', '5V', 0.8), x + dx, y + dy, search=2.0, must=False)
+                   for dx, dy in ((0, -1.4), (1.6, 0), (-1.6, 0), (0, 1.4), (0, -2.6))):
+            raise SystemExit('silk: no room for the 5V label')
         row = sorted((pcb.xy(b.FindFootprintByReference(r).GetPosition()), l)
                      for r, l in (('TP1', 'TX'), ('TP2', 'RX'), ('TP3', 'G'), ('TP5', 'BOOT')))
         cx = sum(p[0] for p, _ in row) / len(row)
