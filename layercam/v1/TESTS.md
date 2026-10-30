@@ -18,6 +18,7 @@ Run for each of the three boards (main, LED ring, USB-C).
 | Every track corner 45° or less | no acid traps; the owner's rule | all three: pass |
 | (main) each MIPI and USB pair's two tracks the same length, within 0.15 mm | a pair that is not matched turns into common-mode noise | pass: worst 0.06 mm (CSI_D0, 50.04 / 50.10 mm); USB 36.8 / 36.8 mm |
 | BOM and CPL list exactly the assembled parts | nothing missing or extra on the line | main 155 assembled parts in 51 BOM lines, ring 11, USB 7 |
+| Each board's badge: the OffGrid lockup, its name and revision (`LayerCam – Main V1`, `LayerCam – Ring V1`, `LayerCam` / `USB-C V1`), and the US flag on the USB-C board (Flag Code proportions, 5.26 mm hoist), set at an exact place (`src/silk.py`), clear of every pad, hole and via, every stroke at least 0.15 mm | the fab drops silk that is too thin or on a pad | all three: pass |
 | Committed Gerbers, drills, BOM, CPL, netlist, rules equal what `make.py` builds (`tools/check_outputs.py`) | someone orders from the committed files | CI |
 
 ## Routing (main board)

@@ -97,9 +97,10 @@ cables, a 14 x 14 x 10 mm stick-on heatsink, screws.
 
 Full steps in [`firmware/README.md`](firmware/README.md).
 1. **Flash a new board.** The test pads are on the back face by the round
-   edge: 5V on its own on the left, and a row of four on the right marked
-   `TX RX G BOOT`, in that order from left to right (the pads are too
-   close for a label at each). Bridge BOOT and G with tweezers while
+   edge: 5V on its own on the left (labelled), and a row of four on the
+   right, unlabelled (too close together for printable text): `TX RX G BOOT`
+   in that order from left to right, seen from the back face. Bridge BOOT
+   and G with tweezers while
    plugging USB-C into a computer: the SoC waits in MaskROM. Then flash the
    image with Rockchip's tool.
 2. **First power-up:** the camera opens its own setup Wi-Fi (its name and
