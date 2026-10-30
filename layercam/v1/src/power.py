@@ -158,8 +158,11 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
     done = 0
 
     def own_pad_ok(pt, net, side, skip):
-        """A via inside a pad of its own net: clear of everything else."""
+        """A via inside a pad of its own net: clear of everything else, and
+        out of no-via rule areas (a badge's ground)."""
         v = Point(pt).buffer(vr)
+        if any(k.intersects(v) for k in keep):
+            return False
         for s in ('F', 'B'):
             for fp2, p2, poly2 in pads[s]:
                 if p2.GetNetname() != net and poly2.distance(v) < cl:

@@ -166,21 +166,14 @@ def draw(b):
         _set(top, brand.place(ink(brand.line([('sans', NAMES['main']), ('mono', REV)], cap)[0]), x, y), 'name')
         x, y, w = MAIN_LOCKUP
         _set(top, brand.place(brand.lockup_mm(w)[0], x, y), 'lockup')
-        # the bring-up pads: 5V on its own; the console and boot pads are a
-        # row 1.6 mm apart with no room for a label at any one of them (even
-        # a letter), so one legend names them left to right in their order
+        # the bring-up pads: 5V on its own.  The console and boot pads are a
+        # row 1.6 mm apart with no room near them for a printable legend
+        # (0.8 mm type at 0.15 mm strokes is 8.5 mm long): README.md shows
+        # them on a picture (TX, RX, G, BOOT from the 5V side)
         x, y = pcb.xy(b.FindFootprintByReference('TP4').GetPosition())
         if not any(top.put(text('mono', '5V', 0.8), x + dx, y + dy, search=2.0, must=False)
                    for dx, dy in ((-1.7, -1.4), (0, -1.4), (1.6, 0), (-1.6, 0), (0, 1.4))):
             raise SystemExit('silk: no room for the 5V label')
-        row = sorted((pcb.xy(b.FindFootprintByReference(r).GetPosition()), l)
-                     for r, l in (('TP1', 'TX'), ('TP2', 'RX'), ('TP3', 'G'), ('TP5', 'BOOT')))
-        cx = sum(p[0] for p, _ in row) / len(row)
-        cy = min(p[1] for p, _ in row)
-        legend = ' '.join(l for _, l in row)
-        if not any(top.put(text('mono', legend, 0.8), cx, cy + dy, search=s, must=False)
-                   for dy, s in ((-1.5, 2.0), (-2.5, 4.0), (1.5, 6.0))):
-            raise SystemExit('silk: no room for the %s legend' % legend)
         top.put(ink(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 1.0)[0]), 0.0, 26.0,
                 search=4.0, must=False)
         bot = Placer(b, 'B')
