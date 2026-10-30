@@ -83,9 +83,25 @@ class Placer:
         return None
 
 
+# The brand's type at label sizes draws strokes of 0.11-0.13 mm, under the
+# fab's 0.15 mm silkscreen line: every letter is grown by INK so each stroke
+# reaches it (same font, size and spacing, a hair heavier), and checked
+# (text 0.8 mm mono / 1.0 mm sans or larger).
+# The lockup and the flag are drawn heavier than that and left as they are.
+INK = 0.025
+
+
+def ink(g, what='text'):
+    g = g.buffer(INK, quad_segs=4)
+    thin = brand.thin_parts(g) / g.area
+    if thin > 0.06:
+        raise SystemExit('silk: %s has %.0f %% of its ink under 0.15 mm' % (what, 100 * thin))
+    return g
+
+
 def text(fam, s, cap=CAP):
     g, _ = brand.styled(fam, s, cap)
-    return g
+    return ink(g, s)
 
 
 # The badges: the OffGrid lockup, the board's name and its revision, and the
@@ -131,6 +147,7 @@ def _block(rows, lockup_w, cap, gap):
     y = lb[3] - lb[1]
     for segs in rows:
         t, _ = brand.line(segs, cap)
+        t = ink(t)
         tb = t.bounds
         y += gap
         # rows on a cap-height grid: the baseline a cap below the gap
@@ -146,7 +163,7 @@ def draw(b):
     if bd == 'main':
         top = Placer(b, 'T')
         x, y, cap = MAIN_NAME
-        _set(top, brand.place(brand.line([('sans', NAMES['main']), ('mono', REV)], cap)[0], x, y), 'name')
+        _set(top, brand.place(ink(brand.line([('sans', NAMES['main']), ('mono', REV)], cap)[0]), x, y), 'name')
         x, y, w = MAIN_LOCKUP
         _set(top, brand.place(brand.lockup_mm(w)[0], x, y), 'lockup')
         # the bring-up pads: 5V on its own; the console and boot pads are a
@@ -154,7 +171,7 @@ def draw(b):
         # a letter), so one legend names them left to right in their order
         x, y = pcb.xy(b.FindFootprintByReference('TP4').GetPosition())
         if not any(top.put(text('mono', '5V', 0.8), x + dx, y + dy, search=2.0, must=False)
-                   for dx, dy in ((0, -1.4), (1.6, 0), (-1.6, 0), (0, 1.4), (0, -2.6))):
+                   for dx, dy in ((-1.7, -1.4), (0, -1.4), (1.6, 0), (-1.6, 0), (0, 1.4))):
             raise SystemExit('silk: no room for the 5V label')
         row = sorted((pcb.xy(b.FindFootprintByReference(r).GetPosition()), l)
                      for r, l in (('TP1', 'TX'), ('TP2', 'RX'), ('TP3', 'G'), ('TP5', 'BOOT')))
@@ -164,7 +181,7 @@ def draw(b):
         if not any(top.put(text('mono', legend, 0.8), cx, cy + dy, search=s, must=False)
                    for dy, s in ((-1.5, 2.0), (-2.5, 4.0), (1.5, 6.0))):
             raise SystemExit('silk: no room for the %s legend' % legend)
-        top.put(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 0.8)[0], 0.0, 26.0,
+        top.put(ink(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 1.0)[0]), 0.0, 26.0,
                 search=4.0, must=False)
         bot = Placer(b, 'B')
         for ref, label in (('J4', 'Ring'), ('J3', 'IR-cut'), ('J5', 'Wi-Fi')):
@@ -175,7 +192,7 @@ def draw(b):
         x, y, w = RING_LOCKUP
         _set(bot, brand.place(brand.lockup_mm(w)[0], x, y, mirror=True), 'lockup')
         r, cap = RING_ARC
-        g = brand.arc_line([('sans', NAMES['ring']), ('mono', REV)], cap, r)
+        g = ink(brand.arc_line([('sans', NAMES['ring']), ('mono', REV)], cap, r))
         _set(bot, affinity.scale(g, -1, 1, origin=(0, 0)), 'name')          # read from the back
     elif bd == 'usb':
         import geometry as G

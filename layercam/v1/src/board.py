@@ -85,6 +85,10 @@ def _build(board, path, avoid):
     pcb.place_components(b, comps, pl)
     if hasattr(layout, 'zones'):
         layout.zones(b)
+    if hasattr(layout, 'art_keepout'):
+        # the silkscreen badge's ground: vias would clip the ink.  Set before
+        # the plane fan-out, which keeps its vias out of no-via rule areas
+        pcb.rule_area_shape(b, layout.art_keepout(), pcb.cu_layers(), name='art', tracks=False, vias=True)
     # copper drawn first (pairs, the USB board's VBUS), then the fixed
     # parts' plane vias, then the small parts round them, then theirs
     import power
@@ -140,9 +144,6 @@ def _build(board, path, avoid):
     for name, (nets, w, gap) in DIFF[board].items():
         pcb.netclass(b, name, nets, w, diff_w=w, diff_gap=gap)
     pcb.rule_area_shape(b, pcb.edge_band(), pcb.cu_layers(), name='edge clearance')
-    if hasattr(layout, 'art_keepout'):
-        # the silkscreen badge's ground: vias would clip the ink
-        pcb.rule_area_shape(b, layout.art_keepout(), pcb.cu_layers(), name='art', tracks=False, vias=True)
     if hasattr(layout, 'escape_area'):
         # where the escape band's own clearance applies (pcb.write_rules)
         pcb.rule_area_shape(b, layout.escape_area(), pcb.cu_layers(), name='escape band', tracks=False, vias=False)
