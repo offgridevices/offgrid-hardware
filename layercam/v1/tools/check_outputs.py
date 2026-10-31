@@ -32,8 +32,7 @@ for bd in BOARDS:
     for n in old.namelist():
         if n in new.namelist() and lines(old.read(n)) != lines(new.read(n)):
             bad.append('%s: %s differs' % (zp, n))
-    for p in ['%s/production/%s-%s' % (bd, name, f) for f in ('bom-jlcpcb.csv', 'cpl-jlcpcb.csv', 'bom-pcbway.csv',
-                                                             'netlist.csv')] + ['%s/%s.kicad_dru' % (bd, name)]:
+    for p in ['%s/production/%s-%s' % (bd, name, f) for f in ('bom-pcbway.csv', 'cpl.csv', 'netlist.csv')] + ['%s/%s.kicad_dru' % (bd, name)]:
         if open(p, 'rb').read() != committed(p):
             bad.append('%s differs' % p)
 for b in bad:

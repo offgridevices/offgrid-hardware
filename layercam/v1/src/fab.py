@@ -2,10 +2,9 @@
 """Everything a board house needs, from one finished .kicad_pcb.
 
   <name>-gerbers.zip      copper, mask, paste, silk, outline + Excellon drills
-                          (upload this for the bare board, JLCPCB or PCBWay)
-  <name>-bom-jlcpcb.csv   Comment, Designator, Footprint, LCSC Part #
-  <name>-cpl-jlcpcb.csv   Designator, Mid X, Mid Y, Layer, Rotation
+                          (upload this for the bare board)
   <name>-bom-pcbway.csv   PCBWay's assembly BOM columns (MPN + LCSC number)
+  <name>-cpl.csv          Designator, Mid X, Mid Y, Layer, Rotation
   <name>-netlist.csv      every pad and its net, for checking against circuit.py
   <name>-assembly.pdf     parts outlines and references, top then bottom
   <name>-top.png / -bottom.png   rendered views
@@ -81,11 +80,6 @@ def bom_cpl(board, out_dir, name, board_name):
     for fp, p in sorted(asm, key=lambda a: (a[1]['lcsc'], _natural(a[0].GetReference()))):
         groups.setdefault(p['lcsc'], (p, []))[1].append(fp.GetReference())
     fpname = lambda p: p['fp'].split(':')[1]
-    with open(os.path.join(out_dir, '%s-bom-jlcpcb.csv' % name), 'w', newline='') as f:
-        w = csv.writer(f)
-        w.writerow(['Comment', 'Designator', 'Footprint', 'LCSC Part #'])
-        for lcsc, (p, refs) in groups.items():
-            w.writerow([p['value'], ','.join(sorted(refs, key=_natural)), fpname(p), lcsc])
     with open(os.path.join(out_dir, '%s-bom-pcbway.csv' % name), 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['Item #', 'Designator', 'Qty', 'Manufacturer', 'Manufacturer Part Number', 'Description', 'Value',
@@ -94,7 +88,7 @@ def bom_cpl(board, out_dir, name, board_name):
             sides = sorted(set('Bottom' if fp.IsFlipped() else 'Top' for fp, q in asm if q['lcsc'] == lcsc))
             w.writerow([i, ','.join(sorted(refs, key=_natural)), len(refs), p['maker'], p['mpn'], p['desc'], p['value'],
                         fpname(p), 'THT' if p.get('tht') else 'SMD', lcsc, p.get('dk', ''), '+'.join(sides)])
-    with open(os.path.join(out_dir, '%s-cpl-jlcpcb.csv' % name), 'w', newline='') as f:
+    with open(os.path.join(out_dir, '%s-cpl.csv' % name), 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(['Designator', 'Mid X', 'Mid Y', 'Layer', 'Rotation'])
         for fp, p in sorted(asm, key=lambda a: _natural(a[0].GetReference())):

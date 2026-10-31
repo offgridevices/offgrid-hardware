@@ -58,9 +58,9 @@ def check_outputs(bd, board):
     b = pcbnew.LoadBoard(board)
     comps = {c.ref: c for c in circuit.build(bd)}
     asm = sorted(r for r, c in comps.items() if c.part in parts.PARTS)
-    with open(os.path.join(prod, name(bd) + '-cpl-jlcpcb.csv')) as f:
+    with open(os.path.join(prod, name(bd) + '-cpl.csv')) as f:
         cpl = sorted(r['Designator'] for r in csv.DictReader(f))
-    with open(os.path.join(prod, name(bd) + '-bom-jlcpcb.csv')) as f:
+    with open(os.path.join(prod, name(bd) + '-bom-pcbway.csv')) as f:
         bom = sorted(d for r in csv.DictReader(f) for d in r['Designator'].split(','))
     gate(cpl == asm, 'CPL lists exactly the %d assembled parts' % len(asm))
     gate(bom == asm, 'BOM lists exactly the %d assembled parts' % len(asm))

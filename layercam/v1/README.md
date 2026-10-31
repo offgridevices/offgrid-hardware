@@ -49,7 +49,7 @@ Nothing here has been made or powered.
 
 All three boards at **PCBWay**, with assembly ("PCB + SMT"). Upload each
 board's `production/layercam-*-gerbers.zip`, BOM (`*-bom-pcbway.csv`) and
-placement file (`*-cpl-jlcpcb.csv`: designator, X, Y, side, rotation).
+placement file (`*-cpl.csv`: designator, X, Y, side, rotation).
 
 **Main board** (`main/`):
 - 6 layers, 1.6 mm, PCBWay's standard 6-layer stackup (No. 1: 1 oz on every
