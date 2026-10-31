@@ -5,7 +5,7 @@ pipeline.py.
 
     python3 board.py main|ring|usb OUT.kicad_pcb
 
-Main board layers (JLCPCB 6-layer, JLC06161H-3313):
+Main board layers (PCBWay's standard 6-layer build No. 1):
     F.Cu    the back face: SoC, flash, power stage; signals
     In1.Cu  ground plane, unbroken
     In2.Cu  signals (the long runs round the window), ground fill

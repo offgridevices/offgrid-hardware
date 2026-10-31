@@ -103,7 +103,7 @@ Not yet built. To do on the first boards:
 - [ ] The camera cable's continuity before fitting (3.3 V conductors on J2's pins 19-20).
 - [ ] MaskROM over USB with the BOOT pads; flash; boot; the console.
 - [ ] Current in snapshot mode, day and night, and while uploading: re-run `sim/thermal.py` with them.
-- [ ] Fit in a printed case: the flat cable folded behind the module, the two 51 mm JST cables' slack, the antenna's place (5 mm from the board across it, or 15 mm parallel), the lens's focus.
+- [ ] Fit in a printed case: the flat cable folded behind the module, the two 51 mm JST cables' slack, the antenna lying loose inside (Wi-Fi range with it there), the lens's focus, the screw lengths measured from Prusa's files, the magnet's hold on the frame.
 - [ ] Wi-Fi range; the 37.4 MHz crystal's frequency offset; antenna match.
 - [ ] USB high speed through the cable (MaskROM flashing speed).
 - [ ] Prusa Connect snapshots; a per-layer timelapse on a CORE One; upload to SMB, NFS and S3.

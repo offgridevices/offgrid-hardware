@@ -8,7 +8,7 @@ below. Prusa's printed case stays unchanged in every option.
 
 ## The fitted heatsink
 
-**What to buy** (any part that meets all of these):
+**What to buy:** LCSC C286230 and a 14 x 14 mm piece of 3M 8810 tape (the README's order list). Any other part must meet all of these:
 
 - 14 x 14 mm footprint, **10 mm tall at most** (the case leaves 0.3 mm over a 10 mm part here; taller does not
   fit; shorter fits further towards the SoC's centre and works slightly less well: 8 mm at board (0, 17.4)
@@ -36,7 +36,7 @@ below. Prusa's printed case stays unchanged in every option.
   1.05 mm with a 0.80 mm minimum package). **Parts under the overhang: 0.8 mm tall at most** (0402s; 0603
   capacitors up to 0.8 mm). LED1 at (8.8, 14.0) stays 1.0 mm clear of the heatsink's edge.
 
-**How to fit it** (after reflow, before the board goes into the case):
+**How to fit it** (after reflow, before the board goes into the case; step 2 of the README's *How to build one*):
 
 1. Clean the RV1106's top with isopropyl alcohol; let it dry.
 2. Put the tape on the heatsink's base if it has none.

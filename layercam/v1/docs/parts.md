@@ -103,7 +103,9 @@ drawings and Digi-Key's stock; McMaster pages show no prices. Why each:
   round, the USB cable swaps D+ and D- (USB fails, nothing is damaged) and
   the ring cable swaps the light sensor's supply and output (a 1 k resistor
   limits it). SH contacts take 1 A at 28 AWG, -25 to +85 °C.
-- **Antenna.** Molex 146153 is a balanced dipole that Molex rates
+- **Antenna.** Prusa leaves its own camera's antenna loose inside the
+  case with its backing on (guide g405529, step 4); LayerCam does the
+  same. Molex 146153 is a balanced dipole that Molex rates
   independent of a ground plane; its application spec asks for 15 mm from
   a parallel ground plane or 5 mm from one at right angles, never on metal,
   the cable led away. -30 to +85 °C. Alternatives: Molex 206994-0100
@@ -115,7 +117,9 @@ drawings and Digi-Key's stock; McMaster pages show no prices. Why each:
   note says), 9.5 mm tall, 18.0 mm hole spacing for M1.6 self-tapping
   screws, lens back focal length 3.0 mm at most. Its lead ends in a
   "1.25 mm JST" 2-pin plug; J3 is a Molex PicoBlade (1.25 mm). If the plug
-  is not PicoBlade, crimp a Molex 51021-0200 housing onto the lead.
+  is not PicoBlade (a "1.25 mm JST" is often a JST GH, which does not
+  mate), cut it off and crimp on a Molex 51021-0200 housing with two
+  50079-8100 contacts (a PicoBlade crimper, or have it done).
   Commonlands gives no temperature rating.
 - **Lens.** It must be the IR-corrected version with no IR-cut filter of
   its own, or night pictures go dark. Its back focal length against the
@@ -124,12 +128,31 @@ drawings and Digi-Key's stock; McMaster pages show no prices. Why each:
   75-85 °C and creeps; the stack sets the focus, so stainless. No
   1.0 mm M1.6 washer or spacer exists at McMaster in any material, hence
   three thin ones. They sit on solder mask, inside the holes' keep-out.
-- **Screws.** Prusa states no screw size for the case. From its STEP file
-  the four board bosses have Ø1.7 pilot holes about 5.5 mm deep (the usual
-  pilot for M2 in plastic): M2 x 6 through the 1.6 mm board leaves about
-  4.4 mm of thread. The M1.6 x 8 pass 4.8 mm of stack (module 1.2,
-  washers 1.0, board 1.6) and leave about 3.2 mm in the CLA219's 4.3 mm
-  base. Commonlands sells only M1.6 x 5.
+- **Screws.** Prusa states no screw size for the case; these were
+  measured from its files (STEP and the three STLs, 31 Oct 2026), so
+  check them on the first printed case:
+  - the four board bosses: Ø1.7 pilots about 5.5 mm deep (the usual pilot
+    for M2 in plastic). M2 x 6 through the 1.6 mm board leaves about
+    4.4 mm of thread;
+  - the lid: a 1.2 mm plate with a Ø2.3 hole in a Ø4.2 counterbore (a
+    printed bridge layer to push through), over a Ø1.7 pilot 6.9 mm deep
+    in the top shell. M2 x 6 leaves about 4.7 mm;
+  - the shells, at (±13, 26): a Ø2.2 hole 3.8 mm through the top shell
+    (bridged over too), over a Ø1.7 pilot 4.6 mm deep in the bottom.
+    M2 x 8 leaves about 3.6 mm;
+  - the lens stack: 3.8 mm (module 1.2, washers 1.0, board 1.6). M1.6 x 6
+    leaves 2.2 mm (six turns) in the CLA219's 4.3 mm base. McMaster has
+    no 7 mm; Commonlands sells only M1.6 x 5.
+  McMaster's M2 x 6 head is Ø3.35 x 1.6 mm: it fits the Ø4.2 counterbores.
+- **Magnet.** Prusa's guide says its camera holds on to the printer's
+  frame with a magnet. The printed top shell has a sloping 10.3 x 2.8 mm
+  slot in its rounded end, the size of a 10 x 10 x 2 mm block (a
+  Printables model made for the Buddy3D names the same magnets). N45 is
+  rated to 80 °C, above the 65 °C chamber.
+- **Power cable.** On the CORE One the camera is powered from the
+  printer's upper USB-C port, over a USB-C to USB-C cable that factory
+  printers since June 2025 have fitted (Prusa guide g405529). The lower
+  port gives no power.
 - **Heatsink tape.** 3M 8810 is rated 100 °C (UL 746C); the SoC's top
   runs about 90 °C in a 63 °C chamber. The LCSC heatsink has no tape. ATS
   AATS014014010-SF-3I (Digi-Key) comes with tape of unstated type, at

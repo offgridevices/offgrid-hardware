@@ -72,13 +72,17 @@ Nothing here has been made or powered.
 | `sim/` | impedance, power and thermal simulations |
 | `firmware/` | the camera software, device tree, SDK config, slicer G-code ([`firmware/README.md`](firmware/README.md)) |
 | `docs/` | [`decisions.md`](docs/decisions.md) (why), [`parts.md`](docs/parts.md), [`housing.md`](docs/housing.md) |
+| `lc.pretty/`, `lc.3dshapes/` | the footprints and 3D models the boards use |
+| `fonts/` | the brand's typefaces for the silkscreen (OFL) |
+| `tools/` | the pinned toolchain (`Dockerfile`, `kd`), the fab-file check, the LCSC stock check |
 | [`TESTS.md`](TESTS.md) | every test and simulation, and its result |
 
 ## How to order
 
 Two orders: the three boards from **PCBWay**, and the parts that are not on
-a board from the shops below. Everything below is per camera; part
-numbers and stock were checked on 31 Oct 2026 (`docs/parts.md`).
+a board from the shops below. Everything below is per camera. The boards'
+parts were checked on 26 Oct 2026, the rest on 31 Oct 2026
+(`docs/parts.md`): check stock again before ordering.
 
 ### 1. PCBWay: the three boards, assembled
 
@@ -98,9 +102,10 @@ and (where chosen there) Digi-Key numbers; every part is SMD.
 **Main board** (38.0 x 53.6 mm):
 - 6 layers, 1.6 mm, PCBWay's standard 6-layer stackup (No. 1: 1 oz on every
   layer, 2116 prepreg next to the outer layers).
-- **Impedance control:** 100 Ω differential (MIPI, 0.12 / 0.15 mm, F),
-  90 Ω differential (USB, 0.15 / 0.13 mm), 50 Ω single (antenna, 0.18 mm,
-  B), all referenced to the next layer in.
+- **Impedance control, ±10 %:** 100 Ω differential (MIPI, 0.12 / 0.15 mm,
+  on layer 1, F.Cu), 90 Ω differential (USB, 0.15 / 0.13 mm, on layers 1
+  and 6), 50 Ω single (antenna, 0.18 mm, on layer 6, B.Cu), each referenced
+  to the next layer in (`sim/impedance.md`).
 - **Via in pad, resin filled and capped (POFV):** the SoC's exposed pad and
   fine-pitch pads have vias in them.
 - Minimum track and gap 0.1 mm (only round the SoC's pins; 0.127 mm
@@ -113,8 +118,8 @@ and (where chosen there) Digi-Key numbers; every part is SMD.
 white silk, parts on both sides.
 
 **USB-C board** (22.0 x 16.0 mm): 2 layers, **1.2 mm ±0.1 mm** (the case's
-grooves take 1.2 mm), 1 oz, ENIG, green mask, white silk, parts on one
-side.
+grooves take 1.2 mm), 1 oz, ENIG, green mask, white silk, parts on both
+sides (the two CC resistors on the bottom).
 
 **Optional, from PCBWay too:**
 - the CNC heat block for a 65 °C chamber (`mechanical/heat-plate/`:
@@ -130,14 +135,17 @@ side.
 | 1 | Camera module | Luckfox **SC3336 3MP Camera (B)** (25 x 24 mm, 20-pin 0.5 mm FFC socket). Its own lens and holder are removed | [Luckfox](https://wiki.luckfox.com) / Waveshare |
 | 1 | Lens | Towin **CCL127028MPR**: M12 x 0.5, 2.8 mm, F2.5, IR corrected, **no IR-cut filter of its own**, back focal length 3.0 mm at most (the CLA219's limit) | Towin, quote by email |
 | 1 | IR-cut switcher | Commonlands **CLA219**: carries the lens (its own M12 thread), 9.5 mm tall, 60 mm 2-wire lead on a 1.25 mm plug for J3 | [commonlands.com](https://commonlands.com/products/ir-cut-off-filter-exchanger-cla219), $12 |
-| 1 | Camera flat cable | Molex Premo-Flex **0151660205**: 20 way, 0.5 mm, 30 mm, contacts on the same side, 105 °C. In stock instead: **0152660205** (Digi-Key WM10518-ND). The run is about 15 mm; the extra folds once behind the module | Digi-Key |
-| 2 | Board-to-board cables (USB-C board to J1, LED ring to J4) | JST **A06SR06SR30K51A**: 6 way, 1.0 mm (SR/SH), 51 mm, **pin 1 to pin 1** (the "B" version is reversed: do not use it). If out of stock: per cable, 6 x JST **ASSHSSH28K51** (51 mm wire, a contact crimped on each end) pushed into 2 x JST **SHR-06V-S** housings, pin 1 to pin 1. Spec for a made-to-length cable: 2 x SHR-06V-S, SSH-003T-P0.2-H contacts, 28-30 AWG, 6 wires straight through, 30 mm | Digi-Key 455-2999-ND, Mouser 306-A06SR06SR30K51A; 455-3075-ND and SHR-06V-S |
+| 1 | Camera flat cable | Molex Premo-Flex **0151660205**: 20 way, 0.5 mm, 30 mm, contacts on the same side, -40 to +105 °C. If it is out of stock: Molex **0152660205**, also 20 way, 0.5 mm, 30 mm, same side (Digi-Key WM10518-ND; its temperature is not stated). The run is about 15 mm; the extra folds once behind the module | Digi-Key |
+| 2 | Board-to-board cables (USB-C board to J1, LED ring to J4) | JST **A06SR06SR30K51A**: 6 way, 1.0 mm (SR/SH), 51 mm, **pin 1 to pin 1** (the "B" version is reversed: do not use it). If out of stock: build them from 12 x JST **ASSHSSH28K51** (51 mm wire with a contact crimped on each end) and 4 x JST **SHR-06V-S** housings, six wires per cable, pin 1 to pin 1. Spec for a made-to-length cable: 2 x SHR-06V-S, SSH-003T-P0.2-H contacts, 28-30 AWG, 6 wires straight through, 30 mm | Digi-Key 455-2999-ND, Mouser 306-A06SR06SR30K51A; 455-3075-ND and SHR-06V-S |
 | 1 | Wi-Fi antenna | Molex **146153-0100**: 2.4 / 5 GHz flex dipole, 34.9 x 9 mm, U.FL on 100 mm cable, adhesive-backed, to 85 °C | Digi-Key WM12218-ND, $2.59 |
 | 1 | SoC heatsink | **LCSC C286230** (XSD1690-058): 14 x 14 x 10 mm black aluminium, no tape | LCSC |
-| 1 piece | Thermal tape for it | **3M 8810**, 0.25 mm, cut to 14 x 14 mm (rated to 100 °C) | Digi-Key 3M10316-ND |
-| 4 | Board-to-case screws | **M2 x 6** thread-forming for plastic, stainless (McMaster **96817A844**). The case's pilot holes are Ø1.7, about 5.5 mm deep: longer screws bottom out | McMaster |
-| 2 | Lens-stack screws | **M1.6 x 8** thread-forming for plastic, stainless (McMaster **99397A022**), from the module side into the CLA219 | McMaster |
+| 14 x 14 mm | Thermal tape for it | **3M 8810**, 0.25 mm (rated to 100 °C), cut from a roll: Digi-Key 3M10316-ND is 2 in x 15 ft, about $148, enough for hundreds | Digi-Key 3M10316-ND |
+| 6 | Board-to-case and lid screws | **M2 x 6** thread-forming for plastic, stainless (McMaster **96817A844**): four hold the main board on the case's bosses (Ø1.7 pilot holes about 5.5 mm deep: longer screws bottom out), two hold the lid to the top shell | McMaster |
+| 2 | Shell screws | **M2 x 8**, the same kind (McMaster **96817A846**): join the top shell to the bottom at the straight end (4.3 mm through the top, a 4.6 mm Ø1.7 pilot in the bottom) | McMaster |
+| 2 | Lens-stack screws | **M1.6 x 6** thread-forming for plastic, stainless, Ø2.95 mm head (McMaster **99397A018**), from the module side into the CLA219: 3.8 mm of stack (module 1.2, washers 1.0, board 1.6) leaves 2.2 mm (6 turns) in the holder's 4.3 mm base. No 7 mm exists at McMaster; the 8 mm (99397A022) would reach 4.2 mm, nearly the base's full depth | McMaster |
 | 6 | Spacer washers | **M1.6 stainless washers**, 1.7 ID / 3.5 OD, 0.3-0.4 mm (McMaster **98689A221**): three per screw make the 1.0 mm gap between board and sensor | McMaster |
+| 1 | Magnet | **10 x 10 x 2 mm** NdFeB block, magnetised through the 2 mm (supermagnete **Q-10-10-02-N**, N45, 80 °C): the camera holds onto the printer's frame with it, as Prusa's does. It goes in the sloping 10.3 x 2.8 mm slot in the top shell's rounded end | supermagnete |
+| 1 | USB-C to USB-C cable to the printer | the CORE One's own camera cable (fitted on printers built since June 2025), or any USB-C cable routed as Prusa's guide [g405529](https://help.prusa3d.com/g405529) shows, to the electronics box's **upper** USB-C port (the lower one gives no power). For flashing: a USB-C data cable to a computer | Prusa / any |
 | 1 | Case | Prusa's Buddy3D case for the CORE One, unchanged ([Printables 1343977](https://www.printables.com/model/1343977-buddy3d-camera-for-core-one-printed-parts)): print in **PCCF** as Prusa does (hardened nozzle; 0.2 mm layers) | your printer |
 
 For the 65 °C option, the heat block replaces the heatsink and tape, with
@@ -145,27 +153,45 @@ two TG-A6200 gap pads (`mechanical/heat-plate/README.md`).
 
 ## How to build one
 
-1. Print Prusa's case (Printables 1343977) in PCCF.
-2. Remove the camera module's own lens holder. Fit the IR-cut holder and
-   lens on the main board's front face over the window. Fit the module
-   behind the board with three washers on each screw between board and
-   module. Clamp all three with the two M1.6 x 8 screws, driven from the
-   module's side into the IR-cut holder.
-3. Fit the camera's flat cable from the module to J2, the extra length
-   folded flat behind the module. **Check it before
-   power-up:** with the cable in the module only, the two outermost
-   conductors at one end are 3.3 V (shorted together) and must land on J2's
-   pins 19-20. A reversed cable puts 3.3 V on ground.
-4. Fit the LED ring in the front of the case and its cable to J4. Slide the
-   USB-C board into its grooves and connect its cable to J1. Plug the
-   antenna onto J5 and stick the antenna inside the case on plastic, at
-   least 5 mm from the board if it stands across it, 15 mm if it lies
-   parallel to it (Molex's rule), its cable led away from it. Fold the
+1. **Print the case** (Printables 1343977) in PCCF. Press the magnet into
+   the slot in the top shell's rounded end (a drop of glue).
+2. **Heatsink, first:** clean the SoC's top (the large chip on the back
+   face) with alcohol, put the 3M 8810 tape on the heatsink's base, and
+   press it on for 10 s, centred at board (0, 15.9): 3.5 mm towards the
+   cable socket J2 from the chip's middle
+   (`mechanical/heat-plate/README.md`). Leave the tape 24 h to reach full
+   bond.
+3. **Lens stack:** remove the camera module's own lens holder. Screw the
+   lens into the IR-cut holder (CLA219) and set the holder on the main
+   board's front face over the window. Fit the module behind the board
+   with three washers on each screw between board and module. Clamp all
+   three with the two M1.6 screws, driven from the module's side into the
+   IR-cut holder.
+4. **Camera cable:** before fitting it, check it. With the cable in the
+   module only, the two conductors at one edge of the free end beep to
+   each other (the module's pins 19-20, its 3.3 V): that edge must go to
+   J2's pins 19-20. A reversed cable puts 3.3 V on ground. Fit it into J2,
+   the extra length folded flat behind the module.
+5. **Front-face cables** (J3, J4 and J5 are on the front face, so they go
+   in before the board goes down): the IR-cut holder's lead into J3, one
+   JST cable into J4, the antenna into J5.
+6. **LED ring:** plug the J4 cable's other end into the ring's socket and
+   set the ring into its seat at the front of the case, on the two pins,
+   its LEDs in the six holes.
+7. **Main board:** lay it on the four bosses, front face down, and fix it
+   with four M2 x 6 screws.
+8. **USB-C board:** slide it into its grooves in the top shell, the
+   socket's mouth in the opening, and plug the second JST cable between
+   it and J1 on the main board's back face.
+9. **Antenna:** leave it loose inside the case with its backing on, as
+   Prusa does with its own camera (guide g405529), away from the board and
+   the heatsink where it can be, its cable led away from it. Fold the
    cables' spare length flat where nothing presses on it.
-5. Clean the SoC's top (the large chip on the back face) with alcohol and
-   press the heatsink on for 10 s, centred 3.5 mm towards the cable
-   socket J2 from the chip's middle (`mechanical/heat-plate/README.md`).
-   Close the lid.
+10. **Close it:** the top shell onto the bottom with two M2 x 8 screws,
+    the lid onto the top with two M2 x 6.
+11. **Mount it** as Prusa's camera: the magnet onto the printer frame's
+    left front corner, the USB-C cable towards the back of the printer,
+    plugged into the printer's upper USB-C port.
 
 ## How to bring it up
 
@@ -178,7 +204,7 @@ Full steps in [`firmware/README.md`](firmware/README.md).
    plugging USB-C into a computer: the SoC waits in MaskROM. Then flash the
    image with Rockchip's tool.
 2. **First power-up:** the camera opens its own setup Wi-Fi (its name and
-   passphrase come from the chip's serial number: `tools/layercam-ap.py`
+   passphrase come from the chip's serial number: `firmware/tools/layercam-ap.py`
    reads them over USB). Join it, enter your Wi-Fi, the Prusa Connect
    token, PrusaLink and the upload target.
 3. **Slicer:** paste `firmware/slicer/` into PrusaSlicer's printer

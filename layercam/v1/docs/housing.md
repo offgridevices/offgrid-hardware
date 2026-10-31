@@ -54,10 +54,10 @@ From front to back:
    axis is not in the module's middle: it is 8.4 mm from one edge and
    15.6 mm from the edge with the cable connector. The module covers board
    y -15.6 to +8.4 and x +-12.5.
-6. **Two M1.6 x 8 thread-forming screws**, from the module's side,
+6. **Two M1.6 x 6 thread-forming screws**, from the module's side,
    through the module, the washers and the board into the holder's
-   ears (18 mm apart, on the lens axis), clamp the stack: 4.8 mm of
-   stack leaves about 3.2 mm of thread in the holder.
+   ears (18 mm apart, on the lens axis), clamp the stack: 3.8 mm of
+   stack leaves 2.2 mm of thread in the holder's 4.3 mm base.
 
 The module's 20-way cable connector is on its back, at its +Y edge. A
 short flat cable (about 15 mm, not twisted) drops 2.3 mm to J2 on the main

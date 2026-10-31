@@ -53,7 +53,7 @@ ANT_FEED / ANT: one 0.18 mm track on B.Cu over In4 (board.RF_W), about 5.5 mm fr
 
 At 5.5 GHz the 5.5 mm run is 0.18 wavelengths long, so its impedance matters (at 2.4 GHz 0.08).
 
-The routed USB board's pair: D+ 17.7 mm, D- 25.1 mm of track (including the joins between the receptacle's two contact rows), about 143 ps: close to the lumped limit for USB 2.0's 500 ps edges; the 6-wire SH cable after it is uncontrolled anyway.
+The routed USB board's pair: D+ 24.3 mm, D- 18.4 mm of track (including the joins between the receptacle's two contact rows), about 138 ps: close to the lumped limit for USB 2.0's 500 ps edges; the 6-wire SH cable after it is uncontrolled anyway.
 
 ## Ordering
 
