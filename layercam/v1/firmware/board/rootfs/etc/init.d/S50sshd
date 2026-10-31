@@ -1,0 +1,44 @@
+#!/bin/sh
+#
+# sshd, off by default.  Replaces both Buildroot's S50sshd and Luckfox's
+# (which started it on every boot with root password login).  Started only
+# when the owner has turned SSH on from the USB console
+# (`layercam-setup ssh on KEY`), and then with keys only (/etc/ssh/sshd_config).
+# Not yet run on a board.
+
+DIR=/userdata/layercam/ssh
+PIDFILE=/var/run/sshd.pid
+
+enabled() {
+	[ -f $DIR/enabled ] && [ -s $DIR/authorized_keys ]
+}
+
+start() {
+	if ! enabled; then
+		echo "sshd: off (turn it on with layercam-setup ssh on KEY)"
+		return 0
+	fi
+	[ -x /usr/sbin/sshd ] || { echo "sshd: not in this image"; return 1; }
+	mkdir -p /var/empty && chown root:root /var/empty && chmod 755 /var/empty
+	chmod 700 $DIR && chmod 600 $DIR/authorized_keys
+	[ -f $DIR/ssh_host_ed25519_key ] || ssh-keygen -q -t ed25519 -N "" -f $DIR/ssh_host_ed25519_key || return 1
+	/usr/sbin/sshd -t || { echo "sshd: configuration refused"; return 1; }
+	printf "Starting sshd (keys only): "
+	/usr/sbin/sshd && echo "OK"
+}
+
+stop() {
+	printf "Stopping sshd: "
+	[ -f $PIDFILE ] && kill $(cat $PIDFILE) 2>/dev/null
+	killall sshd 2>/dev/null          # open sessions too: "ssh off" means off
+	rm -f $PIDFILE
+	echo "OK"
+}
+
+case "$1" in
+	start) start ;;
+	stop) stop ;;
+	restart|reload) stop; sleep 1; start ;;
+	*) echo "Usage: $0 {start|stop|restart}"; exit 1 ;;
+esac
+exit $?

@@ -1,0 +1,22 @@
+#!/bin/sh
+#
+# Replaces the S21appinit the SDK's build.sh writes, which runs
+# /oem/usr/bin/RkLunch.sh: that starts rkipc, an RTSP stream and a web server
+# with no password, whenever rkipc is in the image.  LayerCam needs only the
+# first thing RkLunch.sh does: load the media drivers (rockit, the encoders,
+# the ISP) with the SDK's insmod_ko.sh.  Not yet run on a board.
+
+[ -f /etc/profile.d/RkEnv.sh ] && . /etc/profile.d/RkEnv.sh
+case "$1" in
+	start)
+		for d in /oem/usr/ko /ko; do
+			if [ -f $d/insmod_ko.sh ]; then
+				(cd $d && sh insmod_ko.sh)
+				break
+			fi
+		done
+		;;
+	stop) ;;
+	*) echo "Usage: $0 {start|stop}"; exit 1 ;;
+esac
+exit 0

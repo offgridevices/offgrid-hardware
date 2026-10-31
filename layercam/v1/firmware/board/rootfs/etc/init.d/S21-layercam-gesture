@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# The power-cycle gesture (layercam/gesture.py): count this power-up as early
+# as possible, right after S20linkmount has mounted /userdata and before
+# S21appinit loads the media drivers (the "-" sorts it first).  Three short
+# power-ups in a row forget the Wi-Fi settings.  Runs in the background (it
+# waits 5 s before clearing the count), from the factory copy of the software.
+# Not yet run on a board.
+
+case "$1" in
+	start)
+		grep -q " /userdata " /proc/mounts || exit 0
+		mkdir -p /userdata/layercam
+		( cd /usr/share/layercam && exec python3 -S -m layercam.gesture /userdata/layercam ) \
+			</dev/null >/dev/console 2>&1 &
+		;;
+	stop|restart|reload) ;;
+	*) echo "Usage: $0 start"; exit 1 ;;
+esac
+exit 0
