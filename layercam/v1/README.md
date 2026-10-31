@@ -18,6 +18,19 @@ Nothing here has been made or powered.
 | LED ring | ![ring](ring/images/layercam-ring-top.png) |
 | USB-C board | ![usb](usb/images/layercam-usb-top.png) |
 
+## This revision
+
+| | |
+|---|---|
+| Revision | **v1** (product: [`../README.md`](../README.md)), printed on every board |
+| Status | designed, not yet built |
+| Tests and simulations | [`TESTS.md`](TESTS.md): every one with its v1 result |
+| Trade-offs | [`docs/decisions.md`](docs/decisions.md) |
+| Parts and stock | [`docs/parts.md`](docs/parts.md) (check stock again before ordering) |
+| Fit in the case | [`docs/housing.md`](docs/housing.md) |
+| Toolchain | KiCad 10.0.7 (pinned image, `tools/Dockerfile`), Freerouting 1.9.0 |
+| Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../docs/brand.md)): the lockup, each board's name and revision, the US flag on the USB-C board |
+
 ## What it had to do, and whether it does
 
 | Requirement | Met? | How it is checked |
@@ -33,12 +46,28 @@ Nothing here has been made or powered.
 | Make the video and upload it to SMB / NFS / S3 / NAS | **Yes, in software.** H.264 encoded frame by frame in hardware, wrapped as MP4 while uploading | SigV4 against AWS's test suite; MP4 against ffprobe |
 | No SD card | **Yes.** Video and settings on the 256 MB on-board flash | |
 
+## Next steps
+
+1. **Order 5 of each board** from PCBWay and the parts in *How to order*.
+   Check stock first (`docs/parts.md`): the SoC, the Wi-Fi module and
+   the 32 kHz TCXO have no second source.
+2. **Print one case** (Prusa's files, in the material Prusa recommends).
+3. **Build one and bring it up** (*How to build one*, *How to bring it
+   up*). Fill in the hardware rows of `TESTS.md`: each rail, the camera
+   cable, MaskROM flashing, snapshot-mode currents, Wi-Fi range.
+4. **Oven test** in the printed case at 63 °C for 4 hours, then re-run
+   `sim/thermal.py` with the measured currents.
+5. **Try it on a CORE One:** Prusa Connect snapshots and a per-layer
+   timelapse uploaded to a NAS and S3.
+6. Changes that need new copper go into `v2/`
+   ([`docs/versioning.md`](../../docs/versioning.md)).
+
 ## Where things are
 
 | | |
 |---|---|
 | `src/` | the boards as code: `circuit.py` (the schematic), `parts.py`, placement and routing, fab files, design checks |
-| `main/`, `ring/`, `usb/` | each board: KiCad files, `production/` (Gerbers, BOM, CPL, netlist, assembly PDF), `images/` |
+| `main/`, `ring/`, `usb/` | each board: KiCad files, `production/` (what PCBWay needs: Gerber zip, BOM, placement file; plus the netlist and assembly PDF), `images/` |
 | `mechanical/` | STEP models of the assembled boards; `heat-plate/` the heat block |
 | `sim/` | impedance, power and thermal simulations |
 | `firmware/` | the camera software, device tree, SDK config, slicer G-code ([`firmware/README.md`](firmware/README.md)) |
@@ -79,7 +108,7 @@ cables, a 14 x 14 x 10 mm stick-on heatsink, screws.
 1. Print Prusa's case (Printables 1343977).
 2. Remove the camera module's own lens holder. Fit the IR-cut holder and
    lens on the main board's front face over the window. Fit the module
-   behind the board on the two nylon washers. Clamp all three with the two
+   behind the board on the two washer stacks. Clamp all three with the two
    M1.6 screws.
 3. Fit the camera's flat cable from the module to J2. **Check it before
    power-up:** with the cable in the module only, the two outermost

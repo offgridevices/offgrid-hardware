@@ -52,9 +52,10 @@ the lens, so the day/night filter sits in front of the sensor as in any IP
 camera.
 
 The module sits behind the main board, looking through a 14.4 mm window,
-on two 1 mm nylon washers. Cost: the module's lens is not centred on it
-(`docs/housing.md`), so the main board's cable socket and the parts under
-the module had to be placed around its real outline.
+on two 1 mm stacks of stainless washers (nylon creeps in the heat and
+the stack sets the focus). Cost: the module's lens is not centred on it
+(`docs/housing.md`), so the main board's cable socket and the parts
+under the module had to be placed around its real outline.
 
 ## No SD card: the video is built as the print runs
 

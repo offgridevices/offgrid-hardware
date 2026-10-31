@@ -36,10 +36,17 @@ From front to back:
    face, inside the Ø14.9 bore.
 2. **IR-cut holder** (Commonlands CLA219). It sits on the main board's
    front face over the board's 14.4 x 14.4 mm window. Its body and ears
-   (21.2 x 19.6 mm) are kept clear of parts.
+   (21.2 x 19.6 mm) are kept clear of parts. Commonlands' drawing (read
+   31 Oct 2026): 9.5 mm tall, under the 9.8 mm free in front of the
+   board; the M12 x 0.5 lens thread is its own (no separate lens holder);
+   lens back focal length 3.0 mm at most; holes 18.0 mm apart for M1.6
+   self-tapping screws.
 3. **Main board**, 1.6 mm, front face on the bosses at Z 19.3.
-4. **Two nylon washers**, M1.6 x 1.0 mm. They keep 1.0 mm between the
-   board's back face and the sensor. Parts under the module on the back
+4. **Two 1.0 mm stacks of stainless washers** (three M1.6 washers,
+   0.3-0.4 mm each, per screw). They keep about 1.0 mm between the
+   board's back face and the sensor. Nylon softens and creeps at the
+   75-85 °C the board reaches and would let the focus drift; stainless
+   does not. They sit on solder mask, inside each hole's 1.9 mm keep-out. Parts under the module on the back
    face are 0.6 mm or lower (0402 resistors and capacitors only; `verify.py`
    checks this).
 5. **Camera module** (Luckfox SC3336 3MP Camera (B)) with its own lens
@@ -47,8 +54,10 @@ From front to back:
    axis is not in the module's middle: it is 8.4 mm from one edge and
    15.6 mm from the edge with the cable connector. The module covers board
    y -15.6 to +8.4 and x +-12.5.
-6. **Two M1.6 x 8 screws** through the holder, board, washers and module
-   holes (18 mm apart, on the lens axis) clamp the stack.
+6. **Two M1.6 x 8 thread-forming screws**, from the module's side,
+   through the module, the washers and the board into the holder's
+   ears (18 mm apart, on the lens axis), clamp the stack: 4.8 mm of
+   stack leaves about 3.2 mm of thread in the holder.
 
 The module's 20-way cable connector is on its back, at its +Y edge. A
 short flat cable (about 15 mm, not twisted) drops 2.3 mm to J2 on the main

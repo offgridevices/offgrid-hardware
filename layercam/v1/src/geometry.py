@@ -89,8 +89,8 @@ USB_V0 = -7.9                 # the board's edge at v = -7.9; the receptacle cen
 
 # ---------------------------------------------------------------- camera stack
 # The SC3336 (B) module sits BEHIND the main board, its sensor face towards
-# the board's back face, 1.0 mm away (two M1.6 x 1.0 nylon washers on the
-# holder screws).  The sensor looks forward through a window in the main
+# the board's back face, 1.0 mm away (a 1.0 mm stack of stainless M1.6
+# washers on each holder screw).  The sensor looks forward through a window in the main
 # board; the CLA219 IR-cut holder sits on the board's front face over the
 # window, and two M1.6 screws through the module's holder holes, the
 # washers and the board clamp all three.  Lens: Towin CCL127028MPR

@@ -260,7 +260,7 @@ def keepouts(side):
         out.append((box(-mw, -G.MODULE_TO_FFC_EDGE - 0.15, mw, G.MODULE_TO_FAR_EDGE + 0.15),
                     G.UNDER_MODULE_MAX_H))
         for x, y in G.HOLDER_SCREWS:
-            out.append((Point(x, -y).buffer(1.95), 0))     # the nylon washers
+            out.append((Point(x, -y).buffer(1.95), 0))     # the washers
         # the SoC's breakout band: no part within 1.8 mm outside its pins,
         # so the router has room to bring 0.35 mm-pitch pins out to vias
         cx, cy = FIXED['U1'][:2]
