@@ -76,11 +76,26 @@ Nothing here has been made or powered.
 
 ## How to order
 
-All three boards at **PCBWay**, with assembly ("PCB + SMT"). Upload each
-board's `production/layercam-*-gerbers.zip`, BOM (`*-bom-pcbway.csv`) and
-placement file (`*-cpl.csv`: designator, X, Y, side, rotation).
+Two orders: the three boards from **PCBWay**, and the parts that are not on
+a board from the shops below. Everything below is per camera; part
+numbers and stock were checked on 31 Oct 2026 (`docs/parts.md`).
 
-**Main board** (`main/`):
+### 1. PCBWay: the three boards, assembled
+
+One "PCB + SMT assembly" (turnkey) order per board. For each, upload the
+three files in its `production/` folder:
+
+| Board | Gerbers | BOM | Placement |
+|---|---|---|---|
+| Main | `main/production/layercam-main-gerbers.zip` | `layercam-main-bom-pcbway.csv` | `layercam-main-cpl.csv` |
+| LED ring | `ring/production/layercam-ring-gerbers.zip` | `layercam-ring-bom-pcbway.csv` | `layercam-ring-cpl.csv` |
+| USB-C | `usb/production/layercam-usb-gerbers.zip` | `layercam-usb-bom-pcbway.csv` | `layercam-usb-cpl.csv` |
+
+The placement file gives designator, X, Y, side and rotation in the
+Gerbers' own coordinates. The BOM gives maker, maker's part number, LCSC
+and (where chosen there) Digi-Key numbers; every part is SMD.
+
+**Main board** (38.0 x 53.6 mm):
 - 6 layers, 1.6 mm, PCBWay's standard 6-layer stackup (No. 1: 1 oz on every
   layer, 2116 prepreg next to the outer layers).
 - **Impedance control:** 100 Ω differential (MIPI, 0.12 / 0.15 mm, F),
@@ -94,29 +109,59 @@ placement file (`*-cpl.csv`: designator, X, Y, side, rotation).
 - ENIG, green mask, white silk.
 - Parts on both sides.
 
-**LED ring** (`ring/`): 2 layers, 1.6 mm, parts on both sides.
+**LED ring** (Ø33.0 mm ring): 2 layers, 1.6 mm, 1 oz, ENIG, green mask,
+white silk, parts on both sides.
 
-**USB-C board** (`usb/`): 2 layers, **1.2 mm ±0.1 mm** (the case's
-grooves take 1.2 mm), parts on one side.
+**USB-C board** (22.0 x 16.0 mm): 2 layers, **1.2 mm ±0.1 mm** (the case's
+grooves take 1.2 mm), 1 oz, ENIG, green mask, white silk, parts on one
+side.
 
-**Bought separately** (`docs/parts.md`): the camera module, the lens, the
-IR-cut holder, the camera's flat cable, the Wi-Fi antenna, two 6-way JST SH
-cables, a 14 x 14 x 10 mm stick-on heatsink, screws.
+**Optional, from PCBWay too:**
+- the CNC heat block for a 65 °C chamber (`mechanical/heat-plate/`:
+  black-anodised 6061, STL and drawing there);
+- the two board-to-board cables made to length (tick "Cable wire harness
+  assembly" on the SMT quote and send the cable spec in the table below:
+  PCBWay quotes it by hand).
+
+### 2. Everything else
+
+| Qty | Part | Exact part | Where |
+|---|---|---|---|
+| 1 | Camera module | Luckfox **SC3336 3MP Camera (B)** (25 x 24 mm, 20-pin 0.5 mm FFC socket). Its own lens and holder are removed | [Luckfox](https://wiki.luckfox.com) / Waveshare |
+| 1 | Lens | Towin **CCL127028MPR**: M12 x 0.5, 2.8 mm, F2.5, IR corrected, **no IR-cut filter of its own**, back focal length 3.0 mm at most (the CLA219's limit) | Towin, quote by email |
+| 1 | IR-cut switcher | Commonlands **CLA219**: carries the lens (its own M12 thread), 9.5 mm tall, 60 mm 2-wire lead on a 1.25 mm plug for J3 | [commonlands.com](https://commonlands.com/products/ir-cut-off-filter-exchanger-cla219), $12 |
+| 1 | Camera flat cable | Molex Premo-Flex **0151660205**: 20 way, 0.5 mm, 30 mm, contacts on the same side, 105 °C. In stock instead: **0152660205** (Digi-Key WM10518-ND). The run is about 15 mm; the extra folds once behind the module | Digi-Key |
+| 2 | Board-to-board cables (USB-C board to J1, LED ring to J4) | JST **A06SR06SR30K51A**: 6 way, 1.0 mm (SR/SH), 51 mm, **pin 1 to pin 1** (the "B" version is reversed: do not use it). If out of stock: per cable, 6 x JST **ASSHSSH28K51** (51 mm wire, a contact crimped on each end) pushed into 2 x JST **SHR-06V-S** housings, pin 1 to pin 1. Spec for a made-to-length cable: 2 x SHR-06V-S, SSH-003T-P0.2-H contacts, 28-30 AWG, 6 wires straight through, 30 mm | Digi-Key 455-2999-ND, Mouser 306-A06SR06SR30K51A; 455-3075-ND and SHR-06V-S |
+| 1 | Wi-Fi antenna | Molex **146153-0100**: 2.4 / 5 GHz flex dipole, 34.9 x 9 mm, U.FL on 100 mm cable, adhesive-backed, to 85 °C | Digi-Key WM12218-ND, $2.59 |
+| 1 | SoC heatsink | **LCSC C286230** (XSD1690-058): 14 x 14 x 10 mm black aluminium, no tape | LCSC |
+| 1 piece | Thermal tape for it | **3M 8810**, 0.25 mm, cut to 14 x 14 mm (rated to 100 °C) | Digi-Key 3M10316-ND |
+| 4 | Board-to-case screws | **M2 x 6** thread-forming for plastic, stainless (McMaster **96817A844**). The case's pilot holes are Ø1.7, about 5.5 mm deep: longer screws bottom out | McMaster |
+| 2 | Lens-stack screws | **M1.6 x 8** thread-forming for plastic, stainless (McMaster **99397A022**), from the module side into the CLA219 | McMaster |
+| 6 | Spacer washers | **M1.6 stainless washers**, 1.7 ID / 3.5 OD, 0.3-0.4 mm (McMaster **98689A221**): three per screw make the 1.0 mm gap between board and sensor | McMaster |
+| 1 | Case | Prusa's Buddy3D case for the CORE One, unchanged ([Printables 1343977](https://www.printables.com/model/1343977-buddy3d-camera-for-core-one-printed-parts)): print in **PCCF** as Prusa does (hardened nozzle; 0.2 mm layers) | your printer |
+
+For the 65 °C option, the heat block replaces the heatsink and tape, with
+two TG-A6200 gap pads (`mechanical/heat-plate/README.md`).
 
 ## How to build one
 
-1. Print Prusa's case (Printables 1343977).
+1. Print Prusa's case (Printables 1343977) in PCCF.
 2. Remove the camera module's own lens holder. Fit the IR-cut holder and
    lens on the main board's front face over the window. Fit the module
-   behind the board on the two washer stacks. Clamp all three with the two
-   M1.6 screws.
-3. Fit the camera's flat cable from the module to J2. **Check it before
+   behind the board with three washers on each screw between board and
+   module. Clamp all three with the two M1.6 x 8 screws, driven from the
+   module's side into the IR-cut holder.
+3. Fit the camera's flat cable from the module to J2, the extra length
+   folded flat behind the module. **Check it before
    power-up:** with the cable in the module only, the two outermost
    conductors at one end are 3.3 V (shorted together) and must land on J2's
    pins 19-20. A reversed cable puts 3.3 V on ground.
 4. Fit the LED ring in the front of the case and its cable to J4. Slide the
    USB-C board into its grooves and connect its cable to J1. Plug the
-   antenna onto J5 and stick the antenna inside the case.
+   antenna onto J5 and stick the antenna inside the case on plastic, at
+   least 5 mm from the board if it stands across it, 15 mm if it lies
+   parallel to it (Molex's rule), its cable led away from it. Fold the
+   cables' spare length flat where nothing presses on it.
 5. Clean the SoC's top (the large chip on the back face) with alcohol and
    press the heatsink on for 10 s, centred 3.5 mm towards the cable
    socket J2 from the chip's middle (`mechanical/heat-plate/README.md`).
@@ -157,9 +202,11 @@ Full steps in [`firmware/README.md`](firmware/README.md).
 - **Snapshot-mode currents are estimates** (no published idle figures for
   the RV1106): measure them on the first board, then re-run
   `sim/thermal.py`.
-- **The lens and the IR-cut holder's fit**, the focus, and the flat cable's
-  bend are untested. The lens is a quoted part from Towin. The IR-cut
-  holder's plug type is assumed (PicoBlade).
+- **The lens and the IR-cut holder's fit**, the focus, the folded flat
+  cable and JST cables, and the antenna's place in the case are untested.
+  The lens is a quoted part from Towin. The IR-cut holder's plug is sold
+  as "1.25 mm JST" and assumed to be a PicoBlade (J3): check it on the
+  part in hand (`docs/parts.md`).
 - **The 37.4 MHz Wi-Fi crystal's load** follows the reference designs: measure
   its frequency on the first boards.
 - **USB IDs are a placeholder**, and the USB console needs a real

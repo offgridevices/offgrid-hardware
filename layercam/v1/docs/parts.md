@@ -83,14 +83,56 @@ is in `src/parts.py` and the BOMs.
 
 ## Bought separately
 
-| Part | What | Where |
-|---|---|---|
-| Camera module | Luckfox SC3336 3MP Camera (B): SC3336 sensor on a 25 x 24 mm board, 20-pin 0.5 mm FFC connector; its own lens holder is removed | Luckfox / Waveshare |
-| Lens | Towin CCL127028MPR: M12, 2.8 mm, F2.5, IR corrected, about 137° diagonal | Towin (quote by email) |
-| IR-cut filter | CLA219 IR-cut holder for M12 lenses, 20 Ω coil on a 2-pin lead | Commonlands. The lead's plug is assumed to be a Molex PicoBlade (1.25 mm, J3): check it on the part in hand |
-| Camera cable | 20-way 0.5 mm FFC, 0.3 mm thick, about 15 mm, same-side contacts (opposite-side also works), not twisted | short lengths are often custom |
-| SoC heatsink | 14 x 14 mm, 10 mm tall at most, aluminium (black better), with thermal tape | any Raspberry Pi heatsink kit; LCSC C286230 (XSD1690-058) |
-| (optional, for a 65 °C chamber) heat block | black-anodised 6061 aluminium and two TG-A6200 gap pads, `mechanical/heat-plate/` | PCBWay CNC, Digi-Key |
-| Wi-Fi antenna | 2.4 / 5 GHz flex antenna on a U.FL pigtail, about 100 mm | any |
-| Cables | two 6-way JST SH (1.0 mm) cables, about 60 mm | JST SH pre-crimped |
-| Screws | 4 x M2 self-tapping (board to case), 2 x M1.6 x 8 (holder and module), 2 nylon M1.6 x 1.0 washers | any |
+The shopping list, with quantities and exact part numbers, is in the
+README (*How to order*). Checked on **31 Oct 2026** against the makers'
+drawings and Digi-Key's stock; McMaster pages show no prices. Why each:
+
+- **Camera flat cable.** The run from the module's socket to J2 is about
+  15 mm, but no stock 20-way 0.5 mm FFC is shorter than 30 mm (Molex
+  Premo-Flex 15166, 105 °C; Würth's shortest is 50 mm), so it folds once
+  behind the module. J2 (Omron XF2M) has contacts on both faces, so a
+  same-side (type A) or opposite-side (type D) cable both work; pin k still
+  meets pin k (`verify.py`). Luckfox / Waveshare ship an FFC with the
+  module, of unstated length: measure it, it may serve. A 15 mm cable
+  would have to be made (a flex PCB, quoted by PCBWay).
+- **Board-to-board cables.** The plugs are 8 mm (ring) and 11 mm (USB-C)
+  apart, and JST's shortest SR/SH jumper is 51 mm (51 / 102 / 152 mm).
+  JST's suffix A is wired pin 1 to pin 1 and B pin 1 to pin 6 (drawings
+  GAM-010 / GAM-013); Digi-Key calls the A part "reversed", meaning the
+  housings face opposite ways. Both cables must be pin 1 to pin 1: turned
+  round, the USB cable swaps D+ and D- (USB fails, nothing is damaged) and
+  the ring cable swaps the light sensor's supply and output (a 1 k resistor
+  limits it). SH contacts take 1 A at 28 AWG, -25 to +85 °C.
+- **Antenna.** Molex 146153 is a balanced dipole that Molex rates
+  independent of a ground plane; its application spec asks for 15 mm from
+  a parallel ground plane or 5 mm from one at right angles, never on metal,
+  the cable led away. -30 to +85 °C. Alternatives: Molex 206994-0100
+  (15.4 x 6.4 mm monopole) if 35 mm does not fit; Taoglas FXP831.07.0100C
+  (45 x 7 mm, 7.2 dBi at 5 GHz: possibly above the AP6256's certified
+  antenna gain).
+- **IR-cut switcher.** Commonlands' drawing of the CLA219: its own M12 x 0.5
+  thread (no separate lens holder, whatever the product page's pairing
+  note says), 9.5 mm tall, 18.0 mm hole spacing for M1.6 self-tapping
+  screws, lens back focal length 3.0 mm at most. Its lead ends in a
+  "1.25 mm JST" 2-pin plug; J3 is a Molex PicoBlade (1.25 mm). If the plug
+  is not PicoBlade, crimp a Molex 51021-0200 housing onto the lead.
+  Commonlands gives no temperature rating.
+- **Lens.** It must be the IR-corrected version with no IR-cut filter of
+  its own, or night pictures go dark. Its back focal length against the
+  CLA219's 3.0 mm and the focus are untested (no Towin drawing online).
+- **Washers.** Nylon (the first choice) is past its glass transition at
+  75-85 °C and creeps; the stack sets the focus, so stainless. No
+  1.0 mm M1.6 washer or spacer exists at McMaster in any material, hence
+  three thin ones. They sit on solder mask, inside the holes' keep-out.
+- **Screws.** Prusa states no screw size for the case. From its STEP file
+  the four board bosses have Ø1.7 pilot holes about 5.5 mm deep (the usual
+  pilot for M2 in plastic): M2 x 6 through the 1.6 mm board leaves about
+  4.4 mm of thread. The M1.6 x 8 pass 4.8 mm of stack (module 1.2,
+  washers 1.0, board 1.6) and leave about 3.2 mm in the CLA219's 4.3 mm
+  base. Commonlands sells only M1.6 x 5.
+- **Heatsink tape.** 3M 8810 is rated 100 °C (UL 746C); the SoC's top
+  runs about 90 °C in a 63 °C chamber. The LCSC heatsink has no tape. ATS
+  AATS014014010-SF-3I (Digi-Key) comes with tape of unstated type, at
+  $11.50.
+- **Case material.** Prusa prints the case in PCCF; PETG softens near
+  70 °C, close to a hot chamber plus the board's heat.

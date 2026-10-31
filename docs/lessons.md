@@ -208,3 +208,10 @@ board's `docs/` keeps its own dated checks).
 - **Compute a magnet's field before printing the pocket.** The first guard
   magnet gave about 4 mT at a hall switch whose maximum operate point is
   4.8 mT; a Biot–Savart estimate in the fit check caught it.
+- **Look up the shortest stock cable before placing connectors.** LayerCam's
+  boards sit 8-11 mm apart, but JST's shortest SH jumper is 51 mm and the
+  shortest 20-way 0.5 mm FFC is 30 mm; the slack has to fold somewhere.
+  Check the catalogue lengths, the wiring (JST's suffix A is pin 1 to
+  pin 1, B is reversed) and room for the fold while placing.
+- **Spacers in a hot case are not nylon.** Nylon creeps above about 70 °C;
+  where a spacer sets a lens's focus, use metal.
