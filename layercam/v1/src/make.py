@@ -66,6 +66,15 @@ def check_outputs(bd, board):
     gate(bom == asm, 'BOM lists exactly the %d assembled parts' % len(asm))
     fps = {fp.GetReference() for fp in b.GetFootprints()}
     gate(fps == set(comps), 'board footprints == circuit.py components (%d)' % len(comps))
+    # the job file in the Gerber zip is what the fab's CAM reads: it must
+    # say what the README's order settings say
+    import json, zipfile
+    z = zipfile.ZipFile(os.path.join(prod, name(bd) + '-gerbers.zip'))
+    job = json.loads(z.read(next(n for n in z.namelist() if n.endswith('.gbrjob'))))
+    spec = job['GeneralSpecs']
+    masks = sorted(set(m['Color'] for m in job['MaterialStackup'] if m['Type'] == 'SolderMask'))
+    gate(abs(spec['BoardThickness'] - pcb.thickness(bd)) < 1e-6 and spec['Finish'] == 'ENIG' and masks == ['Green'],
+         'Gerber job file: %g mm, %s, %s mask' % (spec['BoardThickness'], spec['Finish'], '/'.join(masks)))
 
 
 def check_pairs(board):

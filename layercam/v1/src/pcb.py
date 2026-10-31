@@ -469,17 +469,19 @@ STACKUP6 = """\t\t(stackup
 \t\t\t(dielectric_constraints no)
 \t\t)
 """
+# The ring and USB boards: one FR4 core, 1 oz each side; green mask and ENIG
+# as the main board (README, How to order).
 STACKUP2 = """\t\t(stackup
 \t\t\t(layer "F.SilkS" (type "Top Silk Screen") (color "White"))
 \t\t\t(layer "F.Paste" (type "Top Solder Paste"))
-\t\t\t(layer "F.Mask" (type "Top Solder Mask") (color "Black") (thickness 0.01))
+\t\t\t(layer "F.Mask" (type "Top Solder Mask") (color "Green") (thickness 0.01))
 \t\t\t(layer "F.Cu" (type "copper") (thickness 0.035))
 \t\t\t(layer "dielectric 1" (type "core") (color "FR4 natural") (thickness %.3f) (material "FR4") (epsilon_r 4.5) (loss_tangent 0.02))
 \t\t\t(layer "B.Cu" (type "copper") (thickness 0.035))
-\t\t\t(layer "B.Mask" (type "Bottom Solder Mask") (color "Black") (thickness 0.01))
+\t\t\t(layer "B.Mask" (type "Bottom Solder Mask") (color "Green") (thickness 0.01))
 \t\t\t(layer "B.Paste" (type "Bottom Solder Paste"))
 \t\t\t(layer "B.SilkS" (type "Bottom Silk Screen") (color "White"))
-\t\t\t(copper_finish "HAL lead-free")
+\t\t\t(copper_finish "ENIG")
 \t\t\t(dielectric_constraints no)
 \t\t)
 """
@@ -491,9 +493,12 @@ def thickness(board=None):
 
 def set_stackup(path):
     """KiCad's Python API does not reach BOARD_STACKUP, so this edits the
-    saved file; KiCad keeps the block on every later load and save."""
+    saved file; KiCad keeps the block on every later load and save.  The
+    board's own thickness goes with it: the Gerber job file and the STEP
+    model read that one, not the sum of the layers."""
     import re
     s = open(path).read()
+    s = re.sub(r'(\(general\s*\(thickness )[\d.]+', lambda m: m.group(1) + '%g' % thickness(), s, count=1)
     s = re.sub(r'\t\t\(stackup\n.*?\n\t\t\)\n', '', s, flags=re.S)
     st = STACKUP6 if LAYERS == 6 else STACKUP2 % (thickness() - 0.07)
     s = s.replace('\t(setup\n', '\t(setup\n' + st, 1)

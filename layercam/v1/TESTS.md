@@ -81,8 +81,9 @@ checked out. What it found, and what was done:
 
 ## Firmware (`firmware/`, host tests; CI)
 
-`python3 -m unittest` from `firmware/`: **192 tests, 191 pass, 1 skipped**
-(the `ssh-keygen` cross-check, where the tool is missing). Python 3.13 and
+`python3 -m unittest` from `firmware/`: **192 tests, all pass** in CI
+(which installs ffmpeg for the MP4, recording and end-to-end tests, and
+has `ssh-keygen` for the fingerprint cross-check). Python 3.13 and
 3.11. They cover:
 - Prusa Connect: requests, size and rate limits.
 - PrusaLink: digest auth and the job.

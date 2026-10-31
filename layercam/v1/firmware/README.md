@@ -498,10 +498,11 @@ python3 -m unittest            # from this folder; 192 tests, about 10 s
 
 The MP4, recording and whole-service tests need `ffmpeg` and `ffprobe`
 with libx264 on the PC (they make the test video); without them they are
-skipped, and the SSH fingerprint cross-check needs `ssh-keygen`. Result
-on 26 Oct 2026, Python 3.13 and 3.11: **191 pass, 1 skipped** (no
-`ssh-keygen` on that PC);
-pyflakes finds nothing.
+skipped, and the SSH fingerprint cross-check needs `ssh-keygen`. CI
+installs ffmpeg, and its image has `ssh-keygen`: there, on 31 Oct 2026
+(Python 3.13), **all 192 pass**. On 26 Oct 2026 on a PC without
+`ssh-keygen`, Python 3.13 and 3.11: 191 pass, 1 skipped. pyflakes finds
+nothing.
 
 Checked on a PC but not as tests: the device tree, run through `cpp` with
 the SDK's includes and parsed with Zephyr's `dtlib` (every label and
