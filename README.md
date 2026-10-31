@@ -10,6 +10,7 @@ Open hardware from [OffGrid Devices](https://github.com/offgridevices). One fold
 | [`smokebreak/`](smokebreak/) v1 | SmokeBreak: handheld smoke stopper and LiPo checker, 2S–14S, 2.25" screen, printed case | v1 designed, not yet built |
 | [`ridge-3/`](ridge-3/) rev 2 | Ridge 3: a 36 × 36 mm flight controller with HD or analog video and a separate 4-in-1 ESC on a machined heatsink, for 3" FPV quads | Revision 2 designed and simulated, not yet ordered |
 | [`layercam/`](layercam/) v1 | LayerCam: a camera for the inside of a Prusa CORE One, in Prusa's own Buddy3D case — RV1106 Linux SoC, 1080p wide angle with IR night vision, Prusa Connect, per-layer timelapse to a NAS or S3; three boards, 6 layers for the main one | v1 designed, not yet built |
+| [`layercam-pro/`](layercam-pro/) v1 | LayerCam Pro: the same camera on one board (image sensor, IR lights, Wi-Fi and USB-C on it, no cables), Prusa's case outside with a new inside, for a 70 °C chamber; one PCBWay order | v1 planned, not yet designed |
 
 The packet logger's firmware and analysis tooling live in
 [`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab); Ridge 3's and Ridge 3 Lite's firmware is in each board's own folder.
