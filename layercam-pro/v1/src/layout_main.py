@@ -63,7 +63,13 @@ FIXED = {
     'TP4': (-5.0, 27.4, 0, F),
     'TP6': (-19.4, 13.6, 0, F), 'TP7': (-17.4, 13.6, 0, F),
     # B, the front face
-    'U8': (0.0, 0.0, 0, B),           # the image sensor on the lens axis; its MIPI balls (rows D-E) towards the SoC
+    # the image sensor on the lens axis; its MIPI balls (rows D-E) towards
+    # the SoC.  KiCad flips a front-face part top to bottom (a pad at
+    # (x, y) lands at (x, -y)); turned 180 degrees it lands at (-x, y), the
+    # mirror image seen from behind that pairs.py draws to.  The picture
+    # comes out turned 180 degrees: the sensor's flip and mirror bits turn
+    # it back (firmware/README.md).
+    'U8': (0.0, 0.0, 180, B),
     'D2': (13.000, -0.000, 90, B),        # IR LED at 0 degrees (lens frame)
     'D3': (7.200, -12.471, 0, B),        # IR LED at 60 degrees (lens frame)
     'D4': (-7.200, -12.471, 0, B),        # IR LED at 120 degrees (lens frame)

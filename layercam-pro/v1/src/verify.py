@@ -101,6 +101,14 @@ def sensor():
     a1 = pcb.pad_at(b, 'U8', 'A1')
     check(fp.IsFlipped() and abs(x) < 0.01 and abs(y) < 0.01 and a1[0] > 1.8 and a1[1] < -1.0,
           'image sensor on the front face on the lens axis, ball A1 at (%.2f, %.2f)' % a1)
+    # every ball pairs.py draws a stub or escape from is where it starts
+    import pairs
+    starts = {n: pts[0] for n, pts in pairs.SENSOR.items()}
+    by_ball = {ball: v for net, items in pairs.SENSOR_VIAS.items() for ball, v in items}
+    pads = {p.GetNumber(): (p.GetNetname(), pcb.xy(p.GetPosition())) for p in fp.Pads()}
+    bad = [n for n, (sx, sy) in starts.items()
+           if not any(nn == n and abs(px - sx) < 0.01 and abs(py - sy) < 0.01 for nn, (px, py) in pads.values())]
+    check(not bad, 'the MIPI stubs start on their own balls %s' % (bad or ''))
 
 
 def case():
