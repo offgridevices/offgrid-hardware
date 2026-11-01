@@ -134,7 +134,7 @@ PARTS = {'bottom': 'buddy-camera-bottom-r2', 'top': 'buddy-camera-top-r1', 'lid'
 FACE_N = {
     'magnet_a': (0.5, 0.048, 0.865),        # Prusa's magnet slot under the +X back chamfer
     'magnet_b': (0.0, -0.783, 0.622),       # ... and under the -Y back chamfer
-    'sma': (0.707, -0.554, 0.44),           # +X -Y back chamfer: faces the front-left post (README)
+    'sma': (0.75, 0.433, -0.5),             # +X +Y facet of the back shell: the front side in the printer (README)
     'usb_old': (-0.75, 0.433, -0.5),        # the -X +Y facet with Prusa's USB-C recess
     'front_y': (0.0, 0.866, -0.5),          # the front shell's +Y facet with Prusa's slots
 }
@@ -615,9 +615,10 @@ def usb_features(plane_old):
 def magnet_features(planes):
     """Disc pockets on Prusa's two magnet faces (flush, epoxied), with backing."""
     out_c, out_a, info = [], [], {}
-    # centres on the faces: A where Prusa's magnet sat, moved 4.5 mm towards +Y
-    # off the side screw's counterbore; B in the middle of its face
-    centres = {'magnet_a': np.array([29.97, 8.38, 34.5]), 'magnet_b': np.array([0.0, -31.96, 33.88])}
+    # centres on the flat of each face (largest flat circle, r 6.6 and 6.0 mm):
+    # A beside where Prusa's magnet sat, 9 mm off the side screw's
+    # counterbore; B in the middle of its face
+    centres = {'magnet_a': np.array([31.2, 8.4, 34.6]), 'magnet_b': np.array([1.0, -31.99, 33.83])}
     for k, c in centres.items():
         n, d = planes[k]
         c = c + n * (d - n @ c)                     # onto the face
@@ -673,8 +674,9 @@ def sma_search(folder, step=0.5):
     env = Envelope(solid)
     cav = to_trimesh(env.stack(WALL + 0.01, 21.0, LID_TOP_Z))
     sx0, sy0, sz0, sx1, sy1, sz1 = sink_box(SINK_GAP)
-    c0 = np.array([23.37, -18.47, 30.8])
+    c0 = np.array([32.0, 14.0, 28.0])
     c0 = c0 + n * (d - n @ c0)
+    mags = [(c, nn) for c, nn in magnet_features(planes)[2].values()]
     res = []
     stats = dict(flat=0, sink=0, clear=0, cavity=0)
     for a in np.arange(-16, 16.01, step):
@@ -682,7 +684,7 @@ def sma_search(folder, step=0.5):
             c = c0 + ex * a + ey * b
             # flat land: rays from 0.5 outside, along -n, hit the top part 0.5 away
             ring = [c + n * 0.5 + (ex * math.cos(t) + ey * math.sin(t)) * r
-                    for r in (0, 2.4, 4.7) for t in np.linspace(0, 2 * math.pi, 16, endpoint=False)]
+                    for r in (0, 2.6, 5.2) for t in np.linspace(0, 2 * math.pi, 16, endpoint=False)]
             loc, idx, _ = top.ray.intersects_location(ring, [-n] * len(ring), multiple_hits=False)
             if len(idx) < len(ring):
                 continue
@@ -699,7 +701,15 @@ def sma_search(folder, step=0.5):
                 if m.any():
                     clear = min(clear, np.hypot(P[m, 0] - x, P[m, 1] - y).min() - LID_BOSS_D / 2)
             for (x, y) in G.SCREWS:
-                clear = min(clear, np.hypot(P[:, 0] - x, P[:, 1] - y).min() - BACK_BOSS_D / 2)
+                m = P[:, 2] > BOARD_BACK
+                clear = min(clear, np.hypot(P[m, 0] - x, P[m, 1] - y).min() - BACK_BOSS_D / 2)
+            for (cm, nm) in mags:             # the magnets' backing discs
+                q = P - (cm - nm * (MAG_POCKET_T + MAG_FLOOR + 0.3) / 2)
+                along = np.abs(q @ nm) - (MAG_POCKET_T + MAG_FLOOR + 0.8) / 2
+                radial = np.linalg.norm(q - np.outer(q @ nm, nm), axis=1) - MAG_BACK_D / 2
+                clear = min(clear, np.min(np.maximum(along, radial)))
+            if c[2] - SMA_HOLE_D / 2 * math.sqrt(1 - n[2] ** 2) < SPLIT_Z + 0.5:
+                continue
             if inside_sink or clear < 0:
                 stats['sink' if inside_sink else 'clear'] += 1
                 continue
