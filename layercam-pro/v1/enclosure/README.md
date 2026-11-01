@@ -4,10 +4,8 @@ Prusa's Buddy3D case for the CORE One on the **outside**, a new **inside**
 for LayerCam Pro's one board. Three printed parts, as Prusa's: a front
 shell, a back shell and a lid, joined with M2 screws.
 
-**Status: designed, not printed.** Every check passes except the board
-outline: `geometry.OUTLINE` crosses Prusa's case at two concave shoulders,
-so the board has to be cut down to the outline that fits (below,
-*Open*).
+**Status: designed, not printed.** Every check passes (below), with the
+board outline cut down to fit Prusa's two concave shoulders.
 
 ![Cut through the lens](images/case-cutaway.png)
 
@@ -62,7 +60,8 @@ which is up to 0.45 mm off `geometry.hole_xy`'s R 13.0 every 60°: at 0°
 
 ## The inside
 
-- **Board**: clamped at the case's widest point, front face on four Ø4.5
+- **Board**: `geometry.OUTLINE` (cut down to fit, 2710 mm²) with its
+  USB-C tab, as `src/pcb.py` draws it, clamped at the case's widest point, front face on four Ø4.5
   boss tops at Z 21.0 (Prusa's outer seam), screws through the board and
   the back shell's Ø4.5 pads. 0.5 mm round the board everywhere else; the
   USB-C tab runs into a slot in the wall (0.25 mm at its end, its 0.6 mm
@@ -72,10 +71,9 @@ which is up to 0.45 mm off `geometry.hole_xy`'s R 13.0 every 60°: at 0°
 - **Light rods**: six channels Ø2.15 for 2.0 mm clear rods, from each
   LED (`geometry.led_xy`, front face Z 21.0) to Prusa's hole (Z 0): leaning
   0.5° and 1.1° at 0° and 180° (Prusa's holes are not exactly over the
-  LEDs), 4.4°, 3.5°, 4.6° and 2.9° at 60°, 120°, 240° and 300°. Each rod's
-  inner end stops 0.3 mm short of its LED (the LED taken as 2.3 mm tall,
-  OSRAM OSLON Black; confirm on the SFH 4715CS drawing and change `LED_H`).
-  Guide tubes Ø4.0 end 0.7 mm short of the LEDs.
+  LEDs), 4.2°, 3.4°, 4.4° and 2.9° at 60°, 120°, 240° and 300°. Each rod's
+  inner end stops 0.3 mm short of its LED (Vishay VSMY3850X01, PLCC-2,
+  1.75 mm tall: `LED_H`). Guide tubes Ø4.0 end 0.7 mm short of the LEDs.
 - **Light sensor**: a Ø4.0 tube from Prusa's Ø5.8 window to Z 19.3,
   0.65 mm short of the TEMT6000 under it.
 - **Lens and IR-cut holder**: the box `geometry.HOLDER_BOX` from Z 11.5 to
@@ -119,7 +117,7 @@ magnets.
 |---|---|---|
 | 4 | M2 x 8 socket head cap screw, A2 stainless (board and shells; they tap their own thread in the Ø1.7 pilots, as Prusa's do) | "M2 x 8mm socket head cap screws stainless DIN 912" |
 | 2 | M2 x 6 socket head cap screw (lid, Prusa's) | "M2 x 6mm socket head cap screws stainless" |
-| 1 length | 2.0 mm clear **polycarbonate** rod (Tg about 145 °C; clear acrylic softens near 100 °C and is the second choice), cut 4 x 18.4 mm (0°, 120°, 180°, 300°) and 2 x 18.5 mm (60°, 240°), ends square and polished | "2mm clear polycarbonate rod" (or "2mm clear acrylic rod") |
+| 1 length | 2.0 mm clear **polycarbonate** rod (Tg about 145 °C; clear acrylic softens near 100 °C and is the second choice), cut 6 x 19.0 mm (the channels are 18.95 to 19.01 mm), ends square and polished | "2mm clear polycarbonate rod" (or "2mm clear acrylic rod") |
 | 2 | Disc magnet 10 x 3 mm, **N35SH or N38SH** (rated 150 °C; plain N grades are 80 °C). No Amazon listing found that names an SH grade in this size; the nearest confirmed SH disc is K&J Magnetics D62SH, 3/8 x 1/8 in, N42SH, 150 °C, which fits the pocket (0.08 mm proud) | "N35SH 10x3mm disc magnet" / "high temperature neodymium magnet 150°C 10mm x 3mm" |
 | 1 | High-temperature epoxy for the magnets and the rods: J-B Weld Original (rated 287 °C) | "J-B Weld Original" |
 | 1 | Antenna lead: **W.FL / MHF3 (MHF III) to RP-SMA female bulkhead, about 10 cm, 1.13 mm cable** (the ESP32-C6-MINI-1U-H4's socket is MHF III, not U.FL). The bulkhead is 1/4-36 UNS with a flat; nut and lock washer go inside | "MHF4 MHF3 W.FL to RP-SMA female bulkhead 10cm 1.13mm" (check it says MHF3/MHF III) |
@@ -171,35 +169,26 @@ Check results (1 Nov 2026 build):
 | Check | Result |
 |---|---|
 | Board seat | four Ø4.5 boss tops at Z 21.00, pilots Ø1.7 x 5.5 |
-| Board clearance | **fails with `geometry.OUTLINE`** (it overlaps the walls at the two shoulders); with FIT_OUTLINE 0.28 mm at least, at the USB-C tab's root, 0.5 elsewhere; tab end 0.24 (bare border) |
+| Board outline | `geometry.OUTLINE` lies wholly inside the room the case leaves (1.6 mm wall, 0.5 mm round the board from Z 20.5 to 23.1) |
+| Board clearance | 0.50 mm to the front shell and the back shell, 3.0 to the lid; the USB-C tab's end 0.24 (its 0.6 mm bare border); only the four Ø4.5 pads touch it |
 | Prusa's front holes | LED holes, window and bore cut where Prusa's STEP file has them |
-| Rod channels | all six walled from the front plate to the tube top, open at both ends, rod to case 0.07 mm, 0.3 mm to each LED |
+| Rod channels | all six walled from the front plate to the tube top, open at both ends, rod to case 0.07 mm, 0.3 mm to each LED, rods 18.95 to 19.01 mm |
 | Light-sensor tube | open end to end, 0.65 mm short of the sensor |
 | IR-cut holder volume | clear |
 | Heatsink | 0.84 mm to the lid (>= 0.5), 0.5 to the back shell, 3 slots over it |
 | USB-C mouth | axis level at Z 24.23; mouth 0.20 mm inside the seat floor; opening clear |
-| Walls (outside to inside) | front shell thinnest 1.84 mm, back shell 1.58, lid 1.48 at two corners of its 1.6 mm pocket (0.09 % of its surface); 0.00 % under 1.6 elsewhere |
+| Walls (outside to inside) | front shell thinnest 1.97 mm; back shell 1.48 at one spot beside the antenna jack's room (0.04 % of its surface); lid 1.48 at two corners of its 1.6 mm pocket (0.09 %) |
 | Magnet pockets | 3.10 deep, floors 1.50 mm |
 | RP-SMA | 2.0 mm wall at the hole, nut and jack room clear |
 | Parts | do not overlap |
 
 ## Open (the owner's decisions)
 
-1. **The board outline must shrink.** Prusa's case has two concave
-   shoulders at about (±26, -12) at the seam; `geometry.OUTLINE` (the
-   convex outline less 2.5 mm) runs up to 2.9 mm past the wall there, and
-   0.1 to 0.7 mm too close elsewhere for a 1.6 mm wall with 0.5 mm round
-   the board from Z 20.5 to 23.1. The outline that fits (2710 mm² of
-   2861; the screws stay 3 mm or more from its edge):
-
-   ```
-   FIT_OUTLINE = [(-32.08, -0.42), (-31.69, 1.50), (-16.39, 27.98), (-15.10, 29.02),
-       (-7.05, 28.60), (7.30, 28.60), (10.83, 29.06), (15.62, 28.81), (31.70, 1.47),
-       (32.11, -0.09), (27.99, -7.90), (27.25, -8.64), (24.63, -9.37), (23.31, -10.81),
-       (18.72, -20.38), (18.13, -22.80), (18.17, -24.34), (16.23, -28.13), (15.37, -28.66),
-       (4.17, -28.77), (-14.61, -28.77), (-15.76, -28.49), (-17.88, -25.40), (-18.78, -20.58),
-       (-23.36, -10.86), (-25.03, -9.21), (-27.20, -8.68)]
-   ```
+1. Done: `geometry.OUTLINE` is now the outline that fits. Prusa's case
+   has two concave shoulders at about (±26, -12) at the seam that the first
+   (convex) outline ran 2.9 mm into. `check.py` tests the outline against
+   the room the case leaves; if it ever fails, `case.py` writes an outline
+   that fits to `out/fit-outline.txt`.
 2. The two new screw holes at (±28, 0) on the back chamfers; the top two
    could reuse Prusa's holes exactly if `geometry.SCREWS` had y 26.1.
 3. The antenna face rests on the camera's pose in the printer, worked out
