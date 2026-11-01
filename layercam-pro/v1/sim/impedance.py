@@ -1,16 +1,24 @@
 # -*- coding: utf-8 -*-
-"""LayerCam v1: impedance of the controlled tracks on PCBWay's stackups.
+"""LayerCam Pro v1: impedance of the controlled tracks on PCBWay's 6-layer stackup.
 
-    tools/kd python3 sim/impedance.py      writes sim/impedance.md, exits 1 on a FAIL
+    python3 sim/impedance.py               writes sim/impedance.md, exits 1 on a FAIL
+    (tools/kd python3 sim/impedance.py works too)
 
-Everything the boards are built with is read from the code, not copied:
-  src/pcb.py    STACKUP6   the main board's layers (thickness, Dk) - PCBWay's build
-                STACKUP2   the 2-layer boards' core: thickness() - 0.07, epsilon_r
-                configure  the netclass clearance CLEAR of each board
+LayerCam Pro is one 6-layer board (LayerCam v1's main-board stackup).  The
+controlled tracks are the image sensor's MIPI lanes (src/pairs.py: 0.12 /
+0.15 mm, B.Cu over In4 from the sensor's balls, F.Cu over In1 to the
+RV1106).  LayerCam v1's 2-layer USB board and its 90 ohm pair are gone:
+USB (flashing only) runs a few centimetres from the edge connector to the
+SoC as ordinary tracks; if src/board.py still declares a USB pair class its
+impedance is reported, not checked.  There is no antenna feed on the board
+(the ESP32-C6-MINI-1U has its antenna socket on the module), so no 50 ohm
+track either, unless board.py defines RF_W again.
+
+Everything the board is built with is read from the code, not copied:
+  src/pcb.py    STACKUP6   the board's layers (thickness, Dk) - PCBWay's build
+                configure  the netclass clearance CLEAR
   src/stitch.py            the ground fill keeps CLEAR + 0.05 from other nets
   src/board.py  DIFF       each pair class's width and gap
-                RF_W       the antenna feed's width (B.Cu over In4)
-  src/geometry.py USB_T    the USB board's thickness
 
 PCBWay's published "Regular" 6-layer 1.6 mm build No. 1 (pcbway.com multi-layer laminated structure, read
 27 Oct 2026) is kept below only to check that STACKUP6 still matches it.  PCBWay publishes no solder-mask
@@ -55,15 +63,6 @@ def read_stackup6():
     return out
 
 
-def read_stackup2():
-    s = _src('pcb.py')
-    er = float(re.search(r'STACKUP2 = .*?epsilon_r ([\d.]+)', s, re.S).group(1))
-    cu = float(re.search(r'STACKUP2 = .*?"F.Cu" \(type "copper"\) \(thickness ([\d.]+)\)', s, re.S).group(1))
-    usb_t = float(re.search(r'USB_T = ([\d.]+)', _src('geometry.py')).group(1))
-    sub = float(re.search(r"STACKUP2 % \(thickness\(\) - ([\d.]+)\)", s).group(1))
-    return dict(core=usb_t - sub, er=er, cu=cu, board_t=usb_t)
-
-
 def read_clear(board):
     s = _src('pcb.py')
     if board == 'main':
@@ -78,15 +77,18 @@ def read_fill_extra():
 
 
 ST6 = read_stackup6()
-ST2 = read_stackup2()
 BOARD_SRC = _src('board.py')
 DIFF = _assign(BOARD_SRC, 'DIFF')
-RF_W = _assign(BOARD_SRC, 'RF_W')
+try:
+    RF_W = _assign(BOARD_SRC, 'RF_W')
+except KeyError:
+    RF_W = None                   # no antenna feed on the board (the module carries its own socket)
 FILL_EXTRA = read_fill_extra()
 TRACK_MAIN, CLEAR_MAIN = read_clear('main')
-TRACK_USB, CLEAR_USB = read_clear('usb')
 FILL_MAIN = CLEAR_MAIN + FILL_EXTRA
-FILL_USB = CLEAR_USB + FILL_EXTRA
+# the layers each pair class runs on (src/pairs.py: MIPI on B.Cu from the sensor, F.Cu to the SoC)
+PAIR_LAYERS = {'MIPI': ('F', 'B'), 'USB': ('F', 'B')}
+CHECKED = ('MIPI',)               # USB: ordinary tracks now; reported only
 
 
 if os.environ.get('IMPEDANCE_STACKUP') == 'pcbway-no1':
@@ -123,7 +125,7 @@ MASK = dict(on_sub=0.0305, on_cu=0.0152, er=3.8)     # typical LPI (PCBWay publi
 ETCH = 0.0127                     # track top narrower by 0.5 mil a side (typical etch): ASSUMED
 ETCH_TOL = 0.015                  # width error checked: +-0.015 mm at the same pitch
 TARGET = {'MIPI': (100.0, 0.10), 'USB': (90.0, 0.10), 'RF': (50.0, 0.10)}
-GAP_MIN = {'main': CLEAR_MAIN, 'usb': CLEAR_USB}
+GAP_MIN = {'main': CLEAR_MAIN}
 
 checks = []
 
@@ -210,8 +212,8 @@ def solve(**kw):
 
 
 def zdiff(w, s, lay, fill=None, mask=True, dw=0.0):
-    """Zdiff of a pair on outer layer lay ('F' / 'B' / 'usb'), the track dw wider (same pitch)."""
-    p = OUTER[lay] if lay in OUTER else dict(h=ST2['core'], er=ST2['er'], t=ST2['cu'])
+    """Zdiff of a pair on outer layer lay ('F' / 'B'), the track dw wider (same pitch)."""
+    p = OUTER[lay]
     g = None if fill is None else fill - dw / 2
     return solve(w=w + dw, s=s - dw, h=p['h'], t=p['t'], er=p['er'], gnd_gap=g, mask=mask)['Zdiff']
 
@@ -242,58 +244,45 @@ def validate():
     return rows
 
 
-def usb_routed_length():
-    path = os.path.join(V1, 'usb', 'layercam-usb.kicad_pcb')
-    if not os.path.exists(path):
-        return None
-    tot = {}
-    for m in re.finditer(r'\(segment\s+\(start ([\d.-]+) ([\d.-]+)\)\s+\(end ([\d.-]+) ([\d.-]+)\)\s+\(width ([\d.]+)\)'
-                         r'\s+\(layer "[^"]+"\)\s+\(net "([^"]+)"', open(path).read()):
-        x1, y1, x2, y2, wd, net = m.groups()
-        if net in ('USB_DP', 'USB_DM'):
-            tot[net] = tot.get(net, 0) + math.hypot(float(x2) - float(x1), float(y2) - float(y1))
-    return tot or None
-
-
 # ---------------------------------------------------------------- the analysis
-def pair_rows(w_, name, w, s, lays, board='main'):
-    """Check one pair rule on its layers; return its row values."""
-    tgt, tol = TARGET[name if name != 'USB board' else 'USB']
+def pair_rows(w_, name, w, s, lays, board='main', checked=True):
+    """Check one pair rule on its layers (or only report it); return its row values."""
+    tgt, tol = TARGET[name]
     lo, hi = tgt * (1 - tol), tgt * (1 + tol)
-    fill = FILL_MAIN if board == 'main' else FILL_USB
+    fill = FILL_MAIN
     res = []
     for lay in lays:
-        bare = zdiff(w, s, lay) if board == 'main' else None
+        bare = zdiff(w, s, lay)
         fl = zdiff(w, s, lay, fill)
         nar = zdiff(w, s, lay, fill, dw=-ETCH_TOL)
         wid = zdiff(w, s, lay, fill, dw=+ETCH_TOL)
-        nomask = zdiff(w, s, lay, fill if board != 'main' else None, mask=False)
-        zs = [z for z in (bare, fl, nar, wid) if z is not None]
+        nomask = zdiff(w, s, lay, mask=False)
+        zs = [bare, fl, nar, wid]
         ok = all(lo <= z <= hi for z in zs)
-        w_('| %s | %s | %.3f / %.3f | %s | %.1f | %.1f / %.1f | %.1f | %.0f +-%.0f %% | %s |'
-           % (name, lay if lay in OUTER else 'F (2-layer)', w, s, '%.1f' % bare if bare else '-', fl, nar, wid, nomask,
-              tgt, tol * 100, 'PASS' if ok else 'FAIL'))
-        check(ok, '%s %.3f / %.3f on %s: %.1f-%.1f ohm (bare, beside the fill, +-%.3f mm etch) inside %.0f-%.0f'
-              % (name, w, s, lay if lay in OUTER else 'the USB board', min(zs), max(zs), ETCH_TOL, lo, hi))
-        check(s >= GAP_MIN[board] - 1e-9, '%s gap %.3f mm at or above the %s board\'s %.3f mm clearance'
-              % (name, s, board, GAP_MIN[board]))
+        w_('| %s | %s over %s | %.3f / %.3f | %.1f | %.1f | %.1f / %.1f | %.1f | %.0f +-%.0f %% | %s |'
+           % (name, lay, OUTER[lay]['ref'], w, s, bare, fl, nar, wid, nomask, tgt, tol * 100,
+              ('PASS' if ok else 'FAIL') if checked else 'reported (%s)' % ('inside' if ok else 'outside')))
+        if checked:
+            check(ok, '%s %.3f / %.3f on %s over %s: %.1f-%.1f ohm (bare, beside the fill, +-%.3f mm etch) inside '
+                  '%.0f-%.0f' % (name, w, s, lay, OUTER[lay]['ref'], min(zs), max(zs), ETCH_TOL, lo, hi))
+            check(s >= GAP_MIN[board] - 1e-9, '%s gap %.3f mm at or above the board\'s %.3f mm clearance'
+                  % (name, s, GAP_MIN[board]))
         res.append((lay, ok, zs))
     return res
 
 
 def suggest_pair(name, w0, s0, lays, board='main'):
     """The smallest change from (w0, s0) that passes on every layer it runs on."""
-    tgt, tol = TARGET[name if name != 'USB board' else 'USB']
+    tgt, tol = TARGET[name]
     lo, hi = tgt * (1 - tol), tgt * (1 + tol)
-    fill = FILL_MAIN if board == 'main' else FILL_USB
+    fill = FILL_MAIN
     best = None
     for w in np.round(np.arange(0.10, 0.36, 0.01), 3):
         for s in (GAP_MIN[board], 0.15, 0.175, 0.20):
             zs = []
             for lay in lays:
                 zs += [zdiff(w, s, lay, fill), zdiff(w, s, lay, fill, dw=-ETCH_TOL), zdiff(w, s, lay, fill, dw=ETCH_TOL)]
-                if board == 'main':
-                    zs.append(zdiff(w, s, lay))
+                zs.append(zdiff(w, s, lay))
             if all(lo <= z <= hi for z in zs):
                 d = abs(w - w0) + abs(s - s0)
                 if best is None or d < best[0]:
@@ -304,10 +293,14 @@ def suggest_pair(name, w0, s0, lays, board='main'):
 def run():
     L = []
     w_ = L.append
-    w_('# LayerCam v1: impedance of the controlled tracks (PCBWay)\n')
-    w_('Computed by `sim/impedance.py` (field solver `sim/fieldsolve.py`) from what the boards are built with: '
-       'stackups from `src/pcb.py` (STACKUP6, STACKUP2), pair rules from `src/board.py` (DIFF, RF_W), clearances '
-       'from `src/pcb.py` and `src/stitch.py`.\n')
+    w_('# LayerCam Pro v1: impedance of the controlled tracks (PCBWay)\n')
+    w_('Computed by `sim/impedance.py` (field solver `sim/fieldsolve.py`) from what the board is built with: the '
+       'stackup from `src/pcb.py` (STACKUP6), pair rules from `src/board.py` (DIFF), clearances from `src/pcb.py` and '
+       '`src/stitch.py`. LayerCam Pro is one 6-layer board with LayerCam v1\'s stackup; its controlled tracks are the '
+       'image sensor\'s two MIPI data lanes and clock, which leave the sensor\'s balls on B.Cu over In4 and reach the '
+       'RV1106 on F.Cu over In1 (src/pairs.py). LayerCam v1\'s 2-layer USB board and its 90 ohm pair are gone: USB '
+       '(firmware flashing only) runs a few centimetres from the edge connector to the SoC as ordinary tracks. There '
+       'is no antenna feed on the board: the ESP32-C6-MINI-1U carries its own antenna socket.\n')
 
     # ------------------------------------------------ stackup
     w_('## Stackup (src/pcb.py STACKUP6, PCBWay\'s regular 6-layer 1.6 mm build No. 1)\n')
@@ -328,14 +321,12 @@ def run():
             mism.append('%s %.4f mm Dk %s (PCBWay: %.4f mm Dk %s)' % (name, x['t'], x['er'], t, er))
     check(not mism, 'src/pcb.py STACKUP6 matches PCBWay\'s published build No. 1' +
           ('' if not mism else ': ' + '; '.join(mism)))
-    w_('Outer layers: F.Cu over %.4f mm (Dk %.2f) to In1, B.Cu over %.4f mm (Dk %.2f) to In4; copper %.3f mm. '
-       'Solder mask (PCBWay publishes none, ASSUMED): %.0f um on copper, %.0f um on laminate, Dk %.1f. Track '
-       'etch: top %.1f um narrower a side (ASSUMED). USB board: 2 layers, %.2f mm board, core %.2f mm, Dk %.1f, '
-       'copper %.3f mm (STACKUP2). Ground fill: %.3f mm from other nets on the main board, %.3f mm on the USB '
-       'board (CLEAR + %.2f, stitch.py).\n'
+    w_('Outer layers: F.Cu over %.4f mm (Dk %.2f) to In1, B.Cu over %.4f mm (Dk %.2f) to In4 (both ground planes, '
+       'layout_main.zones()); copper %.3f mm. Solder mask (PCBWay publishes none, ASSUMED): %.0f um on copper, %.0f um '
+       'on laminate, Dk %.1f. Track etch: top %.1f um narrower a side (ASSUMED). Ground fill: %.3f mm from other nets '
+       '(CLEAR + %.2f, stitch.py).\n'
        % (OUTER['F']['h'], OUTER['F']['er'], OUTER['B']['h'], OUTER['B']['er'], OUTER['F']['t'], MASK['on_cu'] * 1e3,
-          MASK['on_sub'] * 1e3, MASK['er'], ETCH * 1e3, ST2['board_t'], ST2['core'], ST2['er'], ST2['cu'], FILL_MAIN,
-          FILL_USB, FILL_EXTRA))
+          MASK['on_sub'] * 1e3, MASK['er'], ETCH * 1e3, FILL_MAIN, FILL_EXTRA))
 
     # ------------------------------------------------ solver checks
     w_('## Field solver checked against exact results\n')
@@ -348,32 +339,32 @@ def run():
 
     # ------------------------------------------------ pairs
     w_('## Differential pairs\n')
-    w_('*Bare*: the pair alone over its plane; *fill*: with the ground fill %.3f mm beside it (stitch.py; where '
-       'MIPI lanes run side by side there is no fill between them, so the bare figure applies there). The etch '
-       'columns move the track %.3f mm narrower / wider at the same pitch, with the fill. Zdiff = 2 Zodd.\n'
+    w_('*Bare*: the pair alone over its plane; *fill*: with the ground fill %.3f mm beside it (stitch.py; where the '
+       'lanes run side by side there is no fill between them, so the bare figure applies there). The etch columns '
+       'move the track %.3f mm narrower / wider at the same pitch, with the fill. Zdiff = 2 Zodd. B.Cu over In4 is '
+       'the mirror of F.Cu over In1 (the same 2116 prepreg), so the two layers read the same.\n'
        % (FILL_MAIN, ETCH_TOL))
     w_('| pair | layer | w / gap (mm) | bare | fill | narrower / wider | no mask | target | |')
     w_('|---|---|---|---|---|---|---|---|---|')
-    pairs = {'MIPI': ('F',), 'USB': ('F', 'B')}
     out = {}
-    for name, lays in pairs.items():
-        nets, w, s = DIFF['main'][name]
-        res = pair_rows(w_, name, w, s, lays)
-        out[name] = (w, s, res)
-    nets, wu, su = DIFF['usb']['USB']
-    out['USB board'] = (wu, su, pair_rows(w_, 'USB board', wu, su, ('usb',), board='usb'))
+    for name, (nets, w, s) in DIFF['main'].items():
+        lays = PAIR_LAYERS.get(name, ('F', 'B'))
+        res = pair_rows(w_, name, w, s, lays, checked=name in CHECKED)
+        out[name] = (w, s, res, name in CHECKED)
     w_('')
-    cf = {n: closed_forms(DIFF['main'][n][1], DIFF['main'][n][2], OUTER['F']['h'], OUTER['F']['t'], OUTER['F']['er'])
-          for n in pairs}
-    w_('Closed forms for the bare pairs on F (no mask, no fill; IPC-2141 reads high for w/h near 1): ' +
-       '; '.join('%s IPC-2141 %.1f, Hammerstad-Jensen %.1f ohm' % (n, c['ipc_zd'], c['hj_zd']) for n, c in cf.items())
+    mw, ms = DIFF['main']['MIPI'][1:]
+    cf = {lay: closed_forms(mw, ms, OUTER[lay]['h'], OUTER[lay]['t'], OUTER[lay]['er']) for lay in ('F', 'B')}
+    w_('Closed forms for the bare MIPI pair (no mask, no fill; IPC-2141 reads high for w/h near 1): ' +
+       '; '.join('%s IPC-2141 %.1f, Hammerstad-Jensen %.1f ohm' % (lay, c['ipc_zd'], c['hj_zd']) for lay, c in cf.items())
        + '.\n')
+    if 'USB' in DIFF['main']:
+        w_('`src/board.py` still declares a USB pair class (%.2f / %.2f mm) for the router. It is reported above '
+           'against 90 ohm, not checked: the USB lines are short (edge connector to SoC), carry only firmware '
+           'flashing, and are routed as ordinary tracks.\n' % DIFF['main']['USB'][1:])
     sugg = {}
-    for name, (w, s, res) in out.items():
-        if not all(ok for lay, ok, zs in res):
-            board = 'usb' if name == 'USB board' else 'main'
-            lays = ('usb',) if board == 'usb' else pairs[name]
-            sugg[name] = suggest_pair(name, w, s, lays, board)
+    for name, (w, s, res, chk) in out.items():
+        if chk and not all(ok for lay, ok, zs in res):
+            sugg[name] = suggest_pair(name, w, s, PAIR_LAYERS.get(name, ('F', 'B')))
     for name, sg in sugg.items():
         if sg:
             w_('- **%s: change to %.3f / %.3f mm** (%.1f-%.1f ohm on every layer it uses, across fill and etch).'
@@ -383,63 +374,31 @@ def run():
     if sugg:
         w_('')
 
-    # ------------------------------------------------ RF
-    w_('## Antenna feed (RF netclass, 50 ohm single-ended)\n')
-    w_('ANT_FEED / ANT: one %.2f mm track on B.Cu over In4 (board.RF_W), about 5.5 mm from the AP6256\'s antenna pin '
-       'through the 0402 pi match to the U.FL, with the B ground fill %.3f mm away on both sides. Reported as a plain '
-       'microstrip and as the coplanar line with ground the fill makes (the one that is built).\n'
-       % (RF_W, FILL_MAIN))
-    tgt, tol = TARGET['RF']
-    lo, hi = tgt * (1 - tol), tgt * (1 + tol)
-    zm = z0(RF_W, 'B')
-    zc = z0(RF_W, 'B', FILL_MAIN)
-    zn = z0(RF_W, 'B', FILL_MAIN, dw=-ETCH_TOL)
-    zw = z0(RF_W, 'B', FILL_MAIN, dw=ETCH_TOL)
-    znm = z0(RF_W, 'B', FILL_MAIN, mask=False)
-    hjz, _ = hj(RF_W, OUTER['B']['h'], OUTER['B']['t'], OUTER['B']['er'])
-    w_('| width (mm) | microstrip (no fill) | with the fill (CPWG) | narrower / wider | no mask | Hammerstad-Jensen '
-       '(bare microstrip) | target |\n|---|---|---|---|---|---|---|')
-    w_('| %.3f | %.1f | %.1f | %.1f / %.1f | %.1f | %.1f | 50 +-10 %% |' % (RF_W, zm, zc, zn, zw, znm, hjz))
-    rf_ok = all(lo <= z <= hi for z in (zc, zn, zw))
-    check(rf_ok, 'RF %.3f mm on B with the fill: %.1f ohm (%.1f-%.1f across the etch) inside %.0f-%.0f'
-          % (RF_W, zc, min(zn, zw), max(zn, zw), lo, hi))
-    check(lo <= zm <= hi, 'RF %.3f mm on B as a plain microstrip (where the fill is cut back): %.1f ohm' % (RF_W, zm),
-          warn=True)
-    rf_best = None
-    for w in np.round(np.arange(0.10, 0.40, 0.005), 3):
-        z = z0(w, 'B', FILL_MAIN)
-        if rf_best is None or abs(z - tgt) < abs(rf_best[1] - tgt):
-            rf_best = (w, z)
-    zbm = z0(rf_best[0], 'B')
-    w_('')
-    w_('50.0 ohm with the fill is reached at **%.3f mm** (%.1f ohm; %.1f ohm as a plain microstrip). %s\n'
-       % (rf_best[0], rf_best[1], zbm, 'The current %.2f mm is inside +-10 %%: no change needed.' % RF_W if rf_ok
-          else '**Change RF_W to %.3f mm.**' % rf_best[0]))
-    elen = 5.5 * math.sqrt(solve(w=RF_W, s=0, h=OUTER['B']['h'], t=OUTER['B']['t'], er=OUTER['B']['er'], pair=False,
-                                 gnd_gap=FILL_MAIN)['eeff']) / (299.792458 / 5.5)
-    w_('At 5.5 GHz the 5.5 mm run is %.2f wavelengths long, so its impedance matters (at 2.4 GHz %.2f).\n'
-       % (elen, elen * 2.45 / 5.5))
-
-    # ------------------------------------------------ USB board length
-    ln = usb_routed_length()
-    if ln:
-        w_('The routed USB board\'s pair: D+ %.1f mm, D- %.1f mm of track (including the joins between the '
-           'receptacle\'s two contact rows), about %.0f ps: close to the lumped limit for USB 2.0\'s 500 ps edges; '
-           'the 6-wire SH cable after it is uncontrolled anyway.\n'
-           % (ln.get('USB_DP', 0), ln.get('USB_DM', 0), max(ln.values()) * 5.7))
-    return L, out, sugg, (RF_W, zm, zc, zn, zw, rf_ok, rf_best)
+    # ------------------------------------------------ RF (only if the board has a feed again)
+    rf = None
+    if RF_W:
+        tgt, tol = TARGET['RF']
+        lo, hi = tgt * (1 - tol), tgt * (1 + tol)
+        zc = z0(RF_W, 'B', FILL_MAIN)
+        zn = z0(RF_W, 'B', FILL_MAIN, dw=-ETCH_TOL)
+        zw = z0(RF_W, 'B', FILL_MAIN, dw=ETCH_TOL)
+        rf_ok = all(lo <= z <= hi for z in (zc, zn, zw))
+        w_('## Antenna feed\n\n%.3f mm on B.Cu with the fill: %.1f ohm (%.1f-%.1f across the etch).\n'
+           % (RF_W, zc, min(zn, zw), max(zn, zw)))
+        check(rf_ok, 'RF %.3f mm on B with the fill inside %.0f-%.0f ohm' % (RF_W, lo, hi))
+        rf = (RF_W, zc, rf_ok)
+    return L, out, sugg, rf
 
 
 def main():
     L, out, sugg, rf = run()
     w = L.append
+    mw, ms = DIFF['main']['MIPI'][1:]
     w('## Ordering\n')
-    w('Order with PCBWay\'s impedance control: **100 ohm differential on L1 (F.Cu) for the MIPI class, 90 ohm '
-      'differential on L1 / L6 (F.Cu, B.Cu) for USB, 50 ohm single-ended on L6 (B.Cu) for the antenna feed**, '
-      'all referenced to the adjacent ground plane (In1 / In4), +-10 %. Give them the widths below and let them '
-      'trim to their process; ask for their stackup report and the mask they use. The USB board (2-layer, 1.2 mm) '
-      'needs no impedance control (its pair is short and the fill sets it). Via-in-pad under the RV1106 must be '
-      'ordered as resin-filled and capped.\n')
+    w('Order with PCBWay\'s impedance control: **100 ohm differential on L1 (F.Cu, over In1) and L6 (B.Cu, over In4) '
+      'for the MIPI class, %.2f / %.2f mm**, referenced to the adjacent ground plane, +-10 %%. Let them trim to their '
+      'process; ask for their stackup report and the mask they use. No other track needs impedance control. Via-in-pad '
+      'under the RV1106 must be ordered as resin-filled and capped.\n' % (mw, ms))
     w('## Checks\n')
     for s_, what in checks:
         w('- %s %s' % (s_, what))
@@ -447,18 +406,22 @@ def main():
     fails = [c for c in checks if c[0] == 'FAIL']
     warns = [c for c in checks if c[0] == 'WARN']
     w('## Verdict\n')
-    for name, (wd, sd, res) in out.items():
+    for name, (wd, sd, res, chk) in out.items():
         ok = all(r[1] for r in res)
         zs = [z for r in res for z in r[2]]
         sg = sugg.get(name)
-        w('- **%s %.3f / %.3f mm: %s** (%.1f-%.1f ohm)%s' % (name, wd, sd, 'PASS' if ok else 'FAIL', min(zs), max(zs),
-                                                            '' if ok or not sg else
-                                                            '; change to %.3f / %.3f mm' % (sg[1], sg[2])))
-    rw, zm, zc, zn, zw, rf_ok, rf_best = rf
-    w('- **RF %.3f mm on B: %s** (%.1f ohm with the fill, %.1f-%.1f across the etch; %.1f ohm as a plain '
-      'microstrip)%s' % (rw, 'PASS' if rf_ok else 'FAIL', zc, min(zn, zw), max(zn, zw), zm,
-                         '' if rf_ok else '; change to %.3f mm (%.1f ohm)' % rf_best))
-    w('- JLCPCB (the earlier fab, 0.0994 mm 3313 prepreg) is no longer modelled.')
+        if chk:
+            w('- **%s %.3f / %.3f mm on F over In1 and B over In4: %s** (%.1f-%.1f ohm)%s'
+              % (name, wd, sd, 'PASS' if ok else 'FAIL', min(zs), max(zs),
+                 '' if ok or not sg else '; change to %.3f / %.3f mm' % (sg[1], sg[2])))
+        else:
+            w('- %s %.3f / %.3f mm: reported only, %.1f-%.1f ohm against 90 (ordinary tracks now).'
+              % (name, wd, sd, min(zs), max(zs)))
+    if rf:
+        w('- RF %.3f mm on B: %s (%.1f ohm)' % (rf[0], 'PASS' if rf[2] else 'FAIL', rf[1]))
+    else:
+        w('- No antenna feed on the board (the ESP32-C6-MINI-1U\'s socket is on the module); LayerCam v1\'s USB board '
+          'and its 90 ohm pair are gone.')
     w('')
     w('**%s, %d WARN**' % ('no FAIL' if not fails else '%d FAIL' % len(fails), len(warns)))
     open(OUT, 'w').write('\n'.join(L) + '\n')

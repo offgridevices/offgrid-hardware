@@ -60,7 +60,8 @@ import geometry as G  # noqa: E402
 
 # ------------------------------------------------------------------ numbers
 WALL = 2.0                 # wall, normal to the outside
-FILL_IN = 0.5              # the filler stays this far inside Prusa's skin
+MIN_WALL = 1.6             # where something must come closer (the check's limit)
+FILL_IN = 0.15             # the filler stays this far inside Prusa's skin (> the 0.1 mm section step's error)
 SLAB = 0.2                 # cavity slab = one 0.2 mm print layer
 ZSTEP = 0.1                # envelope sections
 CLEAR = 0.5                # round the board
@@ -444,19 +445,21 @@ def build(folder, log=print):
     info['env'] = env
 
     # ---- lid region (Prusa's lid and everything above its seat inside its outline)
-    lid_fp = unary_union([Polygon(r) for r in U['lid'].slice(LID_SEAT_Z + 0.3).to_polygons()
-                          if Polygon(r).exterior.is_ccw]).buffer(0)
+    lid_fp = lid_footprint(U['lid'])
     lid_region = U['lid'] + prism(lid_fp, LID_SEAT_Z, 60.0)
     above = m3.Manifold.cube((200, 200, 100)).translate((-100, -100, SPLIT_Z))
     front = case - above
     back = (case ^ above) - lid_region
-    lid = case ^ lid_region
+    lid = (solid + Fill) ^ lid_region      # solid as Prusa's, then the 1.6 mm pocket over the heatsink
 
     Eps = Fill          # internal additions stay inside this (0.5 mm under Prusa's skin)
     sink = sink_box(SINK_GAP)
     sink_keep = m3.Manifold.cube((sink[3] - sink[0], sink[4] - sink[1], sink[5] - sink[2])).translate(sink[:3])
     bpoly = board_polygon()
-    board_clear = prism(board_polygon(CLEAR), SPLIT_Z - 0.0, BOARD_BACK + CLEAR)
+    # 0.5 mm round the board, but never closer than 1.6 mm to the outside: if
+    # the outline does not fit the case, the check says so (fit_outline)
+    board_clear = prism(board_polygon(CLEAR), SPLIT_Z - 0.0, BOARD_BACK + CLEAR) ^ env.stack(MIN_WALL, 20.4, 23.8)
+    info['fit_outline'] = fit_outline(env)
 
     # ================================================================ front shell
     add, cut = [], []
@@ -520,7 +523,7 @@ def build(folder, log=print):
     back = back - union(cut) - union(mag_cuts) - union(sma_cuts) - union(usb_cuts)
     back = back - board_clear_except_bosses(board_clear) - sma_keep
     back = back - sink_keep - lid_region
-    back = back ^ above
+    back = back ^ above - m3.Manifold.cube((200, 200, 50)).translate((-100, -100, LID_SEAT_Z))
 
     # ================================================================ lid
     lid_cut = []
@@ -542,6 +545,25 @@ def build(folder, log=print):
     return parts, info
 
 
+def fit_outline(env, wall=MIN_WALL, simplify=0.15):
+    """The largest board the case takes at Z 21.0-22.6 with `wall` (normal to
+    the outside) and CLEAR round it, cut down from geometry.OUTLINE: what
+    geometry.OUTLINE has to become if it pokes out (Prusa's outside has two
+    concave shoulders at about (+-26, -12) that the convex outline crosses)."""
+    room = env.erode_slab(G.BOARD_Z, BOARD_BACK, wall).buffer(-CLEAR, join_style='mitre')
+    fit = Polygon(G.OUTLINE).intersection(room)
+    if hasattr(fit, 'geoms'):
+        fit = max(fit.geoms, key=lambda g: g.area)
+    return fit.simplify(simplify, preserve_topology=True).buffer(-0.05, join_style='mitre').simplify(0.05)
+
+
+def lid_footprint(lid):
+    """Prusa's lid outline above its seat (the largest of its sections)."""
+    ps = [Polygon(r) for z in np.arange(LID_SEAT_Z + 0.05, LID_TOP_Z, 0.25)
+          for r in lid.slice(float(z)).to_polygons() if Polygon(r).exterior.is_ccw]
+    return unary_union([Polygon(p.exterior) for p in ps]).buffer(0)
+
+
 def skin_cuts(U, planes):
     """Every cut through the outer skin (for the wall check: rays near an
     opening's edge leave through its side)."""
@@ -557,7 +579,7 @@ def skin_cuts(U, planes):
     return union(cuts)
 
 
-def openings_test(U, planes, lid_fp, near=1.0):
+def openings_test(U, planes, lid_fp, near=1.0, seam_near=2.0):
     """f(points, part) -> True where a point of the outer skin is within
     `near` of an opening or of the part's own seam (split plane, lid seat)."""
     from shapely.geometry import MultiPoint
@@ -566,15 +588,15 @@ def openings_test(U, planes, lid_fp, near=1.0):
     seam = lid_fp.exterior
 
     def f(P, part):
-        _, dist, _ = pq.on_surface(P)
+        dist = np.concatenate([pq.on_surface(P[i:i + 3000])[1] for i in range(0, len(P), 3000)])
         m = dist < near
         m |= cm.contains(P)
         if part in ('front-shell', 'back-shell'):
-            m |= np.abs(P[:, 2] - SPLIT_Z) < near
+            m |= np.abs(P[:, 2] - SPLIT_Z) < seam_near
         if part == 'back-shell':
-            m |= P[:, 2] > LID_SEAT_Z - near
+            m |= P[:, 2] > LID_SEAT_Z - seam_near
         if part == 'lid':
-            m |= np.array([seam.distance(Point(p[0], p[1])) < near for p in P])
+            m |= np.array([seam.distance(Point(p[0], p[1])) < seam_near for p in P])
         return m
     return f
 
@@ -582,11 +604,10 @@ def openings_test(U, planes, lid_fp, near=1.0):
 def check_info(folder):
     """What check.py needs, without building the parts."""
     solid, U, prusa, hull_mesh, planes = prusa_solid(folder)
-    lid_fp = unary_union([Polygon(r) for r in U['lid'].slice(LID_SEAT_Z + 0.3).to_polygons()
-                          if Polygon(r).exterior.is_ccw]).buffer(0)
+    lid_fp = lid_footprint(U['lid'])
     return dict(planes=planes, magnets=magnet_features(planes)[2], sma=sma_features(planes['sma'], None, None)[3],
                 board=board_polygon(), sink=sink_box(), usb=usb_info(planes['usb_old']), prusa=prusa,
-                openings=openings_test(U, planes, lid_fp))
+                openings=openings_test(U, planes, lid_fp), fit_outline=fit_outline(Envelope(solid)))
 
 
 def largest_piece(m, name, log):
@@ -654,6 +675,9 @@ def usb_features(plane_old):
         local_prism(box(-USB_W / 2 - 0.3, -USB_H / 2 - 0.01, USB_W / 2 + 0.3, USB_H / 2 + 0.3),
                     i['t_mouth'] - USB_L - 1.0, ts + 0.01, o, s, z, u),
     ]
+    # the board's tab passes into the wall: 0.5 round it (and 0.25 at its end)
+    cuts.append(local_prism(box(-G.USB_TAB_W / 2 - CLEAR, G.BOARD_Z - CLEAR - USB_AXIS_Z, G.USB_TAB_W / 2 + CLEAR,
+                                BOARD_BACK + CLEAR - USB_AXIS_Z), -1.0, G.USB_TAB + 0.25, o, s, z, u))
     blk = local_prism(box(-USB_PLUG[0] / 2 - 1.8, BOARD_BACK + 0.3 - USB_AXIS_Z, USB_PLUG[0] / 2 + 1.8,
                           USB_PLUG[1] / 2 + 1.8), ts - USB_BLOCK_T, 30.0, o, s, z, u)
     return cuts, [blk]

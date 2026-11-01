@@ -80,6 +80,16 @@ def run(parts, info, folder=None, log=print):
            'the four screw pads touch it only inside Ø%.1f (ring outside them clear by %.2f mm)'
            % (gmin, gaps['front-shell'], gaps['back-shell'], gaps['lid'], min(tab_gaps.values()), G.BOSS_D,
               min(pad_touch)))
+    fit = info['fit_outline']
+    given = C.Polygon(G.OUTLINE)
+    excess = given.difference(fit.buffer(0.02))
+    ring = given.exterior
+    far = max(fit.distance(ring.interpolate(t)) for t in np.linspace(0, ring.length, 2000))
+    report('board outline', excess.area < 0.5,
+           'geometry.OUTLINE is %.1f mm2 larger than the case takes (wall >= %.1f, %.1f round it), up to %.2f mm '
+           'at the shoulders; the outline that fits (%.0f mm2 of %.0f) is FIT_OUTLINE in enclosure/README.md'
+           % (excess.area, C.MIN_WALL, C.CLEAR, far, fit.area, given.area))
+    res['fit_outline'] = [(round(x, 2), round(y, 2)) for x, y in fit.exterior.coords[:-1]]
     seat = [parts['front-shell'] ^ C.zcyl(x, y, G.BOARD_Z - 0.3, G.BOARD_Z + 0.01, G.BOSS_D) for x, y in G.SCREWS]
     report('board seat', all(abs(p.bounding_box()[5] - G.BOARD_Z) < 0.02 for p in seat),
            'four Ø%.1f boss tops at Z %.2f (the board\'s front face), pilot Ø%.1f x %.0f deep for M2 self-tapping'
@@ -165,28 +175,32 @@ def run(parts, info, folder=None, log=print):
     prusa = trimesh.util.concatenate(list(info['prusa'].values()))
     pq = trimesh.proximity.ProximityQuery(prusa)
     cuts_near = info.get('openings')
+    from scipy.spatial import cKDTree
     for k, m in parts.items():
         tm = C.to_trimesh(m)
-        P, fi = trimesh.sample.sample_surface_even(tm, 12000, seed=2)
+        P, fi = trimesh.sample.sample_surface_even(tm, 30000, seed=2)
         Nn = tm.face_normals[fi]
-        _, dist, _ = pq.on_surface(P)
-        skin = dist < 0.02
-        P, Nn = P[skin], Nn[skin]
-        loc, ri, _ = tm.ray.intersects_location(P - Nn * 0.01, -Nn, multiple_hits=False)
-        t = np.full(len(P), np.inf)
-        t[ri] = np.linalg.norm(loc - (P[ri] - Nn[ri] * 0.01), axis=1) + 0.01
-        # ignore points within 1.0 mm of an opening's edge (rays leave through the hole's side)
-        edge = np.zeros(len(P), bool)
-        if cuts_near is not None:
-            edge = cuts_near(P, k)
-        tt = t[~edge]
-        thin = (tt < MIN_WALL).mean() * 100
-        q = np.percentile(tt[np.isfinite(tt)], [0.5, 5, 50])
-        wall_lines.append('%s: skin points %d, thickness 0.5%% %.2f / 5%% %.2f / median %.2f mm, under %.1f mm: %.2f%%'
-                          % (k, len(tt), q[0], q[1], q[2], MIN_WALL, thin))
-        wall_ok &= q[0] >= MIN_WALL - 0.05
-        res['thin_' + k] = P[~edge][tt < MIN_WALL]
+        dist = np.concatenate([pq.on_surface(P[i:i + 3000])[1] for i in range(0, len(P), 3000)])
+        skin = dist < 0.02                       # on Prusa's outer surface
+        # the seams (the split at Z 21.0, the lid seat at Z 38.45) are neither
+        seam = (np.abs(Nn[:, 2]) > 0.999) & ((np.abs(P[:, 2] - C.SPLIT_Z) < 0.01) | (np.abs(P[:, 2] - C.LID_SEAT_Z) < 0.01))
+        inner = ~skin & ~seam
+        S = P[skin]
+        keep = ~(cuts_near(S, k) if cuts_near is not None else np.zeros(len(S), bool))
+        S = S[keep]
+        # local wall thickness: from a point of the outside to the nearest point of the inside
+        t, _ = cKDTree(P[inner]).query(S)
+        thin = t < MIN_WALL - 0.05
+        lines = '%s: %d points of the outside (openings and seams left out): thinnest %.2f mm, 1%% under %.2f, median %.2f; %.2f%% under %.1f mm' % (
+            k, len(S), t.min(), np.percentile(t, 1), np.median(t), thin.mean() * 100, MIN_WALL)
+        if thin.any():
+            lines += ' (thinnest at %s)' % np.round(S[np.argmin(t)], 1).tolist()
+        wall_lines.append(lines)
+        wall_ok &= thin.mean() < 0.001
+        res['thin_' + k] = (S[thin], t[thin])
     report('wall thickness', wall_ok, '\n      ' + '\n      '.join(wall_lines))
+    ov = {(a, b): (parts[a] ^ parts[b]).volume() for a in parts for b in parts if a < b}
+    report('parts apart', max(ov.values()) < 0.01, ', '.join('%s/%s overlap %.3f mm3' % (a, b, v) for (a, b), v in ov.items()))
 
     # ------------------------------------------------------------ 6 magnets
     lines, good = [], True
