@@ -116,13 +116,13 @@ USB_SEAT_IN = 0.2          # the mouth sits this far inside the seat
 USB_BLOCK_T = 1.6          # wall behind the seat
 # RP-SMA female bulkhead (1/4-36 UNS), D-hole, nut inside
 SMA_HOLE_D, SMA_FLAT = 6.5, 5.9            # Ø6.5 with a flat 5.9 across
-SMA_NUT_KEEP = (10.4, 5.0)                 # nut + washer room inside (Ø, length past the wall)
-SMA_BODY_KEEP = (7.5, 9.0)                 # jack body and crimp behind the nut
+SMA_NUT_KEEP = (9.8, 3.6)                  # 5/16 in nut (9.2 across corners) + lock washer, past the wall
+SMA_BODY_KEEP = (7.0, 8.0)                 # thread end, crimp ferrule and the lead's bend
 # magnets: 10 x 3 mm discs, SH grade, epoxied flush in pockets
 MAG_D, MAG_T = 10.0, 3.0
 MAG_POCKET_D, MAG_POCKET_T = 10.3, 3.1
 MAG_FLOOR = 1.2
-MAG_BACK_D = 13.0
+MAG_BACK_D = 12.5
 
 # Prusa's assembly (plan_section.py)
 FLIP = np.array([[1, 0, 0, -4.21], [0, -1, 0, 3.39], [0, 0, -1, 45.68], [0, 0, 0, 1.0]])
@@ -686,7 +686,7 @@ def sma_search(folder, step=0.5):
             c = c0 + ex * a + ey * b
             # flat land: rays from 0.5 outside, along -n, hit the top part 0.5 away
             ring = [c + n * 0.5 + (ex * math.cos(t) + ey * math.sin(t)) * r
-                    for r in (0, 2.6, 5.2) for t in np.linspace(0, 2 * math.pi, 16, endpoint=False)]
+                    for r in (0, 2.4, 4.8) for t in np.linspace(0, 2 * math.pi, 16, endpoint=False)]
             loc, idx, _ = top.ray.intersects_location(ring, [-n] * len(ring), multiple_hits=False)
             if len(idx) < len(ring):
                 continue
