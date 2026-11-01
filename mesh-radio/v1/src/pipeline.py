@@ -194,7 +194,7 @@ def outer_escapes(b, refs=('NRF52840',), log=log):
             pins.append((face, along, fp.GetReference(), p.GetNumber()))
     pins.sort()
     n, failed = fanout.dogbones(b, [(r_, num) for _, _, r_, num in pins], via_d=board.VIA_SIG[0],
-                                via_drill=board.VIA_SIG[1], width=finish.SIG_W if finish.SIG_W <= 0.1 else 0.1,
+                                via_drill=board.VIA_SIG[1], width=board.SIG,
                                 cl=0.1, hole_gap=0.2)
     log('outer ball escapes: %d dog-bones, %d balls without one %s' % (n, len(failed), failed[:12]))
     return failed
@@ -228,9 +228,10 @@ def ball_escapes(b, via=None, clearance=0.1, hole_gap=0.2, log=log):
         R_, B_ = max(q.GetRight() for q in bbs), max(q.GetBottom() for q in bbs)
         side = pcbnew.F_Cu if fp.GetLayer() == pcbnew.F_Cu else pcbnew.B_Cu
         # a wafer-scale part (every pad a small round ball; not the nRF52840,
-        # whose outer ring has its dog-bones): every ball gets its via, the
-        # outer ones too (the TPS63810's VPA balls and the TPS22950's BAT_P
-        # were left unreachable after routing: 1 Nov)
+        # whose outer ring has its dog-bones): its outer supply balls get a
+        # via too (the TPS63810's VPA balls and the TPS22950's BAT_P were left
+        # unreachable after routing: 1 Nov); every via's hole keeps 0.2 mm
+        # from other nets' copper (vias in neighbouring 0.4 mm balls did not)
         wafer = not fp.GetValue().startswith('NRF52840') and all(
             q.GetWidth() / 1e6 <= 0.36 and q.GetHeight() / 1e6 <= 0.36
             and abs(q.GetWidth() - q.GetHeight()) / 1e6 < 0.06 for q in bbs)
@@ -243,7 +244,7 @@ def ball_escapes(b, via=None, clearance=0.1, hole_gap=0.2, log=log):
                 continue
             edge = min(bb.GetLeft() - L_, R_ - bb.GetRight(), bb.GetTop() - T_, B_ - bb.GetBottom()) / 1e6
             outer = edge < 0.05
-            if outer and not wafer:
+            if outer and not (wafer and net in SUPPLY):
                 continue                        # outer row: leaves on its own layer
             q = p.GetPosition()
             twin = [o for o, ob in zip(pads, bbs) if o is not p and o.GetNetname() == net
@@ -253,7 +254,9 @@ def ball_escapes(b, via=None, clearance=0.1, hole_gap=0.2, log=log):
                 continue
             x, y = q.x / 1e6, q.y / 1e6
             g = Point(x, y).buffer(d / 2, 16)
-            ok = obs.hole_room(x, y, drill / 2, hole_gap) and obs.clear(g, net, layers, clearance)
+            # and its hole keeps the fab's 0.2 mm from every other net's copper
+            ok = (obs.hole_room(x, y, drill / 2, hole_gap) and obs.clear(g, net, layers, clearance)
+                  and obs.clear(Point(x, y).buffer(drill / 2, 16), net, layers, 0.2))
             if not ok:
                 left.append((fp.GetReference(), p.GetNumber(), net)); continue
             v = pcbnew.PCB_VIA(b)
@@ -424,6 +427,7 @@ def finish_stage(routed, fin, work):
     if k:
         b.Save(routed)
         log('removed %d router-made ground tracks and vias' % k)
+    fab_fixups(routed)
     pcb.copy_project(routed, fin)
     finish.finish_board(routed, fin, os.path.join(work, 'fin.json'), rules=w, clmap=cl, skip=PLANES)
     write_rules(fin)
@@ -432,6 +436,62 @@ def finish_stage(routed, fin, work):
 
 
 SUPPLY = set(board.HEAVY + board.POWER + board.RAIL)
+
+
+def fab_fixups(path, log=log):
+    """Before the maze router: take out what the fab's limits forbid, for
+    the maze to route again (all from the 1 Nov 62 mm run's DRC):
+      - tracks narrower than the board's minimum (Freerouting necks its
+        tracks down to 0.075 mm at small pins);
+      - a via whose hole comes within 0.2 mm of another net's copper (the
+        neighbouring one of two such vias goes, a signal's before a supply's);
+      - tracks and vias inside an unplated hole's keepout (board.npth_keepouts)."""
+    import fanout
+    from shapely.geometry import Point
+    b = pcbnew.LoadBoard(path)
+    if not any(z.GetIsRuleArea() and z.GetZoneName() == 'unplated hole keepout' for z in b.Zones()):
+        board.npth_keepouts(b)
+    keep = set(PLANES) | set(board.RF_NETS) | set(board.RF_EXTRA)
+    thin = [t for t in b.GetTracks() if t.GetClass() == 'PCB_TRACK' and t.GetWidth() < pcbnew.FromMM(board.SIG) - 1000
+            and t.GetNetname() not in keep]
+    for t in thin:
+        pcb.remove(b, t)
+    # vias whose holes are too close to other copper
+    layers = [l for l in b.GetEnabledLayers().CuStack()]
+    nv = 0
+    for _ in range(3):
+        obs = fanout.Obstacles(b, layers)
+        bad = []
+        for v in b.GetTracks():
+            if v.GetClass() != 'PCB_VIA' or v.GetNetname() in keep:
+                continue
+            q = v.GetPosition()
+            hole = Point(q.x / 1e6, q.y / 1e6).buffer(v.GetDrillValue() / 2e6, 16)
+            if not obs.clear(hole, v.GetNetname(), layers, 0.2 - 0.002):
+                bad.append(v)
+        if not bad:
+            break
+        bad.sort(key=lambda v: (v.GetNetname() in SUPPLY, v.IsLocked()))
+        for v in bad[: max(1, len(bad) // 2)]:
+            if v in list(b.GetTracks()):
+                pcb.remove(b, v); nv += 1
+    # copper in the unplated-hole keepouts
+    rings = []
+    for z in b.Zones():
+        if z.GetIsRuleArea() and z.GetZoneName() == 'unplated hole keepout':
+            ol = z.Outline().Outline(0)
+            from shapely.geometry import Polygon
+            rings.append(Polygon([(ol.CPoint(i).x / 1e6, ol.CPoint(i).y / 1e6) for i in range(ol.PointCount())]))
+    ne = 0
+    for t in list(b.GetTracks()):
+        if t.GetNetname() in keep:
+            continue
+        g = finish._geom_of(t)
+        if g and any(r.intersects(x) for r in rings for gs in g.values() for x in gs):
+            pcb.remove(b, t); ne += 1
+    pcb.save_board(b, path)
+    log('fab fixups: %d thin tracks, %d vias with close holes, %d pieces in unplated-hole keepouts taken out'
+        % (len(thin), nv, ne))
 
 
 def finish_rest(fin, work, w=None, cl=None):

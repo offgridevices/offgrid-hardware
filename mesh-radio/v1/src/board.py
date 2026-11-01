@@ -109,6 +109,22 @@ def net_classes(b, comps):
                  via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
 
 
+def npth_keepouts(b, edge=0.3, margin=0.08):
+    """No track or via within the edge clearance of a part's unplated hole
+    (the USB-C's pegs count as board edge): a ring round each, all layers."""
+    k = 0
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetAttribute() != pcbnew.PAD_ATTRIB_NPTH:
+                continue
+            q = p.GetPosition()
+            r = max(p.GetDrillSize().x, p.GetDrillSize().y) / 2e6 + edge + margin
+            pcb.rule_area(b, pcb.circle_poly(q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY, r), CU,
+                          tracks=True, vias=True, pads=False, pours=False, name='unplated hole keepout')
+            k += 1
+    return k
+
+
 def build(out, replace=False):
     import layout
     pcbnew.KIID.SeedGenerator(SEED)
@@ -152,6 +168,7 @@ def build(out, replace=False):
     for gl in [pcb.INNER['gnd']] + ([pcb.INNER['gnd2']] if 'gnd2' in pcb.INNER else []):
         pcb.zone(b, 'GND', pcb.layer_id(gl), full, clearance=0.15, min_width=0.15, priority=0, name='GND plane')
     pcb.hole_keepouts(b, CU)
+    npth_keepouts(b)
     # and on F.Cu: no ground pour or via near the antenna (its feed line may pass)
     x0, y0, x1, y1 = layout.ANT_BOX
     pcb.rule_area(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], [pcbnew.F_Cu], tracks=False, vias=True,
