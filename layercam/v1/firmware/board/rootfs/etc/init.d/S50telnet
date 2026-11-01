@@ -1,0 +1,3 @@
+#!/bin/sh
+# LayerCam: no telnet server (Buildroot installs this when BusyBox telnetd is configured).
+exit 0

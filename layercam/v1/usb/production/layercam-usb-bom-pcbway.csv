@@ -1,0 +1,7 @@
+Item #,Designator,Qty,Manufacturer,Manufacturer Part Number,Description,Value,Package/Footprint,Type,LCSC Part #,Digi-Key Part #,Side
+1,J2,1,JST,SM06B-SRSS-TB(LF)(SN),"JST SH 1.0 mm 6 pin, right angle, SMD",SH 6,CONN-SMD_SM06B-SRSS-TB-LF-SN,SMD,C160405,,Top
+2,"R1,R2",2,UNI-ROYAL,0402WGF5101TCE,Resistor 5.1k 1% 0402,5.1k,R_0402_1005Metric,SMD,C25905,,Bottom
+3,D1,1,Leiditech,SMF6.0CA,"TVS 6 V stand-off, bidirectional, 200 W, SOD-123FL",SMF6.0CA,SOD-123FL_L2.8-W1.8-LS3.7-BI,SMD,C353271,,Top
+4,J1,1,GCT,USB4105-GF-A-120,"USB-C receptacle, USB 2.0, 16 contacts, 1.2 mm board, -40..85 degC",USB-C,USB-C_SMD-TYPE-C-31-M-12_1,SMD,C5184243,2073-USB4105-GF-A-120CT-ND,Top
+5,C1,1,Murata,GRM188C81A106MA73D,Capacitor 10uF 10V X6S 0603,10uF,C_0603_1608Metric,SMD,C576470,,Top
+6,U1,1,STMicroelectronics,USBLC6-2SC6,"USB ESD protection, SOT-23-6",USBLC6-2SC6,SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL,SMD,C7519,,Top

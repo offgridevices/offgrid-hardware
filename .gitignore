@@ -42,6 +42,7 @@ out/
 
 # Board build output that duplicates a committed file (the Gerber zip)
 */v*/production/gerbers/
+*/v*/*/production/gerbers/
 
 # Firmware build output (PlatformIO)
 .pio/

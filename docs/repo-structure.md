@@ -26,7 +26,12 @@ docs/                       how we build boards (this folder)
 A board may add folders it needs (`firmware/`, `fonts/`, `enclosure/` for a
 printed case: its code and `print/` STLs), but keeps these
 names for the ones above. (`packet-logger-carrier/v1` predates this layout
-and stays as it was ordered.)
+and stays as it was ordered.  `ridge-3/` is an exception too: both boards
+of its stack in one folder with no revision folder, the revision in its code
+and on its silkscreen (`REV 2.0`), its trade-offs in `docs/RELIABILITY.md` and its
+decisions in `docs/STATUS.md`; its `TESTS.md` and README are where this
+layout puts them.  Where its next revision goes is decision D9 in its
+`docs/STATUS.md`.)
 
 ## What gets committed
 
@@ -60,4 +65,7 @@ and stays as it was ordered.)
 Each board has a job in `.github/workflows/ci.yml` that runs its build in its
 pinned toolchain, every gate included, and fails if the committed fab files
 differ from the build. The build includes the artwork, so a brand change that
-was not applied to the board fails CI. A new board adds its job in the same PR.
+was not applied to the board fails CI. (`ridge-3/`'s job builds from the
+committed boards' silkscreen without drawing it again, so there a brand or
+silkscreen change is applied with its `make.py --artwork` before it is
+committed.) A new board adds its job in the same PR.
