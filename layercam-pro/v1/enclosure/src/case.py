@@ -518,7 +518,7 @@ def build(folder, log=print):
     back_add = (union(add) ^ Eps) - sink_keep - sma_keep
     back = back + back_add
     back = back - union(cut) - union(mag_cuts) - union(sma_cuts) - union(usb_cuts)
-    back = back - board_clear_except_bosses(board_clear)
+    back = back - board_clear_except_bosses(board_clear) - sma_keep
     back = back - sink_keep - lid_region
     back = back ^ above
 
@@ -646,7 +646,7 @@ def sma_features(plane, Eps, N):
     return cuts, [land], keep, dict(centre=c, n=n, ex=ex, ey=ey)
 
 
-SMA_CENTRE = (24.6, -17.2)     # X, Y on the face (chosen by sma_search)
+SMA_CENTRE = (28.13, 20.42)    # X, Y on the face: the best spot found by sma_search
 
 
 def sma_keep_points(c, n, step=0.8):
