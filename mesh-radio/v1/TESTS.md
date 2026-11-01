@@ -7,7 +7,7 @@ row first (still needed? still right? anything missing? did hardware
 disagree?).
 
 > **Where this revision stands (20 Oct 2026).** The layout is placed
-> (58 × 25.4 mm, 6 layers). **Routing is in progress, not finished.** So:
+> (62 × 25.4 mm, 6 layers). **Routing is in progress, not finished.** So:
 >
 > - the build gates that need the routed board (DRC, copper nets, BOM and
 >   CPL, fab files) have **no result yet**;
@@ -110,7 +110,7 @@ ideal 50 Ω lines: **re-run with the routed board's lengths**.
 
 `run.py` ran on 19 Oct 2026 (95b5e69) on a **62 × 25.4 mm, 4-layer model of
 an earlier placement**. `followup.py` (19 Oct, 8ec13da) added 6-layer board
-options. The board is now 58 mm and 6 layers. The copper is an input
+options. The board is now 62 mm and 6 layers. The copper is an input
 (coverage and via figures): **re-run with the routed board's copper**.
 
 | Simulation | Checks | How | v1 result |

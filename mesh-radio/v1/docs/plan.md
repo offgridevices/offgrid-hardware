@@ -117,8 +117,10 @@ with its parts), for a total of roughly **$40**. See question 2.
 - **243 assembled parts, on both sides** (250 in the circuit: 6 test pads
   and the unfitted expansion header are not assembled). About half of them
   are the amplifier, filters and power protection the RAK does not have.
-- **58 × 25.4 mm** (19 Oct). The Heltec V4 is 51.7 mm long. 57 mm does not
-  fit: the amplifier's choke meets a mounting hole.
+- **62 × 25.4 mm** (owner, 1 Nov). The Heltec V4 is 51.7 mm long. 58 mm
+  placed but would not route: about 19 connections stayed open in the
+  crowded middle after every placement fix, so the owner chose 4 mm more
+  over dropping the expansion header.
 - **6-layer board** (owner, 19 Oct), JLCPCB stackup JLC06161H-2116B:
   layer 2 is ground, kept solid under every radio line and the Bluetooth
   antenna; elsewhere it, and layers 3, 4 and 5, carry signals with ground
@@ -214,6 +216,19 @@ Every finding was fixed:
    bursts.
 8. **The node is on, on the mesh and charging while the drone carries it**
    (the 14 Oct Cairn decision; Notion's 16 Sep note said off until release).
+
+## Owner decisions (1 Nov 2026)
+
+1. **Board 62 mm long** (was 58 mm), keeping every feature, the expansion
+   header included.
+2. **Keep 3 W.** Above 1 W each transmission starts at 1 W or less (the
+   amplifier at 2.25 V, under its 2.7 V data-sheet minimum, for about
+   0.75 ms), checks the antenna, then rises. Verify the 2.25 V start on the
+   first built boards before using more than 1 W.
+3. **Standard 2-pin battery plug.** The one rare reversed-battery sequence
+   (a good cell pulled out under external power, then a reversed one) is
+   accepted as it is: it passes in simulation and firmware clears it; test
+   it on the bench.
 
 ## Owner decisions (19 Oct 2026)
 
