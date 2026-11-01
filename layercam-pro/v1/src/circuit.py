@@ -23,7 +23,7 @@ camera case:
 LayerCam v1's main-board circuit is the starting point; what changed and
 why is said where it changed.  The RV1106 pin plan follows Luckfox's RV1106
 boards (the SDK's device trees); the Wi-Fi and sensor hookup and its
-sources: docs/hookup.md.  The firmware's device tree (firmware/dts/) is
+sources: docs/hookup.md (31 Oct-1 Nov 2026).  The firmware's device tree (firmware/dts/) is
 checked against this file by src/verify.py.
 """
 

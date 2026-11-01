@@ -100,5 +100,5 @@ USB_TAB = 2.2                              # how far the tab stands out from the
 USB_TAB_W = 10.4
 
 # ---------------------------------------------------------------- Wi-Fi
-# ESP32-C6-MINI-1U-H4 on the back face; its U.FL takes a short U.FL to
-# RP-SMA bulkhead lead to the case wall (enclosure/).
+# ESP32-C6-MINI-1U-H4 on the back face; its MHF III (W.FL) socket takes a
+# short MHF III to RP-SMA bulkhead lead to the case wall (enclosure/).

@@ -4,7 +4,7 @@ Computed by `sim/power_budget.py` from `src/circuit.py` / `src/parts.py` (divide
 
 ## Verdict
 
-**PASS with WARNs.** In snapshot mode (the requirement) the camera averages 0.18 A by day and 0.21 A by night with the Wi-Fi's power save off as built (0.15 / 0.18 A once it is on), 0.53 A during a night shot: all well inside the port's 1 A. Heat in the case in snapshot mode: 0.91 W by day, 1.03 W by night (power save off); 0.73 / 0.86 W with it on. Live view and the stress bound are reported only.
+**PASS with WARNs.** In snapshot mode (the requirement) the camera averages 0.18 A by day and 0.21 A by night with the Wi-Fi's power save off (the C6 firmware built without tools/c6-power-save.sh) (0.15 / 0.18 A once it is on), 0.53 A during a night shot: all well inside the port's 1 A. Heat in the case in snapshot mode: 0.91 W by day, 1.03 W by night (power save off); 0.73 / 0.86 W with it on. Live view and the stress bound are reported only.
 
 - **Wi-Fi power save off costs 169 mW** in snapshot mode (the C6 at 98 mA against 47 mA with it on): the C6 is then the second-largest heat source in the case after the RV1106.
 - VDD_0V9: 51k / 100.0k = 0.906 V (0.882-0.930) in 0.850-0.950.
@@ -32,9 +32,9 @@ Espressif's module datasheet v1.5 (3.3 V, 25 C) gives:
 | modem-sleep, 160 MHz, CPU idle, peripheral clocks on | 28 mA | table 6-7 |
 | light-sleep | 0.18 mA | table 6-8 |
 
-**Power save is OFF** on the C6 as built: esp-hosted gives Linux no way to turn it on, so the receiver listens all the time (88 mA: the RX figure plus an assumed 10 mA for esp-hosted's CPU and the SDIO link). In snapshot mode each 10 s carries one ~1 MB JPEG: 5 % TX airtime at 295 mA (HT20 MCS7, 18 dBm) and the radio on for 10 % of the time.
+**Power save is OFF** unless the C6's firmware is built with it on (`firmware/tools/c6-power-save.sh`, which the 65 C rating needs): esp-hosted gives Linux no way to turn it on, so the receiver listens all the time (88 mA: the RX figure plus an assumed 10 mA for esp-hosted's CPU and the SDIO link). In snapshot mode each 10 s carries one ~1 MB JPEG: 5 % TX airtime at 295 mA (HT20 MCS7, 18 dBm) and the radio on for 10 % of the time.
 
-| C6 average | power save off (as built) | power save on (modem-sleep between DTIM beacons) |
+| C6 average | power save off (firmware built without the power-save step) | power save on (modem-sleep between DTIM beacons) |
 |---|---|---|
 | snapshot mode | **98 mA** (320 mW) | **47 mA** (151 mW) |
 | live view (~4 Mbit/s up, 15 % TX) | 119 mA | the same (the radio is busy) |
@@ -57,7 +57,7 @@ The LDO drops 0.45 V (3.3 V rail nominal 3.255 V; TLV755P dropout about 0.2 V at
 
 | case | 0.9 V | DDR 1.36 V | 1.8 V | 3.3 V | Wi-Fi 3.25 V | IR LEDs (VSYS) | VSYS current | VSYS power |
 |---|---|---|---|---|---|---|---|---|
-| snapshot, day, Wi-Fi power save OFF (as built): one still every 10 s, idle between (REQUIREMENT CASE) | 0.24 A | 0.06 A | 0.041 A | 0.048 A | 0.098 A | 0 mA | **0.18 A** | 0.92 W |
+| snapshot, day, Wi-Fi power save OFF (firmware built without the power-save step): one still every 10 s, idle between (REQUIREMENT CASE) | 0.24 A | 0.06 A | 0.041 A | 0.048 A | 0.098 A | 0 mA | **0.18 A** | 0.92 W |
 | snapshot, night, Wi-Fi power save OFF: the same, IR LEDs on for 2 s of each 10 s (REQUIREMENT CASE) | 0.24 A | 0.06 A | 0.041 A | 0.048 A | 0.098 A | 29 mA | **0.21 A** | 1.06 W |
 | snapshot, day, Wi-Fi power save ON (once fixed) | 0.24 A | 0.06 A | 0.041 A | 0.048 A | 0.047 A | 0 mA | **0.15 A** | 0.75 W |
 | snapshot, night, Wi-Fi power save ON (once fixed) | 0.24 A | 0.06 A | 0.041 A | 0.048 A | 0.047 A | 29 mA | **0.18 A** | 0.89 W |

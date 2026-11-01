@@ -115,7 +115,7 @@ iq_dir = /etc/iqfiles
 # for backend = command: any program that writes one JPEG to {out}
 command = ffmpeg -loglevel error -f v4l2 -i /dev/video0 -frames:v 1 -q:v 3 -y {out}
 # none, h, v, both
-flip = none
+flip = both
 # reported to Connect: 0, 90, 180, 270
 rotation = 0
 # between pictures when no print is on: standby (sensor and ISP stopped) or stream (2 fps)

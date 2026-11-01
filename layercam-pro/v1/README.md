@@ -1,98 +1,300 @@
 # LayerCam Pro v1
 
-A camera for the inside of a Prusa CORE One, on one circuit board, in a
-printed case with the outside of Prusa's Buddy3D camera case. It sees the
-whole bed in daylight and in infrared, feeds Prusa Connect, takes one
-picture per layer while the head is parked, makes the timelapse into an MP4
-on the camera, and uploads it to a NAS or S3.
+A camera for the inside of a Prusa CORE One, on one circuit board. It sits
+in a printed case with the outside of Prusa's Buddy3D camera case, so it
+fits the same corner of the printer. It sees the whole bed in daylight and
+in infrared, and feeds Prusa Connect. It takes one picture per layer while
+the head is parked, makes the timelapse into an MP4 on the camera, and
+uploads it to a NAS or S3.
 
-**Status: planned. This README is the plan; nothing has been designed,
-made or powered.** The decisions behind it are in
-[`docs/decisions.md`](docs/decisions.md). The part checks (in production,
-stock, temperature) are in
-[`docs/parts-check-2026-10-31.md`](docs/parts-check-2026-10-31.md).
+One board carries everything: the image sensor, the infrared lights, the
+light sensor, the main chip, the Wi-Fi and the USB-C. The lens, the
+day/night filter holder, the heatsink and the antenna are bought
+separately. Fab and assembly: PCBWay. The case is printed by the owner.
 
-![The plan in section](images/plan-section.png)
+**Status: designed; not yet built.** Nothing here has been made or
+powered. Every result below is a design check or a simulation.
 
-*Prusa's case outside, cut through the lens. One board (green) sits where
-the case is widest, about 66 mm across. The image sensor and the lens
-holder are on its front face. Light pipes carry the infrared light to
-Prusa's six front holes. A stock 20 x 20 x 15 mm heatsink sits on the main
-chip, 15 mm off the lens axis, under three of the lid's six vent slots.
-Drawn, with its fit checks,
-by `src/plan_section.py` from Prusa's case files.*
+![Cut through the lens](enclosure/images/case-cutaway.png)
 
-## What it has to do
+*The case cut through the lens. The board (green) sits at the case's
+widest point. Six 2 mm clear rods (red) carry the infrared light to
+Prusa's six front holes. The heatsink stands under the lid's vent slots.
+Prusa's case is drawn in thin grey for comparison.*
 
-| Requirement | How it will be checked |
-|---|---|
-| **One circuit board.** Image sensor, infrared lights, light sensor, main chip, Wi-Fi, USB-C and every other part on it. No flat cables or board-to-board cables inside the case; the one lead is the antenna's, from the Wi-Fi module to the case wall | the BOM and the assembly drawing: one board, no board-to-board cable |
-| **One order at PCBWay:** one Gerber zip, one BOM and one placement file; PCBWay buys and fits every part | PCBWay's quote. The one known exception is the bare image sensor (see *Risks*) |
-| **Prusa's outside, our inside.** Same outer shape and magnets, so it fits the same top-left front corner of the CORE One. The USB-C socket stays on the same side wall, but the plug goes in level, not tilted about 28° as on Prusa's case | the case is built from Prusa's published files (Printables 1343977, GPL v2); a check script measures the board against the new case |
-| **A 65 °C chamber** (first 70 °C; changed by the owner, *decisions.md*). Every part inside its rating with the chamber at 65 °C, in snapshot and timelapse mode, cooled by a stock heatsink only (no fan), the Wi-Fi's power save on. Prusa's firmware caps the chamber at 55 °C (CORE One) and 60 °C (CORE One L) | a thermal model of the routed board (`sim/thermal.py`), then an oven test of a built camera |
-| **Never shorts in the heat.** Parts rated well above what they will see, a high-temperature board (Tg 170), coated, and no bare copper that can touch the carbon-fibre case | the part ratings, the thermal model, the design checks |
-| **Every part in production today**, bought by PCBWay from the usual distributors | [`docs/parts-check-2026-10-31.md`](docs/parts-check-2026-10-31.md), checked again before ordering |
-| **Everything else from Amazon:** heatsink, magnets, antenna, antenna cable, USB-C cable | the *How to order* list names each one |
-| **Wi-Fi 6, 2.4 GHz,** to an antenna that screws on outside the case | a range test in a printer |
-| **1080p or better, wide angle** (the whole bed), and **night vision** (infrared LEDs, a light sensor, a day/night filter) | test pictures in a printer, day and night |
-| **Prusa Connect, the per-layer timelapse, upload to SMB / NFS / S3** | LayerCam's camera software, carried over, with its tests |
-| **High-quality parts, not expensive; can be sold as a product.** The Wi-Fi is already approved for sale in the US (FCC) | the BOM cost from PCBWay's quote |
+![Cut along the USB-C and the antenna socket](enclosure/images/case-cutaway-usb-antenna.png)
 
-## The plan
+*Left: the USB-C plug goes in level, in the same side wall as Prusa's.
+Right: the antenna socket (RP-SMA) in the back shell.*
+
+## This revision
 
 | | |
 |---|---|
-| **Board** | One 6-layer board, about 66 x 60 mm with its corners cut to the case. It sits at the case's widest point, where its two halves meet, and is clamped between them. Tg 170 material, ENIG finish, 1.6 mm |
-| **Main chip** | Rockchip RV1106G3, as on LayerCam: Linux, image processor, H.264 video encoder, 256 MB memory inside. LayerCam's camera software (Prusa Connect, timelapse, uploads; 192 tests) carries over |
-| **Image sensor** | SmartSens **SC4336H** (4 MP), soldered straight on the board's front face. It replaces the SC3336 that LayerCam uses, which SmartSens now lists as legacy; it is in mass production and is said to fit the same pads. The camera software already has the driver for its close relative, the SC4336 |
-| **Lens and day/night filter** | An M12 lens in an M12 holder with a built-in day/night (IR-cut) filter, screwed to the board over the sensor. The lens front sits just behind the case's front face |
-| **Wi-Fi** | Espressif **ESP32-C6-MINI-1U-H4**: Wi-Fi 6 at 2.4 GHz, **rated to 105 °C**, US approved (FCC), about $4.40. It talks to the main chip over SDIO with Espressif's Linux driver (`esp-hosted`). The main chip programs it, so there is no second programming step at the factory |
-| **Antenna** | A short U.FL to RP-SMA cable (bought in bulk) from the Wi-Fi module to a socket in the case wall. A 2.4 GHz screw-on antenna outside, no stronger than the gain the Wi-Fi module is approved with |
-| **Infrared lights** | Six 860 nm LEDs (OSRAM SFH 4715CS, rated to 125 °C) on the board's front face, with a light pipe on each. The pipes carry the light about 19 mm to Prusa's six front holes and keep its wide beam (Bivar LPV2-0750, PCB-mounted, fitted by PCBWay). **Open:** four of the six LEDs clash with the IR-cut holder (see *Risks*) |
-| **Light sensor** | Behind Prusa's light window, looking through a printed tube |
-| **USB-C** | Power only (and firmware flashing), on the board's edge, out of the case's side wall, plug level with the board |
-| **Cooling** | A stock aluminium heatsink, **20 x 20 x 15 mm** on 3M 8810 tape, on the main chip. The chip sits 15 mm off the lens axis, so the heatsink is under three of the lid's six vent slots and fits inside the case at every height. Its top ends 0.7 mm or more under the vents because the new lid is 1.6 mm thick there (Prusa's is 3.4 mm; a 10 mm heatsink would leave 5 mm of trapped air). So it sits in the chamber's air, not air trapped in the case. The size is sold (seen at Newegg); an Amazon listing is to be confirmed. Parts are spread over a board nearly twice the size of LayerCam's main board. The camera sleeps between pictures and drops to snapshots when hot, as LayerCam does |
-| **Case** | Printed by OffGrid in PC carbon fibre (Prusa's own recommendation for this case). Prusa's outside; a new inside: the board seat, the light-pipe guides, the light-sensor tube, the antenna socket, a level USB-C opening, vents over the heatsink. Built from Prusa's published files, which are GPL v2, so our case files are published under GPL v2 too |
-| **Magnets** | Round disc magnets from Amazon, high-temperature grade (SH, 150 °C), in printed pockets on the outside, set with heat-proof epoxy (J-B Weld) |
-| **Fab** | PCBWay: one board, one Gerber zip, BOM and placement file |
+| Revision | **v1** (product: [`../README.md`](../README.md)), printed on the board (`LayerCam Pro V1`) |
+| Status | designed, not yet built |
+| Board | one 6-layer board, {{BOARD_SIZE}} mm, cut to fit the case |
+| Tests and simulations | [`TESTS.md`](TESTS.md): every one with its v1 result |
+| Trade-offs | [`docs/decisions.md`](docs/decisions.md) |
+| Parts and stock | [`docs/parts.md`](docs/parts.md) (check stock again before ordering); the dated check: [`docs/parts-check-2026-10-31.md`](docs/parts-check-2026-10-31.md) |
+| The case | [`enclosure/README.md`](enclosure/README.md) (GPL v2, from Prusa's published files) |
+| Camera software | [`firmware/README.md`](firmware/README.md) |
+| Toolchain | KiCad 10.0.7 (pinned image, `tools/Dockerfile`), Freerouting 1.9.0 and 2.5.0 |
+| Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../docs/brand.md)): the lockup, the name and revision, the US flag, on the back face |
 
-## Risks, and how each is closed before ordering
+## What it had to do, and whether it does
 
-| Risk | What closes it |
-|---|---|
-| **The Wi-Fi driver is not proven on the RV1106.** Espressif's driver supports the ESP32-C6 over SDIO on Linux 4.9 and later, but nobody has shown it on this chip | A bench test with parts from Amazon: a Luckfox Pico Max (RV1106) and an ESP32-C6 dev board, joined through its microSD slot with a microSD breakout. Snapshots and an upload over Wi-Fi, before the board is designed around it |
-| **The bare image sensor is not sold by Digi-Key, Mouser or LCSC.** It is sold through SmartSens and its agents | Ask PCBWay to source the SC4336H in the quote. Fallback: buy it from a SmartSens agent and send it to PCBWay with the order |
-| **SC4336H software:** the SDK has the SC4336 driver and tuning, not the SC4336H | Compare the two datasheets; port the driver (usually a chip ID and register table). Early test on a cheap SC4336H camera board if one is sold |
-| **The image sensor is rated to 85 °C and gives its best picture up to 60 °C, and it cannot be far from the main chip.** The lens bore fixes the sensor on the case's axis, and the lid's vent slots (Prusa's outside) sit around that axis too, so the main chip has to be near it to get its heatsink under the vents. At 15 mm off the axis (the case's limit is 15.5 mm), the two chips are about 5.8 mm apart edge to edge, on opposite faces | A slot in the copper between them and the sensor on its own ground island; the thermal model of the routed board has to show the sensor under 85 °C at a 65 °C chamber. If it does not: more vent slots over the heatsink (an outside change), or the chip further from the sensor with fewer slots over it |
-| **Parts that stop at 85 °C:** the USB-C socket (no 105 °C USB 2.0 socket exists), the memory chip, the sensor | Place them at the cool edge; the thermal model checks each against its rating |
-| **Four LEDs clash with the IR-cut holder.** Straight pipes put each LED right under its hole, at R 13.0 every 60°. The CLA219's base (21.2 x 19.6 mm, a full rectangle with its screw ears) covers the 60°, 120°, 240° and 300° LEDs by 0.42 mm at any rotation. Only the 2 mm pipe itself clears (0.45 mm). LayerCam v1 never met this: its LEDs are on a ring near the front | Settle before layout, in this order: (1) an IR-cut holder whose base clears the four LEDs by 0.5 mm with their adapters (drawings of compact holders); (2) LEDs moved out to R 14.1 or more, with pipes tilted about 3° by printed guides, or flexible light guides rated for the heat; (3) moving Prusa's holes, which changes the outside and was rejected |
-| **The day/night filter holder has no published temperature rating** (the ones found are rated to 70 °C) | Ask Commonlands for the CLA219's rating; test in the oven |
-| **Light pipe temperature rating:** Bivar gives -40 to 125 °C for its polycarbonate pipes in general, not for this part | Confirm with Bivar; oven test |
-| **Carbon-fibre plastic conducts a little** | No bare copper at the board edge or near the case; the board is coated; the case touches only the grounded mounting holes |
-| **The antenna moves near the gantry.** The camera sits in the top corner, where the CoreXY gantry runs | The socket points down along the frame post; a short antenna; checked in a printer |
-| **Selling it in the US:** the Wi-Fi module is approved only with antennas of the same type and no more gain than it was tested with | Read the module's FCC grant for its antenna list; name or ship a matching antenna, and say so in the manual |
+| Requirement | Met? | How it is checked |
+|---|---|---|
+| **One circuit board.** Every part on it; no flat cables or board-to-board cables inside. The one lead is the antenna's | **Yes, in the design.** `circuit.py` has one board. The antenna lead runs from the Wi-Fi module to the case wall | the build's BOM and placement gates ({{PARTS}} parts in {{BOM_LINES}} BOM lines) |
+| **One order at PCBWay:** one Gerber zip, one BOM, one placement file | **Yes, but for one part.** The bare image sensor (SC4336H) is not stocked by Digi-Key, Mouser, LCSC or JLCPCB. PCBWay has to source it from SmartSens or its agents, or it is bought and sent to them | PCBWay's quote, not yet asked |
+| **Prusa's outside, our inside.** Same shape, same corner of the printer. USB-C in the same side wall, the plug level | **Yes, on paper, with one gap open.** The case is Prusa's outside surface with a new inside. The board clears the case by 0.28 mm at its tightest, where 0.5 mm was asked (*Limits*) | `enclosure/src/check.py`: 12 checks pass, the 2 clearance checks do not. Not yet printed |
+| **A 65 °C chamber**, in snapshot and timelapse mode, with the ESP32-C6's power save on. Stock heatsink, no fan. (Prusa's firmware caps the chamber at 55 °C on the CORE One and 60 °C on the CORE One L) | **Yes, in the model, by 3.5 K.** Every part stays in its rating up to a 68.5 °C chamber by night and 70.6 °C by day. The model is good to about ±10 K, and it used the placement, not the routed board | `sim/thermal.py` (`sim/thermal.md`). An oven test of the first camera at 65 °C decides |
+| **Never shorts in the heat.** Parts rated above what they see; a high-temperature board (Tg 170); no bare copper that can touch the carbon-fibre case | **Partly.** Every part is in its rating in the model. Copper and parts keep 0.6 mm from the board edge; the case touches the board only at the four screw pads. The coating the plan named is not ordered (`docs/decisions.md`, *Open*) | the part ratings, `sim/thermal.md`, the design rules |
+| **Every part in production today** | **Yes**, as checked on 31 Oct and 1 Nov 2026. Thin stock: the RV1106G3 (257 at JLCPCB), the IR LEDs (0 at JLCPCB) | [`docs/parts.md`](docs/parts.md) |
+| **Everything else from Amazon** | **Partly.** The antenna, its lead, the screws, the rods and the epoxy are Amazon searches. The lens (Towin), the day/night filter holder (Commonlands), the SH-grade magnets (K&J Magnetics) and the heatsink tape (Digi-Key) are not on Amazon as exact parts. The heatsink's Amazon listing is not confirmed | *How to order* |
+| **Wi-Fi 6, 2.4 GHz,** to an antenna screwed on outside | **Yes, in the design.** ESP32-C6-MINI-1U-H4, a short lead to an RP-SMA socket in the case wall, a 2 dBi antenna. Its Linux driver has not been run on this main chip by anyone yet | `firmware/` host tests; a range test in a printer |
+| **1080p or better, wide angle; night vision** (IR LEDs, light sensor, day/night filter) | **Yes, on paper.** 4 MP sensor (2560 x 1440); timelapse at 1920 x 1080; 2.8 mm lens. Six 850 nm LEDs, a light sensor, an IR-cut filter. The sensor's driver needs SmartSens' chip ID and register table (under NDA) | `sim/power.md` (LED currents). The picture is untested |
+| **Prusa Connect, the per-layer timelapse, upload to SMB / NFS / S3** | **Yes, in software.** LayerCam's camera software, moved to the Pro's parts | `firmware/` host tests: 209 run, 208 pass, 1 skipped. Not tried on a printer |
+| **Good parts, not expensive, can be sold.** The Wi-Fi is approved for sale in the US | **Partly.** The Wi-Fi module has its FCC approval; the antenna must be 2.33 dBi or less (2 dBi chosen). The USB IDs are a placeholder. The cost is PCBWay's quote, not yet asked | `docs/parts.md`; the FCC grant's antenna list is still to read |
 
 ## Next steps
 
-1. **Bench test the Wi-Fi** on a Luckfox Pico Max and an ESP32-C6 dev
-   board (both on Amazon).
-2. **Ask PCBWay** whether they can source the SC4336H, and get a rough
-   quote for a 6-layer board of this size with assembly.
-3. **Settle the LED and IR-cut holder clash** (*Risks*), then **ask Commonlands and Bivar** for the temperature ratings of the IR-cut
-   holder and the light pipes.
-4. **Design the board**, following [`docs/new-board.md`](../../docs/new-board.md):
-   circuit in code, placement, routing, design checks, thermal model at 65 °C.
-5. **Design the case's inside** from Prusa's files.
-6. **Order 5, build, oven test at 65 °C, try it on a CORE One.**
+1. **Finish the board** and run every gate: `tools/kd python3 src/make.py`.
+   Fill in the build results in `TESTS.md` and this README.
+2. **Run the thermal model again on the routed board** (`sim/thermal.py`).
+   Today's numbers use the placement and LayerCam v1's copper.
+3. **Settle the open points** in [`docs/decisions.md`](docs/decisions.md),
+   *Open*: the case clearance, the rod length, the coating, the magnets.
+4. **Add the board's CI job** (`ci / layercam-pro-v1`), as
+   [`docs/repo-structure.md`](../../docs/repo-structure.md) asks.
+5. **Ask PCBWay** to source the SC4336H and quote the board. Ask SmartSens
+   or its agent for the SC4336H's ball map, chip ID and driver.
+6. **Order 5 boards** from PCBWay and the parts in *How to order*. Check
+   stock first.
+7. **Print one case**, build one camera, bring it up (*How to build one*,
+   *How to bring it up*). Fill in the hardware rows of `TESTS.md`.
+8. **Oven test** in the printed case at 65 °C for 4 hours, then re-run
+   `sim/thermal.py` with the measured currents.
+9. **Try it on a CORE One:** Prusa Connect snapshots, a per-layer timelapse
+   uploaded to a NAS and S3, Wi-Fi range with the antenna fitted.
+10. Changes that need new copper go into `v2/`
+    ([`docs/versioning.md`](../../docs/versioning.md)).
 
 ## Where things are
 
 | | |
 |---|---|
-| [`docs/decisions.md`](docs/decisions.md) | every decision so far, and what it costs |
-| [`docs/parts-check-2026-10-31.md`](docs/parts-check-2026-10-31.md) | the main parts: in production, stock, price, temperature, with sources |
-| `images/plan-section.png` | the plan drawn in Prusa's case |
-| [`src/plan_section.py`](src/plan_section.py) | draws it from Prusa's case files (downloaded, not committed) and checks the LEDs against the IR-cut holder and the heatsink against the lid. It fails today on the LED clash, an open risk |
+| `src/` | the board as code: `circuit.py` (the schematic), `parts.py`, `geometry.py` (every number the board shares with the case), `layout_main.py` (placement), routing, fab files, design checks; `plan_section.py` drew the first plan |
+| `layercam-pro.kicad_pcb` | the routed board (with its `.kicad_pro` and `.kicad_dru`), made by the build |
+| `production/` | what PCBWay needs: Gerber zip, BOM, placement file; also the netlist and the assembly PDF |
+| `images/` | renders of the board; `plan-section.png` is the first plan (31 Oct), before the board was cut to the case and the light pipes became rods |
+| `mechanical/` | the STEP model of the assembled board |
+| `sim/` | impedance, power and thermal simulations, with their results (`*.md`) |
+| `firmware/` | the camera software, device tree, SDK config, slicer G-code ([`firmware/README.md`](firmware/README.md)) |
+| `enclosure/` | the printed case: its code, `print/` (the three STLs), `images/` ([`enclosure/README.md`](enclosure/README.md)) |
+| `docs/` | [`decisions.md`](docs/decisions.md) (why), [`parts.md`](docs/parts.md), the dated parts check |
+| `lc.pretty/`, `lc.3dshapes/` | the footprints and 3D models the board uses |
+| `fonts/` | the brand's typefaces for the silkscreen (OFL) |
+| `tools/` | the pinned toolchain (`Dockerfile`, `kd`), the fab-file check, the stock check (`lcsc.py`) |
+| [`TESTS.md`](TESTS.md) | every test and simulation, and its result |
 
-The rest of the folder (`src/`, `production/`, `sim/`, `firmware/`,
-`enclosure/`, `TESTS.md`) comes with the design.
+## How to order
+
+Two orders: the board from **PCBWay**, and everything else from the shops
+below. Everything below is per camera. Parts were checked on 31 Oct and
+1 Nov 2026 (`docs/parts.md`): check stock again before ordering.
+
+### 1. PCBWay: the board, assembled
+
+One "PCB + SMT assembly" (turnkey) order. Upload the three files in
+`production/`:
+
+| Gerbers | BOM | Placement |
+|---|---|---|
+| `production/layercam-pro-gerbers.zip` | `production/layercam-pro-bom-pcbway.csv` | `production/layercam-pro-cpl.csv` |
+
+The placement file gives designator, X, Y, side and rotation in the
+Gerbers' own coordinates. The BOM gives maker, maker's part number and
+LCSC number. Every part is SMD. {{PARTS}} parts in {{BOM_LINES}} BOM
+lines, on both sides.
+
+**The board** ({{BOARD_SIZE}} mm):
+- 6 layers, 1.6 mm, PCBWay's standard 6-layer stackup (No. 1: 1 oz on every
+  layer, 2116 prepreg next to the outer layers).
+- **Tg 170** material (the plan's requirement). Ask PCBWay to confirm that
+  stackup No. 1's thicknesses and Dk hold with it (the impedance depends
+  on them).
+- **Impedance control, ±10 %:** 100 Ω differential, the MIPI pairs, 0.12 mm
+  track / 0.15 mm gap, on layer 1 (F.Cu, over In1) and layer 6 (B.Cu,
+  over In4) (`sim/impedance.md`). Nothing else is controlled.
+- **Via in pad, resin filled and capped (POFV).**
+- Minimum track and gap 0.1 mm, only round the main chip and the image
+  sensor; 0.127 mm elsewhere. Minimum drill 0.2 mm. Two via sizes:
+  0.45 / 0.2 mm, and 0.35 / 0.2 mm round the main chip.
+- ENIG, green mask, white silk.
+- Parts on both sides.
+
+**Assembly notes for PCBWay** (write them in the order):
+- **The image sensor (U8, SmartSens SC4336H, 35-ball CSP):** no
+  distributor stocks it. Ask PCBWay to source it. If they cannot, buy it
+  from a SmartSens agent and send it to them (consigned). The BOM's LCSC
+  number for U8 (C9900187041) is the SC4336P's, used only for its land
+  pattern: fit the SC4336H, not the SC4336P.
+- **Reflow the sensor's side last.** The sensor is on the placement
+  file's bottom side (the lens side). Reflow the top side first, then the
+  bottom, so the sensor goes through the oven once. Ask PCBWay to confirm
+  the Wi-Fi module and the USB-C stay in place on the second pass.
+- **No-clean flux, no wash.** Water or residue under the sensor's glass
+  spoils the picture.
+
+### 2. Everything else
+
+| Qty | Part | Exact part | Where |
+|---|---|---|---|
+| 1 | Lens | Towin **CCL127028MPR**: M12 x 0.5, 2.8 mm, F2.5, IR corrected, **no IR-cut filter of its own**, back focal length 3.0 mm at most | Towin, quote by email |
+| 1 | Day/night filter holder | Commonlands **CLA219**: carries the lens on its own M12 thread, 9.5 mm tall, 2-wire lead on a "1.25 mm JST" plug for J3 (a PicoBlade: check it, `docs/parts.md`) | [commonlands.com](https://commonlands.com/products/ir-cut-off-filter-exchanger-cla219), $12 |
+| 2 | Holder screws | **M1.6 x 5** thread-forming for plastic, stainless: through the 1.6 mm board they leave 3.4 mm in the holder's 4.3 mm base (an M1.6 x 6 would bottom out) | Commonlands (sells M1.6 x 5) |
+| 1 | Heatsink | **20 x 20 x 15 mm** aluminium, black, straight fins, 2 mm base, no tape | Amazon: search "20x20x15mm aluminum heatsink" (the size is sold, seen at Newegg; an Amazon listing is not confirmed) |
+| 12 x 12 mm | Heatsink tape | **3M 8810**, 0.25 mm (rated to 100 °C), cut from a roll | Digi-Key 3M10316-ND (2 in x 15 ft, enough for hundreds) |
+| 1 length, 120 mm or more | Light rods | **2.0 mm clear polycarbonate rod**, cut into 4 x 18.4 mm and 2 x 18.5 mm, ends square and polished (clear acrylic is second choice: it softens near 100 °C) | Amazon: "2mm clear polycarbonate rod" |
+| 2 | Magnets | **10 x 3 mm disc, N35SH or N38SH** (rated 150 °C; plain N grades are 80 °C). No Amazon listing names an SH grade in this size. K&J Magnetics **D62SH** (3/8 x 1/8 in, N42SH, 150 °C) fits the pocket, 0.08 mm proud | K&J Magnetics |
+| 1 | Epoxy | **J-B Weld Original** (rated 287 °C), for the magnets and the rods | Amazon |
+| 1 | Antenna lead | **W.FL / MHF III to RP-SMA female bulkhead, about 10 cm, 1.13 mm cable**, nut and lock washer. Check the listing says MHF III (MHF3), and check the module's socket on the board in hand (*Limits*) | Amazon: "MHF3 W.FL to RP-SMA female bulkhead 10cm 1.13mm" |
+| 1 | Antenna | **2.4 GHz RP-SMA dipole, 2 dBi**, tilt-swivel. No more gain: the module is approved with 2.33 dBi. Most listings are 3-9 dBi | Amazon: "2.4GHz 2dBi RP-SMA antenna swivel" |
+| 4 | Board and shell screws | **M2 x 8** socket head cap screw, A2 stainless (DIN 912). They tap their own thread in the case's 1.7 mm pilots | Amazon |
+| 2 | Lid screws | **M2 x 6** socket head cap screw, A2 stainless | Amazon |
+| 1 | USB-C to USB-C cable to the printer | the CORE One's own camera cable (fitted on printers built since June 2025), or any USB-C cable routed as Prusa's guide [g405529](https://help.prusa3d.com/g405529) shows, to the electronics box's **upper** USB-C port (the lower one gives no power). For flashing: a USB-C data cable to a computer | Prusa / any |
+| 1 | Case | the three parts in `enclosure/print/`, in **PCCF** (Prusament PC Blend Carbon Fiber), hardened 0.4 mm nozzle, 0.20 mm layers, 4 perimeters, 15 % infill, no supports ([`enclosure/README.md`](enclosure/README.md)) | your printer |
+
+## How to build one
+
+1. **Print the case** (three parts). Clean the 1.7 mm pilots and the
+   2.15 mm rod channels with a drill bit of that size if needed.
+2. **Magnets:** a little J-B Weld in each pocket, press the disc in flush,
+   wipe it. Let it cure for a day.
+3. **Rods:** push each rod in from inside the front shell until its end is
+   flush with the front face. A small drop of epoxy on its side, about
+   5 mm from the inner end, before the last push holds it. Keep the inner
+   end clean.
+4. **Heatsink:** clean the main chip's top (the large chip on the back
+   face, below the lens) with alcohol. Put the 3M 8810 on the heatsink's
+   base, centre it on the chip and press for 10 s, fins across the lid's
+   slots. **Leave it 24 h** to reach full bond before handling the board
+   hard.
+5. **Lens and holder:** screw the lens into the CLA219. Blow any dust off
+   the image sensor; do not touch its glass. Set the holder on the front
+   face over the sensor, its lead towards J3. Fix it with the two
+   M1.6 x 5 screws, driven from the back face into the holder.
+6. **Filter lead:** plug the holder's lead into J3 on the front face.
+7. **Board into the front shell:** front face down on the four bosses,
+   the LEDs over the rods, the light sensor under its tube, the USB-C tab
+   in its slot.
+8. **Antenna lead:** feed the W.FL end in through the D-shaped hole in the
+   back shell from outside. Seat the socket's hex on the flat outside;
+   lock washer and nut inside. Plug the W.FL end onto the Wi-Fi module.
+9. **Back shell** on (the seam meets the board). Four M2 x 8: two through
+   the holes in the back face's straight edge, two through the holes in
+   the side chamfers (a long 1.5 mm hex key).
+10. **Lid** on, two M2 x 6.
+11. **Mount it** in the printer's top-left front corner: the magnet face
+    on the back chamfer against the left frame, the straight back chamfer
+    against the ceiling, the USB-C cable to the back, into the printer's
+    upper USB-C port. Screw the antenna on and fold it down along the
+    front-left post.
+
+## How to bring it up
+
+Full steps, in this order, in
+[`firmware/README.md`](firmware/README.md) (*Flashing a new board*,
+*Bringing up a board*).
+
+1. **Flash a new board.** The test pads are on the back face along the
+   bottom edge, below the heatsink: `TX RX G BOOT` from left to right seen
+   from the back, and 5V on its own to their left. Bridge BOOT and G with
+   tweezers while plugging USB-C into a computer: the main chip waits in
+   MaskROM. Flash the image with Rockchip's tool. The console is TX, RX
+   and G, 3.3 V, 115200 baud.
+2. **Flash the ESP32-C6, with power save on.** A new module is blank, so
+   there is no Wi-Fi yet. Build its firmware after
+   `firmware/tools/c6-power-save.sh` (the 65 °C rating needs power save
+   on), then run `layercam-c6-flash` on the camera.
+3. **Check the Wi-Fi:** `iw dev` shows `wlan0`; `iw list` shows 2.4 GHz
+   only.
+4. **Read the sensor's chip ID.** The first image does not know it: the
+   driver logs it at boot and stops. Rebuild with `SC4336H_CHIP_ID` set to
+   what it read.
+5. **Turn the picture the right way up.** The sensor is turned 180° on the
+   board (KiCad flips a front-face part top to bottom). Set the sensor's
+   flip and mirror: `flip = both` in `layercam.ini`'s `[camera]` section.
+   (`firmware/README.md` does not say this yet.)
+6. **The picture and the focus:** live view on the setup page. Turn the
+   lens through the front bore until the bed is sharp.
+7. **Set it up:** join the camera's setup Wi-Fi, enter your Wi-Fi, the
+   Prusa Connect token, PrusaLink and the upload target. Paste
+   `firmware/slicer/` into PrusaSlicer's printer profile; allow the
+   camera's metrics once on the printer's screen.
+
+## Limits
+
+- **Not built.** Every result here is a design check or a simulation.
+- **Rated for a 65 °C chamber, with 3.5 K to spare in the model.** The
+  model is good to about ±10 K and used the placement, not the routed
+  board. With the ESP32-C6's power save off, the margin is 0.2 K. The
+  oven test decides.
+- **Power save needs a patched C6 firmware.** Espressif's firmware turns
+  it off, and its Linux driver cannot turn it on. `tools/c6-power-save.sh`
+  changes one line before the build; not yet measured on a camera.
+- **Live view only while cool:** every part stays in its rating up to a
+  53.6 °C chamber by day and 42.2 °C by night. The firmware refuses live
+  view when the main chip reads 87 °C.
+- **The image sensor's best picture ends at 60 °C**, which it passes at
+  about a 42 °C chamber. Above that the picture gets noisier; the sensor
+  still works to 85 °C.
+- **The SC4336H has no driver.** Its chip ID and register table are under
+  SmartSens NDA. The driver is the SC4336's renamed; whether it gives a
+  picture is unknown. Its ball map is the SC4336P's, also to confirm.
+- **The bare sensor is not stocked by distributors.** PCBWay sources it,
+  or it is consigned.
+- **The Wi-Fi path is untried on this main chip.** Nobody has shown
+  Espressif's driver on the RV1106 yet.
+- **The picture comes out turned 180°** until the sensor's flip and mirror
+  are set (*How to bring it up*).
+- **The case is 0.28 mm from the board at its tightest**, at the root of
+  the USB-C tab; the design asked 0.5 mm. The case touches the board only
+  at the four screw pads.
+- **The rods may stop short of the LEDs.** The case assumed an LED 2.3 mm
+  tall; the board's LED (Vishay VSMY3850X01) is 1.75 mm. Each rod's end
+  then sits about 0.85 mm from its LED, not 0.3 mm.
+- **The antenna's place** rests on the camera's pose in the printer,
+  worked out from Prusa's files and photos: check it in a CORE One.
+- **The lens, the filter holder and the rods have no published
+  temperature rating** for this use. The oven test covers them.
+- **Supply:** a millisecond peak of 1.18 A against the printer port's 1 A,
+  and 91 µF on 5 V at hot plug (USB allows 10 µF): plug the camera in with
+  the printer off. The IR LEDs' brightness varies 2.6 : 1 over the supply
+  and LED spread (`sim/power.md`).
+- **USB IDs are a placeholder**: the USB console needs a real vendor and
+  product ID before the camera is sold.
+
+## How to build the files
+
+Everything is generated by `src/` in a pinned toolchain (KiCad 10.0.7,
+Freerouting 1.9.0 and 2.5.0, `tools/Dockerfile`; the image is
+`ogkicad-layercam:2`, shared with LayerCam v1):
+
+```sh
+cd layercam-pro/v1
+tools/kd python3 src/make.py                # every gate and output
+tools/kd python3 src/make.py --reroute      # place and route from scratch
+tools/kd python3 src/verify.py              # design checks
+tools/kd python3 sim/thermal.py             # and sim/impedance.py, sim/power_budget.py
+python3 enclosure/src/case.py <Prusa's files>   # the case: STLs, images, checks
+cd firmware && python3 -m unittest          # camera software host tests
+```
+
+Prusa's case files (Printables model 1343977) are downloaded, not
+committed. CI does not build this board yet (*Next steps*).
+
+Licence: CERN-OHL-S-2.0 (hardware), as the rest of this repository. The
+case (`enclosure/`) is GPL v2, as Prusa's files it comes from.

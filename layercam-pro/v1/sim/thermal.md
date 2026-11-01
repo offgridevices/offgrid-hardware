@@ -545,7 +545,7 @@ From `src/parts.py` and docs/parts-check-2026-10-31.md. Flagged against snap_nig
 - Heatsink: 20 x 20 x 15 mm aluminium, 2 mm base, 7 straight fins 1.2 mm thick (ASSUMED: a typical stock part; the listing is to be confirmed), black anodised (emissivity 0.85); envelope 11 W/m^2K and fin faces 3 W/m^2K to the inside (LayerCam v1's estimates); on 3M 8810 (0.25 mm, 0.6 W/mK) over the 12.3 mm package with 0.5 K/W of contacts; top 0.7 mm under a 1.6 mm lid. The exchange flow assumes the fins run across the slots (the favourable way); fins along the slots would block it, which the taped-slot row bounds.
 - RV1106: die to exposed pad 3 K/W (ASSUMED) plus the computed via array; the datasheet theta-JB (12.5 K/W, JEDEC 2s2p) from the board at the package edge as the pessimistic reading; the higher is used.
 - Above the board: TLV62569 psi-JB 40.6, TLV75528 64.8 K/W (TI); EA3036C 15, inductors 60, ESP32-C6 module 6, SC4336H die 15, IR LED junction 120 K/W: ASSUMED.
-- Loads: sim/power.md (the RV1106's snapshot currents and the C6's duty cycles are ASSUMED; the C6's currents are Espressif's at 25 C). Model uncertainty about +-10 K. Measure the first board in a 70 C oven and rerun.
+- Loads: sim/power.md (the RV1106's snapshot currents and the C6's duty cycles are ASSUMED; the C6's currents are Espressif's at 25 C). Model uncertainty about +-10 K. Measure the first board in a 65 C oven and rerun.
 
 ## Checks
 

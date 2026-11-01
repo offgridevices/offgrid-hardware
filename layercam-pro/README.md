@@ -13,7 +13,7 @@ corner of the printer. The inside of the case is new.
 
 | Revision | Status | Folder |
 |---|---|---|
-| **v1** | **Planned**: requirements and plan written, nothing designed yet | [`v1/`](v1/) |
+| **v1** | **v1 designed, not yet built** | [`v1/`](v1/) |
 
 LayerCam (three boards) and LayerCam Pro (one board) are separate products
 and share no files. Which one to keep is decided once both are built.

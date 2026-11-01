@@ -4,7 +4,7 @@
 Each entry is one orderable line: the footprint the board uses, the LCSC
 part number JLCPCB assembles from, the manufacturer part number for anyone
 buying elsewhere, and a description.  Stock and prices were read from
-JLCPCB's catalogue on 26 Oct 2026 (tools/lcsc.py --parts; docs/parts.md
+JLCPCB's catalogue on 26 Oct and 1 Nov 2026 (tools/lcsc.py --parts; docs/parts.md
 has the table and the second sources).  Read them again before ordering.
 
 Footprints named 'lc:*' live in ../lc.pretty: the IC, connector, crystal,
@@ -17,7 +17,7 @@ parts use KiCad's standard footprints, whose 0-degree orientation matches
 JLCPCB's.
 
 Every part is rated for at least 85 degC ambient except where a note says
-otherwise: the camera lives in a printer chamber at up to 70 degC.
+otherwise: the camera is rated for a printer chamber at up to 65 degC.
 
 Parts bought separately (not on the board, README *How to order*): the
 CLA219 IR-cut holder, the M12 lens, the heatsink, the Wi-Fi antenna and
@@ -54,14 +54,15 @@ PARTS = {
     # is pin for pin its CSP-35 predecessor; land and balls: the SC4336P's,
     # EasyEDA C9900187041).  Not stocked by distributors: SmartSens or its
     # agents (docs/parts-check)
-    'SC4336H': dict(fp='lc:CSP-35_L5.7-W3.7-P0.64-R5-C7-S0.58-TL', lcsc='C9900187041', mpn='SC4336H',
+    'SC4336H': dict(fp='lc:CSP-35_L5.7-W3.7-P0.64-R5-C7-S0.58-TL', lcsc='none: SmartSens or its agent', mpn='SC4336H',
                     value='SC4336H', maker='SmartSens', kind='U',
                     desc='Image sensor 4 MP 1/3", 2-lane MIPI, CSP-35 0.64 x 0.58 mm, -30..85 degC'),
-    # Wi-Fi: Wi-Fi 6 2.4 GHz, 105 degC grade, U.FL on the module, FCC
+    # Wi-Fi: Wi-Fi 6 2.4 GHz, 105 degC grade, an MHF III (W.FL) antenna
+    # socket on the module (Espressif's datasheet v1.5, 10.2), FCC
     # modular approval; esp-hosted over SDIO to the RV1106
     'ESP32C6': dict(fp='lc:WIFIM-SMD_61P-L13.2-W12.5-P0.80', lcsc='C20627095', mpn='ESP32-C6-MINI-1U-H4',
                     value='ESP32-C6-MINI-1U-H4', maker='Espressif', kind='U',
-                    desc='Wi-Fi 6 2.4 GHz + BLE module, ESP32-C6, 4 MB flash, U.FL, -40..105 degC'),
+                    desc='Wi-Fi 6 2.4 GHz + BLE module, ESP32-C6, 4 MB flash, MHF III antenna socket, -40..105 degC'),
     'TLV75528': dict(fp='lc:WSON-6_L2.0-W2.0-P0.65-BL-EP', lcsc='C2865214', mpn='TLV75528PDRVR', value='2.8V',
                      maker='Texas Instruments', kind='U',
                      desc='LDO 2.8 V 500 mA, low noise (the sensor\'s analogue supply), WSON-6 2 x 2, Tj to 125 degC'),

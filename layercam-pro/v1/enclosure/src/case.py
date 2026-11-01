@@ -74,7 +74,7 @@ SPLIT_Z = G.BOARD_Z        # front shell below, back shell above (Prusa's outer 
 BOARD_BACK = G.BOARD_Z + G.BOARD_T
 
 # light rods (2.0 mm clear rod, cut to length), and the LEDs under them
-LED_H = 2.3                # OSRAM SFH 4715CS height over the board (OSLON Black; confirm on its drawing)
+LED_H = 1.75               # Vishay VSMY3850X01 (PLCC-2) height over the board
 LED_SIZE = 3.75
 ROD_GAP = 0.3              # rod end to LED top
 ROD_CH_D = 2.15            # channel

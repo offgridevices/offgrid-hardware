@@ -79,7 +79,7 @@ DEFAULTS = {
         'helper': '/usr/bin/layercam-media',
         'iq_dir': '/etc/iqfiles',
         'command': 'ffmpeg -loglevel error -f v4l2 -i /dev/video0 -frames:v 1 -q:v 3 -y {out}',
-        'flip': 'none',                # none, h, v, both
+        'flip': 'both',                # none, h, v, both; 'both': the sensor sits turned 180 degrees on the board (src/layout_main.py)
         'rotation': 0,                 # reported to Connect only
         'idle': 'standby',             # between pictures when not printing: standby (sensor off) or stream (2 fps)
         'wake_ms': 1000,               # from standby: let exposure settle this long before the picture

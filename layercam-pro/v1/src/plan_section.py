@@ -39,8 +39,8 @@ from shapely.ops import unary_union
 BOARD_Z0, BOARD_T = 21.0, 1.6          # board front face, thickness (docs/decisions.md)
 WALL = 2.5                             # new case wall at the board
 LED_R, LED_ANGLES = 13.0, (0, 60, 120, 180, 240, 300)   # Prusa's holes (LayerCam geometry.py)
-LED_SIZE = 3.75                        # OSRAM SFH 4715CS body, square
-PIPE_D = 2.01                          # Bivar LPV2-0750
+LED_SIZE = 3.5                         # Vishay VSMY3850X01 body, 3.5 x 2.8 (the long side, conservative)
+PIPE_D = 2.0                           # the clear rod in its printed channel
 HOLDER_BOX = (-10.6, -9.8, 10.6, 9.8)  # Commonlands CLA219 base with its ears (full rectangle)
 CHIP_H, TAPE_H = 0.85, 0.25            # RV1106 package, 3M 8810 tape
 SINK = (20.0, 20.0, 15.0)              # stock heatsink, mm

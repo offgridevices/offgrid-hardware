@@ -1,7 +1,8 @@
 # LayerCam Pro v1: decisions and trade-offs
 
-The decisions made while planning (31 Oct 2026), each with what it costs.
-The owner's choices are marked *(owner)*.
+The decisions made while planning (31 Oct 2026) and designing (1 Nov
+2026), each with what it costs. The owner's choices are marked *(owner)*.
+What the owner still has to decide is under *Open*, at the end.
 
 ## One board, not three
 
@@ -11,7 +12,7 @@ PCBWay's minimum quantity and its own assembly set-up, plus cables to buy
 and stock. LayerCam Pro puts everything on one board. *(owner)*
 
 Cost: the infrared LEDs end up about 19 mm behind the front face and need
-light pipes; the USB-C plug goes in level instead of tilted (below).
+light rods; the USB-C plug goes in level instead of tilted (below).
 
 ## Where the board sits: the case's widest point
 
@@ -23,8 +24,13 @@ face is at about Z 21 (measured from the case's front face).
 
 That is where Prusa's case is widest (about 72 x 67 mm outside) and where
 its two printed halves meet. With a new inside and 2-2.5 mm walls, the board
-can be about 66 x 60 mm with its corners cut, nearly twice the area of
-LayerCam's main board. More area spreads the heat and the parts.
+was planned at about 66 x 60 mm with its corners cut, nearly twice the area
+of LayerCam's main board. More area spreads the heat and the parts.
+
+The case check then found two concave shoulders in Prusa's case at about
+(±26, -12), where the plain outline ran 2.9 mm into the wall. The board is
+cut to the outline that fits (`geometry.OUTLINE`, 2710 mm²). It is still
+0.28 mm from the case at its tightest, against the 0.5 mm asked (*Open*).
 
 ## Keep Prusa's outside, redo the inside *(owner)*
 
@@ -87,9 +93,13 @@ factory does not need a second programming step.
 
 ## Antenna: a socket in the case wall, a cable to the module
 
-The module has a U.FL socket. A short U.FL to RP-SMA cable runs to a
-socket in the case wall, and a 2.4 GHz antenna screws on outside. These
-cables are cheap and sold in bulk.
+The module's antenna socket is the third-generation kind, MHF III (I-PEX)
+or W.FL (Hirose), not U.FL: Espressif's datasheet (v1.5, 10.2) says so,
+and the two do not mate. The lead is W.FL to an RP-SMA female bulkhead, about 10 cm of
+1.13 mm cable. The bulkhead sits on the back shell's +X +Y facet, the only
+place with a flat outside and room inside for the nut and the jack. In the
+printer that facet faces the front frame, so a 2 dBi tilt-swivel antenna
+folds down the front-left post, out of the gantry's way.
 
 Rejected: an RP-SMA socket soldered on the board. It would need the bare
 ESP32-C6 chip with our own radio layout, which loses the module's US
@@ -98,6 +108,7 @@ approval.
 US rules allow only antennas of the same type and no more gain than the
 module was approved with, so the product names (or ships) a matching
 antenna. Most Amazon antennas are sold as 5-9 dBi and are not covered.
+The module is approved with 2.33 dBi, so the camera uses a 2 dBi antenna.
 
 ## Heat: 65 °C chamber, stock heatsink, no fan *(owner)*
 
@@ -145,48 +156,136 @@ the C6's firmware is built with it on, `firmware/tools/c6-power-save.sh`),
 Rejected: a 25 mm fan (noise, a wearing part); bigger vents (changes
 Prusa's outside; a gain of perhaps 3-6 K, uncertain).
 
-## Infrared lights: light pipes to Prusa's holes
+## Infrared lights: leaning rods to Prusa's holes
 
-Six 860 nm LEDs on the board, about 19 mm behind Prusa's 2.4 mm front holes.
-Behind a hole that far back, an LED's light comes out as a narrow spot, not
-a flood over the bed. A clear rod over each LED traps the light and lets it
-out at the hole with nearly the LED's own wide beam. The pipes are stock
-PCB parts that PCBWay fits.
+Six 850 nm LEDs on the board's front face, about 19 mm behind Prusa's
+2.4 mm front holes. Behind a hole that far back, an LED's light comes out
+as a narrow spot, not a flood over the bed. A 2 mm clear rod over each LED
+traps the light and lets it out at the hole with nearly the LED's own wide
+beam.
 
-Rejected: bigger front holes or one infrared window (changes the outside,
-and a window is a part to buy).
+**The clash with the IR-cut holder is settled.** A straight pipe puts its
+LED right under its hole, at R 13.0 every 60°, and the CLA219's base (a
+full 21.2 x 19.6 mm rectangle) covered four of them. So the LEDs at 60°,
+120°, 240° and 300° moved out to **R 14.4**; the two at 0° and 180° stay at
+R 13.0, straight under their holes (`geometry.LED_R`). Each LED carries a
+loose 2.0 mm clear polycarbonate rod in a printed channel in the front
+shell. The channels lean the rods to Prusa's holes where Prusa's STEP file
+has them: 0.5°, 4.4°, 3.5°, 1.1°, 4.6° and 2.9° (0° to 300°). `verify.py`
+checks each LED under its rod and 0.3 mm or more clear of the holder.
 
-**Not settled: four LEDs clash with the IR-cut holder.** A straight pipe
-puts its LED right under its hole, at R 13.0 every 60°. The CLA219's base
-is a full 21.2 x 19.6 mm rectangle (its drawing: the screw ears sit in the
-middle of two sides, the corners are solid). It covers the LEDs at 60°,
-120°, 240° and 300° by 0.42 mm at any rotation; only the bare 2 mm pipe
-clears it (0.45 mm). The way out is chosen before layout: a holder with a
-smaller base, LEDs moved out to R 14.1 or more with the pipes tilted about
-3° by printed guides (or flexible light guides rated for the heat), or, last,
-moving Prusa's holes.
+Cost: the rods are bought and fitted by hand, with a drop of epoxy, not
+fitted by PCBWay. Polycarbonate softens near 145 °C; acrylic (100 °C) is
+the second choice.
 
-The OSRAM SFH 4715AS is not for new designs; its maker-recommended
-replacement, the SFH 4715CS (rated to 125 °C), is used.
+Rejected: Bivar's straight board-mounted pipes (they cannot lean); a
+holder with a smaller base (none found); bigger front holes or one infrared
+window (changes the outside, and a window is a part to buy).
 
-## Magnets: round discs from Amazon *(owner)*
+**The LEDs are Vishay VSMY3850X01** (850 nm, PLCC-2, ±60°, AEC-Q101), in
+three strings of two, in place of the plan's OSRAM SFH 4715CS. Vishay's
+datasheet for the X01 grade (document 80225, rev 1.2) rates it -40 to
+105 °C ambient and 110 °C junction. JLCPCB had none in stock on 1 Nov
+2026 (`parts.md`).
+
+## Magnets: round discs *(owner)*
 
 Prusa's case holds two 10 x 10 x 2 mm block magnets in slots. The owner
-uses round disc magnets from Amazon. They go in printed pockets on the
-outside, set with heat-proof epoxy (J-B Weld), not super glue, which goes
-soft and brittle near 80 °C. They are high-temperature grade (SH, rated
-150 °C); ordinary N grades are rated 80 °C and can lose pull for good near
-a 65 °C chamber.
+uses round disc magnets. They go in two Ø10.3 x 3.1 mm printed pockets on
+the outside, on the two faces where Prusa's magnets act, set with
+heat-proof epoxy (J-B Weld Original), not super glue, which goes soft and
+brittle near 80 °C. Prusa's slots are closed. The magnets are 10 x 3 mm
+discs of a high-temperature grade (SH, rated 150 °C); ordinary N grades
+are rated 80 °C and can lose pull for good near a 65 °C chamber.
 
-## Case material: PC carbon fibre
+Cost: no Amazon listing found names an SH grade in this size. K&J
+Magnetics' D62SH (3/8 x 1/8 in, N42SH) fits the pocket (*Open*).
 
-Prusa recommends PCCF for this case, and the owner prints in carbon fibre.
-Carbon-fibre plastic conducts a little, so no bare copper may touch it:
-the board's edge is kept clear and the board is coated.
+## The case: designed, printed by the owner in PCCF *(owner)*
+
+The case exists as code (`enclosure/src/case.py`) and three STLs
+(`enclosure/print/`): a front shell, a back shell and a lid, as Prusa's.
+The outside is Prusa's own surface. What changed on it: the USB-C opening
+(a level plug in a seat cut square to it, in the same -X facet), the
+RP-SMA hole, the two round magnet pockets, two new screw holes, and
+Prusa's SD-card slot and antenna-lead slit closed. Inside: the board seat
+at Prusa's seam, the six rod channels, the light-sensor tube, the room
+for the lens and IR-cut holder, a 1.6 mm lid over the heatsink. Built
+from Prusa's published files (GPL v2), so `enclosure/` is GPL v2 too.
+
+The owner prints it in PC carbon fibre (PCCF), as Prusa recommends for
+this case: hardened 0.4 mm nozzle, 0.20 mm layers, 4 perimeters (Prusa
+uses 2; the new walls are 1.6-2.1 mm), no supports. Carbon-fibre plastic
+conducts a little, so no bare copper may touch it: copper and parts keep
+0.6 mm from the board's edge, and the case keeps off the board everywhere
+but round the four screw holes. The holes are unplated, with no copper
+(the plan had grounded holes; the design has none).
+
+## Mounting: four M2 screws through board and case
+
+The board has four M2 holes at `geometry.SCREWS`: (±13, 25.5) and
+(±28, 0), lens frame. Four M2 x 8 socket head screws go in from the back,
+through the back shell and the board, into 1.7 mm pilots in the front
+shell's bosses. One set of screws clamps the board and joins the two
+shells. The two at (±13, 25.5) use Prusa's holes, moved 0.6 mm; the two at
+(±28, 0) are new holes in the side chamfers (*Open*). The lid keeps
+Prusa's two M2 x 6.
+
+## The image sensor turned 180°
+
+KiCad flips a part on the board's front face top to bottom. Turned 180°,
+the sensor's balls land where the MIPI lanes start, so the lanes stay
+short and on their pairs (`layout_main.py`, `pairs.py`). The picture then
+comes out upside down and mirrored, so the firmware sets the sensor's
+flip and mirror bits (`camera.flip = both`). `firmware/README.md`'s
+bring-up does not say this yet.
+
+## USB as plain tracks
+
+USB is only for flashing and the setup console, and it runs a few
+centimetres from the edge to the main chip. It is routed as ordinary
+tracks, without LayerCam v1's 90 Ω control. Only the MIPI pairs are
+impedance controlled.
 
 ## Fab: PCBWay, one order
 
 One board: one Gerber zip, one BOM, one placement file. PCBWay buys every
-part from the usual distributors. The one possible exception is the bare
-image sensor (above). Everything else the camera needs (heatsink,
-magnets, antenna, antenna cable, USB-C cable) comes from Amazon.
+part from the usual distributors. The one exception is the bare image
+sensor (above): PCBWay sources it, or it is consigned. The sensor's side
+is reflowed last, so it goes through the oven once, with no-clean flux and
+no wash. The board is Tg 170 material (the plan's requirement).
+
+Everything else the camera needs comes from Amazon where an exact part
+is sold there: the antenna, its lead, the screws, the rods, the epoxy. The
+lens (Towin), the IR-cut holder (Commonlands), the heatsink tape
+(Digi-Key) and the SH-grade magnets (K&J Magnetics) are not; the
+heatsink's Amazon listing is still to be confirmed.
+
+## Open: for the owner to decide
+
+1. **The case's clearance to the board.** The case check still fails: the
+   board is 0.28 mm from the back shell by the USB-C tab's root, and its
+   outline is 0.32 mm too large at the two shoulders, against 0.5 mm
+   asked. Either accept it (the case touches nothing there; it is
+   0.28 mm of air) or cut the outline down once more (the check gives one
+   of 2660 mm², `enclosure/out/fit-outline.txt`) before routing ends.
+2. **The two new screw holes** at (±28, 0) in the back chamfers. The top
+   two could reuse Prusa's holes exactly if `geometry.SCREWS` had y 26.1.
+3. **The antenna's face** rests on the camera's pose in the printer,
+   worked out from Prusa's files and photos: check it in a CORE One
+   before ordering.
+4. **The USB-C seat** is 4 mm deep at its top, deeper than Prusa's recess:
+   a level plug on a 30° facet needs it.
+5. **The light window** is left open (Prusa fits a blue window piece); a
+   Ø5.8 x 2 mm clear disc would close it.
+6. **Prusa's holes are up to 0.45 mm off** `geometry.hole_xy`'s R 13.0
+   every 60°; the case leans the rods to Prusa's. The two straight LEDs
+   could move under their real holes.
+7. **The rods' length.** The case assumed an LED 2.3 mm tall; the
+   VSMY3850X01 is 1.75 mm. Change `LED_H` in `enclosure/src/case.py` (the
+   rods get about 0.55 mm longer) or accept a 0.85 mm gap.
+8. **The magnets:** K&J's D62SH (not on Amazon), or an Amazon disc whose
+   grade cannot be checked.
+9. **Coating.** The plan said the board is coated. It is not in the order:
+   a conformal coat must keep off the sensor's glass, the USB-C, J3 and
+   the antenna socket. Order it masked, or drop it.
