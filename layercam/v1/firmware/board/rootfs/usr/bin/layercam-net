@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+# layercam-net sta|ap|stop: Wi-Fi from the files layercam/net.py writes in
+# /tmp/layercam (wpa_supplicant.conf, hostapd.conf, dnsmasq.conf, net.env).
+#   sta  join the home network: wpa_supplicant, then DHCP (udhcpc), then the
+#        clock (ntpd); power save and the transmit power cap from net.env (iw)
+#   ap   the setup access point LayerCam-XXXX at 192.168.4.1: hostapd + dnsmasq
+# hostapd and dnsmasq are the SDK's (project/app/wifi_app, RK_ENABLE_WIFI=y).
+# Not yet run on a board.
+
+RUN=/tmp/layercam
+IF=wlan0
+
+stop_all() {
+	killall wpa_supplicant hostapd dnsmasq udhcpc 2>/dev/null
+	sleep 1
+	ip addr flush dev $IF 2>/dev/null
+}
+
+case "$1" in
+	sta)
+		stop_all
+		ip link set $IF up
+		wpa_supplicant -B -i $IF -c $RUN/wpa_supplicant.conf || exit 1
+		# less heat (sim/thermal.md): power save between transfers, transmit power capped
+		. $RUN/net.env 2>/dev/null
+		if command -v iw >/dev/null; then
+			iw dev $IF set power_save ${POWER_SAVE:-on} 2>/dev/null
+			[ "${TX_POWER_MBM:-0}" -gt 0 ] && iw dev $IF set txpower fixed $TX_POWER_MBM 2>/dev/null
+		fi
+		# -b: keep trying in the background; the service watches for the address
+		udhcpc -i $IF -b -t 10 -T 3 -x hostname:layercam >/dev/null 2>&1
+		# TLS (Connect, S3) and S3's signatures need the right time; the RTC has no battery
+		# Buildroot's ntp package replaces BusyBox's ntpd: there -p is a pid file,
+		# the servers come from /etc/ntp.conf, and -g allows the first big step
+		# (without it a clock still at 1970 is never set)
+		if ntpd --help 2>&1 | grep -q BusyBox; then
+			(sleep 10; ntpd -n -q -p pool.ntp.org >/dev/null 2>&1) &
+		else
+			(sleep 10; ntpd -g -n -q >/dev/null 2>&1) &
+		fi
+		;;
+	ap)
+		stop_all
+		ip link set $IF up
+		ip addr add 192.168.4.1/24 dev $IF
+		hostapd -B $RUN/hostapd.conf || exit 1
+		dnsmasq -C $RUN/dnsmasq.conf || exit 1
+		;;
+	stop)
+		stop_all
+		;;
+	*)
+		echo "usage: $0 sta|ap|stop"
+		exit 2
+		;;
+esac
+exit 0

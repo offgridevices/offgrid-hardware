@@ -27,6 +27,21 @@ board's `docs/` keeps its own dated checks).
   works when its MCU sits on the FET copper and tracks it; check in the
   thermal model that the sensor reaches its limit before the FETs reach
   theirs.
+- **In a sealed plastic case the wall is the limit, not the chip.** On
+  LayerCam (a camera in a printer's 65 °C chamber) a stick-on heatsink took
+  only 2 °C off: it moves heat into the trapped air, which still has to
+  leave through the same plastic. Only a part that reaches the outside
+  (metal pressed against the thinnest wall, at the vents) moved the limit.
+  Model the path to the outside air first; size the fins last.
+- **Run the hot product only as hard as its job needs.** LayerCam's video
+  pipeline at full rate put the SoC at its limit; Prusa Connect only takes
+  a still every 10 s, so the camera sleeps its sensor between shots and
+  the same hardware runs 30 °C cooler.
+- **Check every part's rating against the box's temperature, not the
+  room's.** At 85-90 °C board temperature the cheap choices fail first:
+  X5R capacitors (85 °C), tactile switches (70 °C), USB-C receptacles
+  (80 °C), a tuning-fork 32 kHz clock (drifts -100 to -150 ppm, past a Wi-Fi
+  module's +-30 ppm sleep-clock limit, whatever its temperature grade).
 
 ## Switching and transients
 
@@ -71,6 +86,41 @@ board's `docs/` keeps its own dated checks).
   ports came on with no charger at all; the review caught it. Gate every
   switch-on on the supply being there, and switch everything off when it
   goes. (Print Hub v1)
+- **Read the module's drawing for where its optical axis is.** LayerCam's
+  camera module has its lens 8.4 mm from one edge and 15.6 mm from the
+  other; placing to a centred outline put the camera's cable socket under
+  the module.
+- **Check a board's handedness in its slot in 3D, not in plan.** LayerCam's
+  USB board was drawn from its parts' face with its x along the slot's v
+  axis; placed with that face towards the opening, x runs along -v, so the
+  board was a mirror image and its long side would have hit the wall where
+  the grooves are short. Writing down the placement as a rotation (det
+  +1) and checking the outline against the housing caught it; the check
+  promised in the docstring had never been written.
+- **Check a mirrored module's pins after the flip.** A module on the back
+  face is mirrored: the crystal, antenna and buck parts placed for the
+  unflipped pin-out ended 17 mm from their pins. Place them from the pad
+  positions read off the placed footprint.
+- **Lay out a fine-pitch chip's escapes at placement, not in the router.**
+  LayerCam's RV1106 (QFN-128, 0.35 mm pitch) jammed every routing run at
+  the same pins until each pin that leaves the chip's face got a stub and a
+  via before routing, the pin between two other escapes first. Check the
+  via against the pitch: with 0.45 mm vias two escapes a pin apart leave
+  0.25 mm, too little for the pin between; 0.35 / 0.2 mm vias and 0.1 mm
+  stubs (in the fab's 6-layer rules) let it through.
+- **Keep the escape band clear on both faces.** Decoupling caps on the
+  back face under a QFN's pins put their own plane vias in the band its
+  signals must cross (38 on LayerCam).
+- **Look for pockets.** A spot walled in by a buck's switch node and its
+  ground (between the inductor, the buck and the SoC's band) trapped
+  whichever small part the placer put there, three in turn. Keep parts out
+  of such pockets, and put a feedback network where its plane can reach.
+- **Size a rail's tracks by its current, not by its being a rail.**
+  LayerCam's 1.8 V carries 0.05 A; at 0.2 mm it was the net every routing
+  run left open; at 0.127 mm it routed.
+- **A placer that cannot place a part must stop the build.** An unplaced
+  part sits at the origin, which on LayerCam is inside the lens window; a
+  warning in a long log is not enough.
 
 ## Tools
 
@@ -119,6 +169,32 @@ board's `docs/` keeps its own dated checks).
 - **EasyEDA's 3D models can sit off their own land** (the HRO
   TYPE-C-31-M-12 by 2.55 mm). Look at a render before trusting the STEP for
   an enclosure; correct it with a model offset in the footprint.
+- **Python default arguments are read once, at import.** `def f(c=pcb.CLEAR)`
+  kept the first board's clearance after `pcb.configure()` switched boards;
+  read module settings inside the function.
+- **Freerouting reads every rule area as a keepout,** even one that only
+  scopes a DRC rule: a rule area round the SoC for a finer clearance made
+  it route nothing there (80 connections open). Leave such areas out of
+  the copy exported for it. (Freerouting 1.9.0, KiCad 10.0.7)
+- **Freerouting will not start a route from a pad that fixed copper
+  crowds** below its own clearance class, even by 0.001 mm: locked escape
+  stubs 0.126 mm from their neighbours against a 0.127 mm class left every
+  SoC net unrouted. Give it the fixed copper a hair smaller and put the
+  real sizes back after the import. (Freerouting 1.9.0)
+- **Freerouting 1.9 can crash on its own fed-back wiring** (a
+  NullPointerException in a later round): keep the best round and go on
+  with that.
+- **A repair step must be able to undo itself.** The finisher's plane
+  repair tore up nine signal nets' vias to rejoin one cut-off 3.3 V pad and
+  could not route them again; it now rolls back a round that leaves a net
+  open and joins the pad with a track instead.
+- **"Dangling" also means a track that runs past its joint,** or a via
+  that only joins one layer's tracks. Trim the overrun back to where it
+  enters the copper; replace such a via by short tracks inside its copper.
+  Keep each change only if nothing comes apart. (KiCad 10.0.7)
+- **Give each concurrent tool run its own files.** Two boards routed in one
+  work folder shared `route0.dsn` / `.ses` names and overwrote each other;
+  name them after the board.
 
 ## Mechanical
 
@@ -132,3 +208,10 @@ board's `docs/` keeps its own dated checks).
 - **Compute a magnet's field before printing the pocket.** The first guard
   magnet gave about 4 mT at a hall switch whose maximum operate point is
   4.8 mT; a Biot–Savart estimate in the fit check caught it.
+- **Look up the shortest stock cable before placing connectors.** LayerCam's
+  boards sit 8-11 mm apart, but JST's shortest SH jumper is 51 mm and the
+  shortest 20-way 0.5 mm FFC is 30 mm; the slack has to fold somewhere.
+  Check the catalogue lengths, the wiring (JST's suffix A is pin 1 to
+  pin 1, B is reversed) and room for the fold while placing.
+- **Spacers in a hot case are not nylon.** Nylon creeps above about 70 °C;
+  where a spacer sets a lens's focus, use metal.

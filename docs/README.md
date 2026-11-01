@@ -10,6 +10,7 @@ repository. Read these before a new board; they are kept small on purpose.
 | [repo-structure.md](repo-structure.md) | Folder layout, what to commit, keeping the repository small |
 | [brand.md](brand.md) | How a board carries the OffGrid brand |
 | [lessons.md](lessons.md) | What we learned building boards: physics, fabs and tools |
+| [product-video.md](product-video.md) | A board's product video: the exploded view rendered from its KiCad file, the house style, and the recipe for a new board |
 
 Board-specific facts (part choices, stock checks, test results) live in the
 board's own folder, dated, not here. These pages hold only what applies to

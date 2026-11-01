@@ -1,0 +1,4 @@
+#!/bin/sh
+# LayerCam: no adb (an unauthenticated root shell, over USB or TCP 5555).
+echo "adbd is not part of LayerCam" >&2
+exit 1

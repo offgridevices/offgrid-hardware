@@ -1,0 +1,3 @@
+#!/bin/sh
+# LayerCam: replaces Buildroot's ntpd service, which would answer NTP (UDP 123) on the Wi-Fi.  layercam-net sets the clock once per connection instead (ntpd -q).
+exit 0

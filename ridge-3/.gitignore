@@ -1,0 +1,17 @@
+# Unzipped Gerbers: fab.gerbers() exports each board's Gerbers and drill
+# files into <board>/production/gerbers/ and zips them.  The zip beside the
+# folder is what is committed and ordered from; the folder is the build's
+# working copy.
+*/production/gerbers/
+
+# The CadQuery environment for heatsink.py (requirements-cadquery.txt)
+.venv-cq/
+
+# KiCad's autosave and old-style backups, when a board is opened in KiCad
+_autosave-*
+*.bak
+
+# The product videos (video/make_video.py), wherever one is saved: rendered,
+# too large for git, and their music is licensed (video/.gitignore keeps the
+# music out; video/out/ is ignored as out/ by the root .gitignore)
+*.mp4
