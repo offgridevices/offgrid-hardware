@@ -677,6 +677,8 @@ def sma_search(folder, step=0.5):
     c0 = np.array([32.0, 14.0, 28.0])
     c0 = c0 + n * (d - n @ c0)
     mags = [(c, nn) for c, nn in magnet_features(planes)[2].values()]
+    parts_zone = board_polygon(-G.CORNER_CLEAR)
+    border = board_polygon(CLEAR)
     res = []
     stats = dict(flat=0, sink=0, clear=0, cavity=0)
     for a in np.arange(-16, 16.01, step):
@@ -693,7 +695,11 @@ def sma_search(folder, step=0.5):
                 stats['flat'] += 1
                 continue
             P = sma_keep_points(c, n, 1.0)
-            clear = min(P[:, 2].min() - 26.3, 38.2 - P[:, 2].max())
+            # over the board's parts zone: 3.7 mm above its back face; over its
+            # 0.6 mm bare border: 0.5 mm; beside the board: anywhere in the cavity
+            zmin = np.where([parts_zone.contains(Point(q[0], q[1])) for q in P], BOARD_BACK + 3.7,
+                            np.where([border.contains(Point(q[0], q[1])) for q in P], BOARD_BACK + CLEAR, -99))
+            clear = min((P[:, 2] - zmin).min(), LID_SEAT_Z - 0.25 - P[:, 2].max())
             inside_sink = ((P[:, 0] > sx0) & (P[:, 0] < sx1) & (P[:, 1] > sy0) & (P[:, 1] < sy1) &
                            (P[:, 2] > sz0) & (P[:, 2] < sz1)).any()
             for (x, y) in LID_SCREWS:
