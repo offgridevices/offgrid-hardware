@@ -26,17 +26,22 @@ axis at the outer front face, +Z into the case):
 
   1. Prusa's three meshes are assembled with plan_section.py's transforms.
      The outer surface of the new case IS Prusa's surface (their triangles).
-  2. Openings that move or close are plugged with the case's convex hull
-     (the old USB-C recess, the SD slot, the old screw counterbores).
+  2. Openings that move or close are plugged flush with the face they are
+     in (the old USB-C recess, the SD slot, Prusa's antenna-lead slit, the
+     old screw counterbores).
   3. The envelope E (Prusa's outside, filled) is taken as horizontal
      sections every 0.1 mm.  The new cavity N is E eroded by a 2.0 mm ball,
      built as 0.2 mm slabs (one print layer each), so every wall is 2.0 mm
-     normal to the outside.  A filler (E eroded by 0.5 mm) closes Prusa's
+     normal to the outside.  A filler (E eroded by 0.15 mm) closes Prusa's
      old pockets behind the skin.
   4. case = (Prusa + plugs + filler) - N, split at Z 21.0 (the board's
      front face, Prusa's own outer seam) into the front shell and the back
      shell, and at Prusa's lid outline into the lid; then the new inside is
-     added and the openings are cut.
+     added and the openings are cut.  The lid stays solid (as Prusa's)
+     except a 1.6 mm thick area over the heatsink and vent slots.
+  5. Round the board, the walls are cut back to leave 0.5 mm, but never to
+     less than 1.6 mm: fit_outline() gives the largest board that this
+     allows (geometry.OUTLINE crosses Prusa's two concave shoulders).
 
 The STEP files' tessellation is not watertight (their faces are not sewn),
 so the solids use Prusa's STL triangles; the STEP files give the exact
@@ -50,7 +55,7 @@ import numpy as np
 import manifold3d as m3
 import trimesh
 from shapely import affinity
-from shapely.geometry import Polygon, MultiPolygon, Point, box
+from shapely.geometry import Polygon, Point, box
 from shapely.ops import unary_union
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -430,9 +435,33 @@ def sink_box(gap=0.0):
     return (x - w / 2 - gap, y - h / 2 - gap, SINK_Z0 - gap, x + w / 2 + gap, y + h / 2 + gap, SINK_Z0 + t + gap)
 
 
+# Prusa's six LED holes as they are in its STEP file (filled by prusa_solid);
+# they are up to 0.45 mm off geometry.hole_xy's R 13.0 every 60 degrees, and
+# the outside keeps Prusa's
+HOLE_XY = {}
+
+
+def hole_xy(a):
+    return HOLE_XY.get(a, G.hole_xy(a))
+
+
+def find_holes(folder):
+    """Prusa's Ø2.4 front holes from its STEP file, by angle (geometry's if missing)."""
+    faces = read_step_faces(folder)
+    out = {}
+    if faces:
+        cs = [p for d, ax, p in faces['bottom']['cyls'] if abs(d - G.LED_HOLE_D) < 0.03 and abs(ax[2]) > 0.99]
+        for a in G.LED_ANGLES:
+            gx, gy = G.hole_xy(a)
+            best = min(cs, key=lambda p: math.hypot(p[0] - gx, p[1] - gy), default=None)
+            if best is not None and math.hypot(best[0] - gx, best[1] - gy) < 1.0:
+                out[a] = (round(float(best[0]), 3), round(float(best[1]), 3))
+    return out
+
+
 def rod_axis(a):
     """(front end at the hole, Z 0; LED end, the rod's top 0.3 mm short of the LED)."""
-    hx, hy = G.hole_xy(a)
+    hx, hy = hole_xy(a)
     lx, ly = G.led_xy(a)
     return np.array([hx, hy, 0.0]), np.array([lx, ly, G.BOARD_Z - LED_H - ROD_GAP])
 
@@ -444,6 +473,8 @@ def prusa_solid(folder):
     prusa = load_prusa(folder)
     U = {k: to_manifold(m) for k, m in prusa.items()}
     assert all(m.status() == m3.Error.NoError for m in U.values()), 'Prusa STL not manifold'
+    HOLE_XY.clear()
+    HOLE_XY.update(find_holes(folder))
     hull_mesh = trimesh.util.concatenate(list(prusa.values())).convex_hull
     hull = to_manifold(hull_mesh)
     planes = {k: hull_plane(hull_mesh, n) for k, n in FACE_N.items()}
@@ -515,7 +546,7 @@ def build(folder, log=print):
         q1 = p0 + d * ((ROD_TUBE_TOP - p0[2]) / d[2])
         add.append(cyl(q0, q1, ROD_TUBE_D, 40))
         cut.append(cyl(p0 - d * 2.0, p0 + d * ((p1[2] + 1.5 - p0[2]) / d[2]), ROD_CH_D, 32))
-        hx, hy = G.hole_xy(a)
+        hx, hy = hole_xy(a)
         cut.append(zcyl(hx, hy, -1.0, FACE_HOLE_DEPTH, G.LED_HOLE_D, 32))
     # light sensor tube
     wx, wy = G.LIGHT_WINDOW
@@ -591,16 +622,19 @@ def build(folder, log=print):
     return parts, info
 
 
-def fit_outline(env, wall=MIN_WALL, simplify=0.15):
+def fit_outline(env, wall=MIN_WALL):
     """The largest board the case takes at Z 21.0-22.6 with `wall` (normal to
     the outside) and CLEAR round it, cut down from geometry.OUTLINE: what
     geometry.OUTLINE has to become if it pokes out (Prusa's outside has two
     concave shoulders at about (+-26, -12) that the convex outline crosses)."""
-    room = env.erode_slab(G.BOARD_Z, BOARD_BACK, wall).buffer(-CLEAR, join_style='mitre')
+    # the clearance box round the board's edge spans Z 20.5-23.1 (0.5 under and over it)
+    room = env.erode_slab(G.BOARD_Z - CLEAR, BOARD_BACK + CLEAR, wall).buffer(-CLEAR - 0.05, join_style='mitre')
     fit = Polygon(G.OUTLINE).intersection(room)
     if hasattr(fit, 'geoms'):
         fit = max(fit.geoms, key=lambda g: g.area)
-    return fit.simplify(simplify, preserve_topology=True).buffer(-0.05, join_style='mitre').simplify(0.05)
+    # a clean outline for the board: 0.25 inside, simplified by no more than that
+    clean = fit.buffer(-0.25, join_style='mitre').simplify(0.25, preserve_topology=True)
+    return Polygon([(round(x, 2), round(y, 2)) for x, y in clean.exterior.coords])
 
 
 def lid_footprint(lid):
@@ -614,7 +648,7 @@ def skin_cuts(U, planes):
     """Every cut through the outer skin (for the wall check: rays near an
     opening's edge leave through its side)."""
     cuts = [zcyl(0, 0, -1.0, 3.0, G.BORE_D, 96), zcyl(*G.LIGHT_WINDOW, -1.0, 3.0, G.LIGHT_WINDOW_D)]
-    cuts += [zcyl(*G.hole_xy(a), -1.0, 3.0, G.LED_HOLE_D, 32) for a in G.LED_ANGLES]
+    cuts += [zcyl(*hole_xy(a), -1.0, 3.0, G.LED_HOLE_D, 32) for a in G.LED_ANGLES]
     cuts.append(front_y_slots(U['bottom'], planes['front_y']))
     cuts += usb_features(planes['usb_old'])[0]
     cuts += magnet_features(planes)[0]
@@ -628,7 +662,6 @@ def skin_cuts(U, planes):
 def openings_test(U, planes, lid_fp, near=2.0, seam_near=2.0):
     """f(points, part) -> True where a point of the outer skin is within
     `near` of an opening or of the part's own seam (split plane, lid seat)."""
-    from shapely.geometry import MultiPoint
     cm = to_trimesh(skin_cuts(U, planes))
     pq = trimesh.proximity.ProximityQuery(cm)
     seam = lid_fp.exterior
@@ -875,11 +908,13 @@ def main():
     ap.add_argument('prusa_folder')
     ap.add_argument('--no-images', action='store_true')
     a = ap.parse_args()
-    parts, info = build(a.prusa_folder)
-    paths = export(parts, os.path.join(ENC, 'print'))
+    sys.path.insert(0, HERE)
+    import case as C        # one module for build, check and render (this file runs as __main__)
+    import check
+    parts, info = C.build(a.prusa_folder)
+    paths = C.export(parts, os.path.join(ENC, 'print'))
     for k, p in paths.items():
         print('wrote', os.path.relpath(p, ENC), '%.1f cm3' % (parts[k].volume() / 1000))
-    import check
     ok = check.run(parts, info, a.prusa_folder)
     fit = check.LAST['fit_outline']
     os.makedirs(os.path.join(ENC, 'out'), exist_ok=True)

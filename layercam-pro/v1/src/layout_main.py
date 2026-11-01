@@ -34,17 +34,17 @@ FIXED = {
     # F, the back face
     'U1': (SX, SY, 0, F),             # RV1106G3: its MIPI pins (top row, left) towards the sensor
     # the power stage right of the heatsink
-    'U3': (16.6, 9.0, 90, F),         # triple buck
-    'L2': (20.6, 5.2, 0, F),          # 3.3 V
-    'L3': (20.6, 9.0, 0, F),          # DDR
-    'L4': (20.6, 12.8, 0, F),         # 1.8 V
+    'U3': (16.2, 5.6, 90, F),         # triple buck
+    'L2': (21.0, 1.6, 0, F),          # 3.3 V
+    'L3': (21.0, 5.2, 0, F),          # DDR
+    'L4': (21.0, 8.8, 0, F),          # 1.8 V (the case's shoulder is below it)
     'U2': (13.6, 21.8, 90, F),        # 0.9 V buck, below-right of the SoC
-    'L1': (17.2, 19.4, 0, F),
+    'L1': (16.2, 18.6, 0, F),
     'Y1': (11.7, 17.2, 90, F),        # 24 MHz by the SoC's OSC pins (68/69, right side), clear of the heatsink and the 0.9 V strip
     'U5': (-13.0, 23.0, 90, F),       # SPI NAND, below-left (its pins are the SoC's bottom-left row)
     # Wi-Fi: the module upper-left, its SDIO corner (pins 24-29) towards
     # the SoC's SDMMC0 pins (11-18, left side); its buck beside it
-    'U6': (-18.5, 4.5, 0, F),
+    'U6': (-17.9, 2.4, 0, F),
     'U4': (-14.0, -6.5, 0, F),
     'L5': (-17.6, -6.6, 90, F),
     # USB-C on the edge tab, its mouth along the edge's outward normal
@@ -61,7 +61,7 @@ FIXED = {
     # its own; the C6's USB pair for recovery
     'TP1': (1.0, 27.4, 0, F), 'TP2': (3.0, 27.4, 0, F), 'TP3': (5.0, 27.4, 0, F), 'TP5': (7.0, 27.4, 0, F),
     'TP4': (-5.0, 27.4, 0, F),
-    'TP6': (-22.4, 12.6, 0, F), 'TP7': (-20.4, 12.6, 0, F),
+    'TP6': (-19.4, 13.6, 0, F), 'TP7': (-17.4, 13.6, 0, F),
     # B, the front face
     'U8': (0.0, 0.0, 0, B),           # the image sensor on the lens axis; its MIPI balls (rows D-E) towards the SoC
     'D2': (13.000, -0.000, 90, B),        # IR LED at 0 degrees (lens frame)

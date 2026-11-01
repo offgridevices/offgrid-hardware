@@ -18,12 +18,17 @@ import math
 # ---------------------------------------------------------------- the board
 BOARD_Z = 21.0            # front face (lens side); 1.6 mm thick, back face at 22.6
 BOARD_T = 1.6
-# The outline: Prusa's case outside at Z 21.0-22.6 (the convex outline of
-# its section, where the case is widest), less 2.5 mm (a 2.0 mm wall and
-# 0.5 mm clearance), simplified.  Lens frame X, Y.
+# The outline: what fits inside the new case's 2.0 mm walls with 0.5 mm
+# clearance (enclosure/src/check.py measured it against the printed parts:
+# Prusa's case has two shoulders at (+-26, -12) that the plain outline of
+# its widest section ran 2.9 mm into).  Lens frame X, Y.
 OUTLINE = [
-    (-15.05, -29.20), (-16.75, -28.22), (-31.56, -2.57), (-32.64, -0.35), (-32.30, 1.30),
-    (-15.92, 29.27), (15.83, 29.32), (32.30, 1.31), (32.54, -0.79), (16.16, -28.90),
+    (-32.08, -0.42), (-31.69, 1.50), (-16.39, 27.98), (-15.10, 29.02),
+    (-7.05, 28.60), (7.30, 28.60), (10.83, 29.06), (15.62, 28.81), (31.70, 1.47),
+    (32.11, -0.09), (27.99, -7.90), (27.25, -8.64), (24.63, -9.37), (23.31, -10.81),
+    (18.72, -20.38), (18.13, -22.80), (18.17, -24.34), (16.23, -28.13), (15.37, -28.66),
+    (4.17, -28.77), (-14.61, -28.77), (-15.76, -28.49), (-17.88, -25.40), (-18.78, -20.58),
+    (-23.36, -10.86), (-25.03, -9.21), (-27.20, -8.68),
 ]
 # M2 holes into printed bosses; each at least 3.0 mm from the edge
 # (verify.py), clear of the lens holder and the heatsink

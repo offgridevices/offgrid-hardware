@@ -3,7 +3,6 @@
 
     draw(parts, info, outdir)   -- called by case.py after a build
 """
-import math
 import os
 
 import numpy as np

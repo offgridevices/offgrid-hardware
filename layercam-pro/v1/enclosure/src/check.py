@@ -63,6 +63,23 @@ def run(parts, info, folder=None, log=print):
         log('%s %s: %s' % ('PASS' if good else 'FAIL', name, text))
         res[name] = text
 
+    # ------------------------------------------------------------ 0 Prusa's front features (STEP)
+    faces = C.read_step_faces(folder) if folder else {}
+    if faces:
+        cyl = faces['bottom']['cyls']
+        def near(d, xy):
+            c = [p for dd, ax, p in cyl if abs(dd - d) < 0.03 and abs(ax[2]) > 0.99]
+            return min(np.hypot(p[0] - xy[0], p[1] - xy[1]) for p in c) if c else float('inf')
+        led = max(near(G.LED_HOLE_D, C.hole_xy(a)) for a in G.LED_ANGLES)
+        off = max(math.hypot(C.hole_xy(a)[0] - G.hole_xy(a)[0], C.hole_xy(a)[1] - G.hole_xy(a)[1]) for a in G.LED_ANGLES)
+        win = near(G.LIGHT_WINDOW_D, G.LIGHT_WINDOW)
+        bore = near(G.BORE_D, (0, 0))
+        report("Prusa's front holes", max(led, win, bore) < 0.05,
+               'the six Ø%.1f LED holes cut where Prusa\'s STEP has them (%s; up to %.2f mm off geometry.hole_xy), '
+               'the Ø%.1f window %.2f mm and the Ø%.1f bore %.2f mm from geometry'
+               % (G.LED_HOLE_D, ', '.join('%d: (%.2f, %.2f)' % ((a,) + tuple(C.hole_xy(a))) for a in G.LED_ANGLES),
+                  off, G.LIGHT_WINDOW_D, win, G.BORE_D, bore))
+
     # ------------------------------------------------------------ 1 board
     board = C.prism(C.board_polygon(), G.BOARD_Z, G.BOARD_Z + G.BOARD_T)
     pads = C.union([C.zcyl(x, y, G.BOARD_Z - 3, G.BOARD_Z + G.BOARD_T + 3, G.BOSS_D + 0.05) for x, y in G.SCREWS])
