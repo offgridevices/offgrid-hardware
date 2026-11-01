@@ -4,13 +4,15 @@ sources and fails loudly.
 
   regulators   every buck's output from its feedback divider (circuit.py
                and the resistor values in parts.py) inside the rail's limits
-  camera FFC   on the routed main board, each of J2's contacts against the
-               module contact in line with it (by position, from the
-               module drawing's numbers in geometry.py): same net
-  housing      the main board's outline inside the measured pocket, the
-               USB board inside its grooves, the ring inside the collar
-  heights      every part on the main board's back face under the camera
-               module no taller than the gap under the module
+  sensor       the image sensor's balls: every net in circuit.py on the
+               ball the SC4336P-family library names for it (by position on
+               the routed board)
+  case         the board inside the case's outline (Prusa's outside less a
+               wall), the screws 3 mm or more from the edge, the IR LEDs
+               clear of the IR-cut holder's base, the USB-C's mouth where
+               the case's opening is
+  heights      the parts under the IR-cut holder's recess and under the
+               SoC's heatsink no taller than the room there
   firmware     the device tree's pins (firmware/) against circuit.py
                (when the firmware is present)
 
@@ -43,7 +45,7 @@ RAILS = {
     'VCC_3V3': ('FB_3V3', 0.6, 3.0, 3.465, 'VCCIO 3.3 V +-5 %'),
     'VCC_DDR': ('FB_DDR', 0.6, 1.283, 1.45, 'DDR3L 1.35 V'),
     'VCC_1V8': ('FB_1V8', 0.6, 1.71, 1.89, '1.8 V +-5 %'),
-    'VWIFI': ('FB_WIFI', 0.6, 3.2, 4.8, 'AP6256 VBAT, full RF from 3.2 V'),
+    'VWIFI': ('FB_WIFI', 0.6, 3.0, 3.6, 'ESP32-C6 3V3, 3.0-3.6 V'),
 }
 
 
@@ -61,90 +63,108 @@ def regulators():
               % (rail, v, top[0].part[1:], bot[0].part[1:], lo, hi, why))
 
 
-def camera_ffc():
-    """Module contact k sits at x = (k - 10.5) * 0.5 seen from behind the
-    board (pin 1 at -x, the row centred on the lens axis: geometry.py); the
-    J2 pad nearest that x must carry the module contact's net."""
+def _board():
     import pcbnew
     path = os.environ.get('MAIN_BOARD') or pcb.board_path('main')
     if not os.path.exists(path):
-        print('  [--] camera FFC: no routed main board yet')
-        return
+        return None
     pcb.configure('main')
-    b = pcbnew.LoadBoard(path)
-    j2 = b.FindFootprintByReference('J2')
-    pads = [(pcb.xy(p.GetPosition()), p.GetNetname()) for p in j2.Pads() if p.GetNumber() not in ('21', '22')]
-    module = {1: 'GND', 2: 'CAM_MCLK', 3: 'GND', 4: 'CSI_D0P', 5: 'CSI_D0N', 6: 'GND', 7: 'CSI_CKP', 8: 'CSI_CKN',
-              9: 'GND', 10: 'CSI_D1P', 11: 'CSI_D1N', 12: 'GND', 13: 'CAM_SCL', 14: 'CAM_SDA', 15: 'GND',
-              16: 'CAM_RST', 17: 'GND', 18: 'GND', 19: 'VCC_3V3', 20: 'VCC_3V3'}
-    bad, worst = [], 0.0
-    for k, net in module.items():
-        x = (k - 10.5) * 0.5
-        (px, py), n = min(pads, key=lambda p: abs(p[0][0] - x))
-        worst = max(worst, abs(px - x))
-        if n != net:
-            bad.append('module %d (%s) meets %s' % (k, net, n))
-    check(not bad and worst < 0.1, 'camera FFC: all 20 module contacts meet their own net on J2, in line within '
-          '%.2f mm %s' % (worst, bad[:3] or ''))
+    return pcbnew.LoadBoard(path)
 
 
-def housing():
-    from shapely.geometry import Polygon
-    board = pcb.board_polygon('main')
-    pocket = Polygon([(x, -y) for x, y in G.POCKET])
-    gap = pocket.exterior.distance(board) if pocket.contains(board) else -board.difference(pocket).area
-    check(pocket.contains(board), 'main board inside the measured pocket (less 0.4 mm), closest %.2f mm' % gap)
-    usb_in_grooves()
+# the SC4336P-family CSP-35 ball names (EasyEDA C9900187041's symbol), the
+# second source against circuit.py's nets
+BALL_NAMES = {'A1': 'AGND', 'A3': 'EXTCLK', 'A4': 'SDA', 'A5': 'SCL', 'A6': 'XSHUTDN', 'B1': 'AVDD', 'B2': 'DOGND',
+              'B4': 'DVDD', 'B5': 'SID', 'B6': 'DVDD', 'B7': 'AVDD', 'C1': 'DVDD', 'C2': 'DOVDD', 'C3': 'DOVDD',
+              'C4': 'MCP', 'C6': 'PWDNB', 'C7': 'AGND', 'D2': 'MD1N', 'D3': 'MD1P', 'D4': 'MCN', 'D5': 'MD0N',
+              'D6': 'DOGND', 'D7': 'VREFN2', 'E4': 'DVDD', 'E5': 'MD0P', 'E7': 'VREFN'}
+NAME_NET = {'AGND': 'GND', 'DOGND': 'GND', 'SID': 'GND', 'EXTCLK': 'CAM_MCLK', 'SDA': 'CAM_SDA', 'SCL': 'CAM_SCL',
+            'XSHUTDN': 'CAM_RST', 'PWDNB': 'CAM_PWDN', 'AVDD': 'CAM_AVDD', 'DVDD': 'CAM_DVDD', 'DOVDD': 'CAM_DOVDD',
+            'MCP': 'CSI_CKP', 'MCN': 'CSI_CKN', 'MD0P': 'CSI_D0P', 'MD0N': 'CSI_D0N', 'MD1P': 'CSI_D1P',
+            'MD1N': 'CSI_D1N', 'VREFN': 'CAM_VREFN', 'VREFN2': 'CAM_VREFN2'}
 
 
-def usb_in_grooves():
-    """The USB board's outline, read from its board file, against the slot's
-    grooves (v USB_V0 .. USB_V0 + USB_W).  The board is drawn from its parts'
-    face, which faces the slot's +n; a right-handed placement then puts
-    board +x along -v (geometry.py), so the board's x range turned round
-    must lie in the grooves.  A board drawn with x = v would be a mirror
-    image: its long side lands where the grooves are short."""
-    import pcbnew
-    path = pcb.board_path('usb')
-    if not os.path.exists(path):
+def sensor():
+    comps = {c.ref: c for c in circuit.build('main')}
+    pins = comps['U8'].pins
+    bad = [(b, n, pins.get(b)) for b, n in BALL_NAMES.items() if pins.get(b) != NAME_NET[n]]
+    nc = [b for b, n in pins.items() if n and b not in BALL_NAMES]
+    check(not bad and not nc, 'image sensor: every ball carries the net its name calls for %s' % ((bad + nc)[:4] or ''))
+    b = _board()
+    if b is None:
+        print('  [--] sensor on the board: no board yet')
         return
-    b = pcbnew.LoadBoard(path)
-    xs, ys = [], []
-    for d in b.GetDrawings():
-        if d.GetLayer() == pcbnew.Edge_Cuts:
-            for p in (d.GetStart(), d.GetEnd()):
-                xs.append(p.x / 1e6 - pcb.CX)
-                ys.append(p.y / 1e6 - pcb.CY)
-    v0, v1 = -max(xs), -min(xs)
-    ok = v0 >= G.USB_V0 - 0.05 and v1 <= G.USB_V0 + G.USB_W + 0.05 and min(ys) >= -0.05 and max(ys) <= G.USB_L + 0.05
-    check(ok, 'USB board in its grooves: v %.1f .. %.1f in %.1f .. %.1f (board x = -v), y %.1f .. %.1f'
-          % (v0, v1, G.USB_V0, G.USB_V0 + G.USB_W, min(ys), max(ys)))
+    fp = b.FindFootprintByReference('U8')
+    # on the front face, centred on the lens axis; A1 at the +x, -y corner
+    # seen from behind (the footprint mirrored)
+    x, y = pcb.xy(fp.GetPosition())
+    a1 = pcb.pad_at(b, 'U8', 'A1')
+    check(fp.IsFlipped() and abs(x) < 0.01 and abs(y) < 0.01 and a1[0] > 1.8 and a1[1] < -1.0,
+          'image sensor on the front face on the lens axis, ball A1 at (%.2f, %.2f)' % a1)
+
+
+def case():
+    from shapely.geometry import Polygon, Point, box
+    import math
+    board = pcb.board_polygon('main')
+    outline = Polygon([(x, -y) for x, y in G.OUTLINE])
+    # the board's outline is the case's inside: the outline itself, plus
+    # the USB tab into the wall
+    extra = board.difference(outline.buffer(0.01)).area
+    check(extra <= G.USB_TAB * G.USB_TAB_W + 0.5, 'board inside the case outline but for the USB tab (%.1f mm2 outside)' % extra)
+    d = min(board.exterior.distance(Point(x, -y)) for x, y in G.SCREWS)
+    check(d >= 3.0, 'screw holes 3.0 mm or more from the edge (closest %.2f mm)' % d)
+    x0, y0, x1, y1 = G.HOLDER_BOX
+    holder = box(x0, -y1, x1, -y0)
+    b = _board()
+    if b is None:
+        return
+    gaps = []
+    for k, a in enumerate(G.LED_ANGLES):
+        fp = b.FindFootprintByReference('D%d' % (k + 2))
+        import placer
+        gaps.append(placer.courtyard(fp, 'B').distance(holder))
+        lx, ly = G.led_xy(a)
+        px, py = pcb.xy(fp.GetPosition())
+        check(math.hypot(px - lx, py + ly) < 0.01, 'D%d under its rod at %d degrees' % (k + 2, a))
+    check(min(gaps) >= 0.3, 'IR LEDs clear of the IR-cut holder\'s base (closest courtyard %.2f mm)' % min(gaps))
+    # the USB-C's mouth: 5.24 mm from the footprint's origin along its +y
+    fp = b.FindFootprintByReference('J1')
+    ox, oy = pcb.xy(fp.GetPosition())
+    r = math.radians(fp.GetOrientationDegrees())
+    mx, my = ox + 5.24 * math.sin(r), oy + 5.24 * math.cos(r)
+    ex, ey = G.USB_EDGE_XY
+    a = math.radians(G.USB_NORMAL_DEG)
+    out = (mx - ex) * math.cos(a) + (my + ey) * -math.sin(a)
+    side = (mx - ex) * math.sin(a) + (my + ey) * math.cos(a)
+    check(abs(out - 4.2) < 0.05 and abs(side) < 0.05,
+          'USB-C mouth 4.2 mm out along the edge normal, on the opening\'s centre (%.2f out, %.2f aside)' % (out, side))
 
 
 def heights():
-    """Parts on the back face (F) under the camera module: no taller than
-    UNDER_MODULE_MAX_H (the module rests 1.0 mm off the board)."""
-    import pcbnew
-    import layout_main as L
-    path = os.environ.get('MAIN_BOARD') or pcb.board_path('main')
-    if not os.path.exists(path):
-        return
-    pcb.configure('main')
-    b = pcbnew.LoadBoard(path)
-    comps = {c.ref: c for c in circuit.build('main')}
-    zone = [g for g, h in L.keepouts('F') if h == G.UNDER_MODULE_MAX_H][0]
-    import placer
-    bad = []
-    for fp in b.GetFootprints():
-        if fp.IsFlipped() or fp.GetReference().startswith('H'):
-            continue
-        if placer.courtyard(fp, 'F').intersects(zone) and L.height(comps[fp.GetReference()].part) > G.UNDER_MODULE_MAX_H:
-            bad.append(fp.GetReference())
-    check(not bad, 'back face under the camera module: every part %.1f mm or lower %s' % (G.UNDER_MODULE_MAX_H, bad or ''))
-    hx, hy = G.HEATSINK_C
-    h = G.HEATSINK_SIZE / 2
+    """Parts under the IR-cut holder's recess (front face) and under the
+    SoC's heatsink (back face): no taller than the room there."""
+    import layout_main as L, placer
     from shapely.geometry import box
-    hs = box(hx - h, hy - h, hx + h, hy + h)
+    b = _board()
+    if b is None:
+        return
+    comps = {c.ref: c for c in circuit.build('main')}
+    rx0, ry0, rx1, ry1 = L.RECESS
+    recess = box(rx0, ry0, rx1, ry1)
+    bad = [fp.GetReference() for fp in b.GetFootprints()
+           if fp.IsFlipped() and fp.GetReference() not in ('U8',) and not fp.GetReference().startswith('H')
+           and placer.courtyard(fp, 'B').intersects(recess)
+           and L.height(comps[fp.GetReference()].part) > L.UNDER_HOLDER_MAX_H]
+    check(not bad, 'front face in the IR-cut holder\'s recess: every part %.1f mm or lower %s' % (L.UNDER_HOLDER_MAX_H, bad or ''))
+    x0, y0, x1, y1 = G.HOLDER_BOX
+    ring = box(x0, -y1, x1, -y0).difference(recess)
+    bad = [fp.GetReference() for fp in b.GetFootprints()
+           if fp.IsFlipped() and not fp.GetReference().startswith('H') and placer.courtyard(fp, 'B').intersects(ring)]
+    check(not bad, 'front face under the IR-cut holder\'s base (outside the recess): no part %s' % (bad or ''))
+    cx, cy = G.SOC_XY[0], -G.SOC_XY[1]
+    hw, hh = G.HEATSINK[0] / 2, G.HEATSINK[1] / 2
+    hs = box(cx - hw, cy - hh, cx + hw, cy + hh)
     bad = [fp.GetReference() for fp in b.GetFootprints()
            if not fp.IsFlipped() and fp.GetReference() not in ('U1',) and not fp.GetReference().startswith('H')
            and placer.courtyard(fp, 'F').intersects(hs)
@@ -164,10 +184,10 @@ def firmware():
 
 
 if __name__ == '__main__':
-    print('== LayerCam v1 design checks')
+    print('== LayerCam Pro v1 design checks')
     regulators()
-    housing()
-    camera_ffc()
+    sensor()
+    case()
     heights()
     firmware()
     if FAIL:

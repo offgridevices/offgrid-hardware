@@ -135,6 +135,8 @@ def _build(board, path, avoid):
     if hasattr(layout, 'escape_area'):
         # where the escape band's own clearance applies (pcb.write_rules)
         pcb.rule_area_shape(b, layout.escape_area(), pcb.cu_layers(), name='escape band', tracks=False, vias=False)
+    if hasattr(layout, 'sensor_area'):
+        pcb.rule_area_shape(b, layout.sensor_area(), pcb.cu_layers(), name='sensor band', tracks=False, vias=False)
     pcbnew.SaveBoard(path, b)
     pcb.write_rules(path)
     stuck = {f.split('.')[0] for f in f2} & small

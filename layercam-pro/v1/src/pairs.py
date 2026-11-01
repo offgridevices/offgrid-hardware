@@ -39,27 +39,41 @@ ESC_W = 0.1                        # the stubs between the sensor's balls
 # reaches the pair's start row PAIR_Y0.  Stubs leave between the edge row's
 # balls (0.64 mm apart: 0.44 mm between pads).
 SENSOR = {
-    'CSI_D0P': [(-0.64, 1.16), (-0.64, 1.60)],
-    'CSI_D0N': [(-0.64, 0.58), (-0.96, 0.90), (-0.96, 1.60)],
-    'CSI_CKP': [(0.00, 0.00), (0.32, 0.32), (0.32, 1.60)],
-    'CSI_CKN': [(0.00, 0.58), (-0.32, 0.90), (-0.32, 1.60)],
-    'CSI_D1P': [(0.64, 0.58), (0.96, 0.90), (0.96, 1.60)],
-    'CSI_D1N': [(1.28, 0.58), (1.60, 0.90), (1.60, 1.60)],
+    'CSI_D0P': [(-0.64, 1.16), (-0.64, 2.20)],
+    'CSI_D0N': [(-0.64, 0.58), (-0.96, 0.90), (-0.96, 2.20)],
+    # the clock's two tracks part round the via of DVDD's ball E4, which
+    # sits between them on the package's edge row
+    'CSI_CKP': [(0.00, 0.00), (0.32, 0.32), (0.32, 1.41), (0.42, 1.51), (0.42, 2.20)],
+    'CSI_CKN': [(0.00, 0.58), (-0.32, 0.90), (-0.32, 1.41), (-0.42, 1.51), (-0.42, 2.20)],
+    'CSI_D1P': [(0.64, 0.58), (0.96, 0.90), (0.96, 2.20)],
+    'CSI_D1N': [(1.28, 0.58), (1.60, 0.90), (1.60, 2.20)],
 }
-PAIR_Y0 = 2.0                      # where each lane's two tracks are coupled
+PAIR_Y0 = 2.5                      # where each lane's two tracks are coupled
 LANE_X0 = (-0.80, 0.0, 1.28)       # lane centrelines there (D0, CK, D1)
+
+# The sensor's other inner balls: a 0.1 mm stub each to a via between the
+# balls (0.35 / 0.2 mm, as the SoC's escapes: 0.16 mm to the next ball's
+# pad); the edge balls are routed.  net -> [(ball, via)]
+ESC_VIA = (0.35, 0.2)
+SENSOR_VIAS = {
+    'GND': [('A1', (1.60, -0.87)), ('B2', (1.60, -0.87)), ('B5', (-0.96, -0.87)),
+            ('C7', (-1.60, 0.29)), ('D6', (-1.60, 0.29))],
+    'CAM_DVDD': [('B4', (0.32, -0.87)), ('B6', (-1.60, -0.87)), ('E4', (0.0, 1.85))],
+    'CAM_DOVDD': [('C2', (0.96, -0.29)), ('C3', (0.96, -0.29))],
+    'CAM_PWDN': [('C6', (-0.96, -0.29))],
+}
 SWAP = (True, True, False)         # N left of P on the sensor side: change sides at the vias
 # on B: each lane runs down to its row, left (west) to its via column; the
 # westmost lane turns first.  0.55 mm between rows: a lane is 0.39 wide
-B_ROW = (2.4, 2.95, 3.5)
+B_ROW = (2.9, 3.45, 4.0)
 VIA_X = (-10.0, -8.0, -6.0)        # lane centre at the vias, west of the SoC's pins
-VIA_Y = 4.4                        # the first via of each lane; the second VIA_DY below
+VIA_Y = 4.9                        # the first via of each lane; the second VIA_DY below
 VIA_DY = 0.7
 VIA_DX = 0.35
 FY0 = VIA_Y + VIA_DY + 1.2         # where each lane is a pair again on F
 # on F: from the vias down, right (east) at its row, down into the SoC's
 # pins; the eastmost lane (D1) turns first
-F_ROW = (7.7, 7.15, 6.6)
+F_ROW = (8.1, 7.55, 7.0)
 
 
 def chamfer(pts, c=CHAMFER):
@@ -111,8 +125,26 @@ def _lane_b(i):
     return chamfer([(x0, PAIR_Y0), (x0, row), (vx, row), (vx, VIA_Y - 0.55)], CHAMFER)
 
 
+def ball(b, name):
+    return pcb.pad_at(b, 'U8', name)
+
+
+def sensor(b):
+    """The sensor's inner balls out to their vias; returns the (ref, pad)
+    of the ground balls done here (the plane fan-out leaves them)."""
+    done, vias = set(), set()
+    for net, items in SENSOR_VIAS.items():
+        for name, v in items:
+            _draw(b, [ball(b, name), v], ESC_W, pcbnew.B_Cu, net)
+            if v not in vias:
+                pcb.via(b, v[0], v[1], net, d=ESC_VIA[0], drill=ESC_VIA[1])
+                vias.add(v)
+            if net == 'GND':
+                done.add(('U8', name))
+    return done
+
+
 def mipi(b):
-    import pcb as P
     for i, (p, n) in enumerate(MIPI):
         # stubs out of the package, then the couple
         line = _lane_b(i)
@@ -209,5 +241,6 @@ def lengths(b):
 
 
 def draw(b):
+    done = sensor(b)
     mipi(b)
-    return set()
+    return done

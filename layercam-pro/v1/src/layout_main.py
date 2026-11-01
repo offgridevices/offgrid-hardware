@@ -40,7 +40,7 @@ FIXED = {
     'L4': (20.6, 12.8, 0, F),         # 1.8 V
     'U2': (13.6, 21.8, 90, F),        # 0.9 V buck, below-right of the SoC
     'L1': (17.2, 19.4, 0, F),
-    'Y1': (11.7, 19.3, 90, F),        # 24 MHz at the SoC's OSC pins (68/69, right side), clear of the heatsink
+    'Y1': (11.7, 17.2, 90, F),        # 24 MHz by the SoC's OSC pins (68/69, right side), clear of the heatsink and the 0.9 V strip
     'U5': (-13.0, 23.0, 90, F),       # SPI NAND, below-left (its pins are the SoC's bottom-left row)
     # Wi-Fi: the module upper-left, its SDIO corner (pins 24-29) towards
     # the SoC's SDMMC0 pins (11-18, left side); its buck beside it
@@ -254,6 +254,14 @@ def escapes(b):
 ESCAPE = dict(ref='U1', via=(0.35, 0.2), clr=0.126, w=0.1)
 
 
+SENSOR_BAND = (-2.7, -2.4, 2.7, 2.7)    # round the image sensor's balls: its escape stubs and vias
+
+
+def sensor_area():
+    """Where the sensor's escape clearance (0.1 mm) applies."""
+    return box(*SENSOR_BAND)
+
+
 def escape_area():
     """Where the 0.1 mm escape-band clearance applies: the SoC's pins and
     the band round them."""
@@ -325,10 +333,10 @@ def placement(comps, fps_crt):
 # strip out to the 0.9 V buck below-right, and 3.3 V everywhere else.
 SOC = FIXED['U1'][:2]
 CORE_HALF = 5.85                  # to the pin ring's middle: the 3.3 V pins' vias sit outside it
-# the strip out to the buck: from the SoC's right side between its 3.3 V
-# pins there (81 at y +3.3, 88 at y +0.9 from the centre... the strip runs
-# below them, from y +3.6 to +7.6) out to the buck's inductor
-STRIP = (19.2, 3.9, 7.6)          # x1, then y0 / y1 from the SoC's centre
+# the strip out to the buck: from the SoC's right side below its 3.3 V
+# pins there (81 and 88, above the centre) out to the buck and its
+# inductor below-right
+STRIP = (19.6, 4.6, 8.0)          # x1, then y0 / y1 from the SoC's centre
 
 
 def plane_polys():
@@ -339,7 +347,7 @@ def plane_polys():
     # output capacitors, and under the buck (its feedback network's 0.9 V
     # end takes a via to this plane)
     x1, y0, y1 = STRIP
-    strip = box(cx + CORE_HALF, cy + y0, x1, cy + y1).union(box(cx + 10.5, cy + 2.5, x1, cy + 9.5))
+    strip = box(cx + CORE_HALF, cy + y0, x1, cy + y1).union(box(cx + 10.5, cy + 3.6, x1, cy + 10.0))
     v09 = core.union(strip).intersection(pcb.board_polygon().buffer(-0.4))
     v33 = pcb.board_polygon().buffer(-0.4).difference(v09.buffer(0.4))
     return {'VDD_0V9': v09, 'VCC_3V3': v33, 'GND': pcb.board_polygon()}

@@ -51,12 +51,12 @@ def configure(board):
 
 
 def board_dir(board=None):
-    return os.path.join(V1, board or BOARD)
+    # one board: its files at the revision's top (repo-structure.md)
+    return V1
 
 
 def board_path(board=None):
-    b = board or BOARD
-    return os.path.join(board_dir(b), 'layercam-%s.kicad_pcb' % b)
+    return os.path.join(board_dir(), 'layercam-pro.kicad_pcb')
 
 
 def P(x, y):
@@ -383,10 +383,15 @@ RULES = """(version 1)
 """
 
 
-ESCAPE_RULE = '''# The main board's SoC escape band (layout_main.ESCAPE): 0.1 mm, PCBWay's
-# 6-layer floor, between its 0.35 mm-pitch pins' stubs and vias.
+ESCAPE_RULE = '''# The SoC's escape band (layout_main.ESCAPE): 0.1 mm, PCBWay's 6-layer
+# floor, between its 0.35 mm-pitch pins' stubs and vias.
 (rule "SoC escape band"
   (condition "A.intersectsArea('escape band') && B.intersectsArea('escape band')")
+  (constraint clearance (min 0.1mm)))
+# The image sensor's balls (0.64 x 0.58 mm pitch, 0.2 mm pads): the same
+# 0.1 mm floor for its escape stubs and the vias between its balls
+(rule "sensor escape band"
+  (condition "A.intersectsArea('sensor band') && B.intersectsArea('sensor band')")
   (constraint clearance (min 0.1mm)))
 '''
 

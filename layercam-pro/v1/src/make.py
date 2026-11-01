@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Build LayerCam v1: every committed output of its three boards, with gates.
+"""Build LayerCam Pro v1: every committed output of its board, with gates.
 
-    python3 src/make.py [main|ring|usb ...]          outputs from the committed boards
-    python3 src/make.py --reroute [main|ring|usb]    place and route from scratch first
-    python3 src/make.py --artwork [...]              lay the silkscreen out again (copper untouched)
-    python3 src/make.py --fab-only [...]             fab files only: no renders or STEP (CI)
+    python3 src/make.py                  outputs from the committed board
+    python3 src/make.py --reroute        place and route from scratch first
+    python3 src/make.py --artwork        lay the silkscreen out again (copper untouched)
+    python3 src/make.py --fab-only       fab files only: no renders or STEP (CI)
 
-With no board named, all three.  Gates (any failure stops the build):
+Gates (any failure stops the build):
   * circuit.py: every part has a footprint and an LCSC number, no
     single-pin net, every pin on its footprint and every pad in circuit.py
   * KiCad DRC: 0 errors, 0 warnings, 0 unconnected items
   * every pad's net on the board equals circuit.py
   * every track corner 45 degrees or less
   * the BOM and CPL list exactly the assembled parts
-  * (main) the MIPI and USB pairs: each pair's two tracks the same length
+  * the MIPI pairs: each pair's two tracks the same length
 
 Run inside the pinned toolchain (tools/Dockerfile): tools/kd python3 src/make.py
 """
@@ -37,7 +37,7 @@ def gate(ok, what):
 
 
 def name(bd):
-    return 'layercam-' + bd
+    return 'layercam-pro'
 
 
 def check_circuit():
@@ -81,7 +81,7 @@ def check_pairs(board):
     import pairs
     ln = pairs.lengths(pcbnew.LoadBoard(board))
     worst = []
-    for p, n in pairs.MIPI + (('USB_DP', 'USB_DM'),):
+    for p, n in pairs.MIPI:
         worst.append((abs(ln[p] - ln[n]), p, n, ln[p], ln[n]))
     d, p, n, lp, lnn = max(worst)
     gate(d <= PAIR_SKEW, 'pairs matched within %.2f mm (worst %s/%s %.2f/%.2f mm)' % (PAIR_SKEW, p, n, lp, lnn))
@@ -97,12 +97,12 @@ def artwork(path):
 
 
 def build(bd, reroute=False, art=False, pictures=True):
-    print('== LayerCam v1: %s board' % bd)
+    print('== LayerCam Pro v1')
     pcb.configure(bd)
     board = pcb.board_path(bd)
     if reroute:
         import pipeline
-        work = tempfile.mkdtemp(prefix='layercam-%s-' % bd)
+        work = tempfile.mkdtemp(prefix='layercam-pro-')
         routed = pipeline.run(bd, work)
         fab.install(routed, pcb.board_dir(bd), name(bd))
         art = True
@@ -117,8 +117,7 @@ def build(bd, reroute=False, art=False, pictures=True):
     gate(not bad, 'copper nets match circuit.py pad for pad %s' % (bad[:5] or ''))
     sharp = [c for c in miter.corners(board) if c[0] > miter.LIMIT]
     gate(not sharp, 'every track corner 45 degrees or less %s' % ([(round(a), n, x, y) for a, n, _, x, y in sharp][:6] or ''))
-    if bd == 'main':
-        check_pairs(board)
+    check_pairs(board)
     out = fab.produce(board, None, name(bd), V1, pictures=pictures)
     print('  wrote %s (%d files), %d parts in %d BOM lines, %d pads in the netlist'
           % (os.path.relpath(out['zip'], V1), len(out['gerber_files']), out['parts'], out['bom_lines'], out['pads']))
