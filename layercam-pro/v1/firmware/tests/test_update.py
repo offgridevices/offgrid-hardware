@@ -111,7 +111,7 @@ class Package(unittest.TestCase):
 
     def test_good(self):
         m, payload = update.read_package(self.good, [OTHER, PUB])
-        self.assertEqual((m['version'], m['product'], m['min_rootfs']), ('0.3.0', 'LayerCam v1', 1))
+        self.assertEqual((m['version'], m['product'], m['min_rootfs']), ('0.3.0', 'LayerCam Pro v1', 1))
         self.assertIn('layercam/service.py', m['files'])
         self.assertFalse(any('__pycache__' in n or n.endswith('.pyc') for n in m['files']))
         update.check_compatible(m, '0.2.0', 1)
@@ -180,7 +180,7 @@ class Package(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         r = subprocess.run(['python3', tool, 'verify', os.path.join(d, 'update.pub'), out],
                            capture_output=True, text=True)
-        self.assertIn('good: LayerCam v1 version %s' % VERSION, r.stdout)
+        self.assertIn('good: LayerCam Pro v1 version %s' % VERSION, r.stdout)
         self.assertEqual(len(update.load_keys(os.path.join(d, 'update.pub'))), 1)
         r = subprocess.run(['python3', tool, 'keygen', key], capture_output=True, text=True)
         self.assertNotEqual(r.returncode, 0)                                     # never overwrites a key

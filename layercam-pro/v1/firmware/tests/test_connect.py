@@ -59,13 +59,13 @@ class Requests(unittest.TestCase):
             connect.snapshot_request('https://x', TOKEN, 'f' * 65, TINY_JPEG)
 
     def test_camera_info_only_documented_keys(self):
-        body = connect.camera_info(cfg(), (2304, 1296), {'wifi_ipv4': '192.0.2.40', 'wifi_mac': '0a:bc:12:34:56:7f',
+        body = connect.camera_info(cfg(), (2560, 1440), {'wifi_ipv4': '192.0.2.40', 'wifi_mac': '0a:bc:12:34:56:7f',
                                                          'lan_ipv4': '', 'bogus': 1})
         self.assertEqual(set(body), {'config', 'features', 'device'})
         self.assertLessEqual(set(body['config']), {'name', 'path', 'driver', 'trigger_scheme', 'rotation',
                                                    'resolution', 'network_info'})
         self.assertEqual(body['config']['trigger_scheme'], 'THIRTY_SEC')
-        self.assertEqual(body['config']['resolution'], {'width': 2304, 'height': 1296})
+        self.assertEqual(body['config']['resolution'], {'width': 2560, 'height': 1440})
         self.assertEqual(set(body['config']['network_info']), {'wifi_ipv4', 'wifi_mac'})
         d = body['device']
         self.assertIn(d['type'], ('Buddy3D', 'ESP32', 'WEB', 'LINK', 'INTERNAL'))

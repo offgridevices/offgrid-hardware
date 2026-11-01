@@ -26,7 +26,7 @@ def main():
         return
     aus = sorted(n for n in os.listdir(au_dir) if n.endswith('.au'))
     out = sys.stdout.buffer
-    out.write(b'READY 2304 1296\n')
+    out.write(b'READY 2560 1440\n')
     out.flush()
     video, nxt, awake = None, 0, False
     for line in sys.stdin.buffer:
@@ -64,7 +64,7 @@ def main():
                 log.write(line.decode())
             out.write(b'OK\n')
         elif cmd == 'PING':
-            out.write(b'OK 2304 1296\n')
+            out.write(b'OK 2560 1440\n')
         elif cmd == 'DIE':
             sys.exit(3)
         elif cmd == 'QUIT':

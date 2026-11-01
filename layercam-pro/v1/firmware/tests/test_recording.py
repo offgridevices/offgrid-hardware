@@ -34,7 +34,7 @@ class Helper(unittest.TestCase):
         with self.assertRaises(capture.CameraError):
             self.cam.snapshot(80)
         self.cam.wake(10)
-        self.assertEqual(self.cam.resolution(), (2304, 1296))
+        self.assertEqual(self.cam.resolution(), (2560, 1440))
         self.cam.night(True)
         with self.assertRaises(capture.CameraError):
             self.cam.video_frame()              # no VSTART: the helper says ERR

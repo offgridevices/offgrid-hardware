@@ -2,13 +2,28 @@
 not turn on (pincheck.image_results, which the board build runs too); the
 install script on a stand-in SDK; the page refusing to be open on the home
 network."""
-import base64, os, shutil, subprocess, tempfile, unittest
+import base64, json, os, shutil, subprocess, tempfile, unittest
 from unittest import mock
 
 import pincheck
-from layercam import config, web
+from layercam import board, config, web
 
 FIRMWARE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+I2C = 'sysdrv/source/kernel/drivers/media/i2c'
+# the lines of the SDK's sc4336.c, Kconfig and Makefile (824b817f) that
+# tools/sc4336h-port.py relies on (tests/test_sensor_port.py has more)
+SENSOR_FILES = {
+    'sc4336.c': ('// SPDX-License-Identifier: GPL-2.0\n/*\n * sc4336 driver\n */\n'
+                 '#define CHIP_ID\t\t\t\t0xdc42\n#define SC4336_REG_CHIP_ID\t\t0x3107\n'
+                 '#define SC4336_NAME\t\t\t"sc4336"\n'
+                 'static const struct of_device_id sc4336_of_match[] = {\n\t{ .compatible = "smartsens,sc4336" },\n'
+                 '\t{},\n};\n'),
+    'Kconfig': ('config VIDEO_SC3336\n\ttristate "SmartSens SC3336 sensor support"\n\n'
+                'config VIDEO_SC4336\n\ttristate "SmartSens SC4336 sensor support"\n\n'
+                'config VIDEO_SC4336P\n\ttristate "SmartSens SC4336P sensor support"\n'),
+    'Makefile': ('obj-$(CONFIG_VIDEO_SC3336) += sc3336.o\nobj-$(CONFIG_VIDEO_SC4336) += sc4336.o\n'
+                 'obj-$(CONFIG_VIDEO_SC4336P) += sc4336p.o\n'),
+}
 
 
 def problems(d):
@@ -39,11 +54,11 @@ class Image(unittest.TestCase):
             f.write(s)
 
     def test_check_can_fail(self):
-        mk = 'board/sdk/BoardConfig-SPI_NAND-Buildroot-RV1106_LayerCam_v1-IPC.mk'
+        mk = 'board/sdk/' + pincheck.BOARD_CONFIG
         cases = [
-            (mk, '"overlay-luckfox-wifibt-firmware', '"overlay-luckfox-buildroot-shadow overlay-luckfox-wifibt-firmware',
+            (mk, '"overlay-layercam"', '"overlay-luckfox-buildroot-shadow overlay-layercam"',
              None, 'buildroot-shadow not used'),
-            (mk, 'firmware overlay-layercam"', 'firmware overlay-layercam overlay-other"', None, 'applied last'),
+            (mk, '"overlay-layercam"', '"overlay-layercam overlay-other"', None, 'applied last'),
             ('board/sdk/buildroot.fragment', '# BR2_TARGET_ENABLE_ROOT_LOGIN is not set\n', '', None,
              'Buildroot gives root no password'),
             ('board/sdk/buildroot.fragment', None, None, 'BR2_TARGET_GENERIC_ROOT_PASSWD="luckfox"\n',
@@ -84,13 +99,20 @@ class Image(unittest.TestCase):
 
 
 class InstallScript(unittest.TestCase):
+    IQDIR = 'media/isp/release_camera_engine_rkaiq_rv1106_arm-rockchip830-linux-uclibcgnueabihf/isp_iqfiles'
+
     def sdk(self):
         d = tempfile.mkdtemp()
         for p in ('sysdrv/source/kernel/arch/arm/boot/dts', 'sysdrv/source/kernel/arch/arm/configs',
-                  'project/cfg/BoardConfig_IPC', 'sysdrv/tools/board/buildroot'):
+                  'project/cfg/BoardConfig_IPC', 'sysdrv/tools/board/buildroot', I2C, self.IQDIR):
             os.makedirs(os.path.join(d, p))
         with open(os.path.join(d, 'sysdrv/tools/board/buildroot/luckfox_pico_defconfig'), 'w') as f:
             f.write('BR2_TARGET_GENERIC_ROOT_PASSWD="luckfox"\nBR2_PACKAGE_DHCPCD=y\nBR2_PACKAGE_OPENSSH=y\n')
+        for name, text in SENSOR_FILES.items():
+            with open(os.path.join(d, I2C, name), 'w') as f:
+                f.write(text)
+        with open(os.path.join(d, self.IQDIR, 'sc4336_CMK-OT2117-PC1_30IRC-F16.json'), 'w') as f:
+            f.write('{"sensor_calib": {}}\n')
         return d
 
     def install(self, sdk, **env):
@@ -121,6 +143,52 @@ class InstallScript(unittest.TestCase):
         with open(os.path.join(ovl, 'etc/shadow')) as f:
             self.assertTrue(f.read().startswith('root:*:'))
         self.assertTrue(os.path.isfile(os.path.join(ovl, 'usr/share/layercam/layercam/service.py')))
+        # the Pro's parts: the sensor driver ported once, its IQ file, the C6 flasher
+        with open(os.path.join(sdk, I2C, 'sc4336h.c')) as f:
+            drv = f.read()
+        self.assertIn('{ .compatible = "smartsens,sc4336h" }', drv)
+        self.assertIn('#define CHIP_ID\t\t\t\t0x10000', drv)                # not read yet: probe only logs it
+        with open(os.path.join(sdk, I2C, 'Makefile')) as f:
+            self.assertEqual(f.read().count('sc4336h.o'), 1)
+        with open(os.path.join(sdk, I2C, 'Kconfig')) as f:
+            self.assertEqual(f.read().count('config VIDEO_SC4336H\n'), 1)
+        self.assertTrue(os.path.isfile(os.path.join(sdk, self.IQDIR, board.IQ_FILE)))
+        self.assertTrue(os.access(os.path.join(ovl, 'usr/bin/layercam-c6-flash'), os.X_OK))
+        self.assertTrue(os.path.isfile(os.path.join(sdk, 'sysdrv/source/kernel/arch/arm/boot/dts', pincheck.DTS)))
+        self.assertTrue(os.path.isfile(os.path.join(sdk, 'project/cfg/BoardConfig_IPC', pincheck.BOARD_CONFIG)))
+        self.assertIn('no ESP_HOSTED_KO', r.stdout)
+
+    def test_install_wifi_and_chip_id(self):
+        sdk = self.sdk()
+        ko = os.path.join(sdk, 'esp32_sdio.ko')
+        with open(ko, 'wb') as f:
+            f.write(b'\x7fELF')
+        fw = os.path.join(sdk, 'c6build')
+        os.makedirs(os.path.join(fw, 'bootloader'))
+        files = {'0x0': 'bootloader/bootloader.bin', '0x10000': 'network_adapter.bin'}
+        for rel in files.values():
+            with open(os.path.join(fw, rel), 'wb') as f:
+                f.write(b'\xe9' * 100)
+        with open(os.path.join(fw, 'flasher_args.json'), 'w') as f:
+            json.dump({'flash_files': files}, f)
+        r = self.install(sdk, ESP_HOSTED_KO=ko, C6_FW=fw, SC4336H_CHIP_ID='0x1234')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        ovl = os.path.join(sdk, 'project/cfg/BoardConfig_IPC/overlay/overlay-layercam')
+        self.assertTrue(os.path.isfile(os.path.join(ovl, 'lib/modules/esp32_sdio.ko')))
+        for rel in ['flasher_args.json'] + list(files.values()):
+            self.assertTrue(os.path.isfile(os.path.join(ovl, 'usr/share/layercam-c6', rel)), rel)
+        with open(os.path.join(sdk, I2C, 'sc4336h.c')) as f:
+            self.assertIn('#define CHIP_ID\t\t\t\t0x1234', f.read())
+        # an IQ file already in the SDK (a tuned one) is kept
+        iq = os.path.join(sdk, self.IQDIR, board.IQ_FILE)
+        with open(iq, 'w') as f:
+            f.write('tuned')
+        r = self.install(sdk)
+        with open(iq) as f:
+            self.assertEqual(f.read(), 'tuned')
+        # an SDK without sc4336.c cannot make the sensor driver
+        os.unlink(os.path.join(sdk, I2C, 'sc4336.c'))
+        self.assertNotEqual(self.install(sdk).returncode, 0)
 
     def test_usb_id_placeholder_and_bad_id(self):
         sdk = self.sdk()

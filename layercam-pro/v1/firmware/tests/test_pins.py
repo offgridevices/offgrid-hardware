@@ -8,7 +8,7 @@ from layercam import board
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CIRCUIT = os.path.join(HERE, '..', '..', 'src', 'circuit.py')
-DTS = os.path.join(HERE, '..', 'dts', 'rv1106g-layercam-v1.dts')
+DTS = os.path.join(HERE, '..', 'dts', pincheck.DTS)
 
 
 def problems(circuit, dts):
@@ -49,6 +49,36 @@ class Pins(unittest.TestCase):
         host = self.dts.replace('dr_mode = "peripheral"', 'dr_mode = "host"')
         self.assertEqual(len(problems(self.circuit, keys)), 1)
         self.assertEqual(len(problems(self.circuit, host)), 1)
+
+    def test_pro_wifi_and_sensor_checks_can_fail(self):
+        """v1's 200 ms pwrseq, a bcmdhd node put back, the sensor's two
+        control lines swapped, v1's sensor, the C6's EN moved in circuit.py."""
+        def n(circuit, dts):
+            return len(problems(circuit, dts))
+        self.assertEqual(n(self.circuit, self.dts.replace('post-power-on-delay-ms = <1500>', 'post-power-on-delay-ms = <200>')), 1)
+        self.assertEqual(n(self.circuit, self.dts.replace('espressif,full-chip-reset;', '')), 1)
+        bcm = self.dts.replace('&cpu0 {', 'wlan { compatible = "wlan-platdata"; };\n&cpu0 {')
+        self.assertEqual(n(self.circuit, bcm), 1)
+        swapped = (self.dts.replace('reset-gpios = <&gpio3 RK_PC5', 'X1').replace('pwdn-gpios = <&gpio3 RK_PC6', 'X2')
+                   .replace('X1', 'reset-gpios = <&gpio3 RK_PC6').replace('X2', 'pwdn-gpios = <&gpio3 RK_PC5'))
+        self.assertNotEqual(swapped, self.dts)
+        self.assertEqual(n(self.circuit, swapped), 2)
+        old = self.dts.replace('"smartsens,sc4336h"', '"smartsens,sc3336"')
+        self.assertEqual(n(self.circuit, old), 1)
+        boot = self.dts.replace('<0 RK_PA2 RK_FUNC_GPIO &pcfg_pull_up>', '<0 RK_PA2 RK_FUNC_GPIO &pcfg_pull_none>')
+        self.assertEqual(n(self.circuit, boot), 1)
+        uart = self.dts.replace('pinctrl-0 = <&uart1m0_xfer>;', 'pinctrl-0 = <&uart1m0_xfer &uart1m0_ctsn>;')
+        self.assertEqual(n(self.circuit, uart), 1)
+        en = self.circuit.replace("'74': 'WIFI_EN',        # GPIO1_A2", "'74': 'WIFI_EN',        # GPIO1_A3")
+        self.assertNotEqual(en, self.circuit)
+        self.assertTrue(problems(en, self.dts))
+
+    def test_sdk_settings(self):
+        res = pincheck.sdk_results(os.path.join(HERE, '..'), board)
+        self.assertGreaterEqual(len(res), 8)
+        self.assertEqual([w for ok, w in res if not ok], [])
+        self.assertEqual(board.IQ_FILE, 'sc4336h_LayerCamPro_LCP-F16.json')
+        self.assertEqual((board.SENSOR_WIDTH, board.SENSOR_HEIGHT), (2560, 1440))
 
     def test_board_build_entry(self):
         """src/check_firmware.run, as src/verify.py calls it."""

@@ -10,13 +10,13 @@ import hashlib, hmac, os, socket, struct, subprocess
 
 RUN_DIR = '/tmp/layercam'
 AP_ADDRESS = '192.168.4.1'
-# 2.4 GHz channels 1-13.  The ESP32-C6 is a 2.4 GHz radio, so wifi.band = 2.4
-# (the default) only saves wpa_supplicant scanning channels it cannot use;
-# kept from LayerCam v1, where it kept the AP6256 off 5 GHz
+# 2.4 GHz channels 1-13 (wifi.band = 2.4).  The ESP32-C6 is a 2.4 GHz-only
+# radio, so on the Pro the setting changes nothing; kept from LayerCam v1,
+# where it kept the AP6256 off 5 GHz
+FREQ_2G4 = ' '.join(str(2412 + 5 * i) for i in range(13))
 # setup access point: hostapd's control socket, where ap_clients() asks for
 # the phones joined (esp-hosted's driver has no station dump for iw)
 HOSTAPD_CTRL = '/var/run/hostapd'
-FREQ_2G4 = ' '.join(str(2412 + 5 * i) for i in range(13))
 
 # The setup access point's name and passphrase come from the SoC's serial
 # number (the RV1106's OTP id, which the kernel's rockchip-cpuinfo driver
@@ -215,8 +215,8 @@ class WifiSupervisor:
       phone is on it, the camera tries the saved network again for
       RETRY_WINDOW_S.  Connected: the access point stays off.
 
-    One radio, so "alongside" means taking turns (esp-hosted does not offer
-    AP and station at once)."""
+    One radio, so "alongside" means taking turns: whether esp-hosted can be
+    an access point and a station at once is not tried."""
     RETRY_WINDOW_S = 45          # association, DHCP (udhcpc tries for 30 s)
     BUSY_RECHECK_S = 30          # a phone is on the access point: look again this soon
 

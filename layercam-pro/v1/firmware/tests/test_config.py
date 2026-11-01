@@ -131,9 +131,9 @@ class T(unittest.TestCase):
         c = config.Config()
         argv = capture.from_config(c).argv
         self.assertEqual(argv[argv.index('--width') + 1:argv.index('--width') + 4], ['1920', '--height', '1080'])
-        c.set('timelapse', 'resolution', '2304x1296')
+        c.set('timelapse', 'resolution', '2560x1440')
         argv = capture.from_config(c).argv
-        self.assertEqual(argv[argv.index('--width') + 1], '2304')
+        self.assertEqual(argv[argv.index('--width') + 1], '2560')
         c.set('timelapse', 'resolution', '4096x2160')
         self.assertTrue(any('resolution' in e for e in c.errors()))
 

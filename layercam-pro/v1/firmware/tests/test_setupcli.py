@@ -208,7 +208,7 @@ class Console(unittest.TestCase):
             r, _, _ = select.select([master], [], [], 5)
             self.assertTrue(r, buf)
             buf += os.read(master, 4096)
-        self.assertIn(b'LayerCam v1, software', buf)
+        self.assertIn(b'LayerCam Pro v1, software', buf)
         self.assertIn(b'\r\n', buf)                                         # terminal line endings
         os.close(master)
         os.close(slave)

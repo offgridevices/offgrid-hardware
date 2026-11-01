@@ -45,7 +45,8 @@ def sps(profile, w_mbs, h_mbs, crop_bottom=0, high=False):
 
 class Sps(unittest.TestCase):
     def test_sizes(self):
-        self.assertEqual(mp4.sps_size(sps(77, 144, 81)), (2304, 1296))           # SC3336, main profile
+        self.assertEqual(mp4.sps_size(sps(77, 160, 90)), (2560, 1440))           # SC4336H, main profile
+        self.assertEqual(mp4.sps_size(sps(77, 144, 81)), (2304, 1296))           # LayerCam v1's SC3336
         self.assertEqual(mp4.sps_size(sps(100, 120, 68, 4, high=True)), (1920, 1080))   # 1088 cropped by 8
 
     def test_emulation_prevention(self):
@@ -83,7 +84,7 @@ class Videos(unittest.TestCase):
         return body
 
     def test_sensor_size(self):
-        self.check(2304, 1296, 8, gop=4)
+        self.check(2560, 1440, 8, gop=4)
 
     def test_cropped_size(self):
         self.check(320, 180, 65)

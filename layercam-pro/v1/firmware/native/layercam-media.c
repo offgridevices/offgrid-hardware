@@ -4,8 +4,8 @@
  * (layercam/capture.py has the protocol).
  *
  *   layercam-media [--iq DIR] [--flip 0-3] [--width W --height H] [--fps N]
- *       live mode: SC3336 -> rkaiq ISP -> VI channel 0 (NV12, scaled by the
- *       ISP to W x H: 1920x1080 by default, 2304x1296 the full sensor) -> on
+ *       live mode: SC4336H -> rkaiq ISP -> VI channel 0 (NV12, scaled by the
+ *       ISP to W x H: 1920x1080 by default, 2560x1440 the full sensor) -> on
  *       request JPEG (VENC 0) or one more H.264 frame (VENC 1) appended to a
  *       file.  Starts asleep (ISP and VI stopped, sensor in standby): the
  *       service wakes it for pictures and prints (heat: sim/thermal.md).
@@ -54,7 +54,7 @@
 #define VI_DEPTH 2 /* frames the VI channel queues for us */
 
 static rk_aiq_sys_ctx_t *aiq;
-static int width = 1920, height = 1080; /* SC3336 is 2304 x 1296 (16:9) at 30 or 25 fps */
+static int width = 1920, height = 1080; /* SC4336H is 2560 x 1440 (16:9); its port of sc4336.c runs 25 fps */
 static int awake;
 static int video_fd = -1;
 static int video_on;
@@ -148,7 +148,7 @@ static int vi_start(void) {
 }
 
 /* Awake: ISP running, VI channel streaming at fps.  Asleep: both stopped;
- * with no stream the sensor driver leaves the SC3336 in standby.  The ISP
+ * with no stream the sensor driver leaves the SC4336H in standby.  The ISP
  * is stopped before the VI stream goes off (sample_comm_isp.h). */
 static int wake(int flip, int fps) {
 	if (!awake) {

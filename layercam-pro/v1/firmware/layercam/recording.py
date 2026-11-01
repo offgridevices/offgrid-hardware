@@ -6,7 +6,7 @@ H264Recording (the camera's hardware encoder, the default on LayerCam):
 each frame is encoded into H.264 the moment it is taken and appended to
 video.h264; video.idx gets one "offset size" line per frame.  No frames are
 stored: consecutive layer frames differ little, so most are small P-frames
-(an estimate of 20-60 kB each at 2304 x 1296 until measured on the board,
+(an estimate of 20-60 kB each at 2560 x 1440 until measured on the board,
 so tens of MB for a 1000-layer print), where 1000 JPEGs of 300-500 kB would
 need more than the whole 256 MB NAND.  At the end
 mp4.Mp4Body streams it out as an MP4.  A power cut loses at most the frame

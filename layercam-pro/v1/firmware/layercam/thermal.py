@@ -76,7 +76,7 @@ class Policy:
     """How the camera runs between shots.
 
     'standby' stops the ISP and the VI channel (the sensor driver powers the
-    SC3336 down when its stream stops); 'stream' keeps it streaming at a
+    SC4336H down when its stream stops); 'stream' keeps it streaming at a
     low frame rate.  During a print a layer trigger must be answered inside
     the slicer snippet's 1.2 s hold, and the ISP's auto exposure and white
     balance need frames to settle after a cold start (some hundreds of ms

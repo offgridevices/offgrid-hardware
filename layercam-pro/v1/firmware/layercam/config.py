@@ -19,8 +19,8 @@ DEFAULTS = {
         # the setup access point's WPA2 passphrase; empty = this camera's own,
         # made from the SoC's serial number (tools/layercam-ap.py prints it)
         'ap_password': '',
-        'band': '2.4',                 # 2.4 (2.4 GHz only: less heat, sim/thermal.md) or any
-        'power_save': True,            # 802.11 power save between transfers
+        'band': '2.4',                 # 2.4 or any: the Pro's ESP32-C6 is 2.4 GHz only either way
+        'power_save': True,            # asks for 802.11 power save (iw); esp-hosted leaves it to the C6's firmware
         'tx_power_dbm': 10,            # transmit power cap; 0 = the driver's default
         'fallback_ap_min': 10,         # saved network unreachable this long: setup access point too; 0 = never
         'retry_s': 120,                # meanwhile, try the saved network this often (when no phone is on the AP)
@@ -45,7 +45,7 @@ DEFAULTS = {
         'udp_port': 8514,
         'dwell_ms': 1200,              # the total G4 hold in the slicer snippet (2 x G4 P600)
         'settle_ms': 150,              # wait this long after the head stops before the frame
-        'resolution': '1920x1080',     # 1920x1080, or the full sensor 2304x1296
+        'resolution': '1920x1080',     # 1920x1080, or the full sensor 2560x1440
         'fps': 30,
         'quality': 28,                 # H.264 QP (rkmpi) or CRF (ffmpeg): lower is better and bigger
         'keep_cancelled': True,        # upload the video of a cancelled print too
@@ -127,7 +127,7 @@ CHOICES = {
     ('camera', 'flip'): ('none', 'h', 'v', 'both'),
     ('ir', 'mode'): ('auto', 'printing', 'day', 'night', 'off'),
     ('wifi', 'band'): ('2.4', 'any'),
-    ('timelapse', 'resolution'): ('1920x1080', '2304x1296'),
+    ('timelapse', 'resolution'): ('1920x1080', '2560x1440'),
     ('camera', 'idle'): ('standby', 'stream'),
     ('connect', 'interval'): (10, 30, 60),
     ('camera', 'rotation'): (0, 90, 180, 270),

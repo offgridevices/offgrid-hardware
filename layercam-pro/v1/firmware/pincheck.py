@@ -76,7 +76,8 @@ def results(circuit_text, dts_text, board):
     has(r'pinctrl-0 = <&ircut_pins &wifi_boot &wifi_host_wake>;', 'WIFI_BOOT and WIFI_HOST_WAKE pins set at boot')
     b, p = gpio_ref(board.PINS['WIFI_HOST_WAKE'])
     has(r'<%s %s RK_FUNC_GPIO &pcfg_pull_down>' % (b, p), 'WIFI_HOST_WAKE an input, pulled down')
-    item(not re.search(r'wlan-platdata|bluetooth-platdata|wifi_chip_type', dts_text),
+    dts_code = re.sub(r'/\*.*?\*/|//[^\n]*', '', dts_text, flags=re.S)
+    item(not re.search(r'wlan-platdata|bluetooth-platdata|wifi_chip_type', dts_code),
          'device tree: no bcmdhd or Bluetooth platform nodes')
     item('UART1_TX_M0' in pins.get('WIFI_RXD', '') and 'UART1_RX_M0' in pins.get('WIFI_TXD', ''),
          'circuit.py: the C6\'s UART0 on UART1_M0')

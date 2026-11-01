@@ -22,9 +22,10 @@ password =
 # `ap` on the USB console and the serial console when the access point opens).
 # Cleared by a Wi-Fi reset.
 ap_password =
-# 2.4 (2.4 GHz only, less heat) or any
+# 2.4 or any; the ESP32-C6 is a 2.4 GHz radio, so on the Pro both are the same
 band = 2.4
-# 802.11 power save between transfers
+# 802.11 power save between transfers (asked of the driver with iw; esp-hosted's
+# driver does not take it: the C6's own firmware decides, README.md)
 power_save = true
 # transmit power cap in dBm; 0 = the driver's default
 tx_power_dbm = 10
@@ -66,7 +67,7 @@ udp_port = 8514
 dwell_ms = 1200
 # wait this long after the head stops before taking the frame, ms
 settle_ms = 150
-# video size: 1920x1080, or the full sensor 2304x1296 (snapshots use the same)
+# video size: 1920x1080, or the full sensor 2560x1440 (snapshots use the same)
 resolution = 1920x1080
 fps = 30
 # H.264 QP (camera) or CRF (ffmpeg): lower = better and bigger

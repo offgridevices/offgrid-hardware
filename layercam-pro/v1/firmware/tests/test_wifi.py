@@ -93,11 +93,41 @@ class Clients(unittest.TestCase):
         class R:
             stdout = ('Station 4a:11:22:33:44:55 (on wlan0)\n\tinactive time:\t30 ms\n'
                       'Station 02:aa:bb:cc:dd:ee (on wlan0)\n\tsignal:  -40 dBm\n')
-        self.assertEqual(net.ap_clients(run=lambda *a, **k: R), 2)
+        self.assertEqual(net.ap_clients(run=lambda *a, **k: R, ctrl_dir='/nonexistent'), 2)
 
         def missing(*a, **k):
             raise OSError('no iw')
-        self.assertEqual(net.ap_clients(run=missing), 0)
+        self.assertEqual(net.ap_clients(run=missing, ctrl_dir='/nonexistent'), 0)
+
+    def test_hostapd_stations(self):
+        """esp-hosted's driver has no station dump: hostapd's control socket
+        answers instead (STA-FIRST, STA-NEXT), and iw is not asked."""
+        import socket, threading
+        d = tempfile.mkdtemp()
+        srv = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        srv.bind(os.path.join(d, 'wlan0'))
+        stas = [b'4a:11:22:33:44:55', b'02:aa:bb:cc:dd:ee']
+        seen = []
+
+        def hostapd():
+            for _ in range(3):
+                cmd, addr = srv.recvfrom(4096)
+                seen.append(cmd)
+                if cmd == b'STA-FIRST':
+                    i = 0
+                else:
+                    i = stas.index(cmd.split()[1]) + 1
+                srv.sendto(stas[i] + b'\nflags=[AUTH][ASSOC][AUTHORIZED]\n' if i < len(stas) else b'', addr)
+        t = threading.Thread(target=hostapd, daemon=True)
+        t.start()
+
+        def no_iw(*a, **k):
+            raise AssertionError('iw asked')
+        self.assertEqual(net.ap_clients(run=no_iw, ctrl_dir=d), 2)
+        t.join(2)
+        srv.close()
+        self.assertEqual(seen, [b'STA-FIRST', b'STA-NEXT 4a:11:22:33:44:55', b'STA-NEXT 02:aa:bb:cc:dd:ee'])
+        self.assertIn('ctrl_interface=/var/run/hostapd', net.hostapd_conf('LayerCam-0000', 'x' * 12))
 
     def test_new_network_marker(self):
         d = tempfile.mkdtemp()
