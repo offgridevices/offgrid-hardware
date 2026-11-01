@@ -2,8 +2,8 @@
 """Gate: the camera software's pins against this circuit.
 
 run(firmware_dir) -> [(ok, description)]: layercam/board.py and the device
-tree dts/rv1106g-layercam-v1.dts against main_soc()'s pin map in
-circuit.py.  The checks themselves live with the firmware
+tree dts/rv1106g-layercam-pro-v1.dts (and the SDK board config) against
+main_soc()'s pin map in circuit.py.  The checks themselves live with the firmware
 (firmware/pincheck.py, also run by its own tests/test_pins.py), so the two
 cannot drift apart.  Called by verify.py; standard library only.
 """

@@ -676,17 +676,19 @@ def sma_search(folder, step=0.5):
     c0 = np.array([23.37, -18.47, 30.8])
     c0 = c0 + n * (d - n @ c0)
     res = []
-    for a in np.arange(-10, 10.01, step):
-        for b in np.arange(-10, 10.01, step):
+    stats = dict(flat=0, sink=0, clear=0, cavity=0)
+    for a in np.arange(-16, 16.01, step):
+        for b in np.arange(-12, 12.01, step):
             c = c0 + ex * a + ey * b
             # flat land: rays from 0.5 outside, along -n, hit the top part 0.5 away
             ring = [c + n * 0.5 + (ex * math.cos(t) + ey * math.sin(t)) * r
-                    for r in (0, 3.5, 6.5) for t in np.linspace(0, 2 * math.pi, 12, endpoint=False)]
+                    for r in (0, 2.4, 4.7) for t in np.linspace(0, 2 * math.pi, 16, endpoint=False)]
             loc, idx, _ = top.ray.intersects_location(ring, [-n] * len(ring), multiple_hits=False)
             if len(idx) < len(ring):
                 continue
             dev = np.abs((loc - np.array(ring)[idx]) @ (-n) - 0.5).max()
-            if dev > 0.12:
+            if dev > 0.06:
+                stats['flat'] += 1
                 continue
             P = sma_keep_points(c, n, 1.0)
             clear = min(P[:, 2].min() - 26.3, 38.2 - P[:, 2].max())
@@ -699,11 +701,14 @@ def sma_search(folder, step=0.5):
             for (x, y) in G.SCREWS:
                 clear = min(clear, np.hypot(P[:, 0] - x, P[:, 1] - y).min() - BACK_BOSS_D / 2)
             if inside_sink or clear < 0:
+                stats['sink' if inside_sink else 'clear'] += 1
                 continue
             if not cav.contains(P).all():
+                stats['cavity'] += 1
                 continue
             res.append((clear, c))
     res.sort(key=lambda r: -r[0])
+    print('rejected:', stats)
     for clear, c in res[:8]:
         print('centre (%.2f, %.2f, %.2f): clearance %.2f mm' % (c[0], c[1], c[2], clear))
     return res
