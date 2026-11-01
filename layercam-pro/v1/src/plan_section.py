@@ -7,7 +7,11 @@ shows:
 
   1. the six IR LEDs (straight light pipes, so each LED right under its
      front hole) against the IR-cut holder's base on the same face;
-  2. the heatsink's top against the new lid's inner face under the vents.
+  2. the heatsink (on the main chip, at CHIP_XY) against the new case:
+     its footprint inside the case at every height it spans, and its top
+     under the new lid's inner face; and how many vent slots are over it;
+  3. how far the main chip is from the image sensor (reported; the thermal
+     model of the routed board decides whether it is far enough).
 
 The case files are Prusa's (Printables model 1343977, GPL v2):
 buddy-camera-bottom-r2.stl, buddy-camera-top-r1.stl, buddy-camera-lid-r1.stl.
@@ -39,6 +43,16 @@ PIPE_D = 2.01                          # Bivar LPV2-0750
 HOLDER_BOX = (-10.6, -9.8, 10.6, 9.8)  # Commonlands CLA219 base with its ears (full rectangle)
 CHIP_H, TAPE_H = 0.85, 0.25            # RV1106 package, 3M 8810 tape
 SINK = (20.0, 20.0, 15.0)              # stock heatsink, mm
+# The main chip and its heatsink, lens frame X, Y. The image sensor is fixed
+# on the lens axis (0, 0) by Prusa's lens bore; the lid's vent slots span
+# X -10..10, Y -15.5..6.5. The chip goes towards -Y, as far from the sensor
+# as keeps the heatsink inside the case: (0, -15.5) is the limit; at
+# (0, -15) three of the six slots are over it, at (0, -12) four but the chip
+# then nearly backs onto the sensor.
+CHIP_XY = (0.0, -15.0)
+CHIP_SIZE = 12.3                       # RV1106G3 QFN-128
+SIDE_WALL = 2.0                        # new case side walls round the heatsink
+LID_PLATE_Z = 41.0                     # the lid's flat top is at Z 41.0 or higher over the heatsink
 LID_T = 1.6                            # new lid's thickness under the vents
 MIN_GAP = 0.5                          # clearance each check asks for
 
@@ -79,11 +93,30 @@ def led_gaps():
     return out
 
 
-def lid_inner_z(lid):
-    """Prusa's lid: top face and inner face over the heatsink (lens axis)."""
-    loc, _, _ = lid.ray.intersects_location([[0, 0, 24.0]], [[0, 0, 1.0]], multiple_hits=True)
-    zs = sorted(loc[:, 2])
-    return zs[0], zs[-1]
+def sink_box():
+    from shapely.geometry import box
+    cx, cy = CHIP_XY
+    return box(cx - SINK[0] / 2, cy - SINK[1] / 2, cx + SINK[0] / 2, cy + SINK[1] / 2)
+
+
+def vent_slots(case):
+    """The lid's vent slots: the holes in the case's section just under its top."""
+    s = case.section(plane_origin=[0, 0, 41.5], plane_normal=[0, 0, 1])
+    from shapely.geometry import Polygon
+    return [Polygon(h) for p in s.to_2D(to_2D=np.eye(4))[0].polygons_full for h in p.interiors]
+
+
+def sink_fit(case):
+    """(footprint fits at every height, gap from its top to the new lid's inner face,
+    vent slots over it)."""
+    fp = sink_box()
+    sink_top = BOARD_Z0 + BOARD_T + CHIP_H + TAPE_H + SINK[2]
+    under_plate = hull_at(case, LID_PLATE_Z).contains(fp)
+    sides = all(hull_at(case, z).buffer(-SIDE_WALL).contains(fp)
+                for z in np.arange(BOARD_Z0 + BOARD_T, sink_top + MIN_GAP, 1.0))
+    gap = (LID_PLATE_Z - LID_T) - sink_top
+    slots = sum(1 for v in vent_slots(case) if v.intersection(fp).area > 0.5 * v.area)
+    return under_plate and sides, sink_top, gap, slots
 
 
 def draw(case, path):
@@ -129,12 +162,13 @@ def draw(case, path):
         else:
             ax.add_patch(Rectangle((-14.15 - 1.5, 0.0), 3.0, BOARD_Z0 - 0.6, color='#f2c94c', alpha=.6, zorder=6))
             ax.text(-14.15, 10, 'light\nsensor\ntube', ha='center', fontsize=7, zorder=7)
-        ax.add_patch(Rectangle((-6, bz1), 12, CHIP_H, color='#333', zorder=6))
-        ax.add_patch(Rectangle((-SINK[0] / 2, sink_z0), SINK[0], SINK[2], color='#c0c6cc', ec='#555', zorder=6))
+        c = CHIP_XY[axis]                 # the chip's offset along this cut's axis
+        ax.add_patch(Rectangle((c - CHIP_SIZE / 2, bz1), CHIP_SIZE, CHIP_H, color='#333', zorder=6))
+        ax.add_patch(Rectangle((c - SINK[axis] / 2, sink_z0), SINK[axis], SINK[2], color='#c0c6cc', ec='#555', zorder=6))
         for i in range(6):
-            ax.add_patch(Rectangle((-SINK[0] / 2 + 1 + i * 3.4, sink_z0 + 2), 1.2, SINK[2] - 2.2,
+            ax.add_patch(Rectangle((c - SINK[axis] / 2 + 1 + i * 3.4, sink_z0 + 2), 1.2, SINK[2] - 2.2,
                                    color='#8c949c', zorder=7))
-        ax.text(0, sink_z0 + SINK[2] / 2, 'stock heatsink\n%gx%gx%g' % SINK, ha='center', fontsize=8, zorder=8)
+        ax.text(c, sink_z0 + SINK[2] / 2, 'stock heatsink\n%gx%gx%g' % SINK, ha='center', fontsize=8, zorder=8)
         ax.set_aspect('equal')
         ax.set_xlim(-45, 45)
         ax.set_ylim(44, -3)
@@ -153,7 +187,7 @@ def draw(case, path):
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
-    case, lid = load_case(sys.argv[1])
+    case, _ = load_case(sys.argv[1])
     ok = True
 
     print('1. IR LEDs (%.2f mm square) against the IR-cut holder base:' % LED_SIZE)
@@ -162,13 +196,16 @@ def main():
         ok &= not bad
         print('   %3d deg (%6.2f, %6.2f): gap %+.2f mm%s' % (a, x, y, gap, '  FAIL' if bad else ''))
 
-    inner, top = lid_inner_z(lid)
-    new_inner = top - LID_T
-    sink_top = BOARD_Z0 + BOARD_T + CHIP_H + TAPE_H + SINK[2]
-    gap = new_inner - sink_top
-    ok &= gap >= MIN_GAP
-    print('2. Heatsink top Z %.2f; Prusa lid inner %.2f, top %.2f; new %.1f mm lid inner %.2f: gap %+.2f mm%s'
-          % (sink_top, inner, top, LID_T, new_inner, gap, '' if gap >= MIN_GAP else '  FAIL'))
+    fits, sink_top, gap, slots = sink_fit(case)
+    good = fits and gap >= MIN_GAP and slots >= 3
+    ok &= good
+    print('2. Heatsink %gx%gx%g on the chip at (%g, %g): footprint inside the case %s; top Z %.2f, '
+          '%.1f mm lid inner face Z %.2f or higher: gap %+.2f mm; %d vent slots over it%s'
+          % (SINK + CHIP_XY + ('at every height' if fits else 'NOT everywhere', sink_top, LID_T,
+             LID_PLATE_Z - LID_T, gap, slots, '' if good else '  FAIL')))
+    d = math.hypot(*CHIP_XY)
+    print('3. Main chip centre %.1f mm from the image sensor (edge to edge about %.1f mm across the board): '
+          'the thermal model decides' % (d, d - CHIP_SIZE / 2 - 3.1))
 
     here = os.path.dirname(os.path.abspath(__file__))
     draw(case, os.path.join(here, '..', 'images', 'plan-section.png'))

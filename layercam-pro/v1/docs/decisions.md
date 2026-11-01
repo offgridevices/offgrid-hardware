@@ -56,7 +56,9 @@ the SC4336; the SC4336H needs its own (usually a small port).
 
 Cost: no authorised distributor stocks bare sensors; it is sourced through
 SmartSens or its agents, or by PCBWay. Rated -30 to 85 °C, with its best
-image to 60 °C, so it goes at the board's cool end.
+image to 60 °C. It cannot go to a cool end of the board: the lens bore
+fixes it on the case's axis (see *Heat* for what that means for the main
+chip).
 
 ## Wi-Fi: ESP32-C6, 2.4 GHz only *(owner)*
 
@@ -107,9 +109,20 @@ LayerCam's model showed that a heatsink inside a closed case only heats
 the air trapped in it. So the Pro's heatsink reaches the back vents and
 sits in the chamber's own air. Prusa's lid is 3.4 mm thick under its vents
 (inner face Z 38.45); a 20 x 20 x 10 mm heatsink on the chip would stop at
-Z 33.7, 5 mm short. The new lid is 1.6 mm thick there (inner face Z 40.25)
-and the heatsink is 20 x 20 x 15 mm, whose top is at Z 38.7: 1.55 mm under
-the vents (`src/plan_section.py` checks it). The camera works in snapshots and the
+Z 33.7, 5 mm short. The new lid is 1.6 mm thick there (inner face Z 39.4
+or higher) and the heatsink is 20 x 20 x 15 mm, whose top is at Z 38.7:
+0.7 mm or more under the vents.
+
+The vent slots are part of Prusa's outside: six of them, X -10..10,
+Y -15.5..6.5, round the lens axis, where the image sensor has to be. So
+the main chip and its heatsink cannot be far from the sensor. The chip
+sits at (0, -15): three slots over the heatsink, and about 5.8 mm of board
+between the two chips' edges. (0, -15.5) is as far as the heatsink fits in
+the case; at (0, -12) four slots are over it but the chips nearly back
+onto each other. The thermal model of the routed board decides; the
+sensor's own copper island and a slot between them help.
+`src/plan_section.py` checks the heatsink's fit at every height, its gap to
+the lid and the slots over it. The camera works in snapshots and the
 timelapse at any chamber temperature up to 70 °C; live video only while
 it is cool.
 
