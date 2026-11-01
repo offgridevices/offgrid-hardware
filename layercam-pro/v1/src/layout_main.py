@@ -161,6 +161,9 @@ SIDE = {
     '24 MHz load': F, 'RTC load': B, 'SDIO pull-up': B,
     # the sensor's decoupling on its own face, inside the holder's recess
     'sensor DOVDD filter R': B,
+    # the 0.9 V output capacitor under its buck on the front face: on the
+    # back, the heatsink's footprint and the buck fill the strip
+    '0.9 V output': B,
 }
 
 CLEAR = 0.15          # courtyard to courtyard

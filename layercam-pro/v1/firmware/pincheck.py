@@ -4,7 +4,7 @@ src/circuit.py is the source of truth: main_soc() names each SoC pin's net
 and, in its comment, the pin's function (GPIO1_A0, SARADC_IN1, PWM3_IR_M1,
 I2C4_SCL_M2...).  This reads that file as text (no import, nothing
 installed: it runs in the board build's Python too) and checks
-layercam/board.py and dts/rv1106g-layercam-v1.dts against it.
+layercam/board.py and dts/rv1106g-layercam-pro-v1.dts against it.
 
 Used by tests/test_pins.py and by the board build (src/verify.py through
 src/check_firmware.py).  Standard library only.
@@ -12,6 +12,8 @@ src/check_firmware.py).  Standard library only.
 import os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+DTS = 'rv1106g-layercam-pro-v1.dts'
+BOARD_CONFIG = 'BoardConfig-SPI_NAND-Buildroot-RV1106_LayerCam_Pro_v1-IPC.mk'
 
 
 def soc_pins(text):
@@ -63,12 +65,40 @@ def results(circuit_text, dts_text, board):
         return r'<&gpio%s %s ' % (b, p)
 
     has(r'status_led: status \{[^}]*gpios = ' + re.escape(gref('LED_STATUS')), 'status LED on LED_STATUS')
-    has(r'reset-gpios = ' + re.escape(gref('WL_REG_ON')) + 'GPIO_ACTIVE_LOW', 'WL_REG_ON drives the SDIO power sequence')
-    has(r'WIFI,host_wake_irq = ' + re.escape(gref('WL_HOST_WAKE')), 'WL_HOST_WAKE is the Wi-Fi interrupt')
-    has(r'pwdn-gpios = ' + re.escape(gref('CAM_RST')), 'CAM_RST is the sensor power-down')
-    has(r'BT,reset_gpio = ' + re.escape(gref('BT_REG_ON')), 'BT_REG_ON in the Bluetooth node')
-    has(r'BT,wake_gpio = ' + re.escape(gref('BT_WAKE')), 'BT_WAKE in the Bluetooth node')
-    has(r'BT,wake_host_irq = ' + re.escape(gref('BT_HOST_WAKE')), 'BT_HOST_WAKE in the Bluetooth node')
+    # Wi-Fi: the ESP32-C6 (esp-hosted) on SDMMC0
+    has(r'sdio-pwrseq \{[^}]*reset-gpios = ' + re.escape(gref('WIFI_EN')) + 'GPIO_ACTIVE_LOW',
+        'WIFI_EN (the C6\'s EN) drives the SDIO power sequence')
+    has(r'sdio-pwrseq \{[^}]*post-power-on-delay-ms = <1500>;', 'the C6 gets 1500 ms after EN (esp-hosted)')
+    has(r'&sdmmc \{[^}]*mmc-pwrseq = <&sdio_pwrseq>;[^}]*espressif,full-chip-reset;',
+        'SDMMC0 uses the power sequence, marked as a full C6 reset')
+    b, p = gpio_ref(board.PINS['WIFI_BOOT'])
+    has(r'<%s %s RK_FUNC_GPIO &pcfg_pull_up>' % (b, p), 'WIFI_BOOT (the C6\'s GPIO9) a GPIO pulled up')
+    has(r'pinctrl-0 = <&ircut_pins &wifi_boot &wifi_host_wake>;', 'WIFI_BOOT and WIFI_HOST_WAKE pins set at boot')
+    b, p = gpio_ref(board.PINS['WIFI_HOST_WAKE'])
+    has(r'<%s %s RK_FUNC_GPIO &pcfg_pull_down>' % (b, p), 'WIFI_HOST_WAKE an input, pulled down')
+    item(not re.search(r'wlan-platdata|bluetooth-platdata|wifi_chip_type', dts_text),
+         'device tree: no bcmdhd or Bluetooth platform nodes')
+    item('UART1_TX_M0' in pins.get('WIFI_RXD', '') and 'UART1_RX_M0' in pins.get('WIFI_TXD', ''),
+         'circuit.py: the C6\'s UART0 on UART1_M0')
+    has(r'&uart1 \{[^}]*pinctrl-0 = <&uart1m0_xfer>;[^}]*status = "okay"', 'UART1 on its M0 pins, TX/RX only')
+    item(board.WIFI_UART == '/dev/ttyS1', 'firmware flashes the C6 on /dev/ttyS1 (serial1 = UART1)')
+    item(re.search(r"'8': 'WIFI_EN'", circuit_text) and re.search(r"'23': 'WIFI_BOOT'", circuit_text),
+         'circuit.py: WIFI_EN to the C6\'s EN (pin 8), WIFI_BOOT to its IO9 (pin 23)')
+    # camera: the SC4336H, XSHUTDN = reset-gpios, PWDNB = pwdn-gpios
+    sensor = r'%s@%x \{[^}]*' % (board.SENSOR, board.SENSOR_I2C_ADDR)
+    has(sensor + r'compatible = "smartsens,%s";' % board.SENSOR, 'sensor node %s, compatible smartsens,%s'
+        % (board.SENSOR, board.SENSOR))
+    has(sensor + r'reg = <0x%x>;' % board.SENSOR_I2C_ADDR, 'sensor at I2C 0x%x' % board.SENSOR_I2C_ADDR)
+    has(sensor + r'reset-gpios = ' + re.escape(gref('CAM_RST')), 'CAM_RST is the sensor\'s reset (XSHUTDN)')
+    has(sensor + r'pwdn-gpios = ' + re.escape(gref('CAM_PWDN')), 'CAM_PWDN is the sensor\'s pwdn (PWDNB)')
+    has(sensor + r'rockchip,camera-module-name = "%s";[^}]*rockchip,camera-module-lens-name = "%s";'
+        % (board.SENSOR_MODULE, board.SENSOR_LENS), 'module and lens names pick %s' % board.IQ_FILE)
+    has(r'%s_out: endpoint \{[^}]*data-lanes = <1 2>;' % board.SENSOR, 'sensor on 2 MIPI lanes')
+    item(re.search(r"'A6': 'CAM_RST'", circuit_text) and re.search(r"'C6': 'CAM_PWDN'", circuit_text),
+         'circuit.py: CAM_RST to XSHUTDN (A6), CAM_PWDN to PWDNB (C6)')
+    item(re.search(r"'B5': GND,\s*# SID low", circuit_text) and board.SENSOR_I2C_ADDR == 0x30,
+         'circuit.py: SID low, so the sensor is at 0x30')
+    item(re.search(r"add\('U', 'SC4336H'", circuit_text), 'circuit.py: the sensor is an SC4336H')
     for net in ('IRCUT_A', 'IRCUT_B'):
         b, p = gpio_ref(board.PINS[net])
         has(r'<%s %s RK_FUNC_GPIO &pcfg_pull_down>' % (b, p), '%s held low as a GPIO' % net)
@@ -79,8 +109,6 @@ def results(circuit_text, dts_text, board):
     item('I2C4_SCL_M2' in pins.get('CAM_SCL', '') and 'I2C4_SDA_M2' in pins.get('CAM_SDA', ''),
          'circuit.py: camera I2C on I2C4_M2')
     has(r'&i2c4 \{[^}]*pinctrl-0 = <&i2c4m2_xfer>', 'I2C4 on its M2 pins')
-    item('UART1_TX_M0' in pins.get('BT_TXD', '') and 'UART1_RTS_M0' in pins.get('BT_RTS', ''),
-         'circuit.py: Bluetooth UART is UART1_M0')
     item('SARADC_IN%d' % board.ADC_LIGHT in pins.get('ALS', ''),
          'light sensor on SARADC channel %d (circuit.py: %s)' % (board.ADC_LIGHT, pins.get('ALS')))
     item('SARADC_IN%d' % board.ADC_BOOT_PAD in pins.get('BOOT_KEY', ''),
@@ -128,7 +156,7 @@ def image_results(firmware_dir=HERE):
     def rootfs(p):
         return _text(os.path.join(root, p))
 
-    mk = _text(os.path.join(firmware_dir, 'board', 'sdk', 'BoardConfig-SPI_NAND-Buildroot-RV1106_LayerCam_v1-IPC.mk')) or ''
+    mk = _text(os.path.join(firmware_dir, 'board', 'sdk', BOARD_CONFIG)) or ''
     m = re.search(r'^export RK_POST_OVERLAY="([^"]*)"', mk, re.M)
     overlays = m.group(1).split() if m else []
     item(overlays and overlays[-1] == 'overlay-layercam', "LayerCam's overlay is applied last")
@@ -180,13 +208,41 @@ def image_results(firmware_dir=HERE):
     return out
 
 
+def sdk_results(firmware_dir, board):
+    """[(ok, description)]: the board config and kernel options match the
+    Pro's parts (an ESP32-C6 on esp-hosted, an SC4336H), not v1's."""
+    out = []
+
+    def item(ok, what):
+        out.append((bool(ok), 'sdk: ' + what))
+    mk = _text(os.path.join(firmware_dir, 'board', 'sdk', BOARD_CONFIG)) or ''
+    kcfg = _text(os.path.join(firmware_dir, 'board', 'sdk', 'layercam.config')) or ''
+
+    def setting(text, name):
+        m = re.findall(r'^(?:export )?%s=("?)([^"\n]*)\1\s*$' % name, text, re.M)
+        return m[-1][1] if m else None
+    item(setting(mk, 'RK_KERNEL_DTS') == DTS, 'RK_KERNEL_DTS is %s' % DTS)
+    item(setting(mk, 'RK_CAMERA_SENSOR_IQFILES') == board.IQ_FILE, 'IQ file %s' % board.IQ_FILE)
+    item(not setting(mk, 'RK_ENABLE_WIFI_CHIP'), 'no RK_ENABLE_WIFI_CHIP (no AP6256 driver or firmware)')
+    item(setting(mk, 'RK_ENABLE_WIFI') == 'y', 'RK_ENABLE_WIFI=y (hostapd, wpa_supplicant, dnsmasq)')
+    item('overlay-luckfox-wifibt-firmware' not in (setting(mk, 'RK_POST_OVERLAY') or ''),
+         'no Broadcom/Realtek Wi-Fi firmware overlay')
+    item(setting(kcfg, 'CONFIG_VIDEO_%s' % board.SENSOR.upper()) in ('m', 'y'),
+         'kernel builds the %s driver' % board.SENSOR)
+    item(setting(kcfg, 'CONFIG_CFG80211') == 'y' and setting(kcfg, 'CONFIG_BT') == 'y',
+         'kernel has cfg80211 and the Bluetooth core (esp32_sdio.ko links against both)')
+    item(not re.search(r'^CONFIG_RFKILL_RK=|^CONFIG_BCMDHD', kcfg, re.M), 'no bcmdhd options')
+    return out
+
+
 def run(firmware_dir=HERE, circuit_path=None):
     circuit_path = circuit_path or os.path.join(firmware_dir, '..', 'src', 'circuit.py')
     with open(circuit_path) as f:
         circuit_text = f.read()
-    with open(os.path.join(firmware_dir, 'dts', 'rv1106g-layercam-v1.dts')) as f:
+    with open(os.path.join(firmware_dir, 'dts', DTS)) as f:
         dts_text = f.read()
-    return results(circuit_text, dts_text, board_module(firmware_dir)) + image_results(firmware_dir)
+    board = board_module(firmware_dir)
+    return results(circuit_text, dts_text, board) + image_results(firmware_dir) + sdk_results(firmware_dir, board)
 
 
 if __name__ == '__main__':

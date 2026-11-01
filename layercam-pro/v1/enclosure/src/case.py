@@ -318,8 +318,22 @@ class Envelope:
                         p = p.buffer(0)
                         if p.area > 1e-3 and Polygon(r).exterior.is_ccw:
                             outs.append(p)
-            self.P.append(unary_union(outs).buffer(0) if outs else Polygon())
+            self.P.append(self._close_slits(unary_union(outs).buffer(0)) if outs else Polygon())
         self._cache = {}
+
+    @staticmethod
+    def _close_slits(q, g=1.0, min_area=20.0):
+        """A narrow opening through the wall leaves the section a C shape whose
+        outline runs round the inside too.  Add back the inside: the large
+        pieces that a closing by g (bridging gaps under 2g) encloses.  Small
+        notches in the outside (texture, seams) stay as they are."""
+        c = q.buffer(g, quad_segs=4).buffer(-g, quad_segs=4)
+        geoms = c.geoms if hasattr(c, 'geoms') else [c]
+        cf = unary_union([Polygon(p.exterior) for p in geoms])
+        extra = cf.difference(q)
+        geoms = extra.geoms if hasattr(extra, 'geoms') else [extra]
+        big = [p for p in geoms if p.area > min_area]
+        return unary_union([q] + big).buffer(0) if big else q
 
     def eroded(self, i, r):
         key = (i, round(r, 3))
@@ -394,25 +408,32 @@ def rod_axis(a):
 
 
 # ------------------------------------------------------------------ the build
-def build(folder, log=print):
+def prusa_solid(folder):
+    """Prusa's case in the lens frame with the openings that close or move
+    plugged (to the convex hull): (solid, parts, hull mesh, planes)."""
     prusa = load_prusa(folder)
     U = {k: to_manifold(m) for k, m in prusa.items()}
     assert all(m.status() == m3.Error.NoError for m in U.values()), 'Prusa STL not manifold'
-    allmesh = trimesh.util.concatenate(list(prusa.values()))
-    hull_mesh = allmesh.convex_hull
+    hull_mesh = trimesh.util.concatenate(list(prusa.values())).convex_hull
     hull = to_manifold(hull_mesh)
     planes = {k: hull_plane(hull_mesh, n) for k, n in FACE_N.items()}
-    info = {'planes': planes}
-
-    # ---- plugs: openings that close or move (filled to the convex hull)
     n_u, _ = planes['usb_old']
     c_old = np.array([-33.1, 8.9, 26.6])          # Prusa's USB-C opening (measured)
     ex, ey, ez = frame(n_u)
-    plug_usb = local_prism(box(-8.0, -7.5, 8.0, 7.5), -5.0, 3.0, c_old, ex, ey, ez) ^ hull
-    plug_sd = m3.Manifold.cube((19.0, 8.0, 3.9)).translate((-12.6, -37.0, 20.4)) ^ hull
-    plug_cb = union([zcyl(x, 26.1, 21.4, 36.0, 4.7) for x in (-13.0, 13.0)]) ^ hull
-    plugs = union([plug_usb, plug_sd, plug_cb])
-    solid = union(list(U.values()) + [plugs])
+    plugs = [
+        local_prism(box(-8.0, -7.5, 8.0, 7.5), -5.0, 3.0, c_old, ex, ey, ez),     # old USB-C recess
+        m3.Manifold.cube((20.5, 8.0, 3.9)).translate((-12.6, -37.0, 20.4)),       # SD-card slot
+        m3.Manifold.cube((7.0, 11.0, 9.0)).translate((7.2, -37.0, 20.4)),         # antenna-lead slit
+        union([zcyl(x, 26.1, 21.4, 36.0, 4.7) for x in (-13.0, 13.0)]),         # old screw counterbores
+        front_y_slots(U['bottom'], planes['front_y']),                          # (cut again later)
+    ]
+    solid = union(list(U.values()) + [union(plugs) ^ hull])
+    return solid, U, prusa, hull_mesh, planes
+
+
+def build(folder, log=print):
+    solid, U, prusa, hull_mesh, planes = prusa_solid(folder)
+    info = {'planes': planes}
     log('envelope sections ...')
     env = Envelope(solid)
     log('cavity (2.0 mm ball erosion, %.1f mm slabs) ...' % SLAB)

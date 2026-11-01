@@ -46,7 +46,7 @@ gadget() {
 	SERIAL=$(sed -n 's/^Serial[[:space:]]*:[[:space:]]*//p' /proc/cpuinfo)
 	echo "${SERIAL:-0000000000000000}" > $G/strings/0x409/serialnumber
 	echo "OffGrid" > $G/strings/0x409/manufacturer
-	echo "LayerCam v1 setup console" > $G/strings/0x409/product
+	echo "LayerCam Pro v1 setup console" > $G/strings/0x409/product
 	mkdir -p $G/functions/acm.usb0
 	mkdir -p $G/configs/c.1/strings/0x409
 	echo "setup console" > $G/configs/c.1/strings/0x409/configuration

@@ -4,13 +4,18 @@
 # /oem/usr/bin/RkLunch.sh: that starts rkipc, an RTSP stream and a web server
 # with no password, whenever rkipc is in the image.  LayerCam needs only the
 # first thing RkLunch.sh does: load the media drivers (rockit, the encoders,
-# the ISP) with the SDK's insmod_ko.sh.  Not yet run on a board.
+# the ISP) with the SDK's insmod_ko.sh, and before it the SC4336H's driver.
+# Not yet run on a board.
 
 [ -f /etc/profile.d/RkEnv.sh ] && . /etc/profile.d/RkEnv.sh
 case "$1" in
 	start)
 		for d in /oem/usr/ko /ko; do
 			if [ -f $d/insmod_ko.sh ]; then
+				# the SC4336H driver (tools/sc4336h-port.py) first: the SDK's
+				# list has no sc4336h.ko, and the sensor must be bound before
+				# insmod_ko.sh reads its height for rockit.ko (isp_max_h)
+				[ -f $d/sc4336h.ko ] && insmod $d/sc4336h.ko
 				(cd $d && sh insmod_ko.sh)
 				break
 			fi

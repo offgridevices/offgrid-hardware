@@ -21,9 +21,12 @@ start() {
 	# for exactly that (luckfox_pico_rkmpi_example calls it too)
 	[ -x /oem/usr/bin/RkLunch-stop.sh ] && /oem/usr/bin/RkLunch-stop.sh >/dev/null 2>&1
 	command -v RkLunch-stop.sh >/dev/null 2>&1 && RkLunch-stop.sh >/dev/null 2>&1
-	# the Wi-Fi module's driver (the SDK builds it as a module, like its wifi_start.sh)
-	if ! grep -q bcmdhd /proc/modules 2>/dev/null; then
-		for ko in /oem/usr/ko/bcmdhd.ko /lib/modules/bcmdhd.ko; do
+	# the ESP32-C6's host driver (esp-hosted-linux, built out of tree:
+	# README.md, Building the image).  The C6 must already hold esp-hosted's
+	# firmware (tools/layercam-c6-flash.py); the mmc-pwrseq gives it 1.5 s
+	# after EN, then the driver brings up wlan0
+	if ! grep -q '^esp32_sdio ' /proc/modules 2>/dev/null; then
+		for ko in /lib/modules/esp32_sdio.ko /oem/usr/ko/esp32_sdio.ko; do
 			[ -f $ko ] && insmod $ko && break
 		done
 	fi
