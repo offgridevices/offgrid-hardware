@@ -181,10 +181,14 @@ def run(parts, info, folder=None, log=print):
         P, fi = trimesh.sample.sample_surface_even(tm, 30000, seed=2)
         Nn = tm.face_normals[fi]
         dist = np.concatenate([pq.on_surface(P[i:i + 3000])[1] for i in range(0, len(P), 3000)])
-        skin = dist < 0.02                       # on Prusa's outer surface
+        # the outside: faces that look out of Prusa's (filled) case; the inside:
+        # new faces that look into it (Prusa's own faces that look in, and the
+        # walls of its texture grooves, are neither)
+        out = info['env'].outside(P + Nn * 0.12)
+        skin = out
         # the seams (the split at Z 21.0, the lid seat at Z 38.45) are neither
         seam = (np.abs(Nn[:, 2]) > 0.999) & ((np.abs(P[:, 2] - C.SPLIT_Z) < 0.01) | (np.abs(P[:, 2] - C.LID_SEAT_Z) < 0.01))
-        inner = ~skin & ~seam
+        inner = (dist >= 0.02) & ~out & ~seam
         S = P[skin]
         keep = ~(cuts_near(S, k) if cuts_near is not None else np.zeros(len(S), bool))
         S = S[keep]
@@ -226,6 +230,8 @@ def run(parts, info, folder=None, log=print):
            'Ø%.1f D-hole (flat %.1f) at (%.1f, %.1f, %.1f), axis %s; wall %.2f mm at the hole; nut and jack room '
            'inside clear (%.1f%% of it in material)'
            % (C.SMA_HOLE_D, C.SMA_FLAT, c[0], c[1], c[2], np.round(n, 3).tolist(), wall, clash))
+    global LAST
+    LAST = res
     return ok
 
 

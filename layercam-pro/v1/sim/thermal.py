@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
-"""LayerCam Pro v1: temperatures inside the case in a 70 C chamber.
+"""LayerCam Pro v1: temperatures inside the case; rated for a 65 C chamber (70 C reported).
+
+The rating (owner's decision, 1 Nov 2026): every part inside its rating in a
+65 C chamber in snapshot mode, day and night, with the ESP32-C6's Wi-Fi
+power save ON (the C6 firmware sets it).  Prusa's firmware caps the chamber
+at 55 C on the CORE One and 60 C on the CORE One L.  The script exits 1 if
+that requirement fails; 70 C and power save off are reported as
+information only.
 
     python3 sim/thermal.py              writes sim/thermal.md and thermal_<case>.png, exits 1 on a FAIL
     (tools/kd python3 sim/thermal.py    the same; with KiCad's Python it measures the routed board's copper)
@@ -82,7 +89,11 @@ ROUTED = os.path.join(V1, 'layercam-pro.kicad_pcb')
 SIGMA = 5.670e-8
 
 # ---------------------------------------------------------------- environment and case
-T_AMB = 70.0                      # the requirement: every part inside its rating in a 70 C chamber
+T_AMB = 65.0                      # the rating: every part inside its rating in a 65 C chamber (owner, 1 Nov 2026)
+T_INFO = 70.0                     # the earlier 70 C target, reported as information
+PRUSA_CAP = (55.0, 60.0)          # Prusa's firmware chamber cap: CORE One, CORE One L
+REQ = ('snap_day_ps', 'snap_night_ps')    # the requirement cases: snapshot mode, Wi-Fi power save ON
+REQ_NIGHT = 'snap_night_ps'
 A_OUT = 125.6e-4                  # m^2, the case's outer hull (Prusa's outside, STL)
 A_IN = (11.9 + 31.1 + 34.2 + 14.6) * 1e-4   # m^2, the inner wall (front, side walls, lid) with 2 mm walls
 WALL_T = 0.002

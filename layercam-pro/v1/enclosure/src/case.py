@@ -85,7 +85,7 @@ LIGHT_TUBE_TOP = G.BOARD_Z - SENSOR_H - 0.65
 HOLDER_Z0 = 11.5
 # board screws: M2 x 10 pan or socket head, self-tapping into the front shell
 PILOT_D = 1.7
-PILOT_DEPTH = 7.0
+PILOT_DEPTH = 5.5          # M2 x 8 from the head seat at Z 25.0: tip at Z 17.0, 4 mm in the boss
 BOSS_TOP_D = G.BOSS_D      # touches the board only inside this
 BOSS_LOW_D = 6.0           # below BOSS_STEP_Z
 BOSS_STEP_Z = G.BOARD_Z - 3.5
@@ -101,7 +101,7 @@ LID_BOSS_D = 5.2
 LID_TOP_Z = 41.85
 LID_SEAT_Z = 38.45         # Prusa's back shell face under the lid
 LID_THIN = 1.6
-LID_POCKET = (-11.5, -26.3, 11.5, 7.6)    # X0, Y0, X1, Y1 of the 1.6 mm area
+LID_POCKET = (-11.5, -26.3, 11.5, 7.6)    # X0, Y0, X1, Y1 of the 1.6 mm area (and 1.6 under the -Y chamfer)
 VENT_YS = [-14.5, -10.5, -6.5, -2.5, 1.5, 5.5]
 VENT_X = 9.0               # slot centres run X -9..9, Ø2 ends (Prusa)
 # heatsink: 20 x 20 x 15 on 3M 8810 tape on the 0.85 mm chip
@@ -118,7 +118,7 @@ USB_BLOCK_T = 1.6          # wall behind the seat
 # RP-SMA female bulkhead (1/4-36 UNS), D-hole, nut inside
 SMA_HOLE_D, SMA_FLAT = 6.5, 5.9            # Ø6.5 with a flat 5.9 across
 SMA_NUT_KEEP = (9.8, 3.6)                  # 5/16 in nut (9.2 across corners) + lock washer, past the wall
-SMA_BODY_KEEP = (7.0, 8.0)                 # thread end, crimp ferrule and the lead's bend
+SMA_BODY_KEEP = (6.6, 7.5)                 # thread end and crimp ferrule; the lead bends from there
 # magnets: 10 x 3 mm discs, SH grade, epoxied flush in pockets
 MAG_D, MAG_T = 10.0, 3.0
 MAG_POCKET_D, MAG_POCKET_T = 10.3, 3.1
@@ -138,6 +138,12 @@ FACE_N = {
     'sma': (0.75, 0.433, -0.5),             # +X +Y facet of the back shell: the front side in the printer (README)
     'usb_old': (-0.75, 0.433, -0.5),        # the -X +Y facet with Prusa's USB-C recess
     'front_y': (0.0, 0.866, -0.5),          # the front shell's +Y facet with Prusa's slots
+    'y_back': (0.0, 0.622, 0.783),          # the +Y back chamfer with Prusa's screw holes
+}
+# faces that are not on the convex hull (Prusa's STEP planes, lens frame)
+FACE_STEP = {
+    'y_low_back': ((0.0, -0.866, -0.5), (0.15, -33.99, 24.91)),    # back shell's -Y facet, Z 21.2-27.9
+    'y_low_front': ((0.0, -0.84, -0.55), (3.4, -24.8, 7.9)),       # front shell's -Y facet
 }
 # print orientation of each part (applied to the lens-frame part)
 PRINT_POSE = {
@@ -299,6 +305,17 @@ def hull_plane(hull, n_nominal):
     return unit(n), d
 
 
+def surface_plane(prusa, n_nominal, c):
+    """The plane of the flat face of Prusa's case near point c with about
+    this normal: fitted to the triangles there (lens frame)."""
+    m = trimesh.util.concatenate(list(prusa.values()))
+    n0 = unit(n_nominal)
+    sel = (m.face_normals @ n0 > 0.995) & (np.linalg.norm(m.triangles_center - np.asarray(c), axis=1) < 12)
+    n = unit((m.face_normals[sel] * m.area_faces[sel, None]).sum(0))
+    d = float((m.triangles_center[sel] @ n * m.area_faces[sel]).sum() / m.area_faces[sel].sum())
+    return n, d
+
+
 # ------------------------------------------------------------------ envelope and cavity
 class Envelope:
     """Horizontal sections of Prusa's case, filled (outer outlines only)."""
@@ -335,6 +352,18 @@ class Envelope:
         geoms = extra.geoms if hasattr(extra, 'geoms') else [extra]
         big = [p for p in geoms if p.area > min_area]
         return unary_union([q] + big).buffer(0) if big else q
+
+    def outside(self, P):
+        """True for points outside Prusa's case (filled)."""
+        import shapely
+        P = np.asarray(P)
+        i = np.clip(np.round((P[:, 2] - self.z[0]) / ZSTEP).astype(int), 0, len(self.z) - 1)
+        out = np.ones(len(P), bool)
+        for k in np.unique(i):
+            m = i == k
+            if not self.P[k].is_empty:
+                out[m] = ~shapely.contains_xy(self.P[k], P[m, 0], P[m, 1])
+        return out
 
     def eroded(self, i, r):
         key = (i, round(r, 3))
@@ -418,15 +447,26 @@ def prusa_solid(folder):
     hull_mesh = trimesh.util.concatenate(list(prusa.values())).convex_hull
     hull = to_manifold(hull_mesh)
     planes = {k: hull_plane(hull_mesh, n) for k, n in FACE_N.items()}
+    for k, (n, c) in FACE_STEP.items():
+        planes[k] = surface_plane(prusa, n, c)
     n_u, _ = planes['usb_old']
     c_old = np.array([-33.1, 8.9, 26.6])          # Prusa's USB-C opening (measured)
     ex, ey, ez = frame(n_u)
+    def halfspace(key_or_n, d=None):
+        """The inside of one of Prusa's flat faces (a big box cut by its plane)."""
+        n, d = planes[key_or_n] if d is None else (unit(key_or_n), d)
+        a, b, _ = frame(n)
+        return local_prism(box(-200, -200, 200, 200), -200.0, 0.0, n * d, a, b, n)
+
+    # the plugs end at the face they close (not the hull, which bridges
+    # Prusa's concave corners and would stand proud of them)
+    y_low = halfspace('y_low_back') ^ halfspace('y_low_front')
     plugs = [
-        local_prism(box(-8.0, -7.5, 8.0, 7.5), -5.0, 3.0, c_old, ex, ey, ez),     # old USB-C recess
-        m3.Manifold.cube((20.5, 8.0, 3.9)).translate((-12.6, -37.0, 20.4)),       # SD-card slot
-        m3.Manifold.cube((7.0, 11.0, 9.0)).translate((7.2, -37.0, 20.4)),         # antenna-lead slit
-        union([zcyl(x, 26.1, 21.4, 36.0, 4.7) for x in (-13.0, 13.0)]),         # old screw counterbores
-        front_y_slots(U['bottom'], planes['front_y']),                          # (cut again later)
+        local_prism(box(-7.5, -7.5, 7.5, 7.5), -5.0, 3.0, c_old, ex, ey, ez) ^ halfspace('usb_old'),  # old USB-C recess
+        m3.Manifold.cube((20.5, 8.0, 3.9)).translate((-12.6, -37.0, 20.4)) ^ y_low,                # SD-card slot
+        m3.Manifold.cube((7.0, 11.0, 9.0)).translate((7.2, -37.0, 20.4)) ^ y_low,                  # antenna-lead slit
+        union([zcyl(x, 26.1, 21.4, 36.0, 4.7) for x in (-13.0, 13.0)]) ^ halfspace('y_back'),      # old counterbores
+        front_y_slots(U['bottom'], planes['front_y']) ^ halfspace('front_y'),                      # (cut again later)
     ]
     solid = union(list(U.values()) + [union(plugs) ^ hull])
     return solid, U, prusa, hull_mesh, planes
@@ -528,7 +568,11 @@ def build(folder, log=print):
     # ================================================================ lid
     lid_cut = []
     px0, py0, px1, py1 = LID_POCKET
-    lid_cut.append(m3.Manifold.cube((px1 - px0, py1 - py0, LID_TOP_Z - LID_THIN - 30.0)).translate((px0, py0, 30.0)))
+    nb, db = planes['magnet_b']           # the lid's -Y edge is this chamfer: keep 1.6 under it too
+    a_, b_, _ = frame(nb)
+    under_b = local_prism(box(-200, -200, 200, 200), -200.0, -LID_THIN, nb * db, a_, b_, nb)
+    lid_cut.append(m3.Manifold.cube((px1 - px0, py1 - py0, LID_TOP_Z - LID_THIN - 30.0)).translate((px0, py0, 30.0))
+                   ^ under_b)
     for y in VENT_YS:
         lid_cut.append(prism(affinity.translate(obround(2 * VENT_X + 2.0, 2.0), 0, y), 30.0, 50.0))
     for (x, y) in LID_SCREWS:
@@ -579,7 +623,7 @@ def skin_cuts(U, planes):
     return union(cuts)
 
 
-def openings_test(U, planes, lid_fp, near=1.0, seam_near=2.0):
+def openings_test(U, planes, lid_fp, near=2.0, seam_near=2.0):
     """f(points, part) -> True where a point of the outer skin is within
     `near` of an opening or of the part's own seam (split plane, lid seat)."""
     from shapely.geometry import MultiPoint
@@ -605,9 +649,10 @@ def check_info(folder):
     """What check.py needs, without building the parts."""
     solid, U, prusa, hull_mesh, planes = prusa_solid(folder)
     lid_fp = lid_footprint(U['lid'])
+    env = Envelope(solid)
     return dict(planes=planes, magnets=magnet_features(planes)[2], sma=sma_features(planes['sma'], None, None)[3],
                 board=board_polygon(), sink=sink_box(), usb=usb_info(planes['usb_old']), prusa=prusa,
-                openings=openings_test(U, planes, lid_fp), fit_outline=fit_outline(Envelope(solid)))
+                openings=openings_test(U, planes, lid_fp), env=env, fit_outline=fit_outline(env))
 
 
 def largest_piece(m, name, log):
@@ -678,8 +723,8 @@ def usb_features(plane_old):
     # the board's tab passes into the wall: 0.5 round it (and 0.25 at its end)
     cuts.append(local_prism(box(-G.USB_TAB_W / 2 - CLEAR, G.BOARD_Z - CLEAR - USB_AXIS_Z, G.USB_TAB_W / 2 + CLEAR,
                                 BOARD_BACK + CLEAR - USB_AXIS_Z), -1.0, G.USB_TAB + 0.25, o, s, z, u))
-    blk = local_prism(box(-USB_PLUG[0] / 2 - 1.8, BOARD_BACK + 0.3 - USB_AXIS_Z, USB_PLUG[0] / 2 + 1.8,
-                          USB_PLUG[1] / 2 + 1.8), ts - USB_BLOCK_T, 30.0, o, s, z, u)
+    blk = local_prism(box(-USB_PLUG[0] / 2 - 4.0, BOARD_BACK + 0.3 - USB_AXIS_Z, USB_PLUG[0] / 2 + 4.0,
+                          USB_PLUG[1] / 2 + 3.0), ts - USB_BLOCK_T, 30.0, o, s, z, u)
     return cuts, [blk]
 
 

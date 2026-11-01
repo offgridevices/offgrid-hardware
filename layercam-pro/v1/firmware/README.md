@@ -50,7 +50,7 @@ tested on a PC; none of it has run on the board yet.
 | MP4 (H.264), hardware encoder, little storage | ✅ each frame encoded by the RV1106's encoder as it is taken and appended to one H.264 file; MP4 made on the fly at upload; ffmpeg path for a PC |
 | Upload to SMB, NFS, S3 (+ compatible), HTTP/WebDAV | ✅ all five; S3 signing (SigV4) in plain Python, tested against AWS's test suite |
 | Live picture for setup; day/night with IR | ✅ live view on request (2 minutes, refused when hot); IR-cut from the light sensor with hysteresis, IR LEDs lit only around each night picture |
-| Works in a 65 C chamber | ⚠️ the firmware does all it can (below: sensor asleep between pictures, 1080p, lowest CPU speed, transmit power capped, IR LEDs flashed, a thermal governor that throttles, skips uploads, then stops the camera); the Pro's own thermal model (`sim/thermal.py`) decides whether that is enough. Wi-Fi power save is up to the C6's firmware now (*Heat and power*) |
+| Works in a 65 C chamber (the Pro's rating, `sim/thermal.md`) | ⚠️ the firmware does all it can (below: sensor asleep between pictures, 1080p, lowest CPU speed, transmit power capped, IR LEDs flashed, a thermal governor that throttles, skips uploads, then stops the camera); the Pro's own thermal model (`sim/thermal.py`) decides whether that is enough. Wi-Fi power save is up to the C6's firmware now (*Heat and power*) |
 | 1080p timelapse | ✅ 1920 x 1080 by default (`timelapse.resolution`), the full 2560 x 1440 sensor selectable |
 | Wi-Fi setup, reset and updates with no button; one settings file; status LED | ✅ setup access point and page at first boot and when the saved network stays unreachable; three short power-ups forget the Wi-Fi; a USB serial console (`layercam-setup`) when plugged into a computer; signed app updates from the page, started on trial and rolled back if they do not stay up; full images over USB without opening the camera; `layercam.ini`; LED patterns below |
 | Runs on the Luckfox SDK's Buildroot | ✅ Python 3.8+ standard library only (Buildroot's `python3` is already in `luckfox_pico_defconfig`), one small C helper |
@@ -110,7 +110,7 @@ it can (`layercam/thermal.py`):
 | printing | sensor streaming at **10 fps** (`camera.print_fps`), not 30 | a layer trigger must be answered inside the 1.2 s hold, and rkaiq's auto exposure and white balance need frames to settle after a cold start (some hundreds of ms to a second: to measure on the board); at 10 fps a fresh frame is at most 0.3 s away |
 | video size | 1920 x 1080 (the ISP scales the 2560 x 1440 sensor; same 16:9) | fewer pixels through the ISP, encoder and DDR |
 | CPU | held at its lowest speed (`scaling_max_freq`) except while uploading (TLS, SHA-256) | the encoders are hardware; the CPU has little to do |
-| Wi-Fi | 2.4 GHz (the C6 has no other band), transmit power capped at 10 dBm (`iw`; esp-hosted's driver implements `set_tx_power`). **Power save: not from Linux.** esp-hosted's driver has no `set_power_mgmt`, so `iw ... set power_save on` (still sent) is refused, and its C6 firmware turns modem sleep off at start (`esp_wifi_set_ps(WIFI_PS_NONE)` in `network_adapter/main/cmd.c`, "line-powered adapter"). For power save, change that call to `WIFI_PS_MIN_MODEM` before building the C6 firmware (not done or measured here) | v1's AP6256 was its second-largest heat source; the C6's share is to measure (Espressif: 382 mA peak at 20.5 dBm 802.11b) |
+| Wi-Fi | 2.4 GHz (the C6 has no other band), transmit power capped at 10 dBm (`iw`; esp-hosted's driver implements `set_tx_power`). **Power save: not from Linux.** esp-hosted's driver has no `set_power_mgmt`, so `iw ... set power_save on` (still sent) is refused, and its C6 firmware turns modem sleep off at start (`esp_wifi_set_ps(WIFI_PS_NONE)` in `network_adapter/main/cmd.c`, "line-powered adapter"). **The camera is rated for a 65 C chamber with power save on** (`sim/thermal.md`): run `tools/c6-power-save.sh` on esp-hosted's `network_adapter` folder before building the C6 firmware; it changes that call to `WIFI_PS_MIN_MODEM` (not yet measured on a camera) | v1's AP6256 was its second-largest heat source; the C6's share is to measure (Espressif: 382 mA peak at 20.5 dBm 802.11b) |
 | IR LEDs | lit only around a night picture (ramped over 150 ms, `ir.flash_settle_ms` 500 ms before the frame) and during live view; never continuously | lit continuously v1's ring was the hottest part at night (v1's sim/thermal.md); the Pro's six LEDs are on the main board |
 | IR-cut | the coil is pulsed only when day/night changes | |
 | live view | only when asked for (setup page button, `POST /api/live`), at most `camera.live_max_s` (120 s), refused or stopped from 87 C | streaming 10 fps JPEG is the heaviest thing the camera can do |
@@ -734,7 +734,8 @@ comments since v1's `make check`.
   `hostapd_cli`, so the camera talks to hostapd's control socket itself.
 - **No Wi-Fi power save from Linux** on the C6 (*Heat and power*):
   `wifi.power_save` is sent with `iw` and refused by the driver; the C6
-  firmware's `WIFI_PS_NONE` would have to change, unmeasured either way.
+  firmware is built with power save on instead (`tools/c6-power-save.sh`),
+  which the 65 C rating depends on; not yet measured on a camera.
 - **WIFI_HOST_WAKE is wired and unused**: the camera never suspends, so
   esp-hosted's host-sleep wake (a GPIO interrupt node, the C6's
   `HOST_WAKEUP_GPIO` 4) is not set up.

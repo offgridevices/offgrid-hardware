@@ -99,11 +99,11 @@ US rules allow only antennas of the same type and no more gain than the
 module was approved with, so the product names (or ships) a matching
 antenna. Most Amazon antennas are sold as 5-9 dBi and are not covered.
 
-## Heat: 70 °C chamber, stock heatsink, no fan *(owner)*
+## Heat: 65 °C chamber, stock heatsink, no fan *(owner)*
 
 Prusa's firmware caps the chamber at 55 °C (CORE One) and 60 °C (CORE One
 L). Prusa rates its own camera to 65 °C, and owners report it stops
-streaming at a 50-60 °C chamber. The Pro is designed for 70 °C, past both.
+streaming at a 50-60 °C chamber. The Pro was first designed for 70 °C, past both.
 
 LayerCam's model showed that a heatsink inside a closed case only heats
 the air trapped in it. So the Pro's heatsink reaches the back vents and
@@ -125,11 +125,25 @@ onto each other. The thermal model of the routed board decides; the
 sensor's own copper island and a slot between them help.
 `src/plan_section.py` checks the heatsink's fit at every height, its gap to
 the lid and the slots over it. The camera works in snapshots and the
-timelapse at any chamber temperature up to 70 °C; live video only while
+timelapse at any chamber temperature up to its rating; live video only while
 it is cool.
 
 Rejected: a small fan (noise, a part that wears out); designing only for
 Prusa's 60 °C limit (no headroom for owners who insulate the printer).
+
+**Rated for 65 °C, not 70 °C *(owner, 1 Nov 2026)*.** The thermal model
+(`sim/thermal.md`) put the whole board 16-20 K above the chamber: the
+three vent slots over the heatsink are too narrow for air to move through
+them, and most of the heat leaves through the case's walls. At 70 °C the
+four 85 °C parts (the image sensor, the USB-C, the flash, the status LED)
+were 2-4 K over. The image sensor sets the ceiling: no hotter grade of it
+exists, and it reaches 85 °C at about a 66 °C chamber. The owner chose to
+rate the camera for 65 °C with the Wi-Fi's power save on (about 3 K cooler;
+the C6's firmware is built with it on, `firmware/tools/c6-power-save.sh`),
+5-10 K above anything Prusa's firmware lets the chamber reach.
+
+Rejected: a 25 mm fan (noise, a wearing part); bigger vents (changes
+Prusa's outside; a gain of perhaps 3-6 K, uncertain).
 
 ## Infrared lights: light pipes to Prusa's holes
 
@@ -162,7 +176,7 @@ uses round disc magnets from Amazon. They go in printed pockets on the
 outside, set with heat-proof epoxy (J-B Weld), not super glue, which goes
 soft and brittle near 80 °C. They are high-temperature grade (SH, rated
 150 °C); ordinary N grades are rated 80 °C and can lose pull for good near
-a 70 °C chamber.
+a 65 °C chamber.
 
 ## Case material: PC carbon fibre
 
