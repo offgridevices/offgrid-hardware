@@ -445,6 +445,18 @@ def finish_rest(fin, work, w=None, cl=None):
     b = pcbnew.LoadBoard(fin)
     left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
     log('after the maze router: %d nets open %s' % (len(left), left))
+    if left:
+        # a lone pad cut off from its net: a via of its own (in the pad, else a
+        # dog-bone), then the maze router once more for just those nets
+        if escape_lone_pads(fin, left):
+            nets_all = set(n_ for c in circuit.build() for n_ in c.pins.values() if n_)
+            finish.finish_board(fin, fin, os.path.join(work, 'fin_lone.json'), rules=w, clmap=cl,
+                                skip=tuple(nets_all - set(left)))
+            write_rules(fin)
+            pcb.tidy_tracks(fin)
+            b = pcbnew.LoadBoard(fin)
+            left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
+            log('after the lone-pad vias: %d nets open %s' % (len(left), left))
     sup = [x for x in left if x in SUPPLY]
     if sup:
         island_pours(fin, sup)
@@ -460,6 +472,47 @@ def finish_rest(fin, work, w=None, cl=None):
         left = [x for x in left if x in SUPPLY] + list(rest)
     log('nets left after repair: %s' % (left,))
     return finish_tail(fin, work, w, cl)
+
+
+def escape_lone_pads(path, nets, log=log):
+    """For each open net, every island that is only outer-layer copper (a
+    pad, or a part's few pads, cut off) gets a via: in the pad itself where
+    it clears every other net on every layer (filled, VIA_PAD), else a
+    dog-bone beside it.  Returns how many were added."""
+    import fanout
+    from shapely.geometry import Point
+    from shapely.ops import unary_union
+    b = pcbnew.LoadBoard(path)
+    layers = [l for l in b.GetEnabledLayers().CuStack()]
+    n_ = 0
+    for net in nets:
+        for comp in finish._net_components(b, net):
+            if set(comp) - {pcbnew.F_Cu, pcbnew.B_Cu}:
+                continue
+            shape = unary_union([g for gs in comp.values() for g in gs]).buffer(0.01)
+            pins = [(fp, p) for fp in b.GetFootprints() for p in fp.Pads()
+                    if p.GetNetname() == net and shape.contains(Point(p.GetPosition().x / 1e6, p.GetPosition().y / 1e6))]
+            obs = fanout.Obstacles(b, layers)
+            d_, dr_ = board.VIA_PAD
+            done = False
+            for fp, p in pins:
+                x, y = p.GetPosition().x / 1e6, p.GetPosition().y / 1e6
+                g = Point(x, y).buffer(d_ / 2, 16)
+                if obs.hole_room(x, y, dr_ / 2, 0.2) and obs.clear(g, net, layers, 0.1):
+                    v = pcbnew.PCB_VIA(b); v.SetPosition(p.GetPosition())
+                    v.SetWidth(pcbnew.FromMM(d_)); v.SetDrill(pcbnew.FromMM(dr_)); v.SetNet(p.GetNet())
+                    b.Add(v); done = True
+                    log('   lone pad %-12s via in %s %s' % (net, fp.GetReference(), p.GetNumber()))
+                    break
+            if not done and pins:
+                d_, dr_ = board.VIA_SIG
+                k, _ = fanout.dogbones(b, [(fp.GetReference(), p.GetNumber()) for fp, p in pins[:3]],
+                                       via_d=d_, via_drill=dr_, width=0.12, cl=0.1, hole_gap=0.2)
+                done = bool(k)
+                log('   lone pad %-12s %s' % (net, 'dog-bone at ' + pins[0][0].GetReference() if k else 'no room for a via'))
+            n_ += done
+    b.Save(path)
+    return n_
 
 
 def island_pours(path, nets, margin=0.6, log=log):
