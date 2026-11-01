@@ -1,7 +1,13 @@
 # Canary v1 product video
 
-`canary-v1-product-video.mp4` — 1080p30, about 4 minutes, narrated, with an
-English subtitle track (also `canary-v1-product-video.srt`).
+`out/canary-v1-product-video.mp4`: 1080p30, about 4 minutes, narrated, with
+an English subtitle track (also `out/canary-v1-product-video.srt`).
+
+**The video is published, not committed** ([docs/product-video.md](../../../docs/product-video.md)):
+the build writes it to `out/`, which git ignores; attach it to the board's
+GitHub release or share it where the owner says. This is a narrated
+explainer, not the house exploded-view video that guide describes; that one
+is still to make for Canary.
 
 Everything in it comes from this revision:
 - the board is KiCad 10.0.6's own 3D render of `canary.kicad_pcb`

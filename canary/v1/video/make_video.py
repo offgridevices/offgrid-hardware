@@ -2,7 +2,7 @@
 
   python3 make_video.py test <segment> <t> [<t> ...]   -> out/test_<seg>_<t>.png
   python3 make_video.py render [segment ...]           -> out/seg_<name>.mp4 (video only)
-  python3 make_video.py mux                            -> canary-v1-product-video.mp4
+  python3 make_video.py mux                            -> out/canary-v1-product-video.mp4 (+ .srt)
 
 Pipeline: tts.py (narration WAVs) -> words.py (word timings) ->
 render_turntable.sh + stills (KiCad 3D renders) -> this script.
@@ -110,11 +110,11 @@ def mux():
     def ts(x):
         h, m, s = int(x // 3600), int(x % 3600 // 60), x % 60
         return f'{h:02d}:{m:02d}:{s:06.3f}'.replace('.', ',')
-    srtp = os.path.join(HERE, 'canary-v1-product-video.srt')
+    srtp = os.path.join(OUT, 'canary-v1-product-video.srt')
     with open(srtp, 'w') as f:
         for i, a, b, s in srt:
             f.write(f'{i}\n{ts(a)} --> {ts(b)}\n{s}\n\n')
-    final = os.path.join(HERE, 'canary-v1-product-video.mp4')
+    final = os.path.join(OUT, 'canary-v1-product-video.mp4')
     subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', os.path.join(OUT, 'video_only.mp4'), '-i', wav,
                     '-i', srtp, '-map', '0:v', '-map', '1:a', '-map', '2:s', '-c:v', 'copy', '-c:a', 'aac',
                     '-b:a', '160k', '-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng', '-t', f'{total:.3f}',

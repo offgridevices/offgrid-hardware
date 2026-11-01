@@ -32,8 +32,8 @@ flashing + 100 dB 4 kHz sounder in the smoke-alarm T3 pattern. The button
 self-tests in normal state and hushes for 2 minutes in alarm — the hush
 ends early if the evidence gets worse.
 
-**Product video:** [`video/canary-v1-product-video.mp4`](video/canary-v1-product-video.mp4)
-(about 4 minutes, narrated, subtitles included).
+**Product video:** a narrated 4-minute explainer, built by `video/` and
+published rather than committed ([video/README.md](video/README.md)).
 
 The real firmware, on a simulated ATmega328P with virtual sensors, catching
 a vent at 400 s (alarm 7.6 s later) — `sim/hil/`:
@@ -125,7 +125,7 @@ the USB-C, probe connector and the sensor head's air path stay open.
 | `firmware/` | AVR C firmware (`detect.c` is the detector logic) |
 | `sim/hil/` | simavr hardware-in-the-loop harness + scenarios |
 | `sim/spice/`, `sim/analysis/` | sounder driver SPICE, NTC/power/I²C analyses |
-| `video/` | the product video and the scripts that build it |
+| `video/` | the scripts that build the narrated product video (the MP4 is published, not committed) |
 | `web/` | the interactive bench page (`build_page.py` → one HTML file); its detector is a port of `detect.c` checked equal to the firmware second by second |
 | `mechanical/` | STEP model (zipped) |
 | `enclosure/` | 3D-printable bumper: `bumper.scad`, and `print/canary-v1-bumper.stl` |
