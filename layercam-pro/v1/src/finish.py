@@ -93,7 +93,7 @@ def configure():
 # ---------------------------------------------------------------- net rules
 def rules():
     """(widths, protect, planes): each net's track width (its class: never
-    thinner), the nets never torn up or routed (planes, pairs, RF), and the
+    thinner), the nets never torn up or routed (planes, pairs), and the
     plane nets."""
     bd = pcb.BOARD
     widths = dict(board.POWER.get(bd, {}))
@@ -102,10 +102,6 @@ def rules():
         protect |= set(nets)
         for n in nets:
             widths[n] = w
-    if bd == 'main':
-        for n in ('ANT_FEED', 'ANT'):
-            widths[n] = board.RF_W
-            protect.add(n)
     return widths, protect, set(board.PLANE_NETS.get(bd, ()))
 
 

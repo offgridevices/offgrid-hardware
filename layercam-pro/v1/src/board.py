@@ -23,21 +23,19 @@ import pcb, circuit, placer, geometry as G
 POWER = {
     'main': {'VSYS': 0.25, 'SW_0V9': 0.5, 'LX_3V3': 0.25, 'VCC_DDR': 0.2, 'LX_DDR': 0.25,
              'LX_1V8': 0.25, 'VWIFI': 0.4, 'SW_WIFI': 0.4, 'LED_K': 0.4, 'IRCUT_1': 0.2, 'IRCUT_2': 0.2,
-             'STR1_A': 0.3, 'STR2_A': 0.3, 'STR3_A': 0.3, 'STR1_M': 0.3, 'STR2_M': 0.3, 'STR3_M': 0.3},
+             'STR1_A': 0.3, 'STR2_A': 0.3, 'STR3_A': 0.3, 'STR1_M': 0.3, 'STR2_M': 0.3, 'STR3_M': 0.3,
+             'USB_DP': 0.15, 'USB_DM': 0.15},
 }
 PLANE_NETS = {'main': ('GND', 'VDD_0V9', 'VCC_3V3')}
 # boards whose big parts' plane pins get their vias from the router (it
 # leaves gaps between them; vias placed beforehand, one per pin, walled the
 # pins next to them in): the plane nets are routed, to the planes
 ROUTER_PLANE_VIAS = set()        # tried for 'main': 82 left unrouted against 52
-# differential pairs (width, gap) for 100 ohm (MIPI) and 90 ohm (USB) on
-# the outer layers over PCBWay's 0.12 mm prepreg, centred in the etch
-# tolerance (sim/impedance.md: 102 and 90 ohm on the main board, 92 ohm on
-# the 2-layer USB board).  The main board's USB gap is 0.13, not the
-# 0.127 minimum: a coupled bend must not round to under the rule
-DIFF = {'main': {'MIPI': (['CSI_D0P', 'CSI_D0N', 'CSI_D1P', 'CSI_D1N', 'CSI_CKP', 'CSI_CKN'], 0.12, 0.15),
-                 'USB': (['USB_DP', 'USB_DM'], 0.15, 0.13)},
-        }
+# differential pairs (width, gap): the MIPI lanes, 100 ohm on the outer
+# layers over PCBWay's 0.12 mm prepreg, centred in the etch tolerance
+# (sim/impedance.md), drawn by pairs.py.  USB is routed as two plain 0.15 mm
+# tracks (POWER above): it carries only firmware flashing
+DIFF = {'main': {'MIPI': (['CSI_D0P', 'CSI_D0N', 'CSI_D1P', 'CSI_D1N', 'CSI_CKP', 'CSI_CKN'], 0.12, 0.15)}}
 
 
 
