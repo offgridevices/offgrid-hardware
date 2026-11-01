@@ -39,10 +39,10 @@ sit at about 90 C).
 
 ## Requirements
 
-As the owner set them, and where v1 stands. ✅ here means written and
+As the owner set them, and where Pro v1 stands. ✅ here means written and
 tested on a PC; none of it has run on the board yet.
 
-| Requirement | v1 |
+| Requirement | Pro v1 |
 |---|---|
 | Snapshots in Prusa Connect / the Prusa app | ✅ Prusa's current Camera Service API (`camera-service.prusa3d.com`), every 10, 30 or 60 s; the layer frames (head parked) go to Connect too; under 1 MB and at most 6 a minute, as the service requires |
 | Per-layer timelapse, frame taken with the head parked | ✅ PrusaSlicer snippet ([`slicer/`](slicer/README.md)) parks the head and sends a trigger over the printer's metrics stream; the camera shoots during a 1.2 s hold |
@@ -50,7 +50,7 @@ tested on a PC; none of it has run on the board yet.
 | MP4 (H.264), hardware encoder, little storage | ✅ each frame encoded by the RV1106's encoder as it is taken and appended to one H.264 file; MP4 made on the fly at upload; ffmpeg path for a PC |
 | Upload to SMB, NFS, S3 (+ compatible), HTTP/WebDAV | ✅ all five; S3 signing (SigV4) in plain Python, tested against AWS's test suite |
 | Live picture for setup; day/night with IR | ✅ live view on request (2 minutes, refused when hot); IR-cut from the light sensor with hysteresis, IR LEDs lit only around each night picture |
-| Works in a 65 C chamber | ⚠️ the firmware does all it can (below: sensor asleep between pictures, 1080p, lowest CPU speed, transmit power capped, IR LEDs flashed, a thermal governor that throttles, skips uploads, then stops the camera); the Pro's own sim/thermal.md decides whether that is enough. Wi-Fi power save is up to the C6's firmware now (*Heat and power*) |
+| Works in a 65 C chamber | ⚠️ the firmware does all it can (below: sensor asleep between pictures, 1080p, lowest CPU speed, transmit power capped, IR LEDs flashed, a thermal governor that throttles, skips uploads, then stops the camera); the Pro's own thermal model (`sim/thermal.py`) decides whether that is enough. Wi-Fi power save is up to the C6's firmware now (*Heat and power*) |
 | 1080p timelapse | ✅ 1920 x 1080 by default (`timelapse.resolution`), the full 2560 x 1440 sensor selectable |
 | Wi-Fi setup, reset and updates with no button; one settings file; status LED | ✅ setup access point and page at first boot and when the saved network stays unreachable; three short power-ups forget the Wi-Fi; a USB serial console (`layercam-setup`) when plugged into a computer; signed app updates from the page, started on trial and rolled back if they do not stay up; full images over USB without opening the camera; `layercam.ini`; LED patterns below |
 | Runs on the Luckfox SDK's Buildroot | ✅ Python 3.8+ standard library only (Buildroot's `python3` is already in `luckfox_pico_defconfig`), one small C helper |
@@ -110,8 +110,8 @@ it can (`layercam/thermal.py`):
 | printing | sensor streaming at **10 fps** (`camera.print_fps`), not 30 | a layer trigger must be answered inside the 1.2 s hold, and rkaiq's auto exposure and white balance need frames to settle after a cold start (some hundreds of ms to a second: to measure on the board); at 10 fps a fresh frame is at most 0.3 s away |
 | video size | 1920 x 1080 (the ISP scales the 2560 x 1440 sensor; same 16:9) | fewer pixels through the ISP, encoder and DDR |
 | CPU | held at its lowest speed (`scaling_max_freq`) except while uploading (TLS, SHA-256) | the encoders are hardware; the CPU has little to do |
-| Wi-Fi | 2.4 GHz (the C6 has no other band), transmit power capped at 10 dBm (`iw`; esp-hosted's driver implements `set_tx_power`). **Power save: not from Linux.** esp-hosted's driver has no `set_power_mgmt`, so `iw ... set power_save on` (still sent) is refused, and its C6 firmware turns modem sleep off at start (`esp_wifi_set_ps(WIFI_PS_NONE)` in `network_adapter/main/cmd.c`, "line-powered adapter"). For power save, change that call to `WIFI_PS_MIN_MODEM` before building the C6 firmware (not done or measured here) | v1's AP6256 was the second-largest heat source; the C6 draws less (Espressif: 382 mA peak at 20.5 dBm 802.11b) but is to measure |
-| IR LEDs | lit only around a night picture (ramped over 150 ms, `ir.flash_settle_ms` 500 ms before the frame) and during live view; never continuously | lit continuously the ring is the hottest part at night (sim/thermal.md) |
+| Wi-Fi | 2.4 GHz (the C6 has no other band), transmit power capped at 10 dBm (`iw`; esp-hosted's driver implements `set_tx_power`). **Power save: not from Linux.** esp-hosted's driver has no `set_power_mgmt`, so `iw ... set power_save on` (still sent) is refused, and its C6 firmware turns modem sleep off at start (`esp_wifi_set_ps(WIFI_PS_NONE)` in `network_adapter/main/cmd.c`, "line-powered adapter"). For power save, change that call to `WIFI_PS_MIN_MODEM` before building the C6 firmware (not done or measured here) | v1's AP6256 was its second-largest heat source; the C6's share is to measure (Espressif: 382 mA peak at 20.5 dBm 802.11b) |
+| IR LEDs | lit only around a night picture (ramped over 150 ms, `ir.flash_settle_ms` 500 ms before the frame) and during live view; never continuously | lit continuously v1's ring was the hottest part at night (v1's sim/thermal.md); the Pro's six LEDs are on the main board |
 | IR-cut | the coil is pulsed only when day/night changes | |
 | live view | only when asked for (setup page button, `POST /api/live`), at most `camera.live_max_s` (120 s), refused or stopped from 87 C | streaming 10 fps JPEG is the heaviest thing the camera can do |
 
@@ -130,11 +130,13 @@ Every level is left 5 K under where it was entered (`thermal.hysteresis_k`),
 so it does not flap. The level and the temperature are on the setup page,
 the change is logged, and the status LED shows *hot* (long on, short off)
 at any level above normal. All thresholds are settings (`[thermal]`).
-These numbers follow sim/thermal.md and sim/power.md; measure the board in
+These numbers follow LayerCam v1's sim/thermal.md and sim/power.md, not yet
+the Pro's `sim/thermal.py`; measure the board in
 a 65 C oven before trusting either.
 
 **Storage.** There is no SD card: 256 MB of SPI NAND for everything. A
-JPEG per layer at 2560 x 1440 is about 370-620 kB (v1 measured nothing either: its 300-500 kB estimate at 2304 x 1296, scaled by the pixels), so a 1000-layer print would
+JPEG per layer at 2560 x 1440 is about 370-620 kB (v1's unmeasured
+300-500 kB at 2304 x 1296, scaled by the pixels), so a 1000-layer print would
 need more than the whole NAND. Instead each frame goes straight into the
 H.264 encoder and onto the end of one file (`video.h264`, plus an index of
 frame offsets); consecutive layers differ little, so most frames are small
@@ -196,7 +198,8 @@ cfg80211).
    Bluetooth core `CONFIG_BT=y` in the kernel (its `esp.h` includes the HCI
    core, and `esp_bt.c` calls it whatever the C6 runs), both in
    `board/sdk/layercam.config`. The toolchain and kernel-build paths are
-   the usual SDK ones, not checked here.
+   the SDK's (`build.sh`, `sysdrv/Makefile.param`); this has not been
+   built.
 5. **Copy LayerCam's files into the SDK:**
    ```
    UPDATE_PUBKEY=update.pub USB_ID=vvvv:pppp ESP_HOSTED_KO=host/esp32_sdio.ko \
@@ -421,7 +424,8 @@ so it updates without a computer (`layercam/update.py`):
 The camera takes a package only if: Ed25519-signed (in plain Python,
 checked against RFC 8032's vectors and OpenSSL) by a key in
 `/etc/layercam/update-keys`, which an app update cannot change; made for
-`LayerCam v1`; newer than what runs (an older signed version could bring
+`LayerCam Pro v1` (a LayerCam v1 package is refused: other pins, other
+sensor); newer than what runs (an older signed version could bring
 an old bug back; `--allow-downgrade` on the USB console overrides);
 `min_rootfs` no newer than the image's `/etc/layercam/rootfs-version`; the
 payload's SHA-256 and every file's SHA-256 match the signed manifest, with
@@ -457,8 +461,10 @@ but its `RkLunch-recovery.sh` looks for the package on an SD card, so it
 needs adapting to read it from `/userdata`, and a new partition table
 means flashing once with `update` (settings lost). Writing the rootfs over
 the air without a second copy risks a camera that only the BOOT pads can
-bring back after a power cut, so v1 updates the software over the air and
-the image over USB.
+bring back after a power cut, so the camera updates the software over the
+air and the image over USB. The C6's firmware is a third part: from the
+camera with `layercam-c6-flash`, or over SDIO with esp-hosted's
+`ota_file=` (*Bringing up a board*); the app update does not carry it.
 
 ## Setting it up
 
@@ -625,7 +631,7 @@ GPIO, ADC and PWM are skipped when their files are missing.
 ## Tests
 
 ```
-python3 -m unittest            # from this folder; 192 tests, about 10 s
+python3 -m unittest            # from this folder; 209 tests, about 15 s
 ```
 
 | File | What it checks |
@@ -636,40 +642,45 @@ python3 -m unittest            # from this folder; 192 tests, about 10 s
 | `test_timelapse.py` | start/layer/finish/cancel, duplicate and out-of-order triggers, missed triggers counted, late triggers warned, trigger before PrusaLink sees the job, a new job without an end, pause, the Z fallback (Z hops filtered), UDP-only and poll-only modes, thinning, no-PrusaLink timeout |
 | `test_sigv4.py` | AWS's SigV4 test suite (23 cases: canonical request, string to sign, Authorization header) and three S3 PUTs signed by botocore |
 | `test_upload.py` | S3 path and virtual-host addressing, what the server receives is what was signed, no chunked encoding; HTTP PUT; SMB and NFS mount commands, credentials file mode and clean-up, mount failure; retries |
-| `test_mp4.py` | SPS parsing (hand-built SPS, with cropping), NAL splitting, and MP4s at 2304 x 1296 and 320 x 180 checked by ffprobe and decoded by ffmpeg, including a frame cut off by a power loss |
+| `test_mp4.py` | SPS parsing (hand-built SPS, with cropping), NAL splitting, and MP4s at 2560 x 1440 and 320 x 180 checked by ffprobe and decoded by ffmpeg, including a frame cut off by a power loss |
 | `test_recording.py` | the C helper's protocol against a stand-in (asleep until woken, rate changes), a whole H.264 timelapse to MP4, the helper crashing mid-print, JPEG frames with thinning, ffmpeg and hardware-encoder paths, pruning (unsent videos never deleted) |
 | `test_service.py` | the whole service: fake printer, five layers (one sent twice), print finishes, the MP4 arrives at the upload server with five frames, named after the job; the page's password and hidden secrets; a missing camera helper does not stop the service |
 | `test_config.py` | types, validation of every rule, the example file lists exactly the real settings, file written 0600, typos rejected, secrets never sent back, the page form; the service's lenient load: a bad value keeps its default, an unknown key (a typo, a newer version's) is kept in the file, a section given twice is read, an unreadable file is moved aside, the page can still save |
 | `test_hw.py` | day/night hysteresis and hold time, flicker, IR plan per mode, LED priorities (updating, setup, hot, offline, error, recording, ok; every pattern distinct; no `Button` left), the BOOT pad warning, sysfs writes (ADC, IR-cut pulse order, PWM) against a fake `/sys` |
 | `test_gesture.py` | the power-cycle gesture on a fake clock with fake flash that keeps what was written when the plug is pulled: three short power-ups reset (the third at once), ordinary power-ups never add up and write twice each, one long power-up cancels, the 5 s edge, a power-up cut before it is counted; the count file (torn or garbage reads 0), the init script's call, and the service forgetting network, password and own AP passphrase but keeping `web.password` |
-| `test_wifi.py` | when the setup access point opens and closes, on a fake clock: first boot, connected, exactly 10 minutes unreachable, retries every 2 minutes for 45 s, connected on a retry (and the full 10 minutes again after), never cut off while a phone is on it, 2 minutes for a network just entered, fallback off; `iw` station count; the service driving a stand-in `layercam-net` |
+| `test_wifi.py` | when the setup access point opens and closes, on a fake clock: first boot, connected, exactly 10 minutes unreachable, retries every 2 minutes for 45 s, connected on a retry (and the full 10 minutes again after), never cut off while a phone is on it, 2 minutes for a network just entered, fallback off; the phones on the access point from hostapd's control socket (STA-FIRST/STA-NEXT against a stand-in hostapd, `iw` not asked) and from `iw`'s station dump; the service driving a stand-in `layercam-net` |
 | `test_setupcli.py` | the USB console: argument parsing (quoted names, `--open`, `--`, refused commands, no shell), each command against a settings file (validated like the page, SIGHUP to the service, the short fallback for a new network, secrets never printed, a forgotten `web.password` set, unknown keys kept, `reset-wifi` as the gesture, `reboot-loader`), the console loop fed line by line, and the real loop on a pseudo-terminal; `ssh on/off/status`: off by default, a pasted key (unquoted too), files 0600 in a 0700 folder, the same key once, sshd restarted and stopped, keys deleted on off; refused: no key, a private key, options such as `command=`, damaged base64, a type that does not match, RSA under 2048 bits; comments cleaned; fingerprints as `ssh-keygen -l` |
-| `test_image.py` | `pincheck.image_results`: root locked, no password in `/etc/shadow` or the fragment, Luckfox's shadow/init/config overlays out, sshd keys only and off unless turned on, no ntpd/dhcpcd/telnet/USB network/adb/rkipc, the USB id file; each check shown to fail with Luckfox's version of its file; the board build runs them; `install-into-sdk.sh` on a stand-in SDK (fragment block replaced on a second run and later than Luckfox's lines, USB id and update key written, a bad USB id refused, the placeholder warned about); the page: no password = only the setup access point and the camera itself (403 elsewhere), wrong password = 401 after a second, a network cannot be saved without a password |
+| `test_image.py` | `pincheck.image_results`: root locked, no password in `/etc/shadow` or the fragment, Luckfox's shadow/init/config overlays out, sshd keys only and off unless turned on, no ntpd/dhcpcd/telnet/USB network/adb/rkipc, the USB id file; each check shown to fail with Luckfox's version of its file; the board build runs them; `install-into-sdk.sh` on a stand-in SDK (fragment block replaced on a second run and later than Luckfox's lines, USB id and update key written, a bad USB id refused, the placeholder warned about; the SC4336H driver made once, its IQ file, a tuned IQ file kept, `esp32_sdio.ko`, the C6 firmware and `layercam-c6-flash` in the overlay, `SC4336H_CHIP_ID` reaching the driver, an SDK without `sc4336.c` refused); the page: no password = only the setup access point and the camera itself (403 elsewhere), wrong password = 401 after a second, a network cannot be saved without a password |
 | `test_update.py` | Ed25519 against RFC 8032's vectors and OpenSSL; packages: good, wrong key, no keys, same/older version, needs a newer image, wrong product, a changed manifest, payload or extra member, junk, unsafe paths even when signed; the signing tool; the keys file; trial start, kept after it stays up, rollback after 3 failed starts (to the last good version or the factory one), code that does not import never installed, a missing slot, factory reset, the init script's question with a broken state file; an upload to the setup page |
 | `test_net.py` | WPA PSK against the IEEE 802.11i test vector, wpa_supplicant/hostapd/dnsmasq files, 2.4 GHz channel list, power settings; the setup access point's name and passphrase per device (stable, different per serial, readable alphabet), `/proc/cpuinfo` serial parsing, the host tool |
-| `test_pins.py` | `pincheck.py`: `layercam/board.py` and the device tree against `src/circuit.py` (34 checks: also no button in the circuit, TP5 through 100R to SARADC_IN0, the evb's ADC keys removed, the USB controller a device); proved to catch a moved LED, a wrong PWM pin, a swapped IR-cut pin, a button put back, the ADC keys back and a host-mode USB port; `src/check_firmware.run()` as the board build calls it |
+| `test_pins.py` | `pincheck.py`: `layercam/board.py` and the device tree against `src/circuit.py` (46 checks: the C6's EN in the pwrseq with 1500 ms and `espressif,full-chip-reset`, its GPIO9 pulled up and free, UART1_M0 TX/RX only, no bcmdhd/Bluetooth nodes; the SC4336H node, address, XSHUTDN = `reset-gpios`, PWDNB = `pwdn-gpios`, module/lens = the IQ file, 2 lanes; also no button, TP5 through 100R to SARADC_IN0, the evb's ADC keys removed, the USB controller a device) and 8 SDK checks (device tree, IQ file, no `RK_ENABLE_WIFI_CHIP`, no wifibt overlay, `CONFIG_VIDEO_SC4336H`, `CONFIG_CFG80211` + `CONFIG_BT`, no bcmdhd options); proved to catch a moved LED, a wrong PWM pin, a swapped IR-cut pin, a button put back, the ADC keys back, a host-mode USB port, v1's 200 ms delay, the reset flag gone, a bcmdhd node back, XSHUTDN/PWDNB swapped, v1's sensor, GPIO9 without its pull-up, flow control on UART1, the C6's EN moved; `src/check_firmware.run()` as the board build calls it (75 checks) |
+| `test_c6flash.py` | `tools/layercam-c6-flash.py` against a simulated ESP32-C6 ROM loader on a pseudo-terminal (boot text, eight SYNC answers, SLIP escapes, (failed, error) status bytes) and a fake `/sys`: three images written in 1 KiB blocks with checksums and read back by MD5, the sync, chip check, SPI attach, baud change and FLASH_END in order; `esp32_sdio` unloaded, the controller and pwrseq unbound and bound again in the right order, GPIO9 low before EN rises and let go after, the GPIOs unexported; a flash that reads back wrong, another chip, a C6 that does not answer and a refused command each reported with the board put back; images from `flasher_args.json` and refused when overlapping, off a sector or past 4 MB; the tool's pins = `layercam/board.py` |
+| `test_sensor_port.py` | `tools/sc4336h-port.py`: every name changed and nothing else (the file mapped back is the SC4336's but for `CHIP_ID`; the register table value for value; `sc4336p` untouched), `CHIP_ID` 0x10000 or the one given, refused on another file or one already ported, the Kconfig and Makefile entries once after two runs, the SDK's own `sc4336.c` left alone, a bad chip ID refused |
 | `test_thermal.py` | the governor's levels, hysteresis, jumps and unreadable sensor; what each level allows; IR LED duty capping and the ramp's steps; the camera power policy; temperature and CPU speed through a fake `/sys`; the service under heat: asleep between pictures, live view time-limited and refused when hot, quality capped, Connect skipped from 105 C, frames lost only at 115 C and the camera back under 95 C, LEDs lit only around a night picture and capped at 50 % when throttled, IR-cut pulsed once |
 | `test_slicer.py` | the snippets use only G-codes checked in Buddy's source, the park position (PrusaSlicer local variables) inside the CORE One's limits, lines under 96 characters, hold = `dwell_ms`, metric on only around the trigger, and an emulation of Buddy's metrics buffer showing the padding sends the trigger at once |
 
 The MP4, recording and whole-service tests need `ffmpeg` and `ffprobe`
 with libx264 on the PC (they make the test video); without them they are
-skipped, and the SSH fingerprint cross-check needs `ssh-keygen`. CI
-installs ffmpeg, and its image has `ssh-keygen`: there, on 31 Oct 2026
-(Python 3.13), **all 192 pass**. On 26 Oct 2026 on a PC without
-`ssh-keygen`, Python 3.13 and 3.11: 191 pass, 1 skipped. pyflakes finds
-nothing.
+skipped, and the SSH fingerprint cross-check needs `ssh-keygen`. On
+1 Nov 2026 on a PC with ffmpeg and without `ssh-keygen` (Python 3.13.17): **209 run, 208 pass, 1
+skipped** (the `ssh-keygen` one). The Pro is not yet in CI; v1's CI job
+(ffmpeg installed, `ssh-keygen` in its image) is the way to run all 209.
 
-Checked on a PC but not as tests: the device tree, run through `cpp` with
-the SDK's includes and parsed with Zephyr's `dtlib` (every label and
-reference resolves; the LED, Wi-Fi and sensor GPIO cells are the right
-pins); the C helper, `gcc -fsyntax-only -Wall -Wextra` against
-luckfox_pico_rkmpi_example's headers and the SDK's libjpeg9 headers, with
-and without `HAVE_LIBJPEG` (`make check`); the shell scripts, `sh -n`.
-After the no-button change the device tree was parsed again the same way:
-no `adc-keys` node, `dr_mode = "peripheral"`, the `reboot-mode` node's
-`mode-loader` present.
+Checked on a PC but not as tests (1 Nov 2026): the device tree, run
+through `cpp` with the SDK's includes (824b817f) and parsed with Zephyr's
+`dtlib` (devicetree 0.0.2): every label and reference resolves; the
+pwrseq's EN is gpio1 pin 2 active low with 1500 ms; `&sdmmc` (mmc@ffaa0000)
+uses it; `&uart1` (serial@ff4b0000) has only `uart1m0_xfer` (GPIO1_A3/A4);
+`sc4336h@30` on i2c@ff470000 has reset gpio3 pin 21 (C5) and pwdn gpio3
+pin 22 (C6), its endpoint goes to `csi_dphy_input0`; the pin-controller
+hog holds the IR-cut pins, GPIO9's pull-up and IO4's pull-down; no
+`wlan-platdata`, `bluetooth-platdata` or `adc-keys` node. Not compiled with
+`dtc`. The shell scripts, `sh -n`. `tools/sc4336h-port.py` run on the
+SDK's real `sc4336.c`: the result, names mapped back, differs from it only
+in the header and `CHIP_ID` (not compiled). The C helper changed only in
+comments since v1's `make check`.
 
-## Facts checked against their sources (26 Oct 2026)
+## Facts checked against their sources (v1: 26 Oct 2026; the Pro's parts: 1 Nov 2026)
 
 | Fact | Source |
 |---|---|
@@ -679,15 +690,18 @@ no `adc-keys` node, `dr_mode = "peripheral"`, the `reboot-mode` node's
 | `G90`/`G91` also set E absolute/relative; no `G10`/`G11`/`M240`; `G4 P` in ms; `M118` string argument; 96-character commands; CORE One limits X -2..252, Y -19..221 | Buddy: `lib/Marlin/Marlin/src/gcode/gcode.h`, `gcode.cpp`, `motion/G4.cpp`, `parser.cpp`, `include/marlin/Configuration_COREONE*.h` |
 | PrusaLink: Digest, user `maker`, realm `Printer API`, no qop, nonce valid 300 s with `stale`; or `X-Api-Key`; `/api/v1/status` and `/api/v1/job` fields and states; 204 without a job; `axis_x/y` only when not printing | Buddy: `lib/WUI/nhttp/req_parser.cpp`, `status_page.cpp`, `status_renderer.cpp`, `lib/WUI/link_content/basic_gets.cpp`, `prusa_link_api_v1.cpp`, `src/state/printer_state.cpp`; Prusa-Link-Web `spec/openapi.yaml` |
 | PrusaSlicer: "After layer change" runs after the travel to the new layer (`layer_num`, `layer_z`, `position` available); CORE One profile retracts on layer change, park X242 Y211 at the end | PrusaSlicer 2.9.6 `src/libslic3r/GCode.cpp`, `resources/profiles/PrusaResearch.ini` |
-| SC3336: 2304 x 1296 at 30/25 fps, 2 lanes; `pwdn`/`reset` GPIO names | SDK `drivers/media/i2c/sc3336.c` |
-| Pro Max camera/flash tree, Ultra W SDIO Wi-Fi tree, pin groups (`pwm3m1_pins` = GPIO1_B0, `uart1m0_*`, `i2c4m2_xfer`), `wlan-platdata` properties, bcmdhd options (OOB, cfg80211, Rockchip platform) | SDK: `rv1106g-luckfox-pico-pro-max.dts`, `rv1106-luckfox-pico-pro-max-ipc.dtsi`, `rv1106g-luckfox-pico-ultra.dts`, `rv1106-pinctrl.dtsi`, `net/rfkill/rfkill-wlan.c`, `sysdrv/drv_ko/wifi/bcmdhd/Makefile` |
-| Board config, partitions, IQ file name, AP6256 firmware files, Buildroot packages, flashing script | SDK: `BoardConfig-SPI_NAND-Buildroot-RV1106_Luckfox_Pico_Pro_Max-IPC.mk`, `project/app/wifi_app/Makefile`, `luckfox_pico_defconfig`, `rkflash.sh` |
+| SC4336 family: chip ID 0xdc42 (SC4336) / 0x9c42 (SC4336P) at 0x3107/0x3108, 24 MHz xvclk, 2 lanes, 2560 x 1440 RAW10 at 25 fps, 315 MHz link; power-up XSHUTDN (`reset`) then PWDNB (`pwdn`), 6-8 ms, 8192 clocks; no SC4336H driver; IQ files only for the SC4336 | SDK `drivers/media/i2c/sc4336.c`, `sc4336p.c`, `Kconfig`, `Makefile`, `rv1106-evb-cam.dtsi`, rkaiq `isp_iqfiles/`; Rockchip kernel develop-5.10 / develop-6.1 `drivers/media/i2c`; SmartSens SC4336H flyer V1.0 (2560x1440, 1/2-lane MIPI) |
+| esp-hosted-linux: cfg80211 FullMAC (`wlanX`), SDIO on the ESP32-C6, Linux 4.9-7.2; `CONFIG_AP_SUPPORT=y` for hostapd; `ARCH`/`CROSS_COMPILE`/`KERNEL` for another kernel; the C6's SDIO needs 1500 ms after EN; `espressif,full-chip-reset`; no `set_power_mgmt` or `dump_station` in its cfg80211 ops, `set_tx_power` present; the C6 firmware sets `WIFI_PS_NONE`; `HOST_WAKEUP_GPIO` 4 on the C6; C6 partitions; `ota_file=`; the host includes the Bluetooth HCI core; esp-hosted-ng and -fg legacy | esp-hosted-linux v1.0.6.0.7 (54d5367): `README.md`, `docs/porting.md`, `docs/guides/{wifi-access-point,host-sleep,ota}.md`, `docs/getting-started/build-and-flash.md`, `host/Makefile`, `host/esp_cfg80211.c`, `host/include/esp.h`, `host/sdio/esp_sdio.c`, `host/overlays/esp32-sdio-pwrseq.dts`, `esp/esp_driver/network_adapter/{main/cmd.c,main/Kconfig.projbuild,partitions.esp32c6.csv,sdkconfig.defaults.esp32c6}`; esp-hosted `README.md` (a042292) |
+| ESP32-C6 ROM loader: SLIP, commands (SYNC 0x08, READ_REG 0x0a, SPI_SET_PARAMS 0x0b, SPI_ATTACH 0x0d, CHANGE_BAUDRATE 0x0f, FLASH_BEGIN/DATA/END 0x02-0x04 with the encryption word, SPI_FLASH_MD5 0x13: 32 hex characters from the ROM), 2 status bytes, checksum seed 0xEF, chip magic 0x2CE0806F at 0x40001000, GPIO9 strap | esp-serial-flasher `private_include/protocol.h`, `src/protocol_uart.c`, `src/esp_targets.c`, `port/linux_port.h`; ESP32-C6-MINI-1 datasheet v1.5 |
+| SDK: `RK_ENABLE_WIFI` builds wpa_supplicant, hostapd (no hostapd_cli installed on RV1106) and dnsmasq; `RK_ENABLE_WIFI_CHIP` picks the vendor driver and AP6256 firmware; bcmdhd only with `CONFIG_RFKILL=y`; IQ files copied from `media_out/isp_iqfiles` by name; `insmod_ko.sh`'s fixed sensor list and `isp_max_h`; the kernel build in `sysdrv/source/objs_kernel` | SDK `project/app/wifi_app/Makefile`, `sysdrv/drv_ko/wifi/Makefile`, `project/build.sh` (`__PACKAGE_RESOURCES`), `media/isp/Makefile`, `sysdrv/drv_ko/insmod_ko.sh`, `sysdrv/Makefile.param` |
+| Pro Max camera/flash tree, Ultra W SDIO tree, pin groups (`pwm3m1_pins` = GPIO1_B0, `uart1m0_xfer` = GPIO1_A3/A4, `i2c4m2_xfer`), `serial1 = &uart1`, `sdmmc` = mmc@ffaa0000, the `dwmmc_rockchip` and `pwrseq_simple` driver names | SDK: `rv1106g-luckfox-pico-pro-max.dts`, `rv1106-luckfox-pico-pro-max-ipc.dtsi`, `rv1106g-luckfox-pico-ultra.dts`, `rv1106.dtsi`, `rv1106-pinctrl.dtsi`, `drivers/mmc/host/dw_mmc-rockchip.c`, `drivers/mmc/core/pwrseq_simple.c` |
+| Board config, partitions, Buildroot packages, flashing script | SDK: `BoardConfig-SPI_NAND-Buildroot-RV1106_Luckfox_Pico_Pro_Max-IPC.mk`, `luckfox_pico_defconfig`, `rkflash.sh` |
 | rockit MPI and rkaiq calls (VI, VENC JPEG/H.264 fixed QP, `SetJpegParam`, `setGrayMode`, `setMirrorFlip`, ISP init order) | luckfox_pico_rkmpi_example `include/` and `luckfox_mpi.cc`; SDK `simple_vi_bind_venc_jpeg.c`, `sample_comm_isp.c` |
 | SigV4 | AWS SigV4 test suite (from botocore); botocore 1.43.119 `S3SigV4Auth` |
 | Sensor frame rate through rkaiq's AE attributes (`stFrmRate.isFpsFix/FpsValue`); stop/prepare/start to sleep and wake the ISP | SDK `sample_comm_isp.c` (`SAMPLE_COMM_ISP_SetFrameRate`), rkaiq `rk_aiq_user_api2_ae.h`, `rk_aiq_user_api2_sysctl.h` |
 | SoC serial: `cpuinfo` node reads the OTP `id` cell (`CONFIG_ROCKCHIP_CPUINFO=y`); TSADC thermal zone (`CONFIG_ROCKCHIP_THERMAL=y`); cpufreq with `ondemand` as the default governor | SDK `rv1106.dtsi`, `luckfox_rv1106_linux_defconfig` |
 | PrusaSlicer `{local name = value}` variables in custom G-code | PrusaSlicer 2.9.6 `src/libslic3r/PlaceholderParser.cpp` |
-| Heat: the housing's temperatures streaming, the IR LED strings' current | `sim/thermal.md`, `sim/power.md` (this revision) |
+| Heat: the housing's temperatures streaming, the IR LED strings' current | LayerCam v1's `sim/thermal.md`, `sim/power.md` (the thresholds are v1's) |
 | USB: the OTG controller's `dr_mode` (`otg` in rv1106.dtsi, `peripheral` on Luckfox's boards); gadget, configfs and CDC-ACM built in; Luckfox's `S50usbdevice` (adb + RNDIS, gadget `rockchip`) and `S99usb0config`, and where they are installed; overlays applied last, with rsync | SDK `rv1106.dtsi`, `rv1106g-luckfox-pico-pro-max.dts`, `luckfox_rv1106_linux_defconfig`, `sysdrv/tools/board/android-tools/S50usbdevice` and `Makefile`, `sysdrv/Makefile`, `project/build.sh` (`post_overlay`) |
 | Loader mode: `reboot-mode` with `mode-loader = BOOT_BL_DOWNLOAD`, `CONFIG_SYSCON_REBOOT_MODE=y`; `rkflash.sh` `update` = `upgrade_tool uf` (all partitions, userdata included), `rootfs`/`oem`/`boot` = `upgrade_tool di` one partition; the SDK's recovery and `update_ota.tar` | SDK `rv1106.dtsi`, `luckfox_rv1106_linux_defconfig`, `project/rkflash.sh`, `project/build.sh` (`build_recovery`, `build_ota`), `project/scripts/RkLunch-recovery.sh` |
 | Buildroot's python3 always has ctypes (selects libffi); its zlib module is optional and not in `luckfox_pico_defconfig`, so update packages are plain tar | Buildroot 2023.02.6 `package/python3/Config.in` |
@@ -697,13 +711,33 @@ no `adc-keys` node, `dr_mode = "peripheral"`, the `reboot-mode` node's
 
 ## Limits
 
-- **Nothing here has run on LayerCam hardware**, and the C helper has not
-  been compiled for ARM. Expect bring-up work: the helper's rockit calls,
-  the ISP start-up, the bcmdhd firmware path (the SDK installs the AP6256
-  files in `/vendor/etc/firmware`; bcmdhd's built-in default is
-  `/system/etc/firmware`, so `insmod` may need `firmware_path=` and
-  `nvram_path=`), the partition sizes against the real rootfs, and the
-  board config's `RK_APP_TYPE` left unset.
+- **Nothing here has run on LayerCam hardware**, and the C helper, the
+  device tree (`dtc`), `esp32_sdio.ko` and the SC4336H driver have not been
+  compiled. Expect bring-up work: the helper's rockit calls, the ISP
+  start-up, the partition sizes against the real rootfs, and the board
+  config's `RK_APP_TYPE` left unset.
+- **The SC4336H driver is the SC4336's, renamed.** Its chip ID is unknown
+  until read from a board (*Bringing up a board*); its register table,
+  mode timing and gain limits are the SC4336's (`TODO(SC4336H)`), and
+  whether they work on an SC4336H is unknown: get SmartSens' (NDA) init
+  table. Its ball map in `src/circuit.py` is the SC4336P's, also to
+  confirm. The IQ file is the SC4336's, untuned for this lens; no CAC
+  (lens shading) file. The mode is 25 fps; `timelapse.fps` is the video's
+  playback rate, not the sensor's.
+- **The ESP32-C6 path is untried on any RV1106.** Nobody has shown
+  esp-hosted-linux on Rockchip's dw_mmc yet (the SDIO card found, the
+  1500 ms enough, 25 then 50 MHz); `layercam-c6-flash` has only met a
+  simulated ROM (the real ROM's timing, the strap sampling, a blank
+  module's first boot); `esp32_sdio.ko` needs `CONFIG_BT=y` in the kernel
+  (from its source, not from a failed load); the SDK's `drv_ko/wifi` with
+  no chip set may build its other vendors' modules. The SDK installs no
+  `hostapd_cli`, so the camera talks to hostapd's control socket itself.
+- **No Wi-Fi power save from Linux** on the C6 (*Heat and power*):
+  `wifi.power_save` is sent with `iw` and refused by the driver; the C6
+  firmware's `WIFI_PS_NONE` would have to change, unmeasured either way.
+- **WIFI_HOST_WAKE is wired and unused**: the camera never suspends, so
+  esp-hosted's host-sleep wake (a GPIO interrupt node, the C6's
+  `HOST_WAKEUP_GPIO` 4) is not set up.
 - **Not tried on a printer.** The trigger path (M331/M118 over the metrics
   stream, the buffer padding, the on-screen M334 prompt) is read from the
   Buddy source, not watched on a CORE One. The datagrams and PrusaLink
@@ -714,18 +748,18 @@ no `adc-keys` node, `dr_mode = "peripheral"`, the `reboot-mode` node's
 - **The heat measures are not measured.** How long rkaiq needs to settle
   after a wake (`camera.wake_ms`, 1 s) and after the IR LEDs come on
   (`ir.flash_settle_ms`, 500 ms), what 10 fps saves over 30, whether the
-  sensor really sits in standby with its stream off, and whether bcmdhd
-  honours `iw` power save and the transmit power cap: all to measure on
-  the board, with the SoC temperature read back from the page. The housing
-  still fails sim/thermal.md's 65 C case while streaming; the firmware
-  cannot fix that alone.
+  sensor really sits in standby with its stream off, and whether the C6
+  keeps to the `iw` transmit power cap: all to measure on the board, with
+  the SoC temperature read back from the page. v1's housing failed its
+  sim/thermal.md 65 C case while streaming; whether the Pro's does is for
+  its own `sim/thermal.py`, not the firmware.
 - **device.type is reported as `Buddy3D`**: the Camera Service accepts only
   Buddy3D, ESP32, WEB, LINK or INTERNAL and none is exactly this board;
   manufacturer and model say OffGrid LayerCam. Whether Connect treats a
   Buddy3D camera differently (firmware offers, the camera protocol) is
   not documented; change it in `layercam/connect.py` if it does.
 - **Snapshots and video share one size** (one VI channel, to keep the ISP
-  idle): 1920 x 1080 by default, or both at the full 2304 x 1296 (H.264
+  idle): 1920 x 1080 by default, or both at the full 2560 x 1440 (H.264
   level 5.0 or higher; JPEG quality lowered as needed for Connect's 1 MB).
 - **Night pictures are grey** (ISP grey mode under IR), as any IR camera.
 - **The setup passphrase is derived, not random**: anyone who knows the
@@ -740,12 +774,12 @@ no `adc-keys` node, `dr_mode = "peripheral"`, the `reboot-mode` node's
   staying quiet on the printer's port; `reboot-loader` (ctypes `reboot(2)`
   with "loader") landing in U-Boot's Rockusb; `rkflash.sh rootfs/oem/boot`
   in that mode; the update's import check and trial start on the board's
-  Python; `iw` listing the access point's stations; sshd turned on and
-  off from the console.
+  Python; hostapd's control socket listing the access point's stations;
+  sshd turned on and off from the console.
 - **One radio for two jobs**: while the saved network is unreachable the
   access point and the retries take turns (the access point is off for up
-  to 45 s every 2 minutes, never while a phone is on it). bcmdhd may do
-  both at once (AP+STA), not tried.
+  to 45 s every 2 minutes, never while a phone is on it). Whether
+  esp-hosted can do both at once is not tried.
 - **The USB id 1d6b:0104 is a placeholder and needs a real ID before
   selling.** It is the Linux Foundation's id for a multifunction composite
   gadget, fine for development. Set the product's own vendor:product id at
@@ -762,10 +796,11 @@ no `adc-keys` node, `dr_mode = "peripheral"`, the `reboot-mode` node's
   until then TLS to Connect and S3 signatures fail and are retried.
 - **Z fallback frames show the head** wherever it is; only the slicer
   snippet gives clean frames. Vase mode (continuous Z) gives few frames.
-- **WPA2-Personal only, 2.4 GHz by default** (`wifi.band = any` allows
-  5 GHz); no WPA3-only networks, no enterprise Wi-Fi. No IPv6 shown to
-  Connect.
-- **Bluetooth is wired but unused.**
+- **WPA2-Personal only, 2.4 GHz only** (the C6's one band; `wifi.band`
+  stays from v1 and changes nothing); no WPA3-only networks, no enterprise
+  Wi-Fi. No IPv6 shown to Connect.
+- **No Bluetooth** on the board; the kernel's Bluetooth core is there only
+  for `esp32_sdio.ko`.
 
 ## Files
 
@@ -787,8 +822,10 @@ layercam/                  the service (Python, standard library only)
 pincheck.py                pins against src/circuit.py (tests and the board build: src/check_firmware.py)
 tools/layercam-ap.py       prints a camera's setup access point name and passphrase (serial or USB console)
 tools/layercam-sign.py     update signing key; makes and checks .lcup packages
+tools/layercam-c6-flash.py flashes the ESP32-C6 from the camera (UART1, GPIO9 strap, EN); /usr/bin/layercam-c6-flash
+tools/sc4336h-port.py      makes the SC4336H driver from the SDK's sc4336.c (install-into-sdk.sh runs it)
 native/                    layercam-media (C): sensor, ISP, JPEG and H.264 encoders; Makefile
-dts/                       the board's device tree
+dts/                       the board's device tree (rv1106g-layercam-pro-v1.dts)
 board/
   layercam.ini.example     every setting with its default
   install-into-sdk.sh      copies all of this into a Luckfox SDK checkout

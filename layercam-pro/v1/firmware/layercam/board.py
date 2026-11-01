@@ -15,8 +15,8 @@ def gpio_number(name):
 
 # nets of circuit.py and the SoC pin they are on
 PINS = {
-    'IRCUT_A': 'GPIO1_A0',       # DRV8837 IN1
-    'IRCUT_B': 'GPIO1_A1',       # DRV8837 IN2
+    'IRCUT_A': 'GPIO1_A0',       # DRV8210P IN1
+    'IRCUT_B': 'GPIO1_A1',       # DRV8210P IN2
     'WIFI_EN': 'GPIO1_A2',       # ESP32-C6 EN (mmc-pwrseq in the device tree)
     'WIFI_BOOT': 'GPIO0_A2',     # ESP32-C6 GPIO9 strap: low at EN rise = UART download (tools/layercam-c6-flash.py)
     'WIFI_HOST_WAKE': 'GPIO0_A3',  # ESP32-C6 IO4, esp-hosted's host wake (wired, unused)
