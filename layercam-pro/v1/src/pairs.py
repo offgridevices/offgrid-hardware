@@ -1,24 +1,23 @@
 # -*- coding: utf-8 -*-
-"""The main board's coupled pairs, drawn before anything else is placed or
-routed: the camera's three MIPI lanes and the USB pair.
+"""The board's coupled pairs, drawn before anything else is placed or
+routed: the image sensor's three MIPI lanes.
 
 Each pair is a centreline (the waypoints below, corners cut to 45 degrees)
 and its two tracks are that line offset either side by half the pair's
-pitch, so the two stay coupled through every bend and come out the same
-length (each pair turns as far left as right).  Ends: the tracks fan out
-onto their pads at 45 degrees.
+pitch, so the two stay coupled through every bend; each lane turns as far
+left as right, so its two tracks come out the same length.
 
-  MIPI  (F, over the In1 ground plane, 0.12 / 0.15 mm, 100 ohm)
-        from the SoC's top row (pins 123-128) up its left side, round the
-        lens window's left (outside the holder screw), across above the
-        window and up into the camera connector J2.  D0, clock and D1 keep
-        their order the whole way; at J2 they spread to its 1.5 mm pitch.
-  USB   (0.14 / 0.15 mm, 90 ohm)
-        from the cable connector J1 right and down on F, left of the MIPI
-        lanes; through two vias to B at the SoC's corner, which the 0.9 V
-        buck fills on F; back up to F beside the SoC's pins 26 / 27.  A
-        ground via beside each pair of signal vias carries the return
-        current from plane to plane where the pair changes layer.
+  MIPI  (0.12 / 0.15 mm, 100 ohm; B over In4, F over In1)
+        The sensor is on the front face (B) on the lens axis, the SoC on
+        the back face (F) 15 mm below it.  Each lane leaves the sensor's
+        CSP between its balls on short 0.1 mm stubs, pairs up below the
+        package, runs left on B (nested L-shapes: the outermost lane turns
+        first), drops to F through two vias with a ground via beside them,
+        and runs left again on F into the SoC's top row (pins 123-128).
+        Seen from behind, the sensor's D0 and clock lanes have N to the
+        left of P, the SoC wants P to the left: their two vias stand one
+        above the other, so the tracks change sides at the layer change.
+  USB   routed with the rest (it carries only firmware flashing).
 
 Coordinates are the board's (x right, y down, mm, origin on the lens
 axis), the same as layout_main.py.
@@ -27,29 +26,40 @@ import math
 import pcbnew
 import pcb
 
-# (P net, N net, P on the -offset side) per lane, D0 / clock / D1
+# (P net, N net) per lane, D0 / clock / D1
 MIPI = (('CSI_D0P', 'CSI_D0N'), ('CSI_CKP', 'CSI_CKN'), ('CSI_D1P', 'CSI_D1N'))
 from board import DIFF
 MIPI_W, MIPI_S = DIFF['main']['MIPI'][1:]
-USB_W, USB_S = DIFF['main']['USB'][1:]
-CHAMFER = 1.0
+H = (MIPI_W + MIPI_S) / 2          # each track from its lane's centreline
+CHAMFER = 0.5
+ESC_W = 0.1                        # the stubs between the sensor's balls
 
-# the lanes' waypoints, one value per lane (D0, clock, D1)
-U1_X = (-5.245, -4.545, -3.845)        # centre of each lane's two SoC pads
-U1_Y = 13.34                           # the SoC's top row
-LEFT_Y = (12.55, 11.8, 11.05)          # the run left above the SoC
-UP_X = (-11.95, -11.2, -10.45)         # the run up, outside the holder screw H5
-TOP_Y = (-12.05, -11.3, -10.55)        # the run right, below the NAND U5
-J2_X = (-3.0, -1.5, 0.0)               # centre of each lane's two J2 pads
-J2_Y, J2_END = -22.8, -21.6            # J2's pads; where the lanes split for them
-
-# USB: J1's pads 3 (D-) and 4 (D+), the SoC's 26 (D-) and 27 (D+)
-USB_F1 = [(-16.4, -2.0), (-13.75, -2.0), (-13.75, 13.1)]
-USB_VIA1 = 13.6                        # the via pair's row, F -> B
-USB_B = [(-13.75, 14.1), (-13.75, 23.6), (-9.0, 23.6), (-8.3, 22.9), (-8.0, 22.9)]
-USB_VIA2 = -7.6                        # the via pair's column, B -> F
-USB_F2 = [(-7.25, 22.9), (-6.06, 22.9)]
-VIA_SPREAD = 0.35                      # each via of a pair from the pair's centre
+# The sensor's balls on B, board coordinates (its footprint mirrored), and
+# the stub out of the package for each: ball -> (x, y) where the stub
+# reaches the pair's start row PAIR_Y0.  Stubs leave between the edge row's
+# balls (0.64 mm apart: 0.44 mm between pads).
+SENSOR = {
+    'CSI_D0P': [(-0.64, 1.16), (-0.64, 1.60)],
+    'CSI_D0N': [(-0.64, 0.58), (-0.96, 0.90), (-0.96, 1.60)],
+    'CSI_CKP': [(0.00, 0.00), (0.32, 0.32), (0.32, 1.60)],
+    'CSI_CKN': [(0.00, 0.58), (-0.32, 0.90), (-0.32, 1.60)],
+    'CSI_D1P': [(0.64, 0.58), (0.96, 0.90), (0.96, 1.60)],
+    'CSI_D1N': [(1.28, 0.58), (1.60, 0.90), (1.60, 1.60)],
+}
+PAIR_Y0 = 2.0                      # where each lane's two tracks are coupled
+LANE_X0 = (-0.80, 0.0, 1.28)       # lane centrelines there (D0, CK, D1)
+SWAP = (True, True, False)         # N left of P on the sensor side: change sides at the vias
+# on B: each lane runs down to its row, left (west) to its via column; the
+# westmost lane turns first.  0.55 mm between rows: a lane is 0.39 wide
+B_ROW = (2.4, 2.95, 3.5)
+VIA_X = (-10.0, -8.0, -6.0)        # lane centre at the vias, west of the SoC's pins
+VIA_Y = 4.4                        # the first via of each lane; the second VIA_DY below
+VIA_DY = 0.7
+VIA_DX = 0.35
+FY0 = VIA_Y + VIA_DY + 1.2         # where each lane is a pair again on F
+# on F: from the vias down, right (east) at its row, down into the SoC's
+# pins; the eastmost lane (D1) turns first
+F_ROW = (7.7, 7.15, 6.6)
 
 
 def chamfer(pts, c=CHAMFER):
@@ -95,40 +105,63 @@ def _draw(b, pts, w, layer, net):
     pcb.track(b, pts, w, layer, net)
 
 
+def _lane_b(i):
+    """Lane i's centreline on B, from PAIR_Y0 to just above its first via."""
+    x0, row, vx = LANE_X0[i], B_ROW[i], VIA_X[i]
+    return chamfer([(x0, PAIR_Y0), (x0, row), (vx, row), (vx, VIA_Y - 0.55)], CHAMFER)
+
+
 def mipi(b):
+    import pcb as P
     for i, (p, n) in enumerate(MIPI):
-        line = chamfer([(U1_X[i], U1_Y), (U1_X[i], LEFT_Y[i]), (UP_X[i], LEFT_Y[i]), (UP_X[i], TOP_Y[i]),
-                        (J2_X[i], TOP_Y[i]), (J2_X[i], J2_END)])
-        h = (MIPI_W + MIPI_S) / 2
-        for net, s in ((p, -1), (n, 1)):
-            t = offset(line, s * h)
-            pad_x = J2_X[i] + s * 0.25
-            # spread from the pair's pitch to J2's 0.5 mm at 45 degrees
-            t += [(pad_x, J2_END - (0.25 - h)), (pad_x, J2_Y)]
-            _draw(b, t, MIPI_W, pcbnew.F_Cu, net)
-
-
-def usb(b):
-    h = (USB_W + USB_S) / 2
-    f1, bb, f2 = chamfer(USB_F1), chamfer(USB_B, 0.7), USB_F2
-    (vx1, vy1), (vx2, vy2) = USB_F1[-1], USB_B[-1]
-    for net, s, pad_y in (('USB_DM', -1, -2.5), ('USB_DP', 1, -1.5)):
-        # F: from J1's pad, spread in at 45 degrees, right and down
-        t = offset(f1, s * h)
-        d = abs(pad_y - t[0][1])
-        _draw(b, [(t[0][0] - 1.26, pad_y), (t[0][0] - d, pad_y)] + t, USB_W, pcbnew.F_Cu, net)
-        # heading down here: D- is on +x
-        via1 = (vx1 - s * VIA_SPREAD, USB_VIA1)
-        _draw(b, [t[-1], via1], USB_W, pcbnew.F_Cu, net)
-        pcb.via(b, via1[0], via1[1], net)
-        t = offset(bb, s * h)
-        _draw(b, [via1] + t, USB_W, pcbnew.B_Cu, net)
-        # heading +x here: D- is on -y
-        via2 = (USB_VIA2, vy2 + s * VIA_SPREAD)
-        _draw(b, [t[-1], via2], USB_W, pcbnew.B_Cu, net)
-        pcb.via(b, via2[0], via2[1], net)
-        t = offset(f2, s * h)
-        _draw(b, [via2] + t, USB_W, pcbnew.F_Cu, net)
+        # stubs out of the package, then the couple
+        line = _lane_b(i)
+        for net, side in ((p, 1), (n, -1)):
+            stub = SENSOR[net]
+            _draw(b, stub, ESC_W, pcbnew.B_Cu, net)
+            # the side each net is on as the lane heads down (+y): with
+            # SWAP, N left (-x) of P; without, P left of N
+            s = (side if SWAP[i] else -side)
+            t = offset(line, -s * H)          # offset(+d) is to +x when heading -y, i.e. to -x heading +y
+            _draw(b, [stub[-1]] + t, MIPI_W, pcbnew.B_Cu, net)
+        # the layer change.  Heading down at x = vx: the left track to the
+        # first via (left, upper), the right track past it to the second
+        # (right, lower).
+        vx = VIA_X[i]
+        left_net, right_net = (n, p) if SWAP[i] else (p, n)
+        v1 = (vx - VIA_DX, VIA_Y)
+        v2 = (vx + VIA_DX, VIA_Y + VIA_DY)
+        end = line[-1]
+        _draw(b, [(end[0] - H, end[1]), (v1[0], v1[1] - 0.2), v1], MIPI_W, pcbnew.B_Cu, left_net)
+        _draw(b, [(end[0] + H, end[1]), (v2[0], v1[1] - 0.2 + (v2[0] - end[0] - H)),
+                  v2], MIPI_W, pcbnew.B_Cu, right_net)
+        for v, net in ((v1, left_net), (v2, right_net)):
+            pcb.via(b, v[0], v[1], net)
+        # F: the pair leaves heading down with P on the left (the SoC's
+        # order) at FY0
+        px, nx = vx - H, vx + H
+        if SWAP[i]:
+            # P (via 2, right-lower) goes down-left to its place; N (via 1,
+            # left-upper) goes right above via 2, down its right side and in
+            # below it at 45 degrees
+            _draw(b, [v2, (px, v2[1] + (v2[0] - px)), (px, FY0)], MIPI_W, pcbnew.F_Cu, p)
+            nr = v2[0] + 0.62
+            ye = FY0 - 0.3
+            _draw(b, [v1, (nr - 0.3, v1[1]), (nr, v1[1] + 0.3), (nr, ye - (nr - nx)), (nx, ye), (nx, FY0)],
+                  MIPI_W, pcbnew.F_Cu, n)
+        else:
+            _draw(b, [v1, (v1[0], v1[1] + 0.2), (px, v1[1] + 0.2 + (px - v1[0])), (px, FY0)], MIPI_W, pcbnew.F_Cu, p)
+            _draw(b, [v2, (nx, v2[1] + (v2[0] - nx)), (nx, FY0)], MIPI_W, pcbnew.F_Cu, n)
+        # down, east at its row, down into the SoC's pins (P on the -x pad)
+        pp = pcb.pad_at(b, 'U1', {'CSI_D0P': '128', 'CSI_CKP': '126', 'CSI_D1P': '124'}[p])
+        pn = pcb.pad_at(b, 'U1', {'CSI_D0N': '127', 'CSI_CKN': '125', 'CSI_D1N': '123'}[n])
+        cx = (pp[0] + pn[0]) / 2
+        fl = chamfer([(vx, FY0), (vx, F_ROW[i]), (cx, F_ROW[i]), (cx, pp[1] - 0.45)], CHAMFER)
+        for net, d, pad in ((p, H, pp), (n, -H, pn)):
+            t = offset(fl, d)
+            _draw(b, t + [(pad[0], t[-1][1] + abs(pad[0] - t[-1][0])), pad], MIPI_W, pcbnew.F_Cu, net)
+        # the return current's way between the planes at the layer change
+        gnd_via_near(b, (vx, VIA_Y + VIA_DY / 2), rmin=0.9)
 
 
 def gnd_via_near(b, centre, rmin=0.75, rmax=1.6):
@@ -172,36 +205,9 @@ def lengths(b):
     for t in b.GetTracks():
         if t.GetClass() != 'PCB_VIA':
             out[t.GetNetname()] = out.get(t.GetNetname(), 0) + t.GetLength() / 1e6
-    return {n: round(out.get(n, 0), 2) for pair in MIPI + (('USB_DP', 'USB_DM'),) for n in pair}
-
-
-def pin28(b):
-    """The SoC's 3.3 V pin 28, just below the USB pins: the USB pair's
-    stubs and via leave it no straight way out, so its via goes down-left
-    of it on a dog-leg."""
-    x, y = pcb.pad_at(b, 'U1', '28')
-    pts = [(x, y), (x - 0.69, y), (x - 1.14, y + 0.45)]
-    pcb.track(b, pts, 0.2, pcbnew.F_Cu, 'VCC_3V3')
-    pcb.via(b, pts[-1][0], pts[-1][1], 'VCC_3V3')
-    return {('U1', '28')}
-
-
-def antenna(b):
-    """The AP6256's antenna pin to the U.FL through the pi match, one
-    straight 50 ohm track on B over the In4 ground (board.RF_W)."""
-    from board import RF_W
-    pts = [pcb.pad_at(b, 'U6', '2'), pcb.pad_at(b, 'C90', '1'), pcb.pad_at(b, 'R90', '1')]
-    pcb.track(b, pts, RF_W, pcbnew.B_Cu, 'ANT_FEED')
-    pts = [pcb.pad_at(b, 'R90', '2'), pcb.pad_at(b, 'C91', '1'), pcb.pad_at(b, 'J5', '1')]
-    pcb.track(b, pts, RF_W, pcbnew.B_Cu, 'ANT')
+    return {n: round(out.get(n, 0), 2) for pair in MIPI for n in pair}
 
 
 def draw(b):
     mipi(b)
-    antenna(b)
-    usb(b)
-    done = pin28(b)
-    # the USB pair's two layer changes: a ground via beside each
-    gnd_via_near(b, (USB_F1[-1][0], USB_VIA1))
-    gnd_via_near(b, (USB_VIA2, USB_B[-1][1]))
-    return done
+    return set()

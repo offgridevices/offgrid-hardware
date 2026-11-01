@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Every part on the three boards, and where it comes from.
+"""Every part on the board, and where it comes from.
 
 Each entry is one orderable line: the footprint the board uses, the LCSC
 part number JLCPCB assembles from, the manufacturer part number for anyone
@@ -17,11 +17,11 @@ parts use KiCad's standard footprints, whose 0-degree orientation matches
 JLCPCB's.
 
 Every part is rated for at least 85 degC ambient except where a note says
-otherwise: the camera lives in a printer chamber at up to 65 degC.
+otherwise: the camera lives in a printer chamber at up to 70 degC.
 
-Parts bought separately (not on any board, docs/parts.md): the SC3336
-camera module, the CLA219 IR-cut holder, the M12 lens, the Wi-Fi antenna
-and the three cables.
+Parts bought separately (not on the board, README *How to order*): the
+CLA219 IR-cut holder, the M12 lens, the heatsink, the Wi-Fi antenna and
+its lead, the light rods, the magnets and the screws.
 """
 
 R0402 = 'Resistor_SMD:R_0402_1005Metric'
@@ -149,6 +149,7 @@ PARTS = {
     'C330N': C('330nF', C0402, 'C18164591', 'TCC0402X7R334K100AT', '10V X7R 0402', 'CCTC'),
     'C470N': C('470nF', C0402, 'C5448817', 'TCC0402X7R474K100AT', '10V X7R 0402', 'CCTC'),
     'C1U': C('1uF', C0402, 'C437522', 'GRM155C71A105KE11D', '10V X7S 0402', 'Murata'),
+    'C2U2': C('2.2uF', C0402, 'C521077', 'GRM155C80J225KE95D', '6.3V X6S 0402', 'Murata'),
     'C4U7': C('4.7uF', C0402, 'C697614', 'JMK105BC6475MV-F', '6.3V X6S 0402', 'Taiyo Yuden'),
     'C10U': C('10uF', C0603, 'C576470', 'GRM188C81A106MA73D', '10V X6S 0603', 'Murata'),
     'C22U': C('22uF', C0603, 'C393031', 'GRM188C80J226ME15D', '6.3V X6S 0603', 'Murata'),

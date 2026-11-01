@@ -3,15 +3,15 @@
 keepouts.  Routing (route.py), the fills and the artwork come after, in
 pipeline.py.
 
-    python3 board.py main|ring|usb OUT.kicad_pcb
+    python3 board.py main OUT.kicad_pcb
 
-Main board layers (PCBWay's standard 6-layer build No. 1):
-    F.Cu    the back face: SoC, flash, power stage; signals
+Layers (PCBWay's standard 6-layer build No. 1):
+    F.Cu    the back face: SoC, flash, power stage, Wi-Fi, USB-C; signals
     In1.Cu  ground plane, unbroken
     In2.Cu  signals (the long runs round the window), ground fill
     In3.Cu  power planes: 0.9 V under the SoC, 3.3 V, 1.8 V, DDR, 5 V
     In4.Cu  ground plane, unbroken
-    B.Cu    the front face: Wi-Fi, connectors, SoC decoupling; signals
+    B.Cu    the front face: image sensor, IR LEDs, SoC decoupling; signals
 """
 import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -21,19 +21,11 @@ import pcb, circuit, placer, geometry as G
 
 # net classes: width for the current each carries
 POWER = {
-    # no wider than the finest pins each net lands on, or the router cannot
-    # reach them: 0.25 at the EA3036C's 0.4 mm pitch, 0.2 at the RV1106's
-    # 0.35 mm (VCC_DDR); every rail here carries 1 A or less.  VCC_1V8 is
-    # left at the default 0.127 mm: it carries 0.05 A (sim/power.md), and at
-    # 0.2 mm it was the net every routing run left open
     'main': {'VSYS': 0.25, 'SW_0V9': 0.5, 'LX_3V3': 0.25, 'VCC_DDR': 0.2, 'LX_DDR': 0.25,
-             'LX_1V8': 0.25, 'VWIFI': 0.4, 'SW_WIFI': 0.4, 'WIFI_LX': 0.4,
-             'WIFI_VLDO': 0.4, 'LED_K': 0.4, 'IRCUT_1': 0.2, 'IRCUT_2': 0.2},
-    'ring': {'VSYS': 0.4, 'LED_K': 0.4, 'STR1_A': 0.3, 'STR2_A': 0.3, 'STR3_A': 0.3,
-             'STR1_M': 0.3, 'STR2_M': 0.3, 'STR3_M': 0.3},
-    'usb': {'VSYS': 0.4},
+             'LX_1V8': 0.25, 'VWIFI': 0.4, 'SW_WIFI': 0.4, 'LED_K': 0.4, 'IRCUT_1': 0.2, 'IRCUT_2': 0.2,
+             'STR1_A': 0.3, 'STR2_A': 0.3, 'STR3_A': 0.3, 'STR1_M': 0.3, 'STR2_M': 0.3, 'STR3_M': 0.3},
 }
-PLANE_NETS = {'main': ('GND', 'VDD_0V9', 'VCC_3V3'), 'usb': ('GND',), 'ring': ()}
+PLANE_NETS = {'main': ('GND', 'VDD_0V9', 'VCC_3V3')}
 # boards whose big parts' plane pins get their vias from the router (it
 # leaves gaps between them; vias placed beforehand, one per pin, walled the
 # pins next to them in): the plane nets are routed, to the planes
@@ -45,11 +37,9 @@ ROUTER_PLANE_VIAS = set()        # tried for 'main': 82 left unrouted against 52
 # 0.127 minimum: a coupled bend must not round to under the rule
 DIFF = {'main': {'MIPI': (['CSI_D0P', 'CSI_D0N', 'CSI_D1P', 'CSI_D1N', 'CSI_CKP', 'CSI_CKN'], 0.12, 0.15),
                  'USB': (['USB_DP', 'USB_DM'], 0.15, 0.13)},
-        'ring': {}, 'usb': {'USB': (['USB_DP', 'USB_DM'], 0.25, 0.13)}}
+        }
 
 
-# the antenna feed: 50 ohm microstrip on B over In4 (sim/impedance.md)
-RF_W = 0.18
 
 
 def build(board, path, rounds=12):
@@ -74,7 +64,7 @@ def build(board, path, rounds=12):
 
 
 def _build(board, path, avoid):
-    pcbnew.KIID.SeedGenerator({'main': 11, 'ring': 12, 'usb': 13}[board])
+    pcbnew.KIID.SeedGenerator(21)
     pcb.configure(board)
     layout = __import__('layout_' + board)
     b = pcb.new_board(path)
@@ -139,8 +129,6 @@ def _build(board, path, avoid):
     for w in sorted(set(POWER[board].values())):
         group = [n for n, x in POWER[board].items() if x == w]
         pcb.netclass(b, ('Power_%g' % w).replace('.', '_'), group, w)
-    if board == 'main':
-        pcb.netclass(b, 'RF', ['ANT_FEED', 'ANT'], RF_W)
     for name, (nets, w, gap) in DIFF[board].items():
         pcb.netclass(b, name, nets, w, diff_w=w, diff_gap=gap)
     pcb.rule_area_shape(b, pcb.edge_band(), pcb.cu_layers(), name='edge clearance')

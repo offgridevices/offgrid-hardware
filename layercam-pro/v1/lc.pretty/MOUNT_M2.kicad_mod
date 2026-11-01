@@ -3,12 +3,12 @@
 	(generator "pcbnew")
 	(generator_version "10.0")
 	(layer "F.Cu")
-	(descr "M2 screw hole 2.2 mm: head r 2.1 behind, boss r 2.0 in front")
+	(descr "M2 screw hole 2.2 mm: head r 2.1 behind, boss r 2.25 in front")
 	(property "Reference" ""
 		(at 0 0 0)
 		(layer "F.SilkS")
 		(hide yes)
-		(uuid "a68f94b1-3287-426b-935f-c34a125bdfd8")
+		(uuid "70aa6fe7-b51a-4993-92f8-e52575fccf6a")
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -19,7 +19,7 @@
 		(at 0 0 0)
 		(layer "F.Fab")
 		(hide yes)
-		(uuid "e53674e0-5de0-4f90-997a-d9894f7f1ffa")
+		(uuid "bb1b826b-925c-4d94-8276-63d7c1a18e68")
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -30,7 +30,7 @@
 		(at 0 0 0)
 		(layer "F.Fab")
 		(hide yes)
-		(uuid "fdba17ec-c289-4545-93c5-ef6208d300e7")
+		(uuid "7335edfb-5fec-4fab-929a-54e4e01a3cd7")
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -41,7 +41,7 @@
 		(at 0 0 0)
 		(layer "F.Fab")
 		(hide yes)
-		(uuid "bb440c4d-9128-4713-a973-f7dd3cccb670")
+		(uuid "e81af4d1-0cbb-4b7b-8dd7-67478879fc11")
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -52,14 +52,14 @@
 	(duplicate_pad_numbers_are_jumpers no)
 	(fp_circle
 		(center 0 0)
-		(end 2 0)
+		(end 2.25 0)
 		(stroke
 			(width 0.05)
 			(type default)
 		)
 		(fill no)
 		(layer "B.CrtYd")
-		(uuid "ba5bd2c3-1a0a-4d04-b052-662339d6234e")
+		(uuid "5295ebde-8f79-4b96-9239-ade519af50bd")
 	)
 	(fp_circle
 		(center 0 0)
@@ -70,14 +70,14 @@
 		)
 		(fill no)
 		(layer "F.CrtYd")
-		(uuid "c68acc7a-3b5e-424a-b54a-1ac2351a24bd")
+		(uuid "69e6f249-a05e-4d68-87a8-faf37fdcabb8")
 	)
 	(pad "" np_thru_hole circle
 		(at 0 0)
 		(size 2.2 2.2)
 		(drill 2.2)
 		(layers "*.Mask")
-		(uuid "a0bfbd8f-57c1-46d2-bcd3-256722d813b9")
+		(uuid "6f382ce2-5778-483d-abca-bd268f997196")
 	)
 	(embedded_fonts no)
 )

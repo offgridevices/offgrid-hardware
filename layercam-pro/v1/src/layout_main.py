@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Where every part of the main board goes.
+"""Where every part of the board goes.
 
 Board millimetres, origin on the lens axis, x right, y down the screen,
 seen from BEHIND the camera (KiCad's top, F = the board's back face, which
 faces the lid).  y = -Y of the lens frame (geometry.py).
 
-    F (back)   the camera module covers the middle (25 x 24, 1 mm above
-               the board: only 0402 parts under it); the RV1106 below it,
-               the power stage to its right, the flash to its left; the
-               camera FFC connector above it; the USB cable on the left
-    B (front)  the IR-cut holder covers the middle; the Wi-Fi module above
-               it (in the tab), the LED ring and IR-cut connectors and
-               their drivers at the sides, the SoC's decoupling under it
+    F (back)   the RV1106 15 mm below the lens axis under its 20 x 20 mm
+               heatsink (only low parts there); the power stage to its
+               right, the flash below-left, the Wi-Fi module upper-left,
+               the USB-C on the edge tab upper-left
+    B (front)  the image sensor on the lens axis inside the IR-cut
+               holder's base; the six IR LEDs round it; the light sensor
+               below; the IR-cut driver and lead on the right, the LED
+               switch on the left; the SoC's decoupling under it
 
 The large parts have fixed places below.  Every small part (R, C, bead)
 is placed by place_small(): beside the pin it serves, on the side that pin
@@ -26,51 +27,54 @@ import pcb
 F, B = 'F', 'B'
 
 # ---------------------------------------------------------------- fixed parts
-# ref -> (x, y, rot, side)
+# ref -> (x, y, rot, side).  Board mm: x = X, y = -Y (geometry.py); F the
+# back face (towards the lid), B the front face (the lens side).
+SX, SY = G.SOC_XY[0], -G.SOC_XY[1]       # the SoC, board coordinates: (0, 15)
 FIXED = {
     # F, the back face
-    'U1': (0.0, 19.4, 0, F),          # RV1106G3: MIPI (top row, left) towards the camera FFC
-    # camera FFC: opening towards +y, 2.3 mm short of the module's edge (the
-    # cable drops 2.3 mm from the module's connector to this one); centred
-    # on the lens axis like the module's, so pin k is in line with pin k
-    'J2': (0.0, -20.8, 0, F),
-    'J1': (-16.4, -2.0, 90, F),       # USB cable from the USB board (on the case's -X side)
-    'U5': (-15.8, -11.3, 90, F),      # SPI NAND, left of the camera module, above J1
-    # the power stage in the strip right of the camera module
-    'U3': (15.7, 0.6, 90, F),         # triple buck
-    'L2': (15.9, -4.2, 0, F),         # 3.3 V
-    'L3': (15.9, 5.2, 0, F),          # DDR
-    'L4': (15.9, 8.6, 0, F),          # 1.8 V
-    'U2': (-9.4, 25.0, 90, F),         # 0.9 V buck, below-left of the SoC
-    'L1': (-12.3, 21.3, 270, F),   # switch end next to U2's SW pin
-    'U4': (11.8, -18.3, 0, F),        # Wi-Fi buck, top right, clear of the camera module
-    'L5': (16.0, -14.4, 90, F),
-    'Y1': (9.6, 22.2, 90, F),         # 24 MHz at the SoC's OSC pins (68/69, right side)
-    'LED1': (8.8, 14.0, 0, F),        # status, in the lid's vent window
-    # test pads, clear of the SoC's breakout band: the console's TX RX G
-    # for a 3.3 V USB-serial lead and BOOT beside G for tweezers, in the
-    # round edge's right corner; 5V on its own in the left one
-    'TP1': (9.2, 25.3, 0, F), 'TP2': (10.8, 25.1, 0, F), 'TP3': (12.4, 24.8, 0, F), 'TP5': (14.0, 24.3, 0, F),
-    'TP4': (-13.6, 25.2, 0, F),
+    'U1': (SX, SY, 0, F),             # RV1106G3: its MIPI pins (top row, left) towards the sensor
+    # the power stage right of the heatsink
+    'U3': (16.6, 9.0, 90, F),         # triple buck
+    'L2': (20.6, 5.2, 0, F),          # 3.3 V
+    'L3': (20.6, 9.0, 0, F),          # DDR
+    'L4': (20.6, 12.8, 0, F),         # 1.8 V
+    'U2': (13.6, 21.8, 90, F),        # 0.9 V buck, below-right of the SoC
+    'L1': (17.2, 19.4, 0, F),
+    'Y1': (11.7, 19.3, 90, F),        # 24 MHz at the SoC's OSC pins (68/69, right side), clear of the heatsink
+    'U5': (-13.0, 23.0, 90, F),       # SPI NAND, below-left (its pins are the SoC's bottom-left row)
+    # Wi-Fi: the module upper-left, its SDIO corner (pins 24-29) towards
+    # the SoC's SDMMC0 pins (11-18, left side); its buck beside it
+    'U6': (-18.5, 4.5, 0, F),
+    'U4': (-14.0, -6.5, 0, F),
+    'L5': (-17.6, -6.6, 90, F),
+    # USB-C on the edge tab, its mouth along the edge's outward normal
+    # (board angle -149.6 deg), 4.2 mm out from the edge: 0.2 mm inside the
+    # case's outer face.  The footprint's mouth is 5.24 mm from its origin
+    # along its +y.
+    'J1': None,
+    'U10': (-21.6, -11.6, 0, F),      # USB ESD
+    'D1': (-19.0, -15.2, 0, F),       # 5 V TVS
+    'U9': (-3.6, -3.4, 0, F),         # the sensor's 2.8 V LDO, behind the sensor
+    'LED1': (12.0, 2.4, 0, F),        # status, in the lid's vent window
+    # test pads along the bottom edge, below the heatsink: the console's TX
+    # RX G for a 3.3 V USB-serial lead and BOOT beside G for tweezers; 5V on
+    # its own; the C6's USB pair for recovery
+    'TP1': (1.0, 27.4, 0, F), 'TP2': (3.0, 27.4, 0, F), 'TP3': (5.0, 27.4, 0, F), 'TP5': (7.0, 27.4, 0, F),
+    'TP4': (-5.0, 27.4, 0, F),
+    'TP6': (-22.4, 12.6, 0, F), 'TP7': (-20.4, 12.6, 0, F),
     # B, the front face
-    'U6': (0.0, -16.4, 0, B),         # AP6256 between the lens holder and the top edge (in the tab)
-    # round the AP6256 (U6, on B, mirrored: its antenna pin 2 at (-5.9,
-    # -12.8), crystal pins 10/11 at (-5.9, -20.0 / -20.9), buck pins 21 / 23
-    # at (3.6, -22.3) / (5.9, -20.9), sleep clock pin 24 at (5.9, -20.0))
-    'Y3': (-9.1, -20.45, 180, B),     # 37.4 MHz: pad 1 by pin 10, pad 3 round to pin 11
-    'L6': (8.6, -20.6, 90, B),        # Wi-Fi internal buck inductor, by pins 21 and 23
-    'Y4': (9.8, -16.6, 90, B),        # 32.768 kHz oscillator, by pin 24
-    # the antenna feed: pin 2 -> shunt C90 -> series R90 -> shunt C91 -> J5,
-    # in a line along y -12.8 (pairs.py draws the 50 ohm track)
-    'C90': (-7.7, -13.31, 90, B),
-    'R90': (-9.2, -12.8, 180, B),
-    'C91': (-10.65, -13.31, 90, B),
-    'J5': (-12.8, -12.8, 270, B),     # U.FL, its signal pin towards U6
-    'J4': (-16.0, 3.0, 90, B),        # LED ring cable (the ring's connector is behind it)
-    'Q1': (-15.6, 10.6, 0, B),        # IR LED switch
-    'J3': (15.9, 3.0, 270, B),        # IR-cut lead (the CLA219's motor is on this side)
-    'U7': (15.0, 10.4, 0, B),         # IR-cut H-bridge
-    'Y2': (-9.6, 21.0, 90, B),        # RTC crystal under the SoC's left side
+    'U8': (0.0, 0.0, 0, B),           # the image sensor on the lens axis; its MIPI balls (rows D-E) towards the SoC
+    'D2': (13.000, -0.000, 90, B),        # IR LED at 0 degrees (lens frame)
+    'D3': (7.200, -12.471, 0, B),        # IR LED at 60 degrees (lens frame)
+    'D4': (-7.200, -12.471, 0, B),        # IR LED at 120 degrees (lens frame)
+    'D5': (-13.000, -0.000, 90, B),        # IR LED at 180 degrees (lens frame)
+    'D6': (-7.200, 12.471, 0, B),        # IR LED at 240 degrees (lens frame)
+    'D7': (7.200, 12.471, 0, B),        # IR LED at 300 degrees (lens frame)
+    'Q2': (0.0, 14.15, 0, B),         # light sensor under the front window
+    'Q1': (-17.0, 6.0, 0, B),         # IR LED switch
+    'J3': (17.6, -5.6, 270, B),       # IR-cut lead
+    'U7': (16.4, 5.6, 0, B),          # IR-cut H-bridge
+    'Y2': (-9.6, 17.6, 90, B),        # RTC crystal under the SoC's left side
     # mounting
     'H1': (G.SCREWS[0][0], -G.SCREWS[0][1], 0, F), 'H2': (G.SCREWS[1][0], -G.SCREWS[1][1], 0, F),
     'H3': (G.SCREWS[2][0], -G.SCREWS[2][1], 0, F), 'H4': (G.SCREWS[3][0], -G.SCREWS[3][1], 0, F),
@@ -78,10 +82,22 @@ FIXED = {
     'H6': (G.HOLDER_SCREWS[1][0], -G.HOLDER_SCREWS[1][1], 0, F),
 }
 
+
+def _usb_place():
+    ex, ey = G.USB_EDGE_XY
+    a = math.radians(G.USB_NORMAL_DEG)
+    ux, uy = math.cos(a), -math.sin(a)            # the outward normal, board coordinates
+    ox, oy = ex + (4.2 - 5.24) * ux, -ey + (4.2 - 5.24) * uy
+    rot = math.degrees(math.atan2(ux, uy))        # the footprint's +y (its mouth) onto the normal
+    return (round(ox, 3), round(oy, 3), round(rot, 2), F)
+
+
+FIXED['J1'] = _usb_place()
+
 # small parts that must sit at a particular part rather than the first IC
 # their net reaches: note -> (ref, pad) of the pin they serve
 ANCHOR = {
-    '5 V bulk': ('J1', '1'), '5 V HF': ('J1', '1'),
+    '5 V bulk': ('U3', '10'),
     'VBUS detect top': ('U1', '25'), 'VBUS detect bottom': ('U1', '25'), 'VBUS detect filter': ('U1', '25'),
     '0.9 V buck input': ('U2', '4'), '0.9 V feedback top': ('U2', '5'), '0.9 V feedback bottom': ('U2', '5'),
     '0.9 V feed-forward': ('U2', '5'),
@@ -111,43 +127,40 @@ ANCHOR = {
     'status LED R': ('LED1', '2'),
     'NAND clock series R': ('U1', '48'), 'NAND /WP pull-up': ('U5', '3'), 'NAND /HOLD pull-up': ('U5', '7'),
     'NAND decoupling': ('U5', '8'),
-    'Wi-Fi VBAT bulk': ('U6', '9'), 'Wi-Fi VBAT HF': ('U6', '9'), 'Wi-Fi VDDIO': ('U6', '22'),
-    'Wi-Fi internal buck output': ('U6', '23'), '37.4 MHz load': ('Y3', '*'),
-    '32 kHz oscillator supply': ('Y4', '4'),
+    'Wi-Fi supply bulk': ('U6', '3'), 'Wi-Fi supply HF': ('U6', '3'),
+    'Wi-Fi EN pull-down': ('U6', '8'), 'Wi-Fi EN filter': ('U6', '8'),
+    'Wi-Fi GPIO9 pull-up': ('U6', '23'), 'Wi-Fi GPIO8 pull-up': ('U6', '22'),
     'SDIO clock series R': ('U1', '15'), 'SDIO pull-up': ('U6', '*'), 'SDIO card-detect to ground': ('U1', '11'),
-    'WL_REG_ON pull-down': ('U6', '12'), 'BT_REG_ON pull-down': ('U6', '34'),
-    'antenna match shunt 1 (empty)': ('U6', '2'), 'antenna match series': ('J5', '1'),
-    'antenna match shunt 2 (empty)': ('J5', '1'),
+    'sensor LDO input': ('U9', '6'), 'sensor LDO output': ('U9', '1'),
+    'sensor AVDD': ('U8', 'B1'), 'sensor AVDD HF': ('U8', 'B1'), 'sensor AVDD HF 2': ('U8', 'B7'),
+    'sensor DOVDD filter R': ('U8', 'C2'), 'sensor DOVDD': ('U8', 'C2'), 'sensor DOVDD HF': ('U8', 'C3'),
+    'sensor DVDD': ('U8', 'B4'), 'sensor DVDD HF': ('U8', 'C1'), 'sensor DVDD HF 2': ('U8', 'E4'),
+    'sensor VREFN': ('U8', 'E7'), 'sensor VREFN2': ('U8', 'D7'),
     'sensor clock series R': ('U1', '2'), 'camera I2C pull-up': ('U1', '5'),
-    'camera supply': ('J2', '*VCC_3V3'),
+    'sensor XSHUTDN pull-down': ('U1', '3'), 'sensor PWDNB pull-down': ('U1', '4'),
     'IR-cut driver VM': ('U7', '1'), 'IR-cut driver VCC': ('U7', '8'),
     'IR LED gate R': ('Q1', '1'), 'IR LED gate pull-down': ('Q1', '1'),
-    'light sensor supply R': ('J4', '3'), 'light sensor load': ('J4', '4'), 'light sensor filter': ('J4', '4'),
-    'IR LED supply': ('J4', '1'),
+    'IR LED supply': ('D2', '1'),
+    'light sensor supply R': ('Q2', '3'), 'light sensor load': ('Q2', '1'), 'light sensor filter': ('Q2', '1'),
+    'CC1 Rd': ('J1', 'A5'), 'CC2 Rd': ('J1', 'B5'), '5 V at the connector': ('J1', 'A4B9'),
+    '5 V HF': ('J1', 'B4A9'),
 }
+for k in range(3):
+    ANCHOR['string %d resistor' % (k + 1)] = ('D%d' % (2 * k + 2), '1')
 # the side a small part goes on, where it is not the side of its anchor
 SIDE = {
     'core decoupling': B, 'core bulk': B, 'DDR decoupling': B, 'DDR bulk': B,
     '1.8 V decoupling (DDR PLL, OSC/PLL)': B, '1.8 V decoupling (DDR PLL)': B,
     '3.3 V decoupling (VCCIO, PMU, USB)': B, '3.3 V bulk at the SoC': B,
     'MIPI supply filter C': B, 'MIPI supply bulk': B,
-    # the SoC's left-column filter caps on its own face: a via each beside
-    # pins 19-30 had no room among the plane and USB vias there
     'ADC/USB supply filter C': F, 'codec supply': F, 'codec VCM': F,
-    # under pin 19, by its escape via: on the front it landed 6 mm off
     'RTC supply C': B,
-    # on the back face, their SoC pin reaching them by its escape via: on
-    # the front they sat boxed in by the 0.9 V buck and by the crystal
     'VBUS detect top': B, 'VBUS detect bottom': B, 'VBUS detect filter': B, '24 MHz drive R': B,
-    # on the front it lands in the pocket between the 0.9 V inductor and
-    # its buck, walled in by the switch node and ground (every run left
-    # VCC_1V8 open there)
     'ADC/USB supply filter R': B,
-    # the 0.9 V buck's feedback network under the buck: on the front it
-    # found room only 6 mm off, past the inductor, and FB_0V9 stayed open
-    '0.9 V feedback top': B, '0.9 V feedback bottom': B, '0.9 V feed-forward': B,
     'OTP/TSADC supply': B, 'Ethernet supply': B, 'DRAM ZQ 240R 1 %': B,
     '24 MHz load': F, 'RTC load': B, 'SDIO pull-up': B,
+    # the sensor's decoupling on its own face, inside the holder's recess
+    'sensor DOVDD filter R': B,
 }
 
 CLEAR = 0.15          # courtyard to courtyard
@@ -248,43 +261,45 @@ def escape_area():
     return box(cx - BREAKOUT, cy - BREAKOUT, cx + BREAKOUT, cy + BREAKOUT)
 
 
+# the IR-cut holder's base covers HOLDER_BOX on the front face; inside it,
+# round the sensor, a recess for the sensor and its 0402 decoupling (the
+# holder's drawing gives no recess size: kept to the sensor's surroundings,
+# parts 0.6 mm or lower, verify.py)
+RECESS = (-5.6, -4.4, 5.6, 4.4)
+UNDER_HOLDER_MAX_H = 0.6
+
+
 def keepouts(side):
     """Areas a part on `side` may not touch: (shapely geometry, max height
     allowed there or 0)."""
     out = []
-    ww, wh = G.WINDOW
-    out.append((box(-ww / 2, -wh / 2, ww / 2, wh / 2).buffer(0.3), 0))
     if side == F:
-        mw = G.MODULE_W / 2 + 0.15
-        # board y = -Y: the connector edge is at -y
-        out.append((box(-mw, -G.MODULE_TO_FFC_EDGE - 0.15, mw, G.MODULE_TO_FAR_EDGE + 0.15),
-                    G.UNDER_MODULE_MAX_H))
         for x, y in G.HOLDER_SCREWS:
-            out.append((Point(x, -y).buffer(1.95), 0))     # the washers
-        # the SoC's breakout band: no part within 1.8 mm outside its pins,
-        # so the router has room to bring 0.35 mm-pitch pins out to vias
+            out.append((Point(x, -y).buffer(1.95), 0))     # the screw heads
+        # the SoC's breakout band: no part within 1.8 mm outside its pins
         cx, cy = FIXED['U1'][:2]
         out.append((box(cx - BREAKOUT, cy - BREAKOUT, cx + BREAKOUT, cy + BREAKOUT)
                     .difference(box(cx - 6.5, cy - 6.5, cx + 6.5, cy + 6.5)), 0))
-        # the pocket between the 0.9 V buck's inductor, the buck and the
-        # SoC's band, walled in by the switch node and the buck's ground: a
-        # part there (C4, R16, C56 in turn) had no way out
-        out.append((box(-11.0, 20.4, -8.4, 23.2), 0))
-        # the triple buck's breakout band: its 0.4 mm-pitch pins need room
-        # between their pads and the input / enable caps
+        # the triple buck's breakout band
         ux, uy = FIXED['U3'][:2]
         out.append((box(ux - 2.9, uy - 2.9, ux + 2.9, uy + 2.9).difference(box(ux - 1.95, uy - 1.95, ux + 1.95, uy + 1.95)), 0))
-        hx, hy = G.HEATSINK_C
-        h = G.HEATSINK_SIZE / 2 + 0.2
-        out.append((box(hx - h, hy - h, hx + h, hy + h), G.UNDER_HEATSINK_MAX_H))
+        hw, hh = G.HEATSINK[0] / 2 + 0.2, G.HEATSINK[1] / 2 + 0.2
+        out.append((box(cx - hw, cy - hh, cx + hw, cy + hh), G.UNDER_HEATSINK_MAX_H))
     else:
         x0, y0, x1, y1 = G.HOLDER_BOX
-        out.append((box(x0, -y1, x1, -y0), 0))
-        # the SoC's escape band on the back face too: its pins' vias come
-        # through here, and a part's pad would stand where a via must go
+        holder = box(x0, -y1, x1, -y0)
+        rx0, ry0, rx1, ry1 = RECESS
+        recess = box(rx0, ry0, rx1, ry1)
+        out.append((holder.difference(recess), 0))
+        out.append((recess, UNDER_HOLDER_MAX_H))
+        # the SoC's escape band on the front face too
         out.append((via_ring()[0], 0))
         for x, y in G.SCREWS:
             out.append((Point(x, -y).buffer(G.BOSS_D / 2 + 0.3), 0))
+        # the light rods' channels in the case reach down round each LED
+        for a in G.LED_ANGLES:
+            lx, ly = G.led_xy(a)
+            out.append((Point(lx, -ly).buffer(2.6).difference(box(lx - 2.4, -ly - 1.6, lx + 2.4, -ly + 1.6)), 0))
     for x, y in G.SCREWS:
         out.append((Point(x, -y).buffer(2.15), 0))
     return out
@@ -307,24 +322,24 @@ def placement(comps, fps_crt):
 # ---------------------------------------------------------------- planes
 # In3 carries two planes: 0.9 V inside the SoC's pin ring (its core pins
 # take their vias inwards, between the pins and the exposed pad) with a
-# strip out to the 0.9 V buck, and 3.3 V everywhere else.
+# strip out to the 0.9 V buck below-right, and 3.3 V everywhere else.
 SOC = FIXED['U1'][:2]
 CORE_HALF = 5.85                  # to the pin ring's middle: the 3.3 V pins' vias sit outside it
-# the strip out to the buck, left of the SoC between its two 3.3 V pins on
-# that side (13 and 28), whose outward vias stay in the 3.3 V plane
-STRIP = (-14.3, -0.45, 3.25)      # x0, then y0 / y1 from the SoC's centre
+# the strip out to the buck: from the SoC's right side between its 3.3 V
+# pins there (81 at y +3.3, 88 at y +0.9 from the centre... the strip runs
+# below them, from y +3.6 to +7.6) out to the buck's inductor
+STRIP = (19.2, 3.9, 7.6)          # x1, then y0 / y1 from the SoC's centre
 
 
 def plane_polys():
     from shapely.geometry import box
     cx, cy = SOC
     core = box(cx - CORE_HALF, cy - CORE_HALF, cx + CORE_HALF, cy + CORE_HALF)
-    # the strip from the SoC's left side out to the buck's inductor and
-    # output capacitors
-    x0, y0, y1 = STRIP
-    # (down under the buck too: its feedback network's 0.9 V end takes a via
-    # to this plane, beside the buck)
-    strip = box(x0, cy + y0, cx - CORE_HALF, cy + y1).union(box(-15.5, cy - 6.5, cx - 8.0, cy + 8.0))
+    # the strip from the SoC's right side out to the buck's inductor and
+    # output capacitors, and under the buck (its feedback network's 0.9 V
+    # end takes a via to this plane)
+    x1, y0, y1 = STRIP
+    strip = box(cx + CORE_HALF, cy + y0, x1, cy + y1).union(box(cx + 10.5, cy + 2.5, x1, cy + 9.5))
     v09 = core.union(strip).intersection(pcb.board_polygon().buffer(-0.4))
     v33 = pcb.board_polygon().buffer(-0.4).difference(v09.buffer(0.4))
     return {'VDD_0V9': v09, 'VCC_3V3': v33, 'GND': pcb.board_polygon()}

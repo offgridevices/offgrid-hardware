@@ -27,7 +27,7 @@ OUTLINE = [
 ]
 # M2 holes into printed bosses; each at least 3.0 mm from the edge
 # (verify.py), clear of the lens holder and the heatsink
-SCREWS = [(-13.0, 25.5), (13.0, 25.5), (-13.0, -25.3), (13.0, -25.3)]
+SCREWS = [(-13.0, 25.5), (13.0, 25.5), (-28.0, 0.0), (28.0, 0.0)]
 SCREW_D = 2.2
 BOSS_D = 4.5              # the boss under the board (front face): no part within this
 CORNER_CLEAR = 0.6        # copper and parts keep this far from the edge (the case is carbon-filled: it conducts a little)

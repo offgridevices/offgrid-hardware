@@ -1,26 +1,29 @@
 # -*- coding: utf-8 -*-
-"""The circuit: every component and every connection of the three boards,
+"""The circuit: every component and every connection of the one board,
 as code.
 
 This is the schematic.  Each block reads top to bottom the way you would
 check it against a datasheet: the part, then pin by pin what it connects
 to, with the reason for anything that is not obvious.  Pin numbers are
 footprint pad numbers, which for every part here are the datasheet pin
-numbers (the USB-C receptacle's pads are named by contact).  A pin given
-as None is deliberately left open.
+numbers (the USB-C receptacle's pads are named by contact; the image
+sensor's balls by row and column).  A pin given as None is deliberately
+left open.
 
-LayerCam is three boards in Prusa's Buddy3D camera housing:
+LayerCam Pro is one board in a case with the outside of Prusa's Buddy3D
+camera case:
 
-    USB board   USB-C (5 V and USB 2.0 for flashing) -> ESD -> 6-wire cable
-    main board  5 V -> four bucks -> RV1106G3 (Linux, ISP, H.264)
-                SPI NAND (256 MB), AP6256 Wi-Fi over SDIO, U.FL antenna
-                FFC to the SC3336 camera module, H-bridge for its IR-cut
-                IR LED switch and light-sensor input for the ring
-    LED ring    six 850 nm LEDs in three strings, a light sensor
+    USB-C (5 V, and USB 2.0 for flashing) -> ESD, TVS
+    5 V -> four bucks -> RV1106G3 (Linux, ISP, H.264), SPI NAND (256 MB)
+    ESP32-C6 Wi-Fi module over SDIO (esp-hosted), its own 3.25 V buck
+    SC4336H image sensor on the front face, its 2.8 V LDO, 2-lane MIPI
+    H-bridge for the IR-cut holder; six 850 nm LEDs and their switch;
+    the light sensor
 
-The RV1106 pin plan follows Luckfox's RV1106 boards (the SDK's device
-trees), checked pin by pin against the RV1106 datasheet Rev 2.2
-(docs/rv1106_pins.md).  The firmware's device tree (firmware/dts/) is
+LayerCam v1's main-board circuit is the starting point; what changed and
+why is said where it changed.  The RV1106 pin plan follows Luckfox's RV1106
+boards (the SDK's device trees); the Wi-Fi and sensor hookup and its
+sources: docs/hookup.md.  The firmware's device tree (firmware/dts/) is
 checked against this file by src/verify.py.
 """
 
@@ -36,7 +39,7 @@ _count = {}
 # skips (filled by build())
 RESERVED = set()
 GND = 'GND'
-BOARDS = ('main', 'ring', 'usb')
+BOARDS = ('main',)
 
 
 def add(prefix, part, pins, block, note='', ref=None):
@@ -63,25 +66,12 @@ def res(part, a, b, block, note=''):
     return add('R', part, {'1': a, '2': b}, block, note)
 
 
-# The 6-wire cable between the USB board and the main board.  Symmetric:
-# a cable that turns the connector round swaps only D+ and D- (USB then
-# fails to enumerate, nothing is damaged).  Two contacts each for 5 V and
-# ground (an SH contact is rated 1 A).
-USB_CABLE = {'1': 'VSYS', '2': GND, '3': 'USB_DM', '4': 'USB_DP', '5': GND, '6': 'VSYS'}
-# The 6-wire cable between the main board and the LED ring, symmetric the
-# same way: turned round, the light sensor's supply and output swap, and a
-# 1 k resistor on the main board limits what flows (the sensor's
-# emitter-collector rating is 1.5 V).
-RING_CABLE = {'1': 'VSYS', '2': 'LED_K', '3': 'ALS_VCC', '4': 'ALS', '5': 'LED_K', '6': 'VSYS'}
-
-
 # =====================================================================
-#  MAIN BOARD
+#  THE BOARD
 # =====================================================================
 def main_power():
     B = 'power'
-    # 5 V in from the USB board.  Its TVS is at the USB-C; here the bulk.
-    add('J', 'SH6V', dict(USB_CABLE, **{'7': GND, '8': GND}), B, 'USB cable', ref='J1')
+    # 5 V from the USB-C (usb()); the bulk at the bucks
     cap('C10U', 'VSYS', GND, B, '5 V bulk')
     cap('C10U', 'VSYS', GND, B, '5 V bulk')
     cap('C100N', 'VSYS', GND, B, '5 V HF')
@@ -151,17 +141,18 @@ def main_power():
     cap('C220P', 'VCC_1V8', 'FB_1V8', B, '1.8 V feed-forward')
     cap('C22U', 'VCC_1V8', GND, B, '1.8 V output')
 
-    # The Wi-Fi module's own 3.3 V (U4): it draws 1 A peaks when it
-    # transmits, which must not dip the SoC's rails.
-    #   VWIFI = 0.6 x (1 + 100k / 20k) = 3.60 V (VBAT 3.0-4.8 V, full RF
-    #   from 3.2 V): at 3.3 V a 1 A transmit burst dipped it to about
-    #   3.14 V (sim/power.md)
+    # The Wi-Fi module's own 3.3 V (U4): its 0.38 A transmit bursts stay
+    # off the SoC's rails.
+    #   VWIFI = 0.6 x (1 + 100k / 22.6k) = 3.255 V, the same as VCC_3V3:
+    #   the ESP32-C6's I/O runs at its supply and talks straight to the
+    #   SoC's 3.3 V SDIO and UART pins (3.0-3.6 V; LayerCam v1's 3.60 V
+    #   for the AP6256 would be the C6's absolute maximum)
     add('U', 'TLV62569', {'1': 'VSYS', '2': GND, '3': 'SW_WIFI', '4': 'VSYS', '5': 'FB_WIFI'}, B,
         'Wi-Fi buck', ref='U4')
     cap('C10U', 'VSYS', GND, B, 'Wi-Fi buck input')
     add('L', 'L2U2', {'1': 'SW_WIFI', '2': 'VWIFI'}, B, 'Wi-Fi inductor', ref='L5')
     res('R100K', 'VWIFI', 'FB_WIFI', B, 'Wi-Fi feedback top')
-    res('R20K', 'FB_WIFI', GND, B, 'Wi-Fi feedback bottom')
+    res('R22K6', 'FB_WIFI', GND, B, 'Wi-Fi feedback bottom')
     cap('C22U', 'VWIFI', GND, B, 'Wi-Fi buck output')
     cap('C22U', 'VWIFI', GND, B, 'Wi-Fi buck output')
 
@@ -174,18 +165,18 @@ def main_soc():
         '1': 'VCC_1V8_MIPI',    # MIPI_AVDD1V8 / VCCIO7: 1.8 V only, 1R + 100 nF
         '2': 'CAM_MCLK_SOC',    # MIPI_CLK0_OUT (GPIO3_C4): sensor clock, 22R
         '3': 'CAM_RST',         # GPIO3_C5: sensor reset/powerdown
-        '4': None,              # GPIO3_C6 (1.8 V): unused
+        '4': 'CAM_PWDN',        # GPIO3_C6 (1.8 V): sensor PWDNB
         '5': 'CAM_SCL',         # I2C4_SCL_M2
         '6': None,
         '7': 'CAM_SDA',         # I2C4_SDA_M2
         '8': None, '9': None,
         '10': 'VDD_0V9',        # DVDD_1
-        '11': 'SD_DET',         # SDMMC0_DET: 10k to ground (SDIO card always present)
-        '12': 'SD_D1', '13': 'VCC_3V3',   # VCCIO4 = 3.3 V (the Wi-Fi's SDIO)
+        '11': 'SD_DET',         # SDMMC0_DET: to ground (the SDIO card is always present)
+        '12': 'SD_D1', '13': 'VCC_3V3',   # VCCIO4 = 3.3 V (the Wi-Fi's SDIO, SDMMC0)
         '14': 'SD_D0', '15': 'SD_CLK_SOC', '16': 'SD_CMD', '17': 'SD_D3', '18': 'SD_D2',
         '19': 'VCC_RTC',        # RTC_AVDD3V3: 3.3 V through 100R, 1 uF
         '20': 'RTC_XOUT', '21': 'RTC_XIN',
-        '22': 'ALS',            # SARADC_IN1: the ring's light sensor, 0-1.8 V
+        '22': 'ALS',            # SARADC_IN1: the light sensor, 0-1.8 V
         '23': 'BOOT_KEY',       # SARADC_IN0: the BOOT pad (MaskROM at power-up)
         '24': 'VCC_1V8_ADC',    # SARADC_USB_AVDD1V8: 1R + 100 nF
         '25': 'USB_VBUSDET', '26': 'USB_DM', '27': 'USB_DP',
@@ -207,14 +198,12 @@ def main_soc():
         '54': 'VDD_0V9', '55': 'VDD_0V9',
         '56': 'VCC_DDR',
         '57': GND,              # TVSS
-        '58': None,             # RTC_CLKO: not used (the Wi-Fi gets its own 32 kHz oscillator)
-        '59': 'BT_REG_ON',      # GPIO0_A1
-        '60': 'BT_WAKE',        # GPIO0_A2
+        '58': None,             # RTC_CLKO: not used
+        '59': None,             # GPIO0_A1: unused
+        '60': 'WIFI_BOOT',      # GPIO0_A2: the C6's GPIO9 strap (low = download, to flash it)
         '61': 'VCC_3V3',        # PMU_VCC3V3
-        '62': 'WL_HOST_WAKE',   # GPIO0_A3 (PMU domain, can wake the SoC)
-        '63': 'BT_HOST_WAKE',   # GPIO0_A4
-        '64': 'BT_RTS',         # UART1_RTS_M0
-        '65': 'BT_CTS',         # UART1_CTS_M0
+        '62': 'WIFI_HOST_WAKE', # GPIO0_A3 (PMU domain, can wake the SoC): the C6's IO4
+        '63': None, '64': None, '65': None,
         '66': 'NPOR',
         '67': 'VDD_0V9',        # PMU_DVDD0V9
         '68': 'XIN_24M', '69': 'XOUT_24M',
@@ -222,9 +211,9 @@ def main_soc():
         '71': 'VDD_0V9',        # OSC_PLL_DVDD
         '72': 'IRCUT_A',        # GPIO1_A0: H-bridge IN1 (pulled down inside: bridge off at reset)
         '73': 'IRCUT_B',        # GPIO1_A1: H-bridge IN2
-        '74': 'WL_REG_ON',      # GPIO1_A2
-        '75': 'BT_TXD',         # UART1_TX_M0
-        '76': 'BT_RXD',         # UART1_RX_M0
+        '74': 'WIFI_EN',        # GPIO1_A2: the C6's EN (mmc-pwrseq)
+        '75': 'WIFI_RXD',       # UART1_TX_M0 -> the C6's RXD0 (flashing it from Linux)
+        '76': 'WIFI_TXD',       # UART1_RX_M0 <- the C6's TXD0
         '77': 'IR_PWM',         # PWM3_IR_M1: the IR LED switch
         '78': None,
         '79': 'DBG_TX', '80': 'DBG_RX',   # UART2_M1, the kernel console, 115200
@@ -341,99 +330,100 @@ def main_storage():
 
 def main_wifi():
     B = 'wifi'
-    # AP6256 (U6), AMPAK datasheet pin assignment.  SDIO at 3.3 V
-    # (SDIO_VSEL low), out-of-band interrupt on WL_HOST_WAKE, Bluetooth on
-    # UART1 with flow control.  The 37.4 MHz crystal and the 32.768 kHz
-    # sleep clock are external (as on Radxa's ROCK 4C+, same BCM43456).
-    w = {
-        '1': GND, '2': 'ANT_FEED', '3': GND, '4': None, '5': None,
-        '6': 'BT_WAKE', '7': 'BT_HOST_WAKE', '8': None,
-        '9': 'VWIFI',           # VBAT
-        '10': 'XTAL37_IN', '11': 'XTAL37_OUT',
-        '12': 'WL_REG_ON', '13': 'WL_HOST_WAKE',
-        '14': 'SD_D2', '15': 'SD_D3', '16': 'SD_CMD', '17': 'SD_CLK', '18': 'SD_D0', '19': 'SD_D1',
-        '20': GND,
-        '21': 'WIFI_LX',        # VIN_LDO_OUT: the module's own buck, 4.7 uH to VIN_LDO
-        '22': 'VCC_3V3',        # VDDIO
-        '23': 'WIFI_VLDO',      # VIN_LDO
-        '24': 'WIFI_LPO',
-        '25': None, '26': None, '27': None, '28': None,   # PCM unused
-        '29': GND,              # SDIO_VSEL: low = 3.3 V I/O
-        '30': None, '31': GND, '32': None, '33': GND,
-        '34': 'BT_REG_ON', '35': None, '36': GND,
-        '37': None, '38': None, '39': None, '40': None,
-        '41': 'BT_CTS',         # module RTS -> SoC CTS
-        '42': 'BT_RXD',         # module TXD -> SoC RXD
-        '43': 'BT_TXD',         # module RXD <- SoC TXD
-        '44': 'BT_RTS',         # module CTS <- SoC RTS
-        '45': None, '46': None, '47': None,   # test points
-    }
-    add('U', 'AP6256', w, B, 'Wi-Fi module', ref='U6')
-    cap('C22U', 'VWIFI', GND, B, 'Wi-Fi VBAT bulk')
-    cap('C100N', 'VWIFI', GND, B, 'Wi-Fi VBAT HF')
-    cap('C100N', 'VCC_3V3', GND, B, 'Wi-Fi VDDIO')
-    cap('C4U7', 'VCC_3V3', GND, B, 'Wi-Fi VDDIO bulk')       # as the ROCK 4C+
-    add('L', 'L4U7', {'1': 'WIFI_LX', '2': 'WIFI_VLDO'}, B, 'Wi-Fi internal buck inductor', ref='L6')
-    cap('C10U', 'WIFI_VLDO', GND, B, 'Wi-Fi internal buck output')
-    # 37.4 MHz, 12 pF crystal, 12 pF caps (ROCK 4C+)
-    add('Y', 'XTAL37M4', {'1': 'XTAL37_IN', '2': GND, '3': 'XTAL37_OUT', '4': GND}, B, '37.4 MHz crystal',
-        ref='Y3')
-    cap('C12P', 'XTAL37_IN', GND, B, '37.4 MHz load')
-    cap('C12P', 'XTAL37_OUT', GND, B, '37.4 MHz load')
-    # sleep clock, +-30 ppm needed (AP6256 7): the TG-3541CE TCXO.  1 OE
-    # (high = on, must not float), 2 VCC, 3 TEST (to VCC), 4 OUT, 5/7/8
-    # TEST (to GND), 9 GND, 6/10 not connected
-    add('Y', 'TCXO32K', {'1': 'VCC_3V3', '2': 'VCC_3V3', '3': 'VCC_3V3', '4': 'WIFI_LPO', '5': GND, '6': None,
-                         '7': GND, '8': GND, '9': GND, '10': None}, B, '32 kHz oscillator', ref='Y4')
-    cap('C100N', 'VCC_3V3', GND, B, '32 kHz oscillator supply')
-    # SDIO: 22R in the clock at the SoC, 10k pull-ups on CMD and data
+    # ESP32-C6-MINI-1U-H4 (U6), Espressif's ESP32-C6-MINI-1/1U datasheet
+    # v1.5.  esp-hosted firmware on it, SDIO slave on IO18-23 to the SoC's
+    # SDMMC0 (as v1's AP6256); the SoC holds EN low until Linux's
+    # mmc-pwrseq raises it.  The SoC can also pull GPIO9 low and talk to
+    # UART0 to put new firmware on it (firmware/README.md).  The module's
+    # antenna socket is MHF III (W.FL): a short lead to an RP-SMA socket in
+    # the case wall.
+    w = {'1': GND, '2': GND, '3': 'VWIFI', '4': None, '5': None, '6': None, '7': None,
+         '8': 'WIFI_EN',
+         '9': 'WIFI_HOST_WAKE',  # IO4: esp-hosted's host-wake output (MTMS strap: harmless low)
+         '10': None, '11': GND, '12': None, '13': None, '14': GND, '15': None, '16': None,
+         '17': 'WIFI_USB_DM',    # IO12 / IO13: the C6's own USB, test pads for recovery
+         '18': 'WIFI_USB_DP',
+         '19': None, '20': None, '21': None,
+         '22': 'WIFI_IO8',       # strap: high for download mode (10k up)
+         '23': 'WIFI_BOOT',      # IO9 strap: high = boot from flash (10k up)
+         '24': 'SD_CMD', '25': 'SD_CLK', '26': 'SD_D0', '27': 'SD_D1', '28': 'SD_D2', '29': 'SD_D3',
+         '30': 'WIFI_RXD', '31': 'WIFI_TXD',
+         '32': None, '33': None, '34': None, '35': None}
+    for k in list(range(36, 62)):
+        w[str(k)] = GND           # the ground row, the corners and the 3 x 3 centre pad
+    add('U', 'ESP32C6', w, B, 'Wi-Fi module', ref='U6')
+    # Espressif fig. 9-1: 22 uF + 100 nF at 3V3
+    cap('C22U', 'VWIFI', GND, B, 'Wi-Fi supply bulk')
+    cap('C100N', 'VWIFI', GND, B, 'Wi-Fi supply HF')
+    # EN held low until Linux (as v1's WL_REG_ON); the straps pulled up to
+    # the module's own supply
+    res('R100K', 'WIFI_EN', GND, B, 'Wi-Fi EN pull-down')
+    cap('C100N', 'WIFI_EN', GND, B, 'Wi-Fi EN filter')
+    res('R10K', 'WIFI_BOOT', 'VWIFI', B, 'Wi-Fi GPIO9 pull-up')
+    res('R10K', 'WIFI_IO8', 'VWIFI', B, 'Wi-Fi GPIO8 pull-up')
+    add('TP', 'TP', {'1': 'WIFI_USB_DM'}, B, 'Wi-Fi USB D- pad', ref='TP6')
+    add('TP', 'TP', {'1': 'WIFI_USB_DP'}, B, 'Wi-Fi USB D+ pad', ref='TP7')
+    # SDIO: 22R in the clock at the SoC, 10k pull-ups on CMD and data (as
+    # v1; esp-hosted asks for external pull-ups on every data line)
     res('R22R', 'SD_CLK_SOC', 'SD_CLK', B, 'SDIO clock series R')
     for n in ('SD_CMD', 'SD_D0', 'SD_D1', 'SD_D2', 'SD_D3'):
         res('R10K', n, 'VCC_3V3', B, 'SDIO pull-up')
-    # card detect held firmly low (1k against the pin's 16-43k pull-up at
-    # reset; 10k left it at 0.8-1.3 V, across the input threshold)
+    # card detect held firmly low (1k against the pin's 16-43k pull-up)
     res('R1K', 'SD_DET', GND, B, 'SDIO card-detect to ground')
-    # power-on controls held low until Linux raises them
-    res('R100K', 'WL_REG_ON', GND, B, 'WL_REG_ON pull-down')
-    res('R100K', 'BT_REG_ON', GND, B, 'BT_REG_ON pull-down')
-    # antenna: 50 ohm feed -> pi match (0R through, both shunts empty until
-    # tuned) -> U.FL.  An external 2.4/5 GHz flex antenna on a pigtail, as
-    # Prusa's camera.
-    add('C', 'DNP_C0402', {'1': 'ANT_FEED', '2': GND}, B, 'antenna match shunt 1 (empty)', ref='C90')
-    add('R', 'R0R', {'1': 'ANT_FEED', '2': 'ANT'}, B, 'antenna match series', ref='R90')
-    add('C', 'DNP_C0402', {'1': 'ANT', '2': GND}, B, 'antenna match shunt 2 (empty)', ref='C91')
-    add('J', 'UFL', {'1': 'ANT', '2': GND, '3': GND}, B, 'antenna', ref='J5')
 
 
 def main_camera():
     B = 'camera'
-    # The SC3336 module's 20-pin FFC (Luckfox pinout, module side):
-    #   1 GND, 2 MCLK, 3 GND, 4 D0P, 5 D0N, 6 GND, 7 CLKP, 8 CLKN, 9 GND,
-    #   10 D1P, 11 D1N, 12 GND, 13 SCL, 14 SDA, 15 GND, 16 RESET, 17 GND,
-    #   18 GND, 19 3.3 V, 20 3.3 V
-    # A flat cable keeps its conductors in order across its width, so a
-    # contact meets the one at the same x.  Seen from behind the board,
-    # the module's pin 1 is at -x (Luckfox's drawing, bottom view, turned
-    # over) and so is J2's, both rows centred on the lens axis: pin k
-    # meets pin k (CAM_PIN_FLIP False), with a same-side or opposite-side
-    # cable alike (J2 is dual-contact).  verify.py checks it by position.
-    module = {1: GND, 2: 'CAM_MCLK', 3: GND, 4: 'CSI_D0P', 5: 'CSI_D0N', 6: GND, 7: 'CSI_CKP', 8: 'CSI_CKN',
-              9: GND, 10: 'CSI_D1P', 11: 'CSI_D1N', 12: GND, 13: 'CAM_SCL', 14: 'CAM_SDA', 15: GND,
-              16: 'CAM_RST', 17: GND, 18: GND, 19: 'VCC_3V3', 20: 'VCC_3V3'}
-    pins = {str(21 - k if CAM_PIN_FLIP else k): n for k, n in module.items()}
-    pins.update({'21': GND, '22': GND})
-    add('J', 'FPC20', pins, B, 'camera FFC', ref='J2')
+    # SC4336H (U8), bare on the front face, its optical centre on the lens
+    # axis.  Balls by row (A-E) and column (1-7), the SC4336P's map, which
+    # SmartSens says the SC4336H keeps (docs/hookup.md: the datasheet is
+    # under NDA; this map is to be confirmed before ordering).
+    #   AVDD 2.8 V from its own LDO, DOVDD 1.8 V, DVDD from the sensor's
+    #   own regulator (capacitors only).  SID low: I2C address 0x30.
+    #   XSHUTDN and PWDNB from the SoC (both low = off).  24 MHz clock.
+    s = {'A1': GND, 'A2': None, 'A3': 'CAM_MCLK', 'A4': 'CAM_SDA', 'A5': 'CAM_SCL', 'A6': 'CAM_RST',
+         'A7': None,             # EFSYNC: external frame sync, unused
+         'B1': 'CAM_AVDD', 'B2': GND, 'B3': None,   # FSYNC out, unused
+         'B4': 'CAM_DVDD', 'B5': GND,                # SID low
+         'B6': 'CAM_DVDD', 'B7': 'CAM_AVDD',
+         'C1': 'CAM_DVDD', 'C2': 'CAM_DOVDD', 'C3': 'CAM_DOVDD', 'C4': 'CSI_CKP', 'C5': None,
+         'C6': 'CAM_PWDN', 'C7': GND,
+         'D1': None, 'D2': 'CSI_D1N', 'D3': 'CSI_D1P', 'D4': 'CSI_CKN', 'D5': 'CSI_D0N', 'D6': GND,
+         'D7': 'CAM_VREFN2',
+         'E1': None, 'E2': None, 'E3': None, 'E4': 'CAM_DVDD', 'E5': 'CSI_D0P', 'E6': None,
+         'E7': 'CAM_VREFN'}
+    add('U', 'SC4336H', s, B, 'image sensor', ref='U8')
+    # 2.8 V: TLV75528 (U9: 1 OUT, 2 NC, 3 GND, 4 EN, 5 NC, 6 IN, 7 pad)
+    # from 3.3 V, on whenever 3.3 V is (the sensor's own XSHUTDN turns it
+    # off); a low-noise LDO, not a buck, for the pixels
+    add('U', 'TLV75528', {'1': 'CAM_AVDD', '2': None, '3': GND, '4': 'VCC_3V3', '5': None, '6': 'VCC_3V3',
+                          '7': GND}, B, 'sensor 2.8 V LDO', ref='U9')
+    cap('C1U', 'VCC_3V3', GND, B, 'sensor LDO input')
+    cap('C1U', 'CAM_AVDD', GND, B, 'sensor LDO output')
+    cap('C1U', 'CAM_AVDD', GND, B, 'sensor AVDD')
+    cap('C100N', 'CAM_AVDD', GND, B, 'sensor AVDD HF')
+    cap('C100N', 'CAM_AVDD', GND, B, 'sensor AVDD HF 2')
+    # 1.8 V I/O through 1R, as the SoC's MIPI supply: the sensor's
+    # switching current stays off VCC_1V8
+    res('R1R', 'VCC_1V8', 'CAM_DOVDD', B, 'sensor DOVDD filter R')
+    cap('C1U', 'CAM_DOVDD', GND, B, 'sensor DOVDD')
+    cap('C100N', 'CAM_DOVDD', GND, B, 'sensor DOVDD HF')
+    cap('C4U7', 'CAM_DVDD', GND, B, 'sensor DVDD')
+    cap('C100N', 'CAM_DVDD', GND, B, 'sensor DVDD HF')
+    cap('C100N', 'CAM_DVDD', GND, B, 'sensor DVDD HF 2')
+    cap('C2U2', 'CAM_VREFN', GND, B, 'sensor VREFN')
+    cap('C2U2', 'CAM_VREFN2', GND, B, 'sensor VREFN2')
     res('R22R', 'CAM_MCLK_SOC', 'CAM_MCLK', B, 'sensor clock series R')
     res('R4K7', 'CAM_SCL', 'VCC_1V8', B, 'camera I2C pull-up')
     res('R4K7', 'CAM_SDA', 'VCC_1V8', B, 'camera I2C pull-up')
-    cap('C10U', 'VCC_3V3', GND, B, 'camera supply')
-    cap('C100N', 'VCC_3V3', GND, B, 'camera supply')
+    # the sensor held off until Linux turns it on
+    res('R100K', 'CAM_RST', GND, B, 'sensor XSHUTDN pull-down')
+    res('R100K', 'CAM_PWDN', GND, B, 'sensor PWDNB pull-down')
 
     # IR-cut filter: DRV8210P (U7; pin for pin the DRV8837, rated to 125 C)
-    # 1 VM, 2 OUT1, 3 OUT2, 4 GND, 5 IN2, 6 IN1,
-    # 7 nSLEEP, 8 VCC, 9 pad.  3.3 V across the 20 ohm coil (Commonlands:
-    # 3.3 V for 100-500 ms); the driver pulses it.  IN1 and IN2 have
-    # pull-downs inside: the bridge is off until Linux drives it.
+    # 1 VM, 2 OUT1, 3 OUT2, 4 GND, 5 IN2, 6 IN1, 7 nSLEEP, 8 VCC, 9 pad.
+    # 3.3 V across the 20 ohm coil (Commonlands: 3.3 V for 100-500 ms); the
+    # driver pulses it.  IN1 and IN2 have pull-downs inside.
     add('U', 'DRV8210P', {'1': 'VCC_3V3', '2': 'IRCUT_1', '3': 'IRCUT_2', '4': GND, '5': 'IRCUT_B',
                          '6': 'IRCUT_A', '7': 'VCC_3V3', '8': 'VCC_3V3', '9': GND}, B, 'IR-cut driver',
         ref='U7')
@@ -442,96 +432,81 @@ def main_camera():
     # the holder's lead: red (pin 1) positive opens the filter (night)
     add('J', 'PB2R', {'1': 'IRCUT_1', '2': 'IRCUT_2', '3': GND, '4': GND}, B, 'IR-cut connector', ref='J3')
 
-    # IR LEDs on the ring: their strings run from 5 V to LED_K; this
-    # MOSFET (Q1: 1 G, 2 S, 3 D) switches LED_K to ground, PWM-dimmed.
+
+def main_lights():
+    B = 'lights'
+    # Six 850 nm LEDs on the front face (geometry.LED_*), three strings of
+    # two: 5 V -> 47R -> LED -> LED -> LED_K; the MOSFET (Q1: 1 G, 2 S, 3 D)
+    # switches LED_K to ground, PWM-dimmed.  (5.0 - 2 x 1.45) / 47 = 45 mA
+    # a string, 0.10 W in each 0.25 W resistor (as LayerCam v1's ring).  The
+    # LEDs light only while a night frame is taken (the firmware).
+    # VSMY3850X01: pad 1 anode, pad 2 cathode.
+    for s in range(3):
+        a, m = 'STR%d_A' % (s + 1), 'STR%d_M' % (s + 1)
+        res('R47R_1206', 'VSYS', a, B, 'string %d resistor' % (s + 1))
+        add('D', 'IRLED', {'1': a, '2': m}, B, 'IR LED %d' % (2 * s + 1), ref='D%d' % (2 * s + 2))
+        add('D', 'IRLED', {'1': m, '2': 'LED_K'}, B, 'IR LED %d' % (2 * s + 2), ref='D%d' % (2 * s + 3))
+    cap('C10U', 'VSYS', GND, B, 'IR LED supply')
     add('Q', 'AO3400A', {'1': 'IR_GATE', '2': GND, '3': 'LED_K'}, B, 'IR LED switch', ref='Q1')
     res('R100R', 'IR_PWM', 'IR_GATE', B, 'IR LED gate R')
     res('R100K', 'IR_GATE', GND, B, 'IR LED gate pull-down (off at reset)')
-    # light sensor: the ring's phototransistor from ALS_VCC (1.8 V through
-    # 1k) to ALS; 22k to ground here: about 0.5 V at 50 lux, 1.8 V (full
-    # scale) from a few hundred lux.  The camera only needs dark vs light.
+    # light sensor behind the front window: TEMT6000 (Q2) pads 1, 2
+    # emitter, pad 3 collector; from 1.8 V through 1k; 22k load: about
+    # 0.5 V at 50 lux, 1.8 V (full scale) from a few hundred lux
+    add('Q', 'TEMT6000', {'1': 'ALS', '2': 'ALS', '3': 'ALS_VCC'}, B, 'light sensor', ref='Q2')
     res('R1K', 'VCC_1V8', 'ALS_VCC', B, 'light sensor supply R')
     res('R22K', 'ALS', GND, B, 'light sensor load')
     cap('C100N', 'ALS', GND, B, 'light sensor filter')
-    add('J', 'SH6V', dict(RING_CABLE, **{'7': GND, '8': GND}), B, 'LED ring cable', ref='J4')
-    cap('C10U', 'VSYS', GND, B, 'IR LED supply')
+
+
+def main_usb():
+    B = 'usb'
+    # USB-C (J1) on the board's edge tab: 5.1k Rd on each CC (a USB
+    # device: the printer's port gives 5 V); both D+ and both D- contacts
+    # joined (either plug way round)
+    add('J', 'USBC', {'A1B12': GND, 'B1A12': GND, 'A4B9': 'VSYS', 'B4A9': 'VSYS', 'A5': 'CC1', 'B5': 'CC2',
+                      'A6': 'USB_DP', 'B6': 'USB_DP', 'A7': 'USB_DM', 'B7': 'USB_DM', 'A8': None, 'B8': None,
+                      '1': GND, '2': GND, '3': GND, '4': GND}, B, 'USB-C', ref='J1')
+    res('R5K1', 'CC1', GND, B, 'CC1 Rd')
+    res('R5K1', 'CC2', GND, B, 'CC2 Rd')
+    # USBLC6 (U10): I/O1 = D- (pins 1, 6), I/O2 = D+ (pins 3, 4)
+    add('U', 'USBLC6', {'1': 'USB_DM', '2': GND, '3': 'USB_DP', '4': 'USB_DP', '5': 'VSYS', '6': 'USB_DM'},
+        B, 'USB ESD', ref='U10')
+    # 6.0 V stand-off: above USB's 5.5 V VBUS maximum, so it does not
+    # leak when hot; clamps at 10.3 V
+    add('D', 'SMF6V0', {'1': 'VSYS', '2': GND}, B, '5 V TVS', ref='D1')
+    cap('C10U', 'VSYS', GND, B, '5 V at the connector')
+    cap('C100N', 'VSYS', GND, B, '5 V HF')
 
 
 def main_mechanics():
-    # four M2 screws into Prusa's bosses; the two M1.6 screws that clamp
-    # camera module, board and IR-cut holder together
+    # four M2 screws into the case's bosses; the two M1.6 screws that hold
+    # the IR-cut holder over the sensor
     for i in range(4):
         add('H', 'HOLE_M2', {}, 'mounting', 'M2 hole', ref='H%d' % (i + 1))
     for i in range(2):
         add('H', 'HOLE_M1V6', {}, 'mounting', 'lens holder screw', ref='H%d' % (i + 5))
 
 
-# =====================================================================
-#  LED RING
-# =====================================================================
-def ring():
-    B = 'ring'
-    add('J', 'SH6V', dict(RING_CABLE, **{'7': None, '8': None}), B, 'cable', ref='J1')
-    # three strings of two LEDs: 5 V -> 47R -> LED -> LED -> LED_K.
-    # (5.0 - 2 x 1.4) / 47 = 47 mA per string, 0.10 W in each 0.25 W
-    # resistor (39R gave 18-74 mA over the tolerances and 0.17 W, over the
-    # resistor's rating derated to the ring's temperature: sim/power.md).
-    # The LEDs are lit only while a night frame is taken (the firmware).
-    # IR LED: pad 1 anode, pad 2 cathode.
-    for s in range(3):
-        a, m = 'STR%d_A' % (s + 1), 'STR%d_M' % (s + 1)
-        res('R47R_1206', 'VSYS', a, B, 'string %d resistor' % (s + 1))
-        add('D', 'IRLED', {'1': a, '2': m}, B, 'IR LED %d' % (2 * s + 1))
-        add('D', 'IRLED', {'1': m, '2': 'LED_K'}, B, 'IR LED %d' % (2 * s + 2))
-    # light sensor behind the front window: TEMT6000 pads 1, 2 emitter,
-    # pad 3 collector (Vishay drawing)
-    add('Q', 'TEMT6000', {'1': 'ALS', '2': 'ALS', '3': 'ALS_VCC'}, B, 'light sensor', ref='Q1')
+FUNCS = None
 
 
-# =====================================================================
-#  USB BOARD
-# =====================================================================
-def usb():
-    B = 'usb'
-    # USB-C: 5.1k Rd on each CC (a USB device: the printer's port gives
-    # 5 V); both D+ and both D- contacts joined (either plug way round)
-    add('J', 'USBC', {'A1B12': GND, 'B1A12': GND, 'A4B9': 'VSYS', 'B4A9': 'VSYS', 'A5': 'CC1', 'B5': 'CC2',
-                      'A6': 'USB_DP', 'B6': 'USB_DP', 'A7': 'USB_DM', 'B7': 'USB_DM', 'A8': None, 'B8': None,
-                      '1': GND, '2': GND, '3': GND, '4': GND}, B, 'USB-C', ref='J1')
-    res('R5K1', 'CC1', GND, B, 'CC1 Rd')
-    res('R5K1', 'CC2', GND, B, 'CC2 Rd')
-    # USBLC6: I/O1 = D- (pins 1, 6), I/O2 = D+ (pins 3, 4), flow-through
-    add('U', 'USBLC6', {'1': 'USB_DM', '2': GND, '3': 'USB_DP', '4': 'USB_DP', '5': 'VSYS', '6': 'USB_DM'},
-        B, 'USB ESD', ref='U1')
-    # 6.0 V stand-off: above USB's 5.5 V VBUS maximum, so it does not
-    # leak when hot; clamps at 10.3 V
-    add('D', 'SMF6V0', {'1': 'VSYS', '2': GND}, B, '5 V TVS', ref='D1')
-    cap('C10U', 'VSYS', GND, B, '5 V at the connector')
-    add('J', 'SH6R', dict(USB_CABLE, **{'7': GND, '8': GND}), B, 'cable', ref='J2')
-
-
-# the camera FFC: True if the cable crossed module pin k to our pin 21 - k
-CAM_PIN_FLIP = False
+def _funcs():
+    return [main_power, main_soc, main_storage, main_wifi, main_camera, main_lights, main_usb, main_mechanics]
 
 
 def _hand_refs(board):
     import re, inspect
-    fns = {'main': [main_power, main_soc, main_storage, main_wifi, main_camera, main_mechanics],
-           'ring': [ring], 'usb': [usb]}[board]
-    return {r for f in fns for r in re.findall(r"ref='([A-Z]+\d+)'", inspect.getsource(f))}
+    return {r for f in _funcs() for r in re.findall(r"ref='([A-Z]+\d+)'", inspect.getsource(f))}
 
 
 def build(board='main'):
+    if board != 'main':
+        raise KeyError(board)
     COMPS.clear(); _count.clear()
     RESERVED.clear(); RESERVED.update(_hand_refs(board))
-    if board == 'main':
-        main_power(); main_soc(); main_storage(); main_wifi(); main_camera(); main_mechanics()
-    elif board == 'ring':
-        ring()
-    elif board == 'usb':
-        usb()
-    else:
-        raise KeyError(board)
+    for f in _funcs():
+        f()
     return list(COMPS)
 
 
