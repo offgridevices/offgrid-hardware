@@ -105,7 +105,11 @@ streaming at a 50-60 °C chamber. The Pro is designed for 70 °C, past both.
 
 LayerCam's model showed that a heatsink inside a closed case only heats
 the air trapped in it. So the Pro's heatsink reaches the back vents and
-sits in the chamber's own air. The camera works in snapshots and the
+sits in the chamber's own air. Prusa's lid is 3.4 mm thick under its vents
+(inner face Z 38.45); a 20 x 20 x 10 mm heatsink on the chip would stop at
+Z 33.7, 5 mm short. The new lid is 1.6 mm thick there (inner face Z 40.25)
+and the heatsink is 20 x 20 x 15 mm, whose top is at Z 38.7: 1.55 mm under
+the vents (`src/plan_section.py` checks it). The camera works in snapshots and the
 timelapse at any chamber temperature up to 70 °C; live video only while
 it is cool.
 
@@ -122,6 +126,16 @@ PCB parts that PCBWay fits.
 
 Rejected: bigger front holes or one infrared window (changes the outside,
 and a window is a part to buy).
+
+**Not settled: four LEDs clash with the IR-cut holder.** A straight pipe
+puts its LED right under its hole, at R 13.0 every 60°. The CLA219's base
+is a full 21.2 x 19.6 mm rectangle (its drawing: the screw ears sit in the
+middle of two sides, the corners are solid). It covers the LEDs at 60°,
+120°, 240° and 300° by 0.42 mm at any rotation; only the bare 2 mm pipe
+clears it (0.45 mm). The way out is chosen before layout: a holder with a
+smaller base, LEDs moved out to R 14.1 or more with the pipes tilted about
+3° by printed guides (or flexible light guides rated for the heat), or, last,
+moving Prusa's holes.
 
 The OSRAM SFH 4715AS is not for new designs; its maker-recommended
 replacement, the SFH 4715CS (rated to 125 °C), is used.

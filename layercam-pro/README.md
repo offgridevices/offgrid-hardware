@@ -4,7 +4,8 @@ A camera for the inside of a Prusa CORE One, on **one** circuit board. It
 does everything [LayerCam](../layercam/) does (Prusa Connect snapshots,
 infrared night vision, a per-layer timelapse uploaded to a NAS or S3), but
 the image sensor, the infrared lights, the Wi-Fi and the USB-C are all on
-the same board. There are no flat cables or connector cables inside, and
+the same board. There are no flat cables or board-to-board cables inside (only the
+antenna's short lead to the case wall), and
 PCBWay makes and assembles it from one set of files.
 
 It keeps the outside of Prusa's Buddy3D camera case, so it fits the same

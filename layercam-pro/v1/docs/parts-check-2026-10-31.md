@@ -21,12 +21,12 @@ reached. Prices are for 1 / 100 pieces where both were shown.
 | Sensor 2.8 V supply | TI TLV75528PDRVR | **Yes** (DK) | DK 8,526 | $0.39 / $0.21 | -40..125 °C | Low-noise LDO |
 | USB-C | GCT USB4105-GF-A | **Yes** (DK) | DK 84,457 | $0.80 / $0.57 | -40..85 °C | No 16-contact USB 2.0 socket rated 105 °C exists; it goes at the board's cool edge |
 | Memory (256 MB) | Winbond W25N02KVZEIR | **Yes** (DK) | DK 7,945 (reel) | about $11.65 (LCSC) | -40..85 °C | Cool edge |
-| Bucks, inductors, crystals, ESD, IR-cut driver, light sensor, MOSFET, beads | as on LayerCam v1 (`../../layercam/v1/docs/parts.md`) | **Yes** (DK) for every part Digi-Key carries | | | 105-125 °C for most | |
+| Bucks, inductors, crystals, ESD, IR-cut driver, light sensor, MOSFET, beads | as on LayerCam v1 ([`layercam/v1/docs/parts.md`](../../../layercam/v1/docs/parts.md)) | **Yes** (DK) for every part Digi-Key carries | | | 105-125 °C for most | |
 
 ## Parts LayerCam v1 needed that the Pro drops
 
 The ESP32-C6 module carries its own crystal and sleep clock, and the
-Pro has no cables, so these go: the AP6256 Wi-Fi module, its 37.4 MHz
+Pro has no board-to-board cables, so these go: the AP6256 Wi-Fi module, its 37.4 MHz
 crystal, the 32 kHz TCXO, the camera flat-cable socket and the two JST SH
 cable sockets.
 
