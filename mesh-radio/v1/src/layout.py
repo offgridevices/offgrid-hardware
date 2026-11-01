@@ -95,7 +95,7 @@ def anchors(comps):
         # the NTC and the cell); the NTC right by the plug, reading the cell
         (R('BQ25185'), -12.6, 8.2, 0, 'B'),                 # clear of the nRF52840's escape vias
         (R('NTC10K'), -7.65, -2.6, 90, 'B'),
-        (R('TPS22950'), -6.4, -2.5, 0, 'B'),
+        (R('TPS22950'), -6.4, -0.6, 0, 'B'),                # clear of the SX1262's pins above (its balls take vias)
         (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -2.4, 0, 'B'),
         # ---- bottom: 3.3 V
         (R('TPS62840'), -5.6, 3.0, 0, 'B'),
@@ -103,7 +103,7 @@ def anchors(comps):
         # ---- bottom: the amplifier's power, under the amplifier
         (R('TPS2121'), 9.6, -4.0, 0, 'B'),
         (R('NMOS', 'mux on with the amplifier'), 9.6, -1.6, 0, 'B'),
-        (R('TPS63810'), 13.8, -3.4, 90, 'B'),
+        (R('TPS63810'), 15.6, -3.4, 90, 'B'),               # clear of the drive pad's R68 above (its balls take vias)
         (R('L470n'), 13.8, -0.4, 90, 'B'),
         (R('TMP1075'), HX - 10.4, -9.6, 0, 'B'),
         # ---- bottom: GPS power switch and ESD by its plug
@@ -437,18 +437,25 @@ def ball_keepouts(B, comps, half=0.35):
         L_, T_ = min(q.GetLeft() for q in bbs), min(q.GetTop() for q in bbs)
         R_, B_ = max(q.GetRight() for q in bbs), max(q.GetBottom() for q in bbs)
         far = 'B' if B.pl[c.ref][3] == 'T' else 'T'
+        # the same rule as pipeline.ball_escapes: a wafer-scale part's every
+        # ball, any chip's inner balls
+        # (balls: round pads, 0.36 mm or less; a QFN's oblong pins leave sideways on their own)
+        wafer = c.part != 'NRF52840' and all(q.GetWidth() / 1e6 <= 0.36 and q.GetHeight() / 1e6 <= 0.36
+                                             and abs(q.GetWidth() - q.GetHeight()) / 1e6 < 0.06 for q in bbs)
         for p, bb in zip(pads, bbs):
             net = c.pins.get(p.GetNumber())
             if not net or bb.GetWidth() * bb.GetHeight() / 1e12 > 0.8:
                 continue
             outer = lambda b_: min(b_.GetLeft() - L_, R_ - b_.GetRight(), b_.GetTop() - T_, B_ - b_.GetBottom()) / 1e6 < 0.05
-            if outer(bb) or net in BD.RF_NETS + BD.RF_EXTRA:
+            if net in BD.RF_NETS + BD.RF_EXTRA:
+                continue
+            o_ = outer(bb)
+            if o_ and not wafer:
                 continue
             q = p.GetPosition()
             # beside an outer ball of its own net it joins on the surface, no via
-            # (the same rule as pipeline.ball_escapes)
-            if any(c.pins.get(o.GetNumber()) == net and outer(ob) and (o.GetPosition() - q).EuclideanNorm() / 1e6 < 0.6
-                   for o, ob in zip(pads, bbs) if o is not p):
+            if not o_ and any(c.pins.get(o.GetNumber()) == net and outer(ob) and (o.GetPosition() - q).EuclideanNorm() / 1e6 < 0.6
+                              for o, ob in zip(pads, bbs) if o is not p):
                 continue
             x, y = q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY
             box = (x - half, y - half, x + half, y + half)

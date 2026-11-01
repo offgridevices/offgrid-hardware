@@ -227,6 +227,13 @@ def ball_escapes(b, via=None, clearance=0.1, hole_gap=0.2, log=log):
         L_, T_ = min(q.GetLeft() for q in bbs), min(q.GetTop() for q in bbs)
         R_, B_ = max(q.GetRight() for q in bbs), max(q.GetBottom() for q in bbs)
         side = pcbnew.F_Cu if fp.GetLayer() == pcbnew.F_Cu else pcbnew.B_Cu
+        # a wafer-scale part (every pad a small round ball; not the nRF52840,
+        # whose outer ring has its dog-bones): every ball gets its via, the
+        # outer ones too (the TPS63810's VPA balls and the TPS22950's BAT_P
+        # were left unreachable after routing: 1 Nov)
+        wafer = not fp.GetValue().startswith('NRF52840') and all(
+            q.GetWidth() / 1e6 <= 0.36 and q.GetHeight() / 1e6 <= 0.36
+            and abs(q.GetWidth() - q.GetHeight()) / 1e6 < 0.06 for q in bbs)
         for p, bb in zip(pads, bbs):
             net = p.GetNetname()
             if not net or net in board.RF_NETS + board.RF_EXTRA:
@@ -235,13 +242,14 @@ def ball_escapes(b, via=None, clearance=0.1, hole_gap=0.2, log=log):
             if w * h > 0.8:                     # an exposed pad
                 continue
             edge = min(bb.GetLeft() - L_, R_ - bb.GetRight(), bb.GetTop() - T_, B_ - bb.GetBottom()) / 1e6
-            if edge < 0.05:                     # outer row: leaves on its own layer
-                continue
+            outer = edge < 0.05
+            if outer and not wafer:
+                continue                        # outer row: leaves on its own layer
             q = p.GetPosition()
             twin = [o for o, ob in zip(pads, bbs) if o is not p and o.GetNetname() == net
                     and min(ob.GetLeft() - L_, R_ - ob.GetRight(), ob.GetTop() - T_, B_ - ob.GetBottom()) / 1e6 < 0.05
                     and (o.GetPosition() - q).EuclideanNorm() / 1e6 < 0.6]
-            if twin:                            # joins its outer neighbour on the surface
+            if twin and not outer:              # joins its outer neighbour on the surface
                 continue
             x, y = q.x / 1e6, q.y / 1e6
             g = Point(x, y).buffer(d / 2, 16)
@@ -461,7 +469,8 @@ def island_pours(path, nets, margin=0.6, log=log):
     kept where it reduces the islands, removed where it does not.  A pour
     flows round obstacles a track cannot pass; on supply nets that is the
     normal way to carry current anyway."""
-    from shapely.geometry import box
+    import fanout
+    from shapely.geometry import box, Point
     from shapely.ops import unary_union
     b = pcbnew.LoadBoard(path)
     inside = box(pcb.CX - pcb.HX + 0.4, pcb.CY - pcb.HY + 0.4, pcb.CX + pcb.HX - 0.4, pcb.CY + pcb.HY - 0.4)
@@ -474,6 +483,37 @@ def island_pours(path, nets, margin=0.6, log=log):
         n0 = len(finish._net_components(b, net))
         if n0 <= 1:
             continue
+        # an island only on an outer layer (a lone pad) cannot meet an inner
+        # pour: give one of its pads a dog-bone via first
+        comps_ = finish._net_components(b, net)
+        for comp in comps_:
+            if set(comp) - {pcbnew.F_Cu, pcbnew.B_Cu}:
+                continue
+            shape = unary_union([g for gs in comp.values() for g in gs])
+            pins = [(fp.GetReference(), p.GetNumber()) for fp in b.GetFootprints() for p in fp.Pads()
+                    if p.GetNetname() == net and shape.buffer(0.01).contains(
+                        Point(p.GetPosition().x / 1e6, p.GetPosition().y / 1e6))]
+            if pins:
+                # a filled via in the pad itself (as the ball escapes), else a dog-bone
+                d_, dr_ = board.VIA_PAD
+                layers = [l for l in b.GetEnabledLayers().CuStack()]
+                obs = fanout.Obstacles(b, layers)
+                done = False
+                for ref_, num in pins[:3]:
+                    pad = [q for q in b.FindFootprintByReference(ref_).Pads() if q.GetNumber() == num][0]
+                    x, y = pad.GetPosition().x / 1e6, pad.GetPosition().y / 1e6
+                    g = Point(x, y).buffer(d_ / 2, 16)
+                    if obs.hole_room(x, y, dr_ / 2, 0.2) and obs.clear(g, net, layers, 0.1):
+                        v = pcbnew.PCB_VIA(b); v.SetPosition(pad.GetPosition())
+                        v.SetWidth(pcbnew.FromMM(d_)); v.SetDrill(pcbnew.FromMM(dr_)); v.SetNet(pad.GetNet())
+                        b.Add(v); done = True
+                        log('   pour %-12s via in pad %s %s' % (net, ref_, num))
+                        break
+                if not done:
+                    d_, dr_ = board.VIA_SIG
+                    placed_, _ = fanout.dogbones(b, pins[:3], via_d=d_, via_drill=dr_, width=0.2, cl=0.12, hole_gap=0.2)
+                    if placed_:
+                        log('   pour %-12s dog-bone via for a lone pad of %s' % (net, pins[0][0]))
         geo = []
         for comp in finish._net_components(b, net):
             for gs in comp.values():
