@@ -470,8 +470,70 @@ def finish_rest(fin, work, w=None, cl=None):
                                     tries=int(os.environ.get('REPAIR_TRIES', 4)), max_victims=6)
         b.Save(fin)
         left = [x for x in left if x in SUPPLY] + list(rest)
+    if left:
+        b = pcbnew.LoadBoard(fin)
+        for n_ in list(left):
+            corridor_repair(b, n_, w, cl)
+        b.Save(fin)
+        left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
     log('nets left after repair: %s' % (left,))
     return finish_tail(fin, work, w, cl)
+
+
+def corridor_repair(b, net, widths, clmap, widths_try=(1.0, 1.8, 2.6), log=log):
+    """Clear every other net's unlocked copper (tracks and vias; never
+    ground, RF or locked escapes) in a corridor between the net's two
+    nearest islands, route the net first, then route every cleared net
+    again; kept only if every cleared net ends in no more pieces than
+    before, otherwise everything is put back.  Wider corridors on failure."""
+    from shapely.geometry import LineString
+    from shapely.ops import nearest_points, unary_union
+    keep = set(PLANES) | set(board.RF_NETS) | set(board.RF_EXTRA)
+    W = lambda n_: (widths or {}).get(n_, board.SIG)
+    for cw in widths_try:
+        comps = finish._net_components(b, net)
+        if len(comps) <= 1:
+            return True
+        shapes = [unary_union([g for gs in c.values() for g in gs]) for c in comps]
+        best = min(((shapes[i].distance(shapes[j]), i, j) for i in range(len(shapes))
+                    for j in range(i + 1, len(shapes))))
+        pa, pb = nearest_points(shapes[best[1]], shapes[best[2]])
+        corr = LineString([pa, pb]).buffer(cw)
+        before = set(t.m_Uuid.AsString() for t in b.GetTracks())
+        removed, victims = [], set()
+        for t in list(b.GetTracks()):
+            n_ = t.GetNetname()
+            if n_ == net or n_ in keep or t.IsLocked():
+                continue
+            if finish._geom_of(t) and any(g.intersects(corr) for gs in finish._geom_of(t).values() for g in gs):
+                victims.add(n_); removed.append(t); pcb.remove(b, t)
+        base = {n_: len(finish._net_components(b, n_)) for n_ in victims}
+        # (base counted after the cut: a victim must end no worse than it was
+        # before the cut, i.e. back to its count with the copper in place)
+        orig = {}
+        for t in removed:
+            b.Add(t)
+        orig = {n_: len(finish._net_components(b, n_)) for n_ in victims}
+        for t in removed:
+            pcb.remove(b, t)
+        finish.route_net(b, net, track_w=W(net), clmap=clmap, lock=False)
+        ok = len(finish._net_components(b, net)) < len(comps)
+        if ok:
+            for n_ in sorted(victims, key=lambda v: -W(v)):
+                finish.route_net(b, n_, track_w=W(n_), clmap=clmap, lock=False)
+            ok = all(len(finish._net_components(b, n_)) <= orig[n_] for n_ in victims)
+        if ok:
+            log('   corridor %-12s %.1f mm: joined, re-routed %s' % (net, cw, sorted(victims)))
+            continue
+        for t in list(b.GetTracks()):
+            if t.m_Uuid.AsString() not in before:
+                pcb.remove(b, t)
+        for t in removed:
+            b.Add(t)
+    left = len(finish._net_components(b, net))
+    if left > 1:
+        log('   corridor %-12s still in %d pieces' % (net, left))
+    return left <= 1
 
 
 def escape_lone_pads(path, nets, log=log):
