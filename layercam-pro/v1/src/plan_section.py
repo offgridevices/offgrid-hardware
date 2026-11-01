@@ -20,8 +20,9 @@ They are downloaded, not committed. Put them in one folder and run:
     python3 src/plan_section.py <folder with the three STLs>
 
 Needs numpy, trimesh, shapely, matplotlib, Pillow (a venv in out/ is fine).
-Exits 1 if a check fails; the plan's README lists both as open risks until
-the board's own design checks replace this script.
+Exits 1 if a check fails. Today the LED check fails: the README lists that
+clash as an open risk, until the board's own design checks replace this
+script.
 
 The frame is LayerCam's "lens frame" (../../../layercam/v1/src/geometry.py):
 origin on the lens axis at the case's outer front face, +Z into the case.
@@ -51,6 +52,12 @@ SINK = (20.0, 20.0, 15.0)              # stock heatsink, mm
 # then nearly backs onto the sensor.
 CHIP_XY = (0.0, -15.0)
 CHIP_SIZE = 12.3                       # RV1106G3 QFN-128
+# The image sensor's package: SmartSens' flyer gives the SC3336's 35-ball CSP
+# as 6.2 x 4.14 mm; the SC4336H is said to share its package (not confirmed:
+# SmartSens' drawings are under NDA). Its long side is taken along X; the gap
+# to the chip is reported for the worst case, long side towards it.
+SENSOR_SIZE = (6.2, 4.14)
+SENSOR_H = 1.0                         # drawn height on the board
 SIDE_WALL = 2.0                        # new case side walls round the heatsink
 LID_PLATE_Z = 41.0                     # the lid's flat top is at Z 41.0 or higher over the heatsink
 LID_T = 1.6                            # new lid's thickness under the vents
@@ -111,7 +118,12 @@ def sink_fit(case):
     vent slots over it)."""
     fp = sink_box()
     sink_top = BOARD_Z0 + BOARD_T + CHIP_H + TAPE_H + SINK[2]
-    under_plate = hull_at(case, LID_PLATE_Z).contains(fp)
+    # the lid's real outline at the plate height (each outline filled, so the
+    # vent slots do not count as gaps, but a recess in its edge would)
+    from shapely.geometry import Polygon
+    sec = case.section(plane_origin=[0, 0, LID_PLATE_Z], plane_normal=[0, 0, 1])
+    plate = unary_union([Polygon(p.exterior) for p in sec.to_2D(to_2D=np.eye(4))[0].polygons_full])
+    under_plate = plate.contains(fp)
     sides = all(hull_at(case, z).buffer(-SIDE_WALL).contains(fp)
                 for z in np.arange(BOARD_Z0 + BOARD_T, sink_top + MIN_GAP, 1.0))
     gap = (LID_PLATE_Z - LID_T) - sink_top
@@ -147,7 +159,8 @@ def draw(case, path):
         ax.add_patch(Rectangle((w0, BOARD_Z0), w1 - w0, BOARD_T, color='#1f7a3a', zorder=5))
         ax.text(w1 - 1, BOARD_Z0 - 0.6, 'one board,\n%.0f mm across' % (w1 - w0),
                 ha='right', va='bottom', color='#1f7a3a', fontsize=9, zorder=6)
-        ax.add_patch(Rectangle((-5, BOARD_Z0 - 1.0), 10, 1.0, color='k', zorder=6))       # sensor
+        ax.add_patch(Rectangle((-SENSOR_SIZE[axis] / 2, BOARD_Z0 - SENSOR_H), SENSOR_SIZE[axis], SENSOR_H,
+                               color='k', zorder=6))                                   # image sensor
         hz0 = BOARD_Z0 - 1.0 - 9.5
         ax.add_patch(Rectangle((HOLDER_BOX[0], hz0), HOLDER_BOX[2] - HOLDER_BOX[0], 9.5,
                                fill=False, ec='#444', lw=1.5, zorder=6, hatch='//'))
@@ -163,12 +176,19 @@ def draw(case, path):
             ax.add_patch(Rectangle((-14.15 - 1.5, 0.0), 3.0, BOARD_Z0 - 0.6, color='#f2c94c', alpha=.6, zorder=6))
             ax.text(-14.15, 10, 'light\nsensor\ntube', ha='center', fontsize=7, zorder=7)
         c = CHIP_XY[axis]                 # the chip's offset along this cut's axis
-        ax.add_patch(Rectangle((c - CHIP_SIZE / 2, bz1), CHIP_SIZE, CHIP_H, color='#333', zorder=6))
-        ax.add_patch(Rectangle((c - SINK[axis] / 2, sink_z0), SINK[axis], SINK[2], color='#c0c6cc', ec='#555', zorder=6))
-        for i in range(6):
-            ax.add_patch(Rectangle((c - SINK[axis] / 2 + 1 + i * 3.4, sink_z0 + 2), 1.2, SINK[2] - 2.2,
-                                   color='#8c949c', zorder=7))
-        ax.text(c, sink_z0 + SINK[2] / 2, 'stock heatsink\n%gx%gx%g' % SINK, ha='center', fontsize=8, zorder=8)
+        other = CHIP_XY[1 - axis]         # ... and across it: does the cut pass through?
+        if abs(other) < SINK[1 - axis] / 2:
+            ax.add_patch(Rectangle((c - CHIP_SIZE / 2, bz1), CHIP_SIZE, CHIP_H, color='#333', zorder=6))
+            ax.add_patch(Rectangle((c - SINK[axis] / 2, sink_z0), SINK[axis], SINK[2], color='#c0c6cc', ec='#555', zorder=6))
+            for i in range(6):
+                ax.add_patch(Rectangle((c - SINK[axis] / 2 + 1 + i * 3.4, sink_z0 + 2), 1.2, SINK[2] - 2.2,
+                                       color='#8c949c', zorder=7))
+            ax.text(c, sink_z0 + SINK[2] / 2, 'stock heatsink\n%gx%gx%g' % SINK, ha='center', fontsize=8, zorder=8)
+        else:                             # behind (or in front of) the cut: outline only
+            ax.add_patch(Rectangle((c - SINK[axis] / 2, sink_z0), SINK[axis], SINK[2], fill=False,
+                                   ec='#555', ls='--', zorder=6))
+            ax.text(c, sink_z0 + SINK[2] / 2, 'heatsink and main chip\nbehind this cut\n(%s %+g)'
+                    % ('XY'[1 - axis], other), ha='center', fontsize=7, color='#555', zorder=8)
         ax.set_aspect('equal')
         ax.set_xlim(-45, 45)
         ax.set_ylim(44, -3)
@@ -205,7 +225,7 @@ def main():
              LID_PLATE_Z - LID_T, gap, slots, '' if good else '  FAIL')))
     d = math.hypot(*CHIP_XY)
     print('3. Main chip centre %.1f mm from the image sensor (edge to edge about %.1f mm across the board): '
-          'the thermal model decides' % (d, d - CHIP_SIZE / 2 - 3.1))
+          'the thermal model decides' % (d, d - CHIP_SIZE / 2 - max(SENSOR_SIZE) / 2))
 
     here = os.path.dirname(os.path.abspath(__file__))
     draw(case, os.path.join(here, '..', 'images', 'plan-section.png'))

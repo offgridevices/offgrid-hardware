@@ -117,7 +117,9 @@ The vent slots are part of Prusa's outside: six of them, X -10..10,
 Y -15.5..6.5, round the lens axis, where the image sensor has to be. So
 the main chip and its heatsink cannot be far from the sensor. The chip
 sits at (0, -15): three slots over the heatsink, and about 5.8 mm of board
-between the two chips' edges. (0, -15.5) is as far as the heatsink fits in
+between the two chips' edges (the sensor's 6.2 x 4.14 mm package with its
+long side towards the chip, the worst case; the SC3336's size from
+SmartSens' flyer, which the SC4336H is said to share). (0, -15.5) is as far as the heatsink fits in
 the case; at (0, -12) four slots are over it but the chips nearly back
 onto each other. The thermal model of the routed board decides; the
 sensor's own copper island and a slot between them help.
