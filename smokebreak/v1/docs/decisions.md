@@ -25,7 +25,8 @@ was made from are in [`smokebreak/design/`](../../design/) (see its README).
   market" (10 Oct). The owner's later target was $20–22 landed (11 Oct).
   v1 lands at about $55.60 at 100 units, display included. Most of the gap is the two
   pre-charge resistors (about $14.70) and the C&K toggle (about $10.20).
-  This decision is still open (README *Next steps*).
+  The owner accepted this for v1 (1 Nov 2026); bringing it down is for a
+  later revision (README *Next steps*).
 
 ## The face
 
