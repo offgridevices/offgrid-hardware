@@ -441,8 +441,8 @@ SUPPLY = set(board.HEAVY + board.POWER + board.RAIL)
 def fab_fixups(path, log=log):
     """Before the maze router: take out what the fab's limits forbid, for
     the maze to route again (all from the 1 Nov 62 mm run's DRC):
-      - tracks narrower than the board's minimum (Freerouting necks its
-        tracks down to 0.075 mm at small pins);
+      - tracks narrower than the fab's 0.09 mm (Freerouting necks its
+        tracks down to 0.075 mm at small pins) are widened to it;
       - a via whose hole comes within 0.2 mm of another net's copper (the
         neighbouring one of two such vias goes, a signal's before a supply's);
       - tracks and vias inside an unplated hole's keepout (board.npth_keepouts)."""
@@ -452,10 +452,14 @@ def fab_fixups(path, log=log):
     if not any(z.GetIsRuleArea() and z.GetZoneName() == 'unplated hole keepout' for z in b.Zones()):
         board.npth_keepouts(b)
     keep = set(PLANES) | set(board.RF_NETS) | set(board.RF_EXTRA)
-    thin = [t for t in b.GetTracks() if t.GetClass() == 'PCB_TRACK' and t.GetWidth() < pcbnew.FromMM(board.SIG) - 1000
-            and t.GetNetname() not in keep]
+    # the fab's limits on this board (a board routed before they were set)
+    ds = b.GetDesignSettings()
+    ds.m_TrackMinWidth = pcb.MM(board.FAB_MIN); ds.m_MinClearance = pcb.MM(board.FAB_MIN)
+    ds.m_NetSettings.GetDefaultNetclass().SetClearance(pcb.MM(board.FAB_MIN))
+    # Freerouting's necks (0.075 mm at small pins) widened to the fab's 0.09
+    thin = [t for t in b.GetTracks() if t.GetClass() == 'PCB_TRACK' and t.GetWidth() < pcbnew.FromMM(board.FAB_MIN) - 500]
     for t in thin:
-        pcb.remove(b, t)
+        t.SetWidth(pcbnew.FromMM(board.FAB_MIN))
     # vias whose holes are too close to other copper
     layers = [l for l in b.GetEnabledLayers().CuStack()]
     nv = 0
@@ -490,7 +494,7 @@ def fab_fixups(path, log=log):
         if g and any(r.intersects(x) for r in rings for gs in g.values() for x in gs):
             pcb.remove(b, t); ne += 1
     pcb.save_board(b, path)
-    log('fab fixups: %d thin tracks, %d vias with close holes, %d pieces in unplated-hole keepouts taken out'
+    log('fab fixups: %d thin tracks widened, %d vias with close holes, %d pieces in unplated-hole keepouts taken out'
         % (len(thin), nv, ne))
 
 

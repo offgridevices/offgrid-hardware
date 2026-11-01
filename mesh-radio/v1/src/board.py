@@ -50,6 +50,7 @@ RF_EXTRA = ['REFL_CPL']
 # the default net class: track and gap (JLCPCB's 6-layer minimum is 0.09 mm);
 # an environment override is for routing trials only
 SIG = float(os.environ.get('SIG', 0.1))
+FAB_MIN = 0.09   # JLCPCB's 6-layer minimum track and gap (mm): the DRC limit
 HEAVY_W = float(os.environ.get('HEAVY_W', 0.6))
 POWER_W = 0.3
 # The routers lay these nets thin (a 0.6 or 0.3 mm track cannot reach a
@@ -132,11 +133,13 @@ def build(out, replace=False):
     pl, nodes = placement(replace)
     b = pcb.new_board(pcb.NLAYERS, out)
     ds = b.GetDesignSettings()
-    ds.m_TrackMinWidth = pcb.MM(min(0.1, SIG)); ds.m_MinClearance = pcb.MM(min(0.1, SIG))
+    # the fab's minimum (JLCPCB 6 layers: 0.09 mm track and gap): Freerouting
+    # necks tracks down at small pins, and the routers keep 0.1 elsewhere
+    ds.m_TrackMinWidth = pcb.MM(FAB_MIN); ds.m_MinClearance = pcb.MM(FAB_MIN)
     ds.m_ViasMinSize = pcb.MM(VIA_PAD[0]); ds.m_MinThroughDrill = pcb.MM(VIA_PAD[1])
     ds.m_ViasMinAnnularWidth = pcb.MM(0.075)
     nc = ds.m_NetSettings.GetDefaultNetclass()
-    nc.SetTrackWidth(pcb.MM(SIG)); nc.SetClearance(pcb.MM(SIG))
+    nc.SetTrackWidth(pcb.MM(SIG)); nc.SetClearance(pcb.MM(FAB_MIN))
     nc.SetViaDiameter(pcb.MM(VIA_SIG[0])); nc.SetViaDrill(pcb.MM(VIA_SIG[1]))
     pcb.outline(b)
     pcb.place_components(b, comps, pl)
