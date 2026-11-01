@@ -531,6 +531,7 @@ def build(folder, log=print):
     # the outline does not fit the case, the check says so (fit_outline)
     board_clear = prism(board_polygon(CLEAR), SPLIT_Z - 0.0, BOARD_BACK + CLEAR) ^ env.stack(MIN_WALL, 20.4, 23.8)
     info['fit_outline'] = fit_outline(env)
+    info['board_room'] = board_room(env)
 
     # ================================================================ front shell
     add, cut = [], []
@@ -622,13 +623,19 @@ def build(folder, log=print):
     return parts, info
 
 
+def board_room(env, wall=MIN_WALL):
+    """Where the board's edge may be: `wall` from the outside (normal to it)
+    and CLEAR round the board from Z 20.5 to 23.1 (0.05 mm margin)."""
+    return env.erode_slab(G.BOARD_Z - CLEAR, BOARD_BACK + CLEAR, wall).buffer(-CLEAR - 0.05, join_style='mitre')
+
+
 def fit_outline(env, wall=MIN_WALL):
     """The largest board the case takes at Z 21.0-22.6 with `wall` (normal to
     the outside) and CLEAR round it, cut down from geometry.OUTLINE: what
     geometry.OUTLINE has to become if it pokes out (Prusa's outside has two
     concave shoulders at about (+-26, -12) that the convex outline crosses)."""
     # the clearance box round the board's edge spans Z 20.5-23.1 (0.5 under and over it)
-    room = env.erode_slab(G.BOARD_Z - CLEAR, BOARD_BACK + CLEAR, wall).buffer(-CLEAR - 0.05, join_style='mitre')
+    room = board_room(env, wall)
     fit = Polygon(G.OUTLINE).intersection(room)
     if hasattr(fit, 'geoms'):
         fit = max(fit.geoms, key=lambda g: g.area)
@@ -687,7 +694,8 @@ def check_info(folder):
     env = Envelope(solid)
     return dict(planes=planes, magnets=magnet_features(planes)[2], sma=sma_features(planes['sma'], None, None)[3],
                 board=board_polygon(), sink=sink_box(), usb=usb_info(planes['usb_old']), prusa=prusa,
-                openings=openings_test(U, planes, lid_fp), env=env, fit_outline=fit_outline(env))
+                openings=openings_test(U, planes, lid_fp), env=env, fit_outline=fit_outline(env),
+                board_room=board_room(env))
 
 
 def largest_piece(m, name, log):

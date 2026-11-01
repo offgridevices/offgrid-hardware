@@ -103,14 +103,18 @@ def run(parts, info, folder=None, log=print):
            % (gmin, gaps['front-shell'], gaps['back-shell'], gaps['lid'], min(tab_gaps.values()), G.BOSS_D,
               G.BOSS_D + 0.4, min(pad_touch), fit_gap))
     fit = info['fit_outline']
-    given = C.Polygon(G.OUTLINE)
-    excess = given.difference(fit.buffer(0.02))
-    ring = given.exterior
-    far = max(fit.distance(ring.interpolate(t)) for t in np.linspace(0, ring.length, 2000))
-    report('board outline', excess.area < 0.5,
-           'geometry.OUTLINE is %.1f mm2 larger than the case takes (wall >= %.1f, %.1f round it), up to %.2f mm '
-           'at the shoulders; the outline that fits (%.0f mm2 of %.0f) is FIT_OUTLINE in enclosure/README.md'
-           % (excess.area, C.MIN_WALL, C.CLEAR, far, fit.area, given.area))
+    room = info['board_room']
+    tab = C.board_polygon().difference(C.Polygon(G.OUTLINE).buffer(0.01))
+    excess = C.Polygon(G.OUTLINE).difference(room)
+    ring = C.Polygon(G.OUTLINE).exterior
+    far = max(room.exterior.distance(ring.interpolate(t)) if not room.contains(ring.interpolate(t)) else 0.0
+              for t in np.linspace(0, ring.length, 3000))
+    report('board outline', excess.area < 0.05 and far < 0.02,
+           'geometry.OUTLINE (%.0f mm2, plus the %.0f mm2 USB-C tab) inside the room the case leaves '
+           '(wall >= %.1f, %.1f round it from Z %.1f to %.1f): %.2f mm2 outside, by up to %.2f mm%s'
+           % (C.Polygon(G.OUTLINE).area, tab.area, C.MIN_WALL, C.CLEAR, G.BOARD_Z - C.CLEAR,
+              G.BOARD_Z + G.BOARD_T + C.CLEAR, excess.area, far,
+              '' if excess.area < 0.05 else '; an outline that fits: FIT_OUTLINE (out/fit-outline.txt)'))
     res['fit_outline'] = [(round(x, 2), round(y, 2)) for x, y in fit.exterior.coords[:-1]]
     seat = [parts['front-shell'] ^ C.zcyl(x, y, G.BOARD_Z - 0.3, G.BOARD_Z + 0.01, G.BOSS_D) for x, y in G.SCREWS]
     report('board seat', all(abs(p.bounding_box()[5] - G.BOARD_Z) < 0.02 for p in seat),
