@@ -420,16 +420,84 @@ def finish_stage(routed, fin, work):
     finish.finish_board(routed, fin, os.path.join(work, 'fin.json'), rules=w, clmap=cl, skip=PLANES)
     write_rules(fin)
     pcb.tidy_tracks(fin)
+    return finish_rest(fin, work, w, cl)
+
+
+SUPPLY = set(board.HEAVY + board.POWER + board.RAIL)
+
+
+def finish_rest(fin, work, w=None, cl=None):
+    """After the maze router: the supply nets still in pieces get local
+    pours that join them (island_pours); the signal nets still open get
+    the rip-up repair, small nets first, a few tries each; then the tail."""
+    if w is None:
+        comps = circuit.build()
+        w, cl = widths(comps), clearances(comps)
+        setup_routers()
     b = pcbnew.LoadBoard(fin)
-    protect = PLANES + list(board.RF_NETS)
     left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
-    log('after the maze router: %d nets open %s' % (len(left), left[:12]))
-    if left:
-        left = finish.repair_orders(b, left, protect=protect, widths=w, clmap=cl, log=log,
-                                    tries=int(os.environ.get('REPAIR_TRIES', 40)))
+    log('after the maze router: %d nets open %s' % (len(left), left))
+    sup = [x for x in left if x in SUPPLY]
+    if sup:
+        island_pours(fin, sup)
+        b = pcbnew.LoadBoard(fin)
+        left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
+        log('after the supply pours: %d nets open %s' % (len(left), left))
+    sig = sorted([x for x in left if x not in SUPPLY], key=lambda n_: len(finish._net_components(b, n_)))
+    if sig:
+        protect = PLANES + list(board.RF_NETS) + sorted(SUPPLY)
+        rest = finish.repair_orders(b, sig, protect=protect, widths=w, clmap=cl, log=log,
+                                    tries=int(os.environ.get('REPAIR_TRIES', 4)), max_victims=6)
         b.Save(fin)
-    log('signals left after repair: %s' % (left,))
+        left = [x for x in left if x in SUPPLY] + list(rest)
+    log('nets left after repair: %s' % (left,))
     return finish_tail(fin, work, w, cl)
+
+
+def island_pours(path, nets, margin=0.6, log=log):
+    """Join a supply net's copper islands with pours of that net: for each
+    layer (inner signal layers, then the outer ones), a zone over the net's
+    islands' convex hull (plus `margin`), above the ground fill's priority;
+    kept where it reduces the islands, removed where it does not.  A pour
+    flows round obstacles a track cannot pass; on supply nets that is the
+    normal way to carry current anyway."""
+    from shapely.geometry import box
+    from shapely.ops import unary_union
+    b = pcbnew.LoadBoard(path)
+    inside = box(pcb.CX - pcb.HX + 0.4, pcb.CY - pcb.HY + 0.4, pcb.CX + pcb.HX - 0.4, pcb.CY + pcb.HY - 0.4)
+    order = [pcb.layer_id(n) for n in pcb.INNER['sig'][::-1]] + [pcbnew.B_Cu, pcbnew.F_Cu]
+    if ROUTE_IN1:
+        order.insert(len(pcb.INNER['sig']), pcb.layer_id(pcb.INNER['gnd']))
+    filler = pcbnew.ZONE_FILLER(b)
+    kept = 0
+    for net in nets:
+        n0 = len(finish._net_components(b, net))
+        if n0 <= 1:
+            continue
+        geo = []
+        for comp in finish._net_components(b, net):
+            for gs in comp.values():
+                geo += gs
+        hull = unary_union(geo).convex_hull.buffer(margin).intersection(inside)
+        if hull.is_empty or hull.geom_type != 'Polygon':
+            continue
+        pts = [(x - pcb.CX, y - pcb.CY) for x, y in list(hull.exterior.coords)[:-1]]
+        for L in order:
+            z = pcb.zone(b, net, L, pts, clearance=0.15, min_width=0.2, priority=5, thermal=False,
+                         name=net + ' join')
+            filler.Fill([z])
+            n1 = len(finish._net_components(b, net))
+            if n1 < n0:
+                kept += 1
+                log('   pour %-12s on %-6s islands %d -> %d' % (net, b.GetLayerName(L), n0, n1))
+                n0 = n1
+                if n0 <= 1:
+                    break
+            else:
+                pcb.remove(b, z)
+    b.Save(path)
+    log('supply pours: %d kept' % kept)
+    return kept
 
 
 def fatten(path, log=log, neck=0.45):
@@ -547,4 +615,8 @@ def run(work, passes=40, from_routed=False):
 if __name__ == '__main__':
     work = sys.argv[1]
     passes = int(sys.argv[sys.argv.index('--passes') + 1]) if '--passes' in sys.argv else 40
-    run(work, passes, '--from-routed' in sys.argv)
+    if '--from-fin' in sys.argv:
+        # the maze router's result as it stands: the supply pours, repair and tail only
+        finish_rest(os.path.join(work, 'fin.kicad_pcb'), work)
+    else:
+        run(work, passes, '--from-routed' in sys.argv)
