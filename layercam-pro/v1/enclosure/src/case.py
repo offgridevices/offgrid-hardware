@@ -503,6 +503,12 @@ def build(folder, log=print):
         cut.append(zcyl(x, y, HEAD_SEAT_Z, 60.0, HEAD_BORE_D, 40))
     for (x, y) in LID_SCREWS:
         add.append(zcyl(x, y, LID_PILOT_Z0 - 1.5, LID_SEAT_Z, LID_BOSS_D))
+        # webs to the side and -Y walls (the boss stands in the cavity)
+        sx = 1.0 if x > 0 else -1.0
+        add.append(m3.Manifold.cube((16.0, 2.4, LID_SEAT_Z - LID_PILOT_Z0 + 1.5)).translate(
+            (x if sx > 0 else x - 16.0, y - 1.2, LID_PILOT_Z0 - 1.5)))
+        add.append(m3.Manifold.cube((2.4, 16.0, LID_SEAT_Z - LID_PILOT_Z0 + 1.5)).translate(
+            (x - 1.2, y - 16.0, LID_PILOT_Z0 - 1.5)))
         cut.append(zcyl(x, y, LID_PILOT_Z0, LID_SEAT_Z + 1, PILOT_D, 24))
     mag_cuts, mag_add, info['magnets'] = magnet_features(planes)
     add += mag_add
@@ -545,6 +551,10 @@ def largest_piece(m, name, log):
     small = [round(p.volume(), 3) for p in pieces[1:]]
     if sum(small) > 0:
         log('  %s: dropped %d slivers, %.3f mm3' % (name, len(small), sum(small)))
+        for p in pieces[1:]:
+            if p.volume() > 1.0:
+                b = p.bounding_box()
+                log('    %.1f mm3 at %s' % (p.volume(), np.round(np.array(b).reshape(2, 3).mean(0), 1)))
     return pieces[0]
 
 
@@ -635,7 +645,68 @@ def sma_features(plane, Eps, N):
     return cuts, [land], keep, dict(centre=c, n=n, ex=ex, ey=ey)
 
 
-SMA_CENTRE = (24.6, -17.2)     # X, Y on the face (chosen by sma_search, see README)
+SMA_CENTRE = (24.6, -17.2)     # X, Y on the face (chosen by sma_search)
+
+
+def sma_keep_points(c, n, step=0.8):
+    """Points filling the bulkhead's room inside the case (nut, then jack body)."""
+    ex, ey, _ = frame(n)
+    pts = []
+    for (d, l0, l1) in ((SMA_NUT_KEEP[0], WALL, WALL + SMA_NUT_KEEP[1]),
+                        (SMA_BODY_KEEP[0], WALL + SMA_NUT_KEEP[1], WALL + SMA_NUT_KEEP[1] + SMA_BODY_KEEP[1])):
+        for t in np.arange(l0 + 0.2, l1 + 1e-6, step):
+            for r in np.arange(0, d / 2 + 1e-6, step):
+                for a in np.linspace(0, 2 * math.pi, max(1, int(2 * math.pi * r / step)), endpoint=False):
+                    pts.append(c - n * t + (ex * math.cos(a) + ey * math.sin(a)) * r)
+    return np.array(pts)
+
+
+def sma_search(folder, step=0.5):
+    """Where on the +X -Y back chamfer the bulkhead fits: a flat Ø13 land on
+    Prusa's surface, and room inside clear of the board's parts (Z > 26.3),
+    the heatsink, the lid, the screw bosses, inside the cavity.  Prints the
+    best centres (by clearance); SMA_CENTRE is the one chosen."""
+    solid, U, prusa, hull_mesh, planes = prusa_solid(folder)
+    n, d = planes['sma']
+    ex, ey, _ = frame(n)
+    top = prusa['top']
+    env = Envelope(solid)
+    cav = to_trimesh(env.stack(WALL + 0.01, 21.0, LID_TOP_Z))
+    sx0, sy0, sz0, sx1, sy1, sz1 = sink_box(SINK_GAP)
+    c0 = np.array([23.37, -18.47, 30.8])
+    c0 = c0 + n * (d - n @ c0)
+    res = []
+    for a in np.arange(-10, 10.01, step):
+        for b in np.arange(-10, 10.01, step):
+            c = c0 + ex * a + ey * b
+            # flat land: rays from 0.5 outside, along -n, hit the top part 0.5 away
+            ring = [c + n * 0.5 + (ex * math.cos(t) + ey * math.sin(t)) * r
+                    for r in (0, 3.5, 6.5) for t in np.linspace(0, 2 * math.pi, 12, endpoint=False)]
+            loc, idx, _ = top.ray.intersects_location(ring, [-n] * len(ring), multiple_hits=False)
+            if len(idx) < len(ring):
+                continue
+            dev = np.abs((loc - np.array(ring)[idx]) @ (-n) - 0.5).max()
+            if dev > 0.12:
+                continue
+            P = sma_keep_points(c, n, 1.0)
+            clear = min(P[:, 2].min() - 26.3, 38.2 - P[:, 2].max())
+            inside_sink = ((P[:, 0] > sx0) & (P[:, 0] < sx1) & (P[:, 1] > sy0) & (P[:, 1] < sy1) &
+                           (P[:, 2] > sz0) & (P[:, 2] < sz1)).any()
+            for (x, y) in LID_SCREWS:
+                m = P[:, 2] > LID_PILOT_Z0 - 1.5
+                if m.any():
+                    clear = min(clear, np.hypot(P[m, 0] - x, P[m, 1] - y).min() - LID_BOSS_D / 2)
+            for (x, y) in G.SCREWS:
+                clear = min(clear, np.hypot(P[:, 0] - x, P[:, 1] - y).min() - BACK_BOSS_D / 2)
+            if inside_sink or clear < 0:
+                continue
+            if not cav.contains(P).all():
+                continue
+            res.append((clear, c))
+    res.sort(key=lambda r: -r[0])
+    for clear, c in res[:8]:
+        print('centre (%.2f, %.2f, %.2f): clearance %.2f mm' % (c[0], c[1], c[2], clear))
+    return res
 
 
 def sma_centre(plane):

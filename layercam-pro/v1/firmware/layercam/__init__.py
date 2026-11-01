@@ -5,4 +5,4 @@ Buildroot python3 with nothing else installed.  The camera itself (ISP,
 JPEG and H.264 encoders) is driven by the small C helper in ../native/.
 """
 VERSION = '0.2.0'
-HARDWARE = 'LayerCam v1'
+HARDWARE = 'LayerCam Pro v1'

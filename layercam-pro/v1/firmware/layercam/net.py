@@ -10,8 +10,12 @@ import hashlib, hmac, os, socket, struct, subprocess
 
 RUN_DIR = '/tmp/layercam'
 AP_ADDRESS = '192.168.4.1'
-# 2.4 GHz channels 1-13: wifi.band = 2.4 keeps the camera off 5 GHz, where the
-# AP6256 draws more (sim/thermal.md asks for 2.4 GHz at low power)
+# 2.4 GHz channels 1-13.  The ESP32-C6 is a 2.4 GHz radio, so wifi.band = 2.4
+# (the default) only saves wpa_supplicant scanning channels it cannot use;
+# kept from LayerCam v1, where it kept the AP6256 off 5 GHz
+# setup access point: hostapd's control socket, where ap_clients() asks for
+# the phones joined (esp-hosted's driver has no station dump for iw)
+HOSTAPD_CTRL = '/var/run/hostapd'
 FREQ_2G4 = ' '.join(str(2412 + 5 * i) for i in range(13))
 
 # The setup access point's name and passphrase come from the SoC's serial
@@ -20,7 +24,7 @@ FREQ_2G4 = ' '.join(str(2412 + 5 * i) for i in range(13))
 # tools/layercam-ap.py can print them from the serial.  The key only makes
 # the result specific to this use; the secret is the serial, which never
 # leaves the camera except over its USB cable or serial console.
-AP_KEY = b'OffGrid LayerCam v1 setup access point'
+AP_KEY = b'OffGrid LayerCam Pro v1 setup access point'
 AP_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz'      # no 0/o, 1/l/i: read off a screen
 
 
@@ -69,7 +73,8 @@ def wpa_supplicant_conf(ssid, password, band='any'):
 
 def hostapd_conf(ssid, passphrase, channel=6):
     return '\n'.join([
-        'interface=wlan0', 'driver=nl80211', 'ssid2=%s' % ssid.encode().hex(), 'hw_mode=g',
+        'interface=wlan0', 'driver=nl80211', 'ctrl_interface=%s' % HOSTAPD_CTRL,
+        'ssid2=%s' % ssid.encode().hex(), 'hw_mode=g',
         'channel=%d' % channel, 'ieee80211n=1', 'wmm_enabled=1', 'auth_algs=1',
         'wpa=2', 'wpa_key_mgmt=WPA-PSK', 'rsn_pairwise=CCMP',
         'wpa_psk=%s' % wpa_psk(passphrase, ssid), ''])
@@ -124,8 +129,48 @@ def switch(mode, script='/usr/bin/layercam-net'):
         return False
 
 
-def ap_clients(ifname='wlan0', run=subprocess.run):
-    """Phones joined to the setup access point (iw's station list); 0 when unknown."""
+def hostapd_stations(ifname='wlan0', ctrl_dir=HOSTAPD_CTRL, timeout=1.0, limit=64):
+    """Stations hostapd has associated, from its control socket (STA-FIRST,
+    STA-NEXT: what hostapd_cli list_sta asks, the SDK installs no
+    hostapd_cli); None when there is no socket to ask."""
+    import tempfile
+    path = os.path.join(ctrl_dir, ifname)
+    if not os.path.exists(path):
+        return None
+    d = tempfile.mkdtemp(prefix='layercam-hostapd-')
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        s.bind(os.path.join(d, 'c'))
+        s.settimeout(timeout)
+        s.connect(path)
+        n, cmd = 0, b'STA-FIRST'
+        while n < limit:
+            s.send(cmd)
+            reply = s.recv(4096)
+            mac = reply.split(b'\n', 1)[0].strip()
+            if not mac or reply.startswith((b'FAIL', b'UNKNOWN')):
+                break
+            n += 1
+            cmd = b'STA-NEXT ' + mac
+        return n
+    except OSError:
+        return None
+    finally:
+        s.close()
+        try:
+            os.unlink(os.path.join(d, 'c'))
+        except OSError:
+            pass
+        os.rmdir(d)
+
+
+def ap_clients(ifname='wlan0', run=subprocess.run, ctrl_dir=HOSTAPD_CTRL):
+    """Phones joined to the setup access point: hostapd's own list, else iw's
+    station dump (which esp-hosted's cfg80211 driver does not implement); 0
+    when unknown."""
+    n = hostapd_stations(ifname, ctrl_dir)
+    if n is not None:
+        return n
     try:
         out = run(['iw', 'dev', ifname, 'station', 'dump'], capture_output=True, text=True, timeout=5).stdout
     except (OSError, subprocess.TimeoutExpired):
@@ -170,8 +215,8 @@ class WifiSupervisor:
       phone is on it, the camera tries the saved network again for
       RETRY_WINDOW_S.  Connected: the access point stays off.
 
-    One radio, so "alongside" means taking turns: the AP6256 may do both at
-    once (bcmdhd's AP+STA), not tried on this board yet."""
+    One radio, so "alongside" means taking turns (esp-hosted does not offer
+    AP and station at once)."""
     RETRY_WINDOW_S = 45          # association, DHCP (udhcpc tries for 30 s)
     BUSY_RECHECK_S = 30          # a phone is on the access point: look again this soon
 
