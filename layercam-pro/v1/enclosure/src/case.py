@@ -534,12 +534,59 @@ def build(folder, log=print):
     lid = lid - union(lid_cut)
 
     info.update(dict(board=bpoly, sink=sink_box(), usb=usb_info(planes['usb_old']), N=N, solid=solid,
-                     prusa=prusa))
+                     prusa=prusa, openings=openings_test(U, planes, lid_fp)))
     parts = {'front-shell': front, 'back-shell': back, 'lid': lid}
     for k, m in parts.items():
         assert m.status() == m3.Error.NoError, k
         parts[k] = largest_piece(m, k, log)
     return parts, info
+
+
+def skin_cuts(U, planes):
+    """Every cut through the outer skin (for the wall check: rays near an
+    opening's edge leave through its side)."""
+    cuts = [zcyl(0, 0, -1.0, 3.0, G.BORE_D, 96), zcyl(*G.LIGHT_WINDOW, -1.0, 3.0, G.LIGHT_WINDOW_D)]
+    cuts += [zcyl(*G.hole_xy(a), -1.0, 3.0, G.LED_HOLE_D, 32) for a in G.LED_ANGLES]
+    cuts.append(front_y_slots(U['bottom'], planes['front_y']))
+    cuts += usb_features(planes['usb_old'])[0]
+    cuts += magnet_features(planes)[0]
+    cuts += sma_features(planes['sma'], None, None)[0]
+    cuts += [zcyl(x, y, HEAD_SEAT_Z, 60.0, HEAD_BORE_D, 40) for x, y in G.SCREWS]
+    cuts += [prism(affinity.translate(obround(2 * VENT_X + 2.0, 2.0), 0, y), 30.0, 50.0) for y in VENT_YS]
+    cuts += [zcyl(x, y, 30.0, 50.0, HEAD_BORE_D, 40) for x, y in LID_SCREWS]
+    return union(cuts)
+
+
+def openings_test(U, planes, lid_fp, near=1.0):
+    """f(points, part) -> True where a point of the outer skin is within
+    `near` of an opening or of the part's own seam (split plane, lid seat)."""
+    from shapely.geometry import MultiPoint
+    cm = to_trimesh(skin_cuts(U, planes))
+    pq = trimesh.proximity.ProximityQuery(cm)
+    seam = lid_fp.exterior
+
+    def f(P, part):
+        _, dist, _ = pq.on_surface(P)
+        m = dist < near
+        m |= cm.contains(P)
+        if part in ('front-shell', 'back-shell'):
+            m |= np.abs(P[:, 2] - SPLIT_Z) < near
+        if part == 'back-shell':
+            m |= P[:, 2] > LID_SEAT_Z - near
+        if part == 'lid':
+            m |= np.array([seam.distance(Point(p[0], p[1])) < near for p in P])
+        return m
+    return f
+
+
+def check_info(folder):
+    """What check.py needs, without building the parts."""
+    solid, U, prusa, hull_mesh, planes = prusa_solid(folder)
+    lid_fp = unary_union([Polygon(r) for r in U['lid'].slice(LID_SEAT_Z + 0.3).to_polygons()
+                          if Polygon(r).exterior.is_ccw]).buffer(0)
+    return dict(planes=planes, magnets=magnet_features(planes)[2], sma=sma_features(planes['sma'], None, None)[3],
+                board=board_polygon(), sink=sink_box(), usb=usb_info(planes['usb_old']), prusa=prusa,
+                openings=openings_test(U, planes, lid_fp))
 
 
 def largest_piece(m, name, log):
@@ -744,7 +791,7 @@ def export(parts, outdir):
     for k, m in parts.items():
         t = to_trimesh(m)
         t.apply_transform(PRINT_POSE[k])
-        t.apply_translation((0, 0, -t.bounds[0][2]))
+        assert abs(t.bounds[0][2]) < 0.05, (k, t.bounds[0][2])     # on the bed as posed
         p = os.path.join(outdir, 'layercam-pro-%s.stl' % k)
         t.export(p)
         paths[k] = p
