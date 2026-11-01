@@ -15,7 +15,11 @@ V1 = os.path.normpath(os.path.join(HERE, '..'))
 MM = pcbnew.FromMM
 CX, CY = 100.0, 100.0            # board centre on KiCad's page
 NLAYERS = int(os.environ.get("BOARD_LAYERS", 6))      # copper layers (owner, 19 Oct: 6; 4 did not route)
-LEN = float(os.environ.get("BOARD_LEN", 58.0))        # length (x): 58 mm, set by the 3 W chain and the mounting hole (57 does not fit)
+# length (x): 62 mm (owner, 1 Nov 2026).  58 mm placed (57 does not fit:
+# the amplifier's choke meets the mounting hole) but never routed: about 19
+# connections stayed open in the crowded middle; 62 mm routes with room
+DEFAULT_LEN = 62.0
+LEN = float(os.environ.get("BOARD_LEN", DEFAULT_LEN))
 WID = 25.4                       # width (y): the Heltec V4's
 HX, HY = LEN / 2, WID / 2
 CORNER_R = 1.5                   # rounded corners

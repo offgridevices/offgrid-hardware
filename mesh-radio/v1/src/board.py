@@ -17,9 +17,9 @@ import pcb, circuit
 PLACEMENT = os.path.join(HERE, 'placement.json')
 if os.environ.get('NO_HEADER'):
     PLACEMENT = PLACEMENT.replace('.json', '_nohdr.json')
-if pcb.LEN != 58.0:
+if pcb.LEN != pcb.DEFAULT_LEN:
     # a trial at another board length places afresh, in its own file (the
-    # committed placement is the 58 mm board's; until 20 Oct such trials
+    # committed placement is the default length's; until 20 Oct such trials
     # silently reused it on the longer outline)
     PLACEMENT = PLACEMENT.replace('.json', '_%g.json' % pcb.LEN)
 CU = pcb.CU_IDS
