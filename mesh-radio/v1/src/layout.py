@@ -78,7 +78,7 @@ def anchors(comps):
         # ---- bottom: inputs.  USB: behind the USB-C, under the board's left
         # end; solar beside its plug; drone beside the drone plug
         (R('TVS2200', 'USB surge clamp'), -HX + 10.6, 0.6, 0, 'B'),
-        (R('TPS259470A', 'USB eFuse'), -HX + 12.4, 8.4, 0, 'B'),   # below the nRF52840's escape vias, right of the antenna box
+        (R('TPS259470A', 'USB eFuse'), -HX + 6.0, 7.0, 0, 'B'),    # behind the USB-C, under the board's left end (1 Nov: the strip under the nRF52840 was the last jam)
         (R('RB060MM', 'USB into the charger'), -HX + 8.8, 6.9, 90, 'B'),   # clear of the antenna box above it
         (R('TPD4E05U06', 'USB ESD'), -HX + 12.2, -6.0, 90, 'T'),
         (R('SMF33CA', 'SOL surge clamp'), -HX + 11.5, -10.0, 90, 'T'),    # beside the slide switch, on top
@@ -93,7 +93,7 @@ def anchors(comps):
         (R('R15m'), 0.6, -7.4, 0, 'B'),
         # the charger away from the battery plug (sim/thermal: its heat reached
         # the NTC and the cell); the NTC right by the plug, reading the cell
-        (R('BQ25185'), -12.6, 8.2, 0, 'B'),                 # clear of the nRF52840's escape vias
+        (R('BQ25185'), -HX + 4.7, 0.5, 0, 'B'),             # behind the USB-C, between its shell legs (1 Nov: out of the jam under the nRF52840)
         (R('NTC10K'), -7.65, -2.6, 90, 'B'),
         (R('TPS22950'), -6.4, -0.6, 0, 'B'),                # clear of the SX1262's pins above (its balls take vias)
         (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -2.4, 0, 'B'),
