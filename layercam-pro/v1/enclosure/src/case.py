@@ -402,9 +402,9 @@ class Envelope:
 
 
 # ------------------------------------------------------------------ board and parts on it
-def board_polygon(pad=0.0):
-    """The board in the lens frame: geometry.OUTLINE with the USB-C tab."""
-    poly = Polygon(G.OUTLINE)
+def board_polygon(pad=0.0, outline=None):
+    """The board in the lens frame: geometry.OUTLINE (or `outline`) with the USB-C tab."""
+    poly = Polygon(G.OUTLINE if outline is None else outline)
     ex, ey = G.USB_EDGE_XY
     a = math.radians(G.USB_NORMAL_DEG)
     t = box(-1.0, -G.USB_TAB_W / 2, G.USB_TAB, G.USB_TAB_W / 2)
@@ -535,7 +535,9 @@ def build(folder, log=print):
     cut.append(tab_room)
     usb_cuts, usb_add = usb_features(planes['usb_old'])
     front = (front + (union(add) ^ Eps)) - union(cut) - union(usb_cuts)
-    front = front - (above)
+    # 0.5 under the board's edge where the rim runs under it (the shoulders)
+    relief = prism(board_polygon(CLEAR), SPLIT_Z - CLEAR, SPLIT_Z + 0.01) ^ env.stack(MIN_WALL, 20.0, 21.4)
+    front = front - board_clear_except_bosses(relief) - above
 
     # ================================================================ back shell
     add, cut = [], []
@@ -879,6 +881,11 @@ def main():
         print('wrote', os.path.relpath(p, ENC), '%.1f cm3' % (parts[k].volume() / 1000))
     import check
     ok = check.run(parts, info, a.prusa_folder)
+    fit = check.LAST['fit_outline']
+    os.makedirs(os.path.join(ENC, 'out'), exist_ok=True)
+    with open(os.path.join(ENC, 'out', 'fit-outline.txt'), 'w') as f:
+        f.write('FIT_OUTLINE = [\n' + ''.join('    (%.2f, %.2f),\n' % p for p in fit) + ']\n')
+    print('the board outline that fits the case: enclosure/out/fit-outline.txt (%d points)' % len(fit))
     if not a.no_images:
         import render
         render.draw(parts, info, os.path.join(ENC, 'images'))

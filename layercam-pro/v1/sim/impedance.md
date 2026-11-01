@@ -36,12 +36,10 @@ Outer layers: F.Cu over 0.1195 mm (Dk 4.45) to In1, B.Cu over 0.1195 mm (Dk 4.45
 |---|---|---|---|---|---|---|---|---|
 | MIPI | F over In1 | 0.120 / 0.150 | 102.0 | 100.6 | 107.8 / 93.9 | 111.1 | 100 +-10 % | PASS |
 | MIPI | B over In4 | 0.120 / 0.150 | 102.0 | 100.6 | 107.8 / 93.9 | 111.1 | 100 +-10 % | PASS |
-| USB | F over In1 | 0.150 / 0.130 | 90.7 | 89.5 | 95.5 / 83.7 | 98.4 | 90 +-10 % | reported (inside) |
-| USB | B over In4 | 0.150 / 0.130 | 90.7 | 89.5 | 95.5 / 83.7 | 98.4 | 90 +-10 % | reported (inside) |
 
 Closed forms for the bare MIPI pair (no mask, no fill; IPC-2141 reads high for w/h near 1): F IPC-2141 104.4, Hammerstad-Jensen 109.5 ohm; B IPC-2141 104.4, Hammerstad-Jensen 109.5 ohm.
 
-`src/board.py` still declares a USB pair class (0.15 / 0.13 mm) for the router. It is reported above against 90 ohm, not checked: the USB lines are short (edge connector to SoC), carry only firmware flashing, and are routed as ordinary tracks.
+Note: `src/board.py` still declares a USB pair class (0.15 / 0.13 mm); it is not checked here (USB is routed as ordinary tracks) and is due to be removed.
 
 ## Ordering
 
@@ -61,7 +59,6 @@ Order with PCBWay's impedance control: **100 ohm differential on L1 (F.Cu, over 
 ## Verdict
 
 - **MIPI 0.120 / 0.150 mm on F over In1 and B over In4: PASS** (93.9-107.8 ohm)
-- USB 0.150 / 0.130 mm: reported only, 83.7-95.5 ohm against 90 (ordinary tracks now).
 - No antenna feed on the board (the ESP32-C6-MINI-1U's socket is on the module); LayerCam v1's USB board and its 90 ohm pair are gone.
 
 **no FAIL, 0 WARN**

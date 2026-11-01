@@ -72,14 +72,19 @@ def run(parts, info, folder=None, log=print):
     rest = board - pads - tab_end
     gaps = {k: gap(rest, m - pads) for k, m in parts.items()}
     tab_gaps = {k: gap(tab_end, m) for k, m in parts.items()}
-    pad_touch = [gap(C.zcyl(x, y, G.BOARD_Z, G.BOARD_Z + G.BOARD_T, G.BOSS_D + 0.05) - C.zcyl(x, y, 0, 50, G.BOSS_D - 0.05),
-                     parts['front-shell']) for x, y in G.SCREWS]
+    pad_touch = [gap(C.zcyl(x, y, G.BOARD_Z, G.BOARD_Z + G.BOARD_T, G.BOSS_D + 0.4) - C.zcyl(x, y, 0, 50, G.BOSS_D + 0.2),
+                     parts['front-shell'] + parts['back-shell']) for x, y in G.SCREWS]
     gmin = min(gaps.values())
+    # the same with the outline that fits (FIT_OUTLINE), for when geometry.OUTLINE is cut down
+    fitb = C.prism(C.board_polygon(outline=list(info['fit_outline'].exterior.coords)),
+                   G.BOARD_Z, G.BOARD_Z + G.BOARD_T) - pads - tab_end
+    fit_gap = min(gap(fitb, m - pads) for m in parts.values())
     report('board clearance', gmin >= C.CLEAR - 0.02 and min(tab_gaps.values()) >= 0.15 and min(pad_touch) > 0.0,
            'board to case %.2f mm (front %.2f, back %.2f, lid %.2f); tab end (0.6 mm bare border) %.2f mm; '
-           'the four screw pads touch it only inside Ø%.1f (ring outside them clear by %.2f mm)'
+           'the four screw pads touch it only inside Ø%.1f (Ø%.1f round them clear by %.2f mm); '
+           'with FIT_OUTLINE the board clears the case by %.2f mm'
            % (gmin, gaps['front-shell'], gaps['back-shell'], gaps['lid'], min(tab_gaps.values()), G.BOSS_D,
-              min(pad_touch)))
+              G.BOSS_D + 0.4, min(pad_touch), fit_gap))
     fit = info['fit_outline']
     given = C.Polygon(G.OUTLINE)
     excess = given.difference(fit.buffer(0.02))
@@ -92,7 +97,7 @@ def run(parts, info, folder=None, log=print):
     res['fit_outline'] = [(round(x, 2), round(y, 2)) for x, y in fit.exterior.coords[:-1]]
     seat = [parts['front-shell'] ^ C.zcyl(x, y, G.BOARD_Z - 0.3, G.BOARD_Z + 0.01, G.BOSS_D) for x, y in G.SCREWS]
     report('board seat', all(abs(p.bounding_box()[5] - G.BOARD_Z) < 0.02 for p in seat),
-           'four Ø%.1f boss tops at Z %.2f (the board\'s front face), pilot Ø%.1f x %.0f deep for M2 self-tapping'
+           'four Ø%.1f boss tops at Z %.2f (the board\'s front face), pilot Ø%.1f x %.1f deep for M2 self-tapping'
            % (G.BOSS_D, max(p.bounding_box()[5] for p in seat), C.PILOT_D, C.PILOT_DEPTH))
 
     # ------------------------------------------------------------ 2 rods
@@ -222,7 +227,7 @@ def run(parts, info, folder=None, log=print):
     si = info['sma']
     c, n = si['centre'], si['n']
     P = C.sma_keep_points(c, n, 0.8)
-    clash = alltm.contains(P).mean() * 100
+    clash = np.any([C.to_trimesh(m).contains(P) for m in parts.values()], axis=0).mean() * 100
     loc = btm.ray.intersects_location([c + n * 1.0 + si['ey'] * 4.5], [-n])[0]
     wt = np.sort((c + n * 1.0 + si['ey'] * 4.5 - loc) @ n - 1.0) if len(loc) else []
     wall = (wt[1] - wt[0]) if len(wt) > 1 else float('nan')

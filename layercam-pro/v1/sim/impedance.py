@@ -9,8 +9,7 @@ controlled tracks are the image sensor's MIPI lanes (src/pairs.py: 0.12 /
 0.15 mm, B.Cu over In4 from the sensor's balls, F.Cu over In1 to the
 RV1106).  LayerCam v1's 2-layer USB board and its 90 ohm pair are gone:
 USB (flashing only) runs a few centimetres from the edge connector to the
-SoC as ordinary tracks; if src/board.py still declares a USB pair class its
-impedance is reported, not checked.  There is no antenna feed on the board
+SoC as ordinary tracks and is not checked.  There is no antenna feed on the board
 (the ESP32-C6-MINI-1U has its antenna socket on the module), so no 50 ohm
 track either, unless board.py defines RF_W again.
 
@@ -348,6 +347,8 @@ def run():
     w_('|---|---|---|---|---|---|---|---|---|')
     out = {}
     for name, (nets, w, s) in DIFF['main'].items():
+        if name not in CHECKED:
+            continue
         lays = PAIR_LAYERS.get(name, ('F', 'B'))
         res = pair_rows(w_, name, w, s, lays, checked=name in CHECKED)
         out[name] = (w, s, res, name in CHECKED)
@@ -358,9 +359,8 @@ def run():
        '; '.join('%s IPC-2141 %.1f, Hammerstad-Jensen %.1f ohm' % (lay, c['ipc_zd'], c['hj_zd']) for lay, c in cf.items())
        + '.\n')
     if 'USB' in DIFF['main']:
-        w_('`src/board.py` still declares a USB pair class (%.2f / %.2f mm) for the router. It is reported above '
-           'against 90 ohm, not checked: the USB lines are short (edge connector to SoC), carry only firmware '
-           'flashing, and are routed as ordinary tracks.\n' % DIFF['main']['USB'][1:])
+        w_('Note: `src/board.py` still declares a USB pair class (%.2f / %.2f mm); it is not checked here (USB is '
+           'routed as ordinary tracks) and is due to be removed.\n' % DIFF['main']['USB'][1:])
     sugg = {}
     for name, (w, s, res, chk) in out.items():
         if chk and not all(ok for lay, ok, zs in res):

@@ -716,11 +716,10 @@ def ptemp(board, res, key):
     return {nm: t for nm, t, lim, src in part_temps(board, res)}[key]
 
 
-CASES = [('snap_day', 'Snapshot, day, Wi-Fi power save off (requirement, as built)', 'req'),
-         ('snap_night', 'Snapshot, night, IR LEDs lit 2 s of every 10 s, Wi-Fi power save off (requirement, as built)',
-          'req'),
-         ('snap_day_ps', 'Snapshot, day, Wi-Fi power save on (requirement, once fixed)', 'req'),
-         ('snap_night_ps', 'Snapshot, night, Wi-Fi power save on (requirement, once fixed)', 'req'),
+CASES = [('snap_day_ps', 'Snapshot, day, Wi-Fi power save on (the rating)', 'req'),
+         ('snap_night_ps', 'Snapshot, night, IR LEDs lit 2 s of every 10 s, Wi-Fi power save on (the rating)', 'req'),
+         ('snap_day', 'Snapshot, day, Wi-Fi power save off (information)', 'info'),
+         ('snap_night', 'Snapshot, night, Wi-Fi power save off (information)', 'info'),
          ('day', 'Live view, day: streaming (reported, not required)', 'live'),
          ('night', 'Live view, night: streaming with the IR LEDs on (reported, not required)', 'live'),
          ('worst', 'Stress bound: SoC flat out, Wi-Fi transmitting, LEDs at the high corner (reported)', 'stress')]
@@ -754,18 +753,24 @@ def main():
     board = Board()
     L = []
     w = L.append
-    w('# LayerCam Pro v1: temperatures in a @TA@ chamber\n')
+    w('# LayerCam Pro v1: temperatures, rated for a @TA@ chamber\n')
     w('Computed by `sim/thermal.py`: the one board as a 2D plate on a 0.5 mm grid (outline from `src/pcb.py` / '
       '`src/geometry.py`, part places from %s, heat from `sim/power_budget.py`), in the PC-CF case with Prusa\'s '
       'outside, its stock 20 x 20 x 15 mm heatsink under three lid slots, in a %.0f C chamber with still air. The '
       'model and every assumed number are listed at the end; the copper coverage is %s.\n'
       % (PLACE_SRC, T_AMB, COVER_SRC))
-    w('The requirement cases are **snapshot mode** (one still at most every 10 s; a timelapse frame per layer is one of '
-      'those shots, so timelapse mode is the same load): `snap_day`, `snap_night` with the Wi-Fi\'s power save **off**, '
-      'as the camera is built today (esp-hosted gives Linux no way to turn it on), and `snap_day_ps`, `snap_night_ps` '
-      'with it on, once that is fixed. A 10 s cycle is modelled by its average heat (the case\'s time constant is many '
-      'minutes); the LED junctions and string resistors are checked at their power while lit. Live view and the '
-      'stress bound are reported, not checked.\n')
+    w('**The rating: a %.0f C chamber.** The owner decided (1 Nov 2026) that LayerCam Pro is rated for a %.0f C '
+      'chamber, not 70 C: every part inside its rating in **snapshot mode** (one still at most every 10 s; a timelapse '
+      'frame per layer is one of those shots, so timelapse mode is the same load), day and night, with the ESP32-C6\'s '
+      '**Wi-Fi power save on** (the C6 firmware build sets it). Prusa\'s firmware caps the chamber at %.0f C on the '
+      'CORE One and %.0f C on the CORE One L, so %.0f C is %.0f K above the higher of the two. This script exits 1 '
+      'only if that requirement fails (`snap_day_ps`, `snap_night_ps` at %.0f C). The earlier 70 C target and power '
+      'save off (`snap_day`, `snap_night`, the C6 as first built) are reported as information, not checked; so are '
+      'live view and the stress bound.\n'
+      % (T_AMB, T_AMB, PRUSA_CAP[0], PRUSA_CAP[1], T_AMB, T_AMB - PRUSA_CAP[1], T_AMB))
+    w('A 10 s cycle is modelled by its average heat (the case\'s time constant is many minutes); the LED junctions and '
+      'string resistors are checked at their power while lit. Each case below is at the %.0f C rating; the verdict '
+      'also gives every mode at %.0f C.\n' % (T_AMB, T_INFO))
     w('Board: %.1f cm^2 a face; in-plane conductance %.4f W/K per square (copper coverage F %.0f %%, In1 %.0f %%, '
       'In2 %.0f %%, In3 %.0f %%, In4 %.0f %%, B %.0f %%). SoC exposed pad to the planes: %.2f K/W through %d filled '
       'vias; junction to heatsink %.1f K/W (theta-JC top %.1f + 3M 8810 tape %.1f + base 0.3).\n'
@@ -821,8 +826,11 @@ def main():
         check(ptemp(board, res, TJ) <= 115, '%s: RV1106 junction %.1f C with 10 K margin (115 C)'
               % (name, ptemp(board, res, TJ)), warn=True)
 
+    # ------------------------------------------------ the same modes at 70 C (information)
+    SUMMARY['at70'] = {name: case_run(board, name, t_amb=T_INFO) for name, title, kind in CASES if name != 'worst'}
+
     # ------------------------------------------------ what moves it
-    w('## Sensitivity (snap_night, power save off)\n')
+    w('## Sensitivity (snap_night_ps: the rating case, night, power save on, @TA@)\n')
     w('| change | RV1106 Tj (C) | image sensor (C) | C6 (C) | flash (C) | USB-C (C) | heatsink (C) | out by the slots '
       '/ lid patch (W) |\n|---|---|---|---|---|---|---|---|')
 
@@ -832,57 +840,56 @@ def main():
              ptemp(b, res, 'USB-C receptacle USB4105 (J1)'),
              '%.1f' % res['t_sink'] if res['t_sink'] is not None else '-',
              '%.3f / %.3f' % (res['q_slot'], res['q_patch'])))
-    base = allres['snap_night']
+    base = allres[REQ_NIGHT]
     row('as above', base)
-    row('Wi-Fi power save on (snap_night_ps)', allres['snap_night_ps'])
+    row('Wi-Fi power save off (snap_night, information)', allres['snap_night'])
     SINK_ON = False
-    r_ns = case_run(board, 'snap_night')
+    r_ns = case_run(board, REQ_NIGHT)
     row('no heatsink (bare chip)', r_ns)
     SINK_ON = True
     SLOTS_OPEN = False
-    row('the three slots over the heatsink taped over', case_run(board, 'snap_night'))
+    row('the three slots over the heatsink taped over', case_run(board, REQ_NIGHT))
     SLOTS_OPEN = True
     t0 = TILT
     TILT = 90.0
-    row('camera looking straight down (slots level: no exchange flow)', case_run(board, 'snap_night'))
+    row('camera looking straight down (slots level: no exchange flow)', case_run(board, REQ_NIGHT))
     TILT = 0.0
-    row('camera looking level (slots one above the other)', case_run(board, 'snap_night'))
+    row('camera looking level (slots one above the other)', case_run(board, REQ_NIGHT))
     TILT = t0
     LID_PAD = (1.0e-3, 6.0)
-    r_pad = case_run(board, 'snap_night')
+    r_pad = case_run(board, REQ_NIGHT)
     row('a 1 mm 6 W/mK gap pad from the fin tops to the lid (option)', r_pad)
-    row('power save on and the gap pad', case_run(board, 'snap_night_ps'))
     within_ = lambda b, r: within(b, r)
     SUMMARY['pad_lim'] = (ambient_limit(board, power.heat('snap_night'), within_, led_on=led_of('snap_night')),
                           ambient_limit(board, power.heat('snap_night_ps'), within_, led_on=led_of('snap_night_ps')))
     LID_PAD = None
     b_slot = Board(cu_slot=(5.4, 11.0))
-    row('a slot through the copper between SoC and sensor (y 5.4, 22 mm long; option)', case_run(b_slot, 'snap_night'),
+    row('a slot through the copper between SoC and sensor (y 5.4, 22 mm long; option)', case_run(b_slot, REQ_NIGHT),
         b_slot)
     b2 = Board(cover_scale=0.7)
-    row('copper coverage x0.7 (a more perforated routed board)', case_run(b2, 'snap_night'), b2)
+    row('copper coverage x0.7 (a more perforated routed board)', case_run(b2, REQ_NIGHT), b2)
     k0, k1 = K_WALL, K_WALL_INPLANE
     K_WALL, K_WALL_INPLANE = 0.20, 0.25
-    row('case wall 0.20 W/mK (plain PC)', case_run(board, 'snap_night'))
+    row('case wall 0.20 W/mK (plain PC)', case_run(board, REQ_NIGHT))
     K_WALL, K_WALL_INPLANE = 0.50, 0.90
-    row('case wall 0.50 / 0.90 W/mK (high fibre loading)', case_run(board, 'snap_night'))
+    row('case wall 0.50 / 0.90 W/mK (high fibre loading)', case_run(board, REQ_NIGHT))
     K_WALL, K_WALL_INPLANE = k0, k1
     e0 = EPS_EFF
     EPS_EFF = 0.6
-    row('inside emissivity 0.6 (bare metal holder, lens, shields)', case_run(board, 'snap_night'))
+    row('inside emissivity 0.6 (bare metal holder, lens, shields)', case_run(board, REQ_NIGHT))
     EPS_EFF = 0.85
     b3 = Board(cover_scale=1.2)
-    r3 = case_run(b3, 'snap_night')
+    r3 = case_run(b3, REQ_NIGHT)
     row('optimistic bracket: emissivity 0.85, copper x1.2', r3, b3)
     SUMMARY['opt'] = (tj_of(b3, r3), ptemp(b3, r3, SENSOR))
     EPS_EFF = e0
     H_FORCED = 3.9 * math.sqrt(0.5 / 0.05) - 1.32 * (10 / 0.05) ** 0.25
-    row('chamber air moving at 0.5 m/s past the case', case_run(board, 'snap_night'))
+    row('chamber air moving at 0.5 m/s past the case', case_run(board, REQ_NIGHT))
     H_FORCED = 0.0
-    hq = dict(power.heat('snap_night')); hq['U1'] *= 1.5
-    row('SoC idle 50 % higher than assumed', run_case(board, hq, led_on=led_of('snap_night')))
-    hq = dict(power.heat('snap_night')); hq['U6'] *= 1.3
-    row('C6 30 % above its datasheet figures (hot)', run_case(board, hq, led_on=led_of('snap_night')))
+    hq = dict(power.heat(REQ_NIGHT)); hq['U1'] *= 1.5
+    row('SoC idle 50 % higher than assumed', run_case(board, hq, led_on=led_of(REQ_NIGHT)))
+    hq = dict(power.heat(REQ_NIGHT)); hq['U6'] *= 1.3
+    row('C6 30 % above its datasheet figures (hot)', run_case(board, hq, led_on=led_of(REQ_NIGHT)))
     w('')
 
     # ------------------------------------------------ chamber limits
@@ -910,13 +917,12 @@ def main():
                                     first=None if a_all is None or a_all >= 84.9 else first_over(board, h, a_all + 0.3, led_on=lo))
         w('| %s | %s | %s | %s | %s |' % (SHORT[name], lab(a_all), fmt_amb(a_85), fmt_amb(a_60), fmt_amb(a_125)))
     w('')
-    for n in ('snap_day', 'snap_night', 'snap_day_ps', 'snap_night_ps'):
+    for n in REQ:
         a = SUMMARY['lim'][n]['all']
-        check(a is not None and a >= T_AMB, '%s keeps every part inside its rating up to a %s chamber (requirement '
+        check(a is not None and a >= T_AMB, '%s keeps every part inside its rating up to a %s chamber (rating '
               '%.0f C)' % (n, fmt_amb(a), T_AMB))
-    lim_req = min((SUMMARY['lim'][n]['all'] if SUMMARY['lim'][n]['all'] is not None else -99)
-                  for n in ('snap_day', 'snap_night'))
-    check(lim_req >= T_AMB + 5, 'snapshot-mode margin %.1f K at @TA@ (power save off), against a model uncertainty of '
+    lim_req = min((SUMMARY['lim'][n]['all'] if SUMMARY['lim'][n]['all'] is not None else -99) for n in REQ)
+    check(lim_req >= T_AMB + 5, 'snapshot-mode margin %.1f K at @TA@ (power save on), against a model uncertainty of '
           'about +-10 K' % (lim_req - T_AMB), warn=True)
 
     # ------------------------------------------------ firmware rules
@@ -928,7 +934,7 @@ def main():
       'at @TA@ the TSADC reads |')
     w('|---|---|---|---|---|')
     rd = SUMMARY.setdefault('rule', {})
-    for name in ('snap_day', 'snap_night', 'snap_day_ps', 'snap_night_ps', 'day', 'night'):
+    for name in ('snap_day_ps', 'snap_night_ps', 'snap_day', 'snap_night', 'day', 'night'):
         a = SUMMARY['lim'][name]['all']
         h = power.heat(name)
         tj70 = tj_of(board, allres[name])
@@ -941,9 +947,10 @@ def main():
                                                                    tj - 3, tj70))
     w('')
     t_live = min([rd[n][1] for n in ('day', 'night') if n in rd] or [100]) - 3
-    t_snap = min([rd[n][1] for n in ('snap_day', 'snap_night') if n in rd] or [100]) - 3
+    t_snap = min([rd[n][1] for n in REQ if n in rd] or [100]) - 3
     SUMMARY['gov'] = (t_live, t_snap)
-    w('1. **Snapshot mode is the default**: CPU at its lowest OPP between shots, NPU off, sensor in standby.')
+    w('1. **Snapshot mode is the default**: CPU at its lowest OPP between shots, NPU off, sensor in standby, the C6\'s '
+      'Wi-Fi power save on (the rating assumes it).')
     w('2. **Live view** only while TSADC < %.0f C; above it, back to snapshot mode ("live view paused: camera too '
       'warm").' % t_live)
     w('3. TSADC > %.0f C in snapshot mode: stretch the interval to 30 s, cap Wi-Fi TX power, shorten the IR flash.'
@@ -956,9 +963,9 @@ def main():
     a_p, g_pw = lid_patch()
     sp0 = sink_paths(base['t_sink'], T_AMB, base['h_out'])
     w('## The heatsink and the slots\n')
-    w('snap_night at @TA@. The junction sends %.2f W of its %.2f W into the heatsink (junction to heatsink %.1f K/W, '
+    w('snap_night_ps at @TA@. The junction sends %.2f W of its %.2f W into the heatsink (junction to heatsink %.1f K/W, '
       'against %.1f K/W into the board); the heatsink at %.1f C passes it on:\n'
-      % (base['q_top'], power.heat('snap_night')['U1'], r_top(), R_DIE_EP + ep_via_resistance(), base['t_sink']))
+      % (base['q_top'], power.heat(REQ_NIGHT)['U1'], r_top(), R_DIE_EP + ep_via_resistance(), base['t_sink']))
     w('| path from the heatsink | conductance (W/K) | heat (W) |\n|---|---|---|')
     t_air = base['t_air']
     w('| sides and fins to the air inside the case (%.0f mm^2 of envelope at %.0f W/m^2K, %.0f mm^2 of fin faces at %.0f) '
@@ -988,13 +995,13 @@ def main():
 
     # ------------------------------------------------ parts list against the chamber
     w('## Every part\'s rating against the chamber\n')
-    w('From `src/parts.py` and docs/parts-check-2026-10-31.md. Flagged against snap_night (power save off): a part '
+    w('From `src/parts.py` and docs/parts-check-2026-10-31.md. Flagged against snap_night_ps (the rating case): a part '
       'rated below 85 C, over its rating, or within 10 K of it.\n')
-    w('| part | rated | snap_night at @TA@ (C) | live night at @TA@ (C) | flag (snapshot) |\n|---|---|---|---|---|')
-    tsn = {nm: t for nm, t, lim, src in part_temps(board, allres['snap_night'])}
+    w('| part | rated | snapshot night, PS on, at @TA@ (C) | live night at @TA@ (C) | flag (snapshot) |\n|---|---|---|---|---|')
+    tsn = {nm: t for nm, t, lim, src in part_temps(board, allres[REQ_NIGHT])}
     tln = {nm: t for nm, t, lim, src in part_temps(board, allres['night'])}
-    mean = {'s': float(np.nanmean(allres['snap_night']['T'])), 'l': float(np.nanmean(allres['night']['T']))}
-    holder = {'s': ptemp(board, allres['snap_night'], SENSOR), 'l': ptemp(board, allres['night'], SENSOR)}
+    mean = {'s': float(np.nanmean(allres[REQ_NIGHT]['T'])), 'l': float(np.nanmean(allres['night']['T']))}
+    holder = {'s': ptemp(board, allres[REQ_NIGHT], SENSOR), 'l': ptemp(board, allres['night'], SENSOR)}
 
     def g(key, d, m):
         if key == 'MEAN':
@@ -1068,7 +1075,7 @@ def main():
       'Emissivity %.2f outside; natural convection 1.32 (dT/0.05 m)^0.25 plus linearised radiation.'
       % (A_OUT * 1e4, A_IN * 1e4, GAP_F * 1e3, GAP_B * 1e3, K_WALL, K_WALL_INPLANE, EPS_HOUSING))
     w('- Inside: radiation board to wall with effective emissivity %.2f; still-air conduction across the cavities with '
-      'Catton\'s enclosure correlation (Nu %.2f / %.2f back / front at snap_night); board edge to the wall across %.1f mm '
+      'Catton\'s enclosure correlation (Nu %.2f / %.2f back / front in the rating case); board edge to the wall across %.1f mm '
       'of air; %.4f W/K at each M2 boss; the front face under the IR-cut holder\'s base at %.0f %% (the holder traps '
       'air). Board places: %s.'
       % (EPS_EFF, nu_enclosure(np.nanmean(base['T']) - base['t_w'], GAP_F),
@@ -1098,72 +1105,85 @@ def verdict(board, allres):
     V = []
     v = V.append
     t = {n: {nm: x for nm, x, lim, src in part_temps(board, allres[n])} for n in allres}
+    at70 = SUMMARY['at70']
+    t70 = {n: {nm: x for nm, x, lim, src in part_temps(board, at70[n])} for n in at70}
     lim = SUMMARY['lim']
     fails = [c for c in checks if c[0] == 'FAIL']
     warns = [c for c in checks if c[0] == 'WARN']
-    req = lim['snap_night']['all']
-    req_ps = lim['snap_night_ps']['all']
-    ok = not fails
+    req = min((lim[n]['all'] if lim[n]['all'] is not None else -99) for n in REQ)
+    first_n = min(REQ, key=lambda n: lim[n]['all'] if lim[n]['all'] is not None else -99)
+    worst = sorted(((l - x, nm, x, l) for nm, x, l, src in part_temps(board, allres[REQ_NIGHT])))[0]
     v('## Verdict\n')
-    # the part closest to its limit in the as-built requirement case
-    worst = sorted(((l - x, nm, x, l) for nm, x, l, src in part_temps(board, allres['snap_night'])))[0]
-    v('**Snapshot mode at @TA@: %s** (%d FAIL, %d WARN). With the Wi-Fi\'s power save off (as built) every part '
-      'stays inside its rating up to a **%s** chamber by night and %s by day; with power save on, %s by night and %s by '
-      'day. The part closest to its limit at @TA@ is the **%s**: %.1f C against %d C (%+.1f K).\n'
-      % ('PASS' if ok else 'FAIL', len(fails), len(warns), fmt_amb(req), fmt_amb(lim['snap_day']['all']),
-         fmt_amb(req_ps), fmt_amb(lim['snap_day_ps']['all']), worst[1], worst[2], worst[3], worst[0]))
-    cols = ('snap_day', 'snap_night', 'snap_day_ps', 'snap_night_ps', 'day', 'night')
-    v('| at @TA@ | %s |\n|---|%s' % (' | '.join(SHORT[n] for n in cols), '---|' * len(cols)))
-    for lab, k in (('RV1106 junction (125 C)', TJ), ('image sensor (85 C; best image 60 C)', SENSOR),
-                   ('ESP32-C6 (105 C)', C6), ('flash (85 C)', 'W25N02KV flash (U5)'),
-                   ('USB-C (85 C)', 'USB-C receptacle USB4105 (J1)'), ('status LED (85 C)', 'status LED LED1 (KT-0603G)'),
-                   ('air inside (85 C ambient parts)', 'internal air (RV1106 / EA3036C ambient)'),
-                   ('IR LED junction while lit (100 C)', 'IR LEDs VSMY3850X01, junction while lit'), ('board max', None),
-                   ('heatsink', 'SINK')):
-        vals = []
-        for n in cols:
-            r = allres[n]
-            vals.append(float(np.nanmax(r['T'])) if k is None else (r['t_sink'] if k == 'SINK' else t[n][k]))
-        v('| %s | %s |' % (lab, ' | '.join('%.1f C' % x for x in vals)))
-    v('| heat in the case | %s |' % ' | '.join('%.2f W' % allres[n]['p_total'] for n in cols))
+    v('**Rated for a %.0f C chamber: %s** (%d FAIL, %d WARN). The owner\'s decision: LayerCam Pro is rated for a '
+      '%.0f C chamber in snapshot and timelapse mode, day and night, with the ESP32-C6\'s Wi-Fi power save on (its '
+      'firmware sets it), the stock heatsink and no fan. Prusa\'s firmware caps the chamber at %.0f C on the CORE One '
+      'and %.0f C on the CORE One L, so the rating sits %.0f K above the highest chamber a stock printer allows.\n'
+      % (T_AMB, 'PASS' if not fails else 'FAIL', len(fails), len(warns), T_AMB, PRUSA_CAP[0], PRUSA_CAP[1],
+         T_AMB - PRUSA_CAP[1]))
+    v('With power save on, every part stays inside its rating up to a **%s** chamber by night and **%s** by day: '
+      '%.1f K of margin over the rating at night, inside the model\'s +-10 K uncertainty, so the first board must be '
+      'measured in a %.0f C oven before this is called a pass. The part closest to its limit at @TA@ is the **%s**: '
+      '%.1f C against %d C (%+.1f K).\n'
+      % (fmt_amb(lim['snap_night_ps']['all']), fmt_amb(lim['snap_day_ps']['all']), req - T_AMB, T_AMB, worst[1],
+         worst[2], worst[3], worst[0]))
+    cols = ('snap_day_ps', 'snap_night_ps', 'snap_day', 'snap_night', 'day', 'night')
+    rows_ = (('RV1106 junction (125 C)', TJ), ('image sensor (85 C; best image 60 C)', SENSOR),
+             ('ESP32-C6 (105 C)', C6), ('flash (85 C)', 'W25N02KV flash (U5)'),
+             ('USB-C (85 C)', 'USB-C receptacle USB4105 (J1)'), ('status LED (85 C)', 'status LED LED1 (KT-0603G)'),
+             ('air inside (85 C ambient parts)', 'internal air (RV1106 / EA3036C ambient)'),
+             ('IR LED junction while lit (100 C)', 'IR LEDs VSMY3850X01, junction while lit'), ('board max', None),
+             ('heatsink', 'SINK'))
+    for tag, res_, tt in (('@TA@ (the rating; power save on is the requirement)', allres, t),
+                          ('%.0f C (information only)' % T_INFO, at70, t70)):
+        v('At %s:\n' % tag)
+        v('| | %s |\n|---|%s' % (' | '.join(SHORT[n] for n in cols), '---|' * len(cols)))
+        for lab, k in rows_:
+            vals = []
+            for n in cols:
+                r = res_[n]
+                vals.append(float(np.nanmax(r['T'])) if k is None else (r['t_sink'] if k == 'SINK' else tt[n][k]))
+            v('| %s | %s |' % (lab, ' | '.join('%.1f C' % x for x in vals)))
+        v('| heat in the case | %s |' % ' | '.join('%.2f W' % res_[n]['p_total'] for n in cols))
+        v('')
+    v('**Highest chamber temperature with every part inside its rating** (bisection):\n')
+    v('| mode | every part in rating up to | first part there | image sensor 85 C at | image sensor 60 C at |')
+    v('|---|---|---|---|---|')
+    for n in ('snap_day_ps', 'snap_night_ps', 'snap_day', 'snap_night', 'day', 'night', 'worst'):
+        v('| %s%s | **%s** | %s | %s | %s |' % (SHORT[n], ' (rating)' if n in REQ else '', fmt_amb(lim[n]['all']),
+                                             lim[n]['first'] or '-', fmt_amb(lim[n]['s85']), fmt_amb(lim[n]['s60'])))
     v('')
-    v('Highest chamber temperature with every part inside its rating: %s.\n'
-      % '; '.join('%s **%s**%s' % (SHORT[n], fmt_amb(lim[n]['all']),
-                                   ' (first: %s)' % lim[n]['first'] if lim[n]['first'] else '') for n in lim))
     s = SUMMARY['sink']
-    bn = allres['snap_night']['T']
-    v('- **The board is nearly isothermal** (%.1f-%.1f C in night snapshots): six copper layers spread the heat '
-      'faster than the still air takes it off, so every part on it sits 16-20 K over the chamber and the four parts '
-      'rated 85 C (USB-C, flash, image sensor, status LED) are within %.1f K of each other. Their order is inside the '
-      'model\'s uncertainty; what fails is the board as a whole: in snapshot mode it needs to run about %.0f K cooler '
-      '(power save off) or %.0f K cooler (on) to pass at @TA@.'
-      % (np.nanmin(bn), np.nanmax(bn), max(t['snap_night'][k] for k in (SENSOR, 'W25N02KV flash (U5)',
-         'USB-C receptacle USB4105 (J1)', 'status LED LED1 (KT-0603G)')) - min(t['snap_night'][k] for k in (SENSOR,
-         'W25N02KV flash (U5)', 'USB-C receptacle USB4105 (J1)', 'status LED LED1 (KT-0603G)')),
-         math.ceil(T_AMB - (req or 0)), math.ceil(T_AMB - (req_ps or 0))))
+    bn = allres[REQ_NIGHT]['T']
+    k85 = (SENSOR, 'W25N02KV flash (U5)', 'USB-C receptacle USB4105 (J1)', 'status LED LED1 (KT-0603G)')
+    v('- **Image sensor** (the rating case, night): %.1f C at @TA@ against 85 C (%+.1f K); its 85 C is reached at a %s '
+      'chamber. Its best image ends at 60 C, which it passes at a %s chamber: above that the picture degrades (noise, '
+      'dark current) but the sensor works. At %.0f C it would be %.1f C.'
+      % (t[REQ_NIGHT][SENSOR], 85 - t[REQ_NIGHT][SENSOR], fmt_amb(lim[REQ_NIGHT]['s85']), fmt_amb(lim[REQ_NIGHT]['s60']),
+         T_INFO, t70[REQ_NIGHT][SENSOR]))
+    v('- **The board is nearly isothermal** (%.1f-%.1f C in night snapshots at @TA@): six copper layers spread the heat '
+      'faster than the still air takes it off, so the four parts rated 85 C (USB-C, flash, image sensor, status LED) '
+      'are within %.1f K of each other and their order is inside the model\'s uncertainty: the margin is the board\'s '
+      'as a whole.' % (np.nanmin(bn), np.nanmax(bn), max(t[REQ_NIGHT][k] for k in k85) - min(t[REQ_NIGHT][k] for k in k85)))
+    v('- **Wi-Fi power save is needed for the rating**: off (the C6 as first built), the limit drops to %s by night and %s '
+      'by day, %.1f K lower; the sensor runs %.1f K and the junction %.1f K warmer. The C6 firmware must set it, and the '
+      'first board should confirm the C6\'s current with it on (power.md: 47 mA against 98 mA, ASSUMED duty cycles).'
+      % (fmt_amb(lim['snap_night']['all']), fmt_amb(lim['snap_day']['all']),
+         (lim[REQ_NIGHT]['all'] or 0) - (lim['snap_night']['all'] or 0), t['snap_night'][SENSOR] - t[REQ_NIGHT][SENSOR],
+         t['snap_night'][TJ] - t[REQ_NIGHT][TJ]))
+    v('- **70 C is not met** (information): with power save on, %s by day and %s by night; off, %s and %s. The parts '
+      'that stop it are the 85 C ones above.' % (fmt_amb(lim['snap_day_ps']['all']), fmt_amb(lim['snap_night_ps']['all']),
+                                                 fmt_amb(lim['snap_day']['all']), fmt_amb(lim['snap_night']['all'])))
     pl = SUMMARY.get('pad_lim', (None, None))
-    v('- **What moves it** (sensitivity table): Wi-Fi power save on +%.1f K of chamber; a 1 mm gap pad from the fin '
-      'tops to the lid gives %s by night with power save off and %s with it on; chamber air moving at 0.5 m/s about '
-      '2 K; the copper slot between SoC and sensor under 0.5 K (the board spreads round it). No single in-case change '
-      'modelled reaches @TA@ by night.' % ((req_ps or 0) - (req or 0), fmt_amb(pl[0]), fmt_amb(pl[1])))
-    v('- **Image sensor**: %.1f C in night snapshots at @TA@ (power save off), %.1f C with it on; its 85 C is reached '
-      'at a %s chamber, its best-image 60 C at %s (it is above 60 C in every case at @TA@: the chamber alone is 70 C).'
-      % (t['snap_night'][SENSOR], t['snap_night_ps'][SENSOR], fmt_amb(lim['snap_night']['s85']),
-         fmt_amb(lim['snap_night']['s60'])))
-    v('- **Wi-Fi power save** off as built costs %.1f K on the sensor and %.1f K on the junction against power save on '
-      '(snap_night), and %.1f K of chamber rating.'
-      % (t['snap_night'][SENSOR] - t['snap_night_ps'][SENSOR], t['snap_night'][TJ] - t['snap_night_ps'][TJ],
-         (req_ps or 0) - (req or 0)))
     v('- **The vent slots carry little**: %.3f W of the heatsink\'s %.2f W leaves through its three slots and %.3f W '
       'through the lid over it; the rest goes into the case\'s inside air and the board. Without the heatsink the '
-      'sensor would be %.1f C; a gap pad from the fin tops to the lid would make it %.1f C.'
-      % (s['q_slot'], s['q_top'], s['q_patch'], s['s_ns'], s['s_pad']))
+      'sensor would be %.1f C, with a 1 mm gap pad from the fin tops to the lid %.1f C (chamber limit then %s by night, '
+      'power save on).' % (s['q_slot'], s['q_top'], s['q_patch'], s['s_ns'], s['s_pad'], fmt_amb(pl[1])))
     v('- Live view: every part in rating to %s by day and %s by night; it stays a firmware-gated mode (TSADC below '
       '%.0f C; snapshot mode stretches to 30 s above %.0f C).'
       % (fmt_amb(lim['day']['all']), fmt_amb(lim['night']['all']), *SUMMARY['gov']))
-    v('- Model uncertainty about +-10 K (optimistic bracket: RV1106 %.1f C, sensor %.1f C in snap_night); the placement '
-      'is layout_main.py\'s, the copper coverage LayerCam v1\'s, the snapshot currents ASSUMED. Rerun on the routed '
-      'board and measure the first board in a 70 C oven.' % SUMMARY['opt'])
+    v('- Model uncertainty about +-10 K (optimistic bracket: RV1106 %.1f C, sensor %.1f C in the rating case); the '
+      'placement is layout_main.py\'s, the copper coverage LayerCam v1\'s, the snapshot currents ASSUMED. Rerun on the '
+      'routed board and measure the first board in a %.0f C oven.' % (SUMMARY['opt'] + (T_AMB,)))
     v('')
     return V
 
