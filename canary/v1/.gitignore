@@ -10,3 +10,6 @@ erc.rpt
 sim/spice/wave_*
 sim/spice/meas_*
 freerouting.json
+# The product video is published, never committed (docs/product-video.md);
+# a second guard beside video/out/.
+*.mp4
