@@ -4,13 +4,14 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SB = os.path.dirname(os.path.dirname(HERE))
-os.environ.setdefault('SB_FONTS', os.path.join(SB, '..', 'fonts'))
-sys.path.insert(0, os.path.join(SB, '..', 'ui'))
+DESIGN = os.path.dirname(HERE)                        # smokebreak/design
+V1 = os.path.join(os.path.dirname(DESIGN), 'v1')       # smokebreak/v1
+os.environ.setdefault('SB_FONTS', os.path.join(V1, 'fonts'))
+sys.path.insert(0, os.path.join(V1, 'ui'))
 import screens as S                              # noqa: E402
 from PIL import Image, ImageDraw, ImageFont      # noqa: E402
 
-FONT = os.path.join(SB, '..', 'fonts', 'InstrumentSans-VariableFont.ttf')
+FONT = os.path.join(V1, 'fonts', 'InstrumentSans-VariableFont.ttf')
 
 
 def f(px):
@@ -19,7 +20,7 @@ def f(px):
 
 # 1. the rocker, pointed out on the product
 def rocker():
-    im = Image.open(os.path.join(SB, 'design', 'arm', 'top.png')).convert('RGB')
+    im = Image.open(os.path.join(DESIGN, 'arm', 'top.png')).convert('RGB')
     d = ImageDraw.Draw(im)
     # rocker paddle in top.png (1600 x 1000): about x 655-875, y 685-745
     d.rounded_rectangle([640, 672, 890, 758], 18, outline=(255, 106, 0), width=7)
