@@ -72,12 +72,12 @@ VSYS current at 5.0 V in, regulator losses from the buck model below (switch and
 | case | heat in the case | the largest parts |
 |---|---|---|
 | snap_day | 0.91 W | U1 0.49, U6 0.32, U3 0.03, U8 0.02, U2 0.02 |
-| snap_night | 1.03 W | U1 0.49, U6 0.32, U3 0.03, U8 0.02, R45 0.02 |
+| snap_night | 1.03 W | U1 0.49, U6 0.32, U3 0.03, U8 0.02, R90 0.02 |
 | snap_day_ps | 0.73 W | U1 0.49, U6 0.15, U3 0.03, U8 0.02, U2 0.02 |
-| snap_night_ps | 0.86 W | U1 0.49, U6 0.15, U3 0.03, U8 0.02, R45 0.02 |
-| snap_burst | 2.53 W | U1 0.97, U6 0.59, U8 0.12, R45 0.11, R46 0.11 |
+| snap_night_ps | 0.86 W | U1 0.49, U6 0.15, U3 0.03, U8 0.02, R90 0.02 |
+| snap_burst | 2.53 W | U1 0.97, U6 0.59, U8 0.12, R90 0.11, R91 0.11 |
 | day | 1.64 W | U1 0.97, U6 0.38, U8 0.12, U2 0.06, L1 0.04 |
-| night | 2.26 W | U1 0.97, U6 0.38, U8 0.12, R45 0.11, R46 0.11 |
+| night | 2.26 W | U1 0.97, U6 0.38, U8 0.12, R90 0.11, R91 0.11 |
 | worst | 4.87 W | U1 2.06, U6 1.21, U2 0.23, L1 0.20, U8 0.15 |
 | peak | 5.31 W | U1 2.06, U6 1.56, U2 0.23, L1 0.20, U8 0.15 |
 

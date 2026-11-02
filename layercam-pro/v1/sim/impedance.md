@@ -39,8 +39,6 @@ Outer layers: F.Cu over 0.1195 mm (Dk 4.45) to In1, B.Cu over 0.1195 mm (Dk 4.45
 
 Closed forms for the bare MIPI pair (no mask, no fill; IPC-2141 reads high for w/h near 1): F IPC-2141 104.4, Hammerstad-Jensen 109.5 ohm; B IPC-2141 104.4, Hammerstad-Jensen 109.5 ohm.
 
-Note: `src/board.py` still declares a USB pair class (0.15 / 0.13 mm); it is not checked here (USB is routed as ordinary tracks) and is due to be removed.
-
 ## Ordering
 
 Order with PCBWay's impedance control: **100 ohm differential on L1 (F.Cu, over In1) and L6 (B.Cu, over In4) for the MIPI class, 0.12 / 0.15 mm**, referenced to the adjacent ground plane, +-10 %. Let them trim to their process; ask for their stackup report and the mask they use. No other track needs impedance control. Via-in-pad under the RV1106 must be ordered as resin-filled and capped.

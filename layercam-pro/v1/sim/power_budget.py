@@ -17,7 +17,7 @@ SC3336 module, its analogue rail from the TLV75528 2.8 V LDO and its I/O
 from VCC_1V8; the six VSMY3850X01 LEDs on the board; the DRV8210P in place
 of the DRV8837.  The Wi-Fi's power save is OFF today (esp-hosted gives no
 way to turn it on from Linux), so the snapshot cases come in two flavours:
-power save off (as built) and on (once fixed).
+power save off (the C6 firmware built without firmware/tools/c6-power-save.sh) and on.
 
 thermal.py imports heat() and led_on() from here: the heat each part makes
 in each operating case.
@@ -193,7 +193,7 @@ def _snap(desc, wifi, led):
 
 
 CASES = {
-    'snap_day': _snap('snapshot, day, Wi-Fi power save OFF (as built): one still every 10 s, idle between '
+    'snap_day': _snap('snapshot, day, Wi-Fi power save OFF (firmware built without the power-save step): one still every 10 s, idle between '
                       '(REQUIREMENT CASE)', c6_snapshot(False), False),
     'snap_night': _snap('snapshot, night, Wi-Fi power save OFF: the same, IR LEDs on for 2 s of each 10 s '
                         '(REQUIREMENT CASE)', c6_snapshot(False), True),
@@ -423,12 +423,13 @@ def run():
     w('| modem-sleep, 160 MHz, CPU idle, peripheral clocks on | %.0f mA | table 6-7 |' % (C6_MODEM_SLEEP * 1e3))
     w('| light-sleep | %.2f mA | table 6-8 |' % (C6_LIGHT_SLEEP * 1e3))
     w('')
-    w('**Power save is OFF** on the C6 as built: esp-hosted gives Linux no way to turn it on, so the receiver '
+    w('**Power save is OFF** unless the C6\'s firmware is built with it on (`firmware/tools/c6-power-save.sh`, which '
+      'the 65 C rating needs): esp-hosted gives Linux no way to turn it on, so the receiver '
       'listens all the time (%.0f mA: the RX figure plus an assumed %.0f mA for esp-hosted\'s CPU and the SDIO link). '
       'In snapshot mode each 10 s carries one ~1 MB JPEG: %.0f %% TX airtime at %.0f mA (HT20 MCS7, 18 dBm) and the '
       'radio on for %.0f %% of the time.\n'
       % (C6_LISTEN * 1e3, C6_HOSTED * 1e3, TX_AIR * 100, C6_TX_USE * 1e3, RADIO_ON * 100))
-    w('| C6 average | power save off (as built) | power save on (modem-sleep between DTIM beacons) |\n|---|---|---|')
+    w('| C6 average | power save off (firmware built without the power-save step) | power save on (modem-sleep between DTIM beacons) |\n|---|---|---|')
     w('| snapshot mode | **%.0f mA** (%.0f mW) | **%.0f mA** (%.0f mW) |'
       % (c6_snapshot(False) * 1e3, c6_snapshot(False) * 3.255e3, c6_snapshot(True) * 1e3, c6_snapshot(True) * 3.255e3))
     w('| live view (~4 Mbit/s up, %.0f %% TX) | %.0f mA | the same (the radio is busy) |' % (C6_LIVE_TX * 100, C6_LIVE * 1e3))
@@ -688,7 +689,7 @@ def verdict(sol):
     fails = [c for c in checks if c[0] == 'FAIL']
     v('## Verdict\n')
     v('**%s** In snapshot mode (the requirement) the camera averages %.2f A by day and %.2f A by night with the '
-      'Wi-Fi\'s power save off as built (%.2f / %.2f A once it is on), %.2f A during a night shot: all well inside the '
+      'Wi-Fi\'s power save off (the C6 firmware built without tools/c6-power-save.sh) (%.2f / %.2f A once it is on), %.2f A during a night shot: all well inside the '
       'port\'s 1 A. Heat in the case in snapshot mode: %.2f W by day, %.2f W by night (power save off); %.2f / %.2f W '
       'with it on. Live view and the stress bound are reported only.\n'
       % ('PASS with WARNs.' if not fails else '%d FAIL.' % len(fails), sol['snap_day']['i_vsys'],
