@@ -190,6 +190,16 @@ def place_all(log=print):
     # area, so a part there cannot be reached (C15, C87, C88 and the
     # charger's pins were, even on an empty board: 20 Oct)
     B.keep_out((cx0 - g, cy0 - g, cx1 + g, cy1 + g), ('B',))
+    # a lane on the top from the nRF52840's SPI side to the SX1262's SPI
+    # pins (BUSY, NRESET, MISO, MOSI, SCK along its lower edge): with the
+    # nRF52840's DEC4 and crystal capacitors packed in it, Freerouting and the
+    # maze left the whole bus open (2 Nov 2026, 70 mm board)
+    sx_ = ref(comps, 'SX1262')
+    (sx0, sy0, sx1, sy1), _ = B.geom(sx_, *B.pl[sx_])
+    spi = [B.pad_xy(nrf, p) for p, n in B.comps[nrf].pins.items()
+           if n in ('LORA_BUSY', 'LORA_NRESET', 'LORA_MISO', 'LORA_MOSI', 'LORA_SCK', 'LORA_NSS', 'LORA_DIO1')
+           and B.pad_xy(nrf, p)[0] > cx1 - 1.0]                 # the balls on its edge facing the SX1262
+    B.keep_out((cx1 + g, sy1 + 0.15, sx1 - 0.7, max(q[1] for q in spi) + 0.5), ('T',))
     # ---- RF chains (top), a U: transmit along the top to the amplifier,
     # its output down the right end to the antenna switch, the antenna
     # through the filter to the U.FL, receive back along the bottom
@@ -401,9 +411,11 @@ def place_all(log=print):
     # every route ended with a dozen or more connections that found no way
     # through (62 mm and 70 mm, 1-2 Nov 2026): its small parts pack with room
     # for a track and a via between them; the rest of the board as before
-    # (the nRF52840's two crystals and their load capacitors first, at the
-    # usual gap: with the wide one they were pushed 10 mm from their pins)
-    xtal = {c.ref for c in comps if c.ref in todo and set(c.pins.values()) & {'XC1', 'XC2', 'XL1', 'XL2'}}
+    # (the nRF52840's two crystals, their load capacitors and its regulator
+    # capacitors (DEC1-6) first, at the usual gap: with the wide one the
+    # crystals were pushed 10 mm from their pins and DEC3 from 1.8 to 5.4 mm)
+    xtal = {c.ref for c in comps if c.ref in todo and any(
+        n in ('XC1', 'XC2', 'XL1', 'XL2') or n.startswith('NRF_DEC') for n in c.pins.values() if n)}
     left = place.pack(B, sorted(xtal, key=lambda r_: (r_[0] != 'Y', r_)), prefer=prefer)
     todo = [r_ for r_ in todo if r_ not in xtal]
     place.PACK_GAP = lambda x, y: PACK_GAP_LEFT if x < PACK_LEFT_X else place.GAP
