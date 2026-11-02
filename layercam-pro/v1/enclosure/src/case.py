@@ -112,9 +112,10 @@ VENT_X = 9.0               # slot centres run X -9..9, Ø2 ends (Prusa)
 # heatsink: 20 x 20 x 15 on 3M 8810 tape on the 0.85 mm chip
 SINK_Z0 = BOARD_BACK + 0.85 + 0.25
 SINK_GAP = 0.5
-# USB-C: GCT USB4105-GF-A, top mount on the back face, mouth at the tab edge
+# USB-C: GCT USB4105-GF-A, top mount on the back face, its mouth
+# geometry.USB_MOUTH out from the board's edge, past the tab's end (the
+# board places it there; this once assumed the mouth at the tab's end)
 USB_W, USB_H, USB_L = 8.94, 3.26, 7.35
-USB_MOUTH_PROUD = 0.0      # receptacle mouth past the tab edge (GCT: the mouth is at the PCB edge)
 USB_AXIS_Z = BOARD_BACK + USB_H / 2
 USB_OPEN = (9.4, 3.8)      # obround opening
 USB_PLUG = (13.0, 7.2)     # seat for the plug's overmould (USB-C max 12.35 x 6.5)
@@ -744,7 +745,7 @@ def usb_info(plane_old):
     o, u, s, z = usb_frame()
     n, d = plane_old
     t_out = (d - n @ o) / (n @ u)                 # along the axis to the facet
-    t_mouth = G.USB_TAB + USB_MOUTH_PROUD
+    t_mouth = G.USB_MOUTH
     return dict(origin=o, u=u, s=s, t_outer=t_out, t_mouth=t_mouth, t_seat=t_mouth + USB_SEAT_IN,
                 axis_z=USB_AXIS_Z)
 

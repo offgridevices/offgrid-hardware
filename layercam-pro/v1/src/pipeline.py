@@ -37,6 +37,16 @@ def run(bd, work, passes=int(os.environ.get('PASSES', 40))):
     log('== %s: place' % bd)
     board.build(bd, placed)
     pcb.configure(bd)
+    # the placement must pass KiCad's DRC but for the connections not yet
+    # made (and the vias they will reach) before an hour of routing: parts
+    # placed by hand once overlapped, and a via went through a pad, found
+    # only at the end
+    e, w, u = pcb.drc(placed, os.path.splitext(placed)[0] + '-drc.json')
+    if e:
+        for v in e:
+            log('   %s %s' % (v['type'], [i['description'][:60] for i in v['items']]))
+        raise SystemExit('placement: %d DRC errors; fix them before routing' % len(e))
+    log('  placement DRC: 0 errors')
     log('== route (Freerouting)')
     from board import ROUTER_PLANE_VIAS
     route.DROP_NETS = () if bd in ROUTER_PLANE_VIAS else PLANE_NETS[bd]

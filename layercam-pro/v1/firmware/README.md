@@ -338,11 +338,12 @@ Wi-Fi power sequence as esp-hosted-linux's own overlay
 ## Flashing a new board (BOOT pads, MaskROM)
 
 The test pads (`src/circuit.py`): **TP4** 5 V, **TP1** console TX, **TP2**
-console RX, **TP3** ground, **TP5** BOOT, and **TP6**/**TP7** the C6's own
-USB D-/D+. BOOT is the SoC's MaskROM strap (SARADC_IN0, 10k up to 1.8 V,
+console RX, **TP3** ground (those three in a row along the bottom edge,
+below the heatsink), and left of the SoC, in one row: **TP6**/**TP7** the
+C6's own USB D-/D+, **TP8** ground, **TP5** BOOT. BOOT is the SoC's MaskROM strap (SARADC_IN0, 10k up to 1.8 V,
 1 nF, 100R to the pad), so shorting it to ground is harmless.
 
-1. Bridge **TP5 BOOT** and **TP3 G** with tweezers, plug the USB-C into the
+1. Bridge **TP5 BOOT** and **TP8 G** (side by side) with tweezers, plug the USB-C into the
    computer, keep the bridge for a second, then lift it. The boot ROM
    finds BOOT low and waits for flashing over USB (`upgrade_tool ld`, or
    `lsusb`, shows a Rockchip device in *Maskrom*). Only a blank board, or

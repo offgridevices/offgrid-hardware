@@ -302,6 +302,7 @@ def main_soc():
     cap('C1N', 'BOOT_KEY', GND, B, 'boot filter')
     res('R100R', 'BOOT_KEY', 'BOOT_SW', B, 'boot pad series R')
     add('TP', 'TP', {'1': 'BOOT_SW'}, B, 'boot pad', ref='TP5')
+    add('TP', 'TP', {'1': GND}, B, 'boot pad ground', ref='TP8')
 
     # status LED, 3.3 V GPIO, 1k (1.3 mA: plenty for an indicator)
     res('R1K', 'LED_STATUS', 'LED_STATUS_A', B, 'status LED R')

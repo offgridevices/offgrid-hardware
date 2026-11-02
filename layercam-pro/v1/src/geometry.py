@@ -96,8 +96,15 @@ UNDER_HEATSINK_MAX_H = 0.8    # parts under the heatsink's overhang (its base on
 # so the receptacle's mouth reaches the case wall.
 USB_EDGE_XY = (-27.85, 8.9)                # on the edge, lens frame
 USB_NORMAL_DEG = 149.6
-USB_TAB = 2.2                              # how far the tab stands out from the edge
-USB_TAB_W = 10.4
+# The receptacle's front shell legs (1.2 x 1.8 mm pads, 4.33 mm either side
+# of its axis, 0.5-2.3 mm out from the edge) must keep the fab's 0.3 mm
+# from the tab's edges: at 2.2 x 10.4 they ran out over the tab's end
+# The receptacle's mouth (the footprint's +y, 5.24 mm from its origin, the
+# 3D model's face) stands this far out from the edge: 0.24 mm inside the
+# case's outer facet on the plug's axis.  The board and the case both use it.
+USB_MOUTH = 4.2
+USB_TAB = 2.8                              # how far the tab stands out from the edge
+USB_TAB_W = 11.4
 
 # ---------------------------------------------------------------- Wi-Fi
 # ESP32-C6-MINI-1U-H4 on the back face; its MHF III (W.FL) socket takes a

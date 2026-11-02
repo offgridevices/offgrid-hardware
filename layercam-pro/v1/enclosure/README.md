@@ -44,7 +44,7 @@ The outside is Prusa's own surface (their triangles), except:
 
 | Change | Why |
 |---|---|
-| **USB-C** moved to the board's edge tab on the same -X facet: a 9.4 x 3.8 obround, plug axis level at Z 24.2 along 149.6°, in a 13.0 x 7.2 seat cut square to the plug (the facet slopes 30°, so the seat is 0.4 mm deep at its bottom edge and 4 mm at its top; Prusa's own USB-C recess was 1.1 to 1.4 mm). The receptacle's mouth sits 0.2 mm inside the seat floor. Prusa's opening and recess are filled flush | level plug from a flat board |
+| **USB-C** moved to the board's edge tab on the same -X facet: a 9.4 x 3.8 obround, plug axis level at Z 24.2 along 149.6°, in a 13.0 x 7.2 seat cut square to the plug (the facet slopes 30°; Prusa's own USB-C recess was 1.1 to 1.4 mm). The receptacle's mouth, 4.2 mm out from the board's edge and past the tab's 2.8 mm end (`geometry.USB_MOUTH`, which the board uses too), sits 0.2 mm inside the seat floor. Prusa's opening and recess are filled flush | level plug from a flat board |
 | **RP-SMA** Ø6.5 hole with a flat (5.9 across) on the +X +Y facet of the back shell, at (28.1, 20.4, 26.9) | the antenna (below) |
 | **Magnets**: two Ø10.3 x 3.1 mm pockets for 10 x 3 mm discs, on the two faces where Prusa's slide-in block magnets act (the +X back chamfer, centre (31.2, 8.4, 34.6), and the -Y back chamfer, centre (1.0, -32.0, 33.8)), each on the largest flat circle of its face. Prusa's slots are closed | round discs, epoxied flush |
 | **Screws**: the board's four M2 screws (`geometry.SCREWS`) clamp board and shells together from the back. The two at (±13, 25.5) use Prusa's two holes in the +Y back chamfer, moved 0.6 mm (Prusa's are at y 26.1); the two at (±28, 0) are **new holes** in the ±X back chamfers, 9 mm from the magnet pocket | one set of screws for board and case |
@@ -164,7 +164,7 @@ triangles (their STEP files do not tessellate watertight); the STEP files
 give the exact faces. Scratch goes to `enclosure/out/` (git-ignored), with
 `out/fit-outline.txt`.
 
-Check results (1 Nov 2026 build):
+Check results (2 Nov 2026 build):
 
 | Check | Result |
 |---|---|
@@ -176,8 +176,8 @@ Check results (1 Nov 2026 build):
 | Light-sensor tube | open end to end, 0.65 mm short of the sensor |
 | IR-cut holder volume | clear |
 | Heatsink | 0.84 mm to the lid (>= 0.5), 0.5 to the back shell, 3 slots over it |
-| USB-C mouth | axis level at Z 24.23; mouth 0.20 mm inside the seat floor; opening clear |
-| Walls (outside to inside) | front shell thinnest 1.97 mm; back shell 1.48 at one spot beside the antenna jack's room (0.04 % of its surface); lid 1.48 at two corners of its 1.6 mm pocket (0.09 %) |
+| USB-C mouth | axis level at Z 24.23; mouth 4.20 mm out from the board's edge (as `src/layout_main.py` places it), 0.20 mm inside the seat floor; opening clear |
+| Walls (outside to inside) | front shell thinnest 1.95 mm; back shell 1.51 at one spot beside the antenna jack's room (0.03 % of its surface); lid 1.48 at two corners of its 1.6 mm pocket (0.09 %) |
 | Magnet pockets | 3.10 deep, floors 1.50 mm |
 | RP-SMA | 2.0 mm wall at the hole, nut and jack room clear |
 | Parts | do not overlap |

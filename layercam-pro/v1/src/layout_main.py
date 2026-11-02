@@ -48,22 +48,24 @@ FIXED = {
     'U4': (-14.0, -6.5, 0, F),
     'L5': (-17.6, -6.6, 90, F),
     # USB-C on the edge tab, its mouth along the edge's outward normal
-    # (board angle -149.6 deg), 4.2 mm out from the edge: 0.2 mm inside the
-    # case's outer face.  The footprint's mouth is 5.24 mm from its origin
+    # (board angle -149.6 deg), geometry.USB_MOUTH (4.2 mm) out from the
+    # edge: 0.24 mm inside the case's outer face.  The footprint's mouth is 5.24 mm from its origin
     # along its +y.
     'J1': None,
-    'U10': (-21.6, -11.6, 0, F),      # USB ESD
+    'U10': (-19.8, -12.0, 0, F),      # USB ESD, clear of the USB-C's shell legs
     'D1': (-19.0, -15.2, 0, F),       # 5 V TVS
     'U9': (-3.6, -3.4, 0, F),         # the sensor's 2.8 V LDO, behind the sensor
     'LED1': (12.0, 2.4, 0, F),        # status, in the lid's vent window
-    # test pads along the bottom edge, below the heatsink: the console's TX
-    # RX G for a 3.3 V USB-serial lead and BOOT beside G for tweezers; 5V on
-    # its own; the C6's USB pair for recovery
-    # (BOOT, G, TX, RX left to right, BOOT nearest the SoC's boot pin 23 on
-    # its left side)
-    'TP5': (-3.0, 27.4, 0, F), 'TP3': (-1.0, 27.4, 0, F), 'TP1': (1.0, 27.4, 0, F), 'TP2': (3.0, 27.4, 0, F),
+    # test pads.  Along the bottom edge, below the heatsink: the console's
+    # G TX RX for a 3.3 V USB-serial lead (left to right), 5V on its own.
+    # Left of the SoC, in one row 2.0 mm apart: the C6's USB pair for
+    # recovery, then G and BOOT for tweezers (D- D+ G BOOT, left to right).
+    # BOOT sits by the SoC's boot pin 23 on its left side: from the bottom
+    # row its wire had to cross the SoC's crowded bottom-left corner and
+    # the router could not finish it
+    'TP3': (-1.0, 27.4, 0, F), 'TP1': (1.0, 27.4, 0, F), 'TP2': (3.0, 27.4, 0, F),
     'TP4': (-7.0, 27.4, 0, F),
-    'TP6': (-19.4, 13.6, 0, F), 'TP7': (-17.4, 13.6, 0, F),
+    'TP6': (-19.4, 13.6, 0, F), 'TP7': (-17.4, 13.6, 0, F), 'TP8': (-15.4, 13.6, 0, F), 'TP5': (-13.4, 13.6, 0, F),
     # B, the front face
     # the image sensor on the lens axis; its MIPI balls (rows D-E) towards
     # the SoC.  KiCad flips a front-face part top to bottom (a pad at
@@ -80,10 +82,10 @@ FIXED = {
     'D7': (7.200, 12.471, 0, B),        # IR LED at 300 degrees (lens frame)
     # the strings' 1206 resistors (not placed by the small-part placer) by
     # each string's first LED, clear of the rods' channels
-    'R90': (17.0, 2.4, 0, B), 'R91': (-11.5, -14.8, 0, B), 'R92': (-11.5, 14.8, 0, B),
+    'R90': (17.0, 2.4, 0, B), 'R91': (-12.6, -13.4, 90, B), 'R92': (-12.6, 13.4, 90, B),
     'Q2': (0.0, 14.15, 0, B),         # light sensor under the front window
     'Q1': (-17.0, 6.0, 0, B),         # IR LED switch
-    'J3': (17.6, -5.6, 270, B),       # IR-cut lead
+    'J3': (17.6, -7.0, 270, B),       # IR-cut lead
     'U7': (16.4, 5.6, 0, B),          # IR-cut H-bridge
     'Y2': (-9.6, 17.6, 90, B),        # RTC crystal under the SoC's left side
     # mounting
@@ -98,7 +100,7 @@ def _usb_place():
     ex, ey = G.USB_EDGE_XY
     a = math.radians(G.USB_NORMAL_DEG)
     ux, uy = math.cos(a), -math.sin(a)            # the outward normal, board coordinates
-    ox, oy = ex + (4.2 - 5.24) * ux, -ey + (4.2 - 5.24) * uy
+    ox, oy = ex + (G.USB_MOUTH - 5.24) * ux, -ey + (G.USB_MOUTH - 5.24) * uy
     rot = math.degrees(math.atan2(ux, uy))        # the footprint's +y (its mouth) onto the normal
     return (round(ox, 3), round(oy, 3), round(rot, 2), F)
 
@@ -377,11 +379,55 @@ def zones(b):
     _zone_shape(b, 'VDD_0V9', pcbnew.In3_Cu, pp['VDD_0V9'], '0.9 V plane', 2)
     for g in (getattr(pp['VCC_3V3'], 'geoms', None) or [pp['VCC_3V3']]):
         _zone_shape(b, 'VCC_3V3', pcbnew.In3_Cu, g, '3.3 V plane', 1)
-    # the exposed pad: a 5 x 5 grid of filled, capped vias to the ground planes
+    for x, y in ep_vias(b):
+        pcb.via(b, x, y, 'GND')
+
+
+EP_VIAS = 25          # sim/thermal.py's N_EP_VIAS
+EP_PITCHES = (1.2, 1.1, 1.0, 0.9)   # via to via; at 0.9, 0.45 mm of board between their copper
+EP_REACH = 2.7       # inside the core band (_core_band), where the 0.9 V capacitors go
+
+
+def ep_vias(b):
+    """The exposed pad's filled, capped vias to the ground planes: EP_VIAS
+    of them on a square grid, as coarse as fits (1.2 mm: the 5 x 5 grid),
+    within EP_REACH of the pad's centre and each clear of the other nets'
+    pads on the front face.  The light sensor Q2 sits under the SoC,
+    behind the case's window: the plain 5 x 5 grid once went through its
+    pads."""
+    import pcbnew
+    from shapely.geometry import Point, Polygon
+    from shapely.ops import unary_union
+    r = pcb.VIA[0] / 2
+    pads = []
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname() == 'GND' or not (p.IsOnLayer(pcbnew.B_Cu) or p.GetDrillSize().x > 0):
+                continue
+            sh = p.GetEffectivePolygon(pcbnew.B_Cu)
+            for i in range(sh.OutlineCount()):
+                o = sh.Outline(i)
+                pads.append(Polygon([pcb.xy(o.CPoint(k)) for k in range(o.PointCount())]))
+    bad = unary_union(pads).buffer(r + 0.25) if pads else Polygon()
     cx, cy = SOC
-    for i in range(5):
-        for j in range(5):
-            pcb.via(b, cx - 2.4 + 1.2 * i, cy - 2.4 + 1.2 * j, 'GND')
+    best = []
+    for pitch in EP_PITCHES:
+        n = int(EP_REACH / pitch) + 1
+        for ox in range(10):
+            for oy in range(10):
+                dx, dy = pitch * ox / 10, pitch * oy / 10
+                pts = [(round(cx + dx + pitch * i, 3), round(cy + dy + pitch * j, 3))
+                       for i in range(-n, n + 1) for j in range(-n, n + 1)]
+                pts = [q for q in pts if abs(q[0] - cx) <= EP_REACH and abs(q[1] - cy) <= EP_REACH
+                       and bad.distance(Point(q)) > 0]
+                if len(pts) > len(best):
+                    best = pts
+        if len(best) >= EP_VIAS:
+            break
+    if len(best) < EP_VIAS:
+        raise SystemExit('exposed pad: room for %d vias, sim/thermal.py assumes %d' % (len(best), EP_VIAS))
+    # the EP_VIAS nearest the centre (the die's heat is there)
+    return sorted(best, key=lambda q: ((q[0] - cx) ** 2 + (q[1] - cy) ** 2, q))[:EP_VIAS]
 
 
 def _zone_shape(b, net, layer, g, name, prio):

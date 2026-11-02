@@ -209,10 +209,11 @@ Full steps, in this order, in
 [`firmware/README.md`](firmware/README.md) (*Flashing a new board*,
 *Bringing up a board*).
 
-1. **Flash a new board.** The test pads are on the back face along the
-   bottom edge, below the heatsink: `BOOT G TX RX` from left to right seen
-   from the back, and 5V on its own to their left. Bridge BOOT and G with
-   tweezers while plugging USB-C into a computer: the main chip waits in
+1. **Flash a new board.** The test pads are on the back face. Along the
+   bottom edge, below the heatsink: `G TX RX` from left to right seen from
+   the back, and 5V on its own to their left. Left of the main chip, in a
+   row: `D- D+ G BOOT` (the Wi-Fi chip's USB, then ground and BOOT). Bridge
+   BOOT and the G beside it with tweezers while plugging USB-C into a computer: the main chip waits in
    MaskROM. Flash the image with Rockchip's tool. The console is TX, RX
    and G, 3.3 V, 115200 baud.
 2. **Flash the ESP32-C6, with power save on.** A new module is blank, so

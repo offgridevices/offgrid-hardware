@@ -145,8 +145,8 @@ def case():
     a = math.radians(G.USB_NORMAL_DEG)
     out = (mx - ex) * math.cos(a) + (my + ey) * -math.sin(a)
     side = (mx - ex) * math.sin(a) + (my + ey) * math.cos(a)
-    check(abs(out - 4.2) < 0.05 and abs(side) < 0.05,
-          'USB-C mouth 4.2 mm out along the edge normal, on the opening\'s centre (%.2f out, %.2f aside)' % (out, side))
+    check(abs(out - G.USB_MOUTH) < 0.05 and abs(side) < 0.05,
+          'USB-C mouth %.1f mm out' % G.USB_MOUTH + ' along the edge normal, on the opening\'s centre (%.2f out, %.2f aside)' % (out, side))
 
 
 def heights():

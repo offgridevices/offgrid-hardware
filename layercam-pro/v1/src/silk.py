@@ -154,12 +154,17 @@ def draw(b):
     _set(top, brand.place(brand.lockup_mm(w)[0], x, y), 'lockup')
     x, y, cap = MAIN_NAME
     _set(top, brand.place(ink(brand.line([('sans', NAMES['main']), ('mono', REV)], cap)[0]), x, y), 'name')
-    # the bring-up pads: 5V on its own.  The console and boot pads are a
-    # row 2.0 mm apart: README.md names them (BOOT, G, TX, RX from the 5V side)
+    # the bring-up pads: 5V on its own.  The console's pads are a row 2.0 mm
+    # apart (G, TX, RX from the 5V side), and left of the SoC D- D+ G BOOT:
+    # README.md names them; BOOT is labelled, the one to bridge
     x, y = pcb.xy(b.FindFootprintByReference('TP4').GetPosition())
     if not any(top.put(text('mono', '5V', 0.8), x + dx, y + dy, search=2.0, must=False)
                for dx, dy in ((0, -1.4), (-1.7, -1.4), (1.6, 0), (-1.6, 0))):
         raise SystemExit('silk: no room for the 5V label')
+    x, y = pcb.xy(b.FindFootprintByReference('TP5').GetPosition())
+    if not any(top.put(text('mono', 'BOOT', 0.8), x + dx, y + dy, search=2.0, must=False)
+               for dx, dy in ((0, -1.4), (0, 1.4), (2.4, 0))):
+        raise SystemExit('silk: no room for the BOOT label')
     top.put(ink(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 1.0)[0]), -6.0, -24.0,
             search=5.0, must=False)
     bot = Placer(b, 'B')
