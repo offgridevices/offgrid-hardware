@@ -19,7 +19,9 @@ RUN apt-get update -qq \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
       python3-pip ngspice > /dev/null \
  && rm -rf /var/lib/apt/lists/*
-RUN pip3 install --break-system-packages -q numpy shapely Pillow matplotlib uharfbuzz fonttools pytest
+# the same pins as tools/ci-setup.sh
+RUN pip3 install --break-system-packages -q numpy==2.5.4 shapely==2.2.0 Pillow==11.1.0 matplotlib==3.11.2 \
+      uharfbuzz==0.57.0 fonttools==4.68.0 pytest==9.2.0
 # 3D models of the standard R/C chips, for the renders: only these files out
 # of Debian's kicad-packages3d (apt checks the package against its signed index)
 RUN cd /tmp && apt-get update -qq && apt-get download -qq kicad-packages3d \

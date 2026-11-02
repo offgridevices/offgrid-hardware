@@ -16,8 +16,9 @@ RUN apt-get update -qq \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
       python3-pip openjdk-21-jre xvfb xauth ngspice > /dev/null \
  && rm -rf /var/lib/apt/lists/*
-RUN pip3 install --break-system-packages -q numpy shapely Pillow matplotlib pypdf \
-      uharfbuzz fonttools pymupdf scipy scikit-image kikit \
+# the same pins as tools/ci-setup.sh
+RUN pip3 install --break-system-packages -q numpy==2.5.4 shapely==2.2.0 Pillow==11.1.0 matplotlib==3.11.2 \
+      pypdf==6.21.4 uharfbuzz==0.57.0 fonttools==4.68.0 pymupdf==2.1 scipy==1.18.1 scikit-image kikit \
  && pip3 install --break-system-packages -q --no-deps gerbonara
 # 3D models of the standard R/C chips, for the renders: only these files
 # out of Debian's kicad-packages3d (apt checks the package against its
