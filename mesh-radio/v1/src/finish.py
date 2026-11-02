@@ -95,6 +95,18 @@ class Grid:
                 if pad.GetDrillSize().x > 0 and pad.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH:
                     p = pad.GetPosition()
                     holes.append(Point(mm(p.x), mm(p.y)).buffer(mm(pad.GetDrillSize().x) / 2))
+                elif (PTH_TO_TRACK and pad.GetDrillSize().x > 0 and pad.GetNetname() != net_exclude
+                      and pad.GetAttribute() == pcbnew.PAD_ATTRIB_PTH):
+                    # JLCPCB's plated hole to track (pcb.RULES, 0.28 mm): the
+                    # hole grown so its class clearance on top makes that
+                    hs = pad.GetEffectiveHoleShape()
+                    sg = hs.GetSeg()
+                    cl_ = self.netcl(pad.GetNetname())
+                    g = LineString([(mm(sg.A.x), mm(sg.A.y)), (mm(sg.B.x), mm(sg.B.y))]) if sg.A != sg.B \
+                        else Point(mm(sg.A.x), mm(sg.A.y))
+                    g = g.buffer(mm(hs.GetWidth()) / 2 + max(0.0, PTH_TO_TRACK + 0.01 - cl_))
+                    for l in self.layers:
+                        other[l].append((g, cl_))
         for t in b.GetTracks():
             if out(t.GetBoundingBox()):
                 continue
@@ -256,6 +268,8 @@ VIA_D, VIA_DRILL = 0.45, 0.25
 # Every via is an obstacle with at least this ring (see route.VIA_RING)
 VIA_RING = 0.0
 HOLE_TO_HOLE = 0.25
+# plated component hole to track (mm), None for no such rule
+PTH_TO_TRACK = 0.28
 # JLCPCB via-in-pad (POFV): the in-pad vias (0.3 mm drill here; every
 # 0.3 mm-drill via is treated as one) keep more than 0.45 mm hole to hole
 # from any other hole.  None switches this off.

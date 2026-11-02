@@ -490,8 +490,13 @@ def nudge_via(b, v, obs, layers, gap=0.2):
                     if t.GetEnd() == q:
                         t.SetEnd(p)
                 v.SetPosition(p)
-                # later nudges in this pass see the hole where it now is
+                # later nudges in this pass see the hole and its copper where they now are
                 saved[:] = others + [(x, y, rh)]
+                obs.add(Point(x, y).buffer(r, 16), net, layers)
+                for t in ends:
+                    a_, e_ = t.GetStart(), t.GetEnd()
+                    obs.add(LineString([(a_.x / 1e6, a_.y / 1e6), (e_.x / 1e6, e_.y / 1e6)]).buffer(t.GetWidth() / 2e6, 8),
+                            net, [t.GetLayer()])
                 return True
         return False
     finally:
@@ -536,7 +541,7 @@ def rip_near(b, v, gap=0.2):
     return n
 
 
-def fix_via_holes(b, skip=(), gap=0.2, passes=6):
+def fix_via_holes(b, skip=(), gap=0.2, passes=6, fixed=()):
     """Every via (not of the nets in `skip`) whose hole comes within `gap`
     of another net's copper: nudged (nudge_via), else given the board's
     0.3/0.15 size (shrink_via), else, in a pad or locked, the other nets'
@@ -565,7 +570,10 @@ def fix_via_holes(b, skip=(), gap=0.2, passes=6):
                 continue
             # first a nudge: the smallest move (up to 0.15 mm) that clears it, its
             # tracks' ends following (0.19 mm is the usual miss)
-            if nudge_via(b, v, obs, layers, gap):
+            if v.GetNetname() in fixed:
+                # an RF line's via stays where it is: the tracks near it go
+                nt += rip_near(b, v, gap)
+            elif nudge_via(b, v, obs, layers, gap):
                 nn += 1
             elif v.GetDrillValue() > pcb.MM(board.VIA_PAD[1]) and shrink_via(b, v, obs, layers, gap):
                 # the board's in-pad via size (0.3/0.15 mm, already on it):
@@ -582,15 +590,41 @@ def fix_via_holes(b, skip=(), gap=0.2, passes=6):
     return nn, ns, nt, nv
 
 
+def rip_near_pth(b, gap=0.28):
+    """Take out the other nets' unlocked tracks within `gap` (JLCPCB's
+    plated hole to track, pcb.RULES) of a plated component hole.  Returns how many."""
+    from shapely.geometry import Point, LineString
+    keep = set(PLANES) | set(board.RF_NETS) | set(board.RF_EXTRA)
+    holes = []
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetAttribute() == pcbnew.PAD_ATTRIB_PTH and p.GetDrillSize().x > 0:
+                hs = p.GetEffectiveHoleShape(); sg = hs.GetSeg()
+                g = (LineString([(sg.A.x / 1e6, sg.A.y / 1e6), (sg.B.x / 1e6, sg.B.y / 1e6)]) if sg.A != sg.B
+                     else Point(sg.A.x / 1e6, sg.A.y / 1e6)).buffer(hs.GetWidth() / 2e6, 16)
+                holes.append((g, p.GetNetname()))
+    n = 0
+    for t in list(b.GetTracks()):
+        if t.GetClass() != 'PCB_TRACK' or t.GetNetname() in keep or t.IsLocked():
+            continue
+        g = finish._geom_of(t)
+        if g and any(h.distance(x) < gap + HOLE_MARGIN for h, hn in holes if hn != t.GetNetname()
+                     for gs in g.values() for x in gs):
+            pcb.remove(b, t); n += 1
+    return n
+
+
 def hole_pass(path, log=log):
     """Before the clean-up: fix_via_holes over every via but the RF lines'
     (the ground pour's stitching vias too), then a maze pass for anything
     it opened is left to the caller."""
     b = pcbnew.LoadBoard(path)
-    r = fix_via_holes(b, set(board.RF_NETS) | set(board.RF_EXTRA))
+    r = fix_via_holes(b, fixed=set(board.RF_NETS) | set(board.RF_EXTRA))
+    k = rip_near_pth(b)
     pcb.save_board(b, path)
-    log('hole pass: %d vias nudged, %d made 0.3/0.15 mm, %d track pieces and %d vias taken out' % r)
-    return r
+    log('hole pass: %d vias nudged, %d made 0.3/0.15 mm, %d track pieces and %d vias taken out' % r
+        + ', %d track pieces too near plated holes taken out' % k)
+    return r[:2] + (r[2] + k, r[3])
 
 
 def fab_fixups(path, log=log):
@@ -619,6 +653,7 @@ def fab_fixups(path, log=log):
         t.SetWidth(pcbnew.FromMM(board.FAB_MIN))
     # vias whose holes are too close to other copper
     nn, ns, nt, nv = fix_via_holes(b, keep)
+    nt += rip_near_pth(b)
     # copper in the unplated-hole keepouts
     rings = []
     for z in b.Zones():
@@ -935,16 +970,30 @@ def finish_tail(fin, work, w, cl):
     """Ground pour and stitching, the last maze pass, clean-up, POFV
     spacing, stackup and DRC."""
     import stitch, cleanup, pofv
+    shutil.copy(fin, os.path.join(work, 'tail_in.kicad_pcb')); pcb.copy_project(fin, os.path.join(work, 'tail_in.kicad_pcb'))
+
+    def opens(step):
+        # KiCad's own count after each step (2 Nov: the supply nets came out
+        # of the tail open, whole going in)
+        write_rules(fin)
+        _, _, u = pcb.drc(fin, os.path.join(work, 'tail_%s.json' % step))
+        nets = Counter(x['items'][0]['description'].split('[')[1].split(']')[0] for x in u if '[' in x['items'][0]['description'])
+        log('tail, after %s: %d unconnected %s' % (step, len(u), dict(nets)))
+    opens('repair')
     pcb.tidy_tracks(fin)
+    opens('tidy')
     fatten(fin)
-    write_rules(fin)
-    pcb.pour_ground(fin, list(finish.ROUTE_LAYERS), clearance=0.15)
+    opens('fatten')
+    # the ground pour on every routing layer but the plane's own (In1 has
+    # the 'GND plane' zone: a second one there is a DRC error)
+    plane = pcb.layer_id(pcb.INNER['gnd'])
+    pcb.pour_ground(fin, [l for l in finish.ROUTE_LAYERS if l != plane], clearance=0.15)
     b = pcbnew.LoadBoard(fin)
     stitch.stitch_ground(b, pitch=1.0, via=board.VIA_SIG, clearance=0.13, log=log)
     b.Save(fin)
-    write_rules(fin)
+    opens('pour and stitch')
     finish.finish_board(fin, fin, os.path.join(work, 'fin2.json'), rules=w, clmap=cl)
-    write_rules(fin)
+    opens('maze')
     return finish_clean(fin, work, w, cl)
 
 
