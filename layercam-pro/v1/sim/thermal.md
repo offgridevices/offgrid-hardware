@@ -63,7 +63,7 @@ At 70 C (information only):
 - **Wi-Fi power save is needed for the rating**: off (the C6 as first built), the limit drops to 64.7 C by night and 67.0 C by day, 3.6 K lower; the sensor runs 3.0 K and the junction 2.6 K warmer. The C6 firmware must set it, and the first board should confirm the C6's current with it on (power.md: 47 mA against 98 mA, ASSUMED duty cycles).
 - **70 C is not met** (information): with power save on, 70.5 C by day and 68.3 C by night; off, 67.0 C and 64.7 C. The parts that stop it are the 85 C ones above.
 - **The vent slots carry little**: 0.027 W of the heatsink's 0.21 W leaves through its three slots and 0.083 W through the lid over it; the rest goes into the case's inside air and the board. Without the heatsink the sensor would be 84.8 C, with a 1 mm gap pad from the fin tops to the lid 80.3 C (chamber limit then 69.5 C by night, power save on).
-- Live view: every part in rating to 53.1 C by day and 41.6 C by night; it stays a firmware-gated mode (TSADC below 87 C; snapshot mode stretches to 30 s above 85 C).
+- Live view: every part in rating to 53.1 C by day and 41.6 C by night; it stays a firmware-gated mode (TSADC below 87 C; snapshot mode spaces Connect pictures to 30 s from 84 C).
 - Model uncertainty about +-10 K (optimistic bracket: RV1106 84.8 C, sensor 81.0 C in the rating case); part places from the routed board (layercam-pro.kicad_pcb), copper coverage measured on the routed board (layercam-pro.kicad_pcb), the snapshot currents ASSUMED. Measure the first board in a 65 C oven.
 
 ## Snapshot, day, Wi-Fi power save on (the rating)
@@ -483,9 +483,11 @@ The RV1106's TSADC reads its own junction (+-3 C). In a steady state every part 
 | live view night | 41.6 C (SC4336H image sensor (U8)) | 90 C | **87 C** | 110 C |
 
 1. **Snapshot mode is the default**: CPU at its lowest OPP between shots, NPU off, sensor in standby, the C6's Wi-Fi power save on (the rating assumes it).
-2. **Live view** only while TSADC < 87 C; above it, back to snapshot mode ("live view paused: camera too warm").
-3. TSADC > 85 C in snapshot mode: stretch the interval to 30 s, cap Wi-Fi TX power, shorten the IR flash.
-4. TSADC > 110 C: stop capturing (keep Wi-Fi associated, report the fault); > 120 C power the sensor and Wi-Fi down; Linux critical trip at 125 C.
+2. **Live view** only while TSADC < 87 C; above it, back to snapshot mode (the page says "too hot for live view").
+3. TSADC >= 84 C (the lowest snapshot-mode limit above): Prusa Connect pictures no more often than every 30 s and the IR flash cut to 200 ms before each night picture (firmware `thermal.warm_c`). The Wi-Fi's TX power is capped at 10 dBm at every temperature (`wifi.tx_power_dbm`).
+4. TSADC >= 105 C: no Prusa Connect uploads (timelapse frames continue); >= 110 C: camera stopped, Wi-Fi kept associated and the fault shown on the page, until the TSADC is back under 95 C (`thermal.stop_c`, `resume_c`).
+
+The firmware's defaults (`firmware/layercam/config.py`, *thermal*) are these numbers; `firmware/tests/test_thermal.py` checks them.
 
 ## The heatsink and the slots
 

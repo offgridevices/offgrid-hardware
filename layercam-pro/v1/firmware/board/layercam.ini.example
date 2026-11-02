@@ -146,6 +146,12 @@ flash_settle_ms = 500
 [thermal]
 # the RV1106's own temperature sensor (TSADC), millidegrees
 zone = /sys/class/thermal/thermal_zone0/temp
+# from here: Prusa Connect pictures spaced out and a shorter IR flash
+warm_c = 84.0
+# ...pictures no more often than this, s
+warm_interval_s = 30
+# ...IR LEDs on no longer than this before a picture, ms
+warm_flash_settle_ms = 200
 # from here: lower frame rates and JPEG quality, no live view, LED duty capped
 throttle_c = 87.0
 # from here also: no Prusa Connect uploads (timelapse frames continue)

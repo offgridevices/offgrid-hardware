@@ -74,7 +74,8 @@ class Service:
                                       have_printer=self.link is not None)
         th = self.cfg.section('thermal')
         self.gov = thermal.Governor(th['throttle_c'], th['no_upload_c'], th['stop_c'], th['resume_c'],
-                                    th['hysteresis_k'])
+                                    th['hysteresis_k'], warm_c=th['warm_c'])
+        self.last_connect_shot = None
         self.lim = thermal.limits('normal', self.cfg)
         self.rec = None
         self.printer = None
@@ -146,7 +147,10 @@ class Service:
             flash = self.night_flash()
             if flash:
                 self.lights(True)
-                wait = max(wait, self.cfg.get('ir', 'flash_settle_ms') / 1000.0)
+                settle = self.cfg.get('ir', 'flash_settle_ms')
+                if self.lim['flash_settle_ms'] is not None:
+                    settle = min(settle, self.lim['flash_settle_ms'])      # warm: a shorter flash
+                wait = max(wait, settle / 1000.0)
             left = wait - (time.monotonic() - t0)
             if left > 0:
                 time.sleep(left)
@@ -396,13 +400,17 @@ class Service:
                 parked, self.parked_jpeg = self.parked_jpeg, None
                 if not self.lim['connect']:
                     pass                          # too hot: frames for the timelapse only
+                elif self.too_soon_when_warm(now):
+                    pass                          # warm: pictures spaced out (sim/thermal.md rule 3)
                 elif parked is not None:
                     # a frame from a parked head beats a timed one; it waits for the rate limit
                     if not self.connect.limit.ready():
                         time.sleep(self.connect.limit.wait_s())
                     self.connect.send_snapshot(lambda q: parked if q == self.connect.quality else self.take_jpeg(q))
+                    self.last_connect_shot = time.monotonic()
                 elif self.connect.limit.ready():
                     self.connect.send_snapshot(self.take_jpeg)
+                    self.last_connect_shot = time.monotonic()
             except connect_mod.ConnectError as e:
                 log.warning('connect: %s', e)
                 # a refused token stays refused until the settings change (and the service restarts)
@@ -412,6 +420,11 @@ class Service:
                 if info_due is not None:
                     info_due = time.monotonic() + 60
             time.sleep(1)
+
+    def too_soon_when_warm(self, now):
+        """Warm: no Connect picture sooner than the level's spacing after the last."""
+        gap = self.lim['snap_min_s']
+        return bool(gap) and self.last_connect_shot is not None and now - self.last_connect_shot < gap
 
     def camera_resolution(self):
         with self.cam_lock:

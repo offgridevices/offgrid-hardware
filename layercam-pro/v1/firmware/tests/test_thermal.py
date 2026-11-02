@@ -37,6 +37,21 @@ class Governor(unittest.TestCase):
     def test_bad_thresholds(self):
         with self.assertRaises(AssertionError):
             thermal.Governor(100, 95, 115)
+        with self.assertRaises(AssertionError):
+            thermal.Governor(87, 105, 110, warm_c=90)            # warm must come before throttle
+
+    def test_warm_level(self):
+        # config.py's defaults: warm 84, throttle 87 (sim/thermal.md, Firmware rules 2 and 3)
+        g = thermal.Governor(87, 105, 110, 95, 5, warm_c=84)
+        seq = [(83.9, 'normal'), (84, 'warm'), (86.9, 'warm'), (82.1, 'warm'),   # warm left only under 82
+               (81.9, 'normal'), (88, 'throttle'), (82.5, 'throttle'),          # throttle left only under 82
+               (81.9, 'normal'), (85, 'warm'), (111, 'stop'), (94, 'throttle')]
+        for t, want in seq:
+            self.assertEqual(g.feed(t), want, t)
+
+    def test_defaults_are_the_configs(self):
+        th = config.Config().section('thermal')
+        self.assertEqual((th['warm_c'], th['throttle_c'], th['stop_c']), (84.0, 87.0, 110.0))
 
 
 class Limits(unittest.TestCase):
@@ -44,9 +59,13 @@ class Limits(unittest.TestCase):
         self.cfg = config.Config()
 
     def test_each_level(self):
-        n, t, h, s = (thermal.limits(lv, self.cfg) for lv in thermal.LEVELS)
+        n, w, t, h, s = (thermal.limits(lv, self.cfg) for lv in thermal.LEVELS)
         self.assertTrue(n['live'] and n['connect'] and n['camera'] and n['cpu_boost'])
-        self.assertEqual((n['led_cap'], n['fps_cap']), (100, 30))
+        self.assertEqual((n['led_cap'], n['fps_cap'], n['snap_min_s'], n['flash_settle_ms']), (100, 30, 0, None))
+        # warm: only the pictures spaced out and the flash shortened
+        self.assertEqual(dict(w, snap_min_s=0, flash_settle_ms=None), n)
+        self.assertEqual((w['snap_min_s'], w['flash_settle_ms']), (30, 200))
+        self.assertEqual((t['snap_min_s'], h['snap_min_s']), (30, 30))                # and every hotter level
         self.assertEqual((t['live'], t['connect'], t['camera'], t['cpu_boost']), (False, True, True, False))
         self.assertEqual((t['fps_cap'], t['quality_cap'], t['led_cap']), (5, 70, 50))
         self.assertEqual((h['live'], h['connect'], h['camera']), (False, False, True))     # frames, no uploads
@@ -205,6 +224,28 @@ class ServiceUnderHeat(unittest.TestCase):
         with self.assertRaises(capture.CameraError):
             self.svc.snapshot(80)
         self.assertEqual(self.leds, [])
+
+    def test_warm_spaces_connect_pictures_and_shortens_the_flash(self):
+        self.svc.update_thermal(85)
+        self.assertEqual(self.svc.gov.level, 'warm')
+        self.assertTrue(self.svc.lim['live'] and self.svc.lim['connect'])
+        self.assertFalse(self.svc.too_soon_when_warm(100.0))     # no picture yet
+        self.svc.last_connect_shot = 100.0
+        self.assertTrue(self.svc.too_soon_when_warm(129.9))
+        self.assertFalse(self.svc.too_soon_when_warm(130.0))
+        self.svc.update_thermal(70)
+        self.assertFalse(self.svc.too_soon_when_warm(101.0))     # cool: Connect's own rate only
+        # the flash: 500 ms set, 200 ms when warm
+        self.svc.cfg.set('ir', 'flash_settle_ms', 500)
+        self.svc.ir = ('night', True)
+        slept = []
+        with mock.patch.object(service.time, 'sleep', slept.append):
+            self.svc.snapshot(80)
+            self.svc.update_thermal(85)
+            self.svc.snapshot(80)
+        self.assertGreater(slept[0], 0.4)
+        self.assertLessEqual(slept[-1], 0.2)
+        self.assertEqual(hw.led_state(False, True, None, False, 'warm'), 'ok')    # warm is not a fault
 
     def test_ircut_pulsed_only_on_change(self):
         pulses = []

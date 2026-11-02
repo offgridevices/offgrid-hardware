@@ -99,9 +99,11 @@ coverage.
 
 ## Firmware (`firmware/`, host tests)
 
-`python3 -m unittest` from `firmware/`: **209 run, 208 pass, 1 skipped**
-(1 Nov 2026, Python 3.13, with ffmpeg, without `ssh-keygen`: the skipped
-one is the SSH fingerprint cross-check). They cover:
+`python3 -m unittest` from `firmware/`: **212 run, all pass** in CI
+(`ci / layercam-pro-v1`, which has ffmpeg and `ssh-keygen`). On a PC
+without them the MP4 and recording tests and the SSH fingerprint
+cross-check skip themselves (2 Nov 2026: 212 run, 1 skipped, without
+`ssh-keygen`). They cover:
 - Prusa Connect: requests, size and rate limits.
 - PrusaLink: digest auth and the job.
 - The printer's UDP metrics lines and the timelapse state machine.

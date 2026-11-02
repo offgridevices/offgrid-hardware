@@ -98,10 +98,15 @@ DEFAULTS = {
     },
     'thermal': {
         'zone': '/sys/class/thermal/thermal_zone0/temp',   # the RV1106's TSADC (soc-thermal)
-        # thresholds from sim/thermal.md (stock heatsink): each is where the
-        # first part reaches its rating in that mode, less the sensor's 3 K
+        # thresholds from sim/thermal.md (stock heatsink, Firmware rules):
+        # warm_c and throttle_c are where the first part reaches its rating
+        # in snapshot mode (power save off, at night: the lowest) and in live
+        # view (at night), less the sensor's 3 K; stop_c is rule 4
+        'warm_c': 84.0,                # snapshot mode backs off: pictures spaced out, shorter IR flash
+        'warm_interval_s': 30,         # ...Connect pictures no more often than this
+        'warm_flash_settle_ms': 200,   # ...IR LEDs on no longer than this before a picture
         'throttle_c': 87.0,            # lower rates, no live view, LED duty capped
-        'no_upload_c': 105.0,          # also no Connect uploads
+        'no_upload_c': 105.0,          # also no Connect uploads (a step before stopping)
         'stop_c': 110.0,               # camera stopped...
         'resume_c': 95.0,              # ...until below this
         'hysteresis_k': 5.0,
@@ -299,8 +304,10 @@ def validate(cfg):
     if not 30 <= cfg.get('wifi', 'retry_s') <= 3600:
         e.append('wifi.retry_s must be 30-3600')
     th = cfg.section('thermal')
-    if not th['throttle_c'] < th['no_upload_c'] < th['stop_c'] or not th['resume_c'] < th['stop_c']:
-        e.append('thermal: throttle_c < no_upload_c < stop_c and resume_c < stop_c')
+    if not th['warm_c'] < th['throttle_c'] < th['no_upload_c'] < th['stop_c'] or not th['resume_c'] < th['stop_c']:
+        e.append('thermal: warm_c < throttle_c < no_upload_c < stop_c and resume_c < stop_c')
+    if not 10 <= th['warm_interval_s'] <= 600 or not 0 <= th['warm_flash_settle_ms'] <= 2000:
+        e.append('thermal.warm_interval_s must be 10-600 and thermal.warm_flash_settle_ms 0-2000')
     if not 0 <= th['throttle_led_duty'] <= 100 or not 1 <= th['throttle_fps'] <= 30:
         e.append('thermal.throttle_led_duty must be 0-100 and thermal.throttle_fps 1-30')
     if not 1 <= cfg.get('camera', 'print_fps') <= 30 or not 1 <= cfg.get('camera', 'live_fps') <= 30:

@@ -6,26 +6,38 @@ chamber puts the RV1106 at about 126 C (limit 125) and most parts past
 backs off further as the SoC's own sensor (TSADC, the kernel's thermal zone)
 climbs:
 
-    normal    below throttle_c (90 C)
-    throttle  >= 90 C: lower frame rate and JPEG quality, no live view,
+    normal    below warm_c (84 C)
+    warm      >= 84 C: snapshot mode backs off (sim/thermal.md, Firmware
+              rules 3): Prusa Connect pictures no more often than every
+              30 s, the IR flash's settle cut to 200 ms; live view stays
+    throttle  >= 87 C: lower frame rate and JPEG quality, no live view,
               IR LED duty capped, CPU held at its lowest speed
     hot       >= 105 C: as throttle, and no Prusa Connect uploads
               (timelapse frames continue: the print only happens once)
-    stop      >= 115 C: camera pipeline stopped, no frames at all,
+    stop      >= 110 C: camera pipeline stopped, no frames at all,
               until the SoC is back under resume_c (95 C)
+
+The numbers are config.py's 'thermal' defaults, from sim/thermal.md.
 
 Each level is left only hysteresis_k below where it was entered, so the
 camera does not flap at a threshold.  Pure logic, tested in tests/test_thermal.py.
 """
 
-LEVELS = ('normal', 'throttle', 'hot', 'stop')
+LEVELS = ('normal', 'warm', 'throttle', 'hot', 'stop')
 
 
 class Governor:
-    def __init__(self, throttle_c=90.0, no_upload_c=105.0, stop_c=115.0, resume_c=95.0, hysteresis_k=5.0):
+    def __init__(self, throttle_c=87.0, no_upload_c=105.0, stop_c=110.0, resume_c=95.0, hysteresis_k=5.0,
+                 warm_c=None):
+        """warm_c None: no 'warm' level (straight from normal to throttle)."""
         assert throttle_c < no_upload_c < stop_c and resume_c < stop_c
+        assert warm_c is None or warm_c < throttle_c
         self.enter = {'throttle': throttle_c, 'hot': no_upload_c, 'stop': stop_c}
         self.leave = {'throttle': throttle_c - hysteresis_k, 'hot': no_upload_c - hysteresis_k, 'stop': resume_c}
+        if warm_c is not None:
+            self.enter['warm'] = warm_c
+            # warm is left 2 K under where it was entered: it only spaces pictures out
+            self.leave['warm'] = warm_c - min(hysteresis_k, 2.0)
         self.level = 'normal'
         self.temp = None
 
@@ -36,8 +48,8 @@ class Governor:
         self.temp = temp_c
         # up: straight to the highest level reached
         target = 'normal'
-        for lv in ('throttle', 'hot', 'stop'):
-            if temp_c >= self.enter[lv]:
+        for lv in LEVELS[1:]:
+            if lv in self.enter and temp_c >= self.enter[lv]:
                 target = lv
         if LEVELS.index(target) > LEVELS.index(self.level):
             self.level = target
@@ -45,6 +57,8 @@ class Governor:
         # down: one level at a time, each below its own leave threshold
         while self.level != 'normal' and temp_c < self.leave[self.level]:
             self.level = LEVELS[LEVELS.index(self.level) - 1]
+            while self.level != 'normal' and self.level not in self.leave:
+                self.level = LEVELS[LEVELS.index(self.level) - 1]      # a level not configured
             if self.level != 'normal' and temp_c >= self.leave[self.level]:
                 break
         return self.level
@@ -52,11 +66,16 @@ class Governor:
 
 def limits(level, cfg):
     """What the camera may do at a level: frame rate cap, JPEG quality cap,
-    IR LED duty cap (percent), live view, Connect uploads, camera on."""
+    IR LED duty cap (percent), live view, Connect uploads, camera on, the
+    least time between Connect pictures (s) and the longest IR flash settle
+    (ms, None: the setting's own)."""
     t = cfg.section('thermal')
     full = {'fps_cap': 30, 'quality_cap': 95, 'led_cap': 100, 'live': True, 'connect': True, 'camera': True,
-            'cpu_boost': True}
+            'cpu_boost': True, 'snap_min_s': 0, 'flash_settle_ms': None}
     if level == 'normal':
+        return full
+    full = dict(full, snap_min_s=t['warm_interval_s'], flash_settle_ms=t['warm_flash_settle_ms'])
+    if level == 'warm':
         return full
     out = dict(full, fps_cap=t['throttle_fps'], quality_cap=t['throttle_quality'], led_cap=t['throttle_led_duty'],
                live=False, cpu_boost=False)

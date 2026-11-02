@@ -55,7 +55,7 @@ Right: the antenna socket (RP-SMA) in the back shell.*
 | **Everything else from Amazon** | **Partly.** The antenna, its lead, the screws, the rods and the epoxy are Amazon searches. The lens (Towin), the day/night filter holder (Commonlands), the SH-grade magnets (K&J Magnetics) and the heatsink tape (Digi-Key) are not on Amazon as exact parts. The heatsink's Amazon listing is not confirmed | *How to order* |
 | **Wi-Fi 6, 2.4 GHz,** to an antenna screwed on outside | **Yes, in the design.** ESP32-C6-MINI-1U-H4, a short lead to an RP-SMA socket in the case wall, a 2 dBi antenna. Its Linux driver has not been run on this main chip by anyone yet | `firmware/` host tests; a range test in a printer |
 | **1080p or better, wide angle; night vision** (IR LEDs, light sensor, day/night filter) | **Yes, on paper.** 4 MP sensor (2560 x 1440); timelapse at 1920 x 1080; 2.8 mm lens. Six 850 nm LEDs, a light sensor, an IR-cut filter. The sensor's driver needs SmartSens' chip ID and register table (under NDA) | `sim/power.md` (LED currents). The picture is untested |
-| **Prusa Connect, the per-layer timelapse, upload to SMB / NFS / S3** | **Yes, in software.** LayerCam's camera software, moved to the Pro's parts | `firmware/` host tests: 209 run, 208 pass, 1 skipped. Not tried on a printer |
+| **Prusa Connect, the per-layer timelapse, upload to SMB / NFS / S3** | **Yes, in software.** LayerCam's camera software, moved to the Pro's parts | `firmware/` host tests: 212, all pass in CI. Not tried on a printer |
 | **Good parts, not expensive, can be sold.** The Wi-Fi is approved for sale in the US | **Partly.** The Wi-Fi module has its FCC approval; the antenna must be 2.33 dBi or less (2 dBi chosen). The USB IDs are a placeholder. The cost is PCBWay's quote, not yet asked | `docs/parts.md`; the FCC grant's antenna list is still to read |
 
 ## Next steps
@@ -132,9 +132,9 @@ lines, on both sides.
 **Assembly notes for PCBWay** (write them in the order):
 - **The image sensor (U8, SmartSens SC4336H, 35-ball CSP):** no
   distributor stocks it. Ask PCBWay to source it. If they cannot, buy it
-  from a SmartSens agent and send it to them (consigned). The BOM's LCSC
-  number for U8 (C9900187041) is the SC4336P's, used only for its land
-  pattern: fit the SC4336H, not the SC4336P.
+  from a SmartSens agent and send it to them (consigned). The BOM gives
+  no LCSC number for U8. Its land pattern is the SC4336P's (EasyEDA
+  C9900187041): fit the SC4336H, not the SC4336P.
 - **Reflow the sensor's side last.** The sensor is on the placement
   file's bottom side (the lens side). Reflow the top side first, then the
   bottom, so the sensor goes through the oven once. Ask PCBWay to confirm

@@ -104,7 +104,7 @@ def led_state(setup_ap, wifi_up, error, recording, thermal='normal', updating=Fa
         return 'updating'
     if setup_ap:
         return 'setup'
-    if thermal != 'normal':
+    if thermal not in ('normal', 'warm'):          # warm only spaces pictures out
         return 'hot'
     if not wifi_up:
         return 'offline'

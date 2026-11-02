@@ -16,7 +16,7 @@ sit at about 90 C).
 > in place of the AP6256, a **bare SmartSens SC4336H** in place of the
 > SC3336 module, and one board (the IR LEDs, light sensor and IR-cut driver
 > on the same SoC pins as v1). The Python service and the tools pass their
-> 209 host tests (one skipped here without `ssh-keygen`), including a whole
+> 212 host tests (all run in CI; some skip themselves on a PC without ffmpeg or `ssh-keygen`), including a whole
 > print from PrusaLink and layer triggers to an uploaded MP4, and flashing
 > a simulated ESP32-C6 ROM. The device tree, the SDK board config, the init
 > scripts and the C helper are checked as far as a PC can, never built for
@@ -120,16 +120,17 @@ The **thermal governor** reads the SoC's own sensor (TSADC,
 
 | SoC | Level | Effect |
 |---|---|---|
-| under 87 C | normal | as above |
+| under 84 C | normal | as above |
+| from 84 C | warm | Prusa Connect pictures at most every 30 s, the IR flash's settle cut to 200 ms (`sim/thermal.md`, *Firmware rules* 3: the lowest snapshot-mode limit); everything else as normal |
 | from 87 C | throttle | frame rate 5 fps, JPEG quality at most 70, IR LED duty at most 50 %, no live view, CPU never boosted |
 | from 105 C | hot | as throttle, and **no Connect uploads**; timelapse frames continue (the print only happens once) |
 | from 110 C | stop | camera pipeline stopped, IR LEDs off, frames lost (counted on the page) |
 | back under 95 C | | from stop to the level the temperature calls for |
 
-Every level is left 5 K under where it was entered (`thermal.hysteresis_k`),
-so it does not flap. The level and the temperature are on the setup page,
-the change is logged, and the status LED shows *hot* (long on, short off)
-at any level above normal. All thresholds are settings (`[thermal]`).
+Every level is left 5 K under where it was entered (`thermal.hysteresis_k`;
+warm 2 K), so it does not flap. The level and the temperature are on the
+setup page, the change is logged, and the status LED shows *hot* (long on,
+short off) from throttle up. All thresholds are settings (`[thermal]`).
 These numbers follow LayerCam v1's sim/thermal.md and sim/power.md, not yet
 the Pro's `sim/thermal.py`; measure the board in
 a 65 C oven before trusting either.
@@ -632,7 +633,7 @@ GPIO, ADC and PWM are skipped when their files are missing.
 ## Tests
 
 ```
-python3 -m unittest            # from this folder; 209 tests, about 15 s
+python3 -m unittest            # from this folder; 212 tests, about 15 s
 ```
 
 | File | What it checks |
@@ -657,15 +658,15 @@ python3 -m unittest            # from this folder; 209 tests, about 15 s
 | `test_pins.py` | `pincheck.py`: `layercam/board.py` and the device tree against `src/circuit.py` (46 checks: the C6's EN in the pwrseq with 1500 ms and `espressif,full-chip-reset`, its GPIO9 pulled up and free, UART1_M0 TX/RX only, no bcmdhd/Bluetooth nodes; the SC4336H node, address, XSHUTDN = `reset-gpios`, PWDNB = `pwdn-gpios`, module/lens = the IQ file, 2 lanes; also no button, TP5 through 100R to SARADC_IN0, the evb's ADC keys removed, the USB controller a device) and 8 SDK checks (device tree, IQ file, no `RK_ENABLE_WIFI_CHIP`, no wifibt overlay, `CONFIG_VIDEO_SC4336H`, `CONFIG_CFG80211` + `CONFIG_BT`, no bcmdhd options); proved to catch a moved LED, a wrong PWM pin, a swapped IR-cut pin, a button put back, the ADC keys back, a host-mode USB port, v1's 200 ms delay, the reset flag gone, a bcmdhd node back, XSHUTDN/PWDNB swapped, v1's sensor, GPIO9 without its pull-up, flow control on UART1, the C6's EN moved; `src/check_firmware.run()` as the board build calls it (75 checks) |
 | `test_c6flash.py` | `tools/layercam-c6-flash.py` against a simulated ESP32-C6 ROM loader on a pseudo-terminal (boot text, eight SYNC answers, SLIP escapes, (failed, error) status bytes) and a fake `/sys`: three images written in 1 KiB blocks with checksums and read back by MD5, the sync, chip check, SPI attach, baud change and FLASH_END in order; `esp32_sdio` unloaded, the controller and pwrseq unbound and bound again in the right order, GPIO9 low before EN rises and let go after, the GPIOs unexported; a flash that reads back wrong, another chip, a C6 that does not answer and a refused command each reported with the board put back; images from `flasher_args.json` and refused when overlapping, off a sector or past 4 MB; the tool's pins = `layercam/board.py` |
 | `test_sensor_port.py` | `tools/sc4336h-port.py`: every name changed and nothing else (the file mapped back is the SC4336's but for `CHIP_ID`; the register table value for value; `sc4336p` untouched), `CHIP_ID` 0x10000 or the one given, refused on another file or one already ported, the Kconfig and Makefile entries once after two runs, the SDK's own `sc4336.c` left alone, a bad chip ID refused |
-| `test_thermal.py` | the governor's levels, hysteresis, jumps and unreadable sensor; what each level allows; IR LED duty capping and the ramp's steps; the camera power policy; temperature and CPU speed through a fake `/sys`; the service under heat: asleep between pictures, live view time-limited and refused when hot, quality capped, Connect skipped from 105 C, frames lost only at 115 C and the camera back under 95 C, LEDs lit only around a night picture and capped at 50 % when throttled, IR-cut pulsed once |
+| `test_thermal.py` | the governor's levels, hysteresis, jumps and unreadable sensor; what each level allows; IR LED duty capping and the ramp's steps; the camera power policy; temperature and CPU speed through a fake `/sys`; the service under heat: asleep between pictures, live view time-limited and refused when hot, quality capped, Connect pictures spaced to 30 s and a shorter IR flash from 84 C, Connect skipped from 105 C, frames lost only at 110 C and the camera back under 95 C, LEDs lit only around a night picture and capped at 50 % when throttled, IR-cut pulsed once |
 | `test_slicer.py` | the snippets use only G-codes checked in Buddy's source, the park position (PrusaSlicer local variables) inside the CORE One's limits, lines under 96 characters, hold = `dwell_ms`, metric on only around the trigger, and an emulation of Buddy's metrics buffer showing the padding sends the trigger at once |
 
 The MP4, recording and whole-service tests need `ffmpeg` and `ffprobe`
 with libx264 on the PC (they make the test video); without them they are
-skipped, and the SSH fingerprint cross-check needs `ssh-keygen`. On
-1 Nov 2026 on a PC with ffmpeg and without `ssh-keygen` (Python 3.13.17): **209 run, 208 pass, 1
-skipped** (the `ssh-keygen` one). The Pro is not yet in CI; v1's CI job
-(ffmpeg installed, `ssh-keygen` in its image) is the way to run all 209.
+skipped, and the SSH fingerprint cross-check needs `ssh-keygen`. CI
+(`ci / layercam-pro-v1`: ffmpeg installed, `ssh-keygen` in its image)
+runs all 212; on 2 Nov 2026 on a PC with ffmpeg and without `ssh-keygen`
+(Python 3.13): **212 run, 211 pass, 1 skipped** (the `ssh-keygen` one).
 
 Checked on a PC but not as tests (1 Nov 2026): the device tree, run
 through `cpp` with the SDK's includes (824b817f) and parsed with Zephyr's

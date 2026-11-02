@@ -947,16 +947,23 @@ def main():
                                                                    tj - 3, tj70))
     w('')
     t_live = min([rd[n][1] for n in ('day', 'night') if n in rd] or [100]) - 3
-    t_snap = min([rd[n][1] for n in REQ if n in rd] or [100]) - 3
+    # snapshot mode: the lowest of its four rows (power save on or off: the
+    # firmware cannot tell which C6 firmware it has)
+    t_snap = min([rd[n][1] for n in REQ + ('snap_day', 'snap_night') if n in rd] or [100]) - 3
     SUMMARY['gov'] = (t_live, t_snap)
     w('1. **Snapshot mode is the default**: CPU at its lowest OPP between shots, NPU off, sensor in standby, the C6\'s '
       'Wi-Fi power save on (the rating assumes it).')
-    w('2. **Live view** only while TSADC < %.0f C; above it, back to snapshot mode ("live view paused: camera too '
-      'warm").' % t_live)
-    w('3. TSADC > %.0f C in snapshot mode: stretch the interval to 30 s, cap Wi-Fi TX power, shorten the IR flash.'
-      % t_snap)
-    w('4. TSADC > 110 C: stop capturing (keep Wi-Fi associated, report the fault); > 120 C power the sensor and Wi-Fi '
-      'down; Linux critical trip at 125 C.')
+    w('2. **Live view** only while TSADC < %.0f C; above it, back to snapshot mode (the page says "too hot for live '
+      'view").' % t_live)
+    w('3. TSADC >= %.0f C (the lowest snapshot-mode limit above): Prusa Connect pictures no more often than every '
+      '30 s and the IR flash cut to 200 ms before each night picture (firmware `thermal.warm_c`). The Wi-Fi\'s TX '
+      'power is capped at 10 dBm at every temperature (`wifi.tx_power_dbm`).' % t_snap)
+    w('4. TSADC >= 105 C: no Prusa Connect uploads (timelapse frames continue); >= 110 C: camera stopped, Wi-Fi kept '
+      'associated and the fault shown on the page, until the TSADC is back under 95 C (`thermal.stop_c`, '
+      '`resume_c`).')
+    w('')
+    w('The firmware\'s defaults (`firmware/layercam/config.py`, *thermal*) are these numbers; '
+      '`firmware/tests/test_thermal.py` checks them.')
     w('')
 
     # ------------------------------------------------ the heat paths
@@ -1180,7 +1187,7 @@ def verdict(board, allres):
       'sensor would be %.1f C, with a 1 mm gap pad from the fin tops to the lid %.1f C (chamber limit then %s by night, '
       'power save on).' % (s['q_slot'], s['q_top'], s['q_patch'], s['s_ns'], s['s_pad'], fmt_amb(pl[1])))
     v('- Live view: every part in rating to %s by day and %s by night; it stays a firmware-gated mode (TSADC below '
-      '%.0f C; snapshot mode stretches to 30 s above %.0f C).'
+      '%.0f C; snapshot mode spaces Connect pictures to 30 s from %.0f C).'
       % (fmt_amb(lim['day']['all']), fmt_amb(lim['night']['all']), *SUMMARY['gov']))
     v('- Model uncertainty about +-10 K (optimistic bracket: RV1106 %.1f C, sensor %.1f C in the rating case); '
       'part places from %s, copper coverage %s, the snapshot currents ASSUMED. Measure the first board in a %.0f C '

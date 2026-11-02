@@ -116,6 +116,11 @@ def artwork(path):
     b = pcbnew.LoadBoard(path)
     silk.strip(b)
     silk.draw(b)
+    # the title block: the Gerbers' and the job file's project revision
+    # (KiCad writes "rev?" without one; the silkscreen says V1)
+    tb = b.GetTitleBlock()
+    tb.SetTitle(silk.NAME); tb.SetRevision(silk.REV); tb.SetCompany('OffGrid Devices')
+    b.SetTitleBlock(tb)
     pcbnew.SaveBoard(path, b)
 
 
