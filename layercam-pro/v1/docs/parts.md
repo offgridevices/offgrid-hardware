@@ -125,9 +125,8 @@ Why each:
 - **Light rods.** Clear polycarbonate (Tg about 145 °C); clear acrylic
   softens near 100 °C. They replace the plan's Bivar light pipes, which
   are straight and board-mounted: four of the six LEDs had to move out to
-  R 14.4 to clear the IR-cut holder, so their rods lean up to 4.6° in
-  printed channels. The rod lengths in `enclosure/` assume an LED 2.3 mm
-  tall; the VSMY3850X01 is 1.75 mm (`decisions.md`, *Open*).
+  R 14.4 to clear the IR-cut holder, so their rods lean up to 4.4° in
+  printed channels, each ending 0.3 mm from its LED (1.75 mm tall).
 - **Magnets.** SH grade (150 °C): ordinary N grades are rated 80 °C and
   can lose pull for good near a 65 °C chamber. No Amazon listing names an
   SH grade at 10 x 3 mm; K&J Magnetics D62SH (3/8 x 1/8 in, N42SH) fits

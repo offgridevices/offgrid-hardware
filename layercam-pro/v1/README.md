@@ -48,7 +48,7 @@ Right: the antenna socket (RP-SMA) in the back shell.*
 |---|---|---|
 | **One circuit board.** Every part on it; no flat cables or board-to-board cables inside. The one lead is the antenna's | **Yes, in the design.** `circuit.py` has one board. The antenna lead runs from the Wi-Fi module to the case wall | the build's BOM and placement gates ({{PARTS}} parts in {{BOM_LINES}} BOM lines) |
 | **One order at PCBWay:** one Gerber zip, one BOM, one placement file | **Yes, but for one part.** The bare image sensor (SC4336H) is not stocked by Digi-Key, Mouser, LCSC or JLCPCB. PCBWay has to source it from SmartSens or its agents, or it is bought and sent to them | PCBWay's quote, not yet asked |
-| **Prusa's outside, our inside.** Same shape, same corner of the printer. USB-C in the same side wall, the plug level | **Yes, on paper, with one gap open.** The case is Prusa's outside surface with a new inside. The board clears the case by 0.28 mm at its tightest, where 0.5 mm was asked (*Limits*) | `enclosure/src/check.py`: 12 checks pass, the 2 clearance checks do not. Not yet printed |
+| **Prusa's outside, our inside.** Same shape, same corner of the printer. USB-C in the same side wall, the plug level | **Yes, on paper.** The case is Prusa's outside surface with a new inside. The board clears the case by 0.5 mm all round; the USB-C plug goes in level | `enclosure/src/check.py`: every check passes. Not yet printed |
 | **A 65 °C chamber**, in snapshot and timelapse mode, with the ESP32-C6's power save on. Stock heatsink, no fan. (Prusa's firmware caps the chamber at 55 °C on the CORE One and 60 °C on the CORE One L) | **Yes, in the model, by 3.5 K.** Every part stays in its rating up to a 68.5 °C chamber by night and 70.6 °C by day. The model is good to about ±10 K, and it used the placement, not the routed board | `sim/thermal.py` (`sim/thermal.md`). An oven test of the first camera at 65 °C decides |
 | **Never shorts in the heat.** Parts rated above what they see; a high-temperature board (Tg 170); no bare copper that can touch the carbon-fibre case | **Partly.** Every part is in its rating in the model. Copper and parts keep 0.6 mm from the board edge; the case touches the board only at the four screw pads. The coating the plan named is not ordered (`docs/decisions.md`, *Open*) | the part ratings, `sim/thermal.md`, the design rules |
 | **Every part in production today** | **Yes**, as checked on 31 Oct and 1 Nov 2026. Thin stock: the RV1106G3 (257 at JLCPCB), the IR LEDs (0 at JLCPCB) | [`docs/parts.md`](docs/parts.md) |
@@ -65,7 +65,7 @@ Right: the antenna socket (RP-SMA) in the back shell.*
 2. **Run the thermal model again on the routed board** (`sim/thermal.py`).
    Today's numbers use the placement and LayerCam v1's copper.
 3. **Settle the open points** in [`docs/decisions.md`](docs/decisions.md),
-   *Open*: the case clearance, the rod length, the coating, the magnets.
+   *Open*: the screw holes, the antenna's face, the coating, the magnets.
 4. **Add the board's CI job** (`ci / layercam-pro-v1`), as
    [`docs/repo-structure.md`](../../docs/repo-structure.md) asks.
 5. **Ask PCBWay** to source the SC4336H and quote the board. Ask SmartSens
@@ -261,12 +261,6 @@ Full steps, in this order, in
   Espressif's driver on the RV1106 yet.
 - **The picture comes out turned 180°** until the sensor's flip and mirror
   are set (*How to bring it up*).
-- **The case is 0.28 mm from the board at its tightest**, at the root of
-  the USB-C tab; the design asked 0.5 mm. The case touches the board only
-  at the four screw pads.
-- **The rods may stop short of the LEDs.** The case assumed an LED 2.3 mm
-  tall; the board's LED (Vishay VSMY3850X01) is 1.75 mm. Each rod's end
-  then sits about 0.85 mm from its LED, not 0.3 mm.
 - **The antenna's place** rests on the camera's pose in the printer,
   worked out from Prusa's files and photos: check it in a CORE One.
 - **The lens, the filter holder and the rods have no published

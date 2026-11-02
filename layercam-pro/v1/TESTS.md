@@ -66,20 +66,20 @@ looked at before it was carried over:
 
 Run against the committed `print/*.stl` and Prusa's own files (not
 committed): `python3 enclosure/src/check.py <folder with Prusa's files>`.
-Run on 1 Nov 2026, with `geometry.OUTLINE` as committed.
+Run on 2 Nov 2026, with `geometry.OUTLINE` as committed.
 
 | Check | Why | Result |
 |---|---|---|
 | Prusa's front holes: the six LED holes, the light window, the lens bore where Prusa's STEP file has them | the outside stays Prusa's | pass |
-| **Board clearance**: 0.5 mm from the case everywhere but the screw pads | carbon-filled plastic conducts a little | **fail: 0.28 mm** at the back, by the USB-C tab's root (front 0.50, lid 3.00); tab end 0.24 mm (its 0.6 mm bare border) |
-| **Board outline** against the case's walls (1.6 mm wall, 0.5 mm gap) | the board has to go in | **fail: 0.32 mm too large** at the two shoulders (46 mm² over). The check gives a smaller outline that fits (2660 mm² of 2710); see `docs/decisions.md`, *Open* |
+| **Board clearance**: 0.5 mm from the case everywhere but the screw pads | carbon-filled plastic conducts a little | pass: 0.50 mm to the front and back shells, 3.00 to the lid; the USB-C tab's end 0.24 mm (its 0.6 mm bare border) |
+| Board outline against the case's walls (1.6 mm wall, 0.5 mm gap) | the board has to go in | pass: the outline, cut down at Prusa's two shoulders, lies wholly inside |
 | Board seat: four 4.5 mm bosses at the seam, 1.7 x 5.5 mm pilots | the board's height sets the focus | pass |
-| Light rods: six 2.15 mm channels from each LED to its hole, walled end to end | the light reaches the holes | pass: leaning 0.5°, 4.4°, 3.5°, 1.1°, 4.6°, 2.9° (0° to 300°), rods 18.4-18.5 mm, 0.07 mm rod to case, 0.3 mm to an LED taken as 2.3 mm tall |
+| Light rods: six 2.15 mm channels from each LED to its hole, walled end to end | the light reaches the holes | pass: leaning 0.5°, 4.2°, 3.4°, 1.1°, 4.4°, 2.9° (0° to 300°), rods 18.95-19.01 mm, 0.07 mm rod to case, 0.3 mm to each LED (1.75 mm tall) |
 | Light-sensor tube | the sensor sees the window | pass: 0.65 mm short of the sensor |
 | IR-cut holder volume and the lens bore | the lens stack fits | pass, clear by 0.01 mm |
 | Heatsink | it fits and reaches the vents | pass: 0.84 mm to the lid (1.6 mm thick there), 0.50 mm to the back shell, 3 slots over it |
-| USB-C mouth | a level plug reaches the socket | pass: axis level at Z 24.23, mouth 0.20 mm inside the seat |
-| Walls | thin walls print weak | pass: front shell 1.85 mm thinnest, back shell 1.46 mm at one spot (0.05 % under 1.6), lid 1.55 mm |
+| USB-C mouth | a level plug reaches the socket | pass: axis level at Z 24.23; the mouth 4.20 mm out from the board's edge, as the board places it, 0.20 mm inside the seat floor |
+| Walls | thin walls print weak | pass: front shell 1.95 mm thinnest, back shell 1.51 mm at one spot (0.03 % under 1.6), lid 1.48 mm at two corners (0.09 %) |
 | Parts do not overlap; magnet pockets 3.10 mm deep, 1.50 mm floors; RP-SMA hole 2.0 mm wall, nut and jack room clear | it goes together | pass |
 
 ## Simulations (`sim/`)

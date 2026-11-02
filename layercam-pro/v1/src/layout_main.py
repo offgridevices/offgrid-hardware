@@ -238,10 +238,18 @@ def via_ring():
 PAD_VIAS = [('J3', '2')]
 
 
+SENSOR = 'U8'    # the image sensor, on B under the lens
+
+
 def escapes(b):
     """The SoC's signal pins that leave its face: a pin whose nearest other
-    pad is on the back face, or whose net runs more than 20 mm.  The rest
-    run out on F through the breakout band."""
+    pad is on the back face, whose net runs more than 20 mm, or whose net
+    reaches the image sensor (its control lines: on F they ran out to their
+    pull-ups and one boxed the other in, and the router left CAM_SDA open).
+    Then a pin between two pins that leave by vias leaves by one too: the two
+    vias a pin apart leave no room for its stub (BOOT_KEY between ALS and
+    VCC_1V8_ADC was left open).  The rest run out on F through the breakout
+    band."""
     import pcbnew, board
     skip = set(board.PLANE_NETS['main']) | {n for v in board.DIFF['main'].values() for n in v[0]}
     pads = {}
@@ -256,8 +264,22 @@ def escapes(b):
         x, y = pcb.xy(p.GetPosition())
         near = sorted((math.dist((x, y), pcb.xy(q.GetPosition())), q.IsOnLayer(pcbnew.F_Cu))
                       for r, q in pads[n] if r != 'U1')
-        if near and (not near[0][1] or near[0][0] > 20):
+        if near and (not near[0][1] or near[0][0] > 20 or any(r == SENSOR for r, q in pads[n])):
             out.add(n)
+    # the pins either side of each pin (0.35 mm pitch, on the same side)
+    u1 = list(b.FindFootprintByReference('U1').Pads())
+    vias = out | set(board.PLANE_NETS['main'])
+    grew = True
+    while grew:
+        grew = False
+        for p in u1:
+            n = p.GetNetname()
+            if not n or n in skip or n in out or n.startswith('unconnected'):
+                continue
+            xy = pcb.xy(p.GetPosition())
+            side = [q.GetNetname() for q in u1 if q is not p and math.dist(xy, pcb.xy(q.GetPosition())) < 0.4]
+            if len(side) == 2 and all(m in vias for m in side):
+                out.add(n); vias.add(n); grew = True
     return {'U1': sorted(out)}
 
 

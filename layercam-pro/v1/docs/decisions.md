@@ -29,8 +29,8 @@ of LayerCam's main board. More area spreads the heat and the parts.
 
 The case check then found two concave shoulders in Prusa's case at about
 (±26, -12), where the plain outline ran 2.9 mm into the wall. The board is
-cut to the outline that fits (`geometry.OUTLINE`, 2710 mm²). It is still
-0.28 mm from the case at its tightest, against the 0.5 mm asked (*Open*).
+cut to the outline that fits (`geometry.OUTLINE`, 2710 mm²), 0.5 mm from
+the case all round.
 
 ## Keep Prusa's outside, redo the inside *(owner)*
 
@@ -263,29 +263,20 @@ heatsink's Amazon listing is still to be confirmed.
 
 ## Open: for the owner to decide
 
-1. **The case's clearance to the board.** The case check still fails: the
-   board is 0.28 mm from the back shell by the USB-C tab's root, and its
-   outline is 0.32 mm too large at the two shoulders, against 0.5 mm
-   asked. Either accept it (the case touches nothing there; it is
-   0.28 mm of air) or cut the outline down once more (the check gives one
-   of 2660 mm², `enclosure/out/fit-outline.txt`) before routing ends.
-2. **The two new screw holes** at (±28, 0) in the back chamfers. The top
+1. **The two new screw holes** at (±28, 0) in the back chamfers. The top
    two could reuse Prusa's holes exactly if `geometry.SCREWS` had y 26.1.
-3. **The antenna's face** rests on the camera's pose in the printer,
+2. **The antenna's face** rests on the camera's pose in the printer,
    worked out from Prusa's files and photos: check it in a CORE One
    before ordering.
-4. **The USB-C seat** is 4 mm deep at its top, deeper than Prusa's recess:
+3. **The USB-C seat** is 4 mm deep at its top, deeper than Prusa's recess:
    a level plug on a 30° facet needs it.
-5. **The light window** is left open (Prusa fits a blue window piece); a
+4. **The light window** is left open (Prusa fits a blue window piece); a
    Ø5.8 x 2 mm clear disc would close it.
-6. **Prusa's holes are up to 0.45 mm off** `geometry.hole_xy`'s R 13.0
+5. **Prusa's holes are up to 0.45 mm off** `geometry.hole_xy`'s R 13.0
    every 60°; the case leans the rods to Prusa's. The two straight LEDs
    could move under their real holes.
-7. **The rods' length.** The case assumed an LED 2.3 mm tall; the
-   VSMY3850X01 is 1.75 mm. Change `LED_H` in `enclosure/src/case.py` (the
-   rods get about 0.55 mm longer) or accept a 0.85 mm gap.
-8. **The magnets:** K&J's D62SH (not on Amazon), or an Amazon disc whose
+6. **The magnets:** K&J's D62SH (not on Amazon), or an Amazon disc whose
    grade cannot be checked.
-9. **Coating.** The plan said the board is coated. It is not in the order:
+7. **Coating.** The plan said the board is coated. It is not in the order:
    a conformal coat must keep off the sensor's glass, the USB-C, J3 and
    the antenna socket. Order it masked, or drop it.
