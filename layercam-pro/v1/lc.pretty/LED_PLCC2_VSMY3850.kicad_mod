@@ -97,7 +97,7 @@
 		(uuid "61022504-4339-4869-a2fc-1bcf6d53082d")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
+	(model "${KIPRJMOD}/lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
 		(offset
 			(xyz 0 0 0)
 		)

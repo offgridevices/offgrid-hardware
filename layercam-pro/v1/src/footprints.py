@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Build ../lc.pretty, the three boards' footprint library.
+"""Build ../lc.pretty, the board's footprint library.
 
 Two kinds of footprint go in:
 
@@ -9,7 +9,9 @@ Two kinds of footprint go in:
    (ridge3-lite/v1/src/footprints.py, where this code comes from):
    - the courtyard is rebuilt as the box round pads + body + 0.10 mm;
    - silkscreen is dropped (the assembly drawing carries the outlines);
-   - 3D models point at ../lc.3dshapes (gzip STEP, KiCad reads .stpZ);
+   - 3D models point at ${KIPRJMOD}/lc.3dshapes, beside the board (gzip
+     STEP, KiCad reads .stpZ; LayerCam v1's boards sit a folder deeper and
+     use ../, which here left every chip out of the renders and the STEP);
    - custom pads that are plain rectangles become rect pads;
    - FIXUPS below.
 2. Footprints generated here: the M2 and M1.6 holes and the test pad.
@@ -206,7 +208,7 @@ def clean_easyeda(path):
     if model is not None:
         m = re.search(r'ee\.3dshapes/([^"]+)\.wrl', model[1])
         if m and os.path.exists(os.path.join(MODELS, m.group(1) + '.stpZ')):
-            model[1] = '"${KIPRJMOD}/../lc.3dshapes/%s.stpZ"' % m.group(1)
+            model[1] = '"${KIPRJMOD}/lc.3dshapes/%s.stpZ"' % m.group(1)
             off = FIXUPS.get(name, {}).get('model_offset')
             if off:
                 _get(_get(model, 'offset'), 'xyz')[1:] = ['%.3f' % v for v in off]
@@ -289,7 +291,7 @@ def led_plcc2_fp():
     l.SetStart(pcbnew.VECTOR2I(MM(-1.75), MM(-0.9))); l.SetEnd(pcbnew.VECTOR2I(MM(-1.25), MM(-1.4)))
     l.SetLayer(pcbnew.F_Fab); l.SetWidth(MM(0.1)); fp.Add(l)
     m = pcbnew.FP_3DMODEL()
-    m.m_Filename = '${KIPRJMOD}/../lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ'
+    m.m_Filename = '${KIPRJMOD}/lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ'
     fp.Models().push_back(m)
     fp.Reference().SetLayer(pcbnew.F_Fab); fp.Reference().SetTextSize(pcbnew.VECTOR2I(MM(0.5), MM(0.5)))
     fp.Reference().SetTextThickness(MM(0.08))

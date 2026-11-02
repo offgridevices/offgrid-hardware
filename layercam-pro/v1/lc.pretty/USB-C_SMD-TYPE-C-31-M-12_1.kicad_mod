@@ -260,7 +260,7 @@
 		(uuid "71197a1f-f597-436b-8178-490e157d3508")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../lc.3dshapes/USB-C_SMD-TYPE-C-31-M-12_1.stpZ"
+	(model "${KIPRJMOD}/lc.3dshapes/USB-C_SMD-TYPE-C-31-M-12_1.stpZ"
 		(offset
 			(xyz 0 0 0)
 		)

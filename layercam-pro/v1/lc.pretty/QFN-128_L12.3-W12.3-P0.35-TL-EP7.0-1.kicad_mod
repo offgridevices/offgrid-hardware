@@ -1058,7 +1058,7 @@
 		(uuid "42747006-b21f-4d62-a491-e09c4c34a385")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../lc.3dshapes/QFN-128_L12.3-W12.3-P0.35-TL-EP7.0-1.stpZ"
+	(model "${KIPRJMOD}/lc.3dshapes/QFN-128_L12.3-W12.3-P0.35-TL-EP7.0-1.stpZ"
 		(offset
 			(xyz 0 0 0)
 		)

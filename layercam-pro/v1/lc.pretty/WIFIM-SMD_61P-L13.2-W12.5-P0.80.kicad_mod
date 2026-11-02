@@ -508,7 +508,7 @@
 		(uuid "e354fdcf-5dfe-4f01-b569-631c7e3ec275")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../lc.3dshapes/WIFIM-SMD_61P-L13.2-W12.5-P0.80.stpZ"
+	(model "${KIPRJMOD}/lc.3dshapes/WIFIM-SMD_61P-L13.2-W12.5-P0.80.stpZ"
 		(offset
 			(xyz 0 0 0)
 		)

@@ -206,7 +206,7 @@
 		(uuid "524dd7a9-7313-447f-a173-279f8208e412")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../lc.3dshapes/CONN-SMD_532610271.stpZ"
+	(model "${KIPRJMOD}/lc.3dshapes/CONN-SMD_532610271.stpZ"
 		(offset
 			(xyz 0 0 0)
 		)

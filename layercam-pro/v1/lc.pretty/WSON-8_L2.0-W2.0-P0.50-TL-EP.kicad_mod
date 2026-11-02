@@ -196,7 +196,7 @@
 		(uuid "c2173fb5-f422-446f-b395-ee0abae9bc11")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../lc.3dshapes/WSON-8_L2.0-W2.0-H0.8-P0.50.stpZ"
+	(model "${KIPRJMOD}/lc.3dshapes/WSON-8_L2.0-W2.0-H0.8-P0.50.stpZ"
 		(offset
 			(xyz 0 0 0)
 		)

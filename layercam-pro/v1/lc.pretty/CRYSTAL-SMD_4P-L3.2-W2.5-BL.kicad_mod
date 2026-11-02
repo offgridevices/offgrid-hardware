@@ -167,7 +167,7 @@
 		(uuid "07987b42-ce45-4250-a54b-cf416963f939")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../lc.3dshapes/CRYSTAL-SMD_4P-L3.2-W2.5-BL.stpZ"
+	(model "${KIPRJMOD}/lc.3dshapes/CRYSTAL-SMD_4P-L3.2-W2.5-BL.stpZ"
 		(offset
 			(xyz 0 0 0)
 		)

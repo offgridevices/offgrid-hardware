@@ -2446,7 +2446,7 @@
 			(uuid "cf97b89f-ca4a-4e38-8ad0-d782d503b34a")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/WQFN-20_L3.0-W3.0-H0.8-P0.40.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/WQFN-20_L3.0-W3.0-H0.8-P0.40.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -3794,7 +3794,7 @@
 			(uuid "145973a9-66a6-422f-bfde-0a0dc50628de")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/WIFIM-SMD_61P-L13.2-W12.5-P0.80.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/WIFIM-SMD_61P-L13.2-W12.5-P0.80.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -4812,7 +4812,7 @@
 			(uuid "ebf31816-1e48-454b-aff4-da6d9011eb51")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/USB-C_SMD-TYPE-C-31-M-12_1.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/USB-C_SMD-TYPE-C-31-M-12_1.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -5153,7 +5153,7 @@
 			(uuid "66b23cc7-3cd5-42cd-8233-e44440ef0b5a")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/IND-SMD_L2.5-W2.0-H1.2.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/IND-SMD_L2.5-W2.0-H1.2.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -6935,7 +6935,7 @@
 			(uuid "d3cca07d-ed97-4b02-9cd0-0bce213315af")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/QFN-128_L12.3-W12.3-P0.35-TL-EP7.0-1.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/QFN-128_L12.3-W12.3-P0.35-TL-EP7.0-1.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -7594,7 +7594,7 @@
 			(uuid "cc88ea1b-94ec-4d1d-8202-80ec31091358")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/IND-SMD_L2.5-W2.0-H1.2.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/IND-SMD_L2.5-W2.0-H1.2.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -7935,7 +7935,7 @@
 			(uuid "f68e77a9-eb64-446c-9a75-f31a4ff73eca")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/IND-SMD_L2.5-W2.0-H1.2.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/IND-SMD_L2.5-W2.0-H1.2.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -8450,7 +8450,7 @@
 			(uuid "845c4b3d-4748-49a0-aa5b-f3ff1b43fac7")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/CRYSTAL-SMD_4P-L3.2-W2.5-BL.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/CRYSTAL-SMD_4P-L3.2-W2.5-BL.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -9213,7 +9213,7 @@
 			(uuid "8fbfed38-56a2-42b4-a1e7-1072338f586a")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/SOT-23-5_L2.9-W1.6-H1.1-LS2.8-P0.95.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/SOT-23-5_L2.9-W1.6-H1.1-LS2.8-P0.95.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -9554,7 +9554,7 @@
 			(uuid "ef11e751-d4b9-4812-b44c-7f9d248e00c2")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/IND-SMD_L2.5-W2.0-H1.2.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/IND-SMD_L2.5-W2.0-H1.2.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -10980,7 +10980,7 @@
 			(uuid "b98c028b-89b1-4942-b9fb-a27c76bd723a")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/WSON-8_L8.0-W6.0-P1.27-TL-EP-1.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/WSON-8_L8.0-W6.0-P1.27-TL-EP-1.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -11393,7 +11393,7 @@
 			(uuid "80f9fc0e-edc1-4ef4-be34-be3a7b534447")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/LED0603-RD.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/LED0603-RD.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -14628,7 +14628,7 @@
 			(uuid "6905a63b-988f-4691-ba85-bb29a6583e63")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/WSON-6_L2.0-W2.0-H0.8-P0.65.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/WSON-6_L2.0-W2.0-H0.8-P0.65.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -14843,7 +14843,7 @@
 			(uuid "8e589f02-20bf-4ddf-b0df-1bfda841428f")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/SOT-23-5_L2.9-W1.6-H1.1-LS2.8-P0.95.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/SOT-23-5_L2.9-W1.6-H1.1-LS2.8-P0.95.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -16397,7 +16397,7 @@
 			(uuid "f357d703-88b6-4c8a-a8c9-6cf14fbe93b7")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/SOT-23-6_L2.9-W1.6-H1.5-LS2.8-P0.95.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/SOT-23-6_L2.9-W1.6-H1.5-LS2.8-P0.95.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -16877,7 +16877,7 @@
 			(uuid "0d2222ff-b41d-40bb-962c-66e9f1045c93")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/IND-SMD_L2.5-W2.0-H1.2.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/IND-SMD_L2.5-W2.0-H1.2.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -17854,7 +17854,7 @@
 			(uuid "8fcd6f93-afc4-4c9f-bd47-50e4dd8232fd")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/SOD-123FL_L2.8-W1.8-LS3.7-BI.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/SOD-123FL_L2.8-W1.8-LS3.7-BI.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -20141,7 +20141,7 @@
 			(uuid "94b18529-3be7-44e8-92b5-a1d9d2c13dd9")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -22038,7 +22038,7 @@
 			(uuid "805c3f74-8fc0-4e84-b4de-cdfce5ca9049")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/WSON-8_L2.0-W2.0-H0.8-P0.50.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/WSON-8_L2.0-W2.0-H0.8-P0.50.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -22333,7 +22333,7 @@
 			(uuid "d37d1f09-b2e7-4766-aefd-d71079130a48")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -22628,7 +22628,7 @@
 			(uuid "6de20557-1820-4b61-b6ca-195bd21ca4de")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -22923,7 +22923,7 @@
 			(uuid "a6d802f4-06c6-45e5-87d1-327108da6315")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -23882,7 +23882,7 @@
 			(uuid "40616fa8-aa1f-4b91-9935-2ce07fb5bdd3")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -25339,7 +25339,7 @@
 			(uuid "41715b73-156a-4506-b848-e993694d1f6c")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -26302,7 +26302,7 @@
 			(uuid "d14979f6-db43-4735-8cf6-ef83a08b1051")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/CSP-35_L5.7-W3.7-P0.64-R5-C7-S0.58-TL.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/CSP-35_L5.7-W3.7-P0.64-R5-C7-S0.58-TL.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -26989,7 +26989,7 @@
 			(uuid "3f53f48d-9eaa-40e9-997a-cb685e0b1d88")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/FC-135R_L3.2-W1.5.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/FC-135R_L3.2-W1.5.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -27895,7 +27895,7 @@
 			(uuid "a9065dad-7204-44ae-aaf5-bace577e0900")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/CONN-SMD_532610271.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/CONN-SMD_532610271.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -28921,7 +28921,7 @@
 			(uuid "4cc8eef2-8f64-4a9d-a8dc-0570d6946e8c")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/SOT-23-3P_L2.9-W1.3-H1.0-LS2.4-P0.95.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)
@@ -31274,7 +31274,7 @@
 			(uuid "1e70af2d-d4cb-45a3-b033-2f8d7745c42b")
 		)
 		(embedded_fonts no)
-		(model "${KIPRJMOD}/../lc.3dshapes/SENSORS-SMD_TEMT6000X01.stpZ"
+		(model "${KIPRJMOD}/lc.3dshapes/SENSORS-SMD_TEMT6000X01.stpZ"
 			(offset
 				(xyz 0 0 0)
 			)

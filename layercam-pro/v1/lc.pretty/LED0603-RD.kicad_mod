@@ -155,7 +155,7 @@
 		(uuid "c6051121-d571-4f91-a433-d983de3374f2")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../lc.3dshapes/LED0603-RD.stpZ"
+	(model "${KIPRJMOD}/lc.3dshapes/LED0603-RD.stpZ"
 		(offset
 			(xyz 0 0 0)
 		)

@@ -739,7 +739,7 @@
 		(uuid "570f9cab-3da4-4e40-9566-336e7883eca5")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../lc.3dshapes/CSP-35_L5.7-W3.7-P0.64-R5-C7-S0.58-TL.stpZ"
+	(model "${KIPRJMOD}/lc.3dshapes/CSP-35_L5.7-W3.7-P0.64-R5-C7-S0.58-TL.stpZ"
 		(offset
 			(xyz 0 0 0)
 		)

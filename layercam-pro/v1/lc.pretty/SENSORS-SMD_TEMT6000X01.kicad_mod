@@ -160,7 +160,7 @@
 		(uuid "d2bf6553-4bd2-4733-bed4-e7b5f6d42d78")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../lc.3dshapes/SENSORS-SMD_TEMT6000X01.stpZ"
+	(model "${KIPRJMOD}/lc.3dshapes/SENSORS-SMD_TEMT6000X01.stpZ"
 		(offset
 			(xyz 0 0 0)
 		)

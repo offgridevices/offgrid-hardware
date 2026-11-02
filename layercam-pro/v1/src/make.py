@@ -25,6 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 V1 = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import pcbnew
+import re
 import pcb, parts, circuit, fab, check_pins, miter
 
 PAIR_SKEW = 0.15          # mm, P to N within a pair (about 1 ps)
@@ -51,6 +52,23 @@ def check_circuit():
              '%s: every assembled part has an LCSC number' % bd)
     bad = check_pins.check()
     gate(not bad, 'every pin on its footprint, every pad in circuit.py %s' % (bad[:3] or ''))
+
+
+def check_models(board):
+    """Every 3D model the board names is a file: a wrong path only drops the
+    part from the renders and the STEP, silently (lc.3dshapes was once
+    looked for a folder too high)."""
+    b = pcbnew.LoadBoard(board)
+    env = dict(os.environ, KIPRJMOD=os.path.dirname(os.path.abspath(board)))
+    env.setdefault('KICAD10_3DMODEL_DIR', '/usr/share/kicad/3dmodels')
+    missing = []
+    for fp in b.GetFootprints():
+        for m in fp.Models():
+            f = re.sub(r'\$\{(\w+)\}', lambda g: env.get(g.group(1), g.group(0)), m.m_Filename)
+            if not f.startswith('$') and not os.path.exists(f) and \
+                    not os.path.exists(os.path.splitext(f)[0] + '.step') and not os.path.exists(os.path.splitext(f)[0] + '.wrl'):
+                missing.append(fp.GetReference())
+    gate(not missing, 'every 3D model the board names is there %s' % (missing[:8] or ''))
 
 
 def check_outputs(bd, board):
@@ -118,6 +136,7 @@ def build(bd, reroute=False, art=False, pictures=True):
     sharp = [c for c in miter.corners(board) if c[0] > miter.LIMIT]
     gate(not sharp, 'every track corner 45 degrees or less %s' % ([(round(a), n, x, y) for a, n, _, x, y in sharp][:6] or ''))
     check_pairs(board)
+    check_models(board)
     out = fab.produce(board, None, name(bd), V1, pictures=pictures)
     print('  wrote %s (%d files), %d parts in %d BOM lines, %d pads in the netlist'
           % (os.path.relpath(out['zip'], V1), len(out['gerber_files']), out['parts'], out['bom_lines'], out['pads']))

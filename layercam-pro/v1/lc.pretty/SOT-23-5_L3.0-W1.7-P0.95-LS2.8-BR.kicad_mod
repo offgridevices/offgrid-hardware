@@ -184,7 +184,7 @@
 		(uuid "86fadb7a-9294-49df-8665-1d4d33d74af5")
 	)
 	(embedded_fonts no)
-	(model "${KIPRJMOD}/../lc.3dshapes/SOT-23-5_L2.9-W1.6-H1.1-LS2.8-P0.95.stpZ"
+	(model "${KIPRJMOD}/lc.3dshapes/SOT-23-5_L2.9-W1.6-H1.1-LS2.8-P0.95.stpZ"
 		(offset
 			(xyz 0 0 0)
 		)
