@@ -33,6 +33,7 @@ each pack by number.
 | Trade-offs | [`docs/decisions.md`](docs/decisions.md) |
 | Parts availability | [`docs/parts-check-2026-10-18.md`](docs/parts-check-2026-10-18.md) (check again before ordering) |
 | How the circuit works | [`docs/architecture.md`](docs/architecture.md) |
+| Spec, concepts, design studies | [`../design/`](../design/) (shared by every revision) |
 | Toolchain | KiCad 10.0.7 (pinned image, `tools/Dockerfile`), Freerouting 2.5.0, ngspice 47, CadQuery 2.8 |
 | Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../docs/brand.md)); checked by `tools/verify_brand.py` |
 
@@ -63,15 +64,15 @@ What the owner set, and where v1 stands.
 | One rocker; text only "2S…6S" and "LIMIT" | ✅ multi-colour inlays, 2.5 mm caps, strokes ≥ 0.44 mm |
 | Orderable from PCBWay, SMD parts assembled on one side | ✅ `production/` |
 | Case printable on a multi-material printer | ✅ `enclosure/print/`: watertight STLs, fit check passes |
-| Landed cost $20–22 (owner, 11 Oct 2026) | ❌ about **$55.60** at 100 units (`tools/cost.py`, display included): the two flat pre-charge resistors (≈ $14.70) and the toggle (≈ $10.20) are most of the gap (*Next steps*) |
+| Landed cost $20–22 (owner, 11 Oct 2026) | ❌ about **$55.60** at 100 units (`tools/cost.py`, display included): the two flat pre-charge resistors (≈ $14.70) and the toggle (≈ $10.20) are most of the gap. Accepted for v1 (owner, 1 Nov 2026); to bring down later (*Next steps*) |
 | 15 A continuous in the closed case | ⏳ not yet checked for heat (*Limits*) |
 
 ## Next steps
 
-1. **Decide on cost.** Either accept about $55.60, or look at cheaper
-   alternatives: same-footprint pre-charge resistors, and a short-lever toggle
-   (which would also make the guard lower). Either part change re-runs the
-   routing and every check.
+1. **Bring the cost down (later).** v1 is accepted at about $55.60 (owner,
+   1 Nov 2026). The places to look: same-footprint pre-charge resistors,
+   and a short-lever toggle (which would also make the guard lower). Either
+   part change re-runs the routing and every check, so it goes into `v2/`.
 2. **Confirm the display's controller with EastRising.** The firmware
    model and the screens assume an ST7789P3. BuyDisplay's own page lists an
    **NV3023B** for the bare ER-TFT2.25-1, and the ST7789P3 for the
@@ -222,4 +223,5 @@ the routed board, and fails if they differ from what is committed.
 | `firmware/` | reference model of every firmware decision, with tests |
 | `ui/` | the screens, drawn at the panel's real resolution |
 | `tools/` | toolchain (Dockerfile), output check, brand check, cost tally, debug plots |
-| `docs/` | decisions, architecture, the original spec, market research, the design studies and concepts behind the face |
+| `docs/` | decisions, architecture, the dated parts check |
+| [`../design/`](../design/) | before any revision: the original spec, market research, the 20 concepts and the design studies |

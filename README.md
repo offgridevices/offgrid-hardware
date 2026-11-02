@@ -4,6 +4,7 @@ Open hardware from [OffGrid Devices](https://github.com/offgridevices). One fold
 
 | Product, revision | What it is | Status |
 |---|---|---|
+| [`canary/`](canary/) v1 | Canary: 60 × 40 mm first-vent detector for lithium batteries charging at home — VOC + CO₂ + heat fusion, 100 dB sounder, USB-C | v1 designed and simulation-verified, not yet built |
 | [`packet-logger-carrier/`](packet-logger-carrier/) v1 | 86 × 58 mm carrier for a LoRa mesh packet logger — RAK19003 + XIAO ESP32-C6 + microSD | v1 ordered, not yet bench-verified |
 | [`ridge3-lite/`](ridge3-lite/) v1 | Ridge 3 Lite: 38 × 38 mm flight controller + 4-in-1 ESC for a 3" quad, 8 layers | v1 designed, not yet built |
 | [`print-hub/`](print-hub/) v1 | Print Hub: 86 × 50 mm, five switched USB ports for a resin printer's accessories, ESP32-S3 on Wi-Fi and USB, USB-PD in, printed enclosure | v1 designed, not yet built |

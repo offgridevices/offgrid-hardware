@@ -74,7 +74,7 @@ def write_simmd(out, wall, REP, DESIGN, CASES):
          "decks, data and logs go to `work/` (scratch, git-ignored), plots to `plots/`. The runner retries a "
          "deck with more forgiving solver options if it does not converge.", "",
          "Circuit under test: [`src/circuit.py`](../src/circuit.py). References: "
-         "[architecture.md](../docs/architecture.md), [spec.md](../docs/spec.md) §4-5.", ""]
+         "[architecture.md](../docs/architecture.md), [spec.md](../../design/spec.md) §4-5.", ""]
     n = len(REP.fails)
     L += ["## Result", "",
           f"**{len(REP.checks) - n} of {len(REP.checks)} checks PASS"

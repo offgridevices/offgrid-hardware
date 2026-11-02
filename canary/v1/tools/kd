@@ -1,0 +1,18 @@
+#!/bin/sh
+# Run a command with the pinned KiCad 10.0.6 toolchain. Inside a KiCad
+# container (CI) kicad-cli is on PATH and the command runs directly;
+# elsewhere it runs in the kicad/kicad:10.0.6-full image with the repository
+# mounted at /w and the working directory carried over. Either way KiCad gets
+# its stock global library tables.
+if command -v kicad-cli > /dev/null 2>&1; then
+  mkdir -p "$HOME/.config/kicad/10.0"
+  cp -n /usr/share/kicad/template/sym-lib-table /usr/share/kicad/template/fp-lib-table "$HOME/.config/kicad/10.0/" 2>/dev/null
+  exec "$@"
+fi
+ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
+REL=$(pwd | sed "s|^$ROOT||")
+exec docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONHASHSEED=0 \
+  -v "$ROOT":/w -w "/w$REL" ${KD_IMAGE:-kicad/kicad:10.0.6-full} sh -c '
+  mkdir -p $HOME/.config/kicad/10.0 &&
+  cp /usr/share/kicad/template/sym-lib-table /usr/share/kicad/template/fp-lib-table $HOME/.config/kicad/10.0/ 2>/dev/null
+  exec "$@"' sh "$@"
