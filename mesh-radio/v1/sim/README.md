@@ -8,8 +8,9 @@ a worn cell (with a cold start at -40 C and a hot USB-charging case at
 85 C), charging from a 6 V panel, and a derating table.  Every study runs
 at ambient -40, -20, 0, 25, 60 and 85 C.  The studies model the circuit as
 changed on 19 Oct 2026 (below); the first round found the faults those
-changes fix.  (`rf/` and `thermal/` in this
-folder are separate studies with their own results.)
+changes fix.  (`rf/`, `thermal/` and `power/` in this
+folder are separate studies with their own results; `power/` is the
+listening-current budget and battery life, 2 Nov.)
 
 ```
 sim/run_all.sh                         # everything, ~40 min on 4 cores (runs are cached in sim/out/)
