@@ -420,7 +420,7 @@ def place_all(log=print):
     todo = [r_ for r_ in todo if r_ not in xtal]
     place.PACK_GAP = lambda x, y: PACK_GAP_LEFT if x < PACK_LEFT_X else place.GAP
     left += place.pack(B, sorted(todo, key=key), prefer=prefer)
-    left = place.pack(B, left)                 # parts whose anchor was placed after them
+    left = place.pack(B, left, rmax=40.0)      # parts whose anchor was placed after them (and any with no room near it)
     if left:
         log('no room for: %s' % left)
     B.pl['_nodes'] = {k: ([[round(p[0], 3), round(p[1], 3)] for p in v] if k.startswith('_cpl')

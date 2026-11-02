@@ -347,6 +347,15 @@ def anchor_pad(B, c):
     return best[1]
 
 
+def side_pen(c):
+    """mm a part's spot on the far side of its anchor costs: decoupling
+    stays on its chip's side unless that is 3 mm worse, the rest 1.5 mm."""
+    return SIDE_PEN_DECOUPLING if c.ref.startswith('C') and 'GND' in c.pins.values() else SIDE_PEN
+
+
+SIDE_PEN, SIDE_PEN_DECOUPLING = 1.5, 3.0
+
+
 def pack(B, refs, prefer=None, step=0.25, rmax=14.0, log=print):
     """Place every part in refs beside its anchor pin.  prefer: ref -> side
     to try first.  Returns the parts that found no room."""
@@ -364,12 +373,24 @@ def pack(B, refs, prefer=None, step=0.25, rmax=14.0, log=print):
         (tx, ty), tside = pts[0]
         sides = [prefer.get(ref, tside)] if prefer and ref in prefer else [tside]
         sides += [s for s in ('T', 'B') if s not in sides]
+        # both sides searched together, ring by ring: the other side costs
+        # SIDE_PEN mm (a via), so a part goes under its pin before it goes
+        # 10 mm away on a crowded side (until 2 Nov 2026 the first side was
+        # searched out to rmax first: pull-ups and series resistors landed
+        # across the board from their pins); a preferred side stays strict
+        pen = {sides[0]: 0.0, sides[1]: (rmax + 1 if prefer and ref in prefer else side_pen(c))}
         done = False
-        for side in sides:
-            r = 0.0
-            while r <= rmax and not done:
+        k = 0
+        while not done:
+            re_ = k * step
+            if re_ > rmax + max(pen.values()) or re_ > 2 * rmax + 1:
+                break
+            best = None
+            for side in sides:
+                r = re_ - pen[side]
+                if r < 0 or r > rmax:
+                    continue
                 n = max(1, int(2 * math.pi * r / step))
-                best = None
                 for i in range(n):
                     a = 2 * math.pi * i / n
                     x, y = tx + r * math.cos(a), ty + r * math.sin(a)
@@ -377,15 +398,13 @@ def pack(B, refs, prefer=None, step=0.25, rmax=14.0, log=print):
                         if B.fits(ref, x, y, rot, side, PACK_GAP(x, y)):
                             # prefer the spot that puts the part's own pad of that net nearest the target
                             _, pp = B.geom(ref, x, y, rot, side)
-                            d = min(math.hypot(px - tx, py - ty) for px, py in pp.values())
+                            d = min(math.hypot(px - tx, py - ty) for px, py in pp.values()) + pen[side]
                             if best is None or d < best[0]:
-                                best = (d, x, y, rot)
-                if best:
-                    B.put(ref, best[1], best[2], best[3], side)
-                    done = True
-                r += step
-            if done:
-                break
+                                best = (d, x, y, rot, side)
+            if best:
+                B.put(ref, best[1], best[2], best[3], best[4])
+                done = True
+            k += 1
         if not done:
             left.append(ref)
     return left
