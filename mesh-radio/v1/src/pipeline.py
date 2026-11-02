@@ -1113,8 +1113,15 @@ def endgame(fin, work, rounds=3):
                 pcb.remove(b, t); nt += 1
         left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
         log('endgame round %d: %d pieces in errors out, %d nets open %s' % (r + 1, nt, len(left), left))
-        if left:
-            open_, over = finish.pathfinder(b, left, protect=sorted(keep), widths=w, clmap=cl, max_iters=60, log=log)
+        if left and os.environ.get('ENDGAME', 'pathfinder') == 'orders':
+            # rip-up in random orders with a big budget, the escapes' locked copper too
+            rest = finish.repair_orders(b, left, protect=sorted(keep), widths=w, clmap=cl, log=log,
+                                        tries=int(os.environ.get('REPAIR_TRIES', 40)), max_victims=10,
+                                        keep_locked=False)
+            log('  orders: open %s' % (rest,))
+        elif left:
+            open_, over = finish.pathfinder(b, left, protect=sorted(keep), widths=w, clmap=cl,
+                                            max_iters=int(os.environ.get('PF_ITERS', 60)), log=log)
             log('  pathfinder: open %s, overlapping %s' % (open_, over))
             if open_ or over:
                 # overlapping copper is illegal: those nets are torn up and routed with no crossing
