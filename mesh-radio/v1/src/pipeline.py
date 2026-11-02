@@ -441,22 +441,39 @@ SUPPLY = set(board.HEAVY + board.POWER + board.RAIL)
 
 
 def nudge_via(b, v, obs, layers, gap=0.2):
-    """Move via `v` (and the ends of its tracks) the least distance that
-    gives its hole `gap` to every other net's copper and keeps its own
-    copper at the board clearance.  True if it moved."""
+    """Move via `v` (and the ends of its tracks) the least distance, up to
+    0.15 mm, that gives its hole `gap` to every other net's copper, keeps
+    its copper and its moved tracks at the fab's 0.09 mm, and keeps the
+    hole-to-hole spacing (obs.hole_room).  True if it moved."""
     import math
-    from shapely.geometry import Point
+    from shapely.geometry import Point, LineString
     q = v.GetPosition(); x0, y0 = q.x / 1e6, q.y / 1e6
     r, rh = v.GetWidth(pcbnew.F_Cu) / 2e6, v.GetDrillValue() / 2e6
     net = v.GetNetname()
     ends = [t for t in b.GetTracks() if t.GetClass() == 'PCB_TRACK' and t.GetNetname() == net
             and (t.GetStart() == q or t.GetEnd() == q)]
-    for d in (0.01, 0.02, 0.03, 0.04, 0.05, 0.06):
-        for k in range(16):
-            a = 2 * math.pi * k / 16
-            x, y = x0 + d * math.cos(a), y0 + d * math.sin(a)
-            if (obs.clear(Point(x, y).buffer(rh, 16), net, layers, gap - 0.001)
-                    and obs.clear(Point(x, y).buffer(r, 16), net, layers, board.FAB_MIN)):
+    cl = board.FAB_MIN + 0.002
+    others = [h for h in obs.holes if abs(h[0] - x0) > 1e-6 or abs(h[1] - y0) > 1e-6]
+    saved = obs.holes
+    try:
+        obs.holes = others
+        for k10 in range(1, 16):
+            d = k10 / 100.0
+            for k in range(16):
+                a = 2 * math.pi * k / 16
+                x, y = x0 + d * math.cos(a), y0 + d * math.sin(a)
+                if not (obs.clear(Point(x, y).buffer(rh, 16), net, layers, gap - 0.001)
+                        and obs.clear(Point(x, y).buffer(r, 16), net, layers, cl)
+                        and obs.hole_room(x, y, rh, 0.45)):
+                    continue
+                ok = True
+                for t in ends:
+                    far = t.GetEnd() if t.GetStart() == q else t.GetStart()
+                    g = LineString([(x, y), (far.x / 1e6, far.y / 1e6)]).buffer(t.GetWidth() / 2e6, 8)
+                    if not obs.clear(g, net, [t.GetLayer()], cl):
+                        ok = False; break
+                if not ok:
+                    continue
                 p = pcbnew.VECTOR2I(int(round(x * 1e6)), int(round(y * 1e6)))
                 for t in ends:
                     if t.GetStart() == q:
@@ -464,7 +481,26 @@ def nudge_via(b, v, obs, layers, gap=0.2):
                     if t.GetEnd() == q:
                         t.SetEnd(p)
                 v.SetPosition(p)
+                # later nudges in this pass see the hole where it now is
+                saved[:] = others + [(x, y, rh)]
                 return True
+        return False
+    finally:
+        obs.holes = saved
+
+
+def shrink_via(b, v, obs, layers, gap=0.2):
+    """Give via `v` the board's in-pad via size (board.VIA_PAD) if its hole
+    then clears `gap` where it is or after a nudge; else put it back."""
+    from shapely.geometry import Point
+    w, d = v.GetWidth(pcbnew.F_Cu), v.GetDrillValue()
+    v.SetWidth(pcb.MM(board.VIA_PAD[0])); v.SetDrill(pcb.MM(board.VIA_PAD[1]))
+    q = v.GetPosition()
+    if obs.clear(Point(q.x / 1e6, q.y / 1e6).buffer(board.VIA_PAD[1] / 2, 16), v.GetNetname(), layers, gap - 0.001):
+        return True
+    if nudge_via(b, v, obs, layers, gap):
+        return True
+    v.SetWidth(w); v.SetDrill(d)
     return False
 
 
@@ -494,7 +530,7 @@ def fab_fixups(path, log=log):
         t.SetWidth(pcbnew.FromMM(board.FAB_MIN))
     # vias whose holes are too close to other copper
     layers = [l for l in b.GetEnabledLayers().CuStack()]
-    nv = nn = 0
+    nv = nn = ns = 0
     for _ in range(6):
         obs = fanout.Obstacles(b, layers)
         bad = []
@@ -515,6 +551,10 @@ def fab_fixups(path, log=log):
             # tracks' ends following (0.19 mm is the usual miss); else it goes
             if nudge_via(b, v, obs, layers):
                 nn += 1
+            elif v.GetDrillValue() > pcb.MM(board.VIA_PAD[1]) and shrink_via(b, v, obs, layers):
+                # the board's in-pad via size (0.3/0.15 mm, already on it):
+                # its hole edge 0.025 mm further in, nudged again if need be
+                ns += 1
             else:
                 pcb.remove(b, v); nv += 1
     # copper in the unplated-hole keepouts
@@ -532,8 +572,8 @@ def fab_fixups(path, log=log):
         if g and any(r.intersects(x) for r in rings for gs in g.values() for x in gs):
             pcb.remove(b, t); ne += 1
     pcb.save_board(b, path)
-    log('fab fixups: %d thin tracks widened, %d vias nudged clear, %d vias with close holes and %d pieces in '
-        'unplated-hole keepouts taken out' % (len(thin), nn, nv, ne))
+    log('fab fixups: %d thin tracks widened, %d vias nudged clear, %d made the 0.3/0.15 mm size, %d vias with '
+        'close holes and %d pieces in unplated-hole keepouts taken out' % (len(thin), nn, ns, nv, ne))
 
 
 def finish_rest(fin, work, w=None, cl=None):
