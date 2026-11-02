@@ -371,8 +371,12 @@ def setup_routers():
     finish.WINDOW = 3.0
     finish.COARSE = 0.05
     finish.VIA_D, finish.VIA_DRILL = board.VIA_SIG
-    # a via keeps JLCPCB's 0.2 mm hole-to-copper at the 0.1 mm clearance
-    finish.VIA_RING = 0.1
+    # a via keeps JLCPCB's 0.2 mm hole-to-copper at the 0.1 mm clearance, with
+    # 0.01 mm for the 0.025 mm grid (at 0.1 its tracks came 0.195 mm from holes)
+    finish.VIA_RING = 0.11
+    # Freerouting too: the locked vias (the ball escapes, 0.3/0.15 mm) go out
+    # with that ring (at their own, its tracks sat 0.175 mm from their holes)
+    route.VIA_RING = 0.11
     finish.POFV_GAP = None
     route.VIA_IN_PAD = board.VIA_SIG
     route.PRE_EXPORT = routing_keepouts
@@ -527,6 +531,63 @@ def rip_near(b, v, gap=0.2):
     return n
 
 
+def fix_via_holes(b, skip=(), gap=0.2, passes=6):
+    """Every via (not of the nets in `skip`) whose hole comes within `gap`
+    of another net's copper: nudged (nudge_via), else given the board's
+    0.3/0.15 size (shrink_via), else, in a pad or locked, the other nets'
+    track pieces near it go (rip_near), else it goes.  Returns the counts
+    (nudged, shrunk, track pieces out, vias out)."""
+    import fanout
+    from shapely.geometry import Point
+    layers = [l for l in b.GetEnabledLayers().CuStack()]
+    nv = nn = ns = nt = 0
+    for _ in range(passes):
+        obs = fanout.Obstacles(b, layers)
+        bad = []
+        for v in b.GetTracks():
+            if v.GetClass() != 'PCB_VIA' or v.GetNetname() in skip:
+                continue
+            q = v.GetPosition()
+            hole = Point(q.x / 1e6, q.y / 1e6).buffer(v.GetDrillValue() / 2e6, 16)
+            if not obs.clear(hole, v.GetNetname(), layers, gap - 0.002):
+                bad.append(v)
+        if not bad:
+            break
+        # a plane's own stitching vias first (they go freely), signals before supplies
+        bad.sort(key=lambda v: (v.GetNetname() not in PLANES, v.GetNetname() in SUPPLY, v.IsLocked()))
+        for v in bad[: max(1, len(bad) // 2)]:
+            if v not in list(b.GetTracks()):
+                continue
+            # first a nudge: the smallest move (up to 0.15 mm) that clears it, its
+            # tracks' ends following (0.19 mm is the usual miss)
+            if nudge_via(b, v, obs, layers, gap):
+                nn += 1
+            elif v.GetDrillValue() > pcb.MM(board.VIA_PAD[1]) and shrink_via(b, v, obs, layers, gap):
+                # the board's in-pad via size (0.3/0.15 mm, already on it):
+                # its hole edge 0.025 mm further in, nudged again if need be
+                ns += 1
+            elif v.IsLocked() or in_pad(b, v):
+                # a via in a chip's pad (the ball escapes) stays: the other
+                # nets' track pieces too close to its hole go instead (with
+                # 0.3/0.15 vias at 0.1 mm, a track can sit 0.175 mm from the
+                # hole); the maze routes them again around it
+                nt += rip_near(b, v, gap)
+            else:
+                pcb.remove(b, v); nv += 1
+    return nn, ns, nt, nv
+
+
+def hole_pass(path, log=log):
+    """Before the clean-up: fix_via_holes over every via but the RF lines'
+    (the ground pour's stitching vias too), then a maze pass for anything
+    it opened is left to the caller."""
+    b = pcbnew.LoadBoard(path)
+    r = fix_via_holes(b, set(board.RF_NETS) | set(board.RF_EXTRA))
+    pcb.save_board(b, path)
+    log('hole pass: %d vias nudged, %d made 0.3/0.15 mm, %d track pieces and %d vias taken out' % r)
+    return r
+
+
 def fab_fixups(path, log=log):
     """Before the maze router: take out what the fab's limits forbid, for
     the maze to route again (all from the 1 Nov 62 mm run's DRC):
@@ -552,41 +613,7 @@ def fab_fixups(path, log=log):
     for t in thin:
         t.SetWidth(pcbnew.FromMM(board.FAB_MIN))
     # vias whose holes are too close to other copper
-    layers = [l for l in b.GetEnabledLayers().CuStack()]
-    nv = nn = ns = nt = 0
-    gap = 0.2
-    for _ in range(6):
-        obs = fanout.Obstacles(b, layers)
-        bad = []
-        for v in b.GetTracks():
-            if v.GetClass() != 'PCB_VIA' or v.GetNetname() in keep:
-                continue
-            q = v.GetPosition()
-            hole = Point(q.x / 1e6, q.y / 1e6).buffer(v.GetDrillValue() / 2e6, 16)
-            if not obs.clear(hole, v.GetNetname(), layers, 0.2 - 0.002):
-                bad.append(v)
-        if not bad:
-            break
-        bad.sort(key=lambda v: (v.GetNetname() in SUPPLY, v.IsLocked()))
-        for v in bad[: max(1, len(bad) // 2)]:
-            if v not in list(b.GetTracks()):
-                continue
-            # first a nudge: the smallest move (0.01-0.06 mm) that clears it, its
-            # tracks' ends following (0.19 mm is the usual miss); else it goes
-            if nudge_via(b, v, obs, layers):
-                nn += 1
-            elif v.GetDrillValue() > pcb.MM(board.VIA_PAD[1]) and shrink_via(b, v, obs, layers):
-                # the board's in-pad via size (0.3/0.15 mm, already on it):
-                # its hole edge 0.025 mm further in, nudged again if need be
-                ns += 1
-            elif v.IsLocked() or in_pad(b, v):
-                # a via in a chip's pad (the ball escapes) stays: the other
-                # nets' track pieces too close to its hole go instead (with
-                # 0.3/0.15 vias at 0.1 mm, a track can sit 0.175 mm from the
-                # hole); the maze routes them again around it
-                nt += rip_near(b, v, gap)
-            else:
-                pcb.remove(b, v); nv += 1
+    nn, ns, nt, nv = fix_via_holes(b, keep)
     # copper in the unplated-hole keepouts
     rings = []
     for z in b.Zones():
@@ -859,6 +886,11 @@ def fatten(path, log=log, neck=0.45):
     layers = [l for l in b.GetEnabledLayers().CuStack()]
     obs = fanout.Obstacles(b, layers)
     obs.keepouts = []                          # vias only; tracks may cross those
+    # the fab's 0.2 mm from every other net's via hole (0.01 mm to spare)
+    from shapely.geometry import Point
+    vh = [(Point(v.GetPosition().x / 1e6, v.GetPosition().y / 1e6), v.GetDrillValue() / 2e6, v.GetNetname())
+          for v in b.GetTracks() if v.GetClass() == 'PCB_VIA']
+    holes_ok = lambda g, net: all(g.distance(c) >= r + 0.21 for c, r, n in vh if n != net)
     inside = box(pcb.CX - pcb.HX + 0.35, pcb.CY - pcb.HY + 0.35, pcb.CX + pcb.HX - 0.35, pcb.CY + pcb.HY - 0.35)
     n = k = 0
     for t in list(b.GetTracks()):
@@ -873,7 +905,7 @@ def fatten(path, log=log, neck=0.45):
         w_ = tw
         while w_ > cur + 1e-6:
             g = line.buffer(w_ / 2)
-            if inside.contains(g) and obs.clear(g, net, [t.GetLayer()], tcl):
+            if inside.contains(g) and obs.clear(g, net, [t.GetLayer()], tcl) and holes_ok(g, net):
                 t.SetWidth(pcbnew.FromMM(w_))
                 obs.add(g, net, [t.GetLayer()])
                 n += 1
@@ -897,6 +929,23 @@ def finish_tail(fin, work, w, cl):
     write_rules(fin)
     finish.finish_board(fin, fin, os.path.join(work, 'fin2.json'), rules=w, clmap=cl)
     write_rules(fin)
+    return finish_clean(fin, work, w, cl)
+
+
+def finish_clean(fin, work, w=None, cl=None):
+    """The hole pass, clean-up, POFV spacing, stackup and DRC."""
+    import cleanup, pofv
+    if w is None:
+        comps = circuit.build()
+        w, cl = widths(comps), clearances(comps)
+        setup_routers()
+    # the fattened tracks and the stitching vias against the fab's 0.2 mm
+    # hole-to-copper; a maze pass for what that opened
+    if any(hole_pass(fin)[2:]):
+        pcb.pour_ground(fin, list(finish.ROUTE_LAYERS), clearance=0.15)
+        write_rules(fin)
+        finish.finish_board(fin, fin, os.path.join(work, 'fin3.json'), rules=w, clmap=cl)
+        write_rules(fin)
     cleanup.clean(fin, board.RULES, log=log)
     dj = os.path.join(work, 'pofv_drc.json')
     e, wn, u = pcb.drc(fin, dj)
@@ -943,7 +992,10 @@ def run(work, passes=40, from_routed=False):
 if __name__ == '__main__':
     work = sys.argv[1]
     passes = int(sys.argv[sys.argv.index('--passes') + 1]) if '--passes' in sys.argv else 40
-    if '--from-fin' in sys.argv:
+    if '--from-clean' in sys.argv:
+        # a finished board from the hole pass on (a run that died in the clean-up)
+        finish_clean(os.path.join(work, 'fin.kicad_pcb'), work)
+    elif '--from-fin' in sys.argv:
         # the maze router's result as it stands: the supply pours, repair and tail only
         finish_rest(os.path.join(work, 'fin.kicad_pcb'), work)
     else:
