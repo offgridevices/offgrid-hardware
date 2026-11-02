@@ -1034,6 +1034,117 @@ def finish_clean(fin, work, w=None, cl=None):
     return e, wn, u
 
 
+def gnd_island_vias(path, log=log):
+    """A piece of a ground fill with no ground via in it (cut off from the
+    plane, e.g. round one pad) gets one: the first spot on a 0.1 mm grid
+    inside it where a board.VIA_SIG via clears everything.  Returns how many."""
+    import fanout
+    from shapely.geometry import Point, Polygon
+    b = pcbnew.LoadBoard(path)
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    layers = [l for l in b.GetEnabledLayers().CuStack()]
+    obs = fanout.Obstacles(b, layers)
+    vias = [Point(v.GetPosition().x / 1e6, v.GetPosition().y / 1e6) for v in b.GetTracks()
+            if v.GetClass() == 'PCB_VIA' and v.GetNetname() in PLANES]
+    d, dr = board.VIA_SIG
+    k = 0
+    for z in list(b.Zones()):
+        if z.GetIsRuleArea() or z.GetNetname() not in PLANES or z.GetZoneName() == 'GND plane':
+            continue
+        for l in z.GetLayerSet().CuStack():
+            fp_ = z.GetFilledPolysList(l)
+            for i in range(fp_.OutlineCount()):
+                ol = fp_.Outline(i)
+                P = Polygon([(ol.CPoint(j).x / 1e6, ol.CPoint(j).y / 1e6) for j in range(ol.PointCount())]).buffer(0)
+                if P.is_empty or any(P.contains(v) for v in vias):
+                    continue
+                core = P.buffer(-d / 2)
+                if core.is_empty:
+                    continue
+                x0, y0, x1, y1 = core.bounds
+                done = False
+                yy = y0
+                while yy <= y1 and not done:
+                    xx = x0
+                    while xx <= x1 and not done:
+                        q = Point(xx, yy)
+                        if (core.contains(q) and obs.clear(q.buffer(d / 2, 16), z.GetNetname(), layers, board.SIG)
+                                and obs.clear(q.buffer(dr / 2, 16), z.GetNetname(), layers, 0.2 + HOLE_MARGIN)
+                                and obs.hole_room(xx, yy, dr / 2, 0.45)):
+                            v = pcbnew.PCB_VIA(b)
+                            v.SetPosition(pcbnew.VECTOR2I(int(round(xx * 1e6)), int(round(yy * 1e6))))
+                            v.SetWidth(pcb.MM(d)); v.SetDrill(pcb.MM(dr)); v.SetNet(z.GetNet())
+                            b.Add(v)
+                            obs.add(q.buffer(d / 2, 16), z.GetNetname(), layers); obs.holes.append((xx, yy, dr / 2))
+                            vias.append(q); k += 1; done = True
+                        xx += 0.1
+                    yy += 0.1
+    pcb.save_board(b, path)
+    log('ground islands: %d vias added' % k)
+    return k
+
+
+def endgame(fin, work, rounds=3):
+    """The last few problems of a finished board: the tracks in each
+    clearance error go, ground-fill islands get a via, the open nets are
+    routed by negotiated congestion (finish.pathfinder: crossings priced up
+    each iteration until none is left), then the hole pass, clean-up and
+    DRC.  A round is kept only if the DRC total falls."""
+    import cleanup
+    comps = circuit.build()
+    w, cl = widths(comps), clearances(comps)
+    setup_routers()
+    keep = set(PLANES) | set(board.RF_NETS) | set(board.RF_EXTRA)
+    e, wn, u = pcb.drc(fin, os.path.join(work, 'end0.json'))
+    best = len(e) + len(wn) + len(u)
+    log('endgame start: %d errors, %d warnings, %d unconnected' % (len(e), len(wn), len(u)))
+    for r in range(rounds):
+        if not best:
+            break
+        bak = os.path.join(work, 'end_bak.kicad_pcb')
+        shutil.copy(fin, bak)
+        b = pcbnew.LoadBoard(fin)
+        bad = set(i['uuid'] for v in e if v['type'] in ('clearance', 'hole_clearance', 'items_not_allowed')
+                  for i in v['items'])
+        nt = 0
+        for t in list(b.GetTracks()):
+            if t.m_Uuid.AsString() in bad and t.GetNetname() not in keep and not t.IsLocked() \
+                    and not (t.GetClass() == 'PCB_VIA' and in_pad(b, t)):
+                pcb.remove(b, t); nt += 1
+        left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
+        log('endgame round %d: %d pieces in errors out, %d nets open %s' % (r + 1, nt, len(left), left))
+        if left:
+            open_, over = finish.pathfinder(b, left, protect=sorted(keep), widths=w, clmap=cl, max_iters=60, log=log)
+            log('  pathfinder: open %s, overlapping %s' % (open_, over))
+            if open_ or over:
+                # overlapping copper is illegal: those nets are torn up and routed with no crossing
+                for n_ in over:
+                    finish.rip_up(b, n_)
+                rest = finish.cluster_endgame(b, sorted(set(open_) | set(over)), protect=sorted(keep), widths=w,
+                                              clmap=cl, log=log)
+                log('  cluster endgame: open %s' % (rest,))
+        pcb.save_board(b, fin)
+        write_rules(fin)
+        gnd_island_vias(fin)
+        hole_pass(fin)
+        write_rules(fin)
+        cleanup.clean(fin, board.RULES, log=log)
+        pcb.set_stackup(fin, inner_oz=0.5)
+        e2, wn2, u2 = pcb.drc(fin, os.path.join(work, 'end%d.json' % (r + 1)))
+        tot = len(e2) + len(wn2) + len(u2)
+        log('endgame round %d DRC: %d errors %s, %d warnings, %d unconnected'
+            % (r + 1, len(e2), dict(Counter(v['type'] for v in e2)), len(wn2), len(u2)))
+        if tot < best:
+            best, e, wn, u = tot, e2, wn2, u2
+        else:
+            shutil.copy(bak, fin)
+            log('  round not kept')
+            break
+    log('DRC: %d errors %s, %d warnings %s, %d unconnected'
+        % (len(e), dict(Counter(v['type'] for v in e)), len(wn), dict(Counter(v['type'] for v in wn)), len(u)))
+    return e, wn, u
+
+
 ROUND_PASSES = int(os.environ.get('ROUND_PASSES', 5))   # Freerouting passes per saved round
 # In1 carries signals too, except under the RF lines and the antenna
 # (rf_reference_keepouts): 20 Oct trial, first routing round, 59 open
@@ -1068,7 +1179,9 @@ def run(work, passes=40, from_routed=False):
 if __name__ == '__main__':
     work = sys.argv[1]
     passes = int(sys.argv[sys.argv.index('--passes') + 1]) if '--passes' in sys.argv else 40
-    if '--from-tail' in sys.argv:
+    if '--endgame' in sys.argv:
+        endgame(os.path.join(work, 'fin.kicad_pcb'), work)
+    elif '--from-tail' in sys.argv:
         # the tail again from its saved input (tail_in.kicad_pcb)
         fin = os.path.join(work, 'fin.kicad_pcb'); ti = os.path.join(work, 'tail_in.kicad_pcb')
         shutil.copy(ti, fin); pcb.copy_project(ti, fin)
