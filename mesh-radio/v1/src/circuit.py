@@ -566,7 +566,7 @@ def ports():
                             '6': None, '7': None, '9': None, '10': None}, note='display ESD 1')
     add('D', 'TPD4E05U06', {'1': 'DISP_CS', '2': 'DISP_DC', '4': 'DISP_RST', '5': 'DISP_BL', '3': GND, '8': GND,
                             '6': None, '7': None, '9': None, '10': None}, note='display ESD 2')
-    # Buttons (by the USB-C, as on the Heltec V4) and LEDs (active high, as RAK4631)
+    # Buttons (both on top, on the lower long edge) and LEDs (active high, as RAK4631)
     add('SW', 'SKRP', {'1': 'NRF_RESET', '2': 'NRF_RESET', '3': GND, '4': GND}, note='reset')
     add('SW', 'SKRP', {'1': 'BTN_USER', '2': 'BTN_USER', '3': GND, '4': GND}, note='user')
     R('R1k', 'LED_GREEN', 'LED_G_A'); add('LED', 'LED_G', {'2': 'LED_G_A', '1': GND}, note='green')

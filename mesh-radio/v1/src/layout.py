@@ -11,7 +11,7 @@ y across it, down the screen (KiCad's).
     beside the upper-left hole (lever over the edge), the LEDs below it;
     the nRF52840, its Bluetooth chip antenna on the lower long edge beside
     the lower-left hole (a copper keepout through every layer round it),
-    the user button (reset under it) on that edge too;
+    the user and reset buttons side by side on that edge too;
     the SX1262 with its TCXO;
     the transmit chain in one line to the QPA9510 amplifier, the
     amplifier's output chain down the right end to the antenna switch,
@@ -59,10 +59,10 @@ def anchors(comps):
         # ---- left end
         (R('USBC'), -HX + 5.48, 0.0, 270, 'T'),           # shell front 0.84 mm past the edge (Amphenol drawing)
         (R('SLIDE'), -HX + 12.05, -HY + 4.55, 180, 'T'),    # body edge on the board edge, lever over it, beside the upper-left hole
-        # the user button on top; reset (rarely needed) under it, on the lower
-        # edge right of the Bluetooth match
+        # both buttons on top, side by side on the lower edge right of the
+        # Bluetooth match (owner, 2 Nov 2026: a button underneath is awkward)
         (R('SKRP', 'user'), -6.5, HY - 3.2, 90, 'T'),
-        (R('SKRP', 'reset'), -6.5, HY - 3.2, 90, 'B'),
+        (R('SKRP', 'reset'), -2.6, HY - 3.2, 90, 'T'),
         # ---- processor and Bluetooth
         # (y 1.6 since 20 Oct: at 0.3 the battery plug's tails, under it on the
         # bottom, sat where its top row's escape vias must go)
