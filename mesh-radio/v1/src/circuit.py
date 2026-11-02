@@ -320,13 +320,13 @@ def mcu():
     gpio = {
         'D2': 'XL1', 'F2': 'XL2',
         'A12': 'FWD_DET', 'B13': 'DRONE_OK', 'J1': 'SOLAR_OK', 'K2': 'VBAT_SENSE',
-        'L1': 'TEMP_ALERT', 'M2': 'DISP_SCK', 'N1': 'DISP_MOSI', 'L24': 'CHG_CE_N', 'J24': 'IO6',
-        'T2': 'DISP_MISO', 'U1': 'DISP_CS', 'AD8': 'I2C_SDA', 'AC9': 'I2C_SCL',
+        'L1': 'TEMP_ALERT', 'M2': 'DISP_SCK', 'N1': 'DISP_MOSI', 'L24': 'CHG_CE_N', 
+        'U1': 'DISP_CS', 'AD8': 'I2C_SDA', 'AC9': 'I2C_SCL',
         'AD10': 'DRONE_RX', 'AC11': 'DRONE_TX', 'AD12': 'GPS_PPS', 'AC13': 'NRF_RESET',
         'AC15': 'GPS_RX', 'AD16': 'GPS_TX', 'AC17': 'DRONE_CTS', 'AD18': 'DRONE_RTS', 'AC19': 'GPS_EN',
         'AD20': 'CHG_STAT1', 'AC21': 'CHG_STAT2', 'G1': 'DISP_DC', 'H2': 'DISP_RST',
-        'B11': 'IO1', 'A10': 'IO2', 'B9': 'REFL_DET', 'A8': 'CHG_TS',
-        'AD22': 'BTN_USER', 'Y23': 'PA_PWR_EN', 'W24': 'IO5', 'V23': 'LED_GREEN', 'U24': 'LED_BLUE',
+        'B9': 'REFL_DET', 'A8': 'CHG_TS',
+        'AD22': 'BTN_USER', 'Y23': 'PA_PWR_EN', 'V23': 'LED_GREEN', 'U24': 'LED_BLUE',
         'T23': 'LNA_EN', 'R24': 'LORA_NRESET', 'P23': 'PA_EN', 'P2': 'DISP_BL', 'R1': 'PA_SRC_SYS',
         'A20': 'LORA_NSS', 'B19': 'LORA_SCK', 'B17': 'LORA_MOSI', 'A16': 'LORA_MISO', 'B15': 'LORA_BUSY',
         'A14': 'LORA_DIO1',
@@ -342,6 +342,9 @@ def mcu():
         'N24': 'NRF_DEC5', 'AD2': 'NRF_VBUS', 'AC5': 'NRF_DECUSB', 'AD6': 'NRF_DP', 'AD4': 'NRF_DM',
         'B24': 'XC1', 'A23': 'XC2', 'H23': 'NRF_ANT', 'AA24': 'SWDCLK', 'AC24': 'SWDIO',
         'B7': GND, '0': GND, 'F23': GND,
+        # unused since 2 Nov 2026 (the expansion header's spare pins and the
+        # display's MISO; the display plug is write-only)
+        'T2': None, 'B11': None, 'A10': None, 'W24': None, 'J24': None,
     })
     add('U', 'NRF52840', pins, note='nRF52840')
     # supply decoupling (Nordic config 2/4 values)
@@ -550,12 +553,19 @@ def ports():
                             '6': None, '7': None, '9': None, '10': None}, note='GPS ESD')
     add('U', 'TPS22916', {'A2': '3V3', 'B2': 'GPS_EN', 'A1': '3V3_GPS', 'B1': GND}, note='GPS power switch')
     R('R1M', 'GPS_EN'); C('C1u', '3V3_GPS')
-    # Expansion header (fitted only when needed): a generic SPI display, I2C, four
-    # spare pins (P0.30 / P0.31 read the antenna detector and the charger's NTC)
-    add('J', 'HDR_2x10', {'1': '3V3', '2': GND, '3': 'I2C_SDA', '4': 'I2C_SCL', '5': 'DISP_SCK', '6': 'DISP_MOSI',
-                          '7': 'DISP_MISO', '8': 'DISP_CS', '9': 'DISP_DC', '10': 'DISP_RST', '11': 'DISP_BL',
-                          '12': 'IO1', '13': 'IO2', '14': None, '15': None, '16': 'IO5', '17': 'IO6',
-                          '18': GND, '19': GND, '20': '3V3'}, note='expansion header')
+    # Display / I2C plug, JST-SH 10, on the cable edge with the other plugs
+    # (owner, 2 Nov 2026: in place of the 2 x 10 expansion header, so every
+    # cable leaves one side): 1 GND, 2 3V3, 3 SDA, 4 SCL (the board's own
+    # bus, its 4.7 k pull-ups), then a write-only SPI display: 5 SCK, 6 MOSI,
+    # 7 CS, 8 DC, 9 RST, 10 backlight.  Every signal on an ESD array, as on
+    # the drone and GPS plugs.
+    add('J', 'JST_SH10', {'1': GND, '2': '3V3', '3': 'I2C_SDA', '4': 'I2C_SCL', '5': 'DISP_SCK', '6': 'DISP_MOSI',
+                          '7': 'DISP_CS', '8': 'DISP_DC', '9': 'DISP_RST', '10': 'DISP_BL', 'MP': None},
+        note='display / I2C plug')
+    add('D', 'TPD4E05U06', {'1': 'I2C_SDA', '2': 'I2C_SCL', '4': 'DISP_SCK', '5': 'DISP_MOSI', '3': GND, '8': GND,
+                            '6': None, '7': None, '9': None, '10': None}, note='display ESD 1')
+    add('D', 'TPD4E05U06', {'1': 'DISP_CS', '2': 'DISP_DC', '4': 'DISP_RST', '5': 'DISP_BL', '3': GND, '8': GND,
+                            '6': None, '7': None, '9': None, '10': None}, note='display ESD 2')
     # Buttons (by the USB-C, as on the Heltec V4) and LEDs (active high, as RAK4631)
     add('SW', 'SKRP', {'1': 'NRF_RESET', '2': 'NRF_RESET', '3': GND, '4': GND}, note='reset')
     add('SW', 'SKRP', {'1': 'BTN_USER', '2': 'BTN_USER', '3': GND, '4': GND}, note='user')

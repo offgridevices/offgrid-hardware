@@ -551,6 +551,8 @@ STD = {
     'L_0805': ('Inductor_SMD', 'L_0805_2012Metric'),
     'TestPoint_Pad_1.0mm': ('TestPoint', 'TestPoint_Pad_D1.0mm'),
     'MountingHole_2.2mm_M2_Pad': ('MountingHole', 'MountingHole_2.2mm_M2_Pad'),
+    'MountingHole_3.2mm_M3_Pad': ('MountingHole', 'MountingHole_3.2mm_M3_Pad'),
+    'JST_SH_SM10B-SRSS-TB_1x10-1MP_P1.00mm_Horizontal': ('Connector_JST', 'JST_SH_SM10B-SRSS-TB_1x10-1MP_P1.00mm_Horizontal'),
 }
 
 # KiCad footprints whose 3D model is not in the image: a box from box3d.py instead

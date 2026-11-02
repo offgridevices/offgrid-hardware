@@ -15,19 +15,23 @@ V1 = os.path.normpath(os.path.join(HERE, '..'))
 MM = pcbnew.FromMM
 CX, CY = 100.0, 100.0            # board centre on KiCad's page
 NLAYERS = int(os.environ.get("BOARD_LAYERS", 6))      # copper layers (owner, 19 Oct: 6; 4 did not route)
-# length (x): 62 mm (owner, 1 Nov 2026).  58 mm placed (57 does not fit:
-# the amplifier's choke meets the mounting hole) but never routed: about 19
-# connections stayed open in the crowded middle; 62 mm routes with room
-DEFAULT_LEN = 62.0
+# length (x): 70 mm (owner, 2 Nov 2026: about a dozen connections would not
+# fit at 62 mm round the two radio chips and the USB corner; at the same
+# time four M3 holes and every cable plug, a new display / I2C plug in
+# place of the 2 x 10 header, on one long edge: 65 mm had no room for it).  58 mm placed
+# but never routed; 62 mm (1 Nov) routed to about a dozen open connections
+DEFAULT_LEN = 70.0
 LEN = float(os.environ.get("BOARD_LEN", DEFAULT_LEN))
 WID = 25.4                       # width (y): the Heltec V4's
 HX, HY = LEN / 2, WID / 2
 CORNER_R = 1.5                   # rounded corners
-# one M2 mounting hole in the antenna end's upper corner (plated, ground).
-# The lower corner holds the drone plug; the board is otherwise held by its
-# edges in the enclosure (as a Heltec V4 is) and by the USB-C opening.
-HOLES = [(HX - 2.6, -HY + 2.6)]
-HOLE_KEEPOUT_R = 2.4             # M2 screw head (3.8 mm) + clearance: no parts, no signal copper
+# four M3 mounting holes, one per corner (owner, 2 Nov 2026), plated and on
+# ground: KiCad's MountingHole_3.2mm_M3_Pad, its 6.4 mm ring 0.4 mm inside
+# the edges (the 1.5 mm corner rounding keeps more)
+HOLE_INSET = 3.6
+HOLES = [(sx * (HX - HOLE_INSET), sy * (HY - HOLE_INSET)) for sx in (-1, 1) for sy in (-1, 1)]
+HOLE_FP = 'MountingHole:MountingHole_3.2mm_M3_Pad'
+HOLE_KEEPOUT_R = 3.5             # a 7 mm M3 washer or a 5.5 mm hex standoff: no parts, no signal copper
 STD_FP = '/usr/share/kicad/footprints'
 
 def P(x, y):

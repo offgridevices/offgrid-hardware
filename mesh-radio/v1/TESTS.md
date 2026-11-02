@@ -7,7 +7,7 @@ row first (still needed? still right? anything missing? did hardware
 disagree?).
 
 > **Where this revision stands (20 Oct 2026).** The layout is placed
-> (62 × 25.4 mm, 6 layers). **Routing is in progress, not finished.** So:
+> (70 × 25.4 mm, 6 layers). **Routing is in progress, not finished.** So:
 >
 > - the build gates that need the routed board (DRC, copper nets, BOM and
 >   CPL, fab files) have **no result yet**;

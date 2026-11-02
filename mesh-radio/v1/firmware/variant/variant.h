@@ -94,14 +94,14 @@ extern "C" {
 
 /*
  * Analog pins.  analogRead() takes the GPIO number; the core maps it to AINx.
- * A0 = battery sense.  A1-A2 = expansion header IO1-IO2.  A3 and A5 = the
- * antenna detector's reflected and forward waves, A4 = the charger's battery
- * NTC (all on the board only; header pins 14 and 15, which were IO3/IO4, are
- * not connected).
+ * A0 = battery sense.  A3 and A5 = the antenna detector's reflected and
+ * forward waves, A4 = the charger's battery NTC (all on the board only).
+ * A1-A2 (P0.28 / P0.29) are not connected since the expansion header gave
+ * way to the display / I2C plug (2 Nov 2026).
  */
 #define PIN_A0 (5)  // P0.05 / AIN3  VBAT_SENSE
-#define PIN_A1 (28) // P0.28 / AIN4  IO1 (expansion)
-#define PIN_A2 (29) // P0.29 / AIN5  IO2 (expansion)
+#define PIN_A1 (28) // P0.28 / AIN4  not connected
+#define PIN_A2 (29) // P0.29 / AIN5  not connected
 #define PIN_A3 (30) // P0.30 / AIN6  REFL_DET (missing-antenna detector)
 #define PIN_A4 (31) // P0.31 / AIN7  CHG_TS (charger TS/MR pin, battery NTC)
 #define PIN_A5 (2)  // P0.02 / AIN0  FWD_DET (antenna detector, forward wave)
@@ -124,7 +124,7 @@ static const uint8_t AREF = PIN_AREF;
 
 // NFC pins: the bootloader configures them as GPIO (UICR NFCPINS).
 #define PIN_NFC1 (9)  // P0.09 CHG_CE_N
-#define PIN_NFC2 (10) // P0.10 IO6 (expansion)
+#define PIN_NFC2 (10) // P0.10 not connected
 
 /*
  * Serial interfaces.
@@ -152,7 +152,9 @@ static const uint8_t AREF = PIN_AREF;
 /*
  * SPI interfaces
  * SPI  = SX1262 (same pins as the RAK4631)
- * SPI1 = generic SPI display on the expansion header (optional, not enabled)
+ * SPI1 = a write-only SPI display on the display / I2C plug (JST-SH 10:
+ *        1 GND, 2 3V3, 3 SDA, 4 SCL, 5 SCK, 6 MOSI, 7 CS, 8 DC, 9 RST, 10 BL);
+ *        optional, not enabled
  */
 #define SPI_INTERFACES_COUNT 2
 
@@ -160,7 +162,7 @@ static const uint8_t AREF = PIN_AREF;
 #define PIN_SPI_MOSI (32 + 12) // P1.12 LORA_MOSI
 #define PIN_SPI_SCK (32 + 11)  // P1.11 LORA_SCK
 
-#define PIN_SPI1_MISO (11) // P0.11 DISP_MISO
+#define PIN_SPI1_MISO (11) // P0.11 not connected (the display plug is write-only)
 #define PIN_SPI1_MOSI (8)  // P0.08 DISP_MOSI
 #define PIN_SPI1_SCK (7)   // P0.07 DISP_SCK
 
@@ -555,14 +557,10 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #define BATTERY_LPCOMP_THRESHOLD NRF_LPCOMP_REF_SUPPLY_11_16
 
 /*
- * Expansion header spare pins: IO1 (pin 12), IO2 (13), IO5 (16), IO6 (17).
- * Pins 14 and 15 (IO3/IO4 before) are not connected: P0.30 and P0.31 now
- * read the antenna detector and the charger's NTC on the board.
+ * No spare pins: the expansion header (IO1 P0.28, IO2 P0.29, IO5 P1.02,
+ * IO6 P0.10) gave way to the display / I2C plug on 2 Nov 2026, and those
+ * pins are not connected.
  */
-#define PIN_IO1 (28)      // P0.28 / AIN4
-#define PIN_IO2 (29)      // P0.29 / AIN5
-#define PIN_IO5 (32 + 2)  // P1.02
-#define PIN_IO6 (10)      // P0.10 (NFC2)
 
 #ifdef __cplusplus
 }

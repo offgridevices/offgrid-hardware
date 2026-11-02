@@ -5,12 +5,13 @@ Board: 25.4 mm wide (the Heltec V4's), pcb.LEN long, coordinates in mm from
 the board centre, x along the length (USB-C end at -x, antenna end at +x),
 y across it, down the screen (KiCad's).
 
+  An M3 mounting hole in each corner (pcb.HOLES).
   TOP, left to right
-    USB-C on the short edge, the power slide switch above it (lever over
-    the long edge), the reset and user buttons below it;
-    the nRF52840 between the two rows of expansion-header holes, its
-    Bluetooth chip antenna on the lower long edge beside them (a copper
-    keepout through every layer round it);
+    USB-C on the short edge, the power slide switch on the upper long edge
+    beside the upper-left hole (lever over the edge), the LEDs below it;
+    the nRF52840, its Bluetooth chip antenna on the lower long edge beside
+    the lower-left hole (a copper keepout through every layer round it),
+    the user button (reset under it) on that edge too;
     the SX1262 with its TCXO;
     the transmit chain in one line to the QPA9510 amplifier, the
     amplifier's output chain down the right end to the antenna switch,
@@ -18,9 +19,9 @@ y across it, down the screen (KiCad's).
     receive amplifier beside the switch, its 50 ohm line back to the
     SX1262's receive balun.
   BOTTOM
-    the battery plug on the upper long edge, the solar plug at the left
-    end, the drone (JST-GH) and GPS (JST-SH) plugs on the long edges at
-    the right end;
+    every cable plug on the upper long edge, their openings at it (owner,
+    2 Nov 2026: the cables all leave one side): solar under the slide
+    switch, battery, drone (JST-GH), GPS (JST-SH), display / I2C (JST-SH);
     the input protection, charger and battery protection under the left
     half, the 3.3 V supply in the middle, the amplifier's power (mux,
     buck-boost, bulk capacitors) under the amplifier.
@@ -32,10 +33,13 @@ import pcbnew
 import pcb, circuit, parts, place
 
 HX, HY = pcb.HX, pcb.HY
-HDR_X0 = -7.0                      # expansion header: pin 1 / pin 11 x
+HDR_X0, HDR_Y = -7.0, 0.0         # the expansion header (dropped 2 Nov 2026; kept for an old circuit)
 NRF_RING = 0.6                     # mm kept free round the nRF52840's courtyard (its dog-bone vias reach 0.55 mm past it)
 NRF_X, SX_X = -12.6, -5.4          # the nRF52840 and the SX1262 (the TX line grows right from the SX1262)
-ANT_BOX = (-HX + 4.5, 8.9, -HX + 11.0, HY)   # the Bluetooth antenna's ground-free box (all layers): the antenna (x -23..-20, its feed at the line's end) and 1.5 mm round it; nothing under it on the bottom either
+JST_SH6_ROT = 0     # the GPS plug's turn for its opening at the upper edge (checked by check_plugs)
+JST_SH10_ROT = 0    # KiCad's SM10B footprint on the bottom: nails (and opening) towards -y (checked: plugs face the edge)
+ANT_X = NRF_X - 6.8                # the Bluetooth chip antenna's centre (its feed 6.8 mm left of the nRF52840, as at 62 mm)
+ANT_BOX = (ANT_X - 7.1, 8.9, ANT_X - 0.6, HY)   # its ground-free box (all layers), off its open end, clear of the lower-left hole's ring; nothing under it on the bottom either
 
 
 def ref(comps, part, note=None):
@@ -50,20 +54,20 @@ def ref(comps, part, note=None):
 def anchors(comps):
     """(ref, x, y, rot, side) for the parts that set the floor plan."""
     R = lambda p, n=None: ref(comps, p, n)
-    hdr = [(R('HDR_2x10'), HDR_X0, 0.0, 0, 'T')] if any(c.part == 'HDR_2x10' for c in comps) else []
+    hdr = [(R('HDR_2x10'), HDR_X0, HDR_Y, 0, 'T')] if any(c.part == 'HDR_2x10' for c in comps) else []
     return hdr + [
         # ---- left end
         (R('USBC'), -HX + 5.48, 0.0, 270, 'T'),           # shell front 0.84 mm past the edge (Amphenol drawing)
-        (R('SLIDE'), -HX + 5.6, -HY + 4.55, 180, 'T'),      # body edge on the board edge, lever over it
-        # the user button on top; reset (rarely needed) under the same corner,
-        # where the Bluetooth antenna leaves no room for a second one on top
-        (R('SKRP', 'user'), -HX + 2.2, HY - 3.2, 90, 'T'),
-        (R('SKRP', 'reset'), -HX + 2.2, HY - 3.2, 90, 'B'),
+        (R('SLIDE'), -HX + 12.05, -HY + 4.55, 180, 'T'),    # body edge on the board edge, lever over it, beside the upper-left hole
+        # the user button on top; reset (rarely needed) under it, on the lower
+        # edge right of the Bluetooth match
+        (R('SKRP', 'user'), -6.5, HY - 3.2, 90, 'T'),
+        (R('SKRP', 'reset'), -6.5, HY - 3.2, 90, 'B'),
         # ---- processor and Bluetooth
         # (y 1.6 since 20 Oct: at 0.3 the battery plug's tails, under it on the
         # bottom, sat where its top row's escape vias must go)
         (R('NRF52840'), NRF_X, 1.6, 180, 'T'),              # SPI side towards the SX1262, USB side towards USB-C
-        (R('ANT2450'), -HX + 11.6, HY - 1.35, 180, 'T'),         # feed end towards the nRF52840
+        (R('ANT2450'), ANT_X, HY - 1.35, 180, 'T'),              # feed end towards the nRF52840
         # ---- LoRa radio: RF pins face +x (top to bottom VR_PA, RFO, RFI_N, RFI_P)
         (R('SX1262'), SX_X, -4.4, 180, 'T'),
         (R('TCXO32'), 2.0, -4.5, 0, 'B'),                   # beside the SX1262, underneath (no room on top)
@@ -71,32 +75,32 @@ def anchors(comps):
         # JST side-entry plugs: the opening is on the fitting-nail side (JST
         # PH / SH / GH drawings, "end face of wafer on the mating side"), so
         # the nails face the edge, their copper 0.35 mm inside it
-        (R('JST_PH2'), -12.4, -HY + 4.98, 0, 'B'),          # battery, opening at the upper long edge
-        (R('JST_SH2'), -HX + 5.6, -HY + 3.19, 0, 'B'),          # solar, between the slide switch's pegs
-        (R('JST_GH6'), HX - 6.4, HY - 3.65, 180, 'B'),          # drone port, opening at the lower long edge
-        (R('JST_SH6'), HX - 3.29, 0.0, 270, 'B'),           # GPS, on the antenna end's short edge
+        # every plug on the upper long edge (owner, 2 Nov 2026), left to right
+        (R('JST_SH2'), -HX + 12.05, -HY + 3.19, 0, 'B'),        # solar, between the slide switch's pegs
+        (R('JST_PH2'), -12.4, -HY + 4.98, 0, 'B'),          # battery
+        (R('JST_GH6'), -2.0, -HY + 3.65, 0, 'B'),           # drone port
+        (R('JST_SH6'), 8.7, -HY + 3.29, JST_SH6_ROT, 'B'),  # GPS
+        (R('JST_SH10'), 20.5, -HY + 3.125, JST_SH10_ROT, 'B'),   # display / I2C: its nails' copper 0.35 mm inside the edge
         # ---- bottom: inputs.  USB: behind the USB-C, under the board's left
         # end; solar beside its plug; drone beside the drone plug
         (R('TVS2200', 'USB surge clamp'), -HX + 10.6, 0.6, 0, 'B'),
-        (R('TPS259470A', 'USB eFuse'), -HX + 6.0, 7.0, 0, 'B'),    # behind the USB-C, under the board's left end (1 Nov: the strip under the nRF52840 was the last jam)
+        (R('TPS259470A', 'USB eFuse'), -HX + 11.6, 6.6, 0, 'B'),   # behind the USB-C, clear of the lower-left hole (1 Nov: the strip under the nRF52840 was the last jam)
         (R('RB060MM', 'USB into the charger'), -HX + 8.8, 6.9, 90, 'B'),   # clear of the antenna box above it
-        (R('TPD4E05U06', 'USB ESD'), -HX + 12.2, -6.0, 90, 'T'),
-        (R('SMF33CA', 'SOL surge clamp'), -HX + 11.5, -10.0, 90, 'T'),    # beside the slide switch, on top
-        (R('MAX17608', 'SOL 60 V current limiter'), -HX + 10.5, -6.0, 0, 'B'),
-        (R('SMF33CA', 'DRN surge clamp'), 12.4, 4.6, 0, 'B'),
+        (R('TPD4E05U06', 'USB ESD'), -HX + 12.4, -4.0, 90, 'T'),
+        (R('SMF33CA', 'SOL surge clamp'), -HX + 18.2, -10.0, 90, 'T'),    # beside the slide switch, on top
+        (R('MAX17608', 'SOL 60 V current limiter'), -HX + 12.0, -4.6, 0, 'B'),
         (R('MAX17608', 'DRN 60 V current limiter'), 8.6, 1.6, 0, 'B'),
-        (R('TPD4E05U06', 'drone ESD'), HX - 9.2, 5.3, 0, 'B'),
+        # (the drone port's clamp and ESD, the GPS port's switch and ESD and the
+        # battery protection's MOSFETs and shunt are packed by their pins)
         # ---- bottom: charger and battery protection, by the battery plug
-        (R('CSD25310Q2'), -3.8, -5.6, 0, 'B'),
-        (R('BQ29700'), -6.6, -5.6, 0, 'B'),
-        (R('SSM10N954L'), -5.6, -8.4, 0, 'B'),
-        (R('R15m'), 0.6, -7.4, 0, 'B'),
+        (R('CSD25310Q2'), -3.8, -4.6, 0, 'B'),
+        (R('BQ29700'), -6.6, -4.6, 0, 'B'),
         # the charger away from the battery plug (sim/thermal: its heat reached
         # the NTC and the cell); the NTC right by the plug, reading the cell
         (R('BQ25185'), -HX + 4.7, 0.5, 0, 'B'),             # behind the USB-C, between its shell legs (1 Nov: out of the jam under the nRF52840)
         (R('NTC10K'), -7.65, -2.6, 90, 'B'),
         (R('TPS22950'), -6.4, -0.6, 0, 'B'),                # clear of the SX1262's pins above (its balls take vias)
-        (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -2.4, 0, 'B'),
+        (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -1.8, 0, 'B'),
         # ---- bottom: 3.3 V
         (R('TPS62840'), -5.6, 3.0, 0, 'B'),
         (R('L2u2'), -5.6, 5.0, 0, 'B'),
@@ -105,15 +109,12 @@ def anchors(comps):
         (R('NMOS', 'mux on with the amplifier'), 9.6, -1.6, 0, 'B'),
         (R('TPS63810'), 15.6, -3.4, 90, 'B'),               # clear of the drive pad's R68 above (its balls take vias)
         (R('L470n'), 13.8, -0.4, 90, 'B'),
-        (R('TMP1075'), HX - 10.4, -9.6, 0, 'B'),
-        # ---- bottom: GPS power switch and ESD by its plug
-        (R('TPS22916'), HX - 7.6, -6.6, 0, 'B'),
-        (R('TPD4E05U06', 'GPS ESD'), HX - 4.4, -6.5, 0, 'B'),
+        (R('TMP1075'), HX - 10.4, -4.4, 0, 'B'),
         # ---- top: indicators, the amplifier's control-voltage LDO
-        # LEDs in a row between the slide switch and the USB-C
-        (R('LED_R'), -HX + 1.8, -5.95, 0, 'T'),
-        (R('LED_G'), -HX + 4.6, -5.95, 0, 'T'),
-        (R('LED_B'), -HX + 7.4, -5.95, 0, 'T'),
+        # LEDs in a row between the slide switch and the USB-C, right of the upper-left hole
+        (R('LED_R'), -HX + 8.2, -5.95, 0, 'T'),
+        (R('LED_G'), -HX + 11.0, -5.95, 0, 'T'),
+        (R('LED_B'), -HX + 13.8, -5.95, 0, 'T'),
     ]
 
 
@@ -129,7 +130,7 @@ TX = ['LORA_RFO', 'LORA_TXA', 'LORA_TXB', 'LORA_TXC', 'LORA_TX50', 'PA_DRIVE', '
 PA_OUT = ['PA_OUT', 'PA_M1', 'PA_M2', 'PA_M3', 'PA_TX']
 RX_IN = ['RX_SW', 'LNA_INM', 'LNA_AI']
 BLE = ['NRF_ANT', 'BLE_50R', 'BLE_T', 'BLE_FEED']
-RX_Y = 8.1          # the receive line's run along the board, clear of the header holes (y 9.3)
+RX_Y = 8.1          # the receive line's run along the board
 SW_Y = 6.0          # the antenna switch's row
 
 
@@ -574,7 +575,7 @@ def plot(pl, path, comps=None):
             if r_.startswith('_'):
                 continue
             x, y, rot, s = v
-            if s != side and not r_.startswith(('J7', 'H')):
+            if s != side and not r_.startswith('H'):
                 continue
             bx = B.rect(r_, x, y, rot, s)
             col = {'U': (60, 110, 200), 'J': (40, 150, 60), 'C': (210, 160, 60), 'R': (200, 90, 90),
@@ -585,7 +586,9 @@ def plot(pl, path, comps=None):
         x0, y0, x1, y1 = ANT_BOX
         d.rectangle([X(x0), Y(y0), X(x1), Y(y1)], outline=(255, 0, 255))
         for hx, hy in pcb.HOLES:
-            d.ellipse([X(hx - 1.1), Y(hy - 1.1), X(hx + 1.1), Y(hy + 1.1)], outline='black')
+            r = pcb.HOLE_KEEPOUT_R
+            d.ellipse([X(hx - 1.6), Y(hy - 1.6), X(hx + 1.6), Y(hy + 1.6)], outline='black')
+            d.ellipse([X(hx - r), Y(hy - r), X(hx + r), Y(hy + r)], outline=(160, 160, 160))
     img.save(path)
 
 

@@ -156,7 +156,7 @@ def build(out, replace=False):
     net_classes(b, comps)
     # mounting holes: plated, ground
     for k, (x, y) in enumerate(pcb.HOLES):
-        fp = pcb.load_fp('MountingHole:MountingHole_2.2mm_M2_Pad')
+        fp = pcb.load_fp(pcb.HOLE_FP)
         fp.SetReference('H%d' % (k + 1)); fp.SetPosition(pcb.P(x, y))
         for p in fp.Pads():
             p.SetNet(pcb.add_net(b, 'GND'))

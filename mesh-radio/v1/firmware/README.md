@@ -165,8 +165,8 @@ over the USB serial port), or send the `-ota.zip` over Bluetooth.
 | FWD_DET | P0.02 / AIN0 | 2 (A5) | Antenna detector, forward wave (BAT68-04W into 1 nF ∥ 100 k). New 20 Oct. |
 | CHG_TS | P0.31 / AIN7 | 31 (A4) | The charger's TS/MR pin: battery NTC, 38 µA bias while an input is present |
 | USB VBUS | — | — | Read through the POWER peripheral (`NRF_APM`); the VBUS pin is fed through 22 R (net NRF_VBUS) |
-| Display SPI1 (header) | SCK P0.07, MOSI P0.08, MISO P0.11, CS P0.12, DC P0.26, RST P0.27, BL P1.08 | | Defined, but no display is turned on |
-| Expansion IO1, IO2, IO5, IO6 | P0.28 (AIN4), P0.29 (AIN5), P1.02, P0.10 | 28, 29, 34, 10 | Header pins 12, 13, 16, 17. Pins 14 and 15 (IO3/IO4 before) are not connected. |
+| Display SPI1 (display / I2C plug, JST-SH 10) | SCK P0.07, MOSI P0.08, CS P0.12, DC P0.26, RST P0.27, BL P1.08 | | Defined, but no display is turned on. Write-only: P0.11 (MISO) is not connected. Plug: 1 GND, 2 3V3, 3 SDA, 4 SCL, 5 SCK, 6 MOSI, 7 CS, 8 DC, 9 RST, 10 BL |
+| Not connected | P0.28 (AIN4), P0.29 (AIN5), P1.02, P0.10, P0.11 | 28, 29, 34, 10, 11 | The expansion header's spare pins and the display's MISO, until 2 Nov 2026 (the header gave way to the display / I2C plug) |
 
 **Why the GPS is on Serial1 and the drone on Serial2.** Meshtastic's nRF52
 code fixes which serial port does which job:

@@ -4731,8 +4731,8 @@
 		(in_bom yes)
 		(on_board yes)
 		(dnp no)
-		(uuid "2543728e-db07-4e9f-04bd-42e5b2f02d91")
-		(property "Reference" "D12"
+		(uuid "a6a8d094-06c1-dca2-b0ce-c2d1123a6f20")
+		(property "Reference" "D14"
 			(at 314.96 44.22 0)
 			(effects
 				(font
@@ -4807,7 +4807,7 @@
 		(instances
 			(project "mesh-radio"
 				(path "/1e0df660-60b5-6ed0-6a2a-f5098e72ebfd/02e2910f-2b94-2e9a-4f24-7dfc00fa15a0"
-					(reference "D12")
+					(reference "D14")
 					(unit 1)
 				)
 			)

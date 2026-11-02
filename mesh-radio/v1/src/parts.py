@@ -300,9 +300,15 @@ PARTS['JST_SH6'] = ic(
     [(str(i), str(i), P) for i in range(1, 7)] + [('7', 'MNT', P), ('8', 'MNT', P)],
     left=['1', '2', '3', '4', '5', '6'], right=['7', '8'], prefix='J')
 
+PARTS['JST_SH10'] = ic(
+    'SM10B-SRSS-TB(LF)(SN)', ('JST', JP), 'C160409', '', 'og:JST_SH_SM10B-SRSS-TB_1x10-1MP_P1.00mm_Horizontal',
+    'JST SH 10-pin right-angle SMT (display / I2C)',
+    [(str(i), str(i), P) for i in range(1, 11)] + [('MP', 'MNT', P)],
+    left=[str(i) for i in range(1, 11)], right=['MP'], prefix='J')
+
 PARTS['HDR_2x10'] = dict(
     mpn='(not fitted) 2 x 10 header, 2.54 mm', maker='', hq='', lcsc='', digikey='', value='EXPANSION',
-    fp='og:Header_2x1x10_Rows20.32', desc='Expansion header footprint, 2.54 mm, fitted only when needed',
+    fp='og:Header_2x1x10_Rows20.32', desc='Expansion header footprint, 2.54 mm, fitted only when needed (dropped from the circuit 2 Nov 2026)',
     sym='box', kind='J', dnp=True,
     symbol=dict(prefix='J', left=[str(i) for i in range(1, 21, 2)], right=[str(i) for i in range(2, 21, 2)],
                 pins={str(i): (str(i), P) for i in range(1, 21)}))
@@ -529,6 +535,7 @@ DIGIKEY = {
     'JST_PH2': '455-S2B-PH-SM4-TBCT-ND',
     'JST_SH2': '455-SM02B-SRSS-TBCT-ND',
     'JST_SH6': '455-SM06B-SRSS-TBCT-ND',
+    'JST_SH10': '455-SM10B-SRSS-TBCT-ND',
     'L1.6nH': '490-8388-1-ND',
     'L10u': '445-6396-1-ND',
     'L11nH': '490-6766-1-ND',

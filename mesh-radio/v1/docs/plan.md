@@ -28,7 +28,7 @@ German maker.
    Bluetooth ◄── nRF52840 (processor) ◄─SPI─► SX1262 (LoRa) ─► 15.9 dB pad ─► QPA9510 amplifier
    chip antenna        │    │                    ▲                              │ (battery-first
                        │    └─ drone port (serial, JST-GH)                      ▼  supply, buck-boost)
-                       └───── GPS plug, expansion header          harmonic filter
+                       └───── GPS plug, display / I2C plug        harmonic filter
                                                      │                          │
                                                      LNA ◄── antenna switch ◄───┘
                                                                    │
@@ -114,13 +114,22 @@ with its parts), for a total of roughly **$40**. See question 2.
 
 ## Size and build
 
-- **243 assembled parts, on both sides** (250 in the circuit: 6 test pads
-  and the unfitted expansion header are not assembled). About half of them
-  are the amplifier, filters and power protection the RAK does not have.
-- **62 × 25.4 mm** (owner, 1 Nov). The Heltec V4 is 51.7 mm long. 58 mm
-  placed but would not route: about 19 connections stayed open in the
-  crowded middle after every placement fix, so the owner chose 4 mm more
-  over dropping the expansion header.
+- **251 assembled parts, on both sides** (257 in the circuit: the 6 test
+  pads are not assembled). About half of them are the amplifier, filters
+  and power protection the RAK does not have.
+- **70 × 25.4 mm** (owner, 2 Nov). The Heltec V4 is 51.7 mm long. 58 mm
+  placed but would not route; 62 mm (1 Nov) routed to about a dozen open
+  connections round the two radio chips and the USB corner. 70 mm also
+  makes room for an M3 hole in every corner and for every cable plug on
+  one long edge (below).
+- **Mounting: four M3 holes**, one per corner (3.2 mm, plated, on ground,
+  6.4 mm ring), with a 7 mm keep-out for a washer or a hex standoff.
+- **Every cable leaves the upper long edge**, the plugs all on the bottom
+  side with their openings at that edge, left to right: solar (JST-SH 2),
+  battery (JST-PH 2), drone (JST-GH 6), GPS (JST-SH 6), display / I2C
+  (JST-SH 10: GND, 3V3, SDA, SCL, SCK, MOSI, CS, DC, RST, backlight, every
+  signal on an ESD array). The USB-C stays on the short edge and the
+  antenna U.FL by the antenna end.
 - **6-layer board** (owner, 19 Oct), JLCPCB stackup JLC06161H-2116B:
   layer 2 is ground, kept solid under every radio line and the Bluetooth
   antenna; elsewhere it, and layers 3, 4 and 5, carry signals with ground
@@ -216,6 +225,17 @@ Every finding was fixed:
    bursts.
 8. **The node is on, on the mesh and charging while the drone carries it**
    (the 14 Oct Cairn decision; Notion's 16 Sep note said off until release).
+
+## Owner decisions (2 Nov 2026)
+
+1. **Board 70 mm long** (was 62 mm): 62 mm left about a dozen connections
+   with no way through.
+2. **Four M3 mounting holes**, one per corner.
+3. **Every cable plug on one long edge.** The 2 x 10 expansion header has
+   no room on either long edge (the two antenna circuits take most of
+   both), so it gives way to a 10-pin JST-SH display / I2C plug on the
+   cable edge. The four spare processor pins and the display's MISO are
+   no longer connected (`firmware/variant/variant.h`).
 
 ## Owner decisions (1 Nov 2026)
 
