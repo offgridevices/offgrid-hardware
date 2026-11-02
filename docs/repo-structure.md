@@ -6,7 +6,7 @@ Every product lives in `products/`, one folder each, named after it and
 edited in place; there are no revision folders ([versioning.md](versioning.md)).
 Variants of one line share a family folder with a short README that says
 how they differ: `products/ridge/` (Ridge 3, Ridge 3 Lite) and
-`products/layercam/` (LayerCam, LayerCam Pro). Each variant is still a
+`products/layercam/` (LayerCam; LayerCam Pro joins it from its branch). Each variant is still a
 product of its own, with its own revision, `TESTS.md` and CI job.
 
 ```
@@ -75,27 +75,30 @@ up, so a product can move without its outputs changing.
 Each product carries its own CI in `tools/`:
 
 - `ci.sh` runs every gate of the build, from the product's folder, and
-  fails if a committed output differs from what the scripts produce. It runs
-  the same in CI and locally, in the product's pinned toolchain
-  (`tools/kd tools/ci.sh` where the product has a `kd`; Ridge 3's README
-  gives its `docker run` line, and the Packet Logger Carrier needs only
-  Python).
+  fails if a committed output differs from what the scripts produce.
 - `ci-setup.sh` installs what CI needs on top of the bare pinned image (the
-  packages the product's `tools/Dockerfile` adds).
+  packages the product's `tools/Dockerfile` adds, and the compilers and
+  simulators its tests use).
 - `ci.json` names the pinned image, by digest, and the job's timeout.
+
+To run a product's CI on your machine exactly as CI does (same image, both
+scripts), from the repository root: `tools/ci/local.sh products/<product>`.
+It needs only Docker. Commit first: like CI, it compares the build against
+`HEAD`.
 
 `.github/workflows/ci.yml` finds the products by their `tools/ci.json`
 (`tools/ci/matrix.py` at the repository's root picks them) and runs one job
-per product, named after its folder: `ci / canary`, `ci / ridge-3-lite`.
+per product, named after its folder (`canary`, `ridge-3-lite`; inside a
+pull request's review run they show as `ci / canary`).
 On a pull request it builds only the products whose folder changed, and
 every product when a shared file changes (`.github/`, the root `tools/`,
 `.gitignore`); pushes to `main`, a weekly run (Monday) and a manual run
 build them all. A change to `docs/`, `README.md` or `LICENSE` alone builds
-no board. Every run also has `ci / repo-checks`: the Markdown link check
+no board. Every run also has `repo-checks`: the Markdown link check
 over every `.md`, a Python syntax check, and that every product has its
-three CI files (`python3 tools/ci/check_repo.py`). One job,
-`ci / ci-ok`, is the check that must be green: it fails if any other job
-failed or was cancelled.
+three CI files (`python3 tools/ci/check_repo.py`). One job, `ci-ok`, is
+the check that must be green: it fails if any other job failed or was
+cancelled.
 
 The build includes the artwork, so a brand change that was not applied to
 a board fails CI. (Ridge 3's job builds from the committed boards'

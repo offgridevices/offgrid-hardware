@@ -5,8 +5,8 @@
 # committed ones.  --fab-only leaves out the renders and the STEP models:
 # they need KiCad's 3D-model package, which the bare image does not carry.
 # Runs in the image tools/ci.json names (in it on 4 cores make.py
-# --fab-only took about 5 minutes and verify.py 1), or locally with the
-# image tools/Dockerfile builds.
+# --fab-only took about 5 minutes and verify.py 1), in CI or locally
+# with tools/ci/local.sh products/ridge/ridge-3 from the repository root.
 set -eu
 cd "$(dirname "$0")/.."
 

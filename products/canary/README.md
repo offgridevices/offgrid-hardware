@@ -12,7 +12,7 @@ its order tag ([`docs/versioning.md`](../../docs/versioning.md)).
 
 | Revision | What changed | Status | Order tag |
 |---|---|---|---|
-| v1 | first design: SGP40 + SCD41 + SHT40 + NTC tab, ATmega328P, 100 dB sounder, 60 × 40 mm, 2 layers | designed and simulation-verified, not yet built | — |
+| 1.0 | first design: SGP40 + SCD41 + SHT40 + NTC tab, ATmega328P, 100 dB sounder, 60 × 40 mm, 2 layers | designed and simulation-verified, not yet built | — |
 
 ## What it is
 

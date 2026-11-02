@@ -25,7 +25,7 @@ are in this README.
 
 | Revision | What changed | Status | Order tag |
 |---|---|---|---|
-| v1 | first design | ordered, not yet bench-verified | to be made: ordered before revisions were tagged |
+| 1.0 | first design | ordered, not yet bench-verified | to be made: ordered before revisions were tagged |
 
 ## Brand colours — how to order it
 

@@ -179,8 +179,9 @@ jobs:
             **CI already passed on this exact commit** — this review only
             starts when it is green. CI built every product this pull request
             touches (every product, if it touches `.github/`, `tools/` or
-            `.gitignore`) by running that product's `tools/ci.sh` in the KiCad
-            image its `tools/ci.json` pins: KiCad DRC, the net checks, every
+            `.gitignore`) by running that product's `tools/ci.sh` in the image
+            its `tools/ci.json` pins (KiCad's, or Python's for the Packet
+            Logger Carrier): KiCad DRC, the net checks, every
             other gate, and the committed fab files byte-identical to the
             rebuild. `ci / repo-checks` checked every Markdown link and that
             every Python file parses. A product this pull request does not

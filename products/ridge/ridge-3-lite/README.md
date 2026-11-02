@@ -26,13 +26,13 @@ its order tag ([`docs/versioning.md`](../../../docs/versioning.md)). Ridge 3 Lit
 
 | Revision | What changed | Status | Order tag |
 |---|---|---|---|
-| v1 | first design | designed, every check and simulation passed; not yet built | — |
+| 1.0 | first design | designed, every check and simulation passed; not yet built | — |
 
 ## This revision
 
 | | |
 |---|---|
-| Revision | **v1**, printed on the board (`REV` in `src/silk.py`; [Revisions](#revisions)) |
+| Revision | **1.0**, printed `V1` on the board (`REV` in `src/silk.py`; [Revisions](#revisions)) |
 | Status | designed, not yet built |
 | Tests and simulations | [`TESTS.md`](TESTS.md): every one with its v1 result |
 | Trade-offs | [`docs/decisions.md`](docs/decisions.md) |

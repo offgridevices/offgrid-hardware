@@ -25,13 +25,13 @@ its order tag ([`docs/versioning.md`](../../../docs/versioning.md)). LayerCam is
 
 | Revision | What changed | Status | Order tag |
 |---|---|---|---|
-| v1 | first design: three boards (main, LED ring, USB-C) | designed, every check and simulation run; not yet built | — |
+| 1.0 | first design: three boards (main, LED ring, USB-C) | designed, every check and simulation run; not yet built | — |
 
 ## This revision
 
 | | |
 |---|---|
-| Revision | **v1**, printed on every board (`REV` in `src/silk.py`; [Revisions](#revisions)) |
+| Revision | **1.0**, printed `V1` on every board (`REV` in `src/silk.py`; [Revisions](#revisions)) |
 | Status | designed, not yet built |
 | Tests and simulations | [`TESTS.md`](TESTS.md): every one with its v1 result |
 | Trade-offs | [`docs/decisions.md`](docs/decisions.md) |

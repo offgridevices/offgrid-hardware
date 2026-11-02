@@ -9,7 +9,7 @@ name: CI
 # Each product carries its own CI in its `tools/` folder: `ci.json` (the
 # pinned image, by digest, and the timeout), `ci-setup.sh` (what CI installs
 # on that bare image) and `ci.sh` (every gate, from the product's folder; it
-# runs the same locally with `tools/kd tools/ci.sh`). This file only picks
+# runs the same locally with `tools/ci/local.sh products/<product>`). This file only picks
 # the products (`tools/ci/matrix.py`) and runs them, so a new product adds
 # its three files and nothing here changes.
 #
@@ -32,9 +32,11 @@ on:
     - cron: '17 6 * * 1'
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  # A newer push to a pull request replaces the older run; a run on main is
-  # never cancelled, so every merged commit is checked.
+  # A newer push to a pull request replaces the older run. On main each
+  # commit has a group of its own: a shared group with cancel-in-progress
+  # off would still drop a waiting run when a newer one queues, and leave
+  # that merged commit unchecked.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:

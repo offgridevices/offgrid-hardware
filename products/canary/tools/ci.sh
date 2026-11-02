@@ -1,7 +1,8 @@
 #!/bin/sh
 # Canary CI: every gate, from the committed routed board (the design of
 # record; Freerouting is not bit-for-bit repeatable, so routing is not re-run).
-# Runs inside the kicad/kicad:10.0.6 image (as root) or anywhere tools/kd works.
+# Runs inside the image tools/ci.json names (as root), in CI or locally with
+# tools/ci/local.sh products/canary from the repository root.
 set -eu
 cd "$(dirname "$0")/.."
 SIMAVR_REV=5b08da60497f7564f50941f74a549fe2851db030

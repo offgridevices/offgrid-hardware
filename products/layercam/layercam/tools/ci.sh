@@ -5,7 +5,7 @@
 # which must equal the committed ones.  Then the design checks (regulators,
 # camera cable by position, housing, the firmware's pin map), the
 # simulations and the firmware's host tests.  Runs in the image
-# tools/ci.json names, or locally with tools/kd tools/ci.sh.
+# tools/ci.json names, in CI or locally with tools/ci/local.sh <this folder>.
 set -eu
 cd "$(dirname "$0")/.."
 

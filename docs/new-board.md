@@ -54,7 +54,7 @@ A board is not finished, and not merged, until:
       the committed fab files are what the scripts produce, with
       `tools/ci-setup.sh` and `tools/ci.json` beside it
       ([repo-structure.md](repo-structure.md#ci)); it passes locally
-      (`tools/kd tools/ci.sh`) and as the product's job in CI.
+      (`tools/ci/local.sh products/<product>`) and as the product's job in CI.
 - [ ] **Brand** artwork from the current brand version ([brand.md](brand.md)).
 - [ ] **`TESTS.md`** lists every test and simulation; every build gate and
       simulation has its result on this revision's final commit (hardware

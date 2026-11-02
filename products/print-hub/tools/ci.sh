@@ -3,7 +3,7 @@
 # rebuilt from src/, then every gate and the fab files, which must equal the
 # committed ones.  Then the design checks, the power-chain analysis, and the
 # firmware's and the host tool's tests.  Runs in the image tools/ci.json
-# names, or locally with tools/kd tools/ci.sh.
+# names, in CI or locally with tools/ci/local.sh <this folder>.
 set -eu
 cd "$(dirname "$0")/.."
 

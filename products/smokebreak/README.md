@@ -33,7 +33,7 @@ original spec, the market research, the 20 concepts and the design studies.
 
 | Revision | What changed | Status | Order tag |
 |---|---|---|---|
-| v1 | first design | designed, every check and simulation passed; not yet built | — |
+| 1.0 | first design | designed, every check and simulation passed; not yet built | — |
 
 ## This revision
 

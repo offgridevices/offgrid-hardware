@@ -36,8 +36,10 @@ def products():
 
 
 def changed():
-    """The files a pull request changes, or None when that cannot be read."""
-    r = subprocess.run(['git', '-C', ROOT, 'diff', '--name-only', 'HEAD^1', 'HEAD'],
+    """The files a pull request changes, or None when that cannot be read.
+    A moved file counts at both ends (--no-renames), so moving a file out of
+    a product builds that product."""
+    r = subprocess.run(['git', '-C', ROOT, 'diff', '--name-only', '--no-renames', 'HEAD^1', 'HEAD'],
                        capture_output=True, text=True)
     return r.stdout.split('\n') if r.returncode == 0 else None
 

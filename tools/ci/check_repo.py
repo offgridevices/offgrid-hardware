@@ -7,8 +7,9 @@
     moved or renamed file cannot leave a dead link behind;
   * every Python file parses;
   * every product (a folder under products/ with a src/) has the three CI
-    files tools/ci.sh, tools/ci-setup.sh and tools/ci.json, so a new product
-    cannot be merged without CI building it.
+    files tools/ci.sh, tools/ci-setup.sh (both executable) and tools/ci.json,
+    so a new product cannot be merged without CI building it, and no
+    tools/ci.json sits outside a product.
 
 Exits 1 on any failure, listing every one.
 """
@@ -72,8 +73,11 @@ def products():
         found += [os.path.relpath(k, ROOT) for k in kids if os.path.isdir(os.path.join(k, 'src'))]
     for p in found:
         for f in ('ci.sh', 'ci-setup.sh', 'ci.json'):
-            if not os.path.isfile(os.path.join(ROOT, p, 'tools', f)):
+            path = os.path.join(ROOT, p, 'tools', f)
+            if not os.path.isfile(path):
                 bad.append('%s has no tools/%s: CI would not build it' % (p, f))
+            elif f.endswith('.sh') and not os.access(path, os.X_OK):
+                bad.append('%s: tools/%s is not executable (git update-index --chmod=+x)' % (p, f))
         cfg = os.path.join(ROOT, p, 'tools', 'ci.json')
         if os.path.isfile(cfg):
             c = json.load(open(cfg))
@@ -81,6 +85,12 @@ def products():
                 bad.append('%s: tools/ci.json image is not pinned by digest' % p)
             if not isinstance(c.get('timeout'), int):
                 bad.append('%s: tools/ci.json has no whole-minute timeout' % p)
+    # matrix.py builds whatever has a tools/ci.json, at any depth: one that is
+    # not a product's here would build something nobody named
+    for cfg in glob.glob(os.path.join(ROOT, 'products', '**', 'tools', 'ci.json'), recursive=True):
+        p = os.path.relpath(os.path.dirname(os.path.dirname(cfg)), ROOT)
+        if p not in found:
+            bad.append('%s/tools/ci.json is not in a product folder (products/<x>/ or products/<family>/<x>/ with a src/)' % p)
     print('products: %d found (%s)' % (len(found), ', '.join(os.path.basename(p) for p in found)))
     return bad
 

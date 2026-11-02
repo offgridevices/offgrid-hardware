@@ -7,8 +7,8 @@ its own product, with its own folder, revision, tests and CI job.
 
 | Variant | What it is | Revision | Status |
 |---|---|---|---|
-| [LayerCam](layercam/) | Three boards in the case (main, LED ring, USB-C), a camera module and lens bought separately, a stick-on heatsink | v1 | designed, not yet built |
-| LayerCam Pro | LayerCam's camera on **one** board, sensor soldered on, no board-to-board cables; on its own branch, it lands in `layercam-pro/` here | v1 | in review, not yet merged |
+| [LayerCam](layercam/) | Three boards in the case (main, LED ring, USB-C), a camera module and lens bought separately, a stick-on heatsink | 1.0 | designed, not yet built |
+| LayerCam Pro | LayerCam's camera on **one** board, sensor soldered on, no board-to-board cables; on its own branch, it lands in `layercam-pro/` here | 1.0 | in review, not yet merged |
 
 ## How they differ
 

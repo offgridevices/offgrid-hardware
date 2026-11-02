@@ -6,9 +6,11 @@
 # repository's own .git lives outside it: mount that too, at its own path,
 # so git works inside the container (check_outputs.py reads HEAD).
 ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-GIT=$(cd "$(git -C "$ROOT" rev-parse --git-common-dir)" && pwd)
-case "$GIT" in "$ROOT"/*) GITMOUNT= ;; *) GITMOUNT="-v $GIT:$GIT" ;; esac
+GIT=$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)
+case "$GIT" in "$ROOT"/*) OUTSIDE= ;; *) OUTSIDE=1 ;; esac
 REL=$(pwd | sed "s|^$ROOT||")
-SUDO=$( [ -w /var/run/docker.sock ] || echo sudo )
+# sudo only where this user cannot reach docker (Docker Desktop has no
+# /var/run/docker.sock, so testing for the socket file picked sudo there)
+SUDO=$(docker info > /dev/null 2>&1 || echo sudo)
 exec $SUDO docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONHASHSEED=0 \
-  -v "$ROOT":/w $GITMOUNT -w "/w$REL" sbkicad:10 "$@"
+  -v "$ROOT":/w ${OUTSIDE:+-v} ${OUTSIDE:+"$GIT:$GIT"} -w "/w$REL" sbkicad:10 "$@"

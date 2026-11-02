@@ -6,7 +6,7 @@
 # (0 / 0 / 0), the net check against circuit.py, then the Gerbers, BOM, CPL
 # and netlist, which must equal the committed ones; then the firmware's
 # model tests.  Runs in the image tools/ci.json names, or locally with
-# tools/kd tools/ci.sh.
+# tools/ci/local.sh <this folder> from the repository root.
 set -eu
 cd "$(dirname "$0")/.."
 

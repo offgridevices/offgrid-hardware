@@ -4,7 +4,7 @@
 # after it is: the artwork (silkscreen, logo, flag) from src/, then every
 # gate and the fab files, which must equal the committed ones, then the
 # design checks.  Runs in the image tools/ci.json names, or locally with
-# tools/kd tools/ci.sh.
+# tools/ci/local.sh <this folder> from the repository root.
 set -eu
 cd "$(dirname "$0")/.."
 

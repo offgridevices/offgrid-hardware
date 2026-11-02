@@ -6,9 +6,11 @@
 # repository's own .git lives outside it: mount that too, at its own path,
 # so git works inside the container (check_outputs.py reads HEAD).
 ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
-GIT=$(cd "$(git -C "$ROOT" rev-parse --git-common-dir)" && pwd)
-case "$GIT" in "$ROOT"/*) GITMOUNT= ;; *) GITMOUNT="-v $GIT:$GIT" ;; esac
+GIT=$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)
+case "$GIT" in "$ROOT"/*) OUTSIDE= ;; *) OUTSIDE=1 ;; esac
 REL=$(pwd | sed "s|^$ROOT||")
-SUDO=$( [ -w /var/run/docker.sock ] || echo sudo )
+# sudo only where this user cannot reach docker (Docker Desktop has no
+# /var/run/docker.sock, so testing for the socket file picked sudo there)
+SUDO=$(docker info > /dev/null 2>&1 || echo sudo)
 exec $SUDO docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONHASHSEED=0 ${FANOUT_DEBUG:+-e FANOUT_DEBUG=$FANOUT_DEBUG} ${MITER_DEBUG:+-e MITER_DEBUG=1} ${FREEROUTING_TIMEOUT:+-e FREEROUTING_TIMEOUT=$FREEROUTING_TIMEOUT} ${PASSES:+-e PASSES=$PASSES} ${MAIN_BOARD:+-e MAIN_BOARD=$MAIN_BOARD} ${FR_EXTRA:+-e "FR_EXTRA=$FR_EXTRA"} ${FREEROUTING2:+-e "FREEROUTING2=$FREEROUTING2"} ${FR_FANOUT:+-e FR_FANOUT=1} ${FINISH_SEED:+-e FINISH_SEED=$FINISH_SEED} ${FR_IN3:+-e FR_IN3=$FR_IN3} ${FINISH_IN3:+-e FINISH_IN3=$FINISH_IN3} ${FINISH_TIME:+-e FINISH_TIME=$FINISH_TIME} \
-  -v "$ROOT":/w $GITMOUNT -w "/w$REL" ${KD_IMAGE:-ogkicad-layercam:2} "$@"
+  -v "$ROOT":/w ${OUTSIDE:+-v} ${OUTSIDE:+"$GIT:$GIT"} -w "/w$REL" ${KD_IMAGE:-ogkicad-layercam:2} "$@"
