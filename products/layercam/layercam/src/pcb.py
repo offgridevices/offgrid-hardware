@@ -19,7 +19,7 @@ The rules are PCBWay's (the boards are made and assembled there): on the
 only round the RV1106's 0.35 mm pins, 0.127 mm elsewhere; vias in pads must
 be ordered resin-filled and capped (POFV).  The ring and USB boards: the
 standard 2-layer service.
-Much of this follows print-hub/v1/src/pcb.py.
+Much of this follows products/print-hub/src/pcb.py.
 """
 import math, os
 import pcbnew

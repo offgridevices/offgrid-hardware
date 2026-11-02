@@ -1,6 +1,6 @@
 #!/bin/bash
 # The whole board, from the circuit to the fab files, in the order it was
-# built.  Run from smokebreak/v1/src, in the pinned toolchain (../tools/kd).
+# built.  Run from products/smokebreak/src, in the pinned toolchain (../tools/kd).
 # Routing is not deterministic, so a fresh run gives a different (equally
 # checked) board; the committed smokebreak.kicad_pcb is the design of record,
 # and CI rebuilds from it (artwork.py, fab.py).

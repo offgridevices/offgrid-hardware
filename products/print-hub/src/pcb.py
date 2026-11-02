@@ -7,7 +7,7 @@ towards the FRONT (KiCad's y points down the screen): the five USB-A ports
 are along the bottom edge of every plot, POWER IN, DATA and the antenna
 along the top.
 
-Much of this follows ridge3-lite/v1/src/pcb.py; the rules are JLCPCB's
+Much of this follows products/ridge/ridge-3-lite/src/pcb.py; the rules are JLCPCB's
 standard 4-layer tier (no fine-line or small-via surcharge).
 """
 import os

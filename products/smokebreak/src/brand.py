@@ -3,7 +3,7 @@ screen, render and animation takes them from.  Nothing else may draw the
 Beacon Ring with its own numbers.
 
 From the brand hand-off (offgrid-brand v3.2.2, current/handoff/tokens/tokens.json),
-as used on Ridge 3 Lite (ridge3-lite/v1/src/brand.py):
+as used on Ridge 3 Lite (products/ridge/ridge-3-lite/src/brand.py):
 
   mark    200 x 200 box, y down:
           arc  M124.5 55.4 A58 58 0 1 1 75.5 55.4, stroke 22, round caps

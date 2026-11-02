@@ -12,9 +12,9 @@
 #     https://github.com/freerouting/freerouting/releases/download/v2.5.0/freerouting-2.5.0-linux-x64.zip
 #   curl -fsSL -o out/freerouting-1.9.0.jar \
 #     https://github.com/freerouting/freerouting/releases/download/v1.9.0/freerouting-1.9.0.jar
-#   docker build -t ogkicad-printhub:1 -f print-hub/v1/tools/Dockerfile out
+#   docker build -t ogkicad-printhub:1 -f products/print-hub/tools/Dockerfile out
 #
-# then run make.py inside it (print-hub/v1/tools/kd does this).
+# then run make.py inside it (products/print-hub/tools/kd does this).
 FROM kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
 USER root
 RUN apt-get update -qq \

@@ -6,7 +6,7 @@ loads the assembled board's STEP as KiCad exports it (every part's 3D model
 on its land) and checks it against the case's own STEP: no solid of the
 board may overlap the base or the lid.
 
-    python3 mechanical/enclosure/fit_board.py      (from print-hub/v1, in the toolchain image)
+    python3 mechanical/enclosure/fit_board.py      (from products/print-hub, in the toolchain image)
 
 Frames: KiCad's STEP has the page origin (the board centre at x 100,
 y -100) with y up; the enclosure's has the board centre at 0, +Y towards

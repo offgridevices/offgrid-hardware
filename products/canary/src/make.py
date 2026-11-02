@@ -1,6 +1,6 @@
 """Build Canary v1 end to end; every gate fails the build.
 
-  python3 src/make.py            (from canary/v1; needs docker, java, xvfb-run)
+  python3 src/make.py            (from products/canary; needs docker, java, xvfb-run)
 
 KiCad steps run in the pinned kicad/kicad:10.0.6-full image (tools/kd);
 Freerouting 1.9.0 runs on the host JVM (FREEROUTING_JAR)."""

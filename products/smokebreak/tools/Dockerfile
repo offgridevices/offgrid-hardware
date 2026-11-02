@@ -6,9 +6,9 @@
 #     https://github.com/freerouting/freerouting/releases/download/v2.5.0/freerouting-2.5.0.jar
 #   curl -fsSL -o out/temurin-25-jre.tar.gz \
 #     https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jre_x64_linux_hotspot_25.0.4.1_1.tar.gz
-#   docker build -t sbkicad:10 -f smokebreak/v1/tools/Dockerfile out
+#   docker build -t sbkicad:10 -f products/smokebreak/tools/Dockerfile out
 #
-# then run commands inside it with smokebreak/v1/tools/kd.  The case
+# then run commands inside it with products/smokebreak/tools/kd.  The case
 # (enclosure/) is built with CadQuery 2.8 in its own Python environment:
 # `pip install cadquery==2.8.0 trimesh` (it is a large install, kept out of
 # this image).

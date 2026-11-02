@@ -10,7 +10,7 @@
             coupled pairs (pairs.py)
 
 Positions come from the placed pads, so a placement change carries
-through.  After print-hub/v1/src/power.py.
+through.  After products/print-hub/src/power.py.
 """
 import math
 import pcbnew

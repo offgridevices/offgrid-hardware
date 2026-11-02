@@ -20,14 +20,14 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DESIGN = os.path.dirname(HERE)                        # smokebreak/design
-V1 = os.path.join(os.path.dirname(DESIGN), 'v1')       # smokebreak/v1
+PRODUCT = os.path.dirname(DESIGN)                     # products/smokebreak
 sys.path.insert(0, os.path.join(DESIGN, 'concepts', '_blender'))
 import bpy            # noqa: E402
 import studio as s    # noqa: E402
 
 FPS = 24
-UI_FRAMES = os.path.join(V1, 'ui', 'frames24')
-UI_VIDEO = os.path.join(V1, 'ui', 'arm-sequence.mp4')
+UI_FRAMES = os.path.join(PRODUCT, 'ui', 'frames24')
+UI_VIDEO = os.path.join(PRODUCT, 'ui', 'arm-sequence.mp4')
 
 # ---------------------------------------------------------------- geometry
 W, D, H, R = 100.0, 58.0, 18.0, 9.0       # body

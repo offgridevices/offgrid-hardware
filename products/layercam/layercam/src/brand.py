@@ -326,7 +326,7 @@ def flag_mm(hoist):
     D = 0.76, star spacing E = F = 0.054 and G = H = 0.063, star diameter
     K = 0.0616, stripes L = 1/13.  One colour: the red stripes and the
     union in ink, the white stripes and the 50 stars bare (as on
-    smokebreak/v1, src/art.py).  5.26 mm of hoist makes a 0.32 mm star."""
+    products/smokebreak, src/art.py).  5.26 mm of hoist makes a 0.32 mm star."""
     A = hoist
     B_, C, D, E, G, K, L = 1.9 * A, 7 / 13 * A, 0.76 * A, 0.054 * A, 0.063 * A, 0.0616 * A, A / 13
     x0, y0 = -B_ / 2, -A / 2

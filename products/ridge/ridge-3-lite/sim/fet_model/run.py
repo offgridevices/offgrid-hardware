@@ -153,7 +153,7 @@ def library(cap):
     parasitics and the internal gate resistance as separate elements so
     the die gate-source voltage can be probed (x.gi, x.si)."""
     hdr = ('* TPN2R304PL (Toshiba, 40 V 2.3 mOhm N-MOSFET, TSON Advance)\n'
-           '* VDMOS fit to datasheet Rev 3.0 by ridge3-lite/v1/sim/fet_model/run.py.\n'
+           '* VDMOS fit to datasheet Rev 3.0 by products/ridge/ridge-3-lite/sim/fet_model/run.py.\n'
            '* NOT Toshiba\'s model.  Nodes: D G S.  Internal: di gi si (die).\n'
            '* rg = RG param (datasheet 0.5 typ, 1.0 max); package L estimated.\n'
            '* TT = body-diode transit time (stored charge = TT x IF): 1.5 ns default,\n'

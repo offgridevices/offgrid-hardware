@@ -1,4 +1,4 @@
-# The build toolchain for Ridge 3 (ridge-3/), pinned: KiCad 10.0.6 (the
+# The build toolchain for Ridge 3 (products/ridge/ridge-3/), pinned: KiCad 10.0.6 (the
 # pcbnew Python module and kicad-cli), the Python packages src/ and sim/ use,
 # ngspice (Debian 13's, 44.2, not pinned: the simulations ran on Ubuntu's
 # 42), poppler's pdftotext (verify.py's datasheets), Freerouting 1.9.0
@@ -7,15 +7,15 @@
 # job ridge-3) runs make.py --fab-only in the same KiCad image with the same
 # Python packages, less matplotlib and pyamg.
 #
-# Build it from the repository root (the build context is ridge-3/, for
+# Build it from the repository root (the build context is the product folder, for
 # requirements.txt; Freerouting and the 3D models are downloaded and checked
 # against their sha256):
 #
-#   docker build -t ridge3-build -f ridge-3/tools/Dockerfile ridge-3
+#   docker build -t ridge3-build -f products/ridge/ridge-3/tools/Dockerfile products/ridge/ridge-3
 #
 # then run make.py, verify.py or a simulation in it, the checkout mounted at /w:
 #
-#   docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/w -w /w/ridge-3 \
+#   docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/w -w /w/products/ridge/ridge-3 \
 #     ridge3-build python3 src/make.py
 #
 # The image is Debian 13 with Python 3.13, not the Ubuntu 24.04 and Python

@@ -13,7 +13,9 @@ import subprocess
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..'))
+REPO = HERE                     # the repository root, whatever the folder depth
+while not os.path.exists(os.path.join(REPO, '.git')) and os.path.dirname(REPO) != REPO:
+    REPO = os.path.dirname(REPO)
 MODELS = os.path.join(HERE, 'models')
 
 

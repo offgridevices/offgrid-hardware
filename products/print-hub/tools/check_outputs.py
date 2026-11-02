@@ -1,6 +1,6 @@
 """CI: the fab files make.py just wrote must equal the committed ones.
 
-    python3 tools/check_outputs.py      (from print-hub/v1, after make.py)
+    python3 tools/check_outputs.py      (from products/print-hub, after make.py)
 
 Compares against git HEAD.  The Gerber zip is compared file by file with
 the creation-date stamps KiCad writes left out (they change every run);

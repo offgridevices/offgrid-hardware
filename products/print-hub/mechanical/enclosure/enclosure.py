@@ -6,7 +6,7 @@ Run it in the ogkicad-printhub:1 image from this folder:
 
     docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp \
         -v /home/user/offgrid-hardware:/w \
-        -w /w/print-hub/v1/mechanical/enclosure ogkicad-printhub:1 python3 enclosure.py
+        -w /w/products/print-hub/mechanical/enclosure ogkicad-printhub:1 python3 enclosure.py
 
 It writes, next to itself:
     printhub-base.stl            base, in its print orientation (floor on the bed)
@@ -60,7 +60,7 @@ import tempfile
 from build123d import Box, Compound, Cylinder, Pos, Rot, export_step, export_stl, extrude
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO_V1 = os.path.normpath(os.path.join(HERE, '..', '..'))          # print-hub/v1
+REPO_V1 = os.path.normpath(os.path.join(HERE, '..', '..'))          # products/print-hub
 STEP_DIR = os.path.join(REPO_V1, 'ph.3dshapes')
 FONT_MONO = os.path.join(REPO_V1, 'fonts', 'JetBrainsMono-VariableFont.ttf')
 

@@ -2,7 +2,7 @@
 # Re-run every simulation study for the ridge3-lite v1 board, in order.
 #   needs: ngspice (tested with 44), python3 with numpy, scipy, matplotlib
 #   (python3 -m pip install --user --break-system-packages numpy scipy matplotlib)
-#   or, from ridge3-lite/v1, inside the toolchain container: tools/kd sh sim/run_all.sh
+#   or, from products/ridge/ridge-3-lite, inside the toolchain container: tools/kd sh sim/run_all.sh
 # Scratch netlists and raw data go to <repo>/out/sim/ (gitignored).  The
 # half-bridge study caches its ngspice runs there; the first run takes
 # several minutes on 4 cores, later runs seconds.

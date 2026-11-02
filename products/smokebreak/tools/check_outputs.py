@@ -1,6 +1,6 @@
 """CI: the production files the build just wrote must equal the committed ones.
 
-    python3 tools/check_outputs.py      (from smokebreak/v1, after src/artwork.py and src/fab.py)
+    python3 tools/check_outputs.py      (from products/smokebreak, after src/artwork.py and src/fab.py)
 
 Compares against git HEAD.  The Gerber zip is compared file by file with
 the creation-date stamps KiCad writes left out (they change every run); the

@@ -12,9 +12,9 @@
 #     https://github.com/freerouting/freerouting/releases/download/v2.5.0/freerouting-2.5.0.jar
 #   curl -fsSL -o out/temurin-25-jre.tar.gz \
 #     https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4.1%2B1/OpenJDK25U-jre_x64_linux_hotspot_25.0.4.1_1.tar.gz
-#   docker build -t ogkicad-layercam:2 -f layercam/v1/tools/Dockerfile out
+#   docker build -t ogkicad-layercam:2 -f products/layercam/layercam/tools/Dockerfile out
 #
-# then run make.py inside it (layercam/v1/tools/kd does this).
+# then run make.py inside it (products/layercam/layercam/tools/kd does this).
 FROM kicad/kicad:10.0.7@sha256:3224d1bf143185ecc1bd3a1082a36f37f0f4e59d707983a16515a845e3737fc6
 USER root
 RUN apt-get update -qq \

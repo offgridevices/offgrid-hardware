@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """LayerCam v1: three ways to take the RV1106's heat towards the lid, as parts.
 
-    tools/kd python3 mechanical/heat-plate/plate.py      (from layercam/v1)
+    tools/kd python3 mechanical/heat-plate/plate.py      (from products/layercam/layercam)
 
 writes, next to this file:
     sheet_bracket.stl      option 3: one piece of 1.5 mm 5052 sheet, bent twice (Z shape)

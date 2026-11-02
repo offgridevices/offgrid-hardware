@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Print Hub v1: how hot the board gets inside its closed case.
 
-    tools/kd python3 sim/thermal/board_heat.py              (from print-hub/v1; ~1-2 min)
+    tools/kd python3 sim/thermal/board_heat.py              (from products/print-hub; ~1-2 min)
     tools/kd python3 sim/thermal/board_heat.py --cell 0.3   (finer grid, slower)
 
 Writes sim/thermal/board_heat.md and the temperature maps
 sim/thermal/board_heat_<case>.png; exits 1 if any part is over its limit.
 
-The solver is thermal.py, copied unchanged from ridge3-lite/v1/sim/thermal
+The solver is thermal.py, copied unchanged from products/ridge/ridge-3-lite/sim/thermal
 (validated there against Toshiba's measured test boards; its README lists
 every material constant and source).  It reads the routed board itself: the
 copper of all four layers, every via, every pad.  This file adds what is

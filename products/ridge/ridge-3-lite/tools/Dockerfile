@@ -6,9 +6,9 @@
 #     https://github.com/freerouting/freerouting/releases/download/v1.9.0/freerouting-1.9.0.jar
 #   curl -fsSL -o out/freerouting-2.4.1-linux-x64.zip \
 #     https://github.com/freerouting/freerouting/releases/download/v2.4.1/freerouting-2.4.1-linux-x64.zip
-#   docker build -t ogkicad:10 -f ridge3-lite/v1/tools/Dockerfile out
+#   docker build -t ogkicad:10 -f products/ridge/ridge-3-lite/tools/Dockerfile out
 #
-# then run make.py inside it (ridge3-lite/v1/tools/kd does this).
+# then run make.py inside it (products/ridge/ridge-3-lite/tools/kd does this).
 # The official KiCad 10.0.6 image, pinned by digest (Docker Hub, kicad/kicad:10.0.6)
 FROM kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
 USER root

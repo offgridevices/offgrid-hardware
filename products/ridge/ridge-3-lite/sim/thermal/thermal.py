@@ -38,7 +38,9 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as sla
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..', '..'))
+REPO = HERE                     # the repository root, whatever the folder depth
+while not os.path.exists(os.path.join(REPO, '.git')) and os.path.dirname(REPO) != REPO:
+    REPO = os.path.dirname(REPO)
 sys.path.insert(0, HERE)
 
 SIGMA = 5.670374e-8          # Stefan-Boltzmann, W/m2K4

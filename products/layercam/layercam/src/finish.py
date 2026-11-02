@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Finish the connections Freerouting leaves unrouted.
 
-Ported from SmokeBreak (smokebreak/v1/src/finish.py, dedangle.py): a grid
+Ported from SmokeBreak (products/smokebreak/src/finish.py, dedangle.py): a grid
 maze router with vias, then rip-up and re-route for what it cannot reach,
 then the routers' dangling stubs taken off.  KiCad's DRC checks the result
 afterwards (pipeline.py); this router is never trusted alone.

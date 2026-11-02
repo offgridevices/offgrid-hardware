@@ -5,13 +5,13 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DESIGN = os.path.dirname(HERE)                        # smokebreak/design
-V1 = os.path.join(os.path.dirname(DESIGN), 'v1')       # smokebreak/v1
-os.environ.setdefault('SB_FONTS', os.path.join(V1, 'fonts'))
-sys.path.insert(0, os.path.join(V1, 'ui'))
+PRODUCT = os.path.dirname(DESIGN)                     # products/smokebreak
+os.environ.setdefault('SB_FONTS', os.path.join(PRODUCT, 'fonts'))
+sys.path.insert(0, os.path.join(PRODUCT, 'ui'))
 import screens as S                              # noqa: E402
 from PIL import Image, ImageDraw, ImageFont      # noqa: E402
 
-FONT = os.path.join(V1, 'fonts', 'InstrumentSans-VariableFont.ttf')
+FONT = os.path.join(PRODUCT, 'fonts', 'InstrumentSans-VariableFont.ttf')
 
 
 def f(px):

@@ -23,7 +23,10 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..', '..'))
+REPO = HERE                     # the repository root, whatever the folder depth
+while not os.path.exists(os.path.join(REPO, '.git')) and os.path.dirname(REPO) != REPO:
+    REPO = os.path.dirname(REPO)
+PRODUCT = os.path.abspath(os.path.join(HERE, '..', '..'))   # products/ridge/ridge-3-lite
 SC = os.path.join(REPO, 'out', 'thermal', 'sc')
 BOARDS = {'35': os.path.join(SC, 'b35.kicad_pcb'), '38': os.path.join(SC, 'b38.kicad_pcb')}
 SOURCES = {'35': os.path.join(REPO, 'out', 'r7', 'placed.kicad_pcb'), '38': os.path.join(REPO, 'out', 'm38k', 'placed.kicad_pcb')}
@@ -171,8 +174,8 @@ def launch(workers=3):
     its JSON, so after a restart just launch again.  A board is copied from its
     source once the source has stopped changing for a minute."""
     import shutil
-    kd = os.path.join(REPO, 'ridge3-lite', 'v1', 'tools', 'kd')
-    v1 = os.path.join(REPO, 'ridge3-lite', 'v1')
+    kd = os.path.join(PRODUCT, 'tools', 'kd')
+    v1 = PRODUCT
     jobs = [(b, cu, cool) for b in ('35', '38') for cu in ('1', '2') for cool in ('none', 'top', 'bottom', 'both', 'fins')]
     jobs += [(b, '2', 'finsbot') for b in ('35', '38')]
     if os.environ.get('SIZECOOL_ONLY'):                                                  # e.g. '38'

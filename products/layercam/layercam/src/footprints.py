@@ -6,7 +6,7 @@ Two kinds of footprint go in:
 1. JLCPCB/EasyEDA footprints for the exact LCSC parts, converted once with
    easyeda2kicad 1.0.1 and kept verbatim in easyeda_raw/ (only their 3D
    model paths were shortened).  They are cleaned here, as for Ridge 3 Lite
-   (ridge3-lite/v1/src/footprints.py, where this code comes from):
+   (products/ridge/ridge-3-lite/src/footprints.py, where this code comes from):
    - the courtyard is rebuilt as the box round pads + body + 0.10 mm;
    - silkscreen is dropped (the assembly drawing carries the outlines);
    - 3D models point at ../lc.3dshapes (gzip STEP, KiCad reads .stpZ);

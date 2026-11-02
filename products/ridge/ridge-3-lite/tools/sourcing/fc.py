@@ -2,7 +2,10 @@
     python3 fc.py MPN [MPN ...]   -> prints summary, caches JSON in out/fc/
 """
 import sys, re, json, html, os, urllib.request, urllib.parse, time
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', 'out', 'fc') + '/'   # cache, gitignored
+ROOT = os.path.dirname(os.path.abspath(__file__))                     # the repository root, whatever the folder depth
+while not os.path.exists(os.path.join(ROOT, '.git')) and os.path.dirname(ROOT) != ROOT:
+    ROOT = os.path.dirname(ROOT)
+OUT = os.path.join(ROOT, 'out', 'fc') + '/'   # cache, gitignored
 os.makedirs(OUT, exist_ok=True)
 UA = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36'}
 

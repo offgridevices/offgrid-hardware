@@ -1,5 +1,5 @@
 #!/bin/sh
-# Canary v1 CI: every gate, from the committed routed board (the design of
+# Canary CI: every gate, from the committed routed board (the design of
 # record; Freerouting is not bit-for-bit repeatable, so routing is not re-run).
 # Runs inside the kicad/kicad:10.0.6 image (as root) or anywhere tools/kd works.
 set -eu
@@ -44,4 +44,4 @@ echo "== web bench: the page's JS detector = the firmware's, second by second"
 (cd sim/hil/out && node ../../../web/test/port_vs_firmware.js *_uart.log)
 python3 sim/spice/run.py
 python3 sim/analysis/analysis.py > /dev/null
-echo "== all Canary v1 gates passed"
+echo "== all Canary gates passed"

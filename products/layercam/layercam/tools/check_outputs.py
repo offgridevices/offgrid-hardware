@@ -1,6 +1,6 @@
 """CI: the fab files make.py just wrote must equal the committed ones.
 
-    python3 tools/check_outputs.py      (from layercam/v1, after make.py)
+    python3 tools/check_outputs.py      (from products/layercam/layercam, after make.py)
 
 Compares each board's outputs (main/, ring/, usb/) against git HEAD.  The
 Gerber zip is compared file by file with the creation-date stamps KiCad

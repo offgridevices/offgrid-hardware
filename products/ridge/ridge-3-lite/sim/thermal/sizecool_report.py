@@ -6,7 +6,9 @@ import math
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..', '..'))
+REPO = HERE                     # the repository root, whatever the folder depth
+while not os.path.exists(os.path.join(REPO, '.git')) and os.path.dirname(REPO) != REPO:
+    REPO = os.path.dirname(REPO)
 RES = os.path.join(REPO, 'out', 'thermal', 'sc', 'res')
 COOLS = ['none', 'top', 'bottom', 'both', 'fins']
 CNAME = dict(none='none (bare)', top='top plate', bottom='bottom plate', both='both plates', fins='finned top sink',
