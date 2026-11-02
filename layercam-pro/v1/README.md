@@ -210,7 +210,7 @@ Full steps, in this order, in
 *Bringing up a board*).
 
 1. **Flash a new board.** The test pads are on the back face along the
-   bottom edge, below the heatsink: `TX RX G BOOT` from left to right seen
+   bottom edge, below the heatsink: `BOOT G TX RX` from left to right seen
    from the back, and 5V on its own to their left. Bridge BOOT and G with
    tweezers while plugging USB-C into a computer: the main chip waits in
    MaskROM. Flash the image with Rockchip's tool. The console is TX, RX

@@ -59,8 +59,10 @@ FIXED = {
     # test pads along the bottom edge, below the heatsink: the console's TX
     # RX G for a 3.3 V USB-serial lead and BOOT beside G for tweezers; 5V on
     # its own; the C6's USB pair for recovery
-    'TP1': (1.0, 27.4, 0, F), 'TP2': (3.0, 27.4, 0, F), 'TP3': (5.0, 27.4, 0, F), 'TP5': (7.0, 27.4, 0, F),
-    'TP4': (-5.0, 27.4, 0, F),
+    # (BOOT, G, TX, RX left to right, BOOT nearest the SoC's boot pin 23 on
+    # its left side)
+    'TP5': (-3.0, 27.4, 0, F), 'TP3': (-1.0, 27.4, 0, F), 'TP1': (1.0, 27.4, 0, F), 'TP2': (3.0, 27.4, 0, F),
+    'TP4': (-7.0, 27.4, 0, F),
     'TP6': (-19.4, 13.6, 0, F), 'TP7': (-17.4, 13.6, 0, F),
     # B, the front face
     # the image sensor on the lens axis; its MIPI balls (rows D-E) towards
@@ -76,6 +78,9 @@ FIXED = {
     'D5': (-13.000, -0.000, 90, B),        # IR LED at 180 degrees (lens frame)
     'D6': (-7.200, 12.471, 0, B),        # IR LED at 240 degrees (lens frame)
     'D7': (7.200, 12.471, 0, B),        # IR LED at 300 degrees (lens frame)
+    # the strings' 1206 resistors (not placed by the small-part placer) by
+    # each string's first LED, clear of the rods' channels
+    'R90': (17.0, 2.4, 0, B), 'R91': (-11.5, -14.8, 0, B), 'R92': (-11.5, 14.8, 0, B),
     'Q2': (0.0, 14.15, 0, B),         # light sensor under the front window
     'Q1': (-17.0, 6.0, 0, B),         # IR LED switch
     'J3': (17.6, -5.6, 270, B),       # IR-cut lead

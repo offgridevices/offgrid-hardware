@@ -69,6 +69,12 @@ def _build(board, path, avoid):
     pcb.outline(b)
     comps = circuit.build(board)
     fixed = layout.FIXED
+    # every part the small-part placer does not place must have a fixed
+    # place: one without would sit at the origin, unrouted (three of the
+    # LED strings' resistors once did)
+    loose = sorted(c.ref for c in comps if c.ref not in fixed and not placer.is_small(c))
+    if loose:
+        raise SystemExit('no place for %s: add them to layout_main.FIXED' % ' '.join(loose))
     pl = {c.ref: fixed.get(c.ref, (0.0, 0.0, 0, 'F')) for c in comps}
     pcb.place_components(b, comps, pl)
     if hasattr(layout, 'zones'):

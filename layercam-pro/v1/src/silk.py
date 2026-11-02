@@ -155,7 +155,7 @@ def draw(b):
     x, y, cap = MAIN_NAME
     _set(top, brand.place(ink(brand.line([('sans', NAMES['main']), ('mono', REV)], cap)[0]), x, y), 'name')
     # the bring-up pads: 5V on its own.  The console and boot pads are a
-    # row 2.0 mm apart: README.md shows them on a picture (TX, RX, G, BOOT)
+    # row 2.0 mm apart: README.md names them (BOOT, G, TX, RX from the 5V side)
     x, y = pcb.xy(b.FindFootprintByReference('TP4').GetPosition())
     if not any(top.put(text('mono', '5V', 0.8), x + dx, y + dy, search=2.0, must=False)
                for dx, dy in ((0, -1.4), (-1.7, -1.4), (1.6, 0), (-1.6, 0))):

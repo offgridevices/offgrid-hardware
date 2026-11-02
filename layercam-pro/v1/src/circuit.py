@@ -443,7 +443,7 @@ def main_lights():
     # VSMY3850X01: pad 1 anode, pad 2 cathode.
     for s in range(3):
         a, m = 'STR%d_A' % (s + 1), 'STR%d_M' % (s + 1)
-        res('R47R_1206', 'VSYS', a, B, 'string %d resistor' % (s + 1))
+        add('R', 'R47R_1206', {'1': 'VSYS', '2': a}, B, 'string %d resistor' % (s + 1), ref='R%d' % (90 + s))
         add('D', 'IRLED', {'1': a, '2': m}, B, 'IR LED %d' % (2 * s + 1), ref='D%d' % (2 * s + 2))
         add('D', 'IRLED', {'1': m, '2': 'LED_K'}, B, 'IR LED %d' % (2 * s + 2), ref='D%d' % (2 * s + 3))
     cap('C10U', 'VSYS', GND, B, 'IR LED supply')
