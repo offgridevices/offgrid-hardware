@@ -6,10 +6,11 @@ Every label sits where it touches no pad, no hole and no other ink
 (brand.py): words in Instrument Sans 500, port names and numerals in
 JetBrains Mono 500.  White silk on the black mask.
 
-  TOP     the board name and revision, the OffGrid mark, the user button
+  TOP     the board name and revision, the OffGrid mark, the controls
+          (USER and RESET buttons, POWER switch: each framed and named)
           and the LoRa antenna port
-  BOTTOM  the reset button, the plugs (battery with its + pin, solar,
-          drone, GPS), the OffGrid lockup and the subdued flag of the
+  BOTTOM  the plugs (battery with its + pin, solar, drone, GPS, display /
+          I2C), the OffGrid lockup and the subdued flag of the
           United States
           (flag.py, silk only)
 """
@@ -58,23 +59,11 @@ def draw(b, comps, log=print):
     by = lambda part, note=None: [c.ref for c in comps if c.part == part and (note is None or c.note == note)][0]
     # ---------------------------------------------------------------- top
     top = artwork.SilkPlacer(b, 'T', brand=True, via_clear=0.05, bodies=True, body_margin=0.10, no_body=unfitted)
-    # the user button: beside whichever of its four pads has room
-    usr = by('SKRP', 'user')
-    for pad in ('1', '2', '3', '4'):
-        if top.label(usr, 'USR', pad=pad, size=0.7, face='mono', smallest=0.5) is not None:
-            break
-    else:
-        # no room within 3 mm of a pad: the nearest free spot to its middle
-        fp = b.FindFootprintByReference(usr)
-        q = fp.GetPosition()
-        for size in (0.7, 0.6, 0.5):
-            for rot in (0, 90):
-                if top.text_near('USR', (q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY), size=size, face='mono',
-                                 radius=4.5, rot=rot) is not None:
-                    break
-            else:
-                continue
-            break
+    # the controls (owner, 2 Nov 2026: say exactly which does what): each
+    # button and the power switch framed, its name in full beside the frame
+    for ref, word in ((by('SKRP', 'user'), 'USER'), (by('SKRP', 'reset'), 'RESET'), (by('SLIDE'), 'POWER')):
+        if _control(top, b, ref, word) is None:
+            raise SystemExit('silk: no room to label %s (%s)' % (word, ref))
     top.label(by('UFL'), 'LORA', size=0.7, face='mono', smallest=0.5)
     named = None
     for size, radius in ((1.0, 10.0), (0.9, 30.0), (0.8, 30.0), (0.7, 30.0)):
@@ -92,9 +81,8 @@ def draw(b, comps, log=print):
     # the battery's + pin, large: a standard LiPo (Adafruit/SparkFun JST-PH,
     # red lead on pin 1) plugs in this way round
     bot.label(bat, '+', size=1.6, face='mono', smallest=1.0, pad='1')
-    # the reset button is under the user button, on the bottom
-    bot.label(by('SKRP', 'reset'), 'RST', size=0.7, face='mono', smallest=0.5)
-    for part, s in (('JST_PH2', 'BAT'), ('JST_SH2', 'SOLAR'), ('JST_GH6', 'DRONE'), ('JST_SH6', 'GPS')):
+    for part, s in (('JST_PH2', 'BAT'), ('JST_SH2', 'SOLAR'), ('JST_GH6', 'DRONE'), ('JST_SH6', 'GPS'),
+                    ('JST_SH10', 'DISP/I2C')):
         bot.label(by(part), s, size=0.7, face='mono', smallest=0.5)
     if named is None:
         for size in (0.8, 0.7):
@@ -111,6 +99,49 @@ def draw(b, comps, log=print):
     log('flag: %s' % ('subdued (silk), hoist %.2f mm at (%.1f, %.1f), %s'
                       % (flagged[1] + ('top' if flagged[0] == 'T' else 'bottom',)) if flagged else 'no room'))
     return top, bot
+
+
+def _control(placer, b, ref, word, margin=0.3, width=0.15, sizes=(0.8, 0.7, 0.6)):
+    """Frame a control (button, switch) in silk round its body, open on any
+    side the board edge cuts off, and set its name beside the frame, on
+    the board's inner side first.  Returns the label's spot or None."""
+    from shapely.geometry import box
+    fp = b.FindFootprintByReference(ref)
+    crt = fp.GetCourtyard(pcbnew.F_CrtYd if placer.side == 'T' else pcbnew.B_CrtYd).BBox()
+    x0, y0 = crt.GetLeft() / 1e6 - 0.10, crt.GetTop() / 1e6 - 0.10        # the courtyard less its 0.10 margin
+    x1, y1 = crt.GetRight() / 1e6 + 0.10, crt.GetBottom() / 1e6 + 0.10
+    frame = None
+    for m in (margin, margin - 0.1, margin - 0.2, margin + 0.15):
+        bx = box(x0 - m, y0 - m, x1 + m, y1 + m)
+        # the ring, cut off where the board edge takes it (open on that side)
+        g = bx.exterior.buffer(width / 2, cap_style='square', join_style='mitre').intersection(
+            placer.inside.buffer(-0.01))
+        if g.is_empty:
+            continue
+        if placer._fits(g):
+            frame, fb = g, bx
+            break
+    if frame is None:
+        print('   silk: no room for the frame round %s' % ref)
+        fb = box(x0, y0, x1, y1)
+    else:
+        placer._add_geom(frame)
+        placer.placed.append(frame)
+    # the name: above / below the frame (towards the board's middle first), then beside it
+    cx, cy = (fb.bounds[0] + fb.bounds[2]) / 2 - pcb.CX, (fb.bounds[1] + fb.bounds[3]) / 2 - pcb.CY
+    top_y, bot_y = fb.bounds[1] - pcb.CY, fb.bounds[3] - pcb.CY
+    inward = -1 if cy > 0 else 1
+    for sz in sizes:
+        near = top_y - 0.25 - sz / 2 if inward < 0 else bot_y + 0.25 + sz / 2
+        far = bot_y + 0.25 + sz / 2 if inward < 0 else top_y - 0.25 - sz / 2
+        spots = [(cx + dx, near, 0, None) for dx in (0, 0.3, -0.3, 0.6, -0.6)]
+        spots += [(cx + dx, far, 0, None) for dx in (0, 0.3, -0.3)]
+        rx, lx = fb.bounds[2] - pcb.CX + 0.3, fb.bounds[0] - pcb.CX - 0.3
+        spots += [(rx, cy + dy, 0, 'left') for dy in (0, 0.3, -0.3)] + [(lx, cy + dy, 0, 'right') for dy in (0, 0.3, -0.3)]
+        at = placer.text(word, spots, size=sz, face='mono')
+        if at is not None:
+            return at
+    return placer.text_near(word, (cx, cy), size=sizes[-1], radius=4.0, face='mono')
 
 
 def _subdued(placer, side, hoists):

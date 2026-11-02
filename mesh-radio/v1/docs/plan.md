@@ -231,7 +231,16 @@ Every finding was fixed:
 1. **Board 70 mm long** (was 62 mm): 62 mm left about a dozen connections
    with no way through.
 2. **Four M3 mounting holes**, one per corner.
-3. **Every cable plug on one long edge.** The 2 x 10 expansion header has
+3. **Controls all on top, facing up:** the user and reset buttons side by
+   side on the lower long edge, 8.4 mm apart with a clear ring round each,
+   and the power switch now a vertical slide switch (C&K JS202011JCQN,
+   LCSC C221665, lever up) by the upper-left hole. Each is framed and named
+   in the silk (USER, RESET, POWER). The switch's 3D model is a box with
+   approximate heights: check a real part before cutting an enclosure.
+4. **The LoRa antenna jack stays where it is:** at the end of the transmit
+   chain, the electrically best spot (a jack at the back edge would need
+   the whole antenna section rebuilt, or a longer line costing ~0.2 dB).
+5. **Every cable plug on one long edge.** The 2 x 10 expansion header has
    no room on either long edge (the two antenna circuits take most of
    both), so it gives way to a 10-pin JST-SH display / I2C plug on the
    cable edge. The four spare processor pins and the display's MISO are

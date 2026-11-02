@@ -466,9 +466,11 @@ PARTS['SKRP'] = ic('SKRPADE010', ('Alps Alpine', JP), 'C127488', '', 'og:KEY-SMD
                    'Tactile switch 4.2 x 3.2 mm, top push, 4 N, -40..+90 C',
                    [('1', 'A', P), ('2', 'A', P), ('3', 'B', P), ('4', 'B', P)],
                    left=['1', '2'], right=['3', '4'], prefix='SW')
-PARTS['SLIDE'] = ic('JS102011SAQN', CK, 'C221660', '', 'og:SW-SMD_JS102011SAQN',
-                    'Slide switch SPDT 300 mA (drives the power switch enable, carries no load current)',
-                    [('1', 'A', P), ('2', 'COM', P), ('3', 'B', P)], left=['2'], right=['1', '3'], prefix='SW')
+PARTS['SLIDE'] = ic('JS202011JCQN', CK, 'C221665', '', 'og:SW_DPDT_CK_JS202011JCQN',
+                    'Slide switch DPDT 300 mA, vertical (lever up, beside the buttons: owner, 2 Nov 2026); '
+                    'drives the 3.3 V supply enable, carries no load current; both poles in parallel',
+                    [('1', 'A1', P), ('2', 'COM1', P), ('3', 'B1', P), ('4', 'A2', P), ('5', 'COM2', P), ('6', 'B2', P)],
+                    left=['2', '5'], right=['1', '3', '4', '6'], prefix='SW')
 PARTS['TPS22916'] = ic('TPS22916CYFPR', TI, 'C2680319', '', 'og:DSBGA-4_TPS22916',
                        'Load switch 5.5 V 2 A, 0.5 uA, WCSP-4 (GPS add-on supply)',
                        [('A1', 'VOUT', PO), ('A2', 'VIN', PI), ('B1', 'GND', PI), ('B2', 'ON', I)],
@@ -601,7 +603,6 @@ DIGIKEY = {
     'RF47pF': '490-14446-1-ND',
     'RF5.6pF': '490-11225-1-ND',
     'SKY13330': '863-1643-1-ND',
-    'SLIDE': '401-1999-1-ND',
     'SMF15CA': '18-SMF15CACT-ND',
     'SSM10N954L': '264-SSM10N954LEFFCT-ND',
     'SX1262': 'SX1262IMLTRTCT-ND',

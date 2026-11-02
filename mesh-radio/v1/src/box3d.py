@@ -24,20 +24,41 @@ BOXES = {
     'BOX_SOT-323': (1.25, 2.0, 0.9),
 }
 
+# several boxes in one model: name: [(x0, y0, z0, x1, y1, z1), ...] mm
+MULTI = {
+    # C&K JS202011JCQN, vertical (top-actuated) DPDT slide switch: body
+    # 9.0 x 3.6 mm as KiCad's footprint draws it; the 2.0 mm actuator travel
+    # and length from C&K / DigiKey.  The heights (1.5 mm body, 1.5 mm
+    # lever) are APPROXIMATE: no drawing was at hand; check on a real part
+    # before an enclosure is cut to them.
+    'BOX_CK_JS202011JCQN': [(-4.5, -1.8, 0.0, 4.5, 1.8, 1.5), (-1.75, -0.75, 1.5, 0.25, 0.75, 3.0)],
+}
+
 
 def step_box(name, x, y, h):
     """An AP214 STEP file of one box, x by y by h, base centred at the origin."""
+    return step_boxes(name, [(-x / 2, -y / 2, 0.0, x / 2, y / 2, h)])
+
+
+def step_boxes(name, boxes):
+    """An AP214 STEP file of one or more boxes (x0, y0, z0, x1, y1, z1)."""
     e = []
 
     def add(s):
         e.append(s)
         return '#%d' % len(e)
 
-    X0, X1, Y0, Y1 = -x / 2, x / 2, -y / 2, y / 2
-    corners = [(X0, Y0, 0), (X1, Y0, 0), (X1, Y1, 0), (X0, Y1, 0),
-               (X0, Y0, h), (X1, Y0, h), (X1, Y1, h), (X0, Y1, h)]
     pt = lambda p: add("CARTESIAN_POINT('',(%.4f,%.4f,%.4f))" % p)
     dr = lambda d: add("DIRECTION('',(%.1f,%.1f,%.1f))" % d)
+    solids = []
+    for (X0, Y0, Z0, X1, Y1, Z1) in boxes:
+        solids.append(_solid(add, pt, dr, name, X0, Y0, Z0, X1, Y1, Z1))
+    return _wrap(add, pt, dr, e, name, solids)
+
+
+def _solid(add, pt, dr, name, X0, Y0, Z0, X1, Y1, Z1):
+    corners = [(X0, Y0, Z0), (X1, Y0, Z0), (X1, Y1, Z0), (X0, Y1, Z0),
+               (X0, Y0, Z1), (X1, Y0, Z1), (X1, Y1, Z1), (X0, Y1, Z1)]
     V = [add("VERTEX_POINT('',%s)" % pt(c)) for c in corners]
     edges = {}
 
@@ -69,7 +90,10 @@ def step_box(name, x, y, h):
         ax = add("AXIS2_PLACEMENT_3D('',%s,%s,%s)" % (pt(corners[loop[0]]), dr(nrm), dr(ref)))
         F.append(add("ADVANCED_FACE('',(%s),%s,.T.)" % (fb, add("PLANE('',%s)" % ax))))
     shell = add("CLOSED_SHELL('',(%s))" % ','.join(F))
-    solid = add("MANIFOLD_SOLID_BREP('%s',%s)" % (name, shell))
+    return add("MANIFOLD_SOLID_BREP('%s',%s)" % (name, shell))
+
+
+def _wrap(add, pt, dr, e, name, solids):
     origin = add("AXIS2_PLACEMENT_3D('',%s,%s,%s)" % (pt((0, 0, 0)), dr((0, 0, 1)), dr((1, 0, 0))))
     unc = add("UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),#LEN,'distance_accuracy_value','')")
     ln = add("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))")
@@ -78,7 +102,7 @@ def step_box(name, x, y, h):
     e[int(unc[1:]) - 1] = e[int(unc[1:]) - 1].replace('#LEN', ln)
     ctx = add("(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((%s))"
               "GLOBAL_UNIT_ASSIGNED_CONTEXT((%s,%s,%s))REPRESENTATION_CONTEXT('',''))" % (unc, ln, an, sa))
-    shape = add("ADVANCED_BREP_SHAPE_REPRESENTATION('%s',(%s,%s),%s)" % (name, solid, origin, ctx))
+    shape = add("ADVANCED_BREP_SHAPE_REPRESENTATION('%s',(%s,%s),%s)" % (name, ','.join(solids), origin, ctx))
     app = add("APPLICATION_CONTEXT('automotive_design')")
     add("APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,%s)" % app)
     pc = add("PRODUCT_CONTEXT('',%s,'mechanical')" % app)
@@ -94,13 +118,20 @@ def step_box(name, x, y, h):
     return head + ''.join('#%d=%s;\n' % (i + 1, s) for i, s in enumerate(e)) + 'ENDSEC;\nEND-ISO-10303-21;\n'
 
 
+def _write(name, text):
+    # fixed gzip time, so a rebuild is byte-identical
+    with open(os.path.join(OUT, name + '.stpZ'), 'wb') as f:
+        with gzip.GzipFile(filename='', mode='wb', fileobj=f, mtime=0) as g:
+            g.write(text.encode())
+
+
 def main():
     for name, (x, y, h) in sorted(BOXES.items()):
-        # fixed gzip time, so a rebuild is byte-identical
-        with open(os.path.join(OUT, name + '.stpZ'), 'wb') as f:
-            with gzip.GzipFile(filename='', mode='wb', fileobj=f, mtime=0) as g:
-                g.write(step_box(name, x, y, h).encode())
+        _write(name, step_box(name, x, y, h))
         print('wrote %s.stpZ (%.2f x %.2f x %.2f mm)' % (name, x, y, h))
+    for name, boxes in sorted(MULTI.items()):
+        _write(name, step_boxes(name, boxes))
+        print('wrote %s.stpZ (%d boxes)' % (name, len(boxes)))
 
 
 if __name__ == '__main__':

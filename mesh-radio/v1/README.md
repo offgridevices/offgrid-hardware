@@ -102,7 +102,7 @@ be checked. The *v1* column fills in as the design proves each one.
 | P5 | **Solar input (5–6 V panel)** on its own connector, charging the cell | Charger simulation | ✅ in simulation: a 6 V panel charges at every temperature inside 0–45 °C (`sim/solar`) |
 | P6 | Optional 5 V from the drone's serial cable charges the cell while it is carried | Power-path simulation | ⏳ drone 5 V plug-in passes (`sim/hotplug`); it uses the same path as solar, but drone charging was not run as its own case |
 | P7 | Charging stops when the cell is too hot or too cold (LiPo in a 60 °C box) | Charger temperature input and thermistor placement | ⏳ the firmware's 0–45 °C window passes in simulation (`sim/solar`); the sensor reads the board beside the plug, not the cell (`sim/thermal`) |
-| P8 | Power slide switch | Layout | ✅ placed (`src/placement.json`) |
+| P8 | Power slide switch | Layout | ✅ placed (`src/placement.json`): a vertical C&K JS202011JCQN, lever up like the buttons (owner, 2 Nov), framed and labelled POWER on the silk. ⏳ which lever position is ON: check on the first board, then mark it on the silk |
 
 ### Protection: it must not burn out
 

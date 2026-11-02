@@ -4783,7 +4783,7 @@
 		(in_bom yes)
 		(on_board yes)
 		(property "Reference" "SW"
-			(at -5.08 6.35 0)
+			(at -6.35 6.35 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4792,7 +4792,7 @@
 			)
 		)
 		(property "Value" "SLIDE"
-			(at -5.08 -3.81 0)
+			(at -6.35 -8.89 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -4829,8 +4829,8 @@
 		)
 		(symbol "SLIDE_0_1"
 			(rectangle
-				(start -5.08 5.08)
-				(end 5.08 -2.54)
+				(start -6.35 5.08)
+				(end 6.35 -7.62)
 				(stroke
 					(width 0.254)
 					(type default)
@@ -4842,9 +4842,9 @@
 		)
 		(symbol "SLIDE_1_1"
 			(pin passive line
-				(at -7.62 2.54 0)
+				(at -8.89 2.54 0)
 				(length 2.54)
-				(name "COM"
+				(name "COM1"
 					(effects
 						(font
 							(size 1.016 1.016)
@@ -4860,9 +4860,27 @@
 				)
 			)
 			(pin passive line
-				(at 7.62 2.54 180)
+				(at -8.89 0 0)
 				(length 2.54)
-				(name "A"
+				(name "COM2"
+					(effects
+						(font
+							(size 1.016 1.016)
+						)
+					)
+				)
+				(number "5"
+					(effects
+						(font
+							(size 1.016 1.016)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at 8.89 2.54 180)
+				(length 2.54)
+				(name "A1"
 					(effects
 						(font
 							(size 1.016 1.016)
@@ -4878,9 +4896,9 @@
 				)
 			)
 			(pin passive line
-				(at 7.62 0 180)
+				(at 8.89 0 180)
 				(length 2.54)
-				(name "B"
+				(name "B1"
 					(effects
 						(font
 							(size 1.016 1.016)
@@ -4888,6 +4906,42 @@
 					)
 				)
 				(number "3"
+					(effects
+						(font
+							(size 1.016 1.016)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at 8.89 -2.54 180)
+				(length 2.54)
+				(name "A2"
+					(effects
+						(font
+							(size 1.016 1.016)
+						)
+					)
+				)
+				(number "4"
+					(effects
+						(font
+							(size 1.016 1.016)
+						)
+					)
+				)
+			)
+			(pin passive line
+				(at 8.89 -5.08 180)
+				(length 2.54)
+				(name "B2"
+					(effects
+						(font
+							(size 1.016 1.016)
+						)
+					)
+				)
+				(number "6"
 					(effects
 						(font
 							(size 1.016 1.016)

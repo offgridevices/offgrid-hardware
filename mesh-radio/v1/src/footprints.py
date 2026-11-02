@@ -553,13 +553,16 @@ STD = {
     'MountingHole_2.2mm_M2_Pad': ('MountingHole', 'MountingHole_2.2mm_M2_Pad'),
     'MountingHole_3.2mm_M3_Pad': ('MountingHole', 'MountingHole_3.2mm_M3_Pad'),
     'JST_SH_SM10B-SRSS-TB_1x10-1MP_P1.00mm_Horizontal': ('Connector_JST', 'JST_SH_SM10B-SRSS-TB_1x10-1MP_P1.00mm_Horizontal'),
+    'SW_DPDT_CK_JS202011JCQN': ('Button_Switch_SMD', 'SW_DPDT_CK_JS202011JCQN'),
 }
 
 # KiCad footprints whose 3D model is not in the image: a box from box3d.py instead
 STD_MODEL = {'SOT-323': 'BOX_SOT-323',
              # KiCad's own model (kicad-packages3D, CC-BY-SA 4.0 with the library
              # exception), not in the image: a copy in og.3dshapes
-             'JST_SH_SM10B-SRSS-TB_1x10-1MP_P1.00mm_Horizontal': 'JST_SH_SM10B-SRSS-TB_1x10-1MP_P1.00mm_Horizontal'}
+             'JST_SH_SM10B-SRSS-TB_1x10-1MP_P1.00mm_Horizontal': 'JST_SH_SM10B-SRSS-TB_1x10-1MP_P1.00mm_Horizontal',
+             # KiCad has no model for it: a box (box3d.MULTI, heights approximate)
+             'SW_DPDT_CK_JS202011JCQN': 'BOX_CK_JS202011JCQN'}
 
 def _model_path(fn):
     return fn.replace('${KICAD10_3DMODEL_DIR}', KIMOD)

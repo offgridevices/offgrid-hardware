@@ -7,8 +7,8 @@ y across it, down the screen (KiCad's).
 
   An M3 mounting hole in each corner (pcb.HOLES).
   TOP, left to right
-    USB-C on the short edge, the power slide switch on the upper long edge
-    beside the upper-left hole (lever over the edge), the LEDs below it;
+    USB-C on the short edge, the power slide switch (vertical, lever up)
+    beside the upper-left hole, the LEDs below it;
     the nRF52840, its Bluetooth chip antenna on the lower long edge beside
     the lower-left hole (a copper keepout through every layer round it),
     the user and reset buttons side by side on that edge too;
@@ -58,11 +58,12 @@ def anchors(comps):
     return hdr + [
         # ---- left end
         (R('USBC'), -HX + 5.48, 0.0, 270, 'T'),           # shell front 0.84 mm past the edge (Amphenol drawing)
-        (R('SLIDE'), -HX + 12.05, -HY + 4.55, 180, 'T'),    # body edge on the board edge, lever over it, beside the upper-left hole
-        # both buttons on top, side by side on the lower edge right of the
-        # Bluetooth match (owner, 2 Nov 2026: a button underneath is awkward)
-        (R('SKRP', 'user'), -6.5, HY - 3.2, 90, 'T'),
-        (R('SKRP', 'reset'), -2.6, HY - 3.2, 90, 'T'),
+        (R('SLIDE'), -HX + 12.6, -HY + 2.6, 0, 'T'),      # vertical: lever up, like the buttons (owner, 2 Nov 2026), beside the upper-left hole
+        # both buttons on top, lying along the lower edge right of the
+        # Bluetooth match, 9 mm apart for a finger each (owner, 2 Nov 2026:
+        # a button underneath is awkward; room between them for an enclosure)
+        (R('SKRP', 'user'), -7.4, HY - 1.85, 0, 'T'),
+        (R('SKRP', 'reset'), 1.0, HY - 1.85, 0, 'T'),
         # ---- processor and Bluetooth
         # (y 1.6 since 20 Oct: at 0.3 the battery plug's tails, under it on the
         # bottom, sat where its top row's escape vias must go)
@@ -76,7 +77,7 @@ def anchors(comps):
         # PH / SH / GH drawings, "end face of wafer on the mating side"), so
         # the nails face the edge, their copper 0.35 mm inside it
         # every plug on the upper long edge (owner, 2 Nov 2026), left to right
-        (R('JST_SH2'), -HX + 12.05, -HY + 3.19, 0, 'B'),        # solar, between the slide switch's pegs
+        (R('JST_SH2'), -HX + 12.6, -HY + 3.19, 0, 'B'),         # solar, under the power switch
         (R('JST_PH2'), -12.4, -HY + 4.98, 0, 'B'),          # battery
         (R('JST_GH6'), -2.0, -HY + 3.65, 0, 'B'),           # drone port
         (R('JST_SH6'), 8.7, -HY + 3.29, JST_SH6_ROT, 'B'),  # GPS
@@ -87,7 +88,7 @@ def anchors(comps):
         (R('TPS259470A', 'USB eFuse'), -HX + 11.6, 6.6, 0, 'B'),   # behind the USB-C, clear of the lower-left hole (1 Nov: the strip under the nRF52840 was the last jam)
         (R('RB060MM', 'USB into the charger'), -HX + 8.8, 6.9, 90, 'B'),   # clear of the antenna box above it
         (R('TPD4E05U06', 'USB ESD'), -HX + 12.4, -4.0, 90, 'T'),
-        (R('SMF33CA', 'SOL surge clamp'), -HX + 18.2, -10.0, 90, 'T'),    # beside the slide switch, on top
+        (R('SMF33CA', 'SOL surge clamp'), -HX + 21.6, -10.0, 90, 'T'),    # right of the power switch and its name, on top
         (R('MAX17608', 'SOL 60 V current limiter'), -HX + 12.0, -4.6, 0, 'B'),
         (R('MAX17608', 'DRN 60 V current limiter'), 8.6, 1.6, 0, 'B'),
         # (the drone port's clamp and ESD, the GPS port's switch and ESD and the
@@ -373,6 +374,14 @@ def place_all(log=print):
     # tight, the TPS62840's and the charger's could not be reached even on
     # an empty board: 20 Oct)
     chip_rings(B, comps)
+    # the controls keep a clear ring on top (set here, after the RF chains,
+    # which are placed to the micron: it keeps the packed parts out) for a finger, an enclosure's
+    # cut-out and their framed names in the silk (owner, 2 Nov 2026)
+    for r_, (mx, mtop, mbot) in ((ref(comps, 'SKRP', 'user'), (1.3, 1.9, 1.0)),
+                                 (ref(comps, 'SKRP', 'reset'), (1.3, 1.9, 1.0)),
+                                 (ref(comps, 'SLIDE'), (1.0, 0.6, 0.6))):
+        x0, y0, x1, y1 = B.rect(r_, *B.pl[r_])
+        B.keep_out((x0 - mx, y0 - mtop, x1 + mx, y1 + mbot), ('T',))
     # ---- everything else, beside the pin it serves
     todo = [c.ref for c in comps if c.ref not in B.pl]
     # decoupling first (a capacitor from a supply to ground), then the rest

@@ -299,7 +299,8 @@ def charger():
 
 def system():
     _block[0] = 'system'
-    add('SW', 'SLIDE', {'2': 'PWR_ON', '1': 'VSYS', '3': None}, note='power switch')
+    add('SW', 'SLIDE', {'2': 'PWR_ON', '1': 'VSYS', '3': None, '5': 'PWR_ON', '4': 'VSYS', '6': None},
+        note='power switch')
     R('R1M', 'PWR_ON', note='off when the switch is open')
     # The switch enables the buck directly (no load switch: a short at the
     # buck input is a short on VSYS, which the charger and the current-
