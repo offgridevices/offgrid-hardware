@@ -56,15 +56,17 @@ The buck is about 92.5 % efficient here (TPS62840 SLVSEC6D fig. 19).
 1. **The firmware leaves the amplifier's supply on while listening (0.34 mA).**
    `firmware/variant/variant.cpp` sets `PA_PWR_EN` high at start-up and low only
    at shutdown, so the mux, the buck-boost and the amplifier's standby current run
-   all the time.  The comment in `src/circuit.py` (`pa_power()`) says this supply
-   "runs only when firmware wants the amplifier"; the hardware allows it, the
-   firmware doesn't do it yet.  Turning it on per message costs an I2C write to the
-   TPS63810 (it loses its settings when unpowered) and about 5 ms of ramp before
-   each send.
+   all the time.  **Fixed 2 Nov** (`firmware/variant/variant.cpp`): the supply goes
+   off 3 s after the last packet and back on before the next, about 8-10 ms of
+   start-up (mux, I2C to the TPS63810, which forgets its settings, and its ramp).
+   Untested on hardware.
 2. **The drone serial port listens all the time (about 0.4 mA, estimate).**  An
    open UART receiver keeps the nRF52840's fast clock running.  The firmware can
    watch the RX pin with a pin interrupt instead and open the port on the first
    edge (the first message from the autopilot may be lost; the protocol resends).
+   **Fixed 2 Nov**, slightly differently: the port opens once a device is seen on
+   it (its TX idles high against a pull-down, checked every 2 s), and stays open
+   until the next reboot (patch 0001 part 4).  Untested on hardware.
 3. **The radio chip's boosted gain buys little when the receive amp is on.**
    Power-saving gain costs 0.7 mA less and about 0.3-0.5 dB of hearing behind a
    13.6 dB receive amp.  Keep boosted gain for battery-saver mode.
@@ -76,7 +78,8 @@ The buck is about 92.5 % efficient here (TPS62840 SLVSEC6D fig. 19).
    Meshtastic issue #9699, still open, measured 7.5 -> 4.5 mA on an nRF52840 +
    SX1262 board).  Cost: carrier sense goes partly blind while asleep, so a busy
    mesh collides a little more.  Needs bench tests for lost packets.
-5. **The receive amp cannot follow those windows on this board.**  Its enable is a
+5. **The receive amp cannot follow those windows on this board** (kept for a
+   future board: `docs/plan.md`, *Future: lower listening power*).  Its enable is a
    processor pin, so it stays on through the sleeps.  One small logic chip makes it
    follow the radio: amp on = radio clock-enable (DIO3, on only while the radio is
    awake) AND not transmitting (DIO2) AND the firmware's enable (today's LNA_EN).

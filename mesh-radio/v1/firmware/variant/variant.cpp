@@ -7,6 +7,10 @@
  *     its pins floating, charging on, LEDs off);
  *   - the amplifier supply: PA_PWR_EN on, TPS63810 programmed over I2C, and
  *     kept programmed (it forgets its registers when its input drops);
+ *     switched off between messages and back on before each one (sim/power,
+ *     0.34 mA while listening; needs patch 0001 part 3);
+ *   - the drone port's serial module opens only once something is plugged
+ *     in (sim/power, ~0.4 mA; needs patch 0001 part 4);
  *   - amplifier supply follows the licence state: 2.7 V unlicensed (US 1 W),
  *     3.6 V licensed (4.0 V only with -D OFFGRID_PA_ALLOW_4V0=1);
  *   - power caps by board temperature (TMP1075) and by the cell (sim/burst),
@@ -27,6 +31,7 @@
  *   variant_nrf52LoopHook()     main-nrf52.cpp, every main-loop pass
  *   variant_shutdown()          main-nrf52.cpp, before system-off
  *   variantDefaultModuleConfig  NodeDB.cpp (only effective with patch 0001 part 2)
+ *   variantSerialPortReady()    SerialModule::runOnce (patch 0001 part 4)
  *   variantLimitTxPower()       SX126xInterface::configHardwareForSend   } patch 0001
  *   variantTxStarted()          RadioLibInterface::startSend             } part 3
  *   variantTxDone()             RadioLibInterface::completeSending       }
@@ -68,6 +73,7 @@ const uint32_t g_ADigitalPinMap[] = {
 int8_t variantLimitTxPower(int8_t power);
 void variantTxStarted();
 void variantTxDone();
+bool variantSerialPortReady(); // patch 0001 part 4 (weak default in SerialModule.cpp)
 
 namespace
 {
@@ -128,6 +134,12 @@ int8_t paInitResult = -1;   // initVariant() programming result, logged later (-
 uint32_t paLastCheckMs = 0; // slow main-loop work timer
 bool paReleased = false;    // PA_EN given to its pull-down (amplifier held off)
 bool paSrcSys = false;      // PA_SRC_SYS driven high (amplifier from charger SYS)
+bool paPowered = false;     // PA_PWR_EN high: mux + TPS63810 on
+bool paHooksSeen = false;   // patch part 3 is in, so the supply may go off between packets
+uint32_t paLastUseMs = 0;   // last packet (or boot); the supply goes off OFFGRID_PA_IDLE_OFF_MS later
+#if defined(OFFGRID_DRONE_WAKE_ON_PLUG) && (OFFGRID_DRONE_WAKE_ON_PLUG == 1)
+bool droneSeen = false;     // something was found on the drone port
+#endif
 int8_t txDrive = SX126X_MAX_POWER; // SX1262 setting of the current/last packet
 int8_t lastCapLogged = CAP_NONE;
 
@@ -655,6 +667,30 @@ bool supplyTo(uint16_t mv)
     return false;
 }
 
+// Supply on: mux soft start and TPS63810 out of UVLO.  The TPS63810 starts
+// at its 3.3 V reset value (safe: see the top of this file); the caller sets
+// the level with supplyTo().
+void paPowerOn()
+{
+    if (paPowered)
+        return;
+    digitalWrite(PIN_PA_PWR_EN, HIGH);
+    paPowered = true;
+    paSetMv = 0;
+    paRampUs = 0;
+    delayMicroseconds(OFFGRID_PA_POWER_ON_US);
+}
+
+// Supply off (mux off, so VPA = 0 and the QPA9510 draws nothing).  Only
+// between packets: the caller checks txActive and PA_EN first.
+void paPowerOff()
+{
+    digitalWrite(PIN_PA_PWR_EN, LOW);
+    paPowered = false;
+    paSetMv = 0;
+    paRampUs = 0;
+}
+
 void antennaFault()
 {
     paRelease(); // amplifier standby now, mid-packet
@@ -906,12 +942,15 @@ float paDcWatts(float dbm)
 // and the supply it starts at.
 int8_t variantLimitTxPower(int8_t power)
 {
+    paHooksSeen = true;
+    paLastUseMs = millis();
     paRestoreIfIdle();
     txSoft = false;
     txRaised = false;
     const int8_t cap = capDbm();
     if (cap == CAP_PA_OFF) {
-        supplyTo(PA_VOUT_MIN_MV);
+        if (paPowered)
+            supplyTo(PA_VOUT_MIN_MV);
         paRelease();
         txDrive = -9;
         return -9;
@@ -925,7 +964,17 @@ int8_t variantLimitTxPower(int8_t power)
     txDrive = d;
     txTargetMv = paWantedMv();
     txSoft = softStartWanted(d, txTargetMv);
-    if (!supplyTo(txSoft ? softStartMv(d, txTargetMv) : txTargetMv) && txSoft) {
+    // Supply back on if it was off between packets; a fresh TPS63810 may
+    // miss the first I2C write while it starts, so try up to three times.
+    const bool fresh = !paPowered;
+    paPowerOn();
+    const uint16_t firstMv = txSoft ? softStartMv(d, txTargetMv) : txTargetMv;
+    bool supplyOk = supplyTo(firstMv);
+    for (int i = 0; fresh && !supplyOk && i < 2; i++) {
+        delayMicroseconds(1000);
+        supplyOk = supplyTo(firstMv);
+    }
+    if (!supplyOk && txSoft) {
         // The soft-start level could not be set, so the supply is unknown
         // (up to the licensed ceiling).  Hold the drive to the 1 W setting
         // instead: the gain table keeps that at or under 30 dBm at any supply.
@@ -959,7 +1008,7 @@ void variantTxStarted()
     txActive = true;
     txStartMs = millis();
     txRaised = false;
-    if (paReleased || capDbm() == CAP_PA_OFF) {
+    if (paReleased || !paPowered || capDbm() == CAP_PA_OFF) {
         paRelease();
         txPest = -99;
         txSoft = false;
@@ -1016,6 +1065,7 @@ void variantTxDone()
     const uint32_t now = millis();
     const uint32_t dur = now - txStartMs;
     lastTxEndMs = now;
+    paLastUseMs = now;
     // Soft start: back to the soft-start level now, so the TPS63810's ramp
     // down (1 V/ms) is over before the next packet starts.
     if (txRaised && !paReleased && paSetMv != 0 && !tpsSetVout(paIdleMv()))
@@ -1091,14 +1141,22 @@ void initVariant()
     pinMode(PIN_DRONE_RTS, OUTPUT);
     digitalWrite(PIN_DRONE_RTS, LOW);
     pinMode(PIN_DRONE_CTS, INPUT);
+#if defined(OFFGRID_DRONE_WAKE_ON_PLUG) && (OFFGRID_DRONE_WAKE_ON_PLUG == 1)
+    // DRONE_RX on the pull-down until the serial module opens the port, so an
+    // empty port neither floats nor reads as a device (variantSerialPortReady())
+    pinMode(PIN_SERIAL2_RX, INPUT_PULLDOWN);
+#endif
 
     // Amplifier power: mux + TPS63810 on.  The TPS63810 starts at 3.3 V;
     // set the unlicensed level now so the first transmission never sees more.
     // (The licence state is not known yet: NodeDB loads in setup().  The
     // licensed level and the caps are applied from lateInitVariant().)
+    // (With patch part 3 it goes off again OFFGRID_PA_IDLE_OFF_MS after the
+    // first packet and comes back on for each later one.)
     pinMode(PIN_PA_PWR_EN, OUTPUT);
     digitalWrite(PIN_PA_PWR_EN, HIGH);
-    delayMicroseconds(5000); // mux soft start + TPS63810 UVLO release (2.1 V)
+    paPowered = true;
+    delayMicroseconds(OFFGRID_PA_POWER_ON_US); // mux soft start + TPS63810 UVLO release (2.1 V)
     Wire.begin();
     paInitResult = 0;
     for (int attempt = 0; attempt < 5; attempt++) {
@@ -1159,6 +1217,7 @@ void lateInitVariant()
              (int)OFFGRID_ANT_FMIN30_MV, (int)(OFFGRID_ANT_R30 * 100.0f + 0.5f), OFFGRID_SOFTSTART_DBM, OFFGRID_SOFTSTART_DBM);
     stat2WindowMs = now;
     paLastCheckMs = now;
+    paLastUseMs = now;
 }
 
 // Every main-loop pass; the slow work runs once per OFFGRID_PA_CHECK_MS.
@@ -1221,6 +1280,17 @@ void variant_nrf52LoopHook(void)
     else if (!txActive)
         paRestoreIfIdle();
 
+#if defined(OFFGRID_PA_POWER_GATE) && (OFFGRID_PA_POWER_GATE == 1)
+    // Supply off between packets (sim/power).  Only once patch part 3's
+    // hooks have run, since they are what turns it back on.
+    if (paPowered && paHooksSeen && !txActive && !paEnDrivenHigh() && now - paLastUseMs >= OFFGRID_PA_IDLE_OFF_MS) {
+        paPowerOff();
+        LOG_DEBUG("PA supply off until the next packet");
+    }
+#endif
+    if (!paPowered)
+        return; // nothing to keep programmed: variantLimitTxPower() sets it before the next packet
+
     // Supply: not changed in the middle of a packet (a soft start raises it
     // there on purpose, and variantTxDone() brings it back down), except down
     // to "amplifier off", which PA_EN already enforces anyway.
@@ -1247,6 +1317,7 @@ void variant_shutdown()
     digitalWrite(PIN_LNA_EN, LOW);
     digitalWrite(PIN_PA_PWR_EN, LOW); // mux and buck-boost off (1 M pull-down keeps them off)
     digitalWrite(PIN_PA_SRC_SYS, LOW);
+    paPowered = false;
     paSetMv = 0;
 
     digitalWrite(PIN_GPS_EN, LOW);
@@ -1274,5 +1345,30 @@ void variantDefaultModuleConfig()
     moduleConfig.serial.txd = PIN_SERIAL2_TX;
     moduleConfig.serial.mode = meshtastic_ModuleConfig_SerialConfig_Serial_Mode_PROTO;
     moduleConfig.serial.baud = meshtastic_ModuleConfig_SerialConfig_Serial_Baud_BAUD_38400;
+#endif
+}
+
+// Patch 0001 part 4: asked by the serial module before it opens its port,
+// and every 2 s after a "no".  The drone port opens once a device is seen on
+// it: an autopilot's (or USB-serial adapter's) TX idles high through the
+// board's 470 R, against the nRF52840's ~13 k pull-down set in initVariant().
+// An autopilot that is plugged in but not yet powered is found when it
+// starts.  Once open the port stays open until the next reboot.  Any other
+// serial-module pin choice opens at once, as in stock Meshtastic.
+bool variantSerialPortReady()
+{
+#if defined(OFFGRID_DRONE_WAKE_ON_PLUG) && (OFFGRID_DRONE_WAKE_ON_PLUG == 1)
+    if (droneSeen || moduleConfig.serial.rxd != PIN_SERIAL2_RX)
+        return true;
+    pinMode(PIN_SERIAL2_RX, INPUT_PULLDOWN);
+    delayMicroseconds(100); // the pin and ESD array settle through 13 k in well under 1 us; margin
+    if (digitalRead(PIN_SERIAL2_RX) == HIGH) {
+        droneSeen = true;
+        LOG_INFO("Drone port: device found (DRONE_RX high), opening the serial port");
+        return true;
+    }
+    return false;
+#else
+    return true;
 #endif
 }

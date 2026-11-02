@@ -1,4 +1,4 @@
-Subject: [PATCH] Mesh Radio v1: re-apply TX power limits on reconfigure; variant module defaults; per-packet TX hooks
+Subject: [PATCH] Mesh Radio v1: re-apply TX power limits on reconfigure; variant module defaults; per-packet TX hooks; serial-port wake hook
 
 Against meshtastic/firmware v2.7.26.54e0d8d.  Apply from the firmware root:
 
@@ -43,6 +43,14 @@ Against meshtastic/firmware v2.7.26.54e0d8d.  Apply from the firmware root:
                                  short by setStandby()).
    Board-specific; not for upstream as is (a FEM-style interface in core would
    be the general form).
+
+4. src/modules/SerialModule.cpp - optional (drone-port power, sim/power).
+   New weak hook variantSerialPortReady(), asked before the serial module
+   opens its port; false holds it closed and asks again in 2 s.  The variant
+   answers false until a device is plugged into the drone port (its TX idles
+   high against a pull-down), so an empty port costs no UART current (an open
+   nRF52840 UART receiver keeps the fast clock on, ~0.3-0.5 mA) and no 10 ms
+   polling.  Without this part the port opens at boot, as before.
 
 ---
 diff --git a/src/mesh/NodeDB.cpp b/src/mesh/NodeDB.cpp
@@ -192,3 +200,29 @@ index b7d3675..4f544ed 100644
  
      /**
       * Specific module instance
+diff --git a/src/modules/SerialModule.cpp b/src/modules/SerialModule.cpp
+index 7a96934..0ff4328 100644
+--- a/src/modules/SerialModule.cpp
++++ b/src/modules/SerialModule.cpp
+@@ -137,6 +137,12 @@ bool SerialModule::checkIsConnected()
+     return Throttle::isWithinTimespanMs(lastContactMsec, SERIAL_CONNECTION_TIMEOUT);
+ }
+ 
++// Board hook (OffGrid Mesh Radio v1): false keeps the port closed for now (nothing plugged in); asked again in 2 s.
++__attribute__((weak)) bool variantSerialPortReady()
++{
++    return true;
++}
++
+ int32_t SerialModule::runOnce()
+ {
+     /*
+@@ -156,6 +162,8 @@ int32_t SerialModule::runOnce()
+         return disable();
+ 
+     if (moduleConfig.serial.override_console_serial_port || (moduleConfig.serial.rxd && moduleConfig.serial.txd)) {
++        if (firstTime && !variantSerialPortReady())
++            return 2000;
+         if (firstTime) {
+             // Interface with the serial peripheral from in here.
+             LOG_INFO("Init serial peripheral interface");

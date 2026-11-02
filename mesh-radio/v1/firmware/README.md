@@ -30,7 +30,7 @@ board definition it needs. It lives here until it goes upstream.
 | `variant/variant.h` | Pin map, radio and front-end settings, the **provisional** gain table, battery and charger settings |
 | `variant/variant.cpp` | Board start-up and amplifier power: the TPS63810 supply, licensed/unlicensed levels, power caps (temperature, cell), the ratio missing-antenna check, the soft start above 1 W, amplifier source, charging window, shutdown |
 | `variant/platformio.ini` | The `offgrid_mesh_radio_v1` build environment |
-| `patches/0001-offgrid-mesh-radio-core-backports.patch` | A three-part change to Meshtastic core. **Part 1 is required before any US field use** (see *The US 1 W rule*). **Part 3 is required for the power caps and the antenna cut-off** (see *Transmit hooks*). |
+| `patches/0001-offgrid-mesh-radio-core-backports.patch` | A four-part change to Meshtastic core. **Part 1 is required before any US field use** (see *The US 1 W rule*). **Part 3 is required for the power caps and the antenna cut-off** (see *Transmit hooks*). Part 4 lets an empty drone port stay closed (see *Listening power*). |
 | `bootloader/offgrid_mesh_radio_v1/` | `board.h`, `board.mk`, `board.cmake` and `pinconfig.c` for Adafruit_nRF52_Bootloader |
 | `tools/pa_gain_table.py` | Builds the gain table from the amplifier model, and checks the soft-start supply against it. Replace the model with bench data later. |
 
@@ -60,6 +60,12 @@ flash. The variant adds no compiler warnings (51 in the build, the same as
 the reference). The 250 ppm check below was not repeated (nothing it
 depends on changed).
 
+**Result on 2 Nov 2026** (amplifier supply off between packets, drone port
+opened on plug-in, patch part 4): SUCCESS with the four-part patch (flash
+90.3 %, 735,728 bytes; RAM 41.1 %) and on unpatched v2.7.26 (flash 89.9 %).
+Still 51 warnings, none from the variant or the patch. Compiles only: not
+run on a board.
+
 **Checking the 250 ppm crystal setting.** Take the compile line for
 `Bluefruit52Lib/bluefruit.cpp` from `pio run -v`, swap `-o …bluefruit.cpp.o`
 for `-E -o -`, and look at `clock_cfg`: it must read `.accuracy = (0)`
@@ -88,6 +94,9 @@ Build options go in `build_flags`:
 | `-D OFFGRID_TCAP_…`, `OFFGRID_REFL_…`, `OFFGRID_ANT_…`, `OFFGRID_CHG_…`, `OFFGRID_CELL_TEST_MS`, … | Every threshold below is an `#ifndef` default in `variant.h`; set it from bench data here. The antenna rule's six constants are overridden together (define `OFFGRID_ANT_FMIN30_MV` and the other five). |
 | `-D OFFGRID_ANT_FIT_ROBUST=1` | The antenna rule's constants from sim/rf study 8's fit with ±1 dB of power-model error built in (fitted from 33 dBm), instead of the nominal fit (from 30 dBm). See *Missing-antenna cut-off*. |
 | `-D OFFGRID_DRONE_SERIAL_DEFAULT=0` | Stops the drone-port serial module from being turned on by default. This only matters with patch part 2. |
+| `-D OFFGRID_PA_POWER_GATE=0` | Keeps the amplifier supply on between messages, as before 2 Nov (about 0.34 mA more while listening, and no 8-10 ms start-up before each packet). |
+| `-D OFFGRID_PA_IDLE_OFF_MS=…` | How long after the last packet the amplifier supply goes off (default 3000). |
+| `-D OFFGRID_DRONE_WAKE_ON_PLUG=0` | Opens the drone port at boot, as before 2 Nov, instead of when a device is plugged in. |
 
 ## Flash
 
@@ -186,6 +195,13 @@ meshtastic --set serial.enabled true --set serial.rxd 15 --set serial.txd 16 \
            --set serial.mode PROTO --set serial.baud BAUD_38400
 ```
 
+**The port opens when something is plugged in** (patch part 4, 2 Nov).
+Until then DRONE_RX sits on the nRF52840's pull-down and the serial module
+asks the variant every 2 s; an autopilot's TX idles high, so the port
+opens within 2 s of a powered device being connected. The first bytes it
+sends in that window are lost (the Meshtastic client resends). Once open,
+the port stays open until the next reboot. See *Listening power*.
+
 
 ## Transmit power
 
@@ -231,7 +247,14 @@ the U.FL is about 16.8 dB.
    caps want, or to the soft-start level for a packet above 1 W (see
    *Soft start*), and the radio waits for the TPS63810's ramp (1 V/ms) to
    finish.
-5. `variant_shutdown()` turns everything off before system-off.
+5. **Between packets the supply is off** (2 Nov, needs patch part 3): 3 s
+   after the last packet (`OFFGRID_PA_IDLE_OFF_MS`) the loop turns
+   PA_PWR_EN off, and `variantLimitTxPower()` turns it back on before the
+   next one: 5 ms for the mux and the TPS63810 to start, the TPS63810
+   programmed (up to three tries), then its ramp from the 3.3 V reset value
+   (about 2.3 ms). The first packet after a quiet spell therefore starts
+   about 8-10 ms later. Without patch part 3 the supply stays on.
+6. `variant_shutdown()` turns everything off before system-off.
 
 **Why a failure stays safe.** An unprogrammed TPS63810 sits at 3.3 V: that
 is below the licensed level, and the US table holds at any supply. The
@@ -524,6 +547,31 @@ connections drop. `variant.h` includes `nrf_sdm.h` first and redefines
 *Build*). It costs a little current in a connection. The bootloader's own
 BLE DFU still declares 20 ppm, but this board has no button entry to BLE DFU.
 
+## Listening power
+
+The study is `../sim/power/` (2 Nov 2026): about 12.7 mA from the battery
+while listening, as the firmware stood, of which 11.3 mA is the radio chip,
+its clock and the receive amp. Two fixes are in this variant (no range lost,
+about 0.8 mA saved, to about 11.9 mA):
+
+| Fix | Saves | Needs | Where |
+|---|---|---|---|
+| Amplifier supply off between packets | 0.34 mA (mux, TPS63810, QPA9510 standby) | patch part 3 | *Transmit power*, step 5 |
+| Drone port opens only when a device is plugged in | about 0.4 mA (an open UART keeps the fast clock on), and its 10 ms polling | patch part 4 | *Drone port settings* |
+
+**Not done, for later** (owner, 2 Nov):
+
+- **Radio chip on low-power receive gain while the receive amp is on**
+  (Meshtastic's `sx126x_rx_boosted_gain`, default on): 0.7 mA for about
+  0.3-0.5 dB. A setting, not a code change.
+- **Listening in short windows** (SX1262 RxDutyCycle): about 9.4 mA with
+  the fixes above. Meshtastic does not do this today (RadioLib #1100,
+  Meshtastic #9699). It needs a core change and bench tests for lost
+  packets.
+- **Receive amp following those windows:** about 8 mA, but only with a
+  board change (one small logic chip: amp on = DIO3 AND NOT DIO2 AND
+  LNA_EN). See `../docs/plan.md`, *Future: lower listening power*.
+
 ## The power table (PROVISIONAL: a model, to be replaced by bench measurements)
 
 `TX_GAIN_LORA = 17 ×17, 16, 16, 15, 15, 14`. Entry *i* is the gain with
@@ -674,10 +722,10 @@ before it is sold; that is separate from this firmware.
 
 **Known limitations in this version:**
 
-- **The amplifier supply stays on whenever the board is on.** This costs about
-  0.3 mA for the power mux plus 13 µA for the TPS63810. The patch's hooks
-  could now switch PA_PWR_EN per packet, but the TPS63810 then needs
-  re-programming and settling before every packet; not done.
+- **Amplifier supply off between packets (2 Nov): untested on hardware.**
+  Check on the bench that the TPS63810 answers within the 5 ms start-up
+  every time, and that the first packet after a quiet spell is at full
+  power from its first symbol.
 - **No-cell on solar or drone power only**: the amplifier goes to SYS at
   1 W, but the MAX17608's 0.71 A limit was not simulated for a 1 W burst.
 - **"Amplifier off" is not "low power":** there is no path around the

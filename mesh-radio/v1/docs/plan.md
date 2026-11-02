@@ -245,6 +245,51 @@ Every finding was fixed:
    both), so it gives way to a 10-pin JST-SH display / I2C plug on the
    cable edge. The four spare processor pins and the display's MISO are
    no longer connected (`firmware/variant/variant.h`).
+6. **Power study** (`sim/power/`): re-doing the layout would save under
+   1 %; the listening current is in the parts that listen. Two firmware
+   fixes are in (amplifier supply off between messages, drone port opened
+   only when something is plugged in): about 12.7 to 11.9 mA, no range
+   lost. The rest is for later (next section).
+
+## Future: lower listening power (2 Nov 2026, not for this board)
+
+The owner asked for these to be written down and looked at later, not now.
+Numbers from `sim/power/` (datasheet arithmetic, 3.7 V cell, no traffic).
+
+| Step | Listening | Cost | Work |
+|---|---|---|---|
+| Today, with the 2 Nov firmware fixes | about 11.9 mA | - | done |
+| Radio chip on low-power gain while the receive amp is on | about 11.3 mA | about 0.3-0.5 dB of hearing | a setting |
+| Listen in short windows (SX1262 RxDutyCycle: about 91 ms listening, 49 ms asleep, still catching every LongFast preamble) | about 9.4 mA | a busy mesh collides a little more | Meshtastic core change, bench tests for lost packets |
+| Receive amp follows those windows | **about 8.0 mA**, under the 10 mA target with full range | same | **board change**, below |
+
+**The board change.** Today the receive amp's enable (LNA_EN) is a
+processor pin, so the amp stays on while the radio sleeps between windows.
+One small logic chip (a TI or Nexperia 74LVC1G-family gate, SC-70) would
+switch it with the radio instead:
+
+    LNA on = DIO3 (the radio's clock supply: on only while it is awake)
+             AND NOT DIO2 (high while transmitting)
+             AND LNA_EN (the firmware's own on/off, kept for battery saver)
+
+The DIO2 term is needed: with the amp in gain while transmitting, the
+radio chip's own input would be overdriven. DIO3 is 2.2 V here, above the
+amp's 1.0 V control threshold, and the amp settles in 3-6 µs. Worth doing
+only once the windowed-listening firmware exists and is proven.
+
+**Other ideas from the study, smaller:**
+
+- A lower-current receive amp: none from an allowed maker matches the
+  BGA7L1BN6's noise at 915 MHz for less current. The NXP BGU7003W can run
+  at about 3 mA (2 mA saved, under 0.3 dB lost) but needs its own
+  2.2-2.85 V rail and has no bypass.
+- Turn the receive amp off automatically when the band is noisy (more than
+  about 10 dB above thermal noise, read with the radio's RSSI): there it buys
+  little hearing. A firmware feature.
+- Bluetooth: "stop advertising after N minutes" saves about 0.1 mA.
+- Switched-off leaks of about 10 µA straight across the cell (two 1 M
+  resistors and the 4.7 V clamp on the battery polarity check), and the
+  bypass diode's leakage when hot (about 100 µA at 75 °C): bench-measure first.
 
 ## Owner decisions (1 Nov 2026)
 

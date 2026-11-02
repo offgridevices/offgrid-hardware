@@ -143,6 +143,16 @@ static const uint8_t AREF = PIN_AREF;
 #define PIN_SERIAL2_RX (15) // P0.15 DRONE_RX (from autopilot TELEM TX, JST-GH pin 2)
 #define PIN_SERIAL2_TX (16) // P0.16 DRONE_TX (to autopilot TELEM RX, JST-GH pin 3)
 
+// Drone port wakes when something is plugged in (sim/power: an open UART
+// receiver keeps the nRF52840's fast clock on, ~0.3-0.5 mA).  Until then
+// DRONE_RX sits on the nRF52840's pull-down (~13 k); an autopilot's TX idles
+// high (through the 470 R on the board), so a high reading means a device
+// is connected and the serial module starts (patch 0001 part 4).  Once
+// started it stays on until the next reboot.  0 = start at boot as before.
+#ifndef OFFGRID_DRONE_WAKE_ON_PLUG
+#define OFFGRID_DRONE_WAKE_ON_PLUG 1
+#endif
+
 // Drone port flow control (Pixhawk TELEM).  Meshtastic does not use hardware
 // flow control; the variant holds RTS low ("ready") so an autopilot with
 // RTS/CTS enabled still sends, and leaves CTS as an input.
@@ -285,6 +295,21 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #endif
 #ifndef OFFGRID_PA_CHECK_MS
 #define OFFGRID_PA_CHECK_MS 2000 // how often the main loop re-checks the TPS63810, TMP1075 and charger NTC
+#endif
+// Amplifier supply off between messages (sim/power: the mux, TPS63810 and
+// QPA9510 standby draw ~0.34 mA while listening).  It is switched on before
+// each packet (patch 0001 part 3's variantLimitTxPower(), ~8-10 ms: mux soft
+// start, I2C, ramp) and off once nothing has been sent for
+// OFFGRID_PA_IDLE_OFF_MS.  Without patch part 3 it simply stays on.
+#ifndef OFFGRID_PA_POWER_GATE
+#define OFFGRID_PA_POWER_GATE 1
+#endif
+#ifndef OFFGRID_PA_IDLE_OFF_MS
+#define OFFGRID_PA_IDLE_OFF_MS 3000
+#endif
+// Mux soft start + TPS63810 UVLO release after PA_PWR_EN rises, us
+#ifndef OFFGRID_PA_POWER_ON_US
+#define OFFGRID_PA_POWER_ON_US 5000
 #endif
 
 /*
