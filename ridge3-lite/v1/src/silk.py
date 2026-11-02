@@ -20,9 +20,9 @@ from shapely import affinity
 import pcb, brand, flag, layout, artwork
 
 NAME = 'Ridge 3 Lite'
-# the revision, from this revision's folder name (v1 -> V1), so a copy into
-# v2/ prints V2 with no edit; a code, so brand mono, uppercase
-REV = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).upper()
+# the revision printed on the board; a copper change after an order bumps
+# it (docs/versioning.md).  A code, so brand mono, uppercase
+REV = 'V1'
 
 
 def _copper_free(b, side, extra=0.25):

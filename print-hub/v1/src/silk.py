@@ -18,9 +18,9 @@ from shapely.ops import unary_union
 import pcb, brand, layout
 
 NAME = 'Print Hub'
-# the revision, from this revision's folder name (v1 -> V1): a copy into
-# v2/ prints V2 with no edit
-REV = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).upper()
+# the revision printed on the board; a copper change after an order bumps
+# it (docs/versioning.md)
+REV = 'V1'
 CAP = 1.2              # cap height of the labels, mm
 # where the big artwork goes, kept free of stitching vias (stitch.py):
 # (x0, y0, x1, y1), board mm.  Top: the title and the mark, in the band

@@ -21,8 +21,9 @@ from shapely import affinity
 import pcb, brand
 
 NAME = 'LayerCam'
-# the revision, from this revision's folder name (v1 -> V1)
-REV = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).upper()
+# the revision printed on the boards; a copper change after an order bumps
+# it (docs/versioning.md)
+REV = 'V1'
 CAP = 1.0
 # boxes kept free of stitching vias for the artwork (stitch.py), board mm
 ART = {'main': [(-6.5, 21.5, 6.5, 28.0)], 'usb': [(-13.6, 9.6, 7.4, 15.8)], 'ring': []}
