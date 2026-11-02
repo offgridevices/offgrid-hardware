@@ -556,7 +556,10 @@ STD = {
 }
 
 # KiCad footprints whose 3D model is not in the image: a box from box3d.py instead
-STD_MODEL = {'SOT-323': 'BOX_SOT-323'}
+STD_MODEL = {'SOT-323': 'BOX_SOT-323',
+             # KiCad's own model (kicad-packages3D, CC-BY-SA 4.0 with the library
+             # exception), not in the image: a copy in og.3dshapes
+             'JST_SH_SM10B-SRSS-TB_1x10-1MP_P1.00mm_Horizontal': 'JST_SH_SM10B-SRSS-TB_1x10-1MP_P1.00mm_Horizontal'}
 
 def _model_path(fn):
     return fn.replace('${KICAD10_3DMODEL_DIR}', KIMOD)
