@@ -1,4 +1,4 @@
-# Ridge 3 Lite — v1
+# Ridge 3 Lite
 
 **One board that does it all:** the flight controller and the 4-in-1 ESC of a
 3-inch quad on a single 38 × 38 mm board, for Project Cheap Drone Phase 1. A
@@ -19,16 +19,25 @@ pin for pin.
 ![top](images/ridge3-lite-top.png)
 ![bottom](images/ridge3-lite-bottom.png)
 
+## Revisions
+
+This folder always holds the latest revision; an ordered revision stays at
+its order tag ([`docs/versioning.md`](../../../docs/versioning.md)). Ridge 3 Lite is a variant of the Ridge line ([`../README.md`](../README.md)).
+
+| Revision | What changed | Status | Order tag |
+|---|---|---|---|
+| v1 | first design | designed, every check and simulation passed; not yet built | — |
+
 ## This revision
 
 | | |
 |---|---|
-| Revision | **v1** (product: [`../README.md`](../README.md)) |
+| Revision | **v1**, printed on the board (`REV` in `src/silk.py`; [Revisions](#revisions)) |
 | Status | designed, not yet built |
 | Tests and simulations | [`TESTS.md`](TESTS.md): every one with its v1 result |
 | Trade-offs | [`docs/decisions.md`](docs/decisions.md) |
 | Toolchain | KiCad 10.0.6 (pinned image, `tools/Dockerfile`) |
-| Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../docs/brand.md)) |
+| Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../../docs/brand.md)) |
 
 ## Requirements
 
@@ -61,8 +70,9 @@ stands.
    Record the results here and correct the models if they disagree.
 4. **Design the frame** from `mechanical/` (25.5 mm M2 soft mounts), with a
    canopy or top plate to keep sun off the board.
-5. **Then a volume order.** Changes that need new copper go into `v2/`
-   (`docs/decisions.md` lists the ideas).
+5. **Then a volume order.** Changes that need new copper after an order are
+   the next revision, made here with `REV` bumped (`docs/decisions.md` lists
+   the ideas; [`docs/versioning.md`](../../../docs/versioning.md)).
 
 Why the board is the way it is: [`docs/decisions.md`](docs/decisions.md).
 
@@ -161,7 +171,7 @@ through it. In short:
 The full record, with dates: [`TESTS.md`](TESTS.md). In short:
 
 The first five rows are gates: `src/make.py` stops if one fails, and CI
-(`ci / ridge3-lite-v1`) runs them on every push, after rebuilding the
+(`ci / ridge-3-lite`) runs them on every push, after rebuilding the
 artwork from `src/` on the committed routed board.
 
 | Check | Result |
@@ -265,7 +275,7 @@ tools/kd python3 sim/thermal/thermal.py ridge3-lite.kicad_pcb --case desert
 ### Changing this board
 
 Edit the source, rebuild, commit the outputs with it. CI (`ci /
-ridge3-lite-v1`) rebuilds and fails if the committed files do not match.
+ridge-3-lite`) rebuilds and fails if the committed files do not match.
 
 | To change | Edit | Then run |
 |---|---|---|
@@ -274,7 +284,7 @@ ridge3-lite-v1`) rebuilds and fails if the committed files do not match.
 | Design rules | `src/pcb.py` (`RULES`) | `make.py` (rewrites `.kicad_dru`, re-runs DRC) |
 | Betaflight / AM32 settings | `firmware/` | `verify.py` |
 | Simulation inputs | `sim/` | `sim/run_all.sh`, `thermal.py` |
-| Connections, placement or copper | `src/circuit.py`, `src/layout.py`, ... | a new revision: copy to `v2/`, `make.py --reroute`, finish and check it |
+| Connections, placement or copper | `src/circuit.py`, `src/layout.py`, ... | `make.py --reroute`, finish and check it; after an order this is a new revision: bump `REV` in `src/silk.py` |
 
 The net gate stops the build if `src/circuit.py` and the routed board
 disagree, so a circuit change cannot slip into v1's fab files.

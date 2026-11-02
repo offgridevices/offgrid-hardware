@@ -128,10 +128,10 @@ the same image; it was not stocked anywhere when this was written.
 In a Betaflight 2025.12.5 checkout:
 
 ```
-git apply <this repo>/ridge-3/firmware/betaflight/patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch
+git apply <this repo>/products/ridge/ridge-3/firmware/betaflight/patches/betaflight_2025.12.5_iim42652_scale_and_aaf.patch
 make arm_sdk_install
 SOURCE_DATE_EPOCH=1790412014 make CONFIG=RIDGE3 \
-  CONFIG_DIR=<this repo>/ridge-3/firmware/betaflight CONFIG_REVISION_DEFINE=
+  CONFIG_DIR=<this repo>/products/ridge/ridge-3/firmware/betaflight CONFIG_REVISION_DEFINE=
 ```
 
 With that build date, and with no git revision stamped in, the build
@@ -285,7 +285,7 @@ GCC=<betaflight checkout>/tools/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi
 make ARM_SDK_PREFIX=$GCC/bin/arm-none-eabi- AM32_F421_BOOTLOADER_PB4
 # firmware (github.com/am32-firmware/AM32,
 # commit 2738df3240baa5bd4295b460cf0c5cfe0bd49d97)
-git apply <this repo>/ridge-3/firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch
+git apply <this repo>/products/ridge/ridge-3/firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch
 make ARM_SDK_PREFIX=$GCC/bin/arm-none-eabi- RIDGE3_F421 \
   CFLAGS_BASE="-fsingle-precision-constant -fomit-frame-pointer -ffast-math -IInc -g3 -O3 \
   -ffunction-sections --specs=nosys.specs -Wall -Wundef -Wextra -Werror \

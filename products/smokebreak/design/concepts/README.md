@@ -7,7 +7,7 @@ plus 00, the flat box from the spec, for comparison. Give feedback by number.
 
 Logo rule (SPEC §11): the mark is never a part, light or frame. Every
 status ring in these concepts is a plain closed ring; logos are exact
-lockups from `../../v1/src/brand.py`. **04 Halo is retired**: the product
+lockups from `../../src/brand.py`. **04 Halo is retired**: the product
 itself is the mark's shape, which the rule forbids. Some write-ups (02,
 09) still describe a Bind key on the ring's node; that predates the rule.
 
@@ -54,5 +54,5 @@ python _blender/render_concept.py 09-crown-dial --video
 python3 _blender/make_gallery.py         # contact sheets and reel
 ```
 
-Fonts come from `ridge-3/fonts` (branch `claude/fpv-stack-3in`); point
+Fonts come from `products/ridge/ridge-3/fonts`; point
 `SB_FONTS` at them.

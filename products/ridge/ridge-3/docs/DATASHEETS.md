@@ -8,7 +8,7 @@ those checks SKIP; with it, each file below must be there under exactly
 this name.
 
 ```
-RIDGE3_DATASHEETS=/path/to/datasheets python3.12 src/verify.py     # from ridge-3/
+RIDGE3_DATASHEETS=/path/to/datasheets python3.12 src/verify.py     # from products/ridge/ridge-3/
 ```
 
 ## The files

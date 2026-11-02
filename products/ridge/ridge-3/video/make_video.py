@@ -8,7 +8,7 @@
     python3.12 video/make_video.py fc --build analog   # another build (circuit.BUILDS)
     python3.12 video/make_video.py path/to/x.kicad_pcb --config x.json
 
-Run it from ridge-3/ with the Python that has KiCad's pcbnew (python3.12
+Run it from products/ridge/ridge-3/ with the Python that has KiCad's pcbnew (python3.12
 here, kicad-cli on PATH).  The first run makes video/.venv (Python 3.11 and
 Blender as a module) from video/requirements.txt; set VIDEO_PYTHON to use
 another Python 3.11.  Everything goes to video/out/<board>/, which git

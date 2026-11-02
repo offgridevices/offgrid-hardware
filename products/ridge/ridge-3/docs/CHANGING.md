@@ -6,7 +6,7 @@ files, Gerbers, BOMs and renders are generated from it.  Never edit a
 `.kicad_pcb`, a Gerber or a BOM by hand for a change that is meant to stay
 (the one exception, a prototype BOM variant, is in C1).
 
-Commands run from the `ridge-3/` folder.  The tools and their setup are in
+Commands run from the `products/ridge/ridge-3/` folder.  The tools and their setup are in
 the main README:
 [How it is made](../README.md#how-it-is-made-and-how-to-change-it) for the
 boards (the pinned toolchain, or its Docker image), [Stress
@@ -82,7 +82,7 @@ simulations](../README.md#stress-simulations) for `sim/`, and
   boards `../esc/production/ridge3-esc-bom-jlcpcb.csv` (`75k,
   "R9,R21,R33,R45"`) and `ridge3-esc-bom-pcbway.csv`; for a panel, the
   same files in `../esc/production/panel/` with `-panel` in their names
-  (`R9_1` ... `R45_6`, 24 parts).  These commands, run from `ridge-3/`,
+  (`R9_1` ... `R45_6`, 24 parts).  These commands, run from `products/ridge/ridge-3/`,
   write changed copies of the single-board BOMs outside the repository,
   changing only line 11 (the value, LCSC number, part number and, in the
   PCBWay file, the description); [`TEST_PLAN.md`](TEST_PLAN.md) has the
@@ -186,7 +186,7 @@ it to 100 at low throttle (`adjusted_input < 150`) and to 10 above it
    `Src/main.c`, replace the high-throttle assignment `bemf_timeout = 10;`
    at line 2067 with `#ifdef RIDGE3_F421` / `bemf_timeout = 2;` / `#else` /
    `bemf_timeout = 10;` / `#endif`.  Then write the patch again from the
-   checkout: `git diff > <this repo>/ridge-3/firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch`.
+   checkout: `git diff > <this repo>/products/ridge/ridge-3/firmware/am32/AM32_2738df3_RIDGE3_F421_target.patch`.
 2. Build the image as `../firmware/README.md` describes and replace
    `AM32_RIDGE3_F421_2.21.hex` with it.
 3. Replace both hash lines in `../firmware/README.md`, the patch's and the

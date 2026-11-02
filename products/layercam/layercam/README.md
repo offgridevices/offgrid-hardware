@@ -1,4 +1,4 @@
-# LayerCam v1
+# LayerCam
 
 A camera for the inside of a Prusa CORE One. It sits in Prusa's own printed
 Buddy3D camera case, sees the whole bed in daylight and in infrared, and
@@ -18,18 +18,27 @@ Nothing here has been made or powered.
 | LED ring | ![ring](ring/images/layercam-ring-top.png) |
 | USB-C board | ![usb](usb/images/layercam-usb-top.png) |
 
+## Revisions
+
+This folder always holds the latest revision; an ordered revision stays at
+its order tag ([`docs/versioning.md`](../../../docs/versioning.md)). LayerCam is a variant of the LayerCam line ([`../README.md`](../README.md)).
+
+| Revision | What changed | Status | Order tag |
+|---|---|---|---|
+| v1 | first design: three boards (main, LED ring, USB-C) | designed, every check and simulation run; not yet built | — |
+
 ## This revision
 
 | | |
 |---|---|
-| Revision | **v1** (product: [`../README.md`](../README.md)), printed on every board |
+| Revision | **v1**, printed on every board (`REV` in `src/silk.py`; [Revisions](#revisions)) |
 | Status | designed, not yet built |
 | Tests and simulations | [`TESTS.md`](TESTS.md): every one with its v1 result |
 | Trade-offs | [`docs/decisions.md`](docs/decisions.md) |
 | Parts and stock | [`docs/parts.md`](docs/parts.md) (check stock again before ordering) |
 | Fit in the case | [`docs/housing.md`](docs/housing.md) |
 | Toolchain | KiCad 10.0.7 (pinned image, `tools/Dockerfile`), Freerouting 1.9.0 |
-| Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../docs/brand.md)): the lockup, each board's name and revision, the US flag on the USB-C board |
+| Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../../docs/brand.md)): the lockup, each board's name and revision, the US flag on the USB-C board |
 
 ## What it had to do, and whether it does
 
@@ -59,8 +68,8 @@ Nothing here has been made or powered.
    `sim/thermal.py` with the measured currents.
 5. **Try it on a CORE One:** Prusa Connect snapshots and a per-layer
    timelapse uploaded to a NAS and S3.
-6. Changes that need new copper go into `v2/`
-   ([`docs/versioning.md`](../../docs/versioning.md)).
+6. Changes that need new copper after an order are the next revision, made
+   here with `REV` bumped ([`docs/versioning.md`](../../../docs/versioning.md)).
 
 ## Where things are
 
@@ -247,7 +256,7 @@ Freerouting 1.9.0; `tools/Dockerfile`). The main board was routed with
 *Routing the main board*):
 
 ```sh
-cd layercam/v1
+cd products/layercam/layercam
 tools/kd python3 src/make.py                # every gate and output, all three boards
 tools/kd python3 src/make.py --reroute main # place and route a board from scratch
 tools/kd python3 src/verify.py              # design checks
@@ -255,7 +264,7 @@ tools/kd python3 sim/thermal.py             # and sim/impedance.py, sim/power_bu
 cd firmware && python3 -m unittest          # camera software host tests
 ```
 
-CI (`ci / layercam-v1`) rebuilds all three boards on every push and checks
+CI (`ci / layercam`) rebuilds all three boards on every change to this folder and checks
 the committed fab files are exactly what the scripts produce.
 
 Licence: CERN-OHL-S-2.0 (hardware), as the rest of this repository.

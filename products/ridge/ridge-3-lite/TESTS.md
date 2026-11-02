@@ -1,7 +1,7 @@
 # Ridge 3 Lite v1: tests and simulations
 
 Every test and simulation for this revision, with its **v1** result. How
-this record works across the repository: [`docs/versioning.md`](../../docs/versioning.md).
+this record works across the repository: [`docs/versioning.md`](../../../docs/versioning.md).
 Before a v2, question each row first (still needed? still right? anything
 missing? did hardware disagree?).
 
@@ -10,7 +10,7 @@ props (15 A per motor sustained, 25 A stalled), 50 °C air, 1000 W/m² sun.
 
 ## Build gates (CI, every push)
 
-`ci / ridge3-lite-v1` runs these on every push; the build stops on a failure.
+`ci / ridge-3-lite` runs these on every push; the build stops on a failure.
 
 | Test | Why | How | v1 result |
 |---|---|---|---|

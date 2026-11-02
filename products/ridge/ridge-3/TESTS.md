@@ -3,17 +3,17 @@
 Every test and simulation of revision 2.0 (both boards, printed `REV 2.0`):
 why it exists, how to run it, its result for this revision and the date it
 ran.  How this record works across the repository:
-[`../docs/versioning.md`](../docs/versioning.md).  `ridge-3/` is the exception
-that [`../docs/repo-structure.md`](../docs/repo-structure.md) names: both
-boards of the stack in one folder with no revision folder, the revision in
-the code (`REVISION`) and on the silkscreen, the decisions in
+[`docs/versioning.md`](../../../docs/versioning.md).  Both boards of the
+stack are in this folder, each with its revision in the code (`REVISION`)
+and on the silkscreen; the decisions are in
 [`docs/STATUS.md`](docs/STATUS.md) and the trade-offs in
 [`docs/RELIABILITY.md`](docs/RELIABILITY.md).  Before the next revision,
 question each row first (still needed? still right? anything missing? did
-hardware disagree?).  Where the next revision lives is decision
-[D9](docs/STATUS.md#d9-where-the-next-revision-lives-owner).
+hardware disagree?).  The next revision is made in this folder, with
+`REVISION` bumped; revision 2.0 stays at its order tag
+([D9](docs/STATUS.md#d9-where-the-next-revision-lives-owner)).
 
-Commands run from `ridge-3/`; the tools and their setup are in the
+Commands run from `products/ridge/ridge-3/`; the tools and their setup are in the
 [README](README.md#setup).  The runs below were made on the pull request's
 branch before its squash-merge into `main`, so no commit on `main` names
 them: each row gives its date, and the next run of a row records the
@@ -28,7 +28,7 @@ tri-blade, AM32 at 20 A and 110 °C per motor.
 
 `python3.12 src/make.py --fab-only` runs every gate below and stops on the
 first failure; `python3.12 src/make.py` runs them too and also makes the
-renders and STEP models.  CI's `ridge-3` job ([`../.github/workflows/ci.yml`](../.github/workflows/ci.yml))
+renders and STEP models.  CI's `ci / ridge-3` job ([`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml))
 runs `--fab-only`, the comparison and `verify.py` on every pull request
 into `main` and every push to `main`.
 
@@ -42,7 +42,7 @@ into `main` and every push to `main`.
 | Production panels | The 3 × 2 panels are six true copies | the same | FC and ESC: 112 × 88 mm, 6 copies, DRC six times the board's own, every copy's Gerbers, BOM and CPL equal the board's | 2026-10-20 |
 | Committed outputs equal the build | Someone orders from them | the same, then `git status --porcelain -- .` (CI's step) | pass: after the run only the ignored unzipped Gerbers changed; the 23 order files, the boards and `mechanical/` unchanged | 2026-10-20 |
 | Renders and STEP models rebuild unchanged | CI does not compare them | `python3.12 src/make.py` | pass: a second default run left all 57 outputs byte for byte (321 s) | 2026-10-14 |
-| CI job `ridge-3` | The same gates in a pinned toolchain, on every pull request into `main` and push to `main` | [`../.github/workflows/ci.yml`](../.github/workflows/ci.yml), in `kicad/kicad:10.0.6` by digest | on GitHub (pull request #4, run 39355146418, after the FC's power vias): exit 0, every committed file unchanged, `verify.py` 217 passed, 0 failed, 31 SKIP; the job took 2 min 54 s.  Later runs are in the repository's Actions tab | 2026-10-20 |
+| CI job `ci / ridge-3` | The same gates in a pinned toolchain, on every pull request that changes this folder and every push to `main` | [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml), in `kicad/kicad:10.0.6` by digest | on GitHub (pull request #4, run 39355146418, after the FC's power vias): exit 0, every committed file unchanged, `verify.py` 217 passed, 0 failed, 31 SKIP; the job took 2 min 54 s.  Later runs are in the repository's Actions tab | 2026-10-20 |
 
 ## Design checks (`verify.py`)
 

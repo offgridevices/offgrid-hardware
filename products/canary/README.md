@@ -1,9 +1,18 @@
-# Canary v1 — first-vent detector for lithium batteries
+# Canary — first-vent detector for lithium batteries
 
 ![Canary v1](images/canary-iso.png)
 
 **Status: designed and verified in simulation, not yet built.** Every gate below
 passes on this revision; no board has been assembled or powered yet.
+
+## Revisions
+
+This folder always holds the latest revision; an ordered revision stays at
+its order tag ([`docs/versioning.md`](../../docs/versioning.md)).
+
+| Revision | What changed | Status | Order tag |
+|---|---|---|---|
+| v1 | first design: SGP40 + SCD41 + SHT40 + NTC tab, ATmega328P, 100 dB sounder, 60 × 40 mm, 2 layers | designed and simulation-verified, not yet built | — |
 
 ## What it is
 

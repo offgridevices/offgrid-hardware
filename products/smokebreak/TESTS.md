@@ -10,7 +10,7 @@ Worst case used throughout: a 14S LiHV pack (60.9 V), a drone with
 
 ## Build gates (CI, every push)
 
-`ci / smokebreak-v1` runs these on every push; a failure stops the build.
+`ci / smokebreak` runs these on every push; a failure stops the build.
 
 | Test | Why | How | v1 result |
 |---|---|---|---|

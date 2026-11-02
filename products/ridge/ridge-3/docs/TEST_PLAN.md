@@ -20,7 +20,7 @@ Do it first on every stack.
   60 / 120 mA); for the other, upload a BOM whose IDRIVE line (line 11,
   `R9_1` ... `R45_6`) is changed from LCSC C295816 (RC0201FR-0775KL, 75 kΩ)
   to **C295780 (RC0201FR-0718KL, 18 kΩ, 30 / 60 mA)** (`CHANGING.md`,
-  C1).  These commands, run from `ridge-3/`, write the changed BOMs
+  C1).  These commands, run from `products/ridge/ridge-3/`, write the changed BOMs
   outside the repository; each changes only line 11 (value, LCSC number,
   part number and, in the PCBWay file, the description):
 

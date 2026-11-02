@@ -5,7 +5,7 @@ with a rating), read straight from the `.kicad_pcb`. The question it answers is 
 keep working under full stress on a hot day in the desert?
 
 ```
-cd ridge3-lite/v1
+cd products/ridge/ridge-3-lite
 tools/kd python3 sim/thermal/thermal.py ridge3-lite.kicad_pcb --case desert          # the worst-case set, ~6 min
 tools/kd python3 sim/thermal/thermal.py ridge3-lite.kicad_pcb --case full-50C-wash-sun   # one steady case, ~30 s
 tools/kd python3 sim/thermal/thermal.py ridge3-lite.kicad_pcb --case full60-50C-wash-sun # 60 s full throttle, ~1.5 min

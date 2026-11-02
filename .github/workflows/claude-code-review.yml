@@ -3,8 +3,9 @@ name: Claude Code Review
 # Every pull request goes through two stages, in this order:
 #
 #   1. `ci`     — ci.yml, called directly as a reusable workflow: rebuild every
-#                 board from `src/`, run every verification gate, and check the
-#                 committed Gerbers are byte-identical to the rebuild.
+#                 product the PR touches with its `tools/ci.sh`, run every
+#                 verification gate, and check the committed fab files are
+#                 byte-identical to the rebuild.
 #   2. `review` — Claude reads the diff, the codebase and the CI output, may
 #                 run the generator and write throwaway probe scripts in its own
 #                 checkout, and leaves line-by-line comments.
@@ -87,9 +88,11 @@ jobs:
           # credential. The action re-authenticates itself independently.
           persist-credentials: false
 
-      # Same toolchain as ci.yml, so Claude can re-run the generator or one
-      # gate to check a specific claim. Pinned to a commit for the same reason
-      # as checkout: this job holds a token.
+      # Python 3.12 and the Packet Logger Carrier's packages, so Claude can run
+      # that board's generator, the other products' pure-Python checks, or a
+      # probe of its own to check a specific claim (no KiCad: that is CI's).
+      # Pinned to a commit for the same reason as checkout: this job holds a
+      # token.
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
@@ -97,7 +100,8 @@ jobs:
       - name: Install dependencies
         run: pip install numpy Pillow fonttools
 
-      # Same pinned, hash-checked font as ci.yml; see the note there.
+      # Same pinned, hash-checked font as the Packet Logger Carrier's CI; see
+      # the note in products/packet-logger-carrier/tools/ci-setup.sh.
       - name: Fetch Archivo (brand font used by the wordmark)
         env:
           FONT_URL: https://raw.githubusercontent.com/google/fonts/6c70c829f09ea345d3590406693220ea35c6553f/ofl/archivo/Archivo%5Bwdth,wght%5D.ttf
@@ -172,12 +176,16 @@ jobs:
 
             Review this pull request for correctness and obvious defects.
 
-            **The full CI suite already passed on this exact commit** — this
-            review only starts when it is green. CI rebuilt every board with
-            `src/make.py`, ran every verification gate, and confirmed the
-            committed Gerbers are byte-identical to the rebuild. KiCad's own DRC
-            was skipped (no kicad-cli in CI). Green means the gates pass, not
-            that the change is right. Read `.ci-results/summary.md` and, where useful, the per-job logs beside it to see what CI actually did
+            **CI already passed on this exact commit** — this review only
+            starts when it is green. CI built every product this pull request
+            touches (every product, if it touches `.github/`, `tools/` or
+            `.gitignore`) by running that product's `tools/ci.sh` in the KiCad
+            image its `tools/ci.json` pins: KiCad DRC, the net checks, every
+            other gate, and the committed fab files byte-identical to the
+            rebuild. `ci / repo-checks` checked every Markdown link and that
+            every Python file parses. A product this pull request does not
+            touch was not built. Green means the gates pass, not that the
+            change is right. Read `.ci-results/summary.md` and, where useful, the per-job logs beside it to see what CI actually did
             before you comment.
 
             **Check the pull request's description against the diff.** Every
@@ -188,10 +196,13 @@ jobs:
 
             **You have a sandbox — use it to test, not just read.** This runner
             is a throwaway checkout of this commit with Python 3.12, numpy,
-            Pillow, fontTools and the brand font installed. From a board's
-            `src/` you can run `python make.py` or any single gate
-            (`python drc.py`, `python netcheck.py`, `python verify_gerber.py`,
-            …). You can also write throwaway probe scripts (Write/Edit) —
+            Pillow, fontTools and the brand font installed, but **no KiCad**:
+            the gates that need KiCad (`pcbnew`, `kicad-cli`) cannot run here,
+            and CI's log of them is in `.ci-results/`. What does not need KiCad
+            you can run: the Packet Logger Carrier's whole build
+            (`products/packet-logger-carrier/src/make.py`), the pure-Python
+            checks, simulations and firmware tests a product's `TESTS.md`
+            lists. You can also write throwaway probe scripts (Write/Edit) —
             e.g. to measure a clearance the change claims, or to try a rule at
             its boundary — and run them with `python`. Nothing you write is
             committed or pushed; it disappears with the runner. When a probe
@@ -199,11 +210,15 @@ jobs:
             and say which claims you verified by running something rather than
             by reading.
 
-            This repository is **open hardware**. Each top-level folder is one
-            board. The design files are the Python scripts in each board's
-            `src/`; the Gerbers, drill files, board file and 3D models are
-            generated output, committed so a stranger can order a board without
-            installing a toolchain.
+            This repository is **open hardware**. Every product is a folder
+            under `products/` (variants of one line under a family folder,
+            e.g. `products/ridge/ridge-3/`), edited in place: there are no
+            revision folders; the revision is set in the product's code and
+            printed on the board, and an ordered revision is frozen by a git
+            tag (`docs/versioning.md`). The design files are the Python scripts
+            in each product's `src/`; the Gerbers, drill files, board file and
+            3D models are generated output, committed so a stranger can order a
+            board without installing a toolchain.
 
             **Read the codebase, not just the diff.** The whole repository is
             checked out and you have read access to all of it. A diff read on
@@ -214,11 +229,15 @@ jobs:
             before you comment.
 
             Worth reading for context:
-            - the root `README.md` — the layout every board follows.
-            - the board's own `README.md` — what it is, how to order it, and
-              the assumptions the design rests on.
-            - the board's `src/` — the generator, and the verification scripts
-              that gate the build.
+            - the root `README.md` and `docs/` — the layout every product
+              follows, how revisions work, what "done" means.
+            - the product's own `README.md` — what it is, its revisions, how to
+              order it, and the assumptions the design rests on.
+            - the product's `TESTS.md` — every test and simulation and its
+              result; a change that moves a result without updating it is a
+              finding.
+            - the product's `src/` and `tools/ci.sh` — the generator, and the
+              verification gates CI runs.
 
             What this repository cares about, in rough priority order:
 

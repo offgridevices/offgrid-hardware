@@ -189,7 +189,7 @@ anodised.
 - `measure.py` -> `housing_ceiling.json`: the case's ceiling and plastic thickness round the SoC, measured from
   the STLs; `plate.py` reads it.
   - Run it with `tools/kd python3 mechanical/heat-plate/plate.py` from
-    layercam/v1. Set `HOUSING_DIR` to check against the case STLs.
+    products/layercam/layercam. Set `HOUSING_DIR` to check against the case STLs.
 - `heatsink_14x14x10.stl` (the fitted part, as its envelope), `heatsink_14x14x6.stl`, `cnc_block.stl`,
   `sheet_bracket.stl`: the parts in the lens frame.
 - `drawing.png`: plan, section at X = 0, and the sheet's flat pattern.

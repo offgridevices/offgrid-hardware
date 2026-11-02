@@ -37,5 +37,5 @@ same file (`logo`, `logo.lockup`) and the SVGs in `current/handoff/logo/svg/`.
 
 ## Reference
 
-`ridge3-lite/v1/src/brand.py` draws the mark and lockup from the brand
+`products/ridge/ridge-3-lite/src/brand.py` draws the mark and lockup from the brand
 geometry, and `src/silk.py` places them; start a new board from these.

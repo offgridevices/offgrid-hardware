@@ -8,7 +8,7 @@ not the whole stack.
 
 Ridge 3 is the first of a line named by prop size: **Ridge 3**, **Ridge 7**,
 **Ridge 12**. Only Ridge 3 is designed so far; Ridge 3 Lite
-([`../ridge3-lite/`](../ridge3-lite/)), one board with the flight controller
+([`../ridge-3-lite/`](../ridge-3-lite/)), one board with the flight controller
 and ESC and no FPV parts, is a separate design for the same quads.
 
 **Revision 2** is built for a heavy quad on a 50 °C day: every part is
@@ -46,6 +46,17 @@ its own number (`REVISION` in `src/fc_layout.py` and `src/esc_layout.py`), so
 a change to one board moves only its number.
 
 ![Ridge 3: both sides of both boards](images/ridge3-stack.png)
+
+## Revisions
+
+This folder always holds the latest revision; an ordered revision stays at
+its tag ([`docs/versioning.md`](../../../docs/versioning.md)). Ridge 3 is a
+variant of the Ridge line ([`../README.md`](../README.md)).
+
+| Revision | What changed | Status | Order tag |
+|---|---|---|---|
+| 1.0 | first design: FC and 4-in-1 ESC, simulated (its boards are kept in `sim/rev1/` for the comparison in [`STRESS.md`](STRESS.md)) | never ordered; replaced in place by 2.0 | — |
+| 2.0 | every change in [`docs/REV2.md`](docs/REV2.md): parts chosen for a 50 °C day, the ESC on a machined heatsink, the FC's 3.3 V feeding the ESC's MCUs | designed and simulated, not yet ordered | — (`ridge-3-rev2.0` when ordered: [`docs/CHANGING.md`](docs/CHANGING.md), step 6) |
 
 ---
 
@@ -692,7 +703,7 @@ apply a decision or swap a part, follow [`docs/CHANGING.md`](docs/CHANGING.md).
 
 `python3.12 src/make.py` rebuilds every output from the committed
 `.kicad_pcb` files (`python3.12 src/make.py --help` lists its options; run
-from `ridge-3/`, about 5.5 minutes for both boards on four cores when
+from `products/ridge/ridge-3/`, about 5.5 minutes for both boards on four cores when
 nothing has to be rendered again; re-rendering the four panel views added
 about 9 minutes). It fails unless
 each board has zero DRC errors, zero warnings and zero unconnected items,
@@ -753,7 +764,7 @@ the image, write `python3` wherever this README says `python3.12` or
 system-wide.  The simulations have not been run there yet, and CadQuery and
 the videos' Python 3.11 are not in it.  macOS and Windows are untested:
 `src/` reads KiCad's libraries from `/usr/share/kicad/`.  On Ubuntu 24.04,
-from `ridge-3/`:
+from `products/ridge/ridge-3/`:
 
 ```
 sudo add-apt-repository ppa:kicad/kicad-10.0-releases
@@ -881,7 +892,7 @@ closes and lies down under the title.
   the analog build's parts (the OSD and its parts) keep their pads and lose
   their bodies.  `--build analog` shows the analog build, with its own
   title and highlights (`"builds"` in `video/fc.json`).
-- **Commands**, run from `ridge-3/` with KiCad's Python (`python3.12`):
+- **Commands**, run from `products/ridge/ridge-3/` with KiCad's Python (`python3.12`):
 
   ```
   python3.12 video/make_video.py fc --check          # build the scene only (1-5 min): no frames
@@ -916,7 +927,7 @@ closes and lies down under the title.
   a module, from `video/requirements.txt`; about 1.1 GB).  Ubuntu 24.04 has
   no Python 3.11: `sudo add-apt-repository ppa:deadsnakes/ppa && sudo apt
   install python3.11 python3.11-venv` (the Ridge 3 videos were made with its
-  3.11.15-1+noble1; [the guide's Tools](../docs/product-video.md#tools)).
+  3.11.15-1+noble1; [the guide's Tools](../../../docs/product-video.md#tools)).
   The Docker image has neither Python 3.11 nor bpy: make the videos outside
   it.
 - **Rendering:** it uses Cycles, on a GPU when Blender finds one (CUDA,
@@ -929,7 +940,7 @@ closes and lies down under the title.
   and a final video's 4K frames far more (not measured; tens of GB).
 
 The repository-wide guide to these videos, for a new board too, is
-[`../docs/product-video.md`](../docs/product-video.md).
+[`docs/product-video.md`](../../../docs/product-video.md).
 
 ### Stress simulations
 
@@ -976,7 +987,7 @@ maps, SPICE runs) stay in `sim/out/`, which git ignores.
   | `OPTIMOS5_60V_LIB` | Infineon's "OptiMOS / OptiMOS 5 60 V" library, `OptiMOS_OptiMOS5_60V_Spice.lib`, from the same zip (`Version 030726`, SHA-256 `7215379a380e047c3f67e1f081abe37a641c74281463e400e1af0d1f88c948eb`) | the BSZ040N06LS5 variants only |
   | `TPN2R304PL_LIB` | Toshiba's TPN2R304PL "G0" PSpice model, `TPN2R304PL_G0_00_PSpice_rev1.lib` (the part's page, "Design & Development", "SPICE model"; SHA-256 `d07c7aa62f38f581b061e6eff178f2cc18585628509fad2031fca986ec6d8d65`) | rev 1, only for the comparison in `STRESS.md` |
 
-- **The runs**, in this order, from `ridge-3/` (times on a 4-core machine):
+- **The runs**, in this order, from `products/ridge/ridge-3/` (times on a 4-core machine):
 
   ```
   export OPTIMOS6_60V_LIB=/path/to/OptiMOS6_60V_Spice.lib

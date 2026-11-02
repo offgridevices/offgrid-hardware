@@ -5,7 +5,7 @@ crashed, the choices that trade one kind of margin for another, and what
 only the bench can settle.  Nothing here is measured: no board has been
 built.  Every figure comes from the tools in `sim/` run on the committed
 boards, and each section names the tool and its report (committed in
-`sim/results/`; commands run from `ridge-3/`).
+`sim/results/`; commands run from `products/ridge/ridge-3/`).
 
 ## The variants
 

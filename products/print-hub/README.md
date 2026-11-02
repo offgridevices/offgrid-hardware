@@ -1,4 +1,4 @@
-# Print Hub — v1
+# Print Hub
 
 **Five switched USB ports for a resin printer's accessories**, controlled
 by the print server. The exhaust fan, the light and the air filters plug
@@ -16,11 +16,20 @@ The board talks Wi-Fi, and has a USB-C port for the server too.
 
 ![top](images/print-hub-top.png)
 
+## Revisions
+
+This folder always holds the latest revision; an ordered revision stays at
+its order tag ([`docs/versioning.md`](../../docs/versioning.md)).
+
+| Revision | What changed | Status | Order tag |
+|---|---|---|---|
+| v1 | first design | designed, every check and simulation passed; not yet built | — |
+
 ## This revision
 
 | | |
 |---|---|
-| Revision | **v1** (product: [`../README.md`](../README.md)) |
+| Revision | **v1**, printed on the board (`REV` in `src/silk.py`; [Revisions](#revisions)) |
 | Status | designed, not yet built |
 | Tests and simulations | [`TESTS.md`](TESTS.md): every one with its v1 result |
 | Trade-offs | [`docs/decisions.md`](docs/decisions.md) |
@@ -231,7 +240,7 @@ cd firmware && pio run                    # the firmware
 ```
 
 The committed `print-hub.kicad_pcb` is the design of record: CI (`ci /
-print-hub-v1`) rebuilds the artwork and every fab file from it and fails
+print-hub`) rebuilds the artwork and every fab file from it and fails
 if they differ from what is committed. `make.py --reroute` reproduces it
 from `src/` (placement, power copper and Freerouting are deterministic).
 
@@ -239,7 +248,7 @@ from `src/` (placement, power copper and Freerouting are deterministic).
 |---|---|---|
 | A part number (same footprint) | `src/parts.py` | `make.py` |
 | Labels, logo | `src/silk.py` | `make.py --artwork` |
-| Connections, placement, power copper | `src/circuit.py`, `src/layout.py`, `src/power.py` | a new revision: copy to `v2/`, `make.py --reroute` |
+| Connections, placement, power copper | `src/circuit.py`, `src/layout.py`, `src/power.py` | `make.py --reroute`; after an order this is a new revision: bump `REV` in `src/silk.py` ([`docs/versioning.md`](../../docs/versioning.md)) |
 | Firmware pins or scaling | `firmware/src/board.h` (must match `src/circuit.py`) | `verify.py` |
 
 ## Files

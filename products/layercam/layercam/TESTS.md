@@ -2,9 +2,9 @@
 
 Every test and simulation for this revision, why it exists, how to run it,
 and its v1 result. Results are for this revision only
-([`docs/versioning.md`](../../docs/versioning.md)). The build gates, design
+([`docs/versioning.md`](../../../docs/versioning.md)). The build gates, design
 checks, simulations and firmware tests run in CI on every push
-(`ci / layercam-v1`). The rest were run on the dates given.
+(`ci / layercam`). The rest were run on the dates given.
 
 ## Build gates (`src/make.py`; CI)
 

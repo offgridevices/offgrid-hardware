@@ -1,4 +1,4 @@
-# Packet Logger Carrier Board — v1
+# Packet Logger Carrier Board
 
 A single 2-layer PCB that replaces the hand-wired 7 × 9 cm protoboard node.
 Drop in the **RAK19003**, the **XIAO ESP32-C6** and the **microSD breakout**,
@@ -14,6 +14,18 @@ Opens in **KiCad 10** — the board file is saved in KiCad 10's own native
 format and KiCad's DRC reports **0 errors, 0 warnings, 0 unconnected**.
 
 ---
+
+## Revisions
+
+This folder always holds the latest revision; an ordered revision stays at
+its order tag ([`docs/versioning.md`](../../docs/versioning.md)).
+
+This board predates the per-product test record (`TESTS.md`); its checks
+are in this README.
+
+| Revision | What changed | Status | Order tag |
+|---|---|---|---|
+| v1 | first design | ordered, not yet bench-verified | to be made: ordered before revisions were tagged |
 
 ## Brand colours — how to order it
 

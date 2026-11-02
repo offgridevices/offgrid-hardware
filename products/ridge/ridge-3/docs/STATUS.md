@@ -14,7 +14,7 @@ apply a decision to the design is in [`CHANGING.md`](CHANGING.md).
 |---|---|
 | Design | **Revision 2.0**, both boards.  KiCad DRC 0 errors / 0 warnings / 0 unconnected; the copper matches `src/circuit.py` pad for pad; `../VERIFICATION.md` checks the design against independent sources |
 | Simulation | Done on the FC as routed on 2026-10-20 (D10-D12, with power vias): [`../STRESS.md`](../STRESS.md) (rev 2: 19 pass, 1 marginal, 3 fail; rev 1: 6, 5, 15) and every report in `../sim/results/`, all generated 2026-10-20.  [`RELIABILITY.md`](RELIABILITY.md) has the variants, a crash and a punch |
-| Fabrication files | Committed in `../fc/production/` and `../esc/production/`, single boards and 3 × 2 panels.  CI (the `ridge-3` job) rebuilds them from the committed board files on every pull request into `main` and every push to `main`, and fails if they differ |
+| Fabrication files | Committed in `../fc/production/` and `../esc/production/`, single boards and 3 × 2 panels.  CI (`ci / ridge-3`) rebuilds them from the committed board files on every pull request that changes this folder and every push to `main`, and fails if they differ |
 | Test record | [`../TESTS.md`](../TESTS.md): every build gate, design check and simulation with revision 2.0's result and date; the hardware rows not run |
 | Prototypes | **Not ordered.**  No board has been built or measured |
 | Firmware | Betaflight image and AM32 target in `../firmware/`: built, never run on this hardware |
@@ -174,22 +174,23 @@ Open until T5, T6 and T7 are done.  Candidates, from
 
 ### D9. Where the next revision lives (owner)
 
-- **Now:** both boards of revision 2.0 in one folder, `ridge-3/`, the
-  revision only in the code (`REVISION`) and on the silkscreen.  The
-  repository's rule ([`docs/versioning.md`](../../docs/versioning.md))
-  is a folder per revision, frozen once ordered;
-  [`docs/repo-structure.md`](../../docs/repo-structure.md) names
-  `ridge-3/` as an exception.
-- **Options:**
-  - a folder per revision as `docs/versioning.md` has it
-    (`ridge-3/v2/`, then the next beside it).  The CI job, the documents'
-    links and the commands name `ridge-3/` paths, so the move is a change
-    of its own;
+- **Was (until 2026-11-02):** both boards of revision 2.0 in one folder,
+  `ridge-3/` at the repository's top level, the revision only in the code
+  (`REVISION`) and on the silkscreen, while the repository's rule was a
+  folder per revision, frozen once ordered, with `ridge-3/` named as an
+  exception.
+- **Options were:**
+  - a folder per revision (`ridge-3/v2/`, then the next beside it);
   - one folder, with a git tag per ordered revision: the ordered files stay
     at their tag, and the folder moves on to the next revision.
-- **Until it is decided:** before an order is placed, tag the commit its
-  files come from (`CHANGING.md`, step 6).  Either option keeps that tag.
-- **Decided:** _not yet_
+- **Decided (owner, 2026-11-02):** one folder, a tag per order, for every
+  product in the repository ([`docs/versioning.md`](../../../../docs/versioning.md)).
+  Ridge 3 lives in `products/ridge/ridge-3/`, beside Ridge 3 Lite in the
+  Ridge family folder.  The revision stays in `REVISION` and on the
+  silkscreen; before an order is placed, tag the commit its files come
+  from (`ridge-3-rev2.0`, `CHANGING.md` step 6) and make a GitHub Release
+  of it with the uploaded files.  A copper change after that order bumps
+  `REVISION` to 3.0 in this folder.
 
 ### D10. The FC's 3.3 V buck output capacitance (fixed)
 
@@ -312,8 +313,10 @@ Open until T5, T6 and T7 are done.  Candidates, from
 - [ ] Quote the heatsink (STEP and PDF in `../mechanical/`) at two CNC shops.
 - [ ] Gap pads, stack leads, grommets and hardware (README, *Also needed*).
 - [ ] The test equipment in `TEST_PLAN.md`.
-- [ ] Decide D9, and tag the commit the order's files come from
-      (`CHANGING.md`, step 6); record the tag in the log below.
+- [x] Decide D9 (2026-11-02: one folder, a tag per order).
+- [ ] Tag the commit the order's files come from and make its release
+      (`CHANGING.md`, step 6); record the tag in the log below and in the
+      README's Revisions table.
 
 ## Prototype tests
 
@@ -434,3 +437,8 @@ From [`TEST_PLAN.md`](TEST_PLAN.md).  Results go in `tests/`.
   `sim/out/`, named by a hash of all it reads, so a run stopped by a
   container restart takes up again.  Decisions D1-D9 open.  Nothing
   ordered.
+- **2026-11-02** D9 decided by the owner: revisions are made in place and
+  each order is tagged, for every product.  The repository moved every
+  product under `products/`; Ridge 3 is now `products/ridge/ridge-3/`
+  (commands run from there), and its CI job is `ci / ridge-3`.  Nothing in
+  the boards changed.  Decisions D1-D8 open.  Nothing ordered.

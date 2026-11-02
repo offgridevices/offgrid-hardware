@@ -2,7 +2,7 @@
 
 ## To make a product video
 
-Copy `ridge-3/video/` into the board's revision folder, write a few lines of
+Copy `products/ridge/ridge-3/video/` into the product's folder, write a few lines of
 JSON with the board's title and what is on each side, and run
 `make_video.py` in stages: `--check` builds the scene without frames,
 `--stills` renders a few labelled frames to read, a 720p draft goes to the
@@ -17,7 +17,7 @@ what you made and what is left: the music edit, the final render and
 publishing wait until the owner has seen the draft. The draft needs no
 music: add a track only if you can download it under OffGrid's Epidemic
 Sound subscription (Ridge 3's is in
-[`ridge-3/video/music/README.md`](../ridge-3/video/music/README.md));
+[`video/music/README.md`](../products/ridge/ridge-3/video/music/README.md));
 otherwise leave `"music"` out, and the draft is silent. Read the brand's
 version only from the brand repository; if you cannot read it, record no
 version and say so in your report. Never guess it.
@@ -26,7 +26,7 @@ version and say so in your report. Never guess it.
 
 A product video is an exploded view of a board, rendered from its own
 routed KiCad file in the style the owner approved for Ridge 3. The code is
-[`ridge-3/video/`](../ridge-3/video/), the reference copy. This page says
+[`products/ridge/ridge-3/video/`](../products/ridge/ridge-3/video/), the reference copy. This page says
 what to copy, what to fill in, how to check it and what to commit.
 
 This is a plain document. No instruction file in this repository is loaded
@@ -34,9 +34,9 @@ into a contributor's AI assistant automatically (the root
 [`.gitignore`](../.gitignore) says why editor settings are kept out). To
 have an agent make a video, ask it to follow this page.
 
-Each board gets its own copy of the code, in its revision folder. A
-revision folder is frozen once its board is ordered, and a copy keeps a
-later change of style from altering an old board's video. Change the style
+Each product gets its own copy of the code, in its own folder. A copy
+keeps a later change of style from altering another product's video (an
+ordered revision's video stays as it was at its order tag). Change the style
 only in the reference copy, with the owner's approval, and record the change
 here.
 
@@ -285,8 +285,8 @@ sudo apt install python3.11 python3.11-venv
 
 On 2026-10-14 the PPA offered 3.11.16-1+noble1, no longer 3.11.15.
 KiCad 10.0.6 and the `python3.12` with `pcbnew` are installed as
-[Setup in ridge-3/README.md](../ridge-3/README.md#setup) describes. The
-Docker image of `ridge-3/tools/Dockerfile` has neither Python 3.11 nor
+[Setup in Ridge 3's README](../products/ridge/ridge-3/README.md#setup) describes. The
+Docker image of Ridge 3's `tools/Dockerfile` has neither Python 3.11 nor
 bpy, so the videos are made outside it.
 
 `video/requirements.txt` pins every package in the venv. The venv takes
@@ -296,33 +296,33 @@ GPU machine if there is one.
 
 ## Recipe for a new board
 
-`<board>/<rev>` is the board's revision folder (for example
-`ridge3-lite/v1`), and `<name>` is its `.kicad_pcb` file's name without
-`.kicad_pcb`. Run every command from `<board>/<rev>`, except in step 1.
+`<product>` is the product's folder (for example
+`products/ridge/ridge-3-lite`), and `<name>` is its `.kicad_pcb` file's name
+without `.kicad_pcb`. Run every command from `<product>`, except in step 1.
 
 1. **Copy the reference code**, from the repository's root. This takes only
    the committed files: no venv, work files or music.
 
    ```
-   git archive HEAD ridge-3/video | tar -x --strip-components=1 -C <board>/<rev>
+   git archive HEAD products/ridge/ridge-3/video | tar -x --strip-components=3 -C <product>
    ```
 
-   If `<board>/<rev>/fonts/InstrumentSans-VariableFont.ttf` does not exist,
+   If `<product>/fonts/InstrumentSans-VariableFont.ttf` does not exist,
    copy the fonts too, then make `fonts/README.md`'s "What uses them" this
    board's:
 
    ```
-   git archive HEAD ridge-3/fonts | tar -x --strip-components=1 -C <board>/<rev>
+   git archive HEAD products/ridge/ridge-3/fonts | tar -x --strip-components=3 -C <product>
    ```
 
-2. **Make the copy this board's.** In `<board>/<rev>/video/`:
+2. **Make the copy this board's.** In `<product>/video/`:
    - Delete `fc.json` and `esc.json`.
    - In `make_video.py`, set `BOARDS = {}`. Only a board whose
      `src/circuit.py` has Ridge 3's build API (`build`, `fitted`, `BUILDS`,
      `DEFAULT_BUILD`) may map a short name to its board file here, which
      is what makes `--build` work.
    - In `make_video.py`, change the texts that name Ridge 3: in the
-     docstring, the examples, "Run it from ridge-3/", step 0 ("For fc and
+     docstring, the examples, "Run it from products/ridge/ridge-3/", step 0 ("For fc and
      esc") and "(fc.json, esc.json)"; the help of `board` and `--build`;
      and the message `--build is for fc and esc`.
    - Check three assumptions the code makes, and change the code where
@@ -431,7 +431,7 @@ GPU machine if there is one.
      its connector if you have one (ask for an edit with the target
      duration `L` ms, the duration forced and WAV; poll the job until it
      completes; download that edit). Ridge 3's music is Epidemic Sound's
-     own edit to 32.75 s, recorded in `ridge-3/video/music/README.md`.
+     own edit to 32.75 s, recorded in Ridge 3's `video/music/README.md`.
    - Save it as `video/music/<track>-<L>ms.wav` and check its length:
 
      ```
@@ -476,7 +476,7 @@ GPU machine if there is one.
    - Add a short video section to the board's README: the commands, the
      length, the music (or a link to `video/music/README.md`) and the
      brand version, like Ridge 3's
-     ([Exploded-view videos](../ridge-3/README.md#exploded-view-videos)).
+     ([Exploded-view videos](../products/ridge/ridge-3/README.md#exploded-view-videos)).
 
 ### Done means
 
@@ -495,10 +495,10 @@ says which of these items are left.
 ## Ridge 3, the worked example
 
 The flight controller and the ESC each have their settings:
-[`fc.json`](../ridge-3/video/fc.json) and
-[`esc.json`](../ridge-3/video/esc.json). The flight controller also has an
+[`fc.json`](../products/ridge/ridge-3/video/fc.json) and
+[`esc.json`](../products/ridge/ridge-3/video/esc.json). The flight controller also has an
 analog build, with its own title and highlights. Ridge 3 maps `fc` and
-`esc` to its boards in `BOARDS`. Run from `ridge-3/`:
+`esc` to its boards in `BOARDS`. Run from `products/ridge/ridge-3/`:
 
 ```
 python3.12 video/make_video.py fc --check                     # the scene only, no frames
@@ -520,7 +520,7 @@ The ESC's draft stills are frames 323, 419, 515, 642 and 967.
 Both final videos are 1,965 frames, 32.75 s. The drafts are 982 frames
 (the flight controller) and 983 (the ESC) at 30 fps. The music is
 "Observatory" by Out To The World (Epidemic Sound), in a 32.75 s edit;
-[`music/README.md`](../ridge-3/video/music/README.md) has the credit and
+[`music/README.md`](../products/ridge/ridge-3/video/music/README.md) has the credit and
 the recording's id. The type was checked against brand v3.2.
 
 Measured on a 4-core CPU without a GPU (15 GB of memory):

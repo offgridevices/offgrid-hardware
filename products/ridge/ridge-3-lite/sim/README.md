@@ -13,7 +13,7 @@ cd sim/halfbridge && python3 run.py # or one study
 
 Needs ngspice (44 tested) and Python 3 with numpy and matplotlib.  scipy is
 optional: without it, the FET fit reuses its recorded result.  From
-`ridge3-lite/v1` the toolchain container works too: `tools/kd sh sim/run_all.sh`.
+`products/ridge/ridge-3-lite` the toolchain container works too: `tools/kd sh sim/run_all.sh`.
 Netlists as run, ngspice logs and raw data go to `<repo>/out/sim/` (gitignored).
 Each study writes `results.txt` (every number quoted here) and its plots
 next to its `run.py`.

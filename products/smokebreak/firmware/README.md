@@ -8,7 +8,7 @@ dispatch, fixed-size history. `sim_world.py` is test equipment only (floats,
 never ported).
 
 ```
-cd smokebreak/v1/firmware
+cd products/smokebreak/firmware
 python -m pytest -q          # 328 tests, ~18 s
 ```
 

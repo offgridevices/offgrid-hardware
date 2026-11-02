@@ -4,7 +4,7 @@ How SmokeBreak came to be, before any one revision: what it should do, what
 pilots complain about, the forms considered, and the studies behind the
 face and the case. Every revision builds on these; they are records, not
 part of any board's build. The decision each study led to is in
-[`v1/docs/decisions.md`](../v1/docs/decisions.md).
+[`../docs/decisions.md`](../docs/decisions.md).
 
 | File or folder | What |
 |---|---|
@@ -31,13 +31,13 @@ them.
 ## Running the scripts
 
 - **Blender** scripts run in Blender's Python (`bpy`); its version is pinned
-  in [`v1/enclosure/requirements-render.txt`](../v1/enclosure/requirements-render.txt).
+  in [`../enclosure/requirements-render.txt`](../enclosure/requirements-render.txt).
   Those that show the screen (`arm.py`, `grip.py`) need the frames that
-  `python3 v1/ui/screens.py` renders first.
+  `python3 ui/screens.py` (from `products/smokebreak`) renders first.
 - The **others** run in any Python with Pillow and matplotlib.
-- Fonts come from [`v1/fonts/`](../v1/fonts/), the logo from
-  [`v1/src/brand.py`](../v1/src/brand.py) and the screens from
-  [`v1/ui/`](../v1/ui/).
+- Fonts come from [`../fonts/`](../fonts/), the logo from
+  [`../src/brand.py`](../src/brand.py) and the screens from
+  [`../ui/`](../ui/).
 
 Images are committed as 256-colour PNG, at most 1200 px wide. Videos are not
 committed; the scripts render them again.

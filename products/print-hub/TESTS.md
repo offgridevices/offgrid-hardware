@@ -3,7 +3,7 @@
 Every test and simulation for this revision, why it exists, how to run it,
 and its v1 result. Results are for this revision only
 ([`docs/versioning.md`](../../docs/versioning.md)). The build gates run in
-CI on every push (`ci / print-hub-v1`); the rest were run by hand on the
+CI on every push (`ci / print-hub`); the rest were run by hand on the
 dates given, on the commit that adds this file's results.
 
 ## Build gates (`src/make.py`; CI)

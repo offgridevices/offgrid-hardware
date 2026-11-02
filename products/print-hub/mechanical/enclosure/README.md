@@ -35,7 +35,7 @@ connectors.
 Rebuild (about 2 minutes, most of it the fit check):
 
 ```sh
-cd print-hub/v1 && tools/kd python3 mechanical/enclosure/enclosure.py
+cd products/print-hub && tools/kd python3 mechanical/enclosure/enclosure.py
 ```
 
 `--check-only` runs only the fit check. `--no-check` only builds and exports.
@@ -221,7 +221,7 @@ open into the air under it.
 **Brand.** The outline is all right angles, with no fillets and no chamfers
 (none are needed to print; use the slicer's elephant-foot compensation instead).
 Text is engraved 0.6 mm deep in JetBrains Mono 500 with 0.06 em tracking, from
-`print-hub/v1/fonts`:
+`products/print-hub/fonts`:
 * port numbers 1-5 above the ports (7 mm);
 * POWER and DATA by the USB-Cs (4 mm, down from 4.6 to clear the back-left
   screw; POWER sits 1 mm right of its port for the same reason);
@@ -452,5 +452,5 @@ their cut-outs); the USB-A mouth flanges 0.15 mm above the notch bottoms
 above the board.
 
 ```
-cd print-hub/v1 && tools/kd python3 mechanical/enclosure/fit_board.py
+cd products/print-hub && tools/kd python3 mechanical/enclosure/fit_board.py
 ```
