@@ -21,6 +21,10 @@ import pcbnew
 import pcb, circuit, parts
 
 GAP = 0.15                       # courtyard to courtyard
+# the packer's gap where it packs the small parts round their pins: a
+# function of the spot (x, y), so a crowded zone can leave routing room
+# between parts (layout.py sets it); GAP everywhere by default
+PACK_GAP = lambda x, y: GAP
 
 
 class Board:
@@ -87,12 +91,15 @@ class Board:
     def rect(self, ref, x, y, rot, side='T'):
         return self.geom(ref, x, y, rot, side)[0]
 
-    def fits(self, ref, x, y, rot, side):
+    def fits(self, ref, x, y, rot, side, gap=GAP):
         r = self.rect(ref, x, y, rot, side)
         m = 0.25                                      # edge margin
         if r[0] < -pcb.HX + m or r[2] > pcb.HX - m or r[1] < -pcb.HY + m or r[3] > pcb.HY - m:
             return False
-        for o in self.taken[side] + self.keepouts[side]:
+        for o in self.taken[side]:
+            if overlap(r, o, gap):
+                return False
+        for o in self.keepouts[side]:
             if overlap(r, o, GAP):
                 return False
         return True
@@ -367,7 +374,7 @@ def pack(B, refs, prefer=None, step=0.25, rmax=14.0, log=print):
                     a = 2 * math.pi * i / n
                     x, y = tx + r * math.cos(a), ty + r * math.sin(a)
                     for rot in (0, 90):
-                        if B.fits(ref, x, y, rot, side):
+                        if B.fits(ref, x, y, rot, side, PACK_GAP(x, y)):
                             # prefer the spot that puts the part's own pad of that net nearest the target
                             _, pp = B.geom(ref, x, y, rot, side)
                             d = min(math.hypot(px - tx, py - ty) for px, py in pp.values())

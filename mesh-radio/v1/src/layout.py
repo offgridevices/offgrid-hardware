@@ -29,11 +29,14 @@ y across it, down the screen (KiCad's).
 The RF chains are laid out by place.chain(); every other small part is
 packed beside the pin it serves by place.pack().
 """
+import os
 import pcbnew
 import pcb, circuit, parts, place
 
 HX, HY = pcb.HX, pcb.HY
 HDR_X0, HDR_Y = -7.0, 0.0         # the expansion header (dropped 2 Nov 2026; kept for an old circuit)
+PACK_GAP_LEFT = float(os.environ.get('PACK_GAP_LEFT', 0.45))   # mm between small parts' courtyards left of PACK_LEFT_X
+PACK_LEFT_X = float(os.environ.get('PACK_LEFT_X', -8.0))
 NRF_RING = 0.6                     # mm kept free round the nRF52840's courtyard (its dog-bone vias reach 0.55 mm past it)
 NRF_X, SX_X = -12.6, -5.4          # the nRF52840 and the SX1262 (the TX line grows right from the SX1262)
 JST_SH6_ROT = 0     # the GPS plug's turn for its opening at the upper edge (checked by check_plugs)
@@ -394,7 +397,17 @@ def place_all(log=print):
     for k, r_ in enumerate(gnd_tp):
         put_fit(B, r_, -HX + 1.4, 1.4 + 1.6 * k, 0, (0, 0.2), side='B')
     todo = [r_ for r_ in todo if r_ not in gnd_tp]
-    left = place.pack(B, sorted(todo, key=key), prefer=prefer)
+    # the left end (USB-C, nRF52840, the power chain under them) is where
+    # every route ended with a dozen or more connections that found no way
+    # through (62 mm and 70 mm, 1-2 Nov 2026): its small parts pack with room
+    # for a track and a via between them; the rest of the board as before
+    # (the nRF52840's two crystals and their load capacitors first, at the
+    # usual gap: with the wide one they were pushed 10 mm from their pins)
+    xtal = {c.ref for c in comps if c.ref in todo and set(c.pins.values()) & {'XC1', 'XC2', 'XL1', 'XL2'}}
+    left = place.pack(B, sorted(xtal, key=lambda r_: (r_[0] != 'Y', r_)), prefer=prefer)
+    todo = [r_ for r_ in todo if r_ not in xtal]
+    place.PACK_GAP = lambda x, y: PACK_GAP_LEFT if x < PACK_LEFT_X else place.GAP
+    left += place.pack(B, sorted(todo, key=key), prefer=prefer)
     left = place.pack(B, left)                 # parts whose anchor was placed after them
     if left:
         log('no room for: %s' % left)
