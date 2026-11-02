@@ -347,6 +347,30 @@ def anchor_pad(B, c):
     return best[1]
 
 
+def series_mid(B, c):
+    """A part in series in a signal line (two pins, two signal nets, neither
+    ground nor a supply): halfway between the nearest placed pads of its two
+    nets, on the side of the nearer chip.  Beside one end it was pushed off
+    (the nRF52840's ring) to the board's far edge, and the line made a U
+    through the crowd (2 Nov 2026: the GPS and USB series resistors, the blue
+    LED's resistor)."""
+    nets = [n for n in c.pins.values() if n]
+    if len(c.pins) != 2 or len(set(nets)) != 2 or any(n == 'GND' or n in POWER_HINT for n in nets):
+        return None
+    ends = []
+    for n in nets:
+        ps = [(B.pad_xy(r, p), B.pl[r][3]) for r, p in B.netpads.get(n, []) if r in B.pl and r != c.ref]
+        if not ps:
+            return None
+        ends.append(ps)
+    best = min(((math.hypot(a[0][0] - b[0][0], a[0][1] - b[0][1]), a, b) for a in ends[0] for b in ends[1]),
+               key=lambda t: t[0])
+    _, a, b = best
+    if best[0] < 3.0:
+        return None          # the two ends are close: beside the pin as before
+    return ((a[0][0] + b[0][0]) / 2, (a[0][1] + b[0][1]) / 2), a[1]
+
+
 def side_pen(c):
     """mm a part's spot on the far side of its anchor costs: decoupling
     stays on its chip's side unless that is 3 mm worse, the rest 1.5 mm."""
@@ -371,6 +395,9 @@ def pack(B, refs, prefer=None, step=0.25, rmax=14.0, log=print):
         tx, ty, tside = None, None, None
         pts = [(B.pad_xy(r, p), B.pl[r][3]) for r, p in cands]
         (tx, ty), tside = pts[0]
+        mid = series_mid(B, c)
+        if mid:
+            (tx, ty), tside = mid
         sides = [prefer.get(ref, tside)] if prefer and ref in prefer else [tside]
         sides += [s for s in ('T', 'B') if s not in sides]
         # both sides searched together, ring by ring: the other side costs
