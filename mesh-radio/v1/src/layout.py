@@ -79,12 +79,16 @@ def anchors(comps):
         # JST side-entry plugs: the opening is on the fitting-nail side (JST
         # PH / SH / GH drawings, "end face of wafer on the mating side"), so
         # the nails face the edge, their copper 0.35 mm inside it
-        # every plug on the upper long edge (owner, 2 Nov 2026), left to right
-        (R('JST_SH2'), -HX + 12.6, -HY + 3.19, 0, 'B'),         # solar, under the power switch
-        (R('JST_PH2'), -12.4, -HY + 4.98, 0, 'B'),          # battery
-        (R('JST_GH6'), -2.0, -HY + 3.65, 0, 'B'),           # drone port
-        (R('JST_SH6'), 8.7, -HY + 3.29, JST_SH6_ROT, 'B'),  # GPS
-        (R('JST_SH10'), 20.5, -HY + 3.125, JST_SH10_ROT, 'B'),   # display / I2C: its nails' copper 0.35 mm inside the edge
+        # every plug on the upper long edge (owner, 2 Nov 2026), left to right:
+        # solar, display, battery, drone, GPS.  The display plug sits over the
+        # nRF52840 (until 2 Nov it was at the right end: its ten wires crossed
+        # the whole board, 54 connections crossed x = -5 mm, and every route
+        # ended 11-12 nets short)
+        (R('JST_SH2'), -24.2, -HY + 3.19, 0, 'B'),             # solar, under the power switch
+        (R('JST_SH10'), -14.95, -HY + 3.125, JST_SH10_ROT, 'B'),  # display / I2C: its nails' copper 0.35 mm inside the edge
+        (R('JST_PH2'), -4.0, -HY + 4.98, 0, 'B'),           # battery: its body clear of the TCXO under the SX1262
+        (R('JST_GH6'), 7.7, -HY + 3.65, 0, 'B'),            # drone port
+        (R('JST_SH6'), 18.2, -HY + 3.29, JST_SH6_ROT, 'B'),  # GPS
         # ---- bottom: inputs.  USB: behind the USB-C, under the board's left
         # end; solar beside its plug; drone beside the drone plug
         (R('TVS2200', 'USB surge clamp'), -HX + 10.6, 0.6, 0, 'B'),
@@ -97,14 +101,15 @@ def anchors(comps):
         # (the drone port's clamp and ESD, the GPS port's switch and ESD and the
         # battery protection's MOSFETs and shunt are packed by their pins)
         # ---- bottom: charger and battery protection, by the battery plug
-        (R('CSD25310Q2'), -3.8, -4.6, 0, 'B'),
-        (R('BQ29700'), -6.6, -4.6, 0, 'B'),
+        # (left of the battery plug, under the display plug's row)
+        (R('CSD25310Q2'), -9.55, -4.6, 0, 'B'),
+        (R('BQ29700'), -12.05, -4.6, 0, 'B'),
         # the charger away from the battery plug (sim/thermal: its heat reached
         # the NTC and the cell); the NTC right by the plug, reading the cell
         (R('BQ25185'), -HX + 4.7, 0.5, 0, 'B'),             # behind the USB-C, between its shell legs (1 Nov: out of the jam under the nRF52840)
-        (R('NTC10K'), -7.65, -2.6, 90, 'B'),
+        (R('NTC10K'), -7.4, -2.0, 0, 'B'),               # under the battery plug's corner, clear of the nRF52840's keepout
         (R('TPS22950'), -6.4, -0.6, 0, 'B'),                # clear of the SX1262's pins above (its balls take vias)
-        (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -1.8, 0, 'B'),
+        (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -1.5, 0, 'B'),   # clear of the battery plug's body above
         # ---- bottom: 3.3 V
         (R('TPS62840'), -5.6, 3.0, 0, 'B'),
         (R('L2u2'), -5.6, 5.0, 0, 'B'),
