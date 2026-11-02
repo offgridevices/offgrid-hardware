@@ -911,7 +911,11 @@ def fatten(path, log=log, neck=0.45):
     for t in list(b.GetTracks()):
         if t.GetClass() == 'PCB_VIA' or t.GetNetname() not in want or t.IsLocked():
             continue
-        s_, e_ = t.GetStart(), t.GetEnd()
+        # copies: GetStart()/GetEnd() hand back the track's own points, so
+        # e_ would follow t.SetEnd(p1) and the last piece would end at p1
+        # (2 Nov: every split power track lost its far end, 110 opens)
+        s_ = pcbnew.VECTOR2I(t.GetStart().x, t.GetStart().y)
+        e_ = pcbnew.VECTOR2I(t.GetEnd().x, t.GetEnd().y)
         L = (e_ - s_).EuclideanNorm() / 1e6
         if L <= 2 * neck + 0.2:
             continue
@@ -1057,7 +1061,14 @@ def run(work, passes=40, from_routed=False):
 if __name__ == '__main__':
     work = sys.argv[1]
     passes = int(sys.argv[sys.argv.index('--passes') + 1]) if '--passes' in sys.argv else 40
-    if '--from-clean' in sys.argv:
+    if '--from-tail' in sys.argv:
+        # the tail again from its saved input (tail_in.kicad_pcb)
+        fin = os.path.join(work, 'fin.kicad_pcb'); ti = os.path.join(work, 'tail_in.kicad_pcb')
+        shutil.copy(ti, fin); pcb.copy_project(ti, fin)
+        comps = circuit.build()
+        setup_routers()
+        finish_tail(fin, work, widths(comps), clearances(comps))
+    elif '--from-clean' in sys.argv:
         # a finished board from the hole pass on (a run that died in the clean-up)
         finish_clean(os.path.join(work, 'fin.kicad_pcb'), work)
     elif '--from-fin' in sys.argv:
