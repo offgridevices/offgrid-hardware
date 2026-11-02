@@ -504,6 +504,29 @@ def shrink_via(b, v, obs, layers, gap=0.2):
     return False
 
 
+def in_pad(b, v):
+    """True if via `v` sits in a pad of its own net."""
+    q = v.GetPosition()
+    return any(p.GetNetname() == v.GetNetname() and p.HitTest(q) for fp in b.GetFootprints() for p in fp.Pads())
+
+
+def rip_near(b, v, gap=0.2):
+    """Take out the other nets' tracks and vias whose copper comes within
+    `gap` of via `v`'s hole (planes and RF lines excepted).  Returns how many."""
+    from shapely.geometry import Point
+    q = v.GetPosition()
+    hole = Point(q.x / 1e6, q.y / 1e6).buffer(v.GetDrillValue() / 2e6, 16)
+    keep = set(PLANES) | set(board.RF_NETS) | set(board.RF_EXTRA) | {v.GetNetname()}
+    n = 0
+    for t in list(b.GetTracks()):
+        if t.GetNetname() in keep or t.IsLocked():
+            continue
+        g = finish._geom_of(t)
+        if g and any(x.distance(hole) < gap - 0.001 for gs in g.values() for x in gs):
+            pcb.remove(b, t); n += 1
+    return n
+
+
 def fab_fixups(path, log=log):
     """Before the maze router: take out what the fab's limits forbid, for
     the maze to route again (all from the 1 Nov 62 mm run's DRC):
@@ -530,7 +553,8 @@ def fab_fixups(path, log=log):
         t.SetWidth(pcbnew.FromMM(board.FAB_MIN))
     # vias whose holes are too close to other copper
     layers = [l for l in b.GetEnabledLayers().CuStack()]
-    nv = nn = ns = 0
+    nv = nn = ns = nt = 0
+    gap = 0.2
     for _ in range(6):
         obs = fanout.Obstacles(b, layers)
         bad = []
@@ -555,6 +579,12 @@ def fab_fixups(path, log=log):
                 # the board's in-pad via size (0.3/0.15 mm, already on it):
                 # its hole edge 0.025 mm further in, nudged again if need be
                 ns += 1
+            elif v.IsLocked() or in_pad(b, v):
+                # a via in a chip's pad (the ball escapes) stays: the other
+                # nets' track pieces too close to its hole go instead (with
+                # 0.3/0.15 vias at 0.1 mm, a track can sit 0.175 mm from the
+                # hole); the maze routes them again around it
+                nt += rip_near(b, v, gap)
             else:
                 pcb.remove(b, v); nv += 1
     # copper in the unplated-hole keepouts
@@ -572,8 +602,9 @@ def fab_fixups(path, log=log):
         if g and any(r.intersects(x) for r in rings for gs in g.values() for x in gs):
             pcb.remove(b, t); ne += 1
     pcb.save_board(b, path)
-    log('fab fixups: %d thin tracks widened, %d vias nudged clear, %d made the 0.3/0.15 mm size, %d vias with '
-        'close holes and %d pieces in unplated-hole keepouts taken out' % (len(thin), nn, ns, nv, ne))
+    log('fab fixups: %d thin tracks widened, %d vias nudged clear, %d made the 0.3/0.15 mm size, %d track pieces '
+        'too near in-pad via holes, %d vias with close holes and %d pieces in unplated-hole keepouts taken out'
+        % (len(thin), nn, ns, nt, nv, ne))
 
 
 def finish_rest(fin, work, w=None, cl=None):
