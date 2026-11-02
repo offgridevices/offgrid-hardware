@@ -61,10 +61,12 @@ the reference). The 250 ppm check below was not repeated (nothing it
 depends on changed).
 
 **Result on 2 Nov 2026** (amplifier supply off between packets, drone port
-opened on plug-in, patch part 4): SUCCESS with the four-part patch (flash
-90.3 %, 735,728 bytes; RAM 41.1 %) and on unpatched v2.7.26 (flash 89.9 %).
-Still 51 warnings, none from the variant or the patch. Compiles only: not
-run on a board.
+opened on plug-in, patch part 4; after an independent code review, the
+supply is powered up before the channel check, a hook added to part 3):
+SUCCESS with the four-part patch (flash 90.3 %, 735,840 bytes; RAM 41.1 %;
+the variant's hooks are the ones linked) and on unpatched v2.7.26 (flash
+89.9 %). Still 51 warnings, none from the variant or the patch. Compiles
+only: not run on a board.
 
 **Checking the 250 ppm crystal setting.** Take the compile line for
 `Bluefruit52Lib/bluefruit.cpp` from `pio run -v`, swap `-o …bluefruit.cpp.o`
@@ -249,11 +251,16 @@ the U.FL is about 16.8 dB.
    finish.
 5. **Between packets the supply is off** (2 Nov, needs patch part 3): 3 s
    after the last packet (`OFFGRID_PA_IDLE_OFF_MS`) the loop turns
-   PA_PWR_EN off, and `variantLimitTxPower()` turns it back on before the
-   next one: 5 ms for the mux and the TPS63810 to start, the TPS63810
-   programmed (up to three tries), then its ramp from the 3.3 V reset value
-   (about 2.3 ms). The first packet after a quiet spell therefore starts
-   about 8-10 ms later. Without patch part 3 the supply stays on.
+   PA_PWR_EN off. `variantTxPending()` turns it back on when the next packet
+   is due, *before* the channel check (CAD), so the gap between the check
+   and the transmission stays as short as in stock Meshtastic: 5 ms for the
+   mux and the TPS63810 to start, the TPS63810 programmed (up to three
+   tries), then its ramp (up to about 2.3 ms). The first packet after a quiet
+   spell goes out about 9 ms later. While it is off, the TPS63810 keeps its
+   registers as long as PA_IN stays above 2.1 V (SLVSEK4C 8.5.1), so it may
+   come back at the last level rather than 3.3 V; the variant re-programs it
+   either way, and if that fails, holds any packet that could exceed 1 W to
+   the 1 W drive setting. Without patch part 3 the supply stays on.
 6. `variant_shutdown()` turns everything off before system-off.
 
 **Why a failure stays safe.** An unprogrammed TPS63810 sits at 3.3 V: that
@@ -366,11 +373,12 @@ External power = USB VBUS (POWER peripheral), or SOLAR_OK / DRONE_OK
 ## Transmit hooks (patch part 3)
 
 Meshtastic v2.7.26 drives PA_EN and LNA_EN through RadioLib's RF-switch pins
-and gives a variant no call per packet. Part 3 of the patch adds three weak
+and gives a variant no call per packet. Part 3 of the patch adds four weak
 hooks (no-ops for every other board):
 
 | Hook | Called from | Used for |
 |---|---|---|
+| `variantTxPending()` | `RadioLibInterface::onNotify()`, a packet is due, just before the channel check (CAD) | Powers the amplifier supply up and sets it (2 Nov), so that work does not lengthen the CAD-to-transmit gap |
 | `variantLimitTxPower(power)` | `SX126xInterface::configHardwareForSend()`, radio in standby, before each packet | Returns the SX1262 setting for this packet (can only lower it). Written to the chip only when it changes. The variant also brings the supply to the caps' level (or the soft-start level) here, waits out the ramp, and hands PA_EN back to RadioLib when the amplifier may run. |
 | `variantTxStarted()` | `RadioLibInterface::startSend()`, right after `startTransmit()` | The antenna check; for a soft-started packet, the raise to full power |
 | `variantTxDone()` | `RadioLibInterface::completeSending()` | Supply back to the soft-start level; the cell voltage under load |

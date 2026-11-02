@@ -32,10 +32,11 @@
  *   variant_shutdown()          main-nrf52.cpp, before system-off
  *   variantDefaultModuleConfig  NodeDB.cpp (only effective with patch 0001 part 2)
  *   variantSerialPortReady()    SerialModule::runOnce (patch 0001 part 4)
+ *   variantTxPending()          RadioLibInterface::onNotify, before CAD  }
  *   variantLimitTxPower()       SX126xInterface::configHardwareForSend   } patch 0001
  *   variantTxStarted()          RadioLibInterface::startSend             } part 3
  *   variantTxDone()             RadioLibInterface::completeSending       }
- * Without patch part 3 the last three are never called: the caps then act
+ * Without patch part 3 the last four are never called: the caps then act
  * on the amplifier supply only (every OFFGRID_PA_CHECK_MS), the amplifier-off
  * states still work (PA_EN released to its pull-down), and there is no
  * missing-antenna detection, no soft start and no battery reading under
@@ -43,8 +44,12 @@
  * packets (paIdleMv() only lowers it after a soft-started packet).
  *
  * Every fallback state is a safe one: if the TPS63810 is not programmed it
- * sits at its 3.3 V reset value, which is below the licensed set point, and
- * the US gain table never exceeds a request at any supply up to 4.0 V.
+ * sits at its 3.3 V reset value, or (after the supply was off between
+ * packets) at the last level written: its registers survive while PA_IN's
+ * 54 uF stays above 2.1 V (SLVSEK4C 8.5.1).  Either is at or below the
+ * licensed ceiling, the US gain table never exceeds a request at any supply
+ * up to 4.0 V, and a packet sent with the supply unknown is held to the 1 W
+ * drive setting whenever it could exceed 1 W (variantLimitTxPower()).
  *
  * Everything here runs in the Arduino loop task (Meshtastic's OSThreads,
  * the radio thread included), so the SAADC, I2C and pin work below never
@@ -70,6 +75,7 @@ const uint32_t g_ADigitalPinMap[] = {
     32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47};
 
 // Board hooks called from Meshtastic core (patch 0001 part 3; weak no-ops there)
+void variantTxPending();
 int8_t variantLimitTxPower(int8_t power);
 void variantTxStarted();
 void variantTxDone();
@@ -667,9 +673,10 @@ bool supplyTo(uint16_t mv)
     return false;
 }
 
-// Supply on: mux soft start and TPS63810 out of UVLO.  The TPS63810 starts
-// at its 3.3 V reset value (safe: see the top of this file); the caller sets
-// the level with supplyTo().
+// Supply on: mux soft start and TPS63810 out of UVLO.  The TPS63810 comes
+// back at its 3.3 V reset value or at the last level written (see the top of
+// this file); either way it is treated as unknown (paSetMv = 0) and the
+// caller sets the level with supplyTo().
 void paPowerOn()
 {
     if (paPowered)
@@ -689,6 +696,21 @@ void paPowerOff()
     paPowered = false;
     paSetMv = 0;
     paRampUs = 0;
+}
+
+// Supply on and at mv, ramp finished.  A freshly started TPS63810 may miss
+// the first I2C write, so up to three tries.  False: level unknown.
+bool supplyReady(uint16_t mv)
+{
+    const bool fresh = !paPowered;
+    paPowerOn();
+    bool ok = supplyTo(mv);
+    for (int i = 0; fresh && !ok && i < 2; i++) {
+        delayMicroseconds(1000);
+        ok = supplyTo(mv);
+    }
+    waitForRamp();
+    return ok;
 }
 
 void antennaFault()
@@ -964,20 +986,15 @@ int8_t variantLimitTxPower(int8_t power)
     txDrive = d;
     txTargetMv = paWantedMv();
     txSoft = softStartWanted(d, txTargetMv);
-    // Supply back on if it was off between packets; a fresh TPS63810 may
-    // miss the first I2C write while it starts, so try up to three times.
-    const bool fresh = !paPowered;
-    paPowerOn();
-    const uint16_t firstMv = txSoft ? softStartMv(d, txTargetMv) : txTargetMv;
-    bool supplyOk = supplyTo(firstMv);
-    for (int i = 0; fresh && !supplyOk && i < 2; i++) {
-        delayMicroseconds(1000);
-        supplyOk = supplyTo(firstMv);
-    }
-    if (!supplyOk && txSoft) {
-        // The soft-start level could not be set, so the supply is unknown
-        // (up to the licensed ceiling).  Hold the drive to the 1 W setting
-        // instead: the gain table keeps that at or under 30 dBm at any supply.
+    // Normally variantTxPending() has already powered and set the supply
+    // (before the channel check); this catches the rest.
+    const bool supplyOk = supplyReady(txSoft ? softStartMv(d, txTargetMv) : txTargetMv);
+    if (!supplyOk && (txSoft || modelUflDbm(d, PA_VOUT_ABS_MAX_MV) > OFFGRID_SOFTSTART_DBM)) {
+        // The level could not be set, so the supply is unknown (up to the
+        // licensed ceiling: after an off spell the TPS63810 may hold the last
+        // level written).  If this drive could then exceed 1 W, hold it to
+        // the 1 W setting: the gain table keeps that at or under 30 dBm at
+        // any supply.
         txSoft = false;
         const int8_t m = driveForCapDbm(OFFGRID_SOFTSTART_DBM);
         if (m < d)
@@ -991,6 +1008,19 @@ int8_t variantLimitTxPower(int8_t power)
     waitForRamp();
     txPreambleUs = txSoft ? preambleUs() : 0;
     return d;
+}
+
+// A packet is due, before the channel check (CAD): power the supply up and
+// set it now (~9 ms after an off spell), so the CAD-to-transmit gap stays as
+// short as stock Meshtastic's.  The level is the one between packets;
+// variantLimitTxPower() adjusts it (one write, a short ramp) if the packet
+// needs another.
+void variantTxPending()
+{
+    paHooksSeen = true;
+    paLastUseMs = millis();
+    if (capDbm() != CAP_PA_OFF)
+        supplyReady(paIdleMv());
 }
 
 // Right after the SX1262 was told to transmit.  RadioLib (7.6.0,
@@ -1364,6 +1394,7 @@ bool variantSerialPortReady()
     delayMicroseconds(100); // the pin and ESD array settle through 13 k in well under 1 us; margin
     if (digitalRead(PIN_SERIAL2_RX) == HIGH) {
         droneSeen = true;
+        pinMode(PIN_SERIAL2_RX, INPUT); // pull-down off: the UART does not change PIN_CNF, and it would load the device's TX
         LOG_INFO("Drone port: device found (DRONE_RX high), opening the serial port");
         return true;
     }
