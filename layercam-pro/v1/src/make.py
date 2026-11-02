@@ -54,16 +54,21 @@ def check_circuit():
     gate(not bad, 'every pin on its footprint, every pad in circuit.py %s' % (bad[:3] or ''))
 
 
-def check_models(board):
+def check_models(board, library=True):
     """Every 3D model the board names is a file: a wrong path only drops the
     part from the renders and the STEP, silently (lc.3dshapes was once
-    looked for a folder too high)."""
+    looked for a folder too high).  Our own models (lc.3dshapes, in the
+    repo) always; KiCad's library models (the R/C chips) only when the
+    renders and STEP are built (library=True): CI's plain KiCad image does
+    not carry them, and its fab-only build draws no pictures."""
     b = pcbnew.LoadBoard(board)
     env = dict(os.environ, KIPRJMOD=os.path.dirname(os.path.abspath(board)))
     env.setdefault('KICAD10_3DMODEL_DIR', '/usr/share/kicad/3dmodels')
     missing = []
     for fp in b.GetFootprints():
         for m in fp.Models():
+            if not library and '${KIPRJMOD}' not in m.m_Filename:
+                continue
             f = re.sub(r'\$\{(\w+)\}', lambda g: env.get(g.group(1), g.group(0)), m.m_Filename)
             if not f.startswith('$') and not os.path.exists(f) and \
                     not os.path.exists(os.path.splitext(f)[0] + '.step') and not os.path.exists(os.path.splitext(f)[0] + '.wrl'):
@@ -136,7 +141,7 @@ def build(bd, reroute=False, art=False, pictures=True):
     sharp = [c for c in miter.corners(board) if c[0] > miter.LIMIT]
     gate(not sharp, 'every track corner 45 degrees or less %s' % ([(round(a), n, x, y) for a, n, _, x, y in sharp][:6] or ''))
     check_pairs(board)
-    check_models(board)
+    check_models(board, library=pictures)
     out = fab.produce(board, None, name(bd), V1, pictures=pictures)
     print('  wrote %s (%d files), %d parts in %d BOM lines, %d pads in the netlist'
           % (os.path.relpath(out['zip'], V1), len(out['gerber_files']), out['parts'], out['bom_lines'], out['pads']))
