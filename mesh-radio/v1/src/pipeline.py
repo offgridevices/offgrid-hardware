@@ -934,6 +934,13 @@ def fatten(path, log=log, neck=0.45):
     from shapely.geometry import Point
     vh = [(Point(v.GetPosition().x / 1e6, v.GetPosition().y / 1e6), v.GetDrillValue() / 2e6, v.GetNetname())
           for v in b.GetTracks() if v.GetClass() == 'PCB_VIA']
+    # and 0.29 mm from other nets' plated component holes (pcb.RULES: 0.28)
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetAttribute() == pcbnew.PAD_ATTRIB_PTH and p.GetDrillSize().x > 0:
+                hs = p.GetEffectiveHoleShape(); sg = hs.GetSeg()
+                vh.append(((LineString([(sg.A.x / 1e6, sg.A.y / 1e6), (sg.B.x / 1e6, sg.B.y / 1e6)]) if sg.A != sg.B
+                            else Point(sg.A.x / 1e6, sg.A.y / 1e6)), hs.GetWidth() / 2e6 + 0.08, p.GetNetname()))
     holes_ok = lambda g, net: all(g.distance(c) >= r + 0.21 for c, r, n in vh if n != net)
     # and stays out of the track keepouts (the RF reference areas on In1)
     from shapely.geometry import Polygon
