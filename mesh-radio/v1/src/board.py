@@ -73,6 +73,13 @@ RAIL = ['3V3']
 # 0.298 mm from the shell tab beside it: the drawing's own spacing, not a
 # placement choice.  JLCPCB's NPTH-to-copper minimum is 0.2 mm.
 RULES = pcb.POFV_RULES + """
+# JLCPCB's finest gap on 6 layers is 0.09 mm: the check allows it between
+# tracks, vias and pads (Freerouting's necks), while the net classes keep
+# 0.1 mm for the routers (pours keep their own clearances); later rules win
+(rule "fab minimum clearance"
+  (condition "A.Type != 'Zone' && B.Type != 'Zone'")
+  (constraint clearance (min %.2fmm)))
+""" % FAB_MIN + """
 (rule "RF coplanar gap"
   (condition "A.NetClass == 'RF' && B.Type == 'Zone'")
   (constraint clearance (min %.2fmm)))
@@ -139,7 +146,10 @@ def build(out, replace=False):
     ds.m_ViasMinSize = pcb.MM(VIA_PAD[0]); ds.m_MinThroughDrill = pcb.MM(VIA_PAD[1])
     ds.m_ViasMinAnnularWidth = pcb.MM(0.075)
     nc = ds.m_NetSettings.GetDefaultNetclass()
-    nc.SetTrackWidth(pcb.MM(SIG)); nc.SetClearance(pcb.MM(FAB_MIN))
+    # the routers keep 0.1 mm (a router via 0.09 mm from copper puts its hole
+    # 0.19 mm from it, under the fab's 0.2); the DRC allows the fab's 0.09
+    # (RULES 'fab minimum clearance')
+    nc.SetTrackWidth(pcb.MM(SIG)); nc.SetClearance(pcb.MM(SIG))
     nc.SetViaDiameter(pcb.MM(VIA_SIG[0])); nc.SetViaDrill(pcb.MM(VIA_SIG[1]))
     pcb.outline(b)
     pcb.place_components(b, comps, pl)

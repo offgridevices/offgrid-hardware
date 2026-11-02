@@ -427,15 +427,45 @@ def finish_stage(routed, fin, work):
     if k:
         b.Save(routed)
         log('removed %d router-made ground tracks and vias' % k)
-    fab_fixups(routed)
-    pcb.copy_project(routed, fin)
-    finish.finish_board(routed, fin, os.path.join(work, 'fin.json'), rules=w, clmap=cl, skip=PLANES)
+    fixed = os.path.join(work, 'fixed.kicad_pcb')
+    shutil.copy(routed, fixed); pcb.copy_project(routed, fixed)
+    fab_fixups(fixed)
+    pcb.copy_project(fixed, fin)
+    finish.finish_board(fixed, fin, os.path.join(work, 'fin.json'), rules=w, clmap=cl, skip=PLANES)
     write_rules(fin)
     pcb.tidy_tracks(fin)
     return finish_rest(fin, work, w, cl)
 
 
 SUPPLY = set(board.HEAVY + board.POWER + board.RAIL)
+
+
+def nudge_via(b, v, obs, layers, gap=0.2):
+    """Move via `v` (and the ends of its tracks) the least distance that
+    gives its hole `gap` to every other net's copper and keeps its own
+    copper at the board clearance.  True if it moved."""
+    import math
+    from shapely.geometry import Point
+    q = v.GetPosition(); x0, y0 = q.x / 1e6, q.y / 1e6
+    r, rh = v.GetWidth(pcbnew.F_Cu) / 2e6, v.GetDrillValue() / 2e6
+    net = v.GetNetname()
+    ends = [t for t in b.GetTracks() if t.GetClass() == 'PCB_TRACK' and t.GetNetname() == net
+            and (t.GetStart() == q or t.GetEnd() == q)]
+    for d in (0.01, 0.02, 0.03, 0.04, 0.05, 0.06):
+        for k in range(16):
+            a = 2 * math.pi * k / 16
+            x, y = x0 + d * math.cos(a), y0 + d * math.sin(a)
+            if (obs.clear(Point(x, y).buffer(rh, 16), net, layers, gap - 0.001)
+                    and obs.clear(Point(x, y).buffer(r, 16), net, layers, board.FAB_MIN)):
+                p = pcbnew.VECTOR2I(int(round(x * 1e6)), int(round(y * 1e6)))
+                for t in ends:
+                    if t.GetStart() == q:
+                        t.SetStart(p)
+                    if t.GetEnd() == q:
+                        t.SetEnd(p)
+                v.SetPosition(p)
+                return True
+    return False
 
 
 def fab_fixups(path, log=log):
@@ -455,15 +485,17 @@ def fab_fixups(path, log=log):
     # the fab's limits on this board (a board routed before they were set)
     ds = b.GetDesignSettings()
     ds.m_TrackMinWidth = pcb.MM(board.FAB_MIN); ds.m_MinClearance = pcb.MM(board.FAB_MIN)
-    ds.m_NetSettings.GetDefaultNetclass().SetClearance(pcb.MM(board.FAB_MIN))
+    # the routers keep 0.1 mm (the DRC allows 0.09: board.RULES); a board built
+    # with 0.09 here had router vias with holes 0.19 mm from copper
+    ds.m_NetSettings.GetDefaultNetclass().SetClearance(pcb.MM(board.SIG))
     # Freerouting's necks (0.075 mm at small pins) widened to the fab's 0.09
     thin = [t for t in b.GetTracks() if t.GetClass() == 'PCB_TRACK' and t.GetWidth() < pcbnew.FromMM(board.FAB_MIN) - 500]
     for t in thin:
         t.SetWidth(pcbnew.FromMM(board.FAB_MIN))
     # vias whose holes are too close to other copper
     layers = [l for l in b.GetEnabledLayers().CuStack()]
-    nv = 0
-    for _ in range(3):
+    nv = nn = 0
+    for _ in range(6):
         obs = fanout.Obstacles(b, layers)
         bad = []
         for v in b.GetTracks():
@@ -477,7 +509,13 @@ def fab_fixups(path, log=log):
             break
         bad.sort(key=lambda v: (v.GetNetname() in SUPPLY, v.IsLocked()))
         for v in bad[: max(1, len(bad) // 2)]:
-            if v in list(b.GetTracks()):
+            if v not in list(b.GetTracks()):
+                continue
+            # first a nudge: the smallest move (0.01-0.06 mm) that clears it, its
+            # tracks' ends following (0.19 mm is the usual miss); else it goes
+            if nudge_via(b, v, obs, layers):
+                nn += 1
+            else:
                 pcb.remove(b, v); nv += 1
     # copper in the unplated-hole keepouts
     rings = []
@@ -494,8 +532,8 @@ def fab_fixups(path, log=log):
         if g and any(r.intersects(x) for r in rings for gs in g.values() for x in gs):
             pcb.remove(b, t); ne += 1
     pcb.save_board(b, path)
-    log('fab fixups: %d thin tracks widened, %d vias with close holes, %d pieces in unplated-hole keepouts taken out'
-        % (len(thin), nv, ne))
+    log('fab fixups: %d thin tracks widened, %d vias nudged clear, %d vias with close holes and %d pieces in '
+        'unplated-hole keepouts taken out' % (len(thin), nn, nv, ne))
 
 
 def finish_rest(fin, work, w=None, cl=None):
