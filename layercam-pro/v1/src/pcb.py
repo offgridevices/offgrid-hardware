@@ -83,12 +83,14 @@ def _arc_pts(cx, cy, r, a0, a1, n):
             for k in range(n + 1)]
 
 
-def _main_polygon():
-    """The board in board mm (x = X, y = -Y): the case-shaped outline
-    (geometry.OUTLINE) with the USB-C tab on its -X upper edge."""
-    from shapely.geometry import Polygon, box
+def usb_tab():
+    """The USB-C tab, board mm: USB_TAB_W wide, from 1 mm inside
+    geometry.USB_EDGE_XY to USB_TAB out from it along the outward normal.
+    (The outline was cut down to fit the case after USB_EDGE_XY was set:
+    the outline's edge there runs about 0.37 mm inside it, so the tab
+    stands about 3.2 mm out of the outline.)"""
+    from shapely.geometry import box
     from shapely import affinity
-    poly = Polygon([(x, -y) for x, y in G.OUTLINE])
     ex, ey = G.USB_EDGE_XY
     a = math.radians(G.USB_NORMAL_DEG)
     # the tab: USB_TAB_W along the edge, from 1 mm inside it to USB_TAB out,
@@ -97,8 +99,15 @@ def _main_polygon():
     t = box(-1.0, -G.USB_TAB_W / 2, G.USB_TAB, G.USB_TAB_W / 2)
     t = affinity.rotate(t, a, origin=(0, 0), use_radians=True)
     t = affinity.translate(t, ex, ey)
-    t = affinity.scale(t, 1, -1, origin=(0, 0))
-    return poly.union(t).simplify(0.001)
+    return affinity.scale(t, 1, -1, origin=(0, 0))
+
+
+def _main_polygon():
+    """The board in board mm (x = X, y = -Y): the case-shaped outline
+    (geometry.OUTLINE) with the USB-C tab on its -X upper edge."""
+    from shapely.geometry import Polygon
+    poly = Polygon([(x, -y) for x, y in G.OUTLINE])
+    return poly.union(usb_tab()).simplify(0.001)
 
 
 def outline_items(board=None):

@@ -351,9 +351,20 @@ def keepouts(side):
     return out
 
 
+# Maximum body heights, mm, from the makers' package drawings, where a
+# part stands somewhere a height limit applies (verify.heights): the rest
+# are taken as 1.0 mm.  The NAND's courtyard reaches 0.25 mm under the
+# heatsink's edge.
+HEIGHTS = {
+    'W25N02KV': 0.80,      # Winbond W25N02KV datasheet rev F, 13.1, WSON 8x6 mm: A 0.70 / 0.75 / 0.80
+}
+
+
 def height(part):
     """Body height above the board, mm (the 0402 R/C are 0.35-0.5)."""
     import parts
+    if part in HEIGHTS:
+        return HEIGHTS[part]
     fp = (parts.PARTS.get(part) or parts.PADS.get(part))['fp']
     return 0.5 if '0402' in fp else 1.0
 

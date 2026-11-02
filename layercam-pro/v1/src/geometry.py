@@ -94,7 +94,7 @@ UNDER_HEATSINK_MAX_H = 0.8    # parts under the heatsink's overhang (its base on
 # normal is 149.6 degrees: a receptacle on that edge points the way Prusa's
 # does across the face, level instead of tilted.  The board has a tab there
 # so the receptacle's mouth reaches the case wall.
-USB_EDGE_XY = (-27.85, 8.9)                # on the edge, lens frame
+USB_EDGE_XY = (-27.85, 8.9)                # on the first outline's edge (the fitted one runs 0.37 mm inside it), lens frame
 USB_NORMAL_DEG = 149.6
 # The receptacle's front shell legs (1.2 x 1.8 mm pads, 4.33 mm either side
 # of its axis, 0.5-2.3 mm out from the edge) must keep the fab's 0.3 mm

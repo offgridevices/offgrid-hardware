@@ -117,9 +117,11 @@ def case():
     board = pcb.board_polygon('main')
     outline = Polygon([(x, -y) for x, y in G.OUTLINE])
     # the board's outline is the case's inside: the outline itself, plus
-    # the USB tab into the wall
-    extra = board.difference(outline.buffer(0.01)).area
-    check(extra <= G.USB_TAB * G.USB_TAB_W + 0.5, 'board inside the case outline but for the USB tab (%.1f mm2 outside)' % extra)
+    # the USB tab into the wall (the tab's own shape: since the outline was
+    # cut down to fit, the tab stands 3.2 mm out of it, not USB_TAB, and an
+    # area check against USB_TAB x USB_TAB_W failed)
+    extra = board.difference(outline.union(pcb.usb_tab()).buffer(0.01)).area
+    check(extra < 0.01, 'board inside the case outline but for the USB tab (%.2f mm2 outside)' % extra)
     d = min(board.exterior.distance(Point(x, -y)) for x, y in G.SCREWS)
     check(d >= 3.0, 'screw holes 3.0 mm or more from the edge (closest %.2f mm)' % d)
     x0, y0, x1, y1 = G.HOLDER_BOX

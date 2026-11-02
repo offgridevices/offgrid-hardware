@@ -33,7 +33,7 @@ Right: the antenna socket (RP-SMA) in the back shell.*
 |---|---|
 | Revision | **v1** (product: [`../README.md`](../README.md)), printed on the board (`LayerCam Pro V1`) |
 | Status | designed, not yet built |
-| Board | one 6-layer board, {{BOARD_SIZE}} mm, cut to fit the case |
+| Board | one 6-layer board, 65.3 x 57.8 mm, cut to fit the case |
 | Tests and simulations | [`TESTS.md`](TESTS.md): every one with its v1 result |
 | Trade-offs | [`docs/decisions.md`](docs/decisions.md) |
 | Parts and stock | [`docs/parts.md`](docs/parts.md) (check stock again before ordering); the dated check: [`docs/parts-check-2026-10-31.md`](docs/parts-check-2026-10-31.md) |
@@ -46,10 +46,10 @@ Right: the antenna socket (RP-SMA) in the back shell.*
 
 | Requirement | Met? | How it is checked |
 |---|---|---|
-| **One circuit board.** Every part on it; no flat cables or board-to-board cables inside. The one lead is the antenna's | **Yes, in the design.** `circuit.py` has one board. The antenna lead runs from the Wi-Fi module to the case wall | the build's BOM and placement gates ({{PARTS}} parts in {{BOM_LINES}} BOM lines) |
+| **One circuit board.** Every part on it; no flat cables or board-to-board cables inside. The one lead is the antenna's | **Yes, in the design.** `circuit.py` has one board. The antenna lead runs from the Wi-Fi module to the case wall | the build's BOM and placement gates (175 parts in 52 BOM lines) |
 | **One order at PCBWay:** one Gerber zip, one BOM, one placement file | **Yes, but for one part.** The bare image sensor (SC4336H) is not stocked by Digi-Key, Mouser, LCSC or JLCPCB. PCBWay has to source it from SmartSens or its agents, or it is bought and sent to them | PCBWay's quote, not yet asked |
 | **Prusa's outside, our inside.** Same shape, same corner of the printer. USB-C in the same side wall, the plug level | **Yes, on paper.** The case is Prusa's outside surface with a new inside. The board clears the case by 0.5 mm all round; the USB-C plug goes in level | `enclosure/src/check.py`: every check passes. Not yet printed |
-| **A 65 °C chamber**, in snapshot and timelapse mode, with the ESP32-C6's power save on. Stock heatsink, no fan. (Prusa's firmware caps the chamber at 55 °C on the CORE One and 60 °C on the CORE One L) | **Yes, in the model, by 3.5 K.** Every part stays in its rating up to a 68.5 °C chamber by night and 70.6 °C by day. The model is good to about ±10 K, and it used the placement, not the routed board | `sim/thermal.py` (`sim/thermal.md`). An oven test of the first camera at 65 °C decides |
+| **A 65 °C chamber**, in snapshot and timelapse mode, with the ESP32-C6's power save on. Stock heatsink, no fan. (Prusa's firmware caps the chamber at 55 °C on the CORE One and 60 °C on the CORE One L) | **Yes, in the model, by 3.3 K.** Every part stays in its rating up to a 68.3 °C chamber by night and 70.5 °C by day, on the routed board. The model is good to about ±10 K | `sim/thermal.py` (`sim/thermal.md`). An oven test of the first camera at 65 °C decides |
 | **Never shorts in the heat.** Parts rated above what they see; a high-temperature board (Tg 170); no bare copper that can touch the carbon-fibre case | **Partly.** Every part is in its rating in the model. Copper and parts keep 0.6 mm from the board edge; the case touches the board only at the four screw pads. The coating the plan named is not ordered (`docs/decisions.md`, *Open*) | the part ratings, `sim/thermal.md`, the design rules |
 | **Every part in production today** | **Yes**, as checked on 31 Oct and 1 Nov 2026. Thin stock: the RV1106G3 (257 at JLCPCB), the IR LEDs (0 at JLCPCB) | [`docs/parts.md`](docs/parts.md) |
 | **Everything else from Amazon** | **Partly.** The antenna, its lead, the screws, the rods and the epoxy are Amazon searches. The lens (Towin), the day/night filter holder (Commonlands), the SH-grade magnets (K&J Magnetics) and the heatsink tape (Digi-Key) are not on Amazon as exact parts. The heatsink's Amazon listing is not confirmed | *How to order* |
@@ -60,26 +60,20 @@ Right: the antenna socket (RP-SMA) in the back shell.*
 
 ## Next steps
 
-1. **Finish the board** and run every gate: `tools/kd python3 src/make.py`.
-   Fill in the build results in `TESTS.md` and this README.
-2. **Run the thermal model again on the routed board** (`sim/thermal.py`).
-   Today's numbers use the placement and LayerCam v1's copper.
-3. **Settle the open points** in [`docs/decisions.md`](docs/decisions.md),
+1. **Settle the open points** in [`docs/decisions.md`](docs/decisions.md),
    *Open*: the screw holes, the antenna's face, the coating, the magnets.
-4. **Add the board's CI job** (`ci / layercam-pro-v1`), as
-   [`docs/repo-structure.md`](../../docs/repo-structure.md) asks.
-5. **Ask PCBWay** to source the SC4336H and quote the board. Ask SmartSens
+2. **Ask PCBWay** to source the SC4336H and quote the board. Ask SmartSens
    or its agent for the SC4336H's ball map, chip ID and driver.
-6. **Order 5 boards** from PCBWay and the parts in *How to order*. Check
+3. **Order 5 boards** from PCBWay and the parts in *How to order*. Check
    stock first.
-7. **Print one case**, build one camera, bring it up (*How to build one*,
+4. **Print one case**, build one camera, bring it up (*How to build one*,
    *How to bring it up*). Fill in the hardware rows of `TESTS.md`.
-8. **Oven test** in the printed case at 65 °C for 4 hours, then re-run
+5. **Oven test** in the printed case at 65 °C for 4 hours, then re-run
    `sim/thermal.py` with the measured currents.
-9. **Try it on a CORE One:** Prusa Connect snapshots, a per-layer timelapse
+6. **Try it on a CORE One:** Prusa Connect snapshots, a per-layer timelapse
    uploaded to a NAS and S3, Wi-Fi range with the antenna fitted.
-10. Changes that need new copper go into `v2/`
-    ([`docs/versioning.md`](../../docs/versioning.md)).
+7. Changes that need new copper go into `v2/`
+   ([`docs/versioning.md`](../../docs/versioning.md)).
 
 ## Where things are
 
@@ -116,10 +110,10 @@ One "PCB + SMT assembly" (turnkey) order. Upload the three files in
 
 The placement file gives designator, X, Y, side and rotation in the
 Gerbers' own coordinates. The BOM gives maker, maker's part number and
-LCSC number. Every part is SMD. {{PARTS}} parts in {{BOM_LINES}} BOM
+LCSC number. Every part is SMD. 175 parts in 52 BOM
 lines, on both sides.
 
-**The board** ({{BOARD_SIZE}} mm):
+**The board** (65.3 x 57.8 mm):
 - 6 layers, 1.6 mm, PCBWay's standard 6-layer stackup (No. 1: 1 oz on every
   layer, 2116 prepreg next to the outer layers).
 - **Tg 170** material (the plan's requirement). Ask PCBWay to confirm that
@@ -239,15 +233,15 @@ Full steps, in this order, in
 ## Limits
 
 - **Not built.** Every result here is a design check or a simulation.
-- **Rated for a 65 °C chamber, with 3.5 K to spare in the model.** The
-  model is good to about ±10 K and used the placement, not the routed
-  board. With the ESP32-C6's power save off, the margin is 0.2 K. The
-  oven test decides.
+- **Rated for a 65 °C chamber, with 3.3 K to spare in the model** (run on
+  the routed board). The model is good to about ±10 K. With the
+  ESP32-C6's power save off, the USB-C reaches its 85 °C at a 64.7 °C
+  chamber, 0.3 K short. The oven test decides.
 - **Power save needs a patched C6 firmware.** Espressif's firmware turns
   it off, and its Linux driver cannot turn it on. `tools/c6-power-save.sh`
   changes one line before the build; not yet measured on a camera.
 - **Live view only while cool:** every part stays in its rating up to a
-  53.6 °C chamber by day and 42.2 °C by night. The firmware refuses live
+  53.1 °C chamber by day and 41.6 °C by night. The firmware refuses live
   view when the main chip reads 87 °C.
 - **The image sensor's best picture ends at 60 °C**, which it passes at
   about a 42 °C chamber. Above that the picture gets noisier; the sensor
@@ -289,7 +283,9 @@ cd firmware && python3 -m unittest          # camera software host tests
 ```
 
 Prusa's case files (Printables model 1343977) are downloaded, not
-committed. CI does not build this board yet (*Next steps*).
+committed. CI (`ci / layercam-pro-v1`) rebuilds the fab files from the
+committed board and checks them, with the design checks, the simulations
+and the firmware's tests.
 
 Licence: CERN-OHL-S-2.0 (hardware), as the rest of this repository. The
 case (`enclosure/`) is GPL v2, as Prusa's files it comes from.

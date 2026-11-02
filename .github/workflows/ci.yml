@@ -349,3 +349,57 @@ jobs:
       - name: Firmware host tests
         working-directory: layercam/v1/firmware
         run: python3 -m unittest
+
+  layercam-pro-v1:
+    # LayerCam Pro (layercam-pro/v1): one board.  Same pinned KiCad image as
+    # its toolchain (layercam-pro/v1/tools/Dockerfile), by digest.  The routed
+    # board is the design of record (Freerouting is not deterministic): the
+    # artwork is rebuilt from src/, then every gate and the fab files, which
+    # must equal the committed ones.  Then the design checks (regulators, the
+    # sensor's balls by position, the case's outline, part heights, the
+    # firmware's pin map), the simulations and the firmware's host tests.
+    # The case's own checks need Prusa's files, which are not committed.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 30
+    container:
+      image: kicad/kicad:10.0.7@sha256:3224d1bf143185ecc1bd3a1082a36f37f0f4e59d707983a16515a845e3737fc6
+      options: --user root
+    defaults:
+      run:
+        working-directory: layercam-pro/v1
+    env:
+      HOME: /tmp
+      PYTHONHASHSEED: '0'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git ffmpeg > /dev/null
+          pip3 install --break-system-packages -q numpy==2.5.4 shapely==2.2.0 Pillow==13.0.0 matplotlib==3.11.2 \
+            pypdf==6.21.1 uharfbuzz==0.56.3 fonttools==4.67.0 pymupdf==1.28.2 scipy==1.18.1 trimesh==5.2.0
+          pip3 install --break-system-packages -q --no-deps gerbonara==1.6.3
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # Artwork from src/ (brand.py, silk.py), circuit gates, KiCad DRC
+      # (0 / 0 / 0), net check, 45-degree corners, MIPI pair lengths,
+      # Gerbers, BOM, CPL.
+      - name: Build artwork and fab files (make.py)
+        run: python3 src/make.py --artwork --fab-only
+
+      - name: Committed fab files match the build
+        run: python3 tools/check_outputs.py
+
+      - name: Design checks (verify.py)
+        run: python3 src/verify.py
+
+      - name: Simulations (impedance, power, thermal)
+        run: |
+          python3 sim/impedance.py
+          python3 sim/power_budget.py
+          python3 sim/thermal.py
+
+      - name: Firmware host tests
+        working-directory: layercam-pro/v1/firmware
+        run: python3 -m unittest

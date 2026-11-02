@@ -3,11 +3,14 @@
 Every test and simulation for this revision, why it exists, how to run it,
 and its v1 result. Results are for this revision only
 ([`docs/versioning.md`](../../docs/versioning.md)). A result in double
-braces, such as {{DRC}}, is filled in from the routed board's build on the
-final commit ({{COMMIT}}). The rest were run on 1 Nov 2026.
+braces, such as pass: 0 errors, 0 warnings, 0 unconnected, is filled in from the routed board's build on the
+final commit (built 2 Nov 2026). The rest were run on 1 Nov 2026.
 
-CI does not build this board yet. Until it does, the build gates are run
-by hand: `tools/kd python3 src/make.py`.
+CI (`ci / layercam-pro-v1`) rebuilds the artwork and fab files from the
+committed board on every pull request and checks them against the
+committed ones, then runs the design checks, the simulations and the
+firmware's host tests. The case's checks need Prusa's files, which are not
+committed: they are run by hand.
 
 ## LayerCam v1's tests, questioned
 
@@ -34,32 +37,32 @@ looked at before it was carried over:
 
 | Gate | Why | Result |
 |---|---|---|
-| Every part has a footprint and an LCSC number; no single-pin net; every pin on its footprint, every pad in `circuit.py` | a wrong or missing pad is a dead board | {{PARTS}} parts |
-| KiCad 10.0.7 DRC with PCBWay's limits | the fab rejects or mis-builds what breaks its rules | {{DRC}} |
-| Every pad's net on the routed board equals `circuit.py` | the copper is the circuit | {{NET_PADS}} |
-| Every track corner 45° or less | no acid traps; the owner's rule | {{CORNERS}} |
-| Each MIPI pair's two tracks the same length, within 0.15 mm | an unmatched pair turns into common-mode noise | {{MIPI_LENGTHS}} |
-| BOM and CPL list exactly the assembled parts; the board's footprints equal `circuit.py`'s parts | nothing missing or extra on the line | {{PARTS}} parts in {{BOM_LINES}} BOM lines |
-| The Gerber job file says 1.6 mm, ENIG, green mask | the fab's CAM reads it | {{GERBER_JOB}} |
-| The badge: the OffGrid lockup, `LayerCam Pro` and `V1`, the US flag (5.26 mm hoist), clear of every pad and via, strokes at least 0.15 mm | the fab drops silk that is too thin or on a pad | {{SILK}} |
-| Committed fab files equal what `make.py` builds (`tools/check_outputs.py`) | someone orders from the committed files | not in CI yet |
+| Every part has a footprint and an LCSC number; no single-pin net; every pin on its footprint, every pad in `circuit.py` | a wrong or missing pad is a dead board | pass: 189 footprints, 175 assembled parts |
+| KiCad 10.0.7 DRC with PCBWay's limits | the fab rejects or mis-builds what breaks its rules | pass: 0 errors, 0 warnings, 0 unconnected |
+| Every pad's net on the routed board equals `circuit.py` | the copper is the circuit | pass: 566 pads |
+| Every track corner 45° or less | no acid traps; the owner's rule | pass |
+| Each MIPI pair's two tracks the same length, within 0.15 mm | an unmatched pair turns into common-mode noise | pass: D0 23.20 / 23.20 mm, clock 20.63 / 20.63, D1 17.40 / 17.38 (P on D0 and the clock tuned by a serpentine, `pairs.tune`) |
+| BOM and CPL list exactly the assembled parts; the board's footprints equal `circuit.py`'s parts | nothing missing or extra on the line | 175 parts in 52 BOM lines |
+| The Gerber job file says 1.6 mm, ENIG, green mask | the fab's CAM reads it | pass: 1.6 mm, ENIG, green |
+| The badge: the OffGrid lockup, `LayerCam Pro` and `V1`, the US flag (5.26 mm hoist), clear of every pad and via, strokes at least 0.15 mm | the fab drops silk that is too thin or on a pad | pass (`silk.py` stops the build if any of it does not fit or is thin); labels 5V, BOOT, IR-cut |
+| Committed fab files equal what `make.py` builds (`tools/check_outputs.py`) | someone orders from the committed files | pass, in CI |
 
 ## Routing
 
 | Step | Result |
 |---|---|
-| Placement (`src/layout_main.py`): every part placed, plane vias, the SoC's and the sensor's escapes | {{PLACEMENT}} |
-| Freerouting, then the finisher (`src/finish.py`) | {{ROUTING}} |
-| Vias, plane vias, track length per layer | {{VIAS}}; plane vias {{PLANE_VIAS}} |
+| Placement (`src/layout_main.py`): every part placed, plane vias, the SoC's and the sensor's escapes | 189 parts placed, placement DRC 0 errors (checked before routing); 225 plane vias; 27 of the SoC's pins escape by vias (pin 27, 3.3 V, is left to the router) |
+| Freerouting, then the finisher (`src/finish.py`) | Freerouting left 29 connections in 20 nets; the finisher routed them all in 3 min (maze router to 7, rip-up and re-route to 0) |
+| Vias, plane vias, track length per layer | 563 vias (514 at 0.45 mm, 49 at 0.35 mm round the SoC and the sensor); tracks 2.11 m (F 833 mm, B 636, In2 631, In3 7); plane vias 225, and 137 ground stitching vias |
 
 ## Design checks (`src/verify.py`)
 
 | Check | Why | Result |
 |---|---|---|
-| Each buck's output from its feedback divider, against its rail's limits | a wrong resistor is a dead or cooked chip | {{VERIFY}} (by `sim/power.md`: 0.9 V at 0.906 V, DDR 1.362 V, 1.8 V 1.800 V, 3.3 V 3.255 V, Wi-Fi 3.255 V, all inside their limits) |
-| The image sensor's balls: every net on the ball the library names for it, by position on the routed board; the MIPI stubs start on their own balls | a ball off by one row is a dead camera; the sensor is turned 180° | {{VERIFY}} |
-| The board inside the case's outline (but for the USB-C tab); screws 3 mm or more from the edge; each IR LED under its rod; the LEDs clear of the IR-cut holder's base by 0.3 mm; the USB-C mouth 4.2 mm out from the edge | it must fit the printed case | {{VERIFY}} |
-| Parts under the IR-cut holder and under the heatsink's overhang no taller than the room there (0.8 mm under the heatsink) | the holder and heatsink sit on the board | {{VERIFY}} |
+| Each buck's output from its feedback divider, against its rail's limits | a wrong resistor is a dead or cooked chip | pass (by `sim/power.md`: 0.9 V at 0.906 V, DDR 1.362 V, 1.8 V 1.800 V, 3.3 V 3.255 V, Wi-Fi 3.255 V, all inside their limits) |
+| The image sensor's balls: every net on the ball the library names for it, by position on the routed board; the MIPI stubs start on their own balls | a ball off by one row is a dead camera; the sensor is turned 180° | pass |
+| The board inside the case's outline (but for the USB-C tab); screws 3 mm or more from the edge; each IR LED under its rod; the LEDs clear of the IR-cut holder's base by 0.3 mm; the USB-C mouth 4.2 mm out from the edge | it must fit the printed case | pass |
+| Parts under the IR-cut holder and under the heatsink's overhang no taller than the room there (0.8 mm under the heatsink) | the holder and heatsink sit on the board | pass |
 | The firmware's device tree and image against `circuit.py` (`src/check_firmware.py` -> `firmware/pincheck.py`): every GPIO, I2C, UART, PWM, SARADC pin, the C6's EN, GPIO9 and UART, the sensor's node, no button, no SSH or open services in the image | a pin mismatch is a dead feature; an open service is an open camera | **pass, 75 checks** (1 Nov 2026). Each was shown to fail when its file is broken |
 
 ## The case (`enclosure/src/check.py`)
@@ -85,14 +88,14 @@ Run on 2 Nov 2026, with `geometry.OUTLINE` as committed.
 ## Simulations (`sim/`)
 
 The power and impedance models do not depend on the routing. The thermal
-model used the placement and LayerCam v1's copper: it is run again on the
-routed board.
+model reads the routed board: its parts' places and each layer's copper
+coverage.
 
 | Simulation | Why | Result |
 |---|---|---|
 | `impedance.py`: a 2D field solver (`fieldsolve.py`, within 1.5 % of three exact results) on PCBWay's 6-layer build No. 1; the MIPI pairs on F over In1 and B over In4, with the ground fill beside them, ±0.015 mm etch and no-mask | 100 Ω ±10 % | **pass, no WARN**: MIPI 100.6 Ω (93.9-107.8) on both layers |
 | `power_budget.py`: every rail's set point at the tolerance corners, each buck's current against its rating, inductor peaks against saturation, capacitance after DC bias, the IR LED strings over supply and LED spread, the USB source | never browns out | **no FAIL, 5 WARN**. Snapshot mode 0.15 A by day and 0.18 A by night with power save on (0.18 / 0.21 A off); 0.53 A during a night picture; the port gives 1 A. WARN: L1 and L5 saturate below the TLV62569's typical current limit; 91 µF on 5 V at hot plug; the 47 Ω string resistors at 0.138 W; the LED strings' 2.6 : 1 brightness spread |
-| `thermal.py`: the board as a plate on a 0.5 mm grid in the new case (Prusa's outside), radiation and conduction across the air gaps, the lid's slots, the 20 x 20 x 15 mm heatsink; each part against its rating; 65 °C chamber, power save on | "survive the chamber" | **pass at 65 °C, no FAIL, 3 WARN**: every part in rating up to a 68.5 °C chamber by night and 70.6 °C by day. At 65 °C by night: flash 81.7 °C (85), USB-C 81.3 (85), image sensor 81.2 (85), main chip junction 85.0 (125), ESP32-C6 82.2 (105). WARN: the 3.5 K margin against the model's ±10 K; the sensor above its 60 °C best-image limit. Power save off: 65.2 °C. Live view: to 53.6 °C by day, 42.2 °C by night. Routed board: {{THERMAL_ROUTED}} |
+| `thermal.py`: the board as a plate on a 0.5 mm grid in the new case (Prusa's outside), radiation and conduction across the air gaps, the lid's slots, the 20 x 20 x 15 mm heatsink; each part against its rating; 65 °C chamber, power save on | "survive the chamber" | **pass at 65 °C, no FAIL, 3 WARN**: on the routed board (its parts' places and each layer's copper coverage, measured): every part in rating up to a 68.3 °C chamber by night and 70.5 °C by day. At 65 °C by night: flash 81.9 °C (85), USB-C 81.7 (85), image sensor 81.5 (85), main chip junction 85.2 (125), ESP32-C6 82.4 (105). WARN: the 3.3 K margin against the model's ±10 K; the sensor above its 60 °C best-image limit. Power save off: 64.7 °C (0.3 K short of 65; information). Live view: to 53.1 °C by day, 41.6 °C by night |
 
 ## Firmware (`firmware/`, host tests)
 

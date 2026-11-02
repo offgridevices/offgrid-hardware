@@ -1082,7 +1082,8 @@ def main():
          nu_enclosure(np.nanmean(base['T']) - base['t_w'], GAP_B), EDGE_GAP * 1e3, G_BOSS, HOLDER_FACTOR * 100,
          PLACE_SRC))
     w('- Copper coverage %s (docs/lessons.md: simulate heat on the routed board; routing raised temperatures 15 K on '
-      'Ridge 3). Rerun with `tools/kd python3 sim/thermal.py` once layercam-pro.kicad_pcb is routed.' % COVER_SRC)
+      'Ridge 3).%s' % (COVER_SRC, '' if COVER_SRC.startswith('measured') else
+                       ' Rerun with `tools/kd python3 sim/thermal.py` once layercam-pro.kicad_pcb is routed.'))
     w('- Heatsink: 20 x 20 x 15 mm aluminium, %.0f mm base, %d straight fins %.1f mm thick (ASSUMED: a typical stock '
       'part; the listing is to be confirmed), black anodised (emissivity %.2f); envelope %.0f W/m^2K and fin faces %.0f '
       'W/m^2K to the inside (LayerCam v1\'s estimates); on 3M 8810 (0.25 mm, 0.6 W/mK) over the 12.3 mm package with '
@@ -1181,9 +1182,9 @@ def verdict(board, allres):
     v('- Live view: every part in rating to %s by day and %s by night; it stays a firmware-gated mode (TSADC below '
       '%.0f C; snapshot mode stretches to 30 s above %.0f C).'
       % (fmt_amb(lim['day']['all']), fmt_amb(lim['night']['all']), *SUMMARY['gov']))
-    v('- Model uncertainty about +-10 K (optimistic bracket: RV1106 %.1f C, sensor %.1f C in the rating case); the '
-      'placement is layout_main.py\'s, the copper coverage LayerCam v1\'s, the snapshot currents ASSUMED. Rerun on the '
-      'routed board and measure the first board in a %.0f C oven.' % (SUMMARY['opt'] + (T_AMB,)))
+    v('- Model uncertainty about +-10 K (optimistic bracket: RV1106 %.1f C, sensor %.1f C in the rating case); '
+      'part places from %s, copper coverage %s, the snapshot currents ASSUMED. Measure the first board in a %.0f C '
+      'oven.' % (SUMMARY['opt'] + (PLACE_SRC, COVER_SRC, T_AMB)))
     v('')
     return V
 

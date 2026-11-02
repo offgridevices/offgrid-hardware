@@ -35,7 +35,7 @@ button). What the Pro changed:
 **They set the ceiling (85 °C, no hotter grade):** the image sensor
 SC4336H (best picture to 60 °C), the W25N02KV flash, the USB4105 USB-C
 (no 16-contact USB 2.0 socket rated 105 °C exists) and the KT-0603G status
-LED. In a 65 °C chamber they sit at 80.5-81.7 °C by night, within 1.2 K of
+LED. In a 65 °C chamber they sit at 80.9-81.9 °C by night, within 1.0 K of
 each other. The main chip RV1106G3 is rated 125 °C junction, 85 °C
 ambient.
 
