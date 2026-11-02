@@ -17,6 +17,9 @@ left as right, so its two tracks come out the same length.
         Seen from behind, the sensor's D0 and clock lanes have N to the
         left of P, the SoC wants P to the left: their two vias stand one
         above the other, so the tracks change sides at the layer change.
+        N goes round P's via there (and D0's N ball is a row further in),
+        so P is given the difference back in a serpentine on F, where the
+        lane runs straight down from its vias (tune()).
   USB   routed with the rest (it carries only firmware flashing).
 
 Coordinates are the board's (x right, y down, mm, origin on the lens
@@ -74,6 +77,12 @@ FY0 = VIA_Y + VIA_DY + 1.2         # where each lane is a pair again on F
 # on F: from the vias down, right (east) at its row, down into the SoC's
 # pins; the eastmost lane (D1) turns first
 F_ROW = (8.1, 7.55, 7.0)
+# the serpentine on the shorter track: legs 0.3 mm apart (0.18 mm between
+# them), corners cut by 0.08, no bump taller than TUNE_H (D0's single bump
+# would have reached the Wi-Fi module's pads)
+TUNE_S = 0.3
+TUNE_C = 0.08
+TUNE_H = 0.65
 
 
 def chamfer(pts, c=CHAMFER):
@@ -192,8 +201,64 @@ def mipi(b):
         for net, d, pad in ((p, H, pp), (n, -H, pn)):
             t = offset(fl, d)
             _draw(b, t + [(pad[0], t[-1][1] + abs(pad[0] - t[-1][0])), pad], MIPI_W, pcbnew.F_Cu, net)
+        tune(b, p, n, vx - H if SWAP[i] else vx + H, -1 if SWAP[i] else 1)
         # the return current's way between the planes at the layer change
         gnd_via_near(b, (vx, VIA_Y + VIA_DY / 2), rmin=0.9)
+
+
+def _length(pts):
+    return sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(pts, pts[1:]))
+
+
+def _serpentine(x, ya, yb, n, h, side):
+    """A straight run down x from ya to yb with n bumps of height h to
+    `side` (-1: -x), centred on the run, corners cut to 45 degrees."""
+    span = (2 * n - 1) * TUNE_S
+    y = (ya + yb) / 2 - span / 2
+    pts = [(x, ya)]
+    for k in range(n):
+        pts += [(x, y), (x + side * h, y), (x + side * h, y + TUNE_S), (x, y + TUNE_S)]
+        y += 2 * TUNE_S
+    pts.append((x, yb))
+    return chamfer(pts, TUNE_C)
+
+
+def tune(b, p, n, x, side):
+    """Give the shorter of a lane's two tracks its length back: the P
+    track's straight run down x on F (from its via to the turn towards the
+    SoC) becomes a serpentine to `side`, away from N, whose bumps make up
+    the difference exactly."""
+    ln = lengths(b)
+    d = ln[n] - ln[p]
+    if abs(d) < 0.05:          # D1: 0.02 mm, its two tracks mirror each other
+        return
+    if d < 0:
+        raise SystemExit('pairs: %s is the longer track; only P is tuned' % p)
+    run = [t for t in b.GetTracks() if t.GetClass() != 'PCB_VIA' and t.GetNetname() == p
+           and t.GetLayer() == pcbnew.F_Cu and abs(pcb.xy(t.GetStart())[0] - x) < 1e-3
+           and abs(pcb.xy(t.GetEnd())[0] - x) < 1e-3]
+    ys = sorted(v for t in run for v in (pcb.xy(t.GetStart())[1], pcb.xy(t.GetEnd())[1]))
+    ya, yb = ys[0], ys[-1]
+    # every piece of the run joins the next: one straight stretch
+    if abs(sum(t.GetLength() / 1e6 for t in run) - (yb - ya)) > 1e-3:
+        raise SystemExit('pairs: %s has no single straight run at x %.2f' % (p, x))
+    for nb in range(1, 6):
+        if (2 * nb - 1) * TUNE_S + 2 * TUNE_C > yb - ya - 2 * TUNE_C:
+            break
+        lo, hi = 0.0, TUNE_H
+        if _length(_serpentine(x, ya, yb, nb, hi, side)) - (yb - ya) < d:
+            continue
+        for _ in range(60):
+            mid = (lo + hi) / 2
+            if _length(_serpentine(x, ya, yb, nb, mid, side)) - (yb - ya) < d:
+                lo = mid
+            else:
+                hi = mid
+        for t in run:
+            pcb.remove(b, t)
+        _draw(b, _serpentine(x, ya, yb, nb, hi, side), MIPI_W, pcbnew.F_Cu, p)
+        return
+    raise SystemExit('pairs: no room to tune %s by %.2f mm on %.2f mm of run' % (p, d, yb - ya))
 
 
 def gnd_via_near(b, centre, rmin=0.75, rmax=1.6):

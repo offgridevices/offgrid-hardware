@@ -159,9 +159,13 @@ def fanout(b, nets=('GND',), done_pads=(), allowed=None, via=None, inward=(), re
 
     def own_pad_ok(pt, net, side, skip):
         """A via inside a pad of its own net: clear of everything else, and
-        out of no-via rule areas (a badge's ground)."""
+        out of no-via rule areas (a badge's ground), and inside its plane:
+        an inductor's pad reaching past the 0.9 V plane's edge got a via
+        that joined nothing (KiCad's via_dangling)."""
         v = Point(pt).buffer(vr)
         if any(k.intersects(v) for k in keep):
+            return False
+        if allowed and net in allowed and not allowed[net].contains(Point(pt).buffer(vr + 0.1)):
             return False
         for s in ('F', 'B'):
             for fp2, p2, poly2 in pads[s]:
