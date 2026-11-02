@@ -1095,6 +1095,7 @@ def endgame(fin, work, rounds=3):
     w, cl = widths(comps), clearances(comps)
     setup_routers()
     keep = set(PLANES) | set(board.RF_NETS) | set(board.RF_EXTRA)
+    write_rules(fin)       # a copied board has no .kicad_dru: KiCad's defaults would flag the 0.09 mm gaps
     e, wn, u = pcb.drc(fin, os.path.join(work, 'end0.json'))
     best = len(e) + len(wn) + len(u)
     log('endgame start: %d errors, %d warnings, %d unconnected' % (len(e), len(wn), len(u)))
