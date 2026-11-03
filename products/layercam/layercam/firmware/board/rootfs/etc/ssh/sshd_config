@@ -1,0 +1,22 @@
+# LayerCam: SSH is off unless the owner turns it on from the USB console
+# (layercam-setup ssh on KEY: /etc/init.d/S50sshd starts sshd only then).
+# Keys only: root has no password ("*" in /etc/shadow), and passwords are
+# refused here anyway.  Keys and the host key live on /userdata, so they
+# survive a new image; `layercam-setup ssh off` deletes the keys and stops it.
+HostKey /userdata/layercam/ssh/ssh_host_ed25519_key
+AuthorizedKeysFile /userdata/layercam/ssh/authorized_keys
+PermitRootLogin prohibit-password
+AllowUsers root
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+HostbasedAuthentication no
+UsePAM no
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+PermitTunnel no
+MaxAuthTries 3
+LoginGraceTime 30
+Subsystem sftp /usr/libexec/sftp-server

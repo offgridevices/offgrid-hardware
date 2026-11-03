@@ -1,0 +1,396 @@
+# -*- coding: utf-8 -*-
+"""Everything a board house needs, from one finished .kicad_pcb.
+
+  <name>-gerbers.zip      copper, mask, paste, silk, outline + Excellon drills
+                          (upload this for the bare board, JLCPCB or PCBWay)
+  gerbers/                the same files unzipped: the build's working copy,
+                          not committed (ridge-3/.gitignore)
+  <name>-bom-jlcpcb.csv   Comment, Designator, Footprint, LCSC Part #
+  <name>-cpl-jlcpcb.csv   Designator, Mid X, Mid Y, Layer, Rotation
+  <name>-bom-pcbway.csv   PCBWay's assembly BOM columns (MPN + LCSC number)
+  <name>-netlist.csv      every pad and its net, for checking against circuit.py
+  <name>-assembly.pdf     parts outlines and references, top then bottom
+  ../images/<name>-top.png, -bottom.png, -iso.png   rendered views
+  ../images/<name>-silkscreen-from-gerbers.png      the silkscreen as the fab will print it
+  ../../mechanical/<name>-step.zip                  3D model of the assembled board
+
+A rebuild of an unchanged board leaves every file as committed (stable.py):
+the Gerber zip keeps its bytes when only KiCad's stamps (time, build)
+differ, the renders and the STEP are made again only when the board, a 3D
+model or KiCad changed, and the silkscreen picture only when its Gerbers
+changed.  Pictures are saved as 256-colour PNG (stable.save_png).
+
+Pick-and-place coordinates are the Gerbers' own (KiCad absolute, y up), so
+the two line up without any origin setting.  Rotation: 0 degrees is the
+footprint's native orientation.  Footprints converted from JLCPCB's own
+library entries, and standard two-terminal chip parts, need no per-part
+correction (a part's 'jlc_rot' in parts.py adds one; no part sets it now).
+Two lands are drawn in footprints.py from the makers' drawings, with no
+JLCPCB library entry behind them: the ESC FETs' PG-TSDSON-8 FL (Infineon)
+and the HCS1206 shunt (Stackpole); check those in JLCPCB's placement
+preview.  Bottom parts are given as seen from the bottom, which is
+180 - (angle seen from the top).
+"""
+import csv, inspect, os, re, shutil, subprocess, collections
+import pcbnew
+import parts, circuit, stable
+
+LAYERS = ['F.Paste', 'B.Paste', 'F.Silkscreen', 'B.Silkscreen', 'F.Mask', 'B.Mask', 'Edge.Cuts']
+
+
+def copper_layers(board):
+    n = pcbnew.LoadBoard(board).GetCopperLayerCount()
+    return ['F.Cu'] + ['In%d.Cu' % i for i in range(1, n - 1)] + ['B.Cu']
+
+
+def run(cmd):
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise SystemExit('failed: %s\n%s\n%s' % (' '.join(cmd), r.stdout, r.stderr))
+    return r.stdout
+
+
+def gerbers(board, out_dir, name):
+    """Gerbers and drill files into out_dir/gerbers/ (exported afresh each
+    time), zipped into out_dir/<name>-gerbers.zip."""
+    gdir = os.path.join(out_dir, 'gerbers')
+    zp = os.path.join(out_dir, '%s-gerbers.zip' % name)
+    old_zip = stable.read(zp)
+    shutil.rmtree(gdir, ignore_errors=True)
+    os.makedirs(gdir)
+    run(['kicad-cli', 'pcb', 'export', 'gerbers', '--layers', ','.join(copper_layers(board) + LAYERS),
+         '--subtract-soldermask',
+         '--output', gdir + '/', board])
+    run(['kicad-cli', 'pcb', 'export', 'drill', '--format', 'excellon', '--excellon-units', 'mm',
+         '--excellon-separate-th', '--generate-map', '--map-format', 'gerberx2', '--output', gdir + '/', board])
+    files = sorted(os.listdir(gdir))
+    stable.zip_files(zp, [(os.path.join(gdir, f), f) for f in files])
+    stable.keep_if_same(zp, old_zip)    # the same Gerbers but for KiCad's stamps: keep the committed zip
+    return zp, files
+
+
+def _assembled(b, board_name, build=None):
+    """(footprint, part-dict) for every part the assembler places in a build
+    (circuit.BUILDS; default circuit.DEFAULT_BUILD): the board carries every
+    build's footprints, the build fits only its option groups."""
+    every = circuit.build(board_name)
+    comps = {c.ref: c for c in every}
+    fit = {c.ref for c in circuit.fitted(every, build)}
+    out = []
+    for fp in b.GetFootprints():
+        c = comps.get(fp.GetReference())
+        if c is None:
+            raise SystemExit('footprint %s is not in circuit.py' % fp.GetReference())
+        if c.part in parts.PARTS and c.ref in fit:
+            out.append((fp, parts.PARTS[c.part]))
+    if len(out) != sum(1 for r in fit if comps[r].part in parts.PARTS):
+        raise SystemExit('board and circuit.py disagree on the assembled parts')
+    return out
+
+
+def _natural(ref):
+    import re
+    return tuple((0, int(t)) if t.isdigit() else (1, t) for t in re.findall(r'\d+|\D+', ref))
+
+
+# BOM columns, the single board's and the panel's (panel.py)
+BOM_JLC = ['Comment', 'Designator', 'Footprint', 'LCSC Part #', 'Manufacturer Part #', 'Manufacturer']
+BOM_PCBWAY = ['Item #', 'Designator', 'Qty', 'Manufacturer Part Number', 'Description', 'Value',
+              'Package/Footprint', 'Type', 'LCSC Part #', 'Side']
+
+
+def bom_key(p):
+    """One BOM line per orderable part: its LCSC number, or for a part LCSC
+    does not stock (JLCPCB's global sourcing, PCBWay's turnkey) its MPN."""
+    return p['lcsc'] or 'MPN ' + p['mpn']
+
+
+def bom_row_key(row):
+    """bom_key of a JLCPCB BOM row as written."""
+    return row['LCSC Part #'] or 'MPN ' + row['Manufacturer Part #']
+
+
+def bom_rows(groups, sides):
+    """(JLCPCB rows, PCBWay rows) from {bom_key: (part, [refs])} and
+    {bom_key: {'Top', 'Bottom'}}."""
+    fpname = lambda p: p['fp'].split(':')[1]
+    jlc, pcbway = [], []
+    for i, (k, (p, refs)) in enumerate(groups.items(), 1):
+        refs = ','.join(sorted(refs, key=_natural))
+        jlc.append([p['value'], refs, fpname(p), p['lcsc'] or '', p['mpn'], p.get('maker', '').split(' (')[0]])
+        pcbway.append([i, refs, len(refs.split(',')), p['mpn'], p['desc'], p['value'], fpname(p), 'SMD',
+                       p['lcsc'] or '', '+'.join(sorted(sides[k]))])
+    return jlc, pcbway
+
+
+def write_boms(out_dir, name, groups, sides):
+    jlc, pcbway = bom_rows(groups, sides)
+    paths = (os.path.join(out_dir, '%s-bom-jlcpcb.csv' % name), os.path.join(out_dir, '%s-bom-pcbway.csv' % name))
+    for path, head, rows in zip(paths, (BOM_JLC, BOM_PCBWAY), (jlc, pcbway)):
+        with open(path, 'w', newline='') as f:
+            w = csv.writer(f)
+            w.writerow(head)
+            w.writerows(rows)
+    return paths
+
+
+def bom_cpl(board, out_dir, name, board_name, build=None):
+    b = pcbnew.LoadBoard(board)
+    asm = _assembled(b, board_name, build)
+    groups = collections.OrderedDict()
+    sides = collections.defaultdict(set)
+    for fp, p in sorted(asm, key=lambda a: (bom_key(a[1]), _natural(a[0].GetReference()))):
+        groups.setdefault(bom_key(p), (p, []))[1].append(fp.GetReference())
+        sides[bom_key(p)].add('Bottom' if fp.IsFlipped() else 'Top')
+    write_boms(out_dir, name, groups, sides)
+    with open(os.path.join(out_dir, '%s-cpl-jlcpcb.csv' % name), 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['Designator', 'Mid X', 'Mid Y', 'Layer', 'Rotation'])
+        for fp, p in sorted(asm, key=lambda a: _natural(a[0].GetReference())):
+            q = fp.GetPosition()
+            rot = fp.GetOrientationDegrees()
+            bottom = fp.IsFlipped()
+            # a part whose JLCPCB library footprint is this board's land
+            # pattern turned round (a second source on the same pads)
+            off = p.get('jlc_rot', 0)
+            if bottom and off:
+                raise SystemExit('jlc_rot on a bottom-side part is not worked out: %s' % fp.GetReference())
+            rot += off
+            if bottom:
+                rot = 180 - rot
+            rot = round(rot % 360, 2) % 360
+            w.writerow([fp.GetReference(), '%.4fmm' % (q.x / 1e6), '%.4fmm' % (-q.y / 1e6),
+                        'Bottom' if bottom else 'Top', ('%g' % rot)])
+    return len(asm), len(groups), sum(1 for fp, p in asm if fp.IsFlipped())
+
+
+def netlist(board, out_dir, name):
+    b = pcbnew.LoadBoard(board)
+    rows = []
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname():
+                rows.append((p.GetNetname(), fp.GetReference(), p.GetNumber()))
+    rows.sort(key=lambda r: (r[0], _natural(r[1]), r[2]))
+    with open(os.path.join(out_dir, '%s-netlist.csv' % name), 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['Net', 'Reference', 'Pad'])
+        w.writerows(rows)
+    return len(rows)
+
+
+def check_netlist(board, board_name):
+    """The routed board must carry exactly circuit.py's connections."""
+    b = pcbnew.LoadBoard(board)
+    want, listed = {}, set()
+    for c in circuit.build(board_name):
+        for pad, net in c.pins.items():
+            listed.add((c.ref, pad))
+            if net:
+                want[(c.ref, pad)] = net
+    got = {}
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            if p.GetNetname():
+                got[(fp.GetReference(), p.GetNumber())] = p.GetNetname()
+    bad = [(k, want.get(k), got.get(k)) for k in set(want) | set(got) if want.get(k) != got.get(k)]
+    # pads circuit.py does not list at all (extra copies of a numbered pad,
+    # mechanical pads) are ignored; a pad it lists as unconnected must have
+    # no net
+    bad = [x for x in bad if x[1] is not None or x[0] in listed]
+    return bad
+
+
+def assembly_pdf(board, out_dir, name):
+    out = os.path.join(out_dir, '%s-assembly.pdf' % name)
+    run(['kicad-cli', 'pcb', 'export', 'pdf', '--layers', 'F.Fab,F.Silkscreen,Edge.Cuts',
+         '--mode-single', '--output', out + '.top.pdf', board])
+    run(['kicad-cli', 'pcb', 'export', 'pdf', '--layers', 'B.Fab,B.Silkscreen,Edge.Cuts', '--mirror',
+         '--mode-single', '--output', out + '.bottom.pdf', board])
+    try:
+        from pypdf import PdfWriter
+        wr = PdfWriter()
+        for part in (out + '.top.pdf', out + '.bottom.pdf'):
+            wr.append(part)
+        wr.write(out)
+        for part in (out + '.top.pdf', out + '.bottom.pdf'):
+            os.remove(part)
+    except ImportError:
+        os.rename(out + '.top.pdf', out.replace('.pdf', '-top.pdf'))
+        os.rename(out + '.bottom.pdf', out.replace('.pdf', '-bottom.pdf'))
+    return out
+
+
+def renders(board, out_dir, name):
+    """Top, bottom and three-quarter views; each redrawn only when the board,
+    its models or KiCad changed (stable.render)."""
+    outs = []
+    for side in ('top', 'bottom'):
+        o = os.path.join(out_dir, '%s-%s.png' % (name, side))
+        stable.render(['kicad-cli', 'pcb', 'render', '--side', side, '--width', '1600', '--height', '1600',
+                       '--quality', 'high', '--use-board-stackup-colors', '--output', o, board], o, board, run)
+        outs.append(o)
+    o = os.path.join(out_dir, '%s-iso.png' % name)
+    stable.render(['kicad-cli', 'pcb', 'render', '--width', '1600', '--height', '1200', '--quality', 'high',
+                   '--use-board-stackup-colors', '--rotate', '-45,0,-30', '--zoom', '0.9', '--output', o, board],
+                  o, board, run)
+    outs.append(o)
+    return outs
+
+
+def silk_from_gerbers(gdir, out_png, name):
+    """Both silkscreen layers read back from the Gerbers (not from KiCad):
+    what the fab will print, the bottom mirrored to read as seen from
+    below.  Drawn again only when those Gerbers (but for their stamps) or
+    this function changed: the key is kept in the PNG.  Needs gerbonara;
+    skipped without it."""
+    layers = [os.path.join(gdir, '%s-%s' % (name, s)) for s in ('F_Silkscreen.gto', 'B_Silkscreen.gbo')]
+    key = stable.files_key(layers, inspect.getsource(silk_from_gerbers))
+    if stable.png_key(out_png) == key:
+        return out_png
+    try:
+        import warnings
+        from gerbonara import GerberFile
+        import pymupdf
+        from PIL import Image
+    except ImportError:
+        return None
+    ims = []
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        for layer in layers:
+            g = GerberFile.open(layer)
+            svg = str(g.to_svg(fg='black', bg='white', margin=1))
+            pdf = pymupdf.open('pdf', pymupdf.open(stream=svg.encode(), filetype='svg').convert_to_pdf())
+            pix = pdf[0].get_pixmap(dpi=1200)
+            ims.append(Image.frombytes('RGB', (pix.width, pix.height), pix.samples))
+    top, bot = ims[0], ims[1].transpose(Image.FLIP_LEFT_RIGHT)
+    im = Image.new('RGB', (top.width + bot.width + 60, max(top.height, bot.height)), 'white')
+    im.paste(top, (0, 0)); im.paste(bot, (top.width + 60, 0))
+    stable.save_png(im, out_png, {stable.KEY: key})
+    return out_png
+
+
+# The brand's dark theme (tokens.json color.pitch / bone / dim)
+PITCH, BONE, DIM = (0x1B, 0x18, 0x13), (0xF1, 0xEC, 0xE0), (0x9A, 0x90, 0x82)
+
+
+def stack_sheet(v1_dir, out_png, boards, title, subtitle, tile=900):
+    """Both sides of every board on one sheet: a column per board (its
+    kicad-cli top and bottom renders), on the brand's Pitch ground with
+    Bone and Dim type in Instrument Sans.  boards: [(folder, name,
+    heading)].  Drawn again only when a render, the font, the text or this
+    function changed: the key is kept in the PNG."""
+    from PIL import Image, ImageDraw, ImageFont
+    font = os.path.join(v1_dir, 'fonts', 'InstrumentSans-VariableFont.ttf')
+    renders = [os.path.join(v1_dir, folder, 'images', '%s-%s.png' % (name, s))
+               for folder, name, _ in boards for s in ('top', 'bottom')]
+    key = stable.files_key(renders + [font], (inspect.getsource(stack_sheet), boards, title, subtitle, tile))
+    if stable.png_key(out_png) == key:
+        return out_png
+
+    def face(px, weight):
+        f = ImageFont.truetype(font, px)
+        f.set_variation_by_axes([100, weight])          # width, weight
+        return f
+
+    def board_img(path):
+        im = Image.open(path).convert('RGBA')
+        box = im.getchannel('A').point(lambda a: 255 if a > 128 else 0).getbbox()
+        im = im.crop(box)
+        k = tile / max(im.size)
+        return im.resize((round(im.width * k), round(im.height * k)), Image.LANCZOS)
+
+    pad, head, side_w = 60, 220, 150
+    W = side_w + len(boards) * (tile + pad) + pad
+    H = head + 2 * (tile + pad) + pad
+    sheet = Image.new('RGB', (W, H), PITCH)
+    d = ImageDraw.Draw(sheet)
+    d.text((pad, 50), title, font=face(72, 600), fill=BONE)
+    d.text((pad + d.textlength(title, font=face(72, 600)) + 30, 76), subtitle, font=face(38, 400), fill=DIM)
+    for i, (folder, name, heading) in enumerate(boards):
+        x = side_w + pad + i * (tile + pad)
+        d.text((x, head - 70), heading, font=face(44, 500), fill=BONE)
+        for j, s in enumerate(('top', 'bottom')):
+            im = board_img(os.path.join(v1_dir, folder, 'images', '%s-%s.png' % (name, s)))
+            y = head + j * (tile + pad)
+            sheet.paste(im, (x + (tile - im.width) // 2, y + (tile - im.height) // 2), im)
+    for j, s in enumerate(('Top', 'Bottom')):
+        f = face(40, 500)
+        d.text((pad, head + j * (tile + pad) + tile // 2 - 20), s, font=f, fill=DIM)
+    os.makedirs(os.path.dirname(out_png), exist_ok=True)
+    stable.save_png(sheet, out_png, {stable.KEY: key})
+    return out_png
+
+
+def step(board, out_path):
+    """STEP of the assembled board, zipped: the raw file is ~18 MB, the zip
+    a fifth of that, and every CAD tool reads the STEP inside."""
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    raw = out_path if out_path.endswith('.step') else out_path + '.step'
+    zp = raw[:-5] + '-step.zip'
+    stable.exported_zip(['kicad-cli', 'pcb', 'export', 'step', '--subst-models', '--force', '--output', raw, board],
+                        raw, zp, board, run)
+    return zp
+
+
+FP_LIB_TABLE = """(fp_lib_table
+  (version 7)
+  (lib (name "aio")(type "KiCad")(uri "${KIPRJMOD}/../aio.pretty")(options "")(descr "Ridge 3 stack footprints"))
+)
+"""
+
+
+def project_named(text, name):
+    """A project file's text under its own name: the pipeline's work name
+    (<board>_fin) out of its meta, and no schematic sheet, since there is
+    none (circuit.py is the schematic).  KiCad then opens it as name."""
+    text = re.sub(r'("meta": \{\s*"filename": ")[^"]*"', lambda m: m.group(1) + name + '.kicad_pro"', text)
+    return re.sub(r'"top_level_sheets": \[[^\]]*\]', '"top_level_sheets": []', text)
+
+
+def install(src_pcb, dest_dir, name):
+    """Copy a finished board into its folder in the repo, with its project
+    (project_named), rules and a footprint table that finds ../aio.pretty,
+    and point its 3D models at ../aio.3dshapes."""
+    os.makedirs(dest_dir, exist_ok=True)
+    base = os.path.splitext(src_pcb)[0]
+    dst = os.path.join(dest_dir, name + '.kicad_pcb')
+    txt = open(src_pcb).read().replace('${KIPRJMOD}/aio.3dshapes/', '${KIPRJMOD}/../aio.3dshapes/')
+    open(dst, 'w').write(txt)
+    for ext in ('.kicad_pro', '.kicad_dru'):
+        if os.path.exists(base + ext):
+            shutil.copy(base + ext, os.path.join(dest_dir, name + ext))
+    pro = os.path.join(dest_dir, name + '.kicad_pro')
+    if os.path.exists(pro):
+        txt = open(pro).read()
+        open(pro, 'w').write(project_named(txt, name))
+    open(os.path.join(dest_dir, 'fp-lib-table'), 'w').write(FP_LIB_TABLE)
+    return dst
+
+
+def produce(board, board_name, name, v1_dir, visual=True):
+    """All outputs for one installed board.  Returns a summary dict.
+    visual=False (make.py --fab-only): no renders and no STEP, which need
+    KiCad's 3D models."""
+    d = os.path.dirname(board)
+    prod = os.path.join(d, 'production')
+    img = os.path.join(d, 'images')
+    os.makedirs(prod, exist_ok=True); os.makedirs(img, exist_ok=True)
+    zp, files = gerbers(board, prod, name)
+    n_parts, n_lines, n_bottom = bom_cpl(board, prod, name, board_name)
+    # the other builds' BOM and CPL beside the default build's
+    variants = {}
+    if any(c.option for c in circuit.build(board_name)):
+        for bld in sorted(circuit.BUILDS):
+            if bld != circuit.DEFAULT_BUILD:
+                variants[bld] = bom_cpl(board, prod, '%s-%s' % (name, bld), board_name, bld)
+    n_pads = netlist(board, prod, name)
+    pdf = assembly_pdf(board, prod, name)
+    pics = renders(board, img, name) if visual else []
+    silk = silk_from_gerbers(os.path.join(prod, 'gerbers'), os.path.join(img, name + '-silkscreen-from-gerbers.png'), name)
+    if silk:
+        pics.append(silk)
+    stp = step(board, os.path.join(v1_dir, 'mechanical', name + '.step')) if visual else None
+    return dict(zip=zp, gerber_files=files, parts=n_parts, bom_lines=n_lines, bottom_parts=n_bottom,
+                pads=n_pads, pdf=pdf, images=pics, step=stp, variants=variants)

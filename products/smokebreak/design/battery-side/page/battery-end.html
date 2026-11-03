@@ -1,0 +1,229 @@
+<title>SmokeBreak Battery End</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; a to-scale reach chart, then the five layouts as
+   a two-up grid of plates (render + numbers), then the call. */
+:root {
+  --bg: #F1ECE0;          /* bone */
+  --panel: #E8E2D3;
+  --fg: #1B1813;          /* pitch */
+  --muted: #5E5749;
+  --rule: #CFC7B4;
+  --ember: #D85A00;       /* the brand ember, a step darker to read as text on bone */
+  --good: #2F7D4A;
+  --warn: #A86A00;
+  --bad: #B23A2A;
+  --bar-small: #1B1813;
+  --bar-big: #8C8473;
+  --display: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15130F; --panel: #1F1C17; --fg: #F1ECE0; --muted: #A79F8E; --rule: #3A352C;
+    --ember: #FF7A1F; --good: #5DBB7E; --warn: #E0A23A; --bad: #EF6A55;
+    --bar-small: #F1ECE0; --bar-big: #8C8473; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15130F; --panel: #1F1C17; --fg: #F1ECE0; --muted: #A79F8E; --rule: #3A352C;
+  --ember: #FF7A1F; --good: #5DBB7E; --warn: #E0A23A; --bad: #EF6A55;
+  --bar-small: #F1ECE0; --bar-big: #8C8473; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 400 16px/1.55 var(--body); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 72px; display: grid; gap: 48px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.08; }
+h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+h3 { font-size: 18px; font-weight: 600; }
+p { margin: 0; max-width: 66ch; }
+.eyebrow { font: 500 12px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ember); }
+.lede { color: var(--muted); font-size: 18px; }
+header { display: grid; gap: 14px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* lead-length facts */
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+.fact { background: var(--bg); padding: 16px 18px; display: grid; gap: 4px; min-width: 0; }
+.fact b { font: 500 26px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.fact span { color: var(--muted); font-size: 14px; }
+
+/* chart */
+.chart { display: grid; gap: 12px; }
+.chart-box { overflow-x: auto; }
+.chart svg { display: block; width: 100%; min-width: 560px; height: auto; }
+.chart text { font-family: var(--mono); font-size: 12px; fill: var(--fg); }
+.chart .lab { font-family: var(--body); font-size: 14px; font-weight: 600; }
+.chart .dim { fill: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 18px; color: var(--muted); font-size: 14px; }
+.legend i { display: inline-block; width: 22px; height: 10px; vertical-align: middle; margin-right: 6px; }
+
+/* plates */
+.plates { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 28px; }
+.plate { display: grid; gap: 14px; align-content: start; min-width: 0; }
+.plate img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; background: var(--panel); border: 1px solid var(--rule); }
+.plate-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.size { font: 400 13px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.verdict { font: 500 12px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 9px; border: 1px solid currentColor; }
+.v-good { color: var(--good); } .v-warn { color: var(--warn); } .v-bad { color: var(--bad); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 400 13px/1 var(--mono); font-variant-numeric: tabular-nums; padding: 6px 8px; background: var(--panel); border-left: 3px solid var(--rule); }
+.chip.ok { border-left-color: var(--good); } .chip.meh { border-left-color: var(--warn); } .chip.no { border-left-color: var(--bad); }
+.plate ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.plate li { max-width: 62ch; }
+.plate .minus { color: var(--muted); }
+
+/* the call */
+.call { display: grid; gap: 14px; padding-block: 24px 0; border-top: 2px solid var(--fg); }
+.call ol { margin: 0; padding-left: 20px; display: grid; gap: 10px; max-width: 70ch; }
+.note { border-left: 3px solid var(--ember); padding: 4px 0 4px 16px; display: grid; gap: 6px; }
+.sources { color: var(--muted); font-size: 13px; display: grid; gap: 4px; }
+.sources a { color: inherit; }
+a:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">SmokeBreak · battery side · layout study</div>
+    <h1>Keep the balance plug next to the power plug</h1>
+    <p class="lede">A pack's power lead and balance lead leave it side by side, and on small packs both are short. Five ways to put the XT60, XT30 and the 2S–6S balance sockets together, all at true size, with the distance each balance plug has to travel measured.</p>
+  </header>
+
+  <section class="facts" aria-label="Lead lengths">
+    <div class="fact"><b>45 mm</b><span>power and balance lead on a 3S 450 mAh pack (Tattu)</span></div>
+    <div class="fact"><b>≈100 mm</b><span>power lead on a bigger 4S pack</span></div>
+    <div class="fact"><b>≤ 30 mm</b><span>target gap, balance socket to XT30, for 2S–4S packs</span></div>
+    <div class="fact"><b>≤ 60 mm</b><span>target gap, balance socket to XT60, for 4S–6S packs</span></div>
+  </section>
+
+  <section class="chart" aria-labelledby="reach-h">
+    <h2 id="reach-h">Worst-case reach, mouth to mouth</h2>
+    <p class="lede" style="font-size:16px">The farthest balance socket from the plug that pack size uses. Bars past the dashed line need a longer lead than the pack has.</p>
+    <div class="chart-box">
+      <svg viewBox="0 0 640 380" role="img" aria-label="Bar chart of worst-case reach per layout">
+        <!-- scale: x = 190 + mm * 4.2 ; 0 to 100 mm -->
+        <g stroke="var(--rule)" stroke-width="1">
+          <line x1="190" y1="20" x2="190" y2="350"/>
+          <line x1="316" y1="20" x2="316" y2="350"/>
+          <line x1="442" y1="20" x2="442" y2="350"/>
+          <line x1="610" y1="20" x2="610" y2="350"/>
+        </g>
+        <line x1="316" y1="20" x2="316" y2="350" stroke="var(--bar-small)" stroke-width="1.5" stroke-dasharray="4 4"/>
+        <line x1="442" y1="20" x2="442" y2="350" stroke="var(--bar-big)" stroke-width="1.5" stroke-dasharray="4 4"/>
+        <g class="dim">
+          <text x="190" y="370" text-anchor="middle">0</text>
+          <text x="316" y="370" text-anchor="middle">30 mm</text>
+          <text x="442" y="370" text-anchor="middle">60 mm</text>
+          <text x="610" y="370" text-anchor="middle">100 mm</text>
+        </g>
+        <!-- rows: small = 2S-4S to XT30, big = 4S-6S to XT60 -->
+        <g>
+          <text class="lab" x="0" y="44">Today</text>
+          <rect x="190" y="30" width="399" height="12" fill="var(--bar-small)"/><text x="595" y="41">95</text>
+          <rect x="190" y="46" width="257" height="12" fill="var(--bar-big)"/><text x="453" y="57">61</text>
+        </g>
+        <g>
+          <text class="lab" x="0" y="110">A · Balance well</text>
+          <rect x="190" y="96" width="109" height="12" fill="var(--bar-small)"/><text x="305" y="107">26</text>
+          <rect x="190" y="112" width="129" height="12" fill="var(--bar-big)"/><text x="325" y="123">31</text>
+        </g>
+        <g>
+          <text class="lab" x="0" y="176">B · Split-level end</text>
+          <rect x="190" y="162" width="106" height="12" fill="var(--bar-small)"/><text x="302" y="173">25</text>
+          <rect x="190" y="178" width="161" height="12" fill="var(--bar-big)"/><text x="357" y="189">38</text>
+        </g>
+        <g>
+          <text class="lab" x="0" y="242">C · One smart socket</text>
+          <rect x="190" y="228" width="66" height="12" fill="var(--bar-small)"/><text x="262" y="239">16</text>
+          <rect x="190" y="244" width="130" height="12" fill="var(--bar-big)"/><text x="326" y="255">31</text>
+        </g>
+        <g>
+          <text class="lab" x="0" y="308">D · Corner wrap</text>
+          <rect x="190" y="294" width="194" height="12" fill="var(--bar-small)"/><text x="390" y="305">46</text>
+          <rect x="190" y="310" width="294" height="12" fill="var(--bar-big)"/><text x="490" y="321">70</text>
+        </g>
+      </svg>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--bar-small)"></i>2S–4S socket to the XT30 (small packs, short leads)</span>
+      <span><i style="background:var(--bar-big)"></i>4S–6S socket to the XT60 (bigger packs, longer leads)</span>
+    </div>
+  </section>
+
+  <section class="plates" aria-label="The five layouts">
+    <article class="plate">
+      <img src="today.jpg" alt="Today's layout: XT60 and XT30 on the battery end, five balance sockets along the back wall" width="1280" height="800">
+      <div class="plate-head"><h3>Today: sockets along the back</h3><span class="verdict v-bad">Too far</span></div>
+      <div class="size">100 × 58 × 18 mm</div>
+      <div class="chips"><span class="chip no">2S 95</span><span class="chip no">3S 84</span><span class="chip no">4S 71</span><span class="chip ok">5S 45</span><span class="chip ok">6S 29</span></div>
+      <ul><li class="minus">A 2S or 3S pack plugged into the XT30 cannot reach its socket at the far end of the back wall.</li></ul>
+    </article>
+
+    <article class="plate">
+      <img src="well.jpg" alt="Layout A: a recessed well on the top face at the battery end with five top-entry balance sockets, XT60 and XT30 on the end wall below" width="1280" height="800">
+      <div class="plate-head"><h3>A · Balance well</h3><span class="verdict v-good">Fits every pack</span></div>
+      <div class="size">100 × 58 × 18 mm · same body</div>
+      <div class="chips"><span class="chip ok">2S 15</span><span class="chip ok">3S 16</span><span class="chip ok">4S 26</span><span class="chip ok">5S 31</span><span class="chip ok">6S 19</span></div>
+      <ul>
+        <li>Five keyed top-entry sockets in a shallow recess right above the XT plugs. Body and thickness unchanged.</li>
+        <li class="minus">The balance plug goes in from above and stands about 9 mm proud while plugged; the leads loop up over the edge.</li>
+        <li class="minus">Open sockets on the top face collect dust; wants a small cover.</li>
+      </ul>
+    </article>
+
+    <article class="plate">
+      <img src="split.jpg" alt="Layout B: the battery end wall as a two-tier port panel, XT60, 5S and 6S below, 4S, XT30, 3S and 2S above" width="1280" height="800">
+      <div class="plate-head"><h3>B · Split-level end wall</h3><span class="verdict v-good">Fits every pack</span></div>
+      <div class="size">86 × 66 × 20.5 mm · shorter, 2.5 mm thicker</div>
+      <div class="chips"><span class="chip ok">2S 25</span><span class="chip ok">3S 13</span><span class="chip ok">4S 14</span><span class="chip ok">5S 18</span><span class="chip ok">6S 38</span></div>
+      <ul>
+        <li>Every battery plug on one end wall, in two tiers: XT60, 5S and 6S on the board's underside, XT30 with 2S, 3S and 4S on top. Small-pack sockets sit beside the XT30, big-pack sockets beside the XT60.</li>
+        <li>All plugs go in sideways, so the profile stays flat with a pack plugged in. Five keyed sockets, no wrong plugging.</li>
+        <li class="minus">The board moves to mid-height with through-hole parts on both faces; the body grows 2.5 mm thicker and 8 mm deeper but 14 mm shorter.</li>
+      </ul>
+    </article>
+
+    <article class="plate">
+      <img src="single.jpg" alt="Layout C: XT60, XT30 and one wide balance socket side by side on the battery end wall" width="1280" height="800">
+      <div class="plate-head"><h3>C · One smart socket</h3><span class="verdict v-good">Fits every pack</span></div>
+      <div class="size">92 × 62 × 18 mm · thinnest, smallest board</div>
+      <div class="chips"><span class="chip ok">2S–4S 16 to XT30</span><span class="chip ok">4S–6S 31 to XT60</span></div>
+      <ul>
+        <li>One 7-pin socket beside the XT plugs takes 2S to 6S. The mouth is stepped so a short plug slides to the black-wire end; if it sits off, the screen says so and still reads the cells right.</li>
+        <li>Frees the 80 mm strip the five sockets take today: smaller board, fewer parts, about $0.35 cheaper.</li>
+        <li class="minus">A plug can still be pushed in off-centre. It is harmless, but it is one more thing for the user to get right.</li>
+      </ul>
+    </article>
+
+    <article class="plate">
+      <img src="corner.jpg" alt="Layout D: XT60, XT30 and the 2S socket on the end wall, 3S to 6S along the back wall from the corner" width="1280" height="800">
+      <div class="plate-head"><h3>D · Corner wrap</h3><span class="verdict v-warn">Small packs short</span></div>
+      <div class="size">100 × 58 × 18 mm · same body</div>
+      <div class="chips"><span class="chip ok">2S 11</span><span class="chip meh">3S 38</span><span class="chip no">4S 46</span><span class="chip ok">5S 51</span><span class="chip meh">6S 70</span></div>
+      <ul>
+        <li>The least change: XT plugs and the 2S socket on the end, the rest round the corner.</li>
+        <li class="minus">A small 3S or 4S pack is right at the limit of its 45 mm lead; the 6S socket is the farthest of any layout.</li>
+      </ul>
+    </article>
+  </section>
+
+  <section class="call" aria-labelledby="call-h">
+    <h2 id="call-h">Recommendation</h2>
+    <ol>
+      <li><strong>B, split-level end wall</strong>, if every size keeps its own keyed socket. Everything plugs in sideways at one end, nothing sticks up, and it reads as one clean port panel. Cost: 2.5 mm of thickness and a board with parts on both faces.</li>
+      <li><strong>C, one smart socket</strong>, if thin, small and cheap matter most. It keeps 18 mm, shrinks the board and drops four sockets.</li>
+      <li>A works too, but plugging from above makes the pack stand proud while it is plugged in. D does not solve the problem for small packs.</li>
+    </ol>
+    <div class="note">
+      <strong>A correction about the single socket</strong>
+      <p>Earlier I said a small plug sitting a pin off in a wide socket could overheat a resistor. Checking the circuit again, it cannot. The plug can only slide away from pin 1, which leaves that pin unconnected, so no current flows through the 10 Ω resistor. The firmware already reads a shifted plug correctly when the main lead is in. That makes C a safe option, which it was not on my earlier advice.</p>
+    </div>
+    <div class="sources">
+      <span>Lead lengths: <a href="https://rcdrone.top/fr/products/src-taa4503s75xt3-tattu-3s-450mah-75c-11-1v-lipo-battery-pack-with-xt30-plug">Tattu 3S 450 mAh spec table</a> (45 mm discharge and balance), <a href="https://store.hobbyetc.com/parts/view/181820">Racers Edge 4S hard case</a> (100 mm lead). Connector sizes: KiCad's JST XH, XT60 and XT30 models.</span>
+      <span>Renders and distances: <span class="mono">smokebreak/design/battery-side/sides.py</span></span>
+    </div>
+  </section>
+</div>

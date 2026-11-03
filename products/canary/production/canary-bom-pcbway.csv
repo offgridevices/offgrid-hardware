@@ -1,0 +1,28 @@
+Item #,Designator,Qty,Manufacturer,Mfg Part #,Description / Value,Package/Footprint,Type,LCSC #,Your Instructions / Notes
+1,BZ1,1,Same Sky (CUI Devices),CMT-8504-100-SMT-TR,"Magnetic transducer 4 kHz, 15 Ω, 100 dB @10 cm (CMT-8504)",MagneticBuzzer_CUI_CMT-8504-100-SMT,SMD,C22359707,Pads 3/4 are mechanical: solder all four
+2,"C1,C2,C9,C13",4,Samsung Electro-Mechanics,CL21A106KAYNNNE,Capacitor 10u (10u),C_0805_2012Metric,SMD,C15850,Alternate: any 10 uF X5R/X7R >= 10 V 0805 (e.g. CL21A106KPFNNNE)
+3,"C3,C4,C5,C6,C8,C10,C11,C12",8,Samsung Electro-Mechanics,CL10B104KA8NNNC,Capacitor 100n (100n),C_0603_1608Metric,SMD,C1590,
+4,C7,1,Samsung Electro-Mechanics,CL10A105KA8NNNC,Capacitor 1u (1u),C_0603_1608Metric,SMD,C5673,
+5,D1,1,Littelfuse,SMF5.0A,"TVS 5 V unidirectional, 200 W (SMF5.0A)",D_SMF,SMD,C151296,
+6,D2,1,Micro Commercial Co,B5819W-TP,"Schottky 40 V 1 A, coil clamp (B5819W)",D_SOD-123,SMD,C84354,
+7,D3,1,Kingbright,APT1608SGC,LED green 0603 (Green),LED_0603_1608Metric,SMD,C5875754,
+8,D4,1,Kingbright,APT1608SYCK,LED yellow 0603 (Amber),LED_0603_1608Metric,SMD,C5875726,
+9,D5,1,Kingbright,APT1608EC,LED red 0603 (Red),LED_0603_1608Metric,SMD,C5554143,
+10,J1,1,GCT,USB4125-GF-A-0190,"USB-C receptacle, power only, 3 A (USB-C power)",USB_C_Receptacle_GCT_USB4125-xx-x-0190_6P_TopMnt_Horizontal,SMD,C5246813,
+11,J3,1,JST,S2B-PH-SM4-TB(LF)(SN),"JST-PH 2-pin, remote NTC probe (Probe)",JST_PH_S2B-PH-SM4-TB_1x02-1MP_P2.00mm_Horizontal,SMD,C295747,
+12,Q1,1,Alpha & Omega Semiconductor,AO3400A,N-MOSFET 30 V 5.7 A logic level (AO3400A),SOT-23,SMD,C20917,
+13,"R1,R2",2,YAGEO,RC0603FR-075K1L,Resistor 5.1k 0603 (5.1k),R_0603_1608Metric,SMD,C105580,
+14,"R3,R14",2,YAGEO,RC0603FR-0710KL,Resistor 10k 0603 (10k),R_0603_1608Metric,SMD,C98220,
+15,"R4,R5",2,YAGEO,RC0603FR-074K7L,Resistor 4.7k 0603 (4.7k),R_0603_1608Metric,SMD,C99782,
+16,"R6,R7",2,YAGEO,RT0603BRD0710KL,Resistor 10k 0.1% 0603 (10k 0.1%),R_0603_1608Metric,SMD,C95204,
+17,"R8,R11,R12",3,YAGEO,RC0603FR-071KL,Resistor 1k 0603 (1k),R_0603_1608Metric,SMD,C22548,
+18,R9,1,YAGEO,RC0603FR-07100RL,Resistor 100 0603 (100),R_0603_1608Metric,SMD,C105588,
+19,R10,1,YAGEO,RC0603FR-07100KL,Resistor 100k 0603 (100k),R_0603_1608Metric,SMD,C14675,
+20,R13,1,YAGEO,RC0603FR-07470RL,Resistor 470 0603 (470),R_0603_1608Metric,SMD,C114669,
+21,SW1,1,E-Switch,TL3342F160QG/TR,"Tactile switch 4.2 mm, 160 gf (TEST / HUSH)",SW_SPST_TL3342,SMD,C2886898,
+22,TH1,1,Murata Electronics,NCU18XH103F60RB,"NTC 10 kΩ 1 %, B25/50 3380 K (10k B3380)",R_0603_1608Metric,SMD,C440252,
+23,U1,1,Diodes Incorporated,AP2112K-3.3TRG1,LDO 3.3 V 600 mA (AP2112K-3.3),SOT-23-5,SMD,C51118,
+24,U2,1,Microchip Technology,ATMEGA328P-AU,"AVR MCU 32 KB flash, internal 8 MHz RC (ATmega328P-AU)",TQFP-32_7x7mm_P0.8mm,SMD,C14877,Program with production/canary.hex + fuses (see README)
+25,U3,1,Sensirion,SGP40-D-R4,"MOX VOC gas sensor, I2C 0x59 (SGP40)",Sensirion_DFN-6_2.44x2.44mm_P0.8mm_SGP40,SMD,C2874215,"Sensirion gas/RH sensor: do not wash, no conformal coat; reflow last if multiple cycles"
+26,U4,1,Sensirion,SHT40-AD1B-R2,"Humidity + temperature sensor, I2C 0x44 (SHT40)",Sensirion_DFN-4_1.5x1.5mm_P0.8mm_SHT4x_NoCentralPad,SMD,C2909890,"Sensirion gas/RH sensor: do not wash, no conformal coat; reflow last if multiple cycles"
+27,U5,1,Sensirion,SCD41-D-R2,"Photoacoustic CO2 sensor, I2C 0x62 (SCD41)",Sensirion_SCD4x-1EP_10.1x10.1mm_P1.25mm_EP4.8x4.8mm,SMD,C3659294,"Sensirion gas/RH sensor: do not wash, no conformal coat; reflow last if multiple cycles; SCD41-D-R1 (other reel size) is the same part"

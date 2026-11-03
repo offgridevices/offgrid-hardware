@@ -1,0 +1,26 @@
+# Buildroot packages LayerCam needs on top of luckfox_pico_defconfig
+# (sysdrv/tools/board/buildroot/, Buildroot 2023.02.6).  That defconfig
+# already has BR2_PACKAGE_PYTHON3=y, BR2_PACKAGE_PYTHON3_SSL=y,
+# BR2_PACKAGE_CA_CERTIFICATES=y and BR2_PACKAGE_NTP=y.
+#
+# SMB upload: mount.cifs
+BR2_PACKAGE_CIFS_UTILS=y
+# NFS upload: mount.nfs
+BR2_PACKAGE_NFS_UTILS=y
+# Wi-Fi power save and transmit power cap (layercam-net)
+BR2_PACKAGE_IW=y
+# Optional: makes the video from JPEG frames when the hardware encoder is not
+# used (camera.backend = command); not needed on LayerCam itself
+# BR2_PACKAGE_FFMPEG=y
+#
+# Security (README.md, Security).  Root gets no password at all ("*" in
+# /etc/shadow, which board/rootfs/etc/shadow also says): Luckfox's defconfig
+# sets BR2_TARGET_GENERIC_ROOT_PASSWD="luckfox", the same on every board.
+# BR2_TARGET_GENERIC_ROOT_PASSWD depends on this option, so it goes too.
+# The only shell access is SSH with a key the owner adds on the USB console
+# (layercam-setup ssh on KEY); the OpenSSH server stays installed for that
+# but is started only then (board/rootfs/etc/init.d/S50sshd).
+# BR2_TARGET_ENABLE_ROOT_LOGIN is not set
+# dhcpcd would manage wlan0 too (also in access point mode); layercam-net
+# runs udhcpc itself
+# BR2_PACKAGE_DHCPCD is not set

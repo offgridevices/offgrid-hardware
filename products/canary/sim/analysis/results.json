@@ -1,0 +1,47 @@
+{
+ "ntc": {
+  "resolution_C_per_LSB_20_80": [
+   0.1,
+   0.288
+  ],
+  "worst_error_C_20_80": 1.66,
+  "worst_error_C_at_50": 0.91,
+  "worst_error_C_at_65": 1.24,
+  "rate_quantum_C_per_min_at_65": 0.201,
+  "self_heating_mW_max": 0.272,
+  "self_heating_C_est": 0.27
+ },
+ "power": {
+  "loads_mA": {
+   "ATmega328P 8 MHz active/idle avg": 3.0,
+   "SGP40 measuring (1 Hz)": 3.5,
+   "SHT40 avg": 0.01,
+   "SCD41 periodic avg": 15.0,
+   "LED (one lit, avg)": 1.5,
+   "pull-ups, dividers": 0.5
+  },
+  "ldo": {
+   "i_avg_mA": 23.5,
+   "p_ldo_avg_mW": 40.0,
+   "p_ldo_peak_mW": 337.0,
+   "tj_rise_avg_C": 10.0
+  },
+  "usb": {
+   "normal_mA": 23.5,
+   "alarm_avg_mA": 69.3,
+   "alarm_peak_mA": 521.0
+  }
+ },
+ "i2c": {
+  "rise_time_ns": 239.0,
+  "limit_ns_100k": 1000
+ },
+ "checks": {
+  "worst-case error < 2 C at the 50 and 65 C thresholds": true,
+  "rate quantum < 0.3 C/min at 65 C": true,
+  "NTC self-heating < 0.5 C": true,
+  "LDO average junction rise < 20 C": true,
+  "USB alarm peak < 900 mA (USB 3 default)": true,
+  "I2C rise time < 1000 ns": true
+ }
+}

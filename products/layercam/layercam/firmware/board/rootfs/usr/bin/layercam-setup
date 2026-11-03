@@ -1,0 +1,5 @@
+#!/bin/sh
+# layercam-setup: LayerCam's settings over the USB console (layercam/setupcli.py;
+# type "layercam-setup help").  Always the factory copy of the software, the
+# one that can be trusted to start even when an update is broken.
+cd /usr/share/layercam && exec python3 -m layercam.setupcli "$@"
