@@ -1,0 +1,16 @@
+#!/bin/sh
+# Run a command inside the pinned toolchain container (tools/Dockerfile),
+# with the repository mounted at /w and the working directory carried over.
+#   tools/kd python3 src/fab.py
+# The repository root, at any folder depth.  In a git worktree the
+# repository's own .git lives outside it: mount that too, at its own path,
+# so git works inside the container (check_outputs.py reads HEAD).
+ROOT=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
+GIT=$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)
+case "$GIT" in "$ROOT"/*) OUTSIDE= ;; *) OUTSIDE=1 ;; esac
+REL=$(pwd | sed "s|^$ROOT||")
+# sudo only where this user cannot reach docker (Docker Desktop has no
+# /var/run/docker.sock, so testing for the socket file picked sudo there)
+SUDO=$(docker info > /dev/null 2>&1 || echo sudo)
+exec $SUDO docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONHASHSEED=0 \
+  -v "$ROOT":/w ${OUTSIDE:+-v} ${OUTSIDE:+"$GIT:$GIT"} -w "/w$REL" sbkicad:10 "$@"

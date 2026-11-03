@@ -40,9 +40,9 @@ out/
 # Agent worktrees - a second git checkout, never repo content.
 .claude/
 
-# Board build output that duplicates a committed file (the Gerber zip)
-*/v*/production/gerbers/
-*/v*/*/production/gerbers/
+# Board build output that duplicates a committed file (the Gerber zip),
+# at any folder depth
+**/production/gerbers/
 
 # Firmware build output (PlatformIO)
 .pio/
