@@ -197,6 +197,11 @@ def build(cfg, datfile):
         ns.update(FUramp=u, USB_VBUS=u, usb_conn=u, USB_5V=u - 0.05, VIN_USB=u - 0.45, VIN_CHG=u - 0.45, FUuv=1, FUuvp=1, FUovl=0,
                   FUtov=0)
     ns.update(c.get('nodeset', {}))
+    # nodes that only a board trace separates from their parent start where it does (a study's
+    # nodeset for BAT_P, e.g. the live-pad reverse case, must not be pulled back by them)
+    for k, parent in (('BAT_CHG', 'BAT_P'), ('BAT_BYP', 'BAT_P'), ('MUX_IN2', 'VSYS'), ('VIN_USB', 'VIN_CHG')):
+        if k in ns and k not in c.get('nodeset', {}):
+            ns[k] = ns[parent]
     ctl = ['.nodeset ' + ' '.join('v(%s)=%g' % kv for kv in ns.items())]
     ctl += [c.get('opt', '.option method=gear reltol=2e-3 abstol=1e-9 vntol=1e-5 itl4=200'),
            '.tran 1u %g 0 %g%s' % (tstop, c['tmax'], ' uic' if c['uic'] else ''),
