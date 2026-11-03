@@ -383,7 +383,8 @@ def setup_routers():
     route.EXTRA = []
     # ground is the plane; the RF lines are drawn already (locked)
     route.DROP_NETS = tuple(PLANES) + tuple(board.RF_NETS) + tuple(board.RF_EXTRA)
-    route.AUTOROUTE = dict(via_costs=40, plane_via_costs=5, start_ripup_costs=100, fanout=False,
+    route.AUTOROUTE = dict(via_costs=int(os.environ.get('FR_VIA_COSTS', 40)), plane_via_costs=5,
+                           start_ripup_costs=int(os.environ.get('FR_RIPUP_COSTS', 100)), fanout=False,
                            directions={'F.Cu': 'horizontal', 'In1.Cu': 'vertical', 'In2.Cu': 'vertical',
                                        'In3.Cu': 'horizontal', 'In4.Cu': 'vertical', 'B.Cu': 'horizontal'})
 
