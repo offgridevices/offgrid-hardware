@@ -97,6 +97,12 @@ def build(cfg, datfile):
 
     def tr(t):
         return (t[0] * kcu, t[1])
+
+    def tr_r(t):
+        # the low-current branches (charger BAT, cell bypass, mux IN2, USB 5 V): R only.  Their 6-28 nH
+        # changes nothing these studies measure, and in series with the parts' switched sources it made
+        # the solver stiff (timestep too small at the cell plug-in; trapezoidal ringing)
+        return (t[0] * kcu,)
     s = ['* Mesh Radio v1 power path (sim/board.py), %g C' % P.TEMP, P.models()]
     # ---------------------------------------------------------------- battery
     cl = c['cell']
@@ -110,8 +116,8 @@ def build(cfg, datfile):
     prot.update(c['prot'])
     s.append(P.battery_block('PB', lm=c['lm'], prot=prot, trace_bat=tr(TRACE_BAT), rev=c.get('rev', 'v2'), on=sw,
                              byp_in='BAT_BYP'))
-    s.append(P.rl('tbyp', 'BAT_P', 'BAT_BYP', *tr(TRACE_BYP)))
-    s.append(P.rl('tchg', 'BAT_P', 'BAT_CHG', *tr(TRACE_CHG)))
+    s.append(P.rl('tbyp', 'BAT_P', 'BAT_BYP', *tr_r(TRACE_BYP)))
+    s.append(P.rl('tchg', 'BAT_P', 'BAT_CHG', *tr_r(TRACE_CHG)))
     s.append(P.cap('cbat1', 'BAT_CHG', '0', 7e-6))    # C10u25 at BAT (charger)
     s.append(P.cap('cbat2', 'BAT_P', '0', 0.8e-6))    # C1u25 at mux IN1
     # ---------------------------------------------------------------- inputs
@@ -128,7 +134,7 @@ def build(cfg, datfile):
         s.append(P.cap('csnb', 'USB_VBUS', 'usb_snb', 4.4e-6) + 'Rsnb usb_snb 0 1\n')   # 4.7 uF 50 V X7R + 1 R
         s.append(P.efuse('FU', 'USB_VBUS', 'USB_5V', 20e3, 7.68e3, 1e6, 287e3, 2210, cov=100e-12))
         s.append('R5vb USB_5V 0 2.2k\nC5vs USB_5V 0 1n\nR22v USB_5V NRF_VBUS 22\n' + P.cap('c5v', 'NRF_VBUS', '0', 5.0e-6))
-        s.append(P.schottky('dusb', 'USB_5V', 'VIN_USB') + P.rl('t5v', 'VIN_USB', 'VIN_CHG', *tr(TRACE_5V)))
+        s.append(P.schottky('dusb', 'USB_5V', 'VIN_USB') + P.rl('t5v', 'VIN_USB', 'VIN_CHG', *tr_r(TRACE_5V)))
     if c['solar']:
         so = c['solar']
         s.append(P.panel('PV', 'pv_p0', '0', so['voc'], so['isc'], so['ncell'], so.get('temp_c', 25.0)))
@@ -146,7 +152,7 @@ def build(cfg, datfile):
     # ---------------------------------------------------------------- amplifier supply
     en = _any(pa['t_en'], t_off + 1e-3, nb, per) if pa['on'] else '0'
     s.append(P.rl('tm1', 'BAT_P', 'MUX_IN1', *tr(TRACE_MUX1)))
-    s.append(P.rl('tm2', 'VSYS', 'MUX_IN2', *tr(TRACE_SYS2)))
+    s.append(P.rl('tm2', 'VSYS', 'MUX_IN2', *tr_r(TRACE_SYS2)))
     mux = dict(c['mux'])
     if c['pr_force_low']:
         mux['pr_ratio'] = 0.0

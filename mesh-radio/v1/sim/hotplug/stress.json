@@ -3,11 +3,11 @@
   "part": "TPS259470A",
   "ref": "U (USB eFuse IN)",
   "qty": "peak input voltage",
-  "value": 22.938814649780245,
+  "value": 22.823116175227547,
   "unit": "V",
   "rating": 28.0,
   "kind": "absmax",
-  "case": "USB 5 V -> 20 V step, 1 us, 85 C"
+  "case": "USB 5 V -> 20 V step, 1 us, -40 C"
  },
  {
   "part": "TPS259470A",
@@ -23,7 +23,7 @@
   "part": "TPS259470A",
   "ref": "U (EN/UVLO pin)",
   "qty": "peak voltage",
-  "value": 5.669451365560072,
+  "value": 5.665105245236057,
   "unit": "V",
   "rating": 6.5,
   "kind": "absmax",
@@ -33,21 +33,21 @@
   "part": "TPS259470A",
   "ref": "U (OVLO pin)",
   "qty": "peak voltage",
-  "value": 4.459930987538033,
+  "value": 4.459928366041341,
   "unit": "V",
   "rating": 6.5,
   "kind": "absmax",
-  "case": "USB 5 V -> 20 V step, 1 us, 85 C"
+  "case": "USB 5 V -> 20 V step, 1 us, -40 C"
  },
  {
   "part": "MAX17608",
   "ref": "U (solar / drone IN)",
   "qty": "peak input voltage",
-  "value": 37.617867247203165,
+  "value": 34.606585206099865,
   "unit": "V",
   "rating": 65.0,
   "kind": "absmax",
-  "case": "drone 20 V hot plug (fault), 85 C"
+  "case": "drone 20 V hot plug (fault), -40 C"
  },
  {
   "part": "MAX17608",
@@ -63,7 +63,7 @@
   "part": "MAX17608",
   "ref": "U (solar / drone IN)",
   "qty": "reverse input voltage (plug-in ring)",
-  "value": 47.20952132115452,
+  "value": 47.15254375088771,
   "unit": "V",
   "rating": 70.0,
   "kind": "absmax",
@@ -73,11 +73,11 @@
   "part": "nRF52840",
   "ref": "U (SOLAR_OK / DRONE_OK ADC pin)",
   "qty": "peak voltage",
-  "value": 2.351116702950198,
+  "value": 2.1629115753812416,
   "unit": "V",
   "rating": 3.6,
   "kind": "absmax",
-  "case": "drone 20 V hot plug (fault), 85 C"
+  "case": "drone 20 V hot plug (fault), -40 C"
  },
  {
   "part": "C1u50 0603 50 V",
@@ -123,7 +123,7 @@
   "part": "nRF52840",
   "ref": "U (VBUS)",
   "qty": "peak voltage",
-  "value": 5.273653524697212,
+  "value": 5.267888068130341,
   "unit": "V",
   "rating": 5.8,
   "kind": "absmax",
@@ -133,7 +133,7 @@
   "part": "RB060MM (USB into charger)",
   "ref": "D / USB_5V",
   "qty": "USB_5V peak (eFuse cut-off delay)",
-  "value": 17.01967144218941,
+  "value": 17.04099579961753,
   "unit": "V",
   "rating": 30.0,
   "kind": "absmax",
@@ -153,7 +153,7 @@
   "part": "BQ25185",
   "ref": "U (IN)",
   "qty": "peak voltage",
-  "value": 16.7234049345972,
+  "value": 16.743172428640015,
   "unit": "V",
   "rating": 25.0,
   "kind": "absmax",

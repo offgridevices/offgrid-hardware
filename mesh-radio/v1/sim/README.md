@@ -204,7 +204,10 @@ inductance estimate, pessimistic where both conductors are tracks.  Track
 inside a pad counts as track.  Not included: the parts' own pins and DCR
 (L14, the ferrites), capacitor ESL.  `board.py` puts the BAT_P node at the
 reverse FET's source and VSYS at the charger's SYS pins, and scales every
-board trace with copper's +0.393 %/C (x0.74 at -40 C, x1.24 at 85 C).
+board trace with copper's +0.393 %/C (x0.74 at -40 C, x1.24 at 85 C).  It
+uses R only on the four low-current branches (`TRACE_5V`, `_CHG`, `_BYP`,
+`_SYS2`): their inductance changes nothing measured here, and in series with
+the parts' switched sources it made the solver fail at the cell plug-in.
 
 Not modelled (small at their currents): VSYS from the charger to the
 TPS62840 159 mOhm (<= 0.13 A: 21 mV), the MAX17608 outputs to the charger
