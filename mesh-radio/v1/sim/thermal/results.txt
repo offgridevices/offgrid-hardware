@@ -1,6 +1,16 @@
-Mesh Radio v1 - thermal studies (sim/thermal/run.py), 2026-10-19
-Board 62 x 25.4 mm, grid 0.50 mm; copper F/In1/In2/B [35.0, 15.2, 15.2, 35.0] um at coverage [0.7, 1.0, 0.5, 0.7]; via density 8 /cm2
-QPA9510 (U11) at (20.60, -6.70) mm top (placement.json; the task brief said ~(21.7, -6.7))
+Mesh Radio v1 - thermal studies (sim/thermal/run.py), 2026-11-03
+Board 70 x 25.4 mm, 6 copper layers, grid 0.50 mm; the routed board mesh-radio.kicad_pcb (saved 2026-11-03 13:58)
+QPA9510 (U10) at (18.50, -6.70) mm top (placement.json)
+
+--- Read from the routed board (board_copper.py)
+  stackup: copper [35.0, 17.5, 17.5, 17.5, 17.5, 35.0] um; dielectric [0.1164, 0.5, 0.0764, 0.5, 0.1164] mm
+  copper coverage per layer (every fill, track, pad, via land): F.Cu 79 %, In1.Cu 91 %, In2.Cu 87 %, In3.Cu 86 %, In4.Cu 87 %, B.Cu 81 %
+  within 5 mm of the QPA9510: F.Cu 74 %, In1.Cu 96 %, In2.Cu 94 %, In3.Cu 95 %, In4.Cu 90 %, B.Cu 83 %
+  vias: 831 (+ 9 in the paddle), 561 of them ground (drills [0.15, 0.2] mm), 32 ground vias /cm2 on average, 21 /cm2 within 5 mm of the PA; only ground vias join the planes in the model
+  paddle vias: 9 x 0.30 mm drill, epoxy-filled and capped (POFV)
+  paddle (pad 17) on F: inside a 408 mm2 ground-fill outline, which joins it to the top pour only through a neck at one package corner (0.2-0.3 mm wide, read off a render): modelled as an island (pa_island)
+  gap pad layout.GAP_PAD (13.0, 2.5)-(23.0, 12.5) mm on B: copper 99 %, B.Mask opening on the board matches
+  Bluetooth antenna box layout.ANT_BOX: copper 11 %, 2 %, 2 %, 2 %, 2 %, 2 %
 
 ====================================================================================================
 STUDY 1: board thermal model
@@ -8,450 +18,454 @@ STUDY 1: board thermal model
 Heat path from the QPA9510 die:
   junction -> case (paddle)      theta_jc 12.5 C/W (QPA9510 data sheet 23 Jun 2025, p.3, CW)
   paddle solder (60 % of 1.5 mm sq wetted, 50 um SAC305)  0.64 C/W
-  one 0.3 mm via, 20 um plating, resin-filled: barrel 0.0176 mm2; F->In1 35 C/W, F->B 228 C/W
-  nine in parallel (src/board.py PA_VIAS): F->In1 3.8 C/W, F->B 25.3 C/W
-  (copper-filled vias would be 6.3 C/W F->B for nine)
-  copper sheet conductance per square: F 9.4, In1 5.9, In2 2.9, B 9.4 mW/K (sum 27.6)
+  one 0.30 mm via, 20 um plating, resin-filled: barrel 0.0176 mm2; F->In1 21.0 C/W, F->B 208 C/W
+  9 in parallel (counted on the board): F->In1 2.33 C/W, F->B 23.1 C/W
+  (copper-filled vias would be 5.8 C/W F->B for 9)
+  copper sheet conductance per square (board mean): F.Cu 10.7, In1.Cu 6.1, In2.Cu 5.9, In3.Cu 5.8, In4.Cu 5.9, B.Cu 11.0 mW/K (sum 45.3)
 
 Heat sources during a 1 s burst (W), cell at 3.4 V under load, no USB:
    | PA (VCC x ICC - RF) | TPS63810 | TPS2121 | rev FET | prot FET+sense+plug | RF filters/switch | SX1262+pad | other | total | into antenna | cell A
-  1W    | 1.70 | 0.23 | 0.07 | 0.06 | 0.05 | 0.29 | 0.33 | 0.08 | 2.81 | 0.71 W (28.5 dBm) | 1.01
-  2.5W  | 4.69 | 0.89 | 0.51 | 0.40 | 0.29 | 0.72 | 0.33 | 0.10 | 7.94 | 1.79 W (32.5 dBm) | 2.53
-  3W    | 6.04 | 1.37 | 0.87 | 0.66 | 0.48 | 0.91 | 0.33 | 0.11 | 10.78 | 2.25 W (33.5 dBm) | 3.26
+  1W    | 1.70 | 0.23 | 0.07 | 0.03 | 0.04 | 0.25 | 0.33 | 0.08 | 2.74 | 0.75 W (28.7 dBm) | 1.01
+  2.5W  | 4.69 | 0.89 | 0.51 | 0.21 | 0.25 | 0.63 | 0.33 | 0.10 | 7.62 | 1.88 W (32.7 dBm) | 2.53
+  3W    | 6.04 | 1.37 | 0.87 | 0.35 | 0.41 | 0.80 | 0.33 | 0.11 | 10.29 | 2.36 W (33.7 dBm) | 3.26
   PA supply: 1 W 1.0 A at 2.7 V; 2.5 W 2.0 A at 3.6 V; 3 W 2.3 A at 4.0 V (docs/plan.md, sim burst study)
   Listening: 0.046 W in all (nRF52840, SX1262 RX, LNA, buck)
-  USB charging, cell 3.0 V: BQ25185 1.00 W ((5.0 - VBAT) x 0.497 A + SYS), Schottky D4 0.17 W, eFuse 0.012 W
-  USB charging, cell 3.7 V: BQ25185 0.66 W ((5.0 - VBAT) x 0.497 A + SYS), Schottky D4 0.17 W, eFuse 0.012 W
-  USB charging, cell 4.1 V: BQ25185 0.46 W ((5.0 - VBAT) x 0.497 A + SYS), Schottky D4 0.17 W, eFuse 0.012 W
+  USB charging, cell 3.0 V: BQ25185 0.61 W ((5.0 - VBAT) x 0.300 A + SYS), Schottky D4 0.11 W, eFuse 0.005 W
+  USB charging, cell 3.7 V: BQ25185 0.40 W ((5.0 - VBAT) x 0.300 A + SYS), Schottky D4 0.11 W, eFuse 0.005 W
+  USB charging, cell 4.1 V: BQ25185 0.28 W ((5.0 - VBAT) x 0.300 A + SYS), Schottky D4 0.11 W, eFuse 0.005 W
+  (charge current 300 mA: ISET resistor in circuit.py, 300 A.ohm / R)
 
 Radiation (eps 0.9) linearised 20 K above ambient: h_rad = [2.9, 3.7, 4.6, 6.0, 8.3, 10.2] W/m2K at [-40, -20, 0, 25, 60, 85] C
 
 --- Steady listening (no transmit): rise above ambient, C
-  h=10: QPA9510 case +0.78, nRF52840 +1.09, SX1262 +1.26, cell area +0.97  -> PASS from -40 to 60 C; at 85 C the 85 C-rated parts sit 1-2 C over their limit (MARGINAL, inherent to an 85 C box)
-  h=5: QPA9510 case +1.18, nRF52840 +1.51, SX1262 +1.68, cell area +1.39  -> PASS from -40 to 60 C; at 85 C the 85 C-rated parts sit 1-2 C over their limit (MARGINAL, inherent to an 85 C box)
+  h=10: QPA9510 case +0.72, nRF52840 +0.97, SX1262 +1.10, cell area +0.70  -> PASS from -40 to 60 C; at 85 C the 85 C-rated parts sit 1-2 C over their limit (MARGINAL, inherent to an 85 C box)
+  h=5: QPA9510 case +1.08, nRF52840 +1.34, SX1262 +1.47, cell area +1.06  -> PASS from -40 to 60 C; at 85 C the 85 C-rated parts sit 1-2 C over their limit (MARGINAL, inherent to an 85 C box)
 
 --- Transmit cases: peak temperatures (C) during the burst, periodic steady state
     "cell" = board under the battery plug J3 (the cell sits there); charging = USB at the same time, cell 3.0 V
 
 h = 10 W/m2K (still air in an enclosure)
   Ta     power duty        chg | PA Tj  case 63810  2121 revFET 25185  cell   NTC | verdict  binding
-  -40    1W    1 msg/min   no  |    17    -4   -27   -34   -34   nan   -38   -38 | PASS     
-  -40    1W    1 msg/min   yes |    38    17    -4   -10    -1    57     0     8 | PASS     (charging is blocked below 0 C by TS/firmware) 
-  -40    1W    storm 25 %  no  |    40    19    -7   -15   -18   nan   -25   -25 | PASS     
-  -40    1W    storm 25 %  yes |    61    40    16     9    14    70    13    21 | PASS     (charging is blocked below 0 C by TS/firmware) 
-  -40    1W    storm 50 %  no  |    66    45    15     5    -2   nan   -11   -12 | PASS     
-  -40    1W    storm 50 %  yes |    87    66    38    29    31    84    27    34 | PASS     (charging is blocked below 0 C by TS/firmware) 
-  -40    1W    continuous  no  |   121    99    59    45    30   nan    17    15 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 99 / 121
-  -40    1W    continuous  yes |   139   118    79    67    58   100    50    55 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 118 / 139; cell area <= 45 (charging) = 50
-  -40    2.5W  1 msg/min   no  |   116    57     5   -13   -10   nan   -35   -36 | PASS     
-  -40    2.5W  1 msg/min   yes |   137    78    28    11    23    59     3    10 | PASS     (charging is blocked below 0 C by TS/firmware) 
-  -40    2.5W  storm 25 %  no  |   181   122    63    41    32   nan     2    -1 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 122 / 181
-  -40    2.5W  storm 25 %  yes |   202   143    86    65    65    96    40    46 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 143 / 202
-  -40    2.5W  storm 50 %  no  |   254   195   126    99    78   nan    41    37 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 195 / 254; TPS63810 Tj <= 110 = 126; tightest rated part: TPS22916 U18 <= 85 = 111
-  -40    2.5W  storm 50 %  yes |   267   208   140   114    98   100    64    66 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 208 / 267; TPS63810 Tj <= 110 = 140; cell area <= 45 (charging) = 64
-  -40    2.5W  continuous  no  |   408   350   251   215   169   nan   118   113 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 350 / 408; TPS63810 Tj <= 110 = 251; TPS2121 Tj <= 110 = 215
-  -40    2.5W  continuous  yes |   408   350   251   215   169   119   118   113 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 350 / 408; TPS63810 Tj <= 110 = 251; TPS2121 Tj <= 110 = 215
-  -40    3W    1 msg/min   no  |   161    85    29     3     7   nan   -33   -35 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 85 / 161
-  -40    3W    1 msg/min   yes |   181   106    52    28    40    60     5    11 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 106 / 181
-  -40    3W    storm 25 %  no  |   248   173   108    77    66   nan    17    14 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 173 / 248
-  -40    3W    storm 25 %  yes |   267   191   128    99    95   100    51    55 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 191 / 267; TPS63810 Tj <= 110 = 128; cell area <= 45 (charging) = 51
-  -40    3W    storm 50 %  no  |   346   271   192   156   128   nan    71    65 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 271 / 346; TPS63810 Tj <= 110 = 192; TPS2121 Tj <= 110 = 156
-  -40    3W    storm 50 %  yes |   353   277   199   164   138   100    83    80 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 277 / 353; TPS63810 Tj <= 110 = 199; TPS2121 Tj <= 110 = 164
-  -40    3W    continuous  no  |   553   477   362   314   253   nan   177   169 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 477 / 553; TPS63810 Tj <= 110 = 362; TPS2121 Tj <= 110 = 314
-  -40    3W    continuous  yes |   553   477   362   314   253   178   177   169 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 477 / 553; TPS63810 Tj <= 110 = 362; TPS2121 Tj <= 110 = 314
-  -20    1W    1 msg/min   no  |    37    16    -7   -14   -14   nan   -18   -18 | PASS     
-  -20    1W    1 msg/min   yes |    56    35    14     8    18    75    18    26 | PASS     (charging is blocked below 0 C by TS/firmware) 
-  -20    1W    storm 25 %  no  |    59    38    12     4     0   nan    -6    -6 | PASS     
-  -20    1W    storm 25 %  yes |    78    57    33    26    32    87    30    38 | PASS     (charging is blocked below 0 C by TS/firmware) 
-  -20    1W    storm 50 %  no  |    84    62    33    23    16   nan     7     6 | PASS     
-  -20    1W    storm 50 %  yes |   103    82    54    45    47   100    43    51 | MARGINAL (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 82 / 103; BQ25185 Tj <= TREG 100 (charge 100 %) = 100; cell area <= 45 (charging) = 43
-  -20    1W    continuous  no  |   136   115    75    61    46   nan    33    31 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 115 / 136
-  -20    1W    continuous  yes |   150   129    90    77    68   100    59    63 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 129 / 150; cell area <= 45 (charging) = 59; tightest rated part: TPS22916 U18 <= 85 = 93
-  -20    2.5W  1 msg/min   no  |   135    77    25     7     9   nan   -15   -16 | PASS     
-  -20    2.5W  1 msg/min   yes |   155    96    46    29    41    77    21    28 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 96 / 155
-  -20    2.5W  storm 25 %  no  |   198   139    80    58    49   nan    19    17 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 139 / 198
-  -20    2.5W  storm 25 %  yes |   215   156    99    78    77   100    51    56 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 156 / 215; cell area <= 45 (charging) = 51
-  -20    2.5W  storm 50 %  no  |   268   209   140   113    92   nan    55    52 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 209 / 268; TPS63810 Tj <= 110 = 140; tightest rated part: TPS22916 U18 <= 85 = 125
-  -20    2.5W  storm 50 %  yes |   277   219   150   124   107   100    73    73 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 219 / 277; TPS63810 Tj <= 110 = 150; cell area <= 45 (charging) = 73
-  -20    2.5W  continuous  no  |   416   357   259   223   178   nan   128   122 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 357 / 416; TPS63810 Tj <= 110 = 259; TPS2121 Tj <= 110 = 223
-  -20    2.5W  continuous  yes |   416   357   259   223   178   129   128   122 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 357 / 416; TPS63810 Tj <= 110 = 259; TPS2121 Tj <= 110 = 223
-  -20    3W    1 msg/min   no  |   180   105    49    23    27   nan   -13   -15 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 105 / 180
-  -20    3W    1 msg/min   yes |   200   124    70    46    58    78    23    29 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 124 / 200
-  -20    3W    storm 25 %  no  |   264   189   123    93    82   nan    34    30 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 189 / 264
-  -20    3W    storm 25 %  yes |   278   203   139   110   105   100    60    62 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 203 / 278; TPS63810 Tj <= 110 = 139; cell area <= 45 (charging) = 60
-  -20    3W    storm 50 %  no  |   358   282   204   168   140   nan    83    78 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 282 / 358; TPS63810 Tj <= 110 = 204; TPS2121 Tj <= 110 = 168
-  -20    3W    storm 50 %  yes |   361   286   208   172   146   100    90    87 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 286 / 361; TPS63810 Tj <= 110 = 208; TPS2121 Tj <= 110 = 172
-  -20    3W    continuous  no  |   556   481   366   318   258   nan   183   175 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 481 / 556; TPS63810 Tj <= 110 = 366; TPS2121 Tj <= 110 = 318
-  -20    3W    continuous  yes |   556   481   366   318   258   184   183   175 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 481 / 556; TPS63810 Tj <= 110 = 366; TPS2121 Tj <= 110 = 318
-  0      1W    1 msg/min   no  |    57    36    13     5     6   nan     2     2 | PASS     
-  0      1W    1 msg/min   yes |    75    53    32    26    36    93    36    44 | PASS     
-  0      1W    storm 25 %  no  |    78    57    31    22    19   nan    13    13 | PASS     
-  0      1W    storm 25 %  yes |    95    74    50    43    47   100    46    53 | FAIL     cell area <= 45 (charging) = 46
-  0      1W    storm 50 %  no  |   101    80    51    41    33   nan    25    24 | MARGINAL QPA9510 case <= 85 (Tj <= 160) = 80 / 101
-  0      1W    storm 50 %  yes |   116    95    67    58    58   100    53    59 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 95 / 116; cell area <= 45 (charging) = 53
-  0      1W    continuous  no  |   152   130    90    77    62   nan    49    48 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 130 / 152; tightest rated part: TPS22916 U18 <= 85 = 95
-  0      1W    continuous  yes |   162   140   101    88    78   100    68    71 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 140 / 162; cell area <= 45 (charging) = 68; cell area <= 60 = 68
-  0      2.5W  1 msg/min   no  |   155    97    45    26    29   nan     5     3 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 97 / 155
-  0      2.5W  1 msg/min   yes |   173   114    64    47    59    95    39    46 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 114 / 173
-  0      2.5W  storm 25 %  no  |   215   156    97    75    66   nan    36    34 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 156 / 215
-  0      2.5W  storm 25 %  yes |   227   169   111    90    87   100    60    64 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 169 / 227; cell area <= 45 (charging) = 60; cell area <= 60 = 60
-  0      2.5W  storm 50 %  no  |   281   223   153   127   106   nan    70    67 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 223 / 281; TPS63810 Tj <= 110 = 153; TPS2121 Tj <= 110 = 127
-  0      2.5W  storm 50 %  yes |   287   229   160   134   116   100    81    81 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 229 / 287; TPS63810 Tj <= 110 = 160; TPS2121 Tj <= 110 = 134
-  0      2.5W  continuous  no  |   423   365   267   231   186   nan   137   132 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 365 / 423; TPS63810 Tj <= 110 = 267; TPS2121 Tj <= 110 = 231
-  0      2.5W  continuous  yes |   423   365   267   231   186   138   137   132 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 365 / 423; TPS63810 Tj <= 110 = 267; TPS2121 Tj <= 110 = 231
-  0      3W    1 msg/min   no  |   200   124    68    43    47   nan     7     4 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 124 / 200
-  0      3W    1 msg/min   yes |   218   142    88    64    76    96    41    47 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 142 / 218
-  0      3W    storm 25 %  no  |   280   204   139   109    98   nan    50    46 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 204 / 280; TPS63810 Tj <= 110 = 139; tightest rated part: TPS22916 U18 <= 85 = 99
-  0      3W    storm 25 %  yes |   290   214   150   121   115   100    69    70 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 214 / 290; TPS63810 Tj <= 110 = 150; cell area <= 45 (charging) = 69
-  0      3W    storm 50 %  no  |   369   294   216   180   153   nan    96    91 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 294 / 369; TPS63810 Tj <= 110 = 216; TPS2121 Tj <= 110 = 180
-  0      3W    storm 50 %  yes |   370   295   217   181   154   100    98    93 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 295 / 370; TPS63810 Tj <= 110 = 217; TPS2121 Tj <= 110 = 181
-  0      3W    continuous  no  |   559   484   369   321   263   nan   188   180 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 484 / 559; TPS63810 Tj <= 110 = 369; TPS2121 Tj <= 110 = 321
-  0      3W    continuous  yes |   559   484   369   321   263   189   188   180 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 484 / 559; TPS63810 Tj <= 110 = 369; TPS2121 Tj <= 110 = 321
-  25     1W    1 msg/min   no  |    82    60    37    30    31   nan    27    27 | PASS     
-  25     1W    1 msg/min   yes |    95    73    52    46    53   100    53    60 | FAIL     cell area <= 45 (charging) = 53
-  25     1W    storm 25 %  no  |   101    80    55    46    43   nan    37    37 | MARGINAL QPA9510 case <= 85 (Tj <= 160) = 80 / 101
-  25     1W    storm 25 %  yes |   113    91    67    60    62   100    60    65 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 91 / 113; cell area <= 45 (charging) = 60
-  25     1W    storm 50 %  no  |   123   102    73    63    56   nan    48    47 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 102 / 123
-  25     1W    storm 50 %  yes |   133   112    83    74    72   100    66    70 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 112 / 133; cell area <= 45 (charging) = 66; cell area <= 60 = 66
-  25     1W    continuous  no  |   171   150   110    96    82   nan    69    68 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 150 / 171; cell area <= 60 = 69; tightest rated part: TPS22916 U18 <= 85 = 115
-  25     1W    continuous  yes |   176   155   116   103    91   100    80    81 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 155 / 176; cell area <= 45 (charging) = 80; cell area <= 60 = 80
-  25     2.5W  1 msg/min   no  |   180   121    70    51    54   nan    29    28 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 121 / 180
-  25     2.5W  1 msg/min   yes |   193   134    84    66    76   100    55    61 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 134 / 193; cell area <= 45 (charging) = 55
-  25     2.5W  storm 25 %  no  |   236   177   118    96    88   nan    58    56 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 177 / 236; tightest rated part: TPS22916 U18 <= 85 = 95
-  25     2.5W  storm 25 %  yes |   243   185   127   105   101   100    73    75 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 185 / 243; TPS63810 Tj <= 110 = 127; cell area <= 45 (charging) = 73
-  25     2.5W  storm 50 %  no  |   298   240   171   144   124   nan    88    85 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 240 / 298; TPS63810 Tj <= 110 = 171; TPS2121 Tj <= 110 = 144
-  25     2.5W  storm 50 %  yes |   300   242   173   147   128   100    92    90 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 242 / 300; TPS63810 Tj <= 110 = 173; TPS2121 Tj <= 110 = 147
-  25     2.5W  continuous  no  |   432   374   276   240   197   nan   148   143 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 374 / 432; TPS63810 Tj <= 110 = 276; TPS2121 Tj <= 110 = 240
-  25     2.5W  continuous  yes |   432   374   276   240   197   149   148   143 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 374 / 432; TPS63810 Tj <= 110 = 276; TPS2121 Tj <= 110 = 240
-  25     3W    1 msg/min   no  |   224   149    93    67    71   nan    31    29 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 149 / 224
-  25     3W    1 msg/min   yes |   237   162   107    82    93   100    57    61 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 162 / 237; cell area <= 45 (charging) = 57
-  25     3W    storm 25 %  no  |   299   224   159   129   118   nan    70    67 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 224 / 299; TPS63810 Tj <= 110 = 159; TPS2121 Tj <= 110 = 129
-  25     3W    storm 25 %  yes |   305   229   165   135   128   100    81    81 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 229 / 305; TPS63810 Tj <= 110 = 165; TPS2121 Tj <= 110 = 135
-  25     3W    storm 50 %  no  |   383   308   230   194   168   nan   112   107 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 308 / 383; TPS63810 Tj <= 110 = 230; TPS2121 Tj <= 110 = 194
-  25     3W    storm 50 %  yes |   383   308   230   194   168   111   112   107 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 308 / 383; TPS63810 Tj <= 110 = 230; TPS2121 Tj <= 110 = 194
-  25     3W    continuous  no  |   562   487   373   326   268   nan   195   187 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 487 / 562; TPS63810 Tj <= 110 = 373; TPS2121 Tj <= 110 = 326
-  25     3W    continuous  yes |   562   487   373   326   268   195   195   187 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 487 / 562; TPS63810 Tj <= 110 = 373; TPS2121 Tj <= 110 = 326
-  60     1W    1 msg/min   no  |   116    95    72    65    66   nan    62    62 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 95 / 116; cell area <= 60 = 62
-  60     1W    1 msg/min   yes |   122   101    79    72    77   100    75    78 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 101 / 122; cell area <= 45 (charging) = 75; cell area <= 60 = 75
-  60     1W    storm 25 %  no  |   134   113    88    79    76   nan    70    70 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 113 / 134; cell area <= 60 = 70
-  60     1W    storm 25 %  yes |   139   118    93    85    85   100    80    83 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 118 / 139; cell area <= 45 (charging) = 80; cell area <= 60 = 80
-  60     1W    storm 50 %  no  |   154   133   104    94    87   nan    79    79 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 133 / 154; cell area <= 60 = 79; tightest rated part: TPS22916 U18 <= 85 = 103
-  60     1W    storm 50 %  yes |   158   136   108    98    93   100    86    87 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 136 / 158; cell area <= 45 (charging) = 86; cell area <= 60 = 86
-  60     1W    continuous  no  |   198   177   137   124   110   nan    97    96 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 177 / 198; TPS63810 Tj <= 110 = 137; cell area <= 60 = 97
-  60     1W    continuous  yes |   198   177   137   124   110   100    98    97 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 177 / 198; TPS63810 Tj <= 110 = 137; cell area <= 45 (charging) = 98
-  60     2.5W  1 msg/min   no  |   214   156   104    85    88   nan    64    63 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 156 / 214; cell area <= 60 = 64
-  60     2.5W  1 msg/min   yes |   220   161   110    93    99   100    76    79 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 161 / 220; cell area <= 45 (charging) = 76; cell area <= 60 = 76
-  60     2.5W  storm 25 %  no  |   265   206   148   126   118   nan    88    86 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 206 / 265; TPS63810 Tj <= 110 = 148; TPS2121 Tj <= 110 = 126
-  60     2.5W  storm 25 %  yes |   267   208   150   128   121   100    92    91 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 208 / 267; TPS63810 Tj <= 110 = 150; TPS2121 Tj <= 110 = 128
-  60     2.5W  storm 50 %  no  |   322   263   195   168   149   nan   114   111 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 263 / 322; TPS63810 Tj <= 110 = 195; TPS2121 Tj <= 110 = 168
-  60     2.5W  storm 50 %  yes |   322   263   195   168   149   114   114   111 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 263 / 322; TPS63810 Tj <= 110 = 195; TPS2121 Tj <= 110 = 168
-  60     2.5W  continuous  no  |   445   386   289   254   213   nan   165   160 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 386 / 445; TPS63810 Tj <= 110 = 289; TPS2121 Tj <= 110 = 254
-  60     2.5W  continuous  yes |   445   386   289   254   213   166   165   160 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 386 / 445; TPS63810 Tj <= 110 = 289; TPS2121 Tj <= 110 = 254
-  60     3W    1 msg/min   no  |   259   183   127   102   106   nan    66    63 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 183 / 259; TPS63810 Tj <= 110 = 127; cell area <= 60 = 66
-  60     3W    1 msg/min   yes |   264   189   134   109   116   100    78    79 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 189 / 264; TPS63810 Tj <= 110 = 134; cell area <= 45 (charging) = 78
-  60     3W    storm 25 %  no  |   327   251   186   156   147   nan    99    95 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 251 / 327; TPS63810 Tj <= 110 = 186; TPS2121 Tj <= 110 = 156
-  60     3W    storm 25 %  yes |   327   252   187   157   147   100   100    97 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 252 / 327; TPS63810 Tj <= 110 = 187; TPS2121 Tj <= 110 = 157
-  60     3W    storm 50 %  no  |   403   328   250   215   190   nan   134   129 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 328 / 403; TPS63810 Tj <= 110 = 250; TPS2121 Tj <= 110 = 215
-  60     3W    storm 50 %  yes |   403   328   250   215   190   133   134   129 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 328 / 403; TPS63810 Tj <= 110 = 250; TPS2121 Tj <= 110 = 215
-  60     3W    continuous  no  |   567   492   379   332   277   nan   205   197 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 492 / 567; TPS63810 Tj <= 110 = 379; TPS2121 Tj <= 110 = 332
-  60     3W    continuous  yes |   567   492   379   332   277   205   205   197 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 492 / 567; TPS63810 Tj <= 110 = 379; TPS2121 Tj <= 110 = 332
-  85     1W    1 msg/min   no  |   141   120    97    90    91   nan    86    86 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 120 / 141; cell area <= 60 = 86; tightest rated part: B3U SW3 <= 70 = 86
-  85     1W    1 msg/min   yes |   143   122    99    92    94   100    91    92 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 122 / 143; cell area <= 45 (charging) = 91; cell area <= 60 = 91
-  85     1W    storm 25 %  no  |   158   137   111   103   100   nan    94    94 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 137 / 158; cell area <= 60 = 94; tightest rated part: TPS22916 U18 <= 85 = 107
-  85     1W    storm 25 %  yes |   159   137   112   104   102   100    96    96 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 137 / 159; cell area <= 45 (charging) = 96; cell area <= 60 = 96
-  85     1W    storm 50 %  no  |   177   155   126   116   110   nan   102   101 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 155 / 177; TPS63810 Tj <= 110 = 126; cell area <= 60 = 102
-  85     1W    storm 50 %  yes |   177   155   126   116   110   102   102   101 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 155 / 177; TPS63810 Tj <= 110 = 126; cell area <= 45 (charging) = 102
-  85     1W    continuous  no  |   218   196   157   144   130   nan   118   117 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 196 / 218; TPS63810 Tj <= 110 = 157; TPS2121 Tj <= 110 = 144
-  85     1W    continuous  yes |   218   196   157   144   130   119   118   117 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 196 / 218; TPS63810 Tj <= 110 = 157; TPS2121 Tj <= 110 = 144
-  85     2.5W  1 msg/min   no  |   239   180   129   110   113   nan    89    87 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 180 / 239; TPS63810 Tj <= 110 = 129; cell area <= 60 = 89
-  85     2.5W  1 msg/min   yes |   241   182   131   112   116   100    93    93 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 182 / 241; TPS63810 Tj <= 110 = 131; cell area <= 45 (charging) = 93
-  85     2.5W  storm 25 %  no  |   286   227   169   147   140   nan   110   108 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 227 / 286; TPS63810 Tj <= 110 = 169; TPS2121 Tj <= 110 = 147
-  85     2.5W  storm 25 %  yes |   286   227   169   147   140   109   110   108 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 227 / 286; TPS63810 Tj <= 110 = 169; TPS2121 Tj <= 110 = 147
-  85     2.5W  storm 50 %  no  |   339   281   212   186   168   nan   133   130 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 281 / 339; TPS63810 Tj <= 110 = 212; TPS2121 Tj <= 110 = 186
-  85     2.5W  storm 50 %  yes |   339   281   212   186   168   132   133   130 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 281 / 339; TPS63810 Tj <= 110 = 212; TPS2121 Tj <= 110 = 186
-  85     2.5W  continuous  no  |   455   396   299   265   225   nan   178   173 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 396 / 455; TPS63810 Tj <= 110 = 299; TPS2121 Tj <= 110 = 265
-  85     2.5W  continuous  yes |   455   396   299   265   225   179   178   173 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 396 / 455; TPS63810 Tj <= 110 = 299; TPS2121 Tj <= 110 = 265
-  85     3W    1 msg/min   no  |   283   208   152   126   130   nan    90    88 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 208 / 283; TPS63810 Tj <= 110 = 152; TPS2121 Tj <= 110 = 126
-  85     3W    1 msg/min   yes |   285   209   154   128   133   100    94    93 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 209 / 285; TPS63810 Tj <= 110 = 154; TPS2121 Tj <= 110 = 128
-  85     3W    storm 25 %  no  |   346   271   206   176   167   nan   120   116 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 271 / 346; TPS63810 Tj <= 110 = 206; TPS2121 Tj <= 110 = 176
-  85     3W    storm 25 %  yes |   346   271   206   176   167   118   120   116 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 271 / 346; TPS63810 Tj <= 110 = 206; TPS2121 Tj <= 110 = 176
-  85     3W    storm 50 %  no  |   418   342   265   230   206   nan   151   146 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 342 / 418; TPS63810 Tj <= 110 = 265; TPS2121 Tj <= 110 = 230
-  85     3W    storm 50 %  yes |   418   342   265   230   206   150   151   146 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 342 / 418; TPS63810 Tj <= 110 = 265; TPS2121 Tj <= 110 = 230
-  85     3W    continuous  no  |   571   496   384   338   284   nan   214   206 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 496 / 571; TPS63810 Tj <= 110 = 384; TPS2121 Tj <= 110 = 338
-  85     3W    continuous  yes |   571   496   384   338   284   214   214   206 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 496 / 571; TPS63810 Tj <= 110 = 384; TPS2121 Tj <= 110 = 338
+  -40    1W    1 msg/min   no  |    10   -11   -26   -35   -34   nan   -34   -36 | PASS     
+  -40    1W    1 msg/min   yes |    21    -0   -15   -23   -24    18   -24   -25 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -40    1W    storm 25 %  no  |    28     6    -9   -19   -17   nan   -17   -19 | PASS     
+  -40    1W    storm 25 %  yes |    39    17     2    -7    -7    28    -6    -8 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -40    1W    storm 50 %  no  |    47    26    10    -2     1   nan     2    -0 | PASS     
+  -40    1W    storm 50 %  yes |    58    37    21    10    12    39    13    11 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -40    1W    continuous  no  |    88    67    47    33    38   nan    41    37 | PASS     
+  -40    1W    continuous  yes |    99    78    58    45    49    61    52    48 | FAIL     (charging is blocked below 0 C by TS/firmware) cell area <= 45 (charging) = 52
+  -40    2.5W  1 msg/min   no  |    97    38     9   -15   -19   nan   -25   -29 | PASS     
+  -40    2.5W  1 msg/min   yes |   108    49    20    -3    -8    20   -15   -19 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -40    2.5W  storm 25 %  no  |   147    89    57    30    30   nan    25    20 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 89 / 147
+  -40    2.5W  storm 25 %  yes |   158    99    68    42    40    47    36    30 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 99 / 158
+  -40    2.5W  storm 50 %  no  |   203   144   110    79    82   nan    80    72 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 144 / 203; cell area <= 60 = 80
+  -40    2.5W  storm 50 %  yes |   214   155   121    91    92    76    90    83 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 155 / 214; cell area <= 45 (charging) = 90; cell area <= 60 = 90
+  -40    2.5W  continuous  no  |   319   260   216   176   187   nan   190   179 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 260 / 319; TPS63810 Tj <= 110 = 216; TPS2121 Tj <= 110 = 176
+  -40    2.5W  continuous  yes |   323   264   220   180   191   100   194   183 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 264 / 323; TPS63810 Tj <= 110 = 220; TPS2121 Tj <= 110 = 180
+  -40    3W    1 msg/min   no  |   137    61    33     0    -8   nan   -20   -26 | PASS     
+  -40    3W    1 msg/min   yes |   148    72    44    12     3    20   -10   -15 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -40    3W    storm 25 %  no  |   205   129    98    62    58   nan    48    40 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 129 / 205
+  -40    3W    storm 25 %  yes |   216   140   109    74    68    57    58    51 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 140 / 216; cell area <= 45 (charging) = 58
+  -40    3W    storm 50 %  no  |   280   204   169   128   128   nan   122   111 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 204 / 280; TPS63810 Tj <= 110 = 169; TPS2121 Tj <= 110 = 128
+  -40    3W    storm 50 %  yes |   291   215   180   139   139    97   132   122 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 215 / 291; TPS63810 Tj <= 110 = 180; TPS2121 Tj <= 110 = 139
+  -40    3W    continuous  no  |   436   361   313   259   271   nan   271   256 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 361 / 436; TPS63810 Tj <= 110 = 313; TPS2121 Tj <= 110 = 259
+  -40    3W    continuous  yes |   436   361   313   259   271   120   271   256 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 361 / 436; TPS63810 Tj <= 110 = 313; TPS2121 Tj <= 110 = 259
+  -20    1W    1 msg/min   no  |    30     9    -6   -15   -15   nan   -15   -16 | PASS     
+  -20    1W    1 msg/min   yes |    40    19     4    -4    -5    37    -5    -6 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -20    1W    storm 25 %  no  |    47    26    10     0     2   nan     2     1 | PASS     
+  -20    1W    storm 25 %  yes |    57    35    21    11    12    47    12    10 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -20    1W    storm 50 %  no  |    65    44    28    17    19   nan    21    18 | PASS     
+  -20    1W    storm 50 %  yes |    75    54    38    28    29    57    30    28 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -20    1W    continuous  no  |   104    83    64    49    54   nan    58    54 | MARGINAL QPA9510 case <= 85 (Tj <= 160) = 83 / 104; cell area <= 60 = 58
+  -20    1W    continuous  yes |   114    93    74    60    64    77    67    64 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 93 / 114; cell area <= 45 (charging) = 67; cell area <= 60 = 67
+  -20    2.5W  1 msg/min   no  |   117    58    28     5     1   nan    -5    -9 | PASS     
+  -20    2.5W  1 msg/min   yes |   127    68    39    16    11    38     4     0 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -20    2.5W  storm 25 %  no  |   165   106    74    48    47   nan    42    37 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 106 / 165
+  -20    2.5W  storm 25 %  yes |   175   116    85    59    57    64    52    47 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 116 / 175; cell area <= 45 (charging) = 52
+  -20    2.5W  storm 50 %  no  |   218   159   124    94    97   nan    95    87 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 159 / 218; cell area <= 60 = 95; tightest rated part: JST_PH2 J3 <= 85 = 95
+  -20    2.5W  storm 50 %  yes |   228   169   135   105   107    91   104    97 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 169 / 228; TPS63810 Tj <= 110 = 135; cell area <= 45 (charging) = 104
+  -20    2.5W  continuous  no  |   329   270   226   186   197   nan   200   189 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 270 / 329; TPS63810 Tj <= 110 = 226; TPS2121 Tj <= 110 = 186
+  -20    2.5W  continuous  yes |   331   272   228   188   199   100   202   191 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 272 / 331; TPS63810 Tj <= 110 = 228; TPS2121 Tj <= 110 = 188
+  -20    3W    1 msg/min   no  |   156    81    53    20    12   nan    -0    -6 | MARGINAL QPA9510 case <= 85 (Tj <= 160) = 81 / 156
+  -20    3W    1 msg/min   yes |   166    91    63    31    22    39     9     4 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 91 / 166
+  -20    3W    storm 25 %  no  |   221   146   115    78    74   nan    64    57 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 146 / 221; cell area <= 60 = 64
+  -20    3W    storm 25 %  yes |   231   156   125    89    84    73    74    67 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 156 / 231; cell area <= 45 (charging) = 74; cell area <= 60 = 74
+  -20    3W    storm 50 %  no  |   293   218   182   141   141   nan   135   125 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 218 / 293; TPS63810 Tj <= 110 = 182; TPS2121 Tj <= 110 = 141
+  -20    3W    storm 50 %  yes |   301   226   191   150   150   100   143   133 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 226 / 301; TPS63810 Tj <= 110 = 191; TPS2121 Tj <= 110 = 150
+  -20    3W    continuous  no  |   443   367   320   266   277   nan   277   262 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 367 / 443; TPS63810 Tj <= 110 = 320; TPS2121 Tj <= 110 = 266
+  -20    3W    continuous  yes |   443   367   320   266   277   128   277   262 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 367 / 443; TPS63810 Tj <= 110 = 320; TPS2121 Tj <= 110 = 266
+  0      1W    1 msg/min   no  |    50    29    14     5     5   nan     5     4 | PASS     
+  0      1W    1 msg/min   yes |    59    38    23    15    14    56    14    13 | PASS     
+  0      1W    storm 25 %  no  |    66    45    29    19    21   nan    21    20 | PASS     
+  0      1W    storm 25 %  yes |    75    54    39    29    30    65    30    28 | PASS     
+  0      1W    storm 50 %  no  |    84    62    46    35    37   nan    39    36 | PASS     
+  0      1W    storm 50 %  yes |    93    71    55    45    46    74    48    45 | FAIL     cell area <= 45 (charging) = 48
+  0      1W    continuous  no  |   121    99    80    66    71   nan    74    70 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 99 / 121; cell area <= 60 = 74
+  0      1W    continuous  yes |   130   109    89    76    80    92    83    79 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 109 / 130; cell area <= 45 (charging) = 83; cell area <= 60 = 83
+  0      2.5W  1 msg/min   no  |   136    78    48    24    21   nan    14    10 | PASS     
+  0      2.5W  1 msg/min   yes |   146    87    58    35    30    57    23    19 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 87 / 146
+  0      2.5W  storm 25 %  no  |   182   123    92    65    64   nan    60    54 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 123 / 182
+  0      2.5W  storm 25 %  yes |   191   133   101    75    73    80    69    63 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 133 / 191; cell area <= 45 (charging) = 69; cell area <= 60 = 69
+  0      2.5W  storm 50 %  no  |   233   174   139   109   111   nan   109   102 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 174 / 233; TPS63810 Tj <= 110 = 139; cell area <= 60 = 109
+  0      2.5W  storm 50 %  yes |   241   182   148   118   120   100   117   110 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 182 / 241; TPS63810 Tj <= 110 = 148; cell area <= 45 (charging) = 117
+  0      2.5W  continuous  no  |   338   280   236   196   206   nan   210   198 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 280 / 338; TPS63810 Tj <= 110 = 236; TPS2121 Tj <= 110 = 196
+  0      2.5W  continuous  yes |   338   280   236   196   206   101   210   198 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 280 / 338; TPS63810 Tj <= 110 = 236; TPS2121 Tj <= 110 = 196
+  0      3W    1 msg/min   no  |   176   101    72    40    31   nan    19    14 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 101 / 176
+  0      3W    1 msg/min   yes |   185   110    82    50    40    58    28    23 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 110 / 185
+  0      3W    storm 25 %  no  |   238   162   131    95    91   nan    81    73 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 162 / 238; TPS63810 Tj <= 110 = 131; cell area <= 60 = 81
+  0      3W    storm 25 %  yes |   247   171   141   105   100    89    90    82 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 171 / 247; TPS63810 Tj <= 110 = 141; cell area <= 45 (charging) = 90
+  0      3W    storm 50 %  no  |   306   231   195   154   154   nan   148   137 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 231 / 306; TPS63810 Tj <= 110 = 195; TPS2121 Tj <= 110 = 154
+  0      3W    storm 50 %  yes |   311   236   201   160   160   100   153   143 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 236 / 311; TPS63810 Tj <= 110 = 201; TPS2121 Tj <= 110 = 160
+  0      3W    continuous  no  |   449   373   326   272   283   nan   283   268 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 373 / 449; TPS63810 Tj <= 110 = 326; TPS2121 Tj <= 110 = 272
+  0      3W    continuous  yes |   449   373   326   272   283   136   283   268 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 373 / 449; TPS63810 Tj <= 110 = 326; TPS2121 Tj <= 110 = 272
+  25     1W    1 msg/min   no  |    75    53    39    30    30   nan    30    29 | PASS     
+  25     1W    1 msg/min   yes |    83    61    47    39    38    79    38    37 | PASS     
+  25     1W    storm 25 %  no  |    90    68    53    43    44   nan    45    43 | PASS     
+  25     1W    storm 25 %  yes |    98    76    61    52    52    87    53    51 | FAIL     cell area <= 45 (charging) = 53
+  25     1W    storm 50 %  no  |   106    85    69    57    60   nan    61    59 | FAIL     cell area <= 60 = 61
+  25     1W    storm 50 %  yes |   114    93    77    67    68    95    69    67 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 93 / 114; cell area <= 45 (charging) = 69; cell area <= 60 = 69
+  25     1W    continuous  no  |   141   120   100    86    91   nan    94    90 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 120 / 141; cell area <= 60 = 94; tightest rated part: JST_PH2 J3 <= 85 = 94
+  25     1W    continuous  yes |   147   126   107    93    97   100   100    96 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 126 / 147; cell area <= 45 (charging) = 100; cell area <= 60 = 100
+  25     2.5W  1 msg/min   no  |   161   103    73    49    45   nan    39    35 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 103 / 161
+  25     2.5W  1 msg/min   yes |   169   111    81    58    53    80    47    43 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 111 / 169; cell area <= 45 (charging) = 47
+  25     2.5W  storm 25 %  no  |   204   145   113    87    86   nan    81    76 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 145 / 204; cell area <= 60 = 81
+  25     2.5W  storm 25 %  yes |   212   153   122    96    94   100    89    84 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 153 / 212; cell area <= 45 (charging) = 89; cell area <= 60 = 89
+  25     2.5W  storm 50 %  no  |   251   192   158   127   130   nan   128   120 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 192 / 251; TPS63810 Tj <= 110 = 158; TPS2121 Tj <= 110 = 127
+  25     2.5W  storm 50 %  yes |   255   197   162   132   134   100   132   125 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 197 / 255; TPS63810 Tj <= 110 = 162; TPS2121 Tj <= 110 = 132
+  25     2.5W  continuous  no  |   350   292   248   208   218   nan   221   210 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 292 / 350; TPS63810 Tj <= 110 = 248; TPS2121 Tj <= 110 = 208
+  25     2.5W  continuous  yes |   350   292   248   208   218   115   221   210 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 292 / 350; TPS63810 Tj <= 110 = 248; TPS2121 Tj <= 110 = 208
+  25     3W    1 msg/min   no  |   201   125    97    64    56   nan    44    38 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 125 / 201
+  25     3W    1 msg/min   yes |   209   133   105    74    64    81    52    46 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 133 / 209; cell area <= 45 (charging) = 52
+  25     3W    storm 25 %  no  |   258   183   152   115   111   nan   101    94 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 183 / 258; TPS63810 Tj <= 110 = 152; cell area <= 60 = 101
+  25     3W    storm 25 %  yes |   265   190   159   123   118   100   108   100 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 190 / 265; TPS63810 Tj <= 110 = 159; cell area <= 45 (charging) = 108
+  25     3W    storm 50 %  no  |   322   247   212   170   170   nan   164   153 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 247 / 322; TPS63810 Tj <= 110 = 212; TPS2121 Tj <= 110 = 170
+  25     3W    storm 50 %  yes |   324   249   214   173   173   100   166   156 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 249 / 324; TPS63810 Tj <= 110 = 214; TPS2121 Tj <= 110 = 173
+  25     3W    continuous  no  |   456   381   333   280   290   nan   290   275 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 381 / 456; TPS63810 Tj <= 110 = 333; TPS2121 Tj <= 110 = 280
+  25     3W    continuous  yes |   456   381   333   280   290   145   290   275 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 381 / 456; TPS63810 Tj <= 110 = 333; TPS2121 Tj <= 110 = 280
+  60     1W    1 msg/min   no  |   109    88    74    64    65   nan    65    64 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 88 / 109; cell area <= 60 = 65
+  60     1W    1 msg/min   yes |   114    93    79    70    70   100    70    69 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 93 / 114; cell area <= 45 (charging) = 70; cell area <= 60 = 70
+  60     1W    storm 25 %  no  |   123   102    86    76    78   nan    78    77 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 102 / 123; cell area <= 60 = 78
+  60     1W    storm 25 %  yes |   127   106    91    81    82   100    82    81 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 106 / 127; cell area <= 45 (charging) = 82; cell area <= 60 = 82
+  60     1W    storm 50 %  no  |   138   117   100    89    92   nan    93    90 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 117 / 138; cell area <= 60 = 93; tightest rated part: JST_PH2 J3 <= 85 = 93
+  60     1W    storm 50 %  yes |   141   120   104    93    95   100    96    94 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 120 / 141; cell area <= 45 (charging) = 96; cell area <= 60 = 96
+  60     1W    continuous  no  |   169   148   129   115   119   nan   122   119 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 148 / 169; TPS63810 Tj <= 110 = 129; cell area <= 60 = 122
+  60     1W    continuous  yes |   171   150   130   116   121   100   124   120 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 150 / 171; TPS63810 Tj <= 110 = 130; cell area <= 45 (charging) = 124
+  60     2.5W  1 msg/min   no  |   196   137   108    84    80   nan    74    70 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 137 / 196; cell area <= 60 = 74
+  60     2.5W  1 msg/min   yes |   201   142   113    89    85   100    79    75 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 142 / 201; cell area <= 45 (charging) = 79; cell area <= 60 = 79
+  60     2.5W  storm 25 %  no  |   234   175   144   117   116   nan   112   106 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 175 / 234; TPS63810 Tj <= 110 = 144; cell area <= 60 = 112
+  60     2.5W  storm 25 %  yes |   237   178   147   120   119   100   114   109 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 178 / 237; TPS63810 Tj <= 110 = 147; cell area <= 45 (charging) = 114
+  60     2.5W  storm 50 %  no  |   277   218   184   153   156   nan   153   146 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 218 / 277; TPS63810 Tj <= 110 = 184; TPS2121 Tj <= 110 = 153
+  60     2.5W  storm 50 %  yes |   277   218   184   154   156   100   154   146 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 218 / 277; TPS63810 Tj <= 110 = 184; TPS2121 Tj <= 110 = 154
+  60     2.5W  continuous  no  |   367   308   265   225   235   nan   238   227 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 308 / 367; TPS63810 Tj <= 110 = 265; TPS2121 Tj <= 110 = 225
+  60     2.5W  continuous  yes |   367   308   265   225   235   135   238   227 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 308 / 367; TPS63810 Tj <= 110 = 265; TPS2121 Tj <= 110 = 225
+  60     3W    1 msg/min   no  |   235   160   131    99    90   nan    78    73 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 160 / 235; TPS63810 Tj <= 110 = 131; cell area <= 60 = 78
+  60     3W    1 msg/min   yes |   240   165   136   105    95   100    83    78 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 165 / 240; TPS63810 Tj <= 110 = 136; cell area <= 45 (charging) = 83
+  60     3W    storm 25 %  no  |   287   212   180   144   140   nan   130   122 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 212 / 287; TPS63810 Tj <= 110 = 180; TPS2121 Tj <= 110 = 144
+  60     3W    storm 25 %  yes |   289   213   182   147   142   100   132   124 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 213 / 289; TPS63810 Tj <= 110 = 182; TPS2121 Tj <= 110 = 147
+  60     3W    storm 50 %  no  |   345   269   234   193   193   nan   186   176 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 269 / 345; TPS63810 Tj <= 110 = 234; TPS2121 Tj <= 110 = 193
+  60     3W    storm 50 %  yes |   345   269   234   193   193   110   186   176 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 269 / 345; TPS63810 Tj <= 110 = 234; TPS2121 Tj <= 110 = 193
+  60     3W    continuous  no  |   466   391   344   291   301   nan   301   286 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 391 / 466; TPS63810 Tj <= 110 = 344; TPS2121 Tj <= 110 = 291
+  60     3W    continuous  yes |   466   391   344   291   301   160   301   286 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 391 / 466; TPS63810 Tj <= 110 = 344; TPS2121 Tj <= 110 = 291
+  85     1W    1 msg/min   no  |   134   113    99    89    90   nan    90    89 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 113 / 134; cell area <= 60 = 90; tightest rated part: JST_PH2 J3 <= 85 = 90
+  85     1W    1 msg/min   yes |   136   115   100    91    91   100    91    90 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 115 / 136; cell area <= 45 (charging) = 91; cell area <= 60 = 91
+  85     1W    storm 25 %  no  |   147   125   110   100   102   nan   102   100 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 125 / 147; cell area <= 60 = 102; tightest rated part: JST_PH2 J3 <= 85 = 102
+  85     1W    storm 25 %  yes |   148   126   111   101   103   100   103   101 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 126 / 148; cell area <= 45 (charging) = 103; cell area <= 60 = 103
+  85     1W    storm 50 %  no  |   160   139   123   112   114   nan   116   113 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 139 / 160; cell area <= 60 = 116; tightest rated part: JST_PH2 J3 <= 85 = 116
+  85     1W    storm 50 %  yes |   161   140   123   112   115   100   116   113 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 140 / 161; cell area <= 45 (charging) = 116; cell area <= 60 = 116
+  85     1W    continuous  no  |   190   169   149   135   140   nan   143   139 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 169 / 190; TPS63810 Tj <= 110 = 149; TPS2121 Tj <= 110 = 135
+  85     1W    continuous  yes |   190   169   149   135   140   110   143   139 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 169 / 190; TPS63810 Tj <= 110 = 149; TPS2121 Tj <= 110 = 135
+  85     2.5W  1 msg/min   no  |   221   162   132   109   105   nan    99    94 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 162 / 221; TPS63810 Tj <= 110 = 132; cell area <= 60 = 99
+  85     2.5W  1 msg/min   yes |   222   163   134   110   106   100   100    96 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 163 / 222; TPS63810 Tj <= 110 = 134; cell area <= 45 (charging) = 100
+  85     2.5W  storm 25 %  no  |   256   197   166   139   138   nan   134   128 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 197 / 256; TPS63810 Tj <= 110 = 166; TPS2121 Tj <= 110 = 139
+  85     2.5W  storm 25 %  yes |   256   197   166   139   138   102   134   128 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 197 / 256; TPS63810 Tj <= 110 = 166; TPS2121 Tj <= 110 = 139
+  85     2.5W  storm 50 %  no  |   296   237   202   172   174   nan   172   165 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 237 / 296; TPS63810 Tj <= 110 = 202; TPS2121 Tj <= 110 = 172
+  85     2.5W  storm 50 %  yes |   296   237   202   172   174   118   172   165 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 237 / 296; TPS63810 Tj <= 110 = 202; TPS2121 Tj <= 110 = 172
+  85     2.5W  continuous  no  |   380   321   277   238   248   nan   251   239 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 321 / 380; TPS63810 Tj <= 110 = 277; TPS2121 Tj <= 110 = 238
+  85     2.5W  continuous  yes |   380   321   277   238   248   150   251   239 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 321 / 380; TPS63810 Tj <= 110 = 277; TPS2121 Tj <= 110 = 238
+  85     3W    1 msg/min   no  |   260   184   156   124   115   nan   103    98 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 184 / 260; TPS63810 Tj <= 110 = 156; cell area <= 60 = 103
+  85     3W    1 msg/min   yes |   261   186   158   125   117   100   105    99 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 186 / 261; TPS63810 Tj <= 110 = 158; TPS2121 Tj <= 110 = 125
+  85     3W    storm 25 %  no  |   308   232   201   165   161   nan   151   143 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 232 / 308; TPS63810 Tj <= 110 = 201; TPS2121 Tj <= 110 = 165
+  85     3W    storm 25 %  yes |   308   232   201   165   161   107   151   143 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 232 / 308; TPS63810 Tj <= 110 = 201; TPS2121 Tj <= 110 = 165
+  85     3W    storm 50 %  no  |   361   286   251   210   210   nan   203   193 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 286 / 361; TPS63810 Tj <= 110 = 251; TPS2121 Tj <= 110 = 210
+  85     3W    storm 50 %  yes |   361   286   251   210   210   129   203   193 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 286 / 361; TPS63810 Tj <= 110 = 251; TPS2121 Tj <= 110 = 210
+  85     3W    continuous  no  |   475   399   352   300   309   nan   309   294 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 399 / 475; TPS63810 Tj <= 110 = 352; TPS2121 Tj <= 110 = 300
+  85     3W    continuous  yes |   475   399   352   300   309   172   309   294 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 399 / 475; TPS63810 Tj <= 110 = 352; TPS2121 Tj <= 110 = 300
 
 h = 5 W/m2K (small sealed case)
   Ta     power duty        chg | PA Tj  case 63810  2121 revFET 25185  cell   NTC | verdict  binding
-  -40    1W    1 msg/min   no  |    19    -3   -26   -33   -32   nan   -36   -36 | PASS     
-  -40    1W    1 msg/min   yes |    57    36    15     9    19    77    21    29 | PASS     (charging is blocked below 0 C by TS/firmware) 
-  -40    1W    storm 25 %  no  |    52    31     5    -3    -7   nan   -14   -14 | PASS     
-  -40    1W    storm 25 %  yes |    91    69    46    39    44   100    43    51 | MARGINAL (charging is blocked below 0 C by TS/firmware) BQ25185 Tj <= TREG 100 (charge 100 %) = 100; cell area <= 45 (charging) = 43
-  -40    1W    storm 50 %  no  |    90    68    39    28    20   nan    11    10 | PASS     
-  -40    1W    storm 50 %  yes |   120    98    70    61    60   100    55    61 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 98 / 120; cell area <= 45 (charging) = 55
-  -40    1W    continuous  no  |   167   146   105    91    73   nan    59    58 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 146 / 167; tightest rated part: TPS22916 U18 <= 85 = 111
-  -40    1W    continuous  yes |   181   159   119   106    91   100    79    80 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 159 / 181; cell area <= 45 (charging) = 79; cell area <= 60 = 79
-  -40    2.5W  1 msg/min   no  |   119    60     8   -10    -8   nan   -32   -33 | PASS     
-  -40    2.5W  1 msg/min   yes |   157    98    49    32    44    80    25    32 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 98 / 157
-  -40    2.5W  storm 25 %  no  |   214   156    96    73    63   nan    32    30 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 156 / 214
-  -40    2.5W  storm 25 %  yes |   237   179   120    99    94   100    66    69 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 179 / 237; cell area <= 45 (charging) = 66; cell area <= 60 = 66
-  -40    2.5W  storm 50 %  no  |   320   261   190   163   139   nan   100    97 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 261 / 320; TPS63810 Tj <= 110 = 190; TPS2121 Tj <= 110 = 163
-  -40    2.5W  storm 50 %  yes |   320   261   190   163   139   101   100    97 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 261 / 320; TPS63810 Tj <= 110 = 190; TPS2121 Tj <= 110 = 163
-  -40    2.5W  continuous  no  |   539   480   379   342   291   nan   237   231 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 480 / 539; TPS63810 Tj <= 110 = 379; TPS2121 Tj <= 110 = 342
-  -40    2.5W  continuous  yes |   539   480   379   342   291   239   237   231 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 480 / 539; TPS63810 Tj <= 110 = 379; TPS2121 Tj <= 110 = 342
-  -40    3W    1 msg/min   no  |   164    89    33     7    11   nan   -29   -32 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 89 / 164
-  -40    3W    1 msg/min   yes |   203   127    73    49    63    82    28    34 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 127 / 203
-  -40    3W    storm 25 %  no  |   293   218   152   121   108   nan    58    54 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 218 / 293; TPS63810 Tj <= 110 = 152; tightest rated part: TPS22916 U18 <= 85 = 113
-  -40    3W    storm 25 %  yes |   308   232   167   137   127   100    80    79 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 232 / 308; TPS63810 Tj <= 110 = 167; TPS2121 Tj <= 110 = 137
-  -40    3W    storm 50 %  no  |   435   359   280   242   211   nan   152   146 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 359 / 435; TPS63810 Tj <= 110 = 280; TPS2121 Tj <= 110 = 242
-  -40    3W    storm 50 %  yes |   435   359   280   242   211   151   152   146 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 359 / 435; TPS63810 Tj <= 110 = 280; TPS2121 Tj <= 110 = 242
-  -40    3W    continuous  no  |   730   654   536   486   419   nan   339   330 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 654 / 730; TPS63810 Tj <= 110 = 536; TPS2121 Tj <= 110 = 486
-  -40    3W    continuous  yes |   730   654   536   486   419   340   339   330 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 654 / 730; TPS63810 Tj <= 110 = 536; TPS2121 Tj <= 110 = 486
-  -20    1W    1 msg/min   no  |    38    17    -6   -13   -12   nan   -17   -17 | PASS     
-  -20    1W    1 msg/min   yes |    72    51    30    25    35    92    36    44 | PASS     (charging is blocked below 0 C by TS/firmware) 
-  -20    1W    storm 25 %  no  |    70    48    23    14    10   nan     4     3 | PASS     
-  -20    1W    storm 25 %  yes |   100    78    54    47    52   100    50    57 | FAIL     (charging is blocked below 0 C by TS/firmware) cell area <= 45 (charging) = 50
-  -20    1W    storm 50 %  no  |   104    83    53    43    35   nan    26    25 | MARGINAL QPA9510 case <= 85 (Tj <= 160) = 83 / 104
-  -20    1W    storm 50 %  yes |   127   106    78    68    67   100    61    66 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 106 / 127; cell area <= 45 (charging) = 61; cell area <= 60 = 61
-  -20    1W    continuous  no  |   177   155   114   100    83   nan    69    68 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 155 / 177; cell area <= 60 = 69; tightest rated part: TPS22916 U18 <= 85 = 120
-  -20    1W    continuous  yes |   186   165   124   111    96   100    83    84 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 165 / 186; cell area <= 45 (charging) = 83; cell area <= 60 = 83
-  -20    2.5W  1 msg/min   no  |   138    79    28     9    12   nan   -13   -14 | PASS     
-  -20    2.5W  1 msg/min   yes |   172   114    64    47    59    95    40    47 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 114 / 172
-  -20    2.5W  storm 25 %  no  |   227   168   109    86    76   nan    45    43 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 168 / 227; tightest rated part: TPS22916 U18 <= 85 = 87
-  -20    2.5W  storm 25 %  yes |   244   185   127   105   100   100    72    73 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 185 / 244; TPS63810 Tj <= 110 = 127; cell area <= 45 (charging) = 72
-  -20    2.5W  storm 50 %  no  |   324   266   196   168   145   nan   106   103 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 266 / 324; TPS63810 Tj <= 110 = 196; TPS2121 Tj <= 110 = 168
-  -20    2.5W  storm 50 %  yes |   324   266   196   168   145   107   106   103 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 266 / 324; TPS63810 Tj <= 110 = 196; TPS2121 Tj <= 110 = 168
-  -20    2.5W  continuous  no  |   529   470   370   332   282   nan   229   223 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 470 / 529; TPS63810 Tj <= 110 = 370; TPS2121 Tj <= 110 = 332
-  -20    2.5W  continuous  yes |   529   470   370   332   282   231   229   223 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 470 / 529; TPS63810 Tj <= 110 = 370; TPS2121 Tj <= 110 = 332
-  -20    3W    1 msg/min   no  |   183   108    52    26    30   nan   -10   -12 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 108 / 183
-  -20    3W    1 msg/min   yes |   218   142    88    64    77    97    42    48 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 142 / 218
-  -20    3W    storm 25 %  no  |   303   227   162   131   118   nan    69    65 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 227 / 303; TPS63810 Tj <= 110 = 162; TPS2121 Tj <= 110 = 131
-  -20    3W    storm 25 %  yes |   313   238   172   142   132   100    84    83 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 238 / 313; TPS63810 Tj <= 110 = 172; TPS2121 Tj <= 110 = 142
-  -20    3W    storm 50 %  no  |   435   359   279   242   212   nan   153   147 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 359 / 435; TPS63810 Tj <= 110 = 279; TPS2121 Tj <= 110 = 242
-  -20    3W    storm 50 %  yes |   435   359   279   242   212   152   153   147 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 359 / 435; TPS63810 Tj <= 110 = 279; TPS2121 Tj <= 110 = 242
-  -20    3W    continuous  no  |   709   633   516   466   400   nan   321   312 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 633 / 709; TPS63810 Tj <= 110 = 516; TPS2121 Tj <= 110 = 466
-  -20    3W    continuous  yes |   709   633   516   466   400   322   321   312 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 633 / 709; TPS63810 Tj <= 110 = 516; TPS2121 Tj <= 110 = 466
-  0      1W    1 msg/min   no  |    58    37    14     6     7   nan     3     3 | PASS     
-  0      1W    1 msg/min   yes |    86    65    44    38    47   100    48    55 | FAIL     cell area <= 45 (charging) = 48
-  0      1W    storm 25 %  no  |    87    66    40    31    28   nan    21    21 | PASS     
-  0      1W    storm 25 %  yes |   110    88    64    57    60   100    57    63 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 88 / 110; cell area <= 45 (charging) = 57
-  0      1W    storm 50 %  no  |   119    98    68    58    50   nan    41    40 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 98 / 119
-  0      1W    storm 50 %  yes |   136   115    86    77    74   100    68    72 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 115 / 136; cell area <= 45 (charging) = 68; cell area <= 60 = 68
-  0      1W    continuous  no  |   186   165   124   110    93   nan    80    78 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 165 / 186; cell area <= 60 = 80; tightest rated part: TPS22916 U18 <= 85 = 130
-  0      1W    continuous  yes |   192   171   130   117   101   100    88    89 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 171 / 192; TPS63810 Tj <= 110 = 130; cell area <= 45 (charging) = 88
-  0      2.5W  1 msg/min   no  |   157    99    47    28    31   nan     7     5 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 99 / 157
-  0      2.5W  1 msg/min   yes |   185   126    76    59    70   100    50    56 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 126 / 185; cell area <= 45 (charging) = 50
-  0      2.5W  storm 25 %  no  |   239   181   121    99    89   nan    58    56 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 181 / 239; tightest rated part: TPS22916 U18 <= 85 = 99
-  0      2.5W  storm 25 %  yes |   252   193   134   112   106   100    78    79 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 193 / 252; TPS63810 Tj <= 110 = 134; cell area <= 45 (charging) = 78
-  0      2.5W  storm 50 %  no  |   330   271   201   174   151   nan   113   109 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 271 / 330; TPS63810 Tj <= 110 = 201; TPS2121 Tj <= 110 = 174
-  0      2.5W  storm 50 %  yes |   330   271   201   174   151   113   113   109 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 271 / 330; TPS63810 Tj <= 110 = 201; TPS2121 Tj <= 110 = 174
-  0      2.5W  continuous  no  |   520   461   361   324   275   nan   222   217 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 461 / 520; TPS63810 Tj <= 110 = 361; TPS2121 Tj <= 110 = 324
-  0      2.5W  continuous  yes |   520   461   361   324   275   224   222   217 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 461 / 520; TPS63810 Tj <= 110 = 361; TPS2121 Tj <= 110 = 324
-  0      3W    1 msg/min   no  |   203   127    71    45    49   nan     9     7 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 127 / 203
-  0      3W    1 msg/min   yes |   229   154   100    75    87   100    52    57 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 154 / 229; cell area <= 45 (charging) = 52
-  0      3W    storm 25 %  no  |   313   237   172   141   129   nan    79    76 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 237 / 313; TPS63810 Tj <= 110 = 172; TPS2121 Tj <= 110 = 141
-  0      3W    storm 25 %  yes |   319   244   178   148   138   100    89    87 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 244 / 319; TPS63810 Tj <= 110 = 178; TPS2121 Tj <= 110 = 148
-  0      3W    storm 50 %  no  |   435   359   280   243   213   nan   154   149 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 359 / 435; TPS63810 Tj <= 110 = 280; TPS2121 Tj <= 110 = 243
-  0      3W    storm 50 %  yes |   435   359   280   243   213   154   154   149 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 359 / 435; TPS63810 Tj <= 110 = 280; TPS2121 Tj <= 110 = 243
-  0      3W    continuous  no  |   690   614   497   448   383   nan   304   296 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 614 / 690; TPS63810 Tj <= 110 = 497; TPS2121 Tj <= 110 = 448
-  0      3W    continuous  yes |   690   614   497   448   383   306   304   296 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 614 / 690; TPS63810 Tj <= 110 = 497; TPS2121 Tj <= 110 = 448
-  25     1W    1 msg/min   no  |    82    61    38    31    32   nan    28    28 | PASS     
-  25     1W    1 msg/min   yes |   101    80    58    52    60   100    59    65 | FAIL     cell area <= 45 (charging) = 59
-  25     1W    storm 25 %  no  |   109    87    62    53    50   nan    43    43 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 87 / 109
-  25     1W    storm 25 %  yes |   123   102    77    70    71   100    68    72 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 102 / 123; cell area <= 45 (charging) = 68; cell area <= 60 = 68
-  25     1W    storm 50 %  no  |   138   116    87    77    69   nan    60    59 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 116 / 138; cell area <= 60 = 60; tightest rated part: TPS22916 U18 <= 85 = 86
-  25     1W    storm 50 %  yes |   148   127    98    88    84   100    77    80 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 127 / 148; cell area <= 45 (charging) = 77; cell area <= 60 = 77
-  25     1W    continuous  no  |   199   178   137   123   107   nan    94    92 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 178 / 199; TPS63810 Tj <= 110 = 137; cell area <= 60 = 94
-  25     1W    continuous  yes |   200   179   139   125   109   100    96    95 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 179 / 200; TPS63810 Tj <= 110 = 139; TPS2121 Tj <= 110 = 125
-  25     2.5W  1 msg/min   no  |   182   123    71    53    55   nan    31    30 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 123 / 182
-  25     2.5W  1 msg/min   yes |   200   141    91    73    82   100    61    66 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 141 / 200; cell area <= 45 (charging) = 61; cell area <= 60 = 61
-  25     2.5W  storm 25 %  no  |   256   197   138   115   106   nan    75    73 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 197 / 256; TPS63810 Tj <= 110 = 138; cell area <= 60 = 75
-  25     2.5W  storm 25 %  yes |   262   204   145   123   116   100    86    86 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 204 / 262; TPS63810 Tj <= 110 = 145; cell area <= 45 (charging) = 86
-  25     2.5W  storm 50 %  no  |   338   279   209   182   160   nan   122   119 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 279 / 338; TPS63810 Tj <= 110 = 209; TPS2121 Tj <= 110 = 182
-  25     2.5W  storm 50 %  yes |   338   279   209   182   160   122   122   119 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 279 / 338; TPS63810 Tj <= 110 = 209; TPS2121 Tj <= 110 = 182
-  25     2.5W  continuous  no  |   511   452   353   316   268   nan   217   211 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 452 / 511; TPS63810 Tj <= 110 = 353; TPS2121 Tj <= 110 = 316
-  25     2.5W  continuous  yes |   511   452   353   316   268   218   217   211 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 452 / 511; TPS63810 Tj <= 110 = 353; TPS2121 Tj <= 110 = 316
-  25     3W    1 msg/min   no  |   227   151    95    69    73   nan    33    31 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 151 / 227
-  25     3W    1 msg/min   yes |   244   169   114    90   100   100    63    66 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 169 / 244; cell area <= 45 (charging) = 63; cell area <= 60 = 63
-  25     3W    storm 25 %  no  |   326   251   185   155   143   nan    94    90 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 251 / 326; TPS63810 Tj <= 110 = 185; TPS2121 Tj <= 110 = 155
-  25     3W    storm 25 %  yes |   328   253   187   157   146   100    97    94 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 253 / 328; TPS63810 Tj <= 110 = 187; TPS2121 Tj <= 110 = 157
-  25     3W    storm 50 %  no  |   437   361   282   246   217   nan   158   153 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 361 / 437; TPS63810 Tj <= 110 = 282; TPS2121 Tj <= 110 = 246
-  25     3W    storm 50 %  yes |   437   361   282   246   217   158   158   153 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 361 / 437; TPS63810 Tj <= 110 = 282; TPS2121 Tj <= 110 = 246
-  25     3W    continuous  no  |   669   593   477   428   365   nan   288   279 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 593 / 669; TPS63810 Tj <= 110 = 477; TPS2121 Tj <= 110 = 428
-  25     3W    continuous  yes |   669   593   477   428   365   289   288   279 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 593 / 669; TPS63810 Tj <= 110 = 477; TPS2121 Tj <= 110 = 428
-  60     1W    1 msg/min   no  |   117    96    73    66    66   nan    62    62 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 96 / 117; cell area <= 60 = 62
-  60     1W    1 msg/min   yes |   125   104    82    75    79   100    77    80 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 104 / 125; cell area <= 45 (charging) = 77; cell area <= 60 = 77
-  60     1W    storm 25 %  no  |   140   118    93    84    81   nan    75    74 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 118 / 140; cell area <= 60 = 75; tightest rated part: TPS22916 U18 <= 85 = 89
-  60     1W    storm 25 %  yes |   145   124    99    91    90   100    85    86 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 124 / 145; cell area <= 45 (charging) = 85; cell area <= 60 = 85
-  60     1W    storm 50 %  no  |   165   144   114   104    97   nan    88    87 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 144 / 165; cell area <= 60 = 88; tightest rated part: TPS22916 U18 <= 85 = 113
-  60     1W    storm 50 %  yes |   167   146   117   107   101   100    93    93 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 146 / 167; cell area <= 45 (charging) = 93; cell area <= 60 = 93
-  60     1W    continuous  no  |   219   198   157   144   128   nan   115   114 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 198 / 219; TPS63810 Tj <= 110 = 157; TPS2121 Tj <= 110 = 144
-  60     1W    continuous  yes |   219   198   157   144   128   116   115   114 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 198 / 219; TPS63810 Tj <= 110 = 157; TPS2121 Tj <= 110 = 144
-  60     2.5W  1 msg/min   no  |   216   157   105    87    89   nan    65    64 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 157 / 216; cell area <= 60 = 65
-  60     2.5W  1 msg/min   yes |   223   165   114    96   102   100    79    81 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 165 / 223; cell area <= 45 (charging) = 79; cell area <= 60 = 79
-  60     2.5W  storm 25 %  no  |   280   221   162   140   131   nan   101    98 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 221 / 280; TPS63810 Tj <= 110 = 162; TPS2121 Tj <= 110 = 140
-  60     2.5W  storm 25 %  yes |   280   221   162   140   131   100   101    98 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 221 / 280; TPS63810 Tj <= 110 = 162; TPS2121 Tj <= 110 = 140
-  60     2.5W  storm 50 %  no  |   351   293   223   196   175   nan   138   135 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 293 / 351; TPS63810 Tj <= 110 = 223; TPS2121 Tj <= 110 = 196
-  60     2.5W  storm 50 %  yes |   351   293   223   196   175   138   138   135 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 293 / 351; TPS63810 Tj <= 110 = 223; TPS2121 Tj <= 110 = 196
-  60     2.5W  continuous  no  |   503   445   346   310   264   nan   214   209 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 445 / 503; TPS63810 Tj <= 110 = 346; TPS2121 Tj <= 110 = 310
-  60     2.5W  continuous  yes |   503   445   346   310   264   215   214   209 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 445 / 503; TPS63810 Tj <= 110 = 346; TPS2121 Tj <= 110 = 310
-  60     3W    1 msg/min   no  |   260   185   129   103   107   nan    67    65 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 185 / 260; TPS63810 Tj <= 110 = 129; cell area <= 60 = 67
-  60     3W    1 msg/min   yes |   268   192   137   112   119   100    81    82 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 192 / 268; TPS63810 Tj <= 110 = 137; cell area <= 45 (charging) = 81
-  60     3W    storm 25 %  no  |   347   271   206   175   164   nan   116   112 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 271 / 347; TPS63810 Tj <= 110 = 206; TPS2121 Tj <= 110 = 175
-  60     3W    storm 25 %  yes |   347   271   206   175   164   115   116   112 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 271 / 347; TPS63810 Tj <= 110 = 206; TPS2121 Tj <= 110 = 175
-  60     3W    storm 50 %  no  |   443   367   289   252   225   nan   168   162 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 367 / 443; TPS63810 Tj <= 110 = 289; TPS2121 Tj <= 110 = 252
-  60     3W    storm 50 %  yes |   443   367   289   252   225   167   168   162 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 367 / 443; TPS63810 Tj <= 110 = 289; TPS2121 Tj <= 110 = 252
-  60     3W    continuous  no  |   646   570   455   407   347   nan   271   263 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 570 / 646; TPS63810 Tj <= 110 = 455; TPS2121 Tj <= 110 = 407
-  60     3W    continuous  yes |   646   570   455   407   347   272   271   263 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 570 / 646; TPS63810 Tj <= 110 = 455; TPS2121 Tj <= 110 = 407
-  85     1W    1 msg/min   no  |   142   120    98    90    91   nan    87    87 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 120 / 142; cell area <= 60 = 87; tightest rated part: B3U SW3 <= 70 = 87
-  85     1W    1 msg/min   yes |   144   123   100    93    95   100    92    93 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 123 / 144; cell area <= 45 (charging) = 92; cell area <= 60 = 92
-  85     1W    storm 25 %  no  |   162   141   115   107   104   nan    98    97 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 141 / 162; cell area <= 60 = 98; tightest rated part: TPS22916 U18 <= 85 = 111
-  85     1W    storm 25 %  yes |   163   141   116   107   105   100    98    98 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 141 / 163; cell area <= 45 (charging) = 98; cell area <= 60 = 98
-  85     1W    storm 50 %  no  |   185   164   135   124   117   nan   109   108 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 164 / 185; TPS63810 Tj <= 110 = 135; cell area <= 60 = 109
-  85     1W    storm 50 %  yes |   185   164   135   124   117   109   109   108 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 164 / 185; TPS63810 Tj <= 110 = 135; cell area <= 45 (charging) = 109
-  85     1W    continuous  no  |   234   213   173   159   144   nan   132   130 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 213 / 234; TPS63810 Tj <= 110 = 173; TPS2121 Tj <= 110 = 159
-  85     1W    continuous  yes |   234   213   173   159   144   133   132   130 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 213 / 234; TPS63810 Tj <= 110 = 173; TPS2121 Tj <= 110 = 159
-  85     2.5W  1 msg/min   no  |   240   181   130   111   114   nan    90    88 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 181 / 240; TPS63810 Tj <= 110 = 130; cell area <= 60 = 90
-  85     2.5W  1 msg/min   yes |   242   184   132   114   118   100    94    94 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 184 / 242; TPS63810 Tj <= 110 = 132; cell area <= 45 (charging) = 94
-  85     2.5W  storm 25 %  no  |   298   239   180   158   150   nan   120   118 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 239 / 298; TPS63810 Tj <= 110 = 180; TPS2121 Tj <= 110 = 158
-  85     2.5W  storm 25 %  yes |   298   239   180   158   150   119   120   118 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 239 / 298; TPS63810 Tj <= 110 = 180; TPS2121 Tj <= 110 = 158
-  85     2.5W  storm 50 %  no  |   363   304   235   208   188   nan   152   149 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 304 / 363; TPS63810 Tj <= 110 = 235; TPS2121 Tj <= 110 = 208
-  85     2.5W  storm 50 %  yes |   363   304   235   208   188   152   152   149 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 304 / 363; TPS63810 Tj <= 110 = 235; TPS2121 Tj <= 110 = 208
-  85     2.5W  continuous  no  |   501   443   345   309   265   nan   216   211 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 443 / 501; TPS63810 Tj <= 110 = 345; TPS2121 Tj <= 110 = 309
-  85     2.5W  continuous  yes |   501   443   345   309   265   217   216   211 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 443 / 501; TPS63810 Tj <= 110 = 345; TPS2121 Tj <= 110 = 309
-  85     3W    1 msg/min   no  |   285   209   153   128   132   nan    91    89 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 209 / 285; TPS63810 Tj <= 110 = 153; TPS2121 Tj <= 110 = 128
-  85     3W    1 msg/min   yes |   287   211   155   130   135   100    95    94 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 211 / 287; TPS63810 Tj <= 110 = 155; TPS2121 Tj <= 110 = 130
-  85     3W    storm 25 %  no  |   362   287   222   192   181   nan   133   129 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 287 / 362; TPS63810 Tj <= 110 = 222; TPS2121 Tj <= 110 = 192
-  85     3W    storm 25 %  yes |   362   287   222   192   181   132   133   129 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 287 / 362; TPS63810 Tj <= 110 = 222; TPS2121 Tj <= 110 = 192
-  85     3W    storm 50 %  no  |   449   374   296   260   233   nan   177   172 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 374 / 449; TPS63810 Tj <= 110 = 296; TPS2121 Tj <= 110 = 260
-  85     3W    storm 50 %  yes |   449   374   296   260   233   176   177   172 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 374 / 449; TPS63810 Tj <= 110 = 296; TPS2121 Tj <= 110 = 260
-  85     3W    continuous  no  |   635   559   445   397   339   nan   265   257 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 559 / 635; TPS63810 Tj <= 110 = 445; TPS2121 Tj <= 110 = 397
-  85     3W    continuous  yes |   635   559   445   397   339   266   265   257 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 559 / 635; TPS63810 Tj <= 110 = 445; TPS2121 Tj <= 110 = 397
+  -40    1W    1 msg/min   no  |    11   -10   -24   -34   -33   nan   -33   -34 | PASS     
+  -40    1W    1 msg/min   yes |    31    10    -4   -12   -13    30   -13   -14 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -40    1W    storm 25 %  no  |    38    17     2    -9    -7   nan    -6    -8 | PASS     
+  -40    1W    storm 25 %  yes |    58    37    22    13    13    49    13    12 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -40    1W    storm 50 %  no  |    67    46    30    18    21   nan    22    20 | PASS     
+  -40    1W    storm 50 %  yes |    87    66    50    40    41    69    42    40 | MARGINAL (charging is blocked below 0 C by TS/firmware) cell area <= 45 (charging) = 42
+  -40    1W    continuous  no  |   127   106    87    72    77   nan    81    77 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 106 / 127; cell area <= 60 = 81
+  -40    1W    continuous  yes |   145   124   104    91    95   100    98    94 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 124 / 145; cell area <= 45 (charging) = 98; cell area <= 60 = 98
+  -40    2.5W  1 msg/min   no  |    99    41    11   -13   -16   nan   -23   -27 | PASS     
+  -40    2.5W  1 msg/min   yes |   120    61    32     9     3    33    -3    -7 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -40    2.5W  storm 25 %  no  |   175   116    85    58    57   nan    53    47 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 116 / 175
+  -40    2.5W  storm 25 %  yes |   195   137   105    79    77    83    73    67 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 137 / 195; cell area <= 45 (charging) = 73; cell area <= 60 = 73
+  -40    2.5W  storm 50 %  no  |   257   199   164   133   136   nan   134   127 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 199 / 257; TPS63810 Tj <= 110 = 164; TPS2121 Tj <= 110 = 133
+  -40    2.5W  storm 50 %  yes |   266   208   173   142   145   100   143   136 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 208 / 266; TPS63810 Tj <= 110 = 173; TPS2121 Tj <= 110 = 142
+  -40    2.5W  continuous  no  |   427   369   324   283   296   nan   299   288 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 369 / 427; TPS63810 Tj <= 110 = 324; TPS2121 Tj <= 110 = 283
+  -40    2.5W  continuous  yes |   427   369   324   283   296   179   299   288 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 369 / 427; TPS63810 Tj <= 110 = 324; TPS2121 Tj <= 110 = 283
+  -40    3W    1 msg/min   no  |   140    64    36     4    -5   nan   -17   -22 | PASS     
+  -40    3W    1 msg/min   yes |   160    85    56    25    15    34     3    -3 | MARGINAL (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 85 / 160
+  -40    3W    storm 25 %  no  |   242   167   135    98    95   nan    85    78 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 167 / 242; TPS63810 Tj <= 110 = 135; cell area <= 60 = 85
+  -40    3W    storm 25 %  yes |   262   186   155   119   114   100   104    97 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 186 / 262; TPS63810 Tj <= 110 = 155; cell area <= 45 (charging) = 104
+  -40    3W    storm 50 %  no  |   354   278   243   200   202   nan   195   185 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 278 / 354; TPS63810 Tj <= 110 = 243; TPS2121 Tj <= 110 = 200
+  -40    3W    storm 50 %  yes |   354   278   243   200   202   108   195   185 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 278 / 354; TPS63810 Tj <= 110 = 243; TPS2121 Tj <= 110 = 200
+  -40    3W    continuous  no  |   583   507   460   404   417   nan   418   403 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 507 / 583; TPS63810 Tj <= 110 = 460; TPS2121 Tj <= 110 = 404
+  -40    3W    continuous  yes |   583   507   460   404   417   254   418   403 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 507 / 583; TPS63810 Tj <= 110 = 460; TPS2121 Tj <= 110 = 404
+  -20    1W    1 msg/min   no  |    31    10    -5   -14   -13   nan   -13   -15 | PASS     
+  -20    1W    1 msg/min   yes |    49    28    13     5     4    47     4     3 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -20    1W    storm 25 %  no  |    56    34    19     9    11   nan    11     9 | PASS     
+  -20    1W    storm 25 %  yes |    74    52    37    28    28    64    29    27 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -20    1W    storm 50 %  no  |    83    61    45    34    36   nan    38    35 | PASS     
+  -20    1W    storm 50 %  yes |   101    79    63    53    54    82    55    53 | FAIL     (charging is blocked below 0 C by TS/firmware) cell area <= 45 (charging) = 55
+  -20    1W    continuous  no  |   138   117    97    83    88   nan    92    88 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 117 / 138; cell area <= 60 = 92; tightest rated part: JST_PH2 J3 <= 85 = 92
+  -20    1W    continuous  yes |   151   130   111    97   101   100   105   101 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 130 / 151; cell area <= 45 (charging) = 105; cell area <= 60 = 105
+  -20    2.5W  1 msg/min   no  |   119    60    31     7     3   nan    -3    -7 | PASS     
+  -20    2.5W  1 msg/min   yes |   137    78    49    26    21    50    15    11 | PASS     (charging is blocked below 0 C by TS/firmware) 
+  -20    2.5W  storm 25 %  no  |   189   130    98    71    71   nan    66    61 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 130 / 189; cell area <= 60 = 66
+  -20    2.5W  storm 25 %  yes |   207   148   116    90    89    95    84    79 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 148 / 207; cell area <= 45 (charging) = 84; cell area <= 60 = 84
+  -20    2.5W  storm 50 %  no  |   265   206   171   140   144   nan   142   134 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 206 / 265; TPS63810 Tj <= 110 = 171; TPS2121 Tj <= 110 = 140
+  -20    2.5W  storm 50 %  yes |   271   212   178   147   150   100   148   140 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 212 / 271; TPS63810 Tj <= 110 = 178; TPS2121 Tj <= 110 = 147
+  -20    2.5W  continuous  no  |   422   364   319   278   291   nan   294   283 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 364 / 422; TPS63810 Tj <= 110 = 319; TPS2121 Tj <= 110 = 278
+  -20    2.5W  continuous  yes |   422   364   319   278   291   175   294   283 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 364 / 422; TPS63810 Tj <= 110 = 319; TPS2121 Tj <= 110 = 278
+  -20    3W    1 msg/min   no  |   159    84    55    23    14   nan     2    -3 | MARGINAL QPA9510 case <= 85 (Tj <= 160) = 84 / 159
+  -20    3W    1 msg/min   yes |   177   102    73    42    32    51    20    14 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 102 / 177
+  -20    3W    storm 25 %  no  |   253   178   147   110   106   nan    96    89 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 178 / 253; TPS63810 Tj <= 110 = 147; cell area <= 60 = 96
+  -20    3W    storm 25 %  yes |   268   193   162   126   121   100   111   103 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 193 / 268; TPS63810 Tj <= 110 = 162; TPS2121 Tj <= 110 = 126
+  -20    3W    storm 50 %  no  |   357   281   246   203   205   nan   198   188 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 281 / 357; TPS63810 Tj <= 110 = 246; TPS2121 Tj <= 110 = 203
+  -20    3W    storm 50 %  yes |   357   281   246   203   205   112   198   188 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 281 / 357; TPS63810 Tj <= 110 = 246; TPS2121 Tj <= 110 = 203
+  -20    3W    continuous  no  |   569   494   446   390   404   nan   404   389 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 494 / 569; TPS63810 Tj <= 110 = 446; TPS2121 Tj <= 110 = 390
+  -20    3W    continuous  yes |   569   494   446   390   404   243   404   389 | FAIL     (charging is blocked below 0 C by TS/firmware) QPA9510 case <= 85 (Tj <= 160) = 494 / 569; TPS63810 Tj <= 110 = 446; TPS2121 Tj <= 110 = 390
+  0      1W    1 msg/min   no  |    51    29    15     6     6   nan     6     5 | PASS     
+  0      1W    1 msg/min   yes |    67    45    31    23    22    65    22    21 | PASS     
+  0      1W    storm 25 %  no  |    73    52    37    27    28   nan    29    27 | PASS     
+  0      1W    storm 25 %  yes |    89    68    53    44    44    79    44    43 | MARGINAL cell area <= 45 (charging) = 44
+  0      1W    storm 50 %  no  |    98    77    61    49    52   nan    53    51 | PASS     
+  0      1W    storm 50 %  yes |   114    93    77    66    68    95    69    66 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 93 / 114; cell area <= 45 (charging) = 69; cell area <= 60 = 69
+  0      1W    continuous  no  |   150   128   109    94   100   nan   103    99 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 128 / 150; cell area <= 60 = 103; tightest rated part: JST_PH2 J3 <= 85 = 103
+  0      1W    continuous  yes |   159   137   118   104   108   100   112   108 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 137 / 159; cell area <= 45 (charging) = 112; cell area <= 60 = 112
+  0      2.5W  1 msg/min   no  |   138    80    50    26    22   nan    16    12 | PASS     
+  0      2.5W  1 msg/min   yes |   154    96    66    43    38    67    32    28 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 96 / 154
+  0      2.5W  storm 25 %  no  |   202   144   112    85    85   nan    80    75 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 144 / 202; cell area <= 60 = 80
+  0      2.5W  storm 25 %  yes |   217   158   126   100    99   100    94    89 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 158 / 217; TPS63810 Tj <= 110 = 126; cell area <= 45 (charging) = 94
+  0      2.5W  storm 50 %  no  |   273   214   179   148   152   nan   150   142 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 214 / 273; TPS63810 Tj <= 110 = 179; TPS2121 Tj <= 110 = 148
+  0      2.5W  storm 50 %  yes |   276   217   183   152   155   100   153   145 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 217 / 276; TPS63810 Tj <= 110 = 183; TPS2121 Tj <= 110 = 152
+  0      2.5W  continuous  no  |   418   360   315   274   286   nan   290   278 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 360 / 418; TPS63810 Tj <= 110 = 315; TPS2121 Tj <= 110 = 274
+  0      2.5W  continuous  yes |   418   360   315   274   286   173   290   278 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 360 / 418; TPS63810 Tj <= 110 = 315; TPS2121 Tj <= 110 = 274
+  0      3W    1 msg/min   no  |   178   103    75    42    34   nan    22    16 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 103 / 178
+  0      3W    1 msg/min   yes |   194   119    91    59    49    68    37    32 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 119 / 194
+  0      3W    storm 25 %  no  |   265   190   158   122   118   nan   108   101 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 190 / 265; TPS63810 Tj <= 110 = 158; cell area <= 60 = 108
+  0      3W    storm 25 %  yes |   276   200   169   133   128   100   118   111 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 200 / 276; TPS63810 Tj <= 110 = 169; TPS2121 Tj <= 110 = 133
+  0      3W    storm 50 %  no  |   360   285   249   207   209   nan   202   192 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 285 / 360; TPS63810 Tj <= 110 = 249; TPS2121 Tj <= 110 = 207
+  0      3W    storm 50 %  yes |   360   285   249   207   209   117   202   192 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 285 / 360; TPS63810 Tj <= 110 = 249; TPS2121 Tj <= 110 = 207
+  0      3W    continuous  no  |   557   481   433   378   391   nan   391   376 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 481 / 557; TPS63810 Tj <= 110 = 433; TPS2121 Tj <= 110 = 378
+  0      3W    continuous  yes |   557   481   433   378   391   232   391   376 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 481 / 557; TPS63810 Tj <= 110 = 433; TPS2121 Tj <= 110 = 378
+  25     1W    1 msg/min   no  |    75    54    40    30    31   nan    31    30 | PASS     
+  25     1W    1 msg/min   yes |    89    68    53    45    44    87    44    43 | MARGINAL cell area <= 45 (charging) = 44
+  25     1W    storm 25 %  no  |    96    74    59    49    51   nan    51    49 | PASS     
+  25     1W    storm 25 %  yes |   109    88    73    64    64    99    64    63 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 88 / 109; cell area <= 45 (charging) = 64; cell area <= 60 = 64
+  25     1W    storm 50 %  no  |   118    97    81    69    72   nan    73    71 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 97 / 118; cell area <= 60 = 73
+  25     1W    storm 50 %  yes |   129   107    91    81    82   100    84    81 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 107 / 129; cell area <= 45 (charging) = 84; cell area <= 60 = 84
+  25     1W    continuous  no  |   164   143   124   109   114   nan   117   114 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 143 / 164; cell area <= 60 = 117; tightest rated part: JST_PH2 J3 <= 85 = 117
+  25     1W    continuous  yes |   169   148   128   114   119   100   122   118 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 148 / 169; TPS63810 Tj <= 110 = 128; cell area <= 45 (charging) = 122
+  25     2.5W  1 msg/min   no  |   163   104    74    51    47   nan    41    37 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 104 / 163
+  25     2.5W  1 msg/min   yes |   176   117    88    65    60    88    54    50 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 117 / 176; cell area <= 45 (charging) = 54
+  25     2.5W  storm 25 %  no  |   220   162   130   103   102   nan    98    93 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 162 / 220; TPS63810 Tj <= 110 = 130; cell area <= 60 = 98
+  25     2.5W  storm 25 %  yes |   229   170   138   112   111   100   106   101 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 170 / 229; TPS63810 Tj <= 110 = 138; cell area <= 45 (charging) = 106
+  25     2.5W  storm 50 %  no  |   284   225   190   159   162   nan   160   153 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 225 / 284; TPS63810 Tj <= 110 = 190; TPS2121 Tj <= 110 = 159
+  25     2.5W  storm 50 %  yes |   284   225   190   159   163   100   161   153 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 225 / 284; TPS63810 Tj <= 110 = 190; TPS2121 Tj <= 110 = 159
+  25     2.5W  continuous  no  |   415   356   312   272   283   nan   286   275 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 356 / 415; TPS63810 Tj <= 110 = 312; TPS2121 Tj <= 110 = 272
+  25     2.5W  continuous  yes |   415   356   312   272   283   172   286   275 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 356 / 415; TPS63810 Tj <= 110 = 312; TPS2121 Tj <= 110 = 272
+  25     3W    1 msg/min   no  |   203   127    99    66    58   nan    46    40 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 127 / 203
+  25     3W    1 msg/min   yes |   216   141   112    81    71    89    59    53 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 141 / 216; cell area <= 45 (charging) = 59
+  25     3W    storm 25 %  no  |   280   205   174   137   133   nan   123   116 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 205 / 280; TPS63810 Tj <= 110 = 174; TPS2121 Tj <= 110 = 137
+  25     3W    storm 25 %  yes |   286   211   179   143   139   100   129   121 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 211 / 286; TPS63810 Tj <= 110 = 179; TPS2121 Tj <= 110 = 143
+  25     3W    storm 50 %  no  |   366   291   255   213   214   nan   208   198 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 291 / 366; TPS63810 Tj <= 110 = 255; TPS2121 Tj <= 110 = 213
+  25     3W    storm 50 %  yes |   366   291   255   213   214   124   208   198 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 291 / 366; TPS63810 Tj <= 110 = 255; TPS2121 Tj <= 110 = 213
+  25     3W    continuous  no  |   543   468   420   365   378   nan   378   363 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 468 / 543; TPS63810 Tj <= 110 = 420; TPS2121 Tj <= 110 = 365
+  25     3W    continuous  yes |   543   468   420   365   378   222   378   363 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 468 / 543; TPS63810 Tj <= 110 = 420; TPS2121 Tj <= 110 = 365
+  60     1W    1 msg/min   no  |   110    89    74    65    66   nan    66    64 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 89 / 110; cell area <= 60 = 66
+  60     1W    1 msg/min   yes |   117    96    81    73    73   100    73    71 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 96 / 117; cell area <= 45 (charging) = 73; cell area <= 60 = 73
+  60     1W    storm 25 %  no  |   127   106    91    81    82   nan    83    81 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 106 / 127; cell area <= 60 = 83
+  60     1W    storm 25 %  yes |   133   111    96    87    87   100    88    86 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 111 / 133; cell area <= 45 (charging) = 88; cell area <= 60 = 88
+  60     1W    storm 50 %  no  |   146   125   109    98   100   nan   102    99 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 125 / 146; cell area <= 60 = 102; tightest rated part: JST_PH2 J3 <= 85 = 102
+  60     1W    storm 50 %  yes |   150   129   112   101   104   100   105   102 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 129 / 150; cell area <= 45 (charging) = 105; cell area <= 60 = 105
+  60     1W    continuous  no  |   187   165   146   131   136   nan   140   136 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 165 / 187; TPS63810 Tj <= 110 = 146; TPS2121 Tj <= 110 = 131
+  60     1W    continuous  yes |   187   165   146   131   136   103   140   136 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 165 / 187; TPS63810 Tj <= 110 = 146; TPS2121 Tj <= 110 = 131
+  60     2.5W  1 msg/min   no  |   197   138   109    85    81   nan    75    71 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 138 / 197; cell area <= 60 = 75
+  60     2.5W  1 msg/min   yes |   204   145   116    92    88   100    82    78 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 145 / 204; cell area <= 45 (charging) = 82; cell area <= 60 = 82
+  60     2.5W  storm 25 %  no  |   246   188   156   129   128   nan   124   119 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 188 / 246; TPS63810 Tj <= 110 = 156; TPS2121 Tj <= 110 = 129
+  60     2.5W  storm 25 %  yes |   248   190   158   131   130   100   126   120 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 190 / 248; TPS63810 Tj <= 110 = 158; TPS2121 Tj <= 110 = 131
+  60     2.5W  storm 50 %  no  |   301   242   207   177   180   nan   178   170 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 242 / 301; TPS63810 Tj <= 110 = 207; TPS2121 Tj <= 110 = 177
+  60     2.5W  storm 50 %  yes |   301   242   207   177   180   118   178   170 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 242 / 301; TPS63810 Tj <= 110 = 207; TPS2121 Tj <= 110 = 177
+  60     2.5W  continuous  no  |   415   356   312   272   283   nan   286   275 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 356 / 415; TPS63810 Tj <= 110 = 312; TPS2121 Tj <= 110 = 272
+  60     2.5W  continuous  yes |   415   356   312   272   283   175   286   275 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 356 / 415; TPS63810 Tj <= 110 = 312; TPS2121 Tj <= 110 = 272
+  60     3W    1 msg/min   no  |   237   161   133   100    92   nan    80    74 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 161 / 237; TPS63810 Tj <= 110 = 133; cell area <= 60 = 80
+  60     3W    1 msg/min   yes |   243   168   140   108    99   100    86    81 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 168 / 243; TPS63810 Tj <= 110 = 140; cell area <= 45 (charging) = 86
+  60     3W    storm 25 %  no  |   303   228   197   160   156   nan   146   139 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 228 / 303; TPS63810 Tj <= 110 = 197; TPS2121 Tj <= 110 = 160
+  60     3W    storm 25 %  yes |   303   228   197   160   156   100   146   139 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 228 / 303; TPS63810 Tj <= 110 = 197; TPS2121 Tj <= 110 = 160
+  60     3W    storm 50 %  no  |   377   302   266   225   225   nan   219   209 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 302 / 377; TPS63810 Tj <= 110 = 266; TPS2121 Tj <= 110 = 225
+  60     3W    storm 50 %  yes |   377   302   266   225   225   138   219   209 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 302 / 377; TPS63810 Tj <= 110 = 266; TPS2121 Tj <= 110 = 225
+  60     3W    continuous  no  |   531   455   408   354   365   nan   365   350 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 455 / 531; TPS63810 Tj <= 110 = 408; TPS2121 Tj <= 110 = 354
+  60     3W    continuous  yes |   531   455   408   354   365   215   365   350 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 455 / 531; TPS63810 Tj <= 110 = 408; TPS2121 Tj <= 110 = 354
+  85     1W    1 msg/min   no  |   135   113    99    90    90   nan    90    89 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 113 / 135; cell area <= 60 = 90; tightest rated part: JST_PH2 J3 <= 85 = 90
+  85     1W    1 msg/min   yes |   137   116   101    92    92   100    92    91 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 116 / 137; cell area <= 45 (charging) = 92; cell area <= 60 = 92
+  85     1W    storm 25 %  no  |   150   129   114   104   105   nan   106   104 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 129 / 150; cell area <= 60 = 106; tightest rated part: JST_PH2 J3 <= 85 = 106
+  85     1W    storm 25 %  yes |   151   130   115   105   106   100   107   105 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 130 / 151; cell area <= 45 (charging) = 107; cell area <= 60 = 107
+  85     1W    storm 50 %  no  |   167   146   130   119   121   nan   123   120 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 146 / 167; TPS63810 Tj <= 110 = 130; cell area <= 60 = 123
+  85     1W    storm 50 %  yes |   167   146   130   119   121   104   123   120 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 146 / 167; TPS63810 Tj <= 110 = 130; cell area <= 45 (charging) = 123
+  85     1W    continuous  no  |   204   182   163   149   154   nan   157   153 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 182 / 204; TPS63810 Tj <= 110 = 163; TPS2121 Tj <= 110 = 149
+  85     1W    continuous  yes |   204   182   163   149   154   121   157   153 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 182 / 204; TPS63810 Tj <= 110 = 163; TPS2121 Tj <= 110 = 149
+  85     2.5W  1 msg/min   no  |   221   163   133   109   105   nan    99    95 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 163 / 221; TPS63810 Tj <= 110 = 133; cell area <= 60 = 99
+  85     2.5W  1 msg/min   yes |   223   165   135   112   107   100   101    97 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 165 / 223; TPS63810 Tj <= 110 = 135; cell area <= 45 (charging) = 101
+  85     2.5W  storm 25 %  no  |   266   207   175   149   148   nan   143   138 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 207 / 266; TPS63810 Tj <= 110 = 175; TPS2121 Tj <= 110 = 149
+  85     2.5W  storm 25 %  yes |   266   207   175   149   148   110   143   138 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 207 / 266; TPS63810 Tj <= 110 = 175; TPS2121 Tj <= 110 = 149
+  85     2.5W  storm 50 %  no  |   315   256   221   191   194   nan   191   184 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 256 / 315; TPS63810 Tj <= 110 = 221; TPS2121 Tj <= 110 = 191
+  85     2.5W  storm 50 %  yes |   315   256   221   191   194   133   191   184 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 256 / 315; TPS63810 Tj <= 110 = 221; TPS2121 Tj <= 110 = 191
+  85     2.5W  continuous  no  |   418   359   315   275   286   nan   289   278 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 359 / 418; TPS63810 Tj <= 110 = 315; TPS2121 Tj <= 110 = 275
+  85     2.5W  continuous  yes |   418   359   315   275   286   181   289   278 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 359 / 418; TPS63810 Tj <= 110 = 315; TPS2121 Tj <= 110 = 275
+  85     3W    1 msg/min   no  |   261   186   157   125   116   nan   104    99 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 186 / 261; TPS63810 Tj <= 110 = 157; cell area <= 60 = 104
+  85     3W    1 msg/min   yes |   263   187   159   127   118   100   106   100 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 187 / 263; TPS63810 Tj <= 110 = 159; TPS2121 Tj <= 110 = 127
+  85     3W    storm 25 %  no  |   321   245   214   178   174   nan   164   156 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 245 / 321; TPS63810 Tj <= 110 = 214; TPS2121 Tj <= 110 = 178
+  85     3W    storm 25 %  yes |   321   245   214   178   174   118   164   156 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 245 / 321; TPS63810 Tj <= 110 = 214; TPS2121 Tj <= 110 = 178
+  85     3W    storm 50 %  no  |   387   312   277   235   236   nan   229   219 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 312 / 387; TPS63810 Tj <= 110 = 277; TPS2121 Tj <= 110 = 235
+  85     3W    storm 50 %  yes |   387   312   277   235   236   150   229   219 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 312 / 387; TPS63810 Tj <= 110 = 277; TPS2121 Tj <= 110 = 235
+  85     3W    continuous  no  |   526   451   403   350   360   nan   360   345 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 451 / 526; TPS63810 Tj <= 110 = 403; TPS2121 Tj <= 110 = 350
+  85     3W    continuous  yes |   526   451   403   350   360   214   360   345 | FAIL     QPA9510 case <= 85 (Tj <= 160) = 451 / 526; TPS63810 Tj <= 110 = 403; TPS2121 Tj <= 110 = 350
 
 --- Temperature-rated parts closest to their limit (board under the part, peak), h = 10, no charging
-   25 C 1W    storm 25 % : TPS22916 U18 50/85, B3U SW3 35/70, B3U SW2 34/70, X5R C4u7 C70 49/85, X5R C4u7 C60 48/85, X5R C47u C94 47/85 | hottest X5R X5R C4u7 C70 49 C
-   25 C 1W    1 msg/min  : B3U SW3 26/70, B3U SW2 26/70, TPS22916 U18 31/85, SX1262 U10 30/85, X5R C4u7 C70 30/85, X5R C4u7 C60 30/85 | hottest X5R X5R C4u7 C70 30 C
-   60 C 1W    1 msg/min  : B3U SW3 61/70, B3U SW2 61/70, TPS22916 U18 66/85, SX1262 U10 65/85, X5R C4u7 C70 65/85, X5R C4u7 C60 65/85 | hottest X5R X5R C4u7 C70 65 C
-   60 C 1W    storm 25 % : TPS22916 U18 83/85, B3U SW3 68/70, B3U SW2 68/70, X5R C4u7 C70 82/85, X5R C4u7 C60 81/85, X5R C47u C94 80/85 | hottest X5R X5R C4u7 C70 82 C
-   25 C 2.5W  1 msg/min  : B3U SW3 28/70, B3U SW2 28/70, TPS22916 U18 40/85, X5R C4u7 C70 37/85, X5R C4u7 C60 37/85, X5R C10u25 C92 36/85 | hottest X5R X5R C4u7 C70 37 C
-   60 C 2.5W  storm 25 % : TPS22916 U18 125/85, X5R C4u7 C70 120/85, X5R C4u7 C60 119/85, X5R C47u C94 114/85, X5R C10u25 C92 114/85, X5R C47u C93 114/85 | hottest X5R X5R C4u7 C70 120 C
+   25 C 1W    storm 25 % : JST_PH2 J3 45/85, X5R C4u7 C58 45/85, X5R C4u7 C68 43/85, X5R C1u C96 43/85, X5R C22u16 C89 43/85, BQ29700 U5 42/85 | hottest X5R X5R C4u7 C58 45 C
+   25 C 1W    1 msg/min  : JST_PH2 J3 30/85, X5R C4u7 C58 30/85, SX1262 U9 29/85, X5R C22u16 C89 29/85, X5R C1u C96 29/85, X5R C4u7 C68 29/85 | hottest X5R X5R C4u7 C58 30 C
+   60 C 1W    1 msg/min  : JST_PH2 J3 65/85, X5R C4u7 C58 65/85, SX1262 U9 64/85, X5R C22u16 C89 64/85, X5R C1u C96 64/85, X5R C4u7 C68 63/85 | hottest X5R X5R C4u7 C58 65 C
+   60 C 1W    storm 25 % : JST_PH2 J3 78/85, X5R C4u7 C58 78/85, X5R C1u C96 77/85, X5R C4u7 C68 77/85, X5R C22u16 C89 77/85, BQ29700 U5 75/85 | hottest X5R X5R C4u7 C58 78 C
+   25 C 2.5W  1 msg/min  : JST_PH2 J3 39/85, X5R C4u7 C58 38/85, X5R C22u16 C89 36/85, X5R C1u C96 35/85, X5R C4u7 C68 34/85, SKY13330 U11 31/85 | hottest X5R X5R C4u7 C58 38 C
+   60 C 2.5W  storm 25 % : JST_PH2 J3 112/85, X5R C4u7 C58 110/85, X5R C22u16 C89 107/85, X5R C4u7 C68 106/85, X5R C1u C96 106/85, BQ29700 U5 102/85 | hottest X5R X5R C4u7 C58 110 C
 
 --- Highest transmit duty cycle that passes every criterion (1 s messages), no charging
     (largest passing point of duty 1/60, 1/30, 1/15, 1/6, 1/4, 1/2, 1; none = not even one message a minute)
   h = 10:
-    1W      -40 C: 50 % |   -20 C: 50 % |     0 C: 25 % |    25 C: 17 % |    60 C: none |    85 C: none
-    2.5W    -40 C: 1/15 |   -20 C: 1/60 |     0 C: none |    25 C: none |    60 C: none |    85 C: none
-    3W      -40 C: none |   -20 C: none |     0 C: none |    25 C: none |    60 C: none |    85 C: none
+    1W      -40 C: 100 % |   -20 C: 50 % |     0 C: 50 % |    25 C: 25 % |    60 C: none |    85 C: none
+    2.5W    -40 C: 17 % |   -20 C: 1/15 |     0 C: 1/60 |    25 C: none |    60 C: none |    85 C: none
+    3W      -40 C: 1/15 |   -20 C: none |     0 C: none |    25 C: none |    60 C: none |    85 C: none
   h = 5:
-    1W      -40 C: 50 % |   -20 C: 25 % |     0 C: 25 % |    25 C: 17 % |    60 C: none |    85 C: none
-    2.5W    -40 C: 1/15 |   -20 C: 1/60 |     0 C: none |    25 C: none |    60 C: none |    85 C: none
-    3W      -40 C: none |   -20 C: none |     0 C: none |    25 C: none |    60 C: none |    85 C: none
+    1W      -40 C: 50 % |   -20 C: 50 % |     0 C: 50 % |    25 C: 25 % |    60 C: none |    85 C: none
+    2.5W    -40 C: 1/15 |   -20 C: 1/15 |     0 C: 1/60 |    25 C: none |    60 C: none |    85 C: none
+    3W      -40 C: 1/30 |   -20 C: none |     0 C: none |    25 C: none |    60 C: none |    85 C: none
   left out because they fail with the radio only listening (set by the ambient, not by transmitting):
     60 C: cell area <= 60
-    85 C: cell area <= 60; tightest rated part: B3U SW3 <= 70
+    85 C: cell area <= 60; tightest rated part: BGA7L1BN6 U12 <= 85
 
 --- USB charging alone (listening), cell at 3.0 / 3.7 V
   h     Ta   VBAT  | BQ25185 Tj charge %  cell C  NTC C   D4 Tj 
-  10    -40  3.0   | 56         100       -1      7       13    
-  10    -40  3.7   | 25         100       -12     -7      3     
-  10    -20  3.0   | 74         100       17      25      31    
-  10    -20  3.7   | 43         100       6       12      22    
-  10    0    3.0   | 92         100       35      44      49    
-  10    0    3.7   | 62         100       25      31      41    
-  10    25   3.0   | 115        83        53      60      64    
-  10    25   3.7   | 85         100       48      54      64    
-  10    60   3.0   | 146        46        74      78      80    
-  10    60   3.7   | 118        68        75      78      85    
-  10    85   3.0   | 169        17        90      92      93    
-  10    85   3.7   | 141        25        91      92      94    
-  5     -40  3.0   | 75         100       19      27      33    
-  5     -40  3.7   | 39         100       2       7       18    
-  5     -20  3.0   | 91         100       34      43      49    
-  5     -20  3.7   | 56         100       19      24      34    
-  5     0    3.0   | 107        94        47      55      60    
-  5     0    3.7   | 73         100       35      41      51    
-  5     25   3.0   | 126        74        58      64      69    
-  5     25   3.7   | 94         100       57      62      72    
-  5     60   3.0   | 155        41        77      80      82    
-  5     60   3.7   | 124        62        77      81      87    
-  5     85   3.0   | 176        15        91      92      93    
-  5     85   3.7   | 146        23        91      93      95    
+  10    -40  3.0   | 17         100       -29     -29     -5    
+  10    -40  3.7   | -1         100       -32     -32     -13   
+  10    -20  3.0   | 36         100       -9      -9      14    
+  10    -20  3.7   | 19         100       -12     -12     7     
+  10    0    3.0   | 55         100       10      10      32    
+  10    0    3.7   | 38         100       7       7       26    
+  10    25   3.0   | 79         100       34      34      56    
+  10    25   3.7   | 62         100       31      31      50    
+  10    60   3.0   | 112        77        66      66      83    
+  10    60   3.7   | 95         100       65      65      83    
+  10    85   3.0   | 135        29        87      87      93    
+  10    85   3.7   | 119        43        87      87      95    
+  5     -40  3.0   | 29         100       -19     -19     6     
+  5     -40  3.7   | 7          100       -24     -24     -4    
+  5     -20  3.0   | 46         100       -1      -1      23    
+  5     -20  3.7   | 26         100       -6      -6      14    
+  5     0    3.0   | 64         100       17      17      41    
+  5     0    3.7   | 44         100       12      12      32    
+  5     25   3.0   | 86         100       39      39      63    
+  5     25   3.7   | 67         100       35      35      55    
+  5     60   3.0   | 117        70        68      68      84    
+  5     60   3.7   | 99         100       68      68      87    
+  5     85   3.0   | 140        26        88      88      94    
+  5     85   3.7   | 122        39        88      88      95    
   (BQ25185 Tj column is without throttling; "charge %" is what TREG 100 C leaves; cell and NTC columns are after throttling)
 
---- Charging current options (ISET), cell 3.0 V, listening, h = 10 (scaled from the 497 mA run; loss ~ current)
+--- Charging current options (ISET), cell 3.0 V, listening, h = 10 (scaled from the 300 mA run; loss ~ current)
   ICHG     Ta    | BQ25185 Tj charge %  cell C  NTC C  
-  497 mA   0     | 92         100       35      44     
-  497 mA   25    | 115        83        53      60     
-  497 mA   40    | 130        67        62      68     
-  400 mA   0     | 74         100       29      35     
-  400 mA   25    | 97         100       52      58     
-  400 mA   40    | 112        83        62      68     
-  300 mA   0     | 56         100       22      27     
-  300 mA   25    | 80         100       45      50     
-  300 mA   40    | 95         100       60      65     
-  200 mA   0     | 38         100       15      18     
-  200 mA   25    | 62         100       39      42     
-  200 mA   40    | 77         100       54      57     
-  (40 C uses the 25 C board solution shifted by 15 C; ISET = 300 A.ohm / I: 604 R -> 497 mA, 750 R -> 400 mA, 1.0 k -> 300 mA, 1.5 k -> 200 mA)
+  497 mA   0     | 91         100       16      16     
+  497 mA   25    | 114        84        37      37     
+  497 mA   40    | 129        67        49      49     
+  400 mA   0     | 73         100       13      13     
+  400 mA   25    | 97         100       36      36     
+  400 mA   40    | 112        84        49      49     
+  300 mA   0     | 55         100       10      10     
+  300 mA   25    | 79         100       34      34     
+  300 mA   40    | 94         100       49      49     
+  200 mA   0     | 37         100       7       7      
+  200 mA   25    | 61         100       31      31     
+  200 mA   40    | 76         100       46      46     
+  (40 C uses the 25 C board solution shifted by 15 C; ISET = 300 A.ohm / I: 604 R -> 497 mA, 750 R -> 400 mA, 1.0 k -> 300 mA (as built), 1.5 k -> 200 mA)
 
 --- Highest passing duty (no charging, h = 10) with the board fixes
-  ALL board fixes:
+  as built + gap pad (layout.GAP_PAD) to a metal wall:
+    1W    25 C: 100 % | 60 C: none
+    2.5W  25 C: none | 60 C: none
+    3W    25 C: none | 60 C: none
+  ALL board fixes (paddle joined to the top pour, Cu-filled paddle vias, 2 oz outer):
     1W    25 C: 50 % | 60 C: 1/15
     2.5W  25 C: 1/15 | 60 C: none
-    3W    25 C: 1/30 | 60 C: none
-  ALL board fixes + thermal pad to metal wall:
-    1W    25 C: 100 % | 60 C: 50 %
-    2.5W  25 C: 50 % | 60 C: none
-    3W    25 C: 25 % | 60 C: none
+    3W    25 C: 1/60 | 60 C: none
+  ALL board fixes + gap pad to a metal wall:
+    1W    25 C: 100 % | 60 C: 25 %
+    2.5W  25 C: 25 % | 60 C: none
+    3W    25 C: 1/15 | 60 C: none
 
---- TMP1075 (U17, bottom, under the PA end) against the PA case, 60 C ambient, h = 10
-  1W    duty 1/60  PA case peak - TMP1075 mean = 33.1 C (TMP1075 mean rise 1.3 C)
-  1W    duty 1/15  PA case peak - TMP1075 mean = 32.6 C (TMP1075 mean rise 5.4 C)
-  1W    duty 1/4   PA case peak - TMP1075 mean = 32.1 C (TMP1075 mean rise 20.1 C)
-  1W    duty 1/2   PA case peak - TMP1075 mean = 32.4 C (TMP1075 mean rise 40.1 C)
-  1W    duty 1/1   PA case peak - TMP1075 mean = 36.3 C (TMP1075 mean rise 79.7 C)
-  2.5W  duty 1/60  PA case peak - TMP1075 mean = 91.2 C (TMP1075 mean rise 3.8 C)
-  2.5W  duty 1/15  PA case peak - TMP1075 mean = 89.8 C (TMP1075 mean rise 15.3 C)
-  2.5W  duty 1/4   PA case peak - TMP1075 mean = 88.6 C (TMP1075 mean rise 57.1 C)
-  2.5W  duty 1/2   PA case peak - TMP1075 mean = 89.2 C (TMP1075 mean rise 113.6 C)
-  2.5W  duty 1/1   PA case peak - TMP1075 mean = 99.9 C (TMP1075 mean rise 225.8 C)
-  3W    duty 1/60  PA case peak - TMP1075 mean = 117.5 C (TMP1075 mean rise 5.1 C)
-  3W    duty 1/15  PA case peak - TMP1075 mean = 115.6 C (TMP1075 mean rise 20.5 C)
-  3W    duty 1/4   PA case peak - TMP1075 mean = 114.0 C (TMP1075 mean rise 76.5 C)
-  3W    duty 1/2   PA case peak - TMP1075 mean = 114.7 C (TMP1075 mean rise 152.2 C)
-  3W    duty 1/1   PA case peak - TMP1075 mean = 128.4 C (TMP1075 mean rise 302.6 C)
-  -> 1W: the burst alone lifts the PA case 36 C above the TMP1075; to hold the case at 85 C the TMP1075 must read below 49 C before a message
-  -> 2.5W: the burst alone lifts the PA case 100 C above the TMP1075; to hold the case at 85 C the TMP1075 must read below -15 C before a message (impossible: never at this power)
-  -> 3W: the burst alone lifts the PA case 128 C above the TMP1075; to hold the case at 85 C the TMP1075 must read below -43 C before a message (impossible: never at this power)
-  The spike happens inside the 1 s burst, within 2-3 mm of the PA: the TMP1075 (3 mm away, under the board) sees the slow average only.  It can enforce the duty-cycle limit, not protect a single burst.
+--- TMP1075 (U16, bottom at (13.0, -3.6), 6.3 mm from the PA) against the PA case, 60 C ambient, h = 10
+  1W    duty 1/60  PA case peak - TMP1075 mean = 26.6 C (TMP1075 mean rise 0.9 C)
+  1W    duty 1/15  PA case peak - TMP1075 mean = 26.4 C (TMP1075 mean rise 3.8 C)
+  1W    duty 1/4   PA case peak - TMP1075 mean = 26.7 C (TMP1075 mean rise 14.2 C)
+  1W    duty 1/2   PA case peak - TMP1075 mean = 27.6 C (TMP1075 mean rise 28.3 C)
+  1W    duty 1/1   PA case peak - TMP1075 mean = 31.3 C (TMP1075 mean rise 56.2 C)
+  2.5W  duty 1/60  PA case peak - TMP1075 mean = 73.8 C (TMP1075 mean rise 2.7 C)
+  2.5W  duty 1/15  PA case peak - TMP1075 mean = 73.2 C (TMP1075 mean rise 11.1 C)
+  2.5W  duty 1/4   PA case peak - TMP1075 mean = 73.8 C (TMP1075 mean rise 41.0 C)
+  2.5W  duty 1/2   PA case peak - TMP1075 mean = 75.9 C (TMP1075 mean rise 81.6 C)
+  2.5W  duty 1/1   PA case peak - TMP1075 mean = 85.5 C (TMP1075 mean rise 162.2 C)
+  3W    duty 1/60  PA case peak - TMP1075 mean = 95.4 C (TMP1075 mean rise 3.7 C)
+  3W    duty 1/15  PA case peak - TMP1075 mean = 94.5 C (TMP1075 mean rise 15.1 C)
+  3W    duty 1/4   PA case peak - TMP1075 mean = 95.0 C (TMP1075 mean rise 56.0 C)
+  3W    duty 1/2   PA case peak - TMP1075 mean = 97.3 C (TMP1075 mean rise 111.4 C)
+  3W    duty 1/1   PA case peak - TMP1075 mean = 109.0 C (TMP1075 mean rise 221.4 C)
+  -> 1W: the burst alone lifts the PA case 31 C above the TMP1075; to hold the case at 85 C the TMP1075 must read below 54 C before a message
+  -> 2.5W: the burst alone lifts the PA case 85 C above the TMP1075; to hold the case at 85 C the TMP1075 must read below -0 C before a message (impossible: never at this power)
+  -> 3W: the burst alone lifts the PA case 109 C above the TMP1075; to hold the case at 85 C the TMP1075 must read below -24 C before a message (impossible: never at this power)
+  The spike happens inside the 1 s burst, within 2-3 mm of the PA: the TMP1075 (6.3 mm away, under the board) sees the slow average only.  It can enforce the duty-cycle limit, not protect a single burst.
 
 --- Temperature swing per burst at 25 C, h=10, one message a minute (solder-joint cycling)
-  1W    QPA9510 case  swing 33.7 C (peak 59.6, before burst 25.8)
-  1W    TPS63810 Tj   swing 10.8 C (peak 36.6, before burst 25.8)
-  1W    TPS2121 Tj    swing 3.5 C (peak 29.3, before burst 25.8)
-  2.5W  QPA9510 case  swing 93.1 C (peak 120.4, before burst 27.4)
-  2.5W  TPS63810 Tj   swing 41.4 C (peak 68.7, before burst 27.3)
-  2.5W  TPS2121 Tj    swing 22.8 C (peak 50.0, before burst 27.2)
-  3W    QPA9510 case  swing 119.9 C (peak 148.1, before burst 28.2)
-  3W    TPS63810 Tj   swing 64.0 C (peak 92.0, before burst 28.1)
-  3W    TPS2121 Tj    swing 38.4 C (peak 66.4, before burst 28.0)
+  1W    QPA9510 case  swing 27.0 C (peak 52.6, before burst 25.7)
+  1W    TPS63810 Tj   swing 12.5 C (peak 38.1, before burst 25.6)
+  1W    TPS2121 Tj    swing 3.3 C (peak 28.9, before burst 25.6)
+  2.5W  QPA9510 case  swing 75.0 C (peak 101.8, before burst 26.8)
+  2.5W  TPS63810 Tj   swing 45.4 C (peak 72.2, before burst 26.8)
+  2.5W  TPS2121 Tj    swing 21.6 C (peak 48.4, before burst 26.8)
+  3W    QPA9510 case  swing 97.1 C (peak 124.6, before burst 27.5)
+  3W    TPS63810 Tj   swing 68.6 C (peak 96.1, before burst 27.5)
+  3W    TPS2121 Tj    swing 36.3 C (peak 63.7, before burst 27.4)
 
 --- Sensitivity and fixes: 60 C ambient, PA case / PA Tj / TPS63810 Tj peak, C
                                                           1W 1/60           1W 1/4            2.5W 1/60         2.5W 1/4          3W 1/60           3W 1/4           
-  baseline (as placed, coverage 70/100/50/70 %)            95/116/ 72       113/134/ 88       156/214/104       206/265/148       183/259/127       251/327/186      
-  h=5 and no radiation (worst sealed box)                 100/121/ 77       149/170/123       164/223/113       305/363/245       194/270/138       384/459/317      
-  copper coverage 50/100/30/50 %                           96/118/ 74       116/137/ 90       159/218/109       214/273/155       188/263/135       262/337/198      
-  copper coverage 85/100/80/85 % (solid pours)             94/115/ 72       111/132/ 86       153/212/101       201/260/143       180/255/123       244/320/180      
-  2 oz outer + 1 oz inner copper                           88/109/ 70       103/124/ 84       136/194/ 96       177/236/134       157/233/115       213/289/167      
-  PA paddle joined to the top pour (no island)             85/106/ 72       102/124/ 87       128/186/104       177/236/147       147/223/127       213/289/186      
-  copper-filled paddle vias (VIPPO Cu)                     87/108/ 72       105/126/ 88       134/193/104       184/243/148       155/231/128       223/298/187      
-  stitching vias 25 /cm2 round the PA end                  94/116/ 72       112/133/ 87       153/212/101       204/262/145       180/256/123       248/323/182      
-  thermal pad 10x10 mm under PA end to a metal case wall   93/114/ 71        95/116/ 73       150/209/100       156/214/107       176/251/122       183/259/132      
-  M2 screw at the PA-end hole to a metal standoff/wall     95/116/ 72       107/128/ 83       155/213/103       190/249/136       182/257/126       230/305/171      
-  board 52 mm (10 mm off the USB end)                      95/116/ 72       114/135/ 89       156/215/104       209/268/151       184/259/128       255/330/190      
-  board 72 mm (10 mm longer at the USB end)                95/116/ 72       112/134/ 87       156/214/104       205/264/146       183/259/127       249/325/185      
-  board 42 mm (20 mm off the USB end)                      96/117/ 73       116/137/ 91       157/215/105       215/273/157       184/260/128       262/338/199      
-  ALL board fixes (no island, Cu vias, 2/1 oz, 85 % pours, 25 vias/cm2)  73/ 95/ 70        87/109/ 83        96/154/ 93       135/194/130       106/181/110       159/235/161      
-  ALL board fixes + 10x10 mm thermal pad to a metal wall   72/ 93/ 68        73/ 94/ 70        92/150/ 90        96/155/ 96       101/176/106       107/183/114      
+  baseline: the routed board as built                      88/109/ 74       102/123/ 86       137/196/108       175/234/144       160/235/131       212/287/180      
+  h=5 and no radiation (worst sealed box)                  92/113/ 78       132/153/117       145/203/115       258/316/226       169/245/141       322/397/291      
+  uniform copper estimate (70/100/50/50/100/70 %, 8 vias/cm2)  89/110/ 73       103/124/ 86       140/198/107       179/238/144       163/239/130       216/292/181      
+  2 oz outer copper                                        88/109/ 72       100/121/ 84       136/194/100       171/229/134       158/233/120       205/281/165      
+  PA paddle joined to the top pour (no island)             82/103/ 73        95/117/ 86       121/179/107       158/217/143       139/214/130       190/265/179      
+  copper-filled paddle vias (VIPPO Cu)                     80/102/ 74        94/115/ 87       116/174/110       154/212/146       132/208/134       184/259/183      
+  gap pad as built (layout.GAP_PAD) to a metal wall        87/108/ 73        93/114/ 77       135/194/106       150/209/118       158/233/129       178/253/146      
+  gap pad at its old spot under the PA (before 2 Nov)      86/108/ 70        88/109/ 72       133/191/ 97       138/196/102       154/229/117       160/236/123      
+  M3 screw at the PA-end hole (31.4, -9.1) to a metal standoff  88/109/ 73        98/119/ 83       136/195/107       166/224/135       159/234/130       198/274/168      
+  board 60 mm (10 mm off the USB end)                      88/110/ 74       102/124/ 87       137/196/108       178/236/146       160/236/132       215/290/184      
+  board 80 mm (10 mm longer at the USB end)                88/109/ 74       101/122/ 86       137/196/107       174/233/143       160/235/131       210/285/179      
+  board 50 mm (20 mm off the USB end)                      89/110/ 74       104/125/ 89       138/196/108       182/241/151       161/236/132       220/296/189      
+  ALL board fixes (paddle joined, Cu-filled paddle vias, 2 oz outer)  75/ 96/ 72        87/108/ 84       100/158/101       134/193/134       111/187/121       158/234/166      
+  ALL board fixes + gap pad as built                       74/ 95/ 71        78/ 99/ 74        98/156/ 99       109/168/109       109/185/118       124/200/132      
 
 ====================================================================================================
 STUDY 2: temperature-rating audit (E1: every part -40..+85 C or better)
@@ -459,7 +473,7 @@ STUDY 2: temperature-rating audit (E1: every part -40..+85 C or better)
   v = read from a copy of the maker data sheet in this session; d = series spec / distributor listing (copy not read)
   part         mpn                          maker                low    high   rating                                   source
   ANT2450      2450AT18A0100001E            Johanson Technology  -40    125    operating                                Johanson 2450AT18A100 data sheet r4 p.1 [v]
-  B3U          B3U-1000P                    Omron (Aratas)       -25    70     ambient operating                        Omron B3U data sheet (en-b3u) p.1 [v]  <-- does not cover -40..+85
+  BAT68_04W    BAT6804WH6327XTSA1           Infineon Technologie -55    150    junction Tj                              Infineon BAT68 series [d]
   BGA7L1BN6    BGA7L1BN6E6327XTSA1          Infineon Technologie -40    85     ambient TA                               Infineon BGA7L1BN6 data sheet p.9 [v]
   BQ25185      BQ25185DLHR                  Texas Instruments    -40    125    junction TJ                              TI SLUSF65B p.6 [v]
   BQ29700      BQ29700DSER                  Texas Instruments    -40    85     ambient TFUNC                            TI BQ29700 data sheet p.4/p.5 [v]
@@ -472,15 +486,16 @@ STUDY 2: temperature-rating audit (E1: every part -40..+85 C or better)
   C1n          GRM1555C1H102JA01D           Murata               -55    125    C0G class                                Murata GRM1555C series [d]
   C1u          CL05A105KO5NNNC              Samsung Electro-Mech -55    85     X5R class                                Samsung CL05A series (X5R) [d]  (85 C max, no margin: check hot spots)
   C1u25        CL10B105KA8NNNC              Samsung Electro-Mech -55    125    X7R class                                Samsung CL10B series [d]
+  C1u50        UMK107BJ105KA-T              Taiyo Yuden          -55    85     X5R class                                Taiyo Yuden UMK107BJ105KA (X5R) [d]  (85 C max, no margin: check hot spots)
   C22u16       GRM21BR61C226ME44L           Murata               -55    85     X5R class                                Murata GRM21BR61C226ME44 (R6 = X5R) [d]  (85 C max, no margin: check hot spots)
   C470n        CL05A474KO5NNNC              Samsung Electro-Mech -55    85     X5R class                                Samsung CL05A series (X5R) [d]  (85 C max, no margin: check hot spots)
   C47n         CL05B473KO5NNNC              Samsung Electro-Mech -55    125    X7R class                                Samsung CL05B series [d]
-  C47u         CL21A476MQYNNNE              Samsung Electro-Mech -55    85     X5R class                                Samsung CL21A series (X5R) [d]  (85 C max, no margin: check hot spots)
+  C47u         C3216X7S0J476M160AC          TDK                  -55    125    X7S class                                TDK C3216X7S0J476M160AC (X7S) [d]
   C4u7         CL10A475KP8NNNC              Samsung Electro-Mech -55    85     X5R class                                Samsung CL10A series (X5R) [d]  (85 C max, no margin: check hot spots)
+  C4u7_50      CL31B475KBHNNNE              Samsung Electro-Mech -55    125    X7R class                                Samsung CL31B series [d]
   C820p        GRM1555C1H821JA01D           Murata               -55    125    C0G class                                Murata GRM1555C series [d]
-  CSD25485F5   CSD25485F5                   Texas Instruments    -55    150    junction TJ                              TI SLPS606B p.1 [v]
+  CSD25310Q2   CSD25310Q2T                  Texas Instruments    -55    150    junction TJ                              TI CSD25310Q2 (TI FemtoFET/SON family) [d]
   FB120        BLM15AG100SN1D               Murata               -55    125    operating                                Murata BLM15AG series [d]
-  HDR_2x10     (not fitted) 2 x 10 header,                       -      -      not fitted                               - [-]
   HV0.9pF      GQM1875C2ER90BB12D           Murata               -55    125    C0G class                                Murata GQM series [d]
   HV1.3pF      GQM1875C2E1R3BB12D           Murata               -55    125    C0G class                                Murata GQM series [d]
   HV10pF       GQM1875C2E100JB12D           Murata               -55    125    C0G class                                Murata GQM series [d]
@@ -491,6 +506,7 @@ STUDY 2: temperature-rating audit (E1: every part -40..+85 C or better)
   HV5.6pF      GQM1875C2E5R6CB12D           Murata               -55    125    C0G class                                Murata GQM series [d]
   JST_GH6      SM06B-GHS-TB(LF)(SN)         JST                  -25    85     incl. temperature rise                   JST GH catalogue (same as PH/SH; docs/part-audit.md) [d]  <-- does not cover -40..+85
   JST_PH2      S2B-PH-SM4-TB(LF)(SN)        JST                  -25    85     incl. temperature rise                   JST PH catalogue p.1 (copy in session) [v]  <-- does not cover -40..+85
+  JST_SH10     SM10B-SRSS-TB(LF)(SN)        JST                  -25    85     incl. temperature rise                   JST SH catalogue (as JST_SH2/SH6) [d]  <-- does not cover -40..+85
   JST_SH2      SM02B-SRSS-TB(LF)(SN)        JST                  -25    85     incl. temperature rise                   JST SH catalogue (docs/part-audit.md) [d]  <-- does not cover -40..+85
   JST_SH6      SM06B-SRSS-TB(LF)(SN)        JST                  -25    85     incl. temperature rise                   JST SH catalogue (docs/part-audit.md) [d]  <-- does not cover -40..+85
   L1.6nH       LQG15HS1N6S02D               Murata               -55    125    operating                                Murata LQG15HS series [d]
@@ -512,45 +528,45 @@ STUDY 2: temperature-rating audit (E1: every part -40..+85 C or better)
   LED_B        LTST-C191TBKT                Lite-On              -55    85     operating                                Lite-On LTST-C191 data sheet (third-party copy, Rev H) [d]
   LED_G        LTST-C191KGKT                Lite-On              -55    85     operating                                Lite-On LTST-C191 series [d]
   LED_R        LTST-C191KRKT                Lite-On              -55    85     operating                                Lite-On LTST-C191KRKT DS22-2000-223 Rev H [d]
-  LFCN1000     LFCN-1000+                   Mini-Circuits        -55    100    operating                                Mini-Circuits LFCN-1000+ data sheet p.1 [v]
-  LM66100      LM66100DCKR                  Texas Instruments    -40    125    junction TJ                              TI LM66100 data sheet p.4 [v]
+  LFCG1000     LFCG-1000+                   Mini-Circuits        -55    125    operating (5.5 W at 25 C, 1 W at 125 C)  Mini-Circuits LFCG-1000+ (parts.py, sim/rf) [d]
+  MAX17608     MAX17608ATC+T                Analog Devices       -40    125    operating                                Analog Devices MAX17608 (listing) [d]
   NMOS         SSM3K56ACT,L3F               Toshiba              -55    150    channel Tch (storage -55)                Toshiba SSM3K56ACT data sheet [d]
   NRF52840     NRF52840-QIAA-F-R7           Nordic Semiconductor -40    85     ambient TA                               Nordic nRF52840 PS v1.1 p.611 [v]
-  NTC10K       NCP15XH103F03RC              Murata               -40    125    operating                                Murata NCP15 series [d]
+  NTC10K       NCU15XH103F60RC              Murata               -40    125    operating                                Murata NCP15 series [d]
   QPA9510      QPA9510TR7                   Qorvo                -40    85     case TCASE (Tj 175 C for 1e6 h MTTF)     Qorvo QPA9510 data sheet 23 Jun 2025 p.2 [v]  (case limit 85 C, see study 1)
   R0R          RC0402FR-070RL               Yageo                -55    155    operating                                Yageo RC_L series [d]
+  R1.15k       RC0402FR-071K15L             Yageo                -55    155    operating                                Yageo RC_L series [d]
   R1.5M        RC0402FR-071M5L              Yageo                -55    155    operating                                Yageo RC_L series [d]
   R100k        RC0402FR-07100KL             Yageo                -55    155    operating                                Yageo RC_L series [d]
   R10k         RC0402FR-0710KL              Yageo                -55    155    operating                                Yageo RC_L series [d]
-  R137k        RC0402FR-07137KL             Yageo                -55    155    operating                                Yageo RC_L [d]
   R13k         RC0402FR-0713KL              Yageo                -55    155    operating                                Yageo RC_L [d]
   R150_0805    RC0805FR-07150RL             Yageo                -55    155    operating                                Yageo RC_L [d]
+  R15m         WSLP1206R0150FEA             Vishay Dale          -65    170    operating                                Vishay WSLP series [d]
   R1M          RC0402FR-071ML               Yageo                -55    155    operating                                Yageo RC_L [d]
+  R1R_0805     CRCW08051R00FKEAHP           Vishay Dale          -55    155    operating                                Vishay CRCW-HP series [d]
   R1k          RC0402FR-071KL               Yageo                -55    155    operating                                Yageo RC_L [d]
+  R2.1k        RC0402FR-072K1L              Yageo                -55    155    operating                                Yageo RC_L series [d]
   R2.21k       RC0402FR-072K21L             Yageo                -55    155    operating                                Yageo RC_L [d]
   R2.2k        RC0402FR-072K2L              Yageo                -55    155    operating                                Yageo RC_L [d]
-  R2.49k       RC0402FR-072K49L             Yageo                -55    155    operating                                Yageo RC_L [d]
+  R20k         RC0402FR-0720KL              Yageo                -55    155    operating                                Yageo RC_L series [d]
   R22.1k       RC0402FR-0722K1L             Yageo                -55    155    operating                                Yageo RC_L [d]
   R220R        RC0402FR-07220RL             Yageo                -55    155    operating                                Yageo RC_L [d]
   R220k        RC0402FR-07220KL             Yageo                -55    155    operating                                Yageo RC_L [d]
   R22R         RC0402FR-0722RL              Yageo                -55    155    operating                                Yageo RC_L [d]
-  R22m         ERJ-8BWFR022V                Panasonic            -55    155    operating                                Panasonic ERJ-8BW series [d]
-  R261k        RC0402FR-07261KL             Yageo                -55    155    operating                                Yageo RC_L [d]
   R267k        RC0402FR-07267KL             Yageo                -55    155    operating                                Yageo RC_L [d]
   R287k        RC0402FR-07287KL             Yageo                -55    155    operating                                Yageo RC_L [d]
-  R301k        RC0402FR-07301KL             Yageo                -55    155    operating                                Yageo RC_L [d]
   R330R        RC0402FR-07330RL             Yageo                -55    155    operating                                Yageo RC_L [d]
   R330k        RC0402FR-07330KL             Yageo                -55    155    operating                                Yageo RC_L [d]
-  R383k        RC0402FR-07383KL             Yageo                -55    155    operating                                Yageo RC_L [d]
+  R374k        RC0402FR-07374KL             Yageo                -55    155    operating                                Yageo RC_L series [d]
   R4.7k        RC0402FR-074K7L              Yageo                -55    155    operating                                Yageo RC_L [d]
   R470R        RC0402FR-07470RL             Yageo                -55    155    operating                                Yageo RC_L [d]
-  R47k         RC0402FR-0747KL              Yageo                -55    155    operating                                Yageo RC_L [d]
+  R49.9R       RC0402FR-0749R9L             Yageo                -55    155    operating                                Yageo RC_L series [d]
+  R49.9R_0805  CRCW080549R9FKEAHP           Vishay Dale          -55    155    operating                                Vishay CRCW-HP series [d]
   R5.1k        RC0402FR-075K1L              Yageo                -55    155    operating                                Yageo RC_L [d]
-  R510k        RC0402FR-07510KL             Yageo                -55    155    operating                                Yageo RC_L [d]
   R562k        RC0402FR-07562KL             Yageo                -55    155    operating                                Yageo RC_L [d]
-  R604R        RC0402FR-07604RL             Yageo                -55    155    operating                                Yageo RC_L [d]
   R68_0805     RC0805FR-0768RL              Yageo                -55    155    operating                                Yageo RC_L [d]
   R68_0805_AS  RCS080568R0FKEA              Vishay Dale          -55    155    operating                                Vishay RCS0805 series [d]
+  R7.68k       RC0402FR-077K68L             Yageo                -55    155    operating                                Yageo RC_L series [d]
   RB060MM      RB060MM-30TR                 Rohm                 -      150    junction Tj (no low limit; storage -55)  Rohm RB060MM-30 data sheet Rev.003 p.1 [v]
   RF0.5pF      GJM1555C1HR50BB01D           Murata               -55    125    C0G class                                Murata GJM series [d]
   RF0.8pF_W    GJM1555C1HR80WB01D           Murata               -55    125    C0G class                                Murata GJM series [d]
@@ -565,8 +581,10 @@ STUDY 2: temperature-rating audit (E1: every part -40..+85 C or better)
   RF39pF       GJM1555C1H390JB01D           Murata               -55    125    C0G class                                Murata GJM series [d]
   RF47pF       GJM1555C1H470JB01D           Murata               -55    125    C0G class                                Murata GJM series [d]
   RF5.6pF      GJM1555C1H5R6BB01D           Murata               -55    125    C0G class                                Murata GJM series [d]
+  SKRP         SKRPADE010                   Alps Alpine          -40    85     operating (parts.py says +90, docs/part- Alps Alpine SKRP series [d]
   SKY13330     SKY13330-397LF               Skyworks Solutions   -40    85     operating TOP                            Skyworks SKY13330-397LF data sheet p.3 [v]
-  SLIDE        JS102011SAQN                 C&K                  -40    85     operating                                C&K JS series (distributor listings agree) [d]
+  SLIDE        JS202011JCQN                 C&K                  -40    85     operating                                C&K JS series (distributor listings agree) [d]
+  SMF33CA      SMF33CA                      Littelfuse           -55    150    junction Tj                              Littelfuse SMF series [d]
   SSM10N954L   SSM10N954L,EFF               Toshiba              -      150    channel Tch (storage -55)                Toshiba SSM10N954L data sheet p.2 [v]
   SX1262       SX1262IMLTRT                 Semtech              -40    85     operating (under bias)                   Semtech SX1261/2 DS rev 1.2 Table 3-3 p.14 [v]
   TCXO32       ECS-TXO-20CSMV4-320-AP-TR    ECS Inc.             -40    105    operating (-AP code)                     ECS-TXO-20CSMV4 data sheet p.1 [v]
@@ -576,7 +594,7 @@ STUDY 2: temperature-rating audit (E1: every part -40..+85 C or better)
   TPD4E05U06   TPD4E05U06DQAR               Texas Instruments    -40    125    ambient TA                               TI TPD4E05U06 data sheet p.6 [v]
   TPS2121      TPS2121RUXR                  Texas Instruments    -40    125    junction TJ                              TI SLVSEA3F p.6 [v]
   TPS22916     TPS22916CYFPR                Texas Instruments    -40    85     ambient TA                               TI SLVSDO5F p.4 [v]
-  TPS22965     TPS22965DSGR                 Texas Instruments    -40    105    ambient TA                               TI TPS22965 data sheet p.5 [v]
+  TPS22950     TPS22950YBHR                 Texas Instruments    -40    125    junction TJ                              TI TPS22950 (listing) [d]
   TPS259470A   TPS259470ARPWR               Texas Instruments    -40    125    junction TJ                              TI TPS25947 data sheet p.8 [v]
   TPS62840     TPS62840YBGR                 Texas Instruments    -40    125    junction TJ                              TI TPS62840 data sheet p.6 [v]
   TPS63810     TPS63810YFFR                 Texas Instruments    -40    125    junction TJ                              TI SLVSEK4C p.4 [v]
@@ -586,15 +604,16 @@ STUDY 2: temperature-rating audit (E1: every part -40..+85 C or better)
   XTAL32K      ABS07-32.768KHZ-7-T          Abracon              -40    85     operating                                Abracon ABS07 data sheet p.1 [v]
   XTAL32M      ABM11W-32.0000MHZ-8-D1X-T3   Abracon              -40    85     operating (D = -40..85 code)             Abracon ABM11W data sheet p.1-2 [v]
   ZENER4V7     UDZVTE-174.7B                Rohm                 -      150    junction Tj (storage -55)                Rohm UDZV series [d]
+  ZENER5V6     UDZVTE-175.6B                Rohm                 -      150    junction Tj (storage -55)                Rohm UDZV series [d]
 
 Parts that do not cover -40..+85 C:
-  B3U (SW2 SW3): -25..70 C
   JST_GH6 (J5): -25..85 C
   JST_PH2 (J3): -25..85 C
+  JST_SH10 (J7): -25..85 C
   JST_SH2 (J2): -25..85 C
   JST_SH6 (J6): -25..85 C
-  Owner decision 3 (docs/plan.md) accepts the buttons and JST connectors at -25 C; it does not mention their upper limits: B3U +70 C is BELOW the 85 C of E1 and only 10 C above the 60 C box.
-  Unverified: Amphenol USB-C lower limit (listings say -40 or -20 C); Coilcraft 0908SQ full current only to +80 C.
+  Owner decision 3 (docs/plan.md) accepts the JST connectors at -25 C.  The buttons are now Alps SKRP (-40..+85 C; parts.py says +90): the B3U's +70 C limit is gone with it.
+  Unverified: Amphenol USB-C lower limit (listings say -40 or -20 C); Coilcraft 0908SQ full current only to +80 C; every rating added since 19 Oct (flag d).
 
 --- Charger NTC (TS) window: BQ25185 TS/MR pin, NTC10K = Murata NCP15XH103F03RC straight to GND (circuit.py)
   TS bias ITSMR 36.5/38/39.5 uA (SLUSF65B p.8); VHOT 0.105/0.115/0.125 V (falling), VCOLD 0.9575/1.0075/1.0575 V (rising); exits VHOT_EXIT 0.135, VCOLD_EXIT 0.820 V typ
@@ -603,21 +622,21 @@ Parts that do not cover -40..+85 C:
   resume: hot below 54.4 C, cold above 6.1 C (typ)
   TS/MR "button pressed" (90 mV): NTC above 67.6 C
   => the hardware alone stops charging below 1.4 C typ (-0.6 .. 3.4 C over the tolerances): at the 0 C LiPo rule, MARGINAL (a worst-case part charges down to -0.6 C).  It stops above 59.5 C typ (55.6 .. 63.8 C), NOT at 45 C: the 45 C limit exists only in firmware (CE pin).
-  => the NTC (TH1) is on the board 2.8 mm from the charger (U4), not on the cell: it reads charger heat (study 1 table).
-  => CHG_TS goes nowhere but the charger and TH1: the processor cannot read the NTC.  Firmware has the TMP1075 at the amplifier end and the nRF52840 die sensor; neither sees the cell.
+  => the NTC (TH1) is on the board 5.6 mm from the battery plug J3, 51.3 mm from the charger U4 and 5.2 mm from the amplifier, not on the cell: it reads the board there (study 1 table, NTC column), which the amplifier heats
+  => CHG_TS reaches the nRF52840 (U8, an analog input): firmware can read the NTC and apply the 0-45 C rule through /CE.
   => no single resistor (series or parallel) moves the hot stop to 45 C and keeps the cold stop at 0 C with a B3380 NTC: the window is a fixed ~0/60 C design (no JEITA in the BQ25185).
 
 ====================================================================================================
 STUDY 3: cold start at -40 C
 ====================================================================================================
-Outside their range at -40 C: B3U buttons (-25 C), JST PH/GH/SH (-25 C) [accepted, owner decision 3]; Amphenol USB-C if its true lower limit is -20 C (unverified).  Every IC, crystal and passive covers -40 C.
+Outside their range at -40 C: JST PH/GH/SH (-25 C) [accepted, owner decision 3]; Amphenol USB-C if its true lower limit is -20 C (unverified).  Every IC, crystal, button and passive covers -40 C.
 Clocks:
   ABM11W 32 MHz (-D1X: -40..85 C): ESR <= 50 Ohm over temperature, C0 <= 2 pF (ABM11W p.1) vs nRF52840 RS_HFXO_3PF <= 100 Ohm (PS p.96): PASS, 2x margin for start-up.
   ABS07 32.768 kHz: ESR <= 70 kOhm at -40..85 C (ABS07 p.1) vs nRF52840 RS_LFXO <= 100 kOhm (PS p.97): PASS.
   ABS07 frequency: -0.036 ppm/C^2 parabola -> -152 ppm at -40 C, -130 ppm at +85 C, -44 ppm at 60 C (plus +-20 ppm tolerance).  The Adafruit core declares the LFXO as NRF_CLOCK_LF_ACCURACY_20_PPM (bluefruit.cpp, USE_LFXO): Bluetooth timing then assumes 20 ppm while the crystal is off by up to ~170 ppm -> dropped BLE connections when cold or hot.  MARGINAL; fix in the board variant: declare 250 ppm (or 150 ppm).
   TCXO ECS-TXO-20CSMV4-320-AP: -40..+105 C, +-0.5 ppm, start-up 2 ms (p.1): PASS (firmware TCXO delay >= 5 ms).
 Converter loops (effective capacitance = nominal x tolerance x DC bias x cold; X5R loses up to 15 % at -40 C):
-  TPS63810 COUT (VPA)    2 x 47u 0805 6.3 V X5R (19 uF each at 4.0 V) + 2 x 4.7u 0603 10 V (2.6 uF at 4 V) worst 29.8 uF vs min 16 uF -> PASS  [SLVSEK4C p.4 (13 min) / p.27 (16 recommended)]
+  TPS63810 COUT (VPA)    2 x 47u 1206 6.3 V X7S (19 uF each at 4.0 V kept from the 0805 X5R) + 2 x 4.7u 0603 (2.6 uF) worst 29.8 uF vs min 16 uF -> PASS  [SLVSEK4C p.4 (13 min) / p.27 (16 recommended)]
   TPS63810 CIN (PA_IN)   2 x 22u 0805 16 V X5R (14 uF at 4.5 V) + 10u 0805 25 V (7 uF)                    worst 24.4 uF vs min 5 uF -> PASS  [SLVSEK4C p.4 / p.26]
   TPS62840 COUT (3V3)    2 x 10u 0603 10 V X5R (5.5 uF at 3.3 V) + 2 x 4.7u 0603 (3 uF) + 1u 0402s        worst 13.0 uF vs min 3 uF -> PASS  [TPS62840 p.6 (3..40 uF effective)]
   TPS62840 CIN (VSYS_SW) 4.7u 0603 10 V (2.4 uF at 4.5 V) + 10u 0603 (5 uF)                               worst 5.7 uF vs min 1 uF -> PASS  [TPS62840 p.6 (1 uF min effective)]
@@ -627,6 +646,6 @@ Battery: a LiPo cell at -40 C cannot deliver 2-3 A bursts (internal resistance r
 Mechanical:
   U.FL (Hirose, -40..+90 C): fine thermally; it unmates under shock/vibration (drone drop): add a retention clip or a dab of staking compound over the mated plug.
   0908SQ air-core choke (L14): tinned copper coil on copper pads, CTE close to the board (17 vs 14-17 ppm/C), the spring coil is compliant, so thermal cycling is a small risk; shock is the bigger one (a 2-3 mm tall coil on two joints).  Stake it with a dot of low-loss RF adhesive; do not let adhesive fill the coil (it shifts the inductance).
-  WLCSP parts (TPS63810, TPS62840, TPS22916, SSM10N954L, CSD25485F5) and the nRF52840 aQFN: per-burst swings at the TPS63810 are a few C (study 1) but 500 k cycles a year at one message a minute; with drop shock, underfill (or corner bonding) of the WLCSPs is advisable for the field build.
+  WLCSP parts (TPS63810, TPS62840, TPS22950, SSM10N954L) and the nRF52840 aQFN: per-burst swings at the TPS63810 are 12-70 C (study 1, by power), 500 k cycles a year at one message a minute; with drop shock, underfill (or corner bonding) of the WLCSPs is advisable for the field build.
 
-run time 745 s
+run time 2749 s

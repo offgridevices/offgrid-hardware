@@ -1402,9 +1402,15 @@ def study2_3():
         ' MARGINAL (a worst-case part charges down to %.1f C).  It stops above %.1f C typ (%.1f .. %.1f C), NOT at 45 C:'
         ' the 45 C limit exists only in firmware (CE pin).'
         % (win['cold stop'] + (win['cold stop'][1],) + win['hot stop']))
-    out('  => the NTC (TH1) is on the board 2.8 mm from the charger (U4), not on the cell: it reads charger heat (study 1 table).')
-    out('  => CHG_TS goes nowhere but the charger and TH1: the processor cannot read the NTC.  Firmware has the TMP1075 at the'
-        ' amplifier end and the nRF52840 die sensor; neither sees the cell.')
+    th, u4, j3, pa = (PLACEMENT[ref(k)] for k in ('NTC10K', 'BQ25185', 'JST_PH2', 'QPA9510'))
+    dist = lambda a, b: math.hypot(a[0] - b[0], a[1] - b[1])
+    out('  => the NTC (%s) is on the board %.1f mm from the battery plug %s, %.1f mm from the charger %s and %.1f mm from the'
+        ' amplifier, not on the cell: it reads the board there (study 1 table, NTC column), which the amplifier heats'
+        % (ref('NTC10K'), dist(th, j3), ref('JST_PH2'), dist(th, u4), ref('BQ25185'), dist(th, pa)))
+    on_mcu = [c.ref for c in COMPS if c.part == 'NRF52840' and 'CHG_TS' in c.pins.values()]
+    out('  => CHG_TS %s' % ('reaches the nRF52840 (%s, an analog input): firmware can read the NTC and apply the 0-45 C'
+                           ' rule through /CE.' % on_mcu[0] if on_mcu else
+                           'goes nowhere but the charger and TH1: the processor cannot read the NTC.'))
     out('  => no single resistor (series or parallel) moves the hot stop to 45 C and keeps the cold stop at 0 C with a'
         ' B3380 NTC: the window is a fixed ~0/60 C design (no JEITA in the BQ25185).')
 
@@ -1450,7 +1456,7 @@ def study2_3():
         ' spring coil is compliant, so thermal cycling is a small risk; shock is the bigger one (a 2-3 mm tall coil on two'
         ' joints).  Stake it with a dot of low-loss RF adhesive; do not let adhesive fill the coil (it shifts the inductance).')
     out('  WLCSP parts (TPS63810, TPS62840, TPS22950, SSM10N954L) and the nRF52840 aQFN: per-burst swings at'
-        ' the TPS63810 are a few C (study 1) but 500 k cycles a year at one message a minute; with drop shock, underfill'
+        ' the TPS63810 are 12-70 C (study 1, by power), 500 k cycles a year at one message a minute; with drop shock, underfill'
         ' (or corner bonding) of the WLCSPs is advisable for the field build.')
 
 
