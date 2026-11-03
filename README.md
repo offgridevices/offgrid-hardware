@@ -1,24 +1,44 @@
 # offgrid-hardware
 
-Open hardware from [OffGrid Devices](https://github.com/offgridevices). One folder per product, one folder per revision inside it.
+Open hardware from [OffGrid Devices](https://github.com/offgridevices). Every
+product is one folder in [`products/`](products/), changed in place from one
+revision to the next; variants of one line share a family folder.
 
-| Product, revision | What it is | Status |
-|---|---|---|
-| [`canary/`](canary/) v1 | Canary: 60 × 40 mm first-vent detector for lithium batteries charging at home — VOC + CO₂ + heat fusion, 100 dB sounder, USB-C | v1 designed and simulation-verified, not yet built |
-| [`packet-logger-carrier/`](packet-logger-carrier/) v1 | 86 × 58 mm carrier for a LoRa mesh packet logger — RAK19003 + XIAO ESP32-C6 + microSD | v1 ordered, not yet bench-verified |
-| [`ridge3-lite/`](ridge3-lite/) v1 | Ridge 3 Lite: 38 × 38 mm flight controller + 4-in-1 ESC for a 3" quad, 8 layers | v1 designed, not yet built |
-| [`print-hub/`](print-hub/) v1 | Print Hub: 86 × 50 mm, five switched USB ports for a resin printer's accessories, ESP32-S3 on Wi-Fi and USB, USB-PD in, printed enclosure | v1 designed, not yet built |
-| [`smokebreak/`](smokebreak/) v1 | SmokeBreak: handheld smoke stopper and LiPo checker, 2S–14S, 2.25" screen, printed case | v1 designed, not yet built |
-| [`ridge-3/`](ridge-3/) rev 2 | Ridge 3: a 36 × 36 mm flight controller with HD or analog video and a separate 4-in-1 ESC on a machined heatsink, for 3" FPV quads | Revision 2 designed and simulated, not yet ordered |
-| [`layercam/`](layercam/) v1 | LayerCam: a camera for the inside of a Prusa CORE One, in Prusa's own Buddy3D case — RV1106 Linux SoC, 1080p wide angle with IR night vision, Prusa Connect, per-layer timelapse to a NAS or S3; three boards, 6 layers for the main one | v1 designed, not yet built |
-| [`layercam-pro/`](layercam-pro/) v1 | LayerCam Pro: the same camera on one board (image sensor, IR lights, Wi-Fi and USB-C on it, no cables), Prusa's case outside with a new inside, for a 65 °C chamber; one PCBWay order | v1 designed, not yet built |
+```
+products/
+  canary/                   Canary
+  layercam/                 LayerCam family (README: how the variants differ)
+    layercam/               LayerCam
+    layercam-pro/           LayerCam Pro
+  packet-logger-carrier/    Packet Logger Carrier
+  print-hub/                Print Hub
+  ridge/                    Ridge family (README: how the variants differ)
+    ridge-3/                Ridge 3
+    ridge-3-lite/           Ridge 3 Lite
+  smokebreak/               SmokeBreak
+docs/                       how we build boards
+tools/ci/                   CI helpers shared by every product
+```
+
+| Product | Revision | What it is | Status |
+|---|---|---|---|
+| [Canary](products/canary/) | v1 | 60 × 40 mm first-vent detector for lithium batteries charging at home — VOC + CO₂ + heat fusion, 100 dB sounder, USB-C | designed and simulation-verified, not yet built |
+| [LayerCam](products/layercam/layercam/) | v1 | A camera for the inside of a Prusa CORE One, in Prusa's own Buddy3D case — RV1106 Linux SoC, 1080p wide angle with IR night vision, Prusa Connect, per-layer timelapse to a NAS or S3; three boards, 6 layers for the main one | designed, not yet built |
+| [LayerCam Pro](products/layercam/layercam-pro/) | v1 | LayerCam's camera on **one** 6-layer board in the same Buddy3D case — SC4336H sensor soldered on, ESP32-C6 Wi-Fi with an external antenna, no board-to-board cables, rated for a 65 °C chamber | designed, not yet built |
+| [Packet Logger Carrier](products/packet-logger-carrier/) | v1 | 86 × 58 mm carrier for a LoRa mesh packet logger — RAK19003 + XIAO ESP32-C6 + microSD | ordered, not yet bench-verified |
+| [Print Hub](products/print-hub/) | v1 | 86 × 50 mm, five switched USB ports for a resin printer's accessories, ESP32-S3 on Wi-Fi and USB, USB-PD in, printed enclosure | designed, not yet built |
+| [Ridge 3](products/ridge/ridge-3/) | 2.0 | A 36 × 36 mm flight controller with HD or analog video and a separate 4-in-1 ESC on a machined heatsink, for 3" FPV quads | designed and simulated, not yet ordered |
+| [Ridge 3 Lite](products/ridge/ridge-3-lite/) | v1 | 38 × 38 mm flight controller + 4-in-1 ESC for a 3" quad, 8 layers | designed, not yet built |
+| [SmokeBreak](products/smokebreak/) | v1 | Handheld smoke stopper and LiPo checker, 2S–14S, 2.25" screen, printed case | designed, not yet built |
 
 The packet logger's firmware and analysis tooling live in
-[`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab); Ridge 3's and Ridge 3 Lite's firmware is in each board's own folder.
+[`mesh-fieldlab`](https://github.com/offgridevices/mesh-fieldlab); every other
+product's firmware is in its own folder.
 
 Ridge 3 and Ridge 3 Lite are separate designs for 3-inch quads and share no
 files: Ridge 3 is a two-board stack (a flight controller with video, and an
-ESC on a heatsink), Ridge 3 Lite one board that carries both.
+ESC on a heatsink), Ridge 3 Lite one board that carries both
+([`products/ridge/`](products/ridge/)).
 
 To make a board's product video, an exploded view rendered from its KiCad
 file, follow [`docs/product-video.md`](docs/product-video.md).
@@ -27,8 +47,7 @@ file, follow [`docs/product-video.md`](docs/product-video.md).
 
 ## How to order one
 
-Each board folder holds one folder per revision. To get a board made, you
-need its **Gerber zip** (upload it to the fab) and its **BOM / CPL** (what to
+To get a board made, you need its **Gerber zip** (upload it to the fab) and its **BOM / CPL** (what to
 buy, or what the fab assembles). The board's own `README.md` says where they
 are, which fab settings to pick, and how to bring the board up. Start there.
 
@@ -49,25 +68,29 @@ everything (some boards run it inside a pinned KiCad container).
 Generated outputs are committed alongside the scripts that produce them, so a
 stranger can order a board without a toolchain. They are expected to agree:
 a script change without regenerated outputs is a defect, not untidiness. CI
-rebuilds every board and checks that. Where routing was finished by hand,
+rebuilds each board whose folder changed and checks that. Where routing was finished by hand,
 the routed board file is the design of record: CI rebuilds everything after
 the routing (artwork and fab files) and checks those, and the board's README
 says so.
 
-A revision folder is never edited once its board has been ordered. A change
-that alters copper becomes the next revision beside it.
+## Revisions
 
-Ridge 3 is an exception to this layout: one folder holds both of its boards (`fc/`,
-`esc/`), their shared generator (`src/`), simulations (`sim/`) and mechanical
-parts (`mechanical/`), and its revision is printed on the boards (`REV 2.0`)
-rather than in a folder name.  Its own [`README.md`](ridge-3/README.md) has
-the map, and [`ridge-3/docs/STATUS.md`](ridge-3/docs/STATUS.md) the open
-decision on where its next revision goes.
+A product's folder always holds its latest revision. The revision is a
+number in the product's code, printed on the board and listed in its
+README's Revisions table. When a revision is ordered, the commit its files
+came from gets a tag (`print-hub-rev1.0`) and a GitHub Release with the
+exact Gerber zip, BOM and CPL that were ordered; a later change to the
+board bumps the number. To get an ordered revision, download its release
+or `git checkout` its tag. The rules are in
+[`docs/versioning.md`](docs/versioning.md).
 
 ## Building a new board
 
 Read [`docs/`](docs/) first: the workflow and what "done" means, the folder
-layout and size budget, the brand rules, and lessons from earlier boards.
+layout and size budget, the brand rules, and lessons from earlier boards. A
+new product gets its own folder in `products/`, and its own CI job by
+adding `tools/ci.sh`, `tools/ci-setup.sh` and `tools/ci.json`
+([`docs/repo-structure.md`](docs/repo-structure.md#ci)).
 
 ---
 

@@ -1,439 +1,134 @@
 name: CI
 
-# Rebuilds every board from its generator and checks the result against what is
-# committed. The central invariant of this repository is that the committed
-# Gerbers are exactly what the scripts in `src/` produce — someone orders from
-# those files — so this is the check that matters most here.
+# Rebuilds every product from its generator and checks the result against
+# what is committed. The central invariant of this repository is that the
+# committed fab files are exactly what the scripts in `src/` produce —
+# someone orders from those files — so this is the check that matters most
+# here.
+#
+# Each product carries its own CI in its `tools/` folder: `ci.json` (the
+# pinned image, by digest, and the timeout), `ci-setup.sh` (what CI installs
+# on that bare image) and `ci.sh` (every gate, from the product's folder; it
+# runs the same locally with `tools/ci/local.sh products/<product>`). This file only picks
+# the products (`tools/ci/matrix.py`) and runs them, so a new product adds
+# its three files and nothing here changes.
+#
+# `ci-ok` is the one check that has to be green: it fails when any product
+# or the repository checks failed or were cancelled, and passes when a pull
+# request changes no product (a docs-only change builds no board).
 on:
   push:
     branches: [main]
   # Pull requests do not trigger this file directly. `claude-code-review.yml`
-  # calls it as its first job and only starts the Claude review once every job
-  # here is green, so a PR runs this suite exactly once and a red suite stops
+  # calls it as its first job and only starts the Claude review once `ci-ok`
+  # is green, so a PR runs this suite exactly once and a red suite stops
   # there — no paid review of a board that does not rebuild.
   workflow_call:
+  # Every product, by hand (Actions tab, "Run workflow").
+  workflow_dispatch:
+  # Every product, weekly: catches what moves under a product nobody has
+  # touched (an apt package, an unpinned pip package, a download).
+  schedule:
+    - cron: '17 6 * * 1'
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push to a pull request replaces the older run. On main each
+  # commit has a group of its own: a shared group with cancel-in-progress
+  # off would still drop a waiting run when a newer one queues, and leave
+  # that merged commit unchecked.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
 
 jobs:
-  packet-logger-carrier-v1:
-    # 2 vCPU: the org is on Blacksmith's free plan (3,000 2-vCPU minutes a
-    # month; a 4-vCPU minute counts double). The router is single-threaded, so
-    # more cores would not make this faster anyway.
+  products:
+    # Which products to build: on a pull request those whose folder changed
+    # (all of them when a shared file — .github/, tools/, .gitignore —
+    # changed); on every other event all of them.
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    # The full build takes a little over two minutes on a fast laptop; this is
-    # the backstop for a hung router, not an estimate.
-    timeout-minutes: 25
-    defaults:
-      run:
-        working-directory: packet-logger-carrier/v1
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+      any: ${{ steps.pick.outputs.any }}
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-python@v7
+      # Pinned to a commit rather than a tag, as in the other workflows: a
+      # tag is mutable. This is `actions/checkout` v7.0.1. Depth 2: on a pull
+      # request HEAD is GitHub's merge commit and HEAD^1 the base it merges
+      # into, which is what matrix.py diffs against.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: '3.12'
-
-      # `requirements.txt` lists numpy and Pillow; make.py also needs fontTools
-      # (the wordmark is built from real Archivo glyph outlines), which the file
-      # does not list. cadquery is only for `emit_step.py`, which make.py does
-      # not run, so it is left out — it is a very large install.
-      - name: Install dependencies
-        run: pip install numpy Pillow fonttools
-
-      # wordmark.py reads the brand font from `~/Library/Fonts/`, a macOS
-      # path. On Linux `~` still expands, so the same file placed there works
-      # without touching the generator. Pinned to a google/fonts commit and
-      # checked against its hash, so a changed upstream font fails loudly
-      # instead of quietly moving the silkscreen.
-      - name: Fetch Archivo (brand font used by the wordmark)
+          fetch-depth: 2
+          persist-credentials: false
+      - id: pick
         env:
-          FONT_URL: https://raw.githubusercontent.com/google/fonts/6c70c829f09ea345d3590406693220ea35c6553f/ofl/archivo/Archivo%5Bwdth,wght%5D.ttf
-          FONT_SHA256: 0e094a7d3c7c4c25cf1310c4b30014f1dae9332220b1c2c88f4fa996f0b05053
-        run: |
-          mkdir -p ~/Library/Fonts
-          F=~/Library/Fonts/Archivo-VariableFont_wdth,wght.ttf
-          curl -fsSL -o "$F" "$FONT_URL"
-          echo "$FONT_SHA256  $F" | sha256sum -c -
+          EVENT: ${{ github.event_name }}
+        run: python3 tools/ci/matrix.py
 
-      # Route, DRC, netlist, silkscreen, wordmark, KiCad emit, layer check,
-      # Gerber emit and Gerber verify — every gate in make.py. Any failing gate
-      # exits non-zero. KiCad's own DRC step is skipped here: make.py looks for
-      # kicad-cli at its macOS path only and prints that it skipped.
-      - name: Build and verify (make.py)
-        working-directory: packet-logger-carrier/v1/src
-        run: python make.py
-
-      # The rebuilt Gerbers and drill files must be byte-identical to the ones
-      # in the committed zip. A script change without regenerated outputs, or
-      # outputs no script produces, fails here.
-      - name: Committed Gerbers match the generator
-        run: |
-          mkdir -p /tmp/committed /tmp/rebuilt
-          unzip -q packet-logger-carrier-gerbers.zip -d /tmp/committed
-          unzip -q src/out/packet-logger-carrier-gerbers.zip -d /tmp/rebuilt
-          if ! diff -r /tmp/committed /tmp/rebuilt; then
-            echo "::error::Committed packet-logger-carrier-gerbers.zip does not match what src/make.py produces. Rebuild and commit the outputs."
-            exit 1
-          fi
-          echo "Gerbers and drill files are byte-identical to the generator's output."
-
-  ridge3-lite-v1:
-    # Ridge 3 Lite (ridge3-lite/v1).  make.py needs KiCad's pcbnew module and
-    # kicad-cli, so the job runs in the same official KiCad image the board's
-    # toolchain pins (ridge3-lite/v1/tools/Dockerfile), by digest.  The routed
-    # copper is the design of record (the last connection was finished by
-    # hand), so routing is not re-run.  Everything after it is: the artwork
-    # (silkscreen, logo, flag) from src/, then every gate and the fab files,
-    # which must equal the committed ones.
+  repo-checks:
+    # Every Markdown link resolves, every Python file parses, every product
+    # has its three CI files. Seconds; runs on every event.
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 30
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 tools/ci/check_repo.py
+
+  build:
+    needs: products
+    if: needs.products.outputs.any == 'true'
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.products.outputs.matrix) }}
+    # 2 vCPU: the org is on Blacksmith's free plan (3,000 2-vCPU minutes a
+    # month; a 4-vCPU minute counts double). The routers and KiCad are
+    # single-threaded, so more cores would not make this much faster anyway.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    # The backstop for a hung router or KiCad, not an estimate (ci.json).
+    timeout-minutes: ${{ matrix.timeout }}
     container:
-      image: kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
+      image: ${{ matrix.image }}
       options: --user root
-    defaults:
-      run:
-        working-directory: ridge3-lite/v1
     env:
       HOME: /tmp
       PYTHONHASHSEED: '0'
-    steps:
-      - uses: actions/checkout@v7
-
-      # The Python packages tools/Dockerfile installs that make.py and
-      # verify.py use (KiKit is only for the panel, which --fab-only skips).
-      - name: Install dependencies
-        run: |
-          apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git > /dev/null
-          pip3 install --break-system-packages -q numpy shapely Pillow matplotlib pypdf \
-            uharfbuzz fonttools pymupdf scipy
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      # Artwork from src/ (brand.py, silk.py), circuit gates, KiCad DRC
-      # (0 / 0 / 0), net check, Gerbers, BOM, CPL.
-      - name: Build artwork and fab files (make.py)
-        run: python3 src/make.py --artwork --fab-only
-
-      - name: Committed fab files match the build
-        run: python3 tools/check_outputs.py
-
-      # Firmware pin maps, parts, fab outputs, simulations' verdicts.
-      - name: Design checks (verify.py)
-        run: python3 src/verify.py
-
-  ridge-3:
-    # Ridge 3 (ridge-3/): the flight controller and the 4-in-1 ESC, rev 2.
-    # make.py needs KiCad's pcbnew module and kicad-cli, so the job runs in
-    # the official KiCad 10.0.6 image by digest, the one ridge-3/tools/
-    # Dockerfile starts from. The routed copper is the design of record, so
-    # routing is not re-run; everything after it is: every gate, the fab
-    # files and both 3 x 2 panels, which must equal the committed ones.
-    # --fab-only leaves out the renders and the STEP models: they need
-    # KiCad's 3D-model package, which the image does not carry.
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    # In this image on 4 cores the install took 1-2.5 minutes, make.py
-    # --fab-only about 5 and verify.py 1; this is the backstop for a hung
-    # KiCad, not an estimate.
-    timeout-minutes: 40
-    container:
-      image: kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
-      options: --user root
     defaults:
       run:
-        working-directory: ridge-3
-    env:
-      HOME: /tmp
-      PYTHONHASHSEED: '0'
+        working-directory: ${{ matrix.path }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      # The packages make.py --fab-only and verify.py name, each at a fixed
-      # version and from pip, not Debian's packages, which move with
-      # Debian's updates: requirements.txt's pins as a constraint (-c), and
-      # the packages the build machine takes from Ubuntu's apt at versions
-      # with wheels for this image's Python 3.13 (requirements.txt says
-      # which and why). Shapely must stay at 2.0.7: KiKit builds the panels'
-      # outline with it, and with Debian's Shapely 2.1 the panel Gerbers come
-      # out different from the committed ones. gerbonara goes in without its
-      # requirements (a web server it does not need here). tools/Dockerfile
-      # installs the same. A few other packages present are Debian's and
-      # not pinned (packaging, PyYAML, typing-extensions, wxPython); none of
-      # them changes an output.
-      - name: Install dependencies
-        run: |
-          apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip > /dev/null
-          pip3 install --break-system-packages -q -c requirements.txt \
-            numpy==2.2.4 scipy==1.15.3 shapely==2.0.7 pillow==11.1.0 fonttools==4.46.0 \
-            pypdf uharfbuzz pymupdf scikit-image kikit
-          pip3 install --break-system-packages -q --no-deps gerbonara==1.6.3
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      # The checkout belongs to the runner's user, the container runs as
+      # root: without this git refuses the repository, and the gates that
+      # compare against HEAD would fail.
+      - name: Trust the checkout
+        run: if command -v git > /dev/null; then git config --global --add safe.directory "$GITHUB_WORKSPACE"; fi
 
-      # circuit.py's own checks, KiCad DRC (0 / 0 / 0), nets equal to
-      # circuit.py, BOM and CPL equal to the placed parts, the ESC's heatsink
-      # made from this board, and the panels: DRC six times the board's, and
-      # every copy's Gerbers, BOM and CPL equal to the board's. Any failing
-      # gate exits non-zero.
-      - name: Build both boards and panels (make.py --fab-only)
-        run: python3 src/make.py --fab-only
+      - name: Install (tools/ci-setup.sh)
+        run: tools/ci-setup.sh
 
-      # stable.py puts the committed bytes back where only KiCad's stamps
-      # (time, build) differ, so a change left here is a real one: a source
-      # changed without its outputs, or outputs no source produces.
-      - name: Committed outputs match the build
-        run: |
-          git rev-parse --git-dir > /dev/null   # no repository: fail, never pass unchecked
-          if [ -n "$(git status --porcelain -- .)" ]; then
-            git status --porcelain -- .
-            echo "::error::ridge-3 outputs differ from what src/make.py produces. Rebuild with python3.12 src/make.py and commit the outputs."
-            exit 1
-          fi
-          echo "Every ridge-3 output is byte-identical to the build's."
-
-      # Pin maps, the firmware's scale factors, the power arithmetic, the
-      # boards' DRC and silkscreen. The firmware sources, the datasheets and
-      # the brand art are not here, so the checks that need them SKIP. It
-      # rewrites VERIFICATION.md, so it runs after the comparison.
-      - name: Design checks (verify.py)
-        run: python3 src/verify.py
-
-  print-hub-v1:
-    # Print Hub (print-hub/v1).  Same pinned KiCad image as the board's
-    # toolchain (print-hub/v1/tools/Dockerfile), by digest.  The routed board
-    # is the design of record: the artwork is rebuilt from src/, then every
-    # gate and the fab files, which must equal the committed ones.  Then the
-    # design checks, the power-chain analysis and the firmware's host tests.
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 30
-    container:
-      image: kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
-      options: --user root
-    defaults:
-      run:
-        working-directory: print-hub/v1
-    env:
-      HOME: /tmp
-      PYTHONHASHSEED: '0'
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install dependencies
-        run: |
-          apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git g++ make > /dev/null
-          pip3 install --break-system-packages -q numpy==2.5.4 shapely==2.2.0 Pillow==13.0.0 \
-            pypdf==6.21.1 uharfbuzz==0.56.3 fonttools==4.67.0
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      # Artwork from src/ (brand.py, silk.py), circuit gates, KiCad DRC
-      # (0 / 0 / 0), net check, Gerbers, BOM, CPL.
-      - name: Build artwork and fab files (make.py)
-        run: python3 src/make.py --artwork --fab-only
-
-      - name: Committed fab files match the build
-        run: python3 tools/check_outputs.py
-
-      - name: Power-chain analysis (sim/power_budget.py)
-        run: python3 sim/power_budget.py
-
-      # Firmware pin map and scaling against the circuit, LED chain, port
-      # parts, simulation verdicts.
-      - name: Design checks (verify.py)
-        run: python3 src/verify.py
-
-      - name: Firmware host tests
-        run: make -C firmware/test
-
-  smokebreak-v1:
-    # SmokeBreak (smokebreak/v1).  The routed board is the design of record:
-    # Freerouting is not deterministic and the last joins were finished by
-    # script (src/touchup.py), so routing is not re-run.  Everything after it
-    # is: the silkscreen art from src/ (brand.py, art.py, make.art_items),
-    # KiCad DRC (0 / 0 / 0), the net check against circuit.py, then the
-    # Gerbers, BOM, CPL and netlist, which must equal the committed ones.
-    # Runs in the official KiCad image the board's toolchain pins
-    # (smokebreak/v1/tools/Dockerfile), by digest.
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 30
-    container:
-      image: kicad/kicad:10.0.7@sha256:3224d1bf143185ecc1bd3a1082a36f37f0f4e59d707983a16515a845e3737fc6
-      options: --user root
-    defaults:
-      run:
-        working-directory: smokebreak/v1
-    env:
-      HOME: /tmp
-      PYTHONHASHSEED: '0'
-    steps:
-      - uses: actions/checkout@v7
-
-      # The Python packages tools/Dockerfile installs that these steps use.
-      - name: Install dependencies
-        run: |
-          apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git > /dev/null
-          pip3 install --break-system-packages -q numpy shapely Pillow matplotlib uharfbuzz fonttools pytest
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Rebuild the silkscreen art (src/artwork.py)
-        working-directory: smokebreak/v1/src
-        run: python3 artwork.py
-
-      # DRC 0 / 0 / 0 and every pad's net against circuit.py are gates here.
-      - name: DRC, net check and production files (src/fab.py)
-        working-directory: smokebreak/v1/src
-        run: python3 fab.py --no-3d
-
-      - name: Committed production files match the build
-        run: python3 tools/check_outputs.py
-
-      - name: Firmware model tests
-        run: python3 -m pytest -q firmware/tests
-
-  layercam-v1:
-    # LayerCam (layercam/v1): three boards (main, LED ring, USB).  Same pinned
-    # KiCad image as the boards' toolchain (layercam/v1/tools/Dockerfile), by
-    # digest.  The routed boards are the design of record (Freerouting is not
-    # deterministic): the artwork is rebuilt from src/, then every gate and
-    # the fab files of all three boards, which must equal the committed ones.
-    # Then the design checks (regulators, camera cable by position, housing,
-    # the firmware's pin map), the simulations and the firmware's host tests.
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 30
-    container:
-      image: kicad/kicad:10.0.7@sha256:3224d1bf143185ecc1bd3a1082a36f37f0f4e59d707983a16515a845e3737fc6
-      options: --user root
-    defaults:
-      run:
-        working-directory: layercam/v1
-    env:
-      HOME: /tmp
-      PYTHONHASHSEED: '0'
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install dependencies
-        run: |
-          apt-get update -qq
-          # ffmpeg (with libx264) for the firmware's MP4, recording and
-          # end-to-end tests, which skip themselves without it
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git ffmpeg > /dev/null
-          pip3 install --break-system-packages -q numpy==2.5.4 shapely==2.2.0 Pillow==13.0.0 matplotlib==3.11.2 \
-            pypdf==6.21.1 uharfbuzz==0.56.3 fonttools==4.67.0 scipy==1.18.1
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      # Artwork from src/ (brand.py, silk.py), circuit gates, KiCad DRC
-      # (0 / 0 / 0), net check, 45-degree corners, pair lengths, Gerbers,
-      # BOM, CPL, for all three boards.
-      - name: Build artwork and fab files (make.py)
-        run: python3 src/make.py --artwork --fab-only
-
-      - name: Committed fab files match the build
-        run: python3 tools/check_outputs.py
-
-      - name: Design checks (verify.py)
-        run: python3 src/verify.py
-
-      - name: Simulations (impedance, power, thermal)
-        run: |
-          python3 sim/impedance.py
-          python3 sim/power_budget.py
-          python3 sim/thermal.py
-
-      - name: Firmware host tests
-        working-directory: layercam/v1/firmware
-        run: python3 -m unittest
-
-  canary-v1:
-    # Canary (canary/v1). Routing is Freerouting's and not bit-for-bit
-    # repeatable, so the committed canary.kicad_pcb is the design of record.
-    # Everything else is rebuilt and gated by tools/ci.sh: the schematic is
-    # regenerated from src/circuit.py and must equal the committed one (ERC 0,
-    # netlist = circuit), DRC must be empty (all severities, schematic parity),
-    # the fab files must equal the committed ones, the firmware pin map must
-    # match, and the firmware must pass the hardware-in-the-loop scenarios
-    # (simavr), the SPICE model and the analyses.
-    runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 30
-    container:
-      image: kicad/kicad:10.0.6@sha256:18693567392b80da435f9fa952ce3a3e534c66eb5a6033f5b9c80aa3b19dd3ec
-      options: --user root
-    defaults:
-      run:
-        working-directory: canary/v1
-    env:
-      HOME: /tmp
-      PYTHONHASHSEED: '0'
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install dependencies
-        run: |
-          apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git gcc make pkg-config \
-            gcc-avr avr-libc libelf-dev ngspice nodejs > /dev/null
-          pip3 install --break-system-packages -q numpy matplotlib
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      - name: Gates, fab files, firmware and simulations (tools/ci.sh)
+      - name: Every gate (tools/ci.sh)
         run: tools/ci.sh
 
-  layercam-pro-v1:
-    # LayerCam Pro (layercam-pro/v1): one board.  Same pinned KiCad image as
-    # its toolchain (layercam-pro/v1/tools/Dockerfile), by digest.  The routed
-    # board is the design of record (Freerouting is not deterministic): the
-    # artwork is rebuilt from src/, then every gate and the fab files, which
-    # must equal the committed ones.  Then the design checks (regulators, the
-    # sensor's balls by position, the case's outline, part heights, the
-    # firmware's pin map), the simulations and the firmware's host tests.
-    # The case's own checks need Prusa's files, which are not committed.
+  ci-ok:
+    # The single required check. `if: always()` so it reports even when a
+    # job before it failed, and fails then; skipped (no product changed) is
+    # a pass.
+    needs: [products, repo-checks, build]
+    if: always()
     runs-on: blacksmith-2vcpu-ubuntu-2404
-    timeout-minutes: 30
-    container:
-      image: kicad/kicad:10.0.7@sha256:3224d1bf143185ecc1bd3a1082a36f37f0f4e59d707983a16515a845e3737fc6
-      options: --user root
-    defaults:
-      run:
-        working-directory: layercam-pro/v1
-    env:
-      HOME: /tmp
-      PYTHONHASHSEED: '0'
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Install dependencies
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-pip git ffmpeg > /dev/null
-          pip3 install --break-system-packages -q numpy==2.5.4 shapely==2.2.0 Pillow==13.0.0 matplotlib==3.11.2 \
-            pypdf==6.21.1 uharfbuzz==0.56.3 fonttools==4.67.0 pymupdf==1.28.2 scipy==1.18.1 trimesh==5.2.0
-          pip3 install --break-system-packages -q --no-deps gerbonara==1.6.3
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      # Artwork from src/ (brand.py, silk.py), circuit gates, KiCad DRC
-      # (0 / 0 / 0), net check, 45-degree corners, MIPI pair lengths,
-      # Gerbers, BOM, CPL.
-      - name: Build artwork and fab files (make.py)
-        run: python3 src/make.py --artwork --fab-only
-
-      - name: Committed fab files match the build
-        run: python3 tools/check_outputs.py
-
-      - name: Design checks (verify.py)
-        run: python3 src/verify.py
-
-      - name: Simulations (impedance, power, thermal)
-        run: |
-          python3 sim/impedance.py
-          python3 sim/power_budget.py
-          python3 sim/thermal.py
-
-      - name: Firmware host tests
-        working-directory: layercam-pro/v1/firmware
-        run: python3 -m unittest
+          echo "products, repo-checks, build: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in success|skipped) ;; *) echo "::error::A CI job ended $r."; exit 1 ;; esac
+          done

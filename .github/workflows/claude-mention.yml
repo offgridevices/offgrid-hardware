@@ -130,7 +130,8 @@ jobs:
       - name: Install dependencies
         run: pip install numpy Pillow fonttools
 
-      # Same pinned, hash-checked font as ci.yml; see the note there.
+      # Same pinned, hash-checked font as the Packet Logger Carrier's CI; see
+      # the note in products/packet-logger-carrier/tools/ci-setup.sh.
       - name: Fetch Archivo (brand font used by the wordmark)
         env:
           FONT_URL: https://raw.githubusercontent.com/google/fonts/6c70c829f09ea345d3590406693220ea35c6553f/ofl/archivo/Archivo%5Bwdth,wght%5D.ttf
@@ -196,11 +197,16 @@ jobs:
             comment that triggered this run, answer it, and reply in the same
             thread.
 
-            This repository is **open hardware**. Each top-level folder is one
-            board. The design files are the Python scripts in each board's
-            `src/`; the Gerbers, drill files, board file and 3D models are
-            generated output, committed so a stranger can order a board. Read
-            the root `README.md` and the board's own `README.md` first.
+            This repository is **open hardware**. Every product is a folder
+            under `products/` (variants of one line under a family folder,
+            e.g. `products/ridge/ridge-3/`), edited in place: there are no
+            revision folders; the revision is set in the product's code and
+            printed on the board, and an ordered revision is frozen by a git
+            tag (`docs/versioning.md`). The design files are the Python scripts
+            in each product's `src/`; the Gerbers, drill files, board file and
+            3D models are generated output, committed so a stranger can order a
+            board without installing a toolchain. Read the root `README.md` and the product's own `README.md`
+            first.
 
             **Read the codebase, not just the diff.** The whole repository is
             checked out at this pull request's actual head commit. Before
@@ -209,10 +215,12 @@ jobs:
             it is already written down somewhere.
 
             **Verify instead of guessing, when you can check cheaply.** Python
-            3.12, numpy, Pillow, fontTools and the brand font are installed.
-            From a board's `src/` you can run `python make.py` or a single gate
-            (`python drc.py`, `python netcheck.py`, …) and answer from the real
-            output. CI's results for this commit are in `.ci-results/`: `summary.md` plus the full log of each job.
+            3.12, numpy, Pillow, fontTools and the brand font are installed, but
+            no KiCad, so the gates that need `pcbnew` or `kicad-cli` cannot run
+            here. The pure-Python checks, simulations and firmware tests a
+            product's `TESTS.md` lists, and the Packet Logger Carrier's whole
+            build (`products/packet-logger-carrier/src/make.py`), can: answer
+            from the real output. CI's results for this commit are in `.ci-results/`: `summary.md` plus the full log of each job.
 
             **If you are asked to test something, you have a sandbox.** This
             runner is a throwaway checkout: you can write probe scripts
