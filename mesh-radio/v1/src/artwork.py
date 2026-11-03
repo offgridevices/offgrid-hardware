@@ -108,6 +108,14 @@ class SilkPlacer:
                     if p.GetDrillSize().x > 0:
                         q = p.GetPosition()
                         self.blocks.append(Point(q.x / 1e6, q.y / 1e6).buffer(p.GetDrillSize().x / 2e6 + 0.3))
+        # board-level mask openings (the gap pad's bare copper on B): ink
+        # there would sit on exposed copper (3 Nov: the lockup landed on it)
+        mask = pcbnew.F_Mask if side == 'T' else pcbnew.B_Mask
+        for d in b.GetDrawings():
+            if d.GetLayer() == mask and isinstance(d, pcbnew.PCB_SHAPE):
+                bb = d.GetBoundingBox()
+                self.blocks.append(box(bb.GetLeft() / 1e6, bb.GetTop() / 1e6,
+                                       bb.GetRight() / 1e6, bb.GetBottom() / 1e6).buffer(pad_clear))
         if bodies:
             # part bodies too: silk under a component is invisible once it
             # is assembled (courtyards of solder pads / test points excepted)

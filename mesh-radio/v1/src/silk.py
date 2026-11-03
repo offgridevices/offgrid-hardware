@@ -83,7 +83,18 @@ def draw(b, comps, log=print):
     bot.label(bat, '+', size=1.6, face='mono', smallest=1.0, pad='1')
     for part, s in (('JST_PH2', 'BAT'), ('JST_SH2', 'SOLAR'), ('JST_GH6', 'DRONE'), ('JST_SH6', 'GPS'),
                     ('JST_SH10', 'DISP/I2C')):
-        bot.label(by(part), s, size=0.7, face='mono', smallest=0.5)
+        if bot.label(by(part), s, size=0.7, face='mono', smallest=0.5) is None:
+            # (3 Nov: the battery and display plugs' names found no spot
+            # beside the plug) the nearest free spot round the plug instead
+            q = b.FindFootprintByReference(by(part)).GetPosition()
+            at = None
+            for sz in (0.7, 0.6, 0.5):
+                at = bot.text_near(s, (q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY), size=sz, face='mono', radius=6.0)
+                if at is not None:
+                    log('plug name %s at (%.1f, %.1f), %.1f mm' % (s, at[0], at[1], sz))
+                    break
+            if at is None:
+                raise SystemExit('silk: no room for the plug name %r' % s)
     if named is None:
         for size in (0.8, 0.7):
             named = bot.text_near(NAME, (0.0, pcb.HY - 1.6), size=size, face='sans', radius=30.0)
