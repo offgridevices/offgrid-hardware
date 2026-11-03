@@ -1276,6 +1276,8 @@ if __name__ == '__main__':
         comps = circuit.build(); w, cl = widths(comps), clearances(comps)
         setup_routers()
         b = pcbnew.LoadBoard(fin)
+        gone = finish.drop_area_vias(b)
+        if gone: log('took out vias where only another net may stand: %s' % (gone,))
         left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
         log('local repair of %s' % (left,))
         rest = local_repair(b, left, w, cl, protect=PLANES + list(board.RF_NETS) + list(board.RF_EXTRA),

@@ -21,6 +21,22 @@ RES = 0.05                      # mm per cell
 
 def mm(v): return v / 1e6
 
+def drop_area_vias(board):
+    """Take out every via standing in a VIA_NET_AREAS rule area that is not
+    of that area's net (DRC 'disallow via'; a router that did not know the
+    rule put it there).  Returns the nets they were on."""
+    nets = []
+    for z in board.Zones():
+        only = VIA_NET_AREAS.get(z.GetZoneName()) if z.GetIsRuleArea() else None
+        if not only:
+            continue
+        ol = z.Outline()
+        for t in list(board.GetTracks()):
+            if t.GetClass() == 'PCB_VIA' and t.GetNetname() != only and ol.Collide(t.GetPosition(), t.GetWidth(pcbnew.F_Cu) // 2):
+                nets.append(t.GetNetname()); pcb.remove(board, t)
+    return nets
+
+
 class Grid:
     def __init__(self, board, layers, clearance, track_w, via_d, edge=0.3, clmap=None, soft_nets=None,
                  window=None):
@@ -189,9 +205,14 @@ class Grid:
         for l in (pcbnew.In1_Cu, pcbnew.In2_Cu):
             pass
         for z in self.board.Zones():
-            if z.GetIsRuleArea() and (z.GetDoNotAllowTracks() or z.GetDoNotAllowVias()):
+            # (an area named in VIA_NET_AREAS lets only that net's vias in:
+            # the gap pad, board.RULES 'gap pad: ground vias only')
+            only = VIA_NET_AREAS.get(z.GetZoneName()) if z.GetIsRuleArea() else None
+            if z.GetIsRuleArea() and (z.GetDoNotAllowTracks() or z.GetDoNotAllowVias() or (only and net != only)):
                 ol = z.Outline().Outline(0)
                 g = Polygon([(mm(ol.CPoint(q).x), mm(ol.CPoint(q).y)) for q in range(ol.PointCount())])
+                if only and net != only:
+                    self._draw(vmask, g.buffer(self.vd / 2 + M))
                 if z.GetDoNotAllowTracks():
                     for l in self.layers:
                         if z.GetLayerSet().Contains(l):
@@ -296,7 +317,8 @@ SIG_CL = float(os.environ.get('SIG_CL', 0.09))
 WIDTH_FALLBACK = True
 # route_net's last resort: a soft-copper path that crosses nothing (exact check)
 EXACT_FALLBACK = bool(int(os.environ.get('EXACT_FALLBACK', 1)))
-SOFT_EXCLUDE = ('GND',)   # never soft: the plane net's copper
+SOFT_EXCLUDE = ('GND',)
+VIA_NET_AREAS = {'gap pad': 'GND'}     # rule area name: the one net whose vias may stand in it   # never soft: the plane net's copper
 # the price (grid cells of detour) of crossing another net's copper once
 RIP_COST = float(os.environ.get('RIP_COST', 60))
 # search budget (cells) of route_connection's last, whole-board try
