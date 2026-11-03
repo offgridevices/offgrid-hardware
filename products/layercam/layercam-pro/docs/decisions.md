@@ -218,8 +218,9 @@ this case: hardened 0.4 mm nozzle, 0.20 mm layers, 4 perimeters (Prusa
 uses 2; the new walls are 1.6-2.1 mm), no supports. Carbon-fibre plastic
 conducts a little, so no bare copper may touch it: copper and parts keep
 0.6 mm from the board's edge, and the case keeps off the board everywhere
-but round the four screw holes. The holes are unplated, with no copper
-(the plan had grounded holes; the design has none).
+but round the four screw holes. The holes are plated, their rings on
+ground (4.5 mm for the M2s, 3.4 mm for the holder's M1.6s); the case
+touches the board only at the M2s' rings.
 
 ## Mounting: four M2 screws through board and case
 

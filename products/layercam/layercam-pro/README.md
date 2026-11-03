@@ -171,7 +171,7 @@ lines, on both sides.
 | 2 | Holder screws | **M1.6 x 5** thread-forming for plastic, stainless: through the 1.6 mm board they leave 3.4 mm in the holder's 4.3 mm base (an M1.6 x 6 would bottom out) | Commonlands (sells M1.6 x 5) |
 | 1 | Heatsink | **20 x 20 x 15 mm** aluminium, black, straight fins, 2 mm base, no tape | Amazon: search "20x20x15mm aluminum heatsink" (the size is sold, seen at Newegg; an Amazon listing is not confirmed) |
 | 12 x 12 mm | Heatsink tape | **3M 8810**, 0.25 mm (rated to 100 °C), cut from a roll | Digi-Key 3M10316-ND (2 in x 15 ft, enough for hundreds) |
-| 1 length, 120 mm or more | Light rods | **2.0 mm clear polycarbonate rod**, cut into 4 x 18.4 mm and 2 x 18.5 mm, ends square and polished (clear acrylic is second choice: it softens near 100 °C) | Amazon: "2mm clear polycarbonate rod" |
+| 1 length, 120 mm or more | Light rods | **2.0 mm clear polycarbonate rod**, cut into 6 x 19.0 mm (the case's channels are 18.95 to 19.01 mm, `enclosure/README.md`), ends square and polished (clear acrylic is second choice: it softens near 100 °C) | Amazon: "2mm clear polycarbonate rod" |
 | 2 | Magnets | **10 x 3 mm disc, N35SH or N38SH** (rated 150 °C; plain N grades are 80 °C). No Amazon listing names an SH grade in this size. K&J Magnetics **D62SH** (3/8 x 1/8 in, N42SH, 150 °C) fits the pocket, 0.08 mm proud | K&J Magnetics |
 | 1 | Epoxy | **J-B Weld Original** (rated 287 °C), for the magnets and the rods | Amazon |
 | 1 | Antenna lead | **W.FL / MHF III to RP-SMA female bulkhead, about 10 cm, 1.13 mm cable**, nut and lock washer. Check the listing says MHF III (MHF3), and check the module's socket on the board in hand (*Limits*) | Amazon: "MHF3 W.FL to RP-SMA female bulkhead 10cm 1.13mm" |
