@@ -4,8 +4,9 @@
     tools/kd python3 sim/rf/run.py            # from mesh-radio/v1, ~3-6 min
     tools/kd python3 sim/rf/run.py --quick    # 200 Monte Carlo runs instead of 1000
 
-Board as in src/ on 20 Oct: antenna filter LFCG-1000+, missing-antenna ratio detector (printed coupler, BAT68-04W at
-each end into 1 nF / 100 k: REFL_DET and FWD_DET).  Study 8 is the detector: the ratio threshold and its margins.
+Board as routed (mesh-radio.kicad_pcb, 3 Nov; routed.json via routed.py): antenna filter LFCG-1000+, missing-antenna
+ratio detector (printed coupler, BAT68-04W at each end into 1 nF / 100 k: REFL_DET and FWD_DET), every RF line as
+routed.  RF_ROUTED=0 runs the pre-route model (results_preroute.txt) for comparison.  Study 8 is the detector.
 
 Writes results.txt (every number), *.png, and nothing else.  Values come
 from src/circuit.py / src/parts.py through rfboard.py; nothing in src/ is
@@ -27,6 +28,9 @@ import rfboard as B    # noqa: E402
 import lfcn            # noqa: E402
 
 QUICK = '--quick' in sys.argv
+# where results and plots go (RF_OUTDIR: elsewhere, e.g. for a RF_ROUTED=0 comparison that must not replace the plots)
+OUTDIR = os.environ.get('RF_OUTDIR') or (HERE if B.USE_ROUTED else os.path.join(HERE, 'preroute'))
+os.makedirs(OUTDIR, exist_ok=True)
 NMC = 200 if QUICK else 1000
 TEMPS = [-40, -20, 0, 25, 60, 85]
 FB = np.array([902e6, 915e6, 928e6])
@@ -57,11 +61,9 @@ def refs_between(a, b):
 
 
 def model_pins(ref):
-    """The model nodes a part sits between (the ESD shunt's ANT pin is inside the coupled run, ANT_E)."""
-    pins = [B.BY_REF[ref].pins['1'], B.BY_REF[ref].pins['2']]
-    if ref in [c.ref for c in B.rf_parts(B.NETS_ANT)]:
-        pins = ['ANT_E' if p == 'ANT' else p for p in pins]
-    return pins
+    """The model nodes a part sits between (its pads' nodes on the routed lines; the ESD shunt's ANT pin at its
+    stub off the coupled run)."""
+    return [B.pin_node(ref, '1'), B.pin_node(ref, '2')]
 
 
 # ============================================================================ antenna filter (FL1)
@@ -147,7 +149,7 @@ class PA:
 
     def __init__(self, vpa=3.6):
         self.vpa = vpa
-        b = B.Board()
+        b = B.Board(routed=False)          # Qorvo's EVB: its parts, lumped (its own layout is what it was tuned on)
         b.over = evb_overrides(b)
         c = R.Circuit('evb')
         b.pa_out(c)
@@ -240,13 +242,35 @@ def study1():
     i = pa.drive(zd)
     pm2 = np.abs(v['PA_M2'][0] * i) ** 2 / (2 * R.Z0)
     out('   output at the EVB plane into 50 ohm (3.6 V): %s dBm  (EVB: 35.4 dBm)' % ' / '.join('%.2f' % x for x in R.w_to_dbm(pm2)))
+    # how far the die load is from the load Qorvo tuned the EVB for (power-wave mismatch against it): the load-line model
+    # only knows the EVB load, so away from it its output power is not to be trusted (it rises for a more resistive load)
+    zev = ce.voltages(FB, {'DIE': 1.0}, loads={'PA_M2': lambda w: np.ones(w.shape) / R.Z0})['DIE'][0]
+    gl = np.abs((zd - zev) / (zd + np.conj(zev)))
+    ml = float(np.max(-R.db10(1 - gl ** 2)))
+    out('   die load vs the EVB\'s at 902-928 MHz (%s): |Gamma| %.2f-%.2f, i.e. %.2f dB of mismatch against the load the'
+        ' amplifier is tuned for' % ('  '.join('%.2f%+.2fj' % (x.real, x.imag) for x in zev), gl.min(), gl.max(), ml))
+    summ('1', 'PA die load vs Qorvo EVB load (output match as %s)' % ('routed' if b.routed else 'lumped'),
+         'PASS' if ml <= 0.3 else ('MARGINAL' if ml <= 1.0 else 'FAIL'),
+         'Zdie %.2f%+.2fj vs EVB %.2f%+.2fj ohm at 915 MHz: |Gamma| %.2f, %.2f dB mismatch (so roughly that much less than'
+         ' the data-sheet power; the load-line model gives %.1f dBm at 3.6 V, not trusted off the EVB load)'
+         % (zd[1].real, zd[1].imag, zev[1].real, zev[1].imag, gl[1], ml, float(R.w_to_dbm(pm2)[1])))
 
     # ---- chain PA_M2 -> antenna
     G = B.GEOM
-    out('1d PA output (PA_M2) -> elliptic LPF -> %.1f mm -> SKY13330 -> %.1f mm -> %s -> %.1f mm -> detector coupler'
-        % (b.lines['lpf_sw'], b.lines['sw_lfcn'], FLT, G['flt_cpl']))
-    out('   (%.1f mm run, %.2f mm gap, 47 nH ESD shunt %.1f mm before its end) -> %.1f mm -> U.FL (geometry: src/layout.py):'
-        % (G['cpl_len'], G['gap'], G['esd_from_end'], G['cpl_ufl']))
+    if b.routed:
+        rn = B.RT['nets']
+        lo = lambda n: sum(e['len_out'] for e in rn[n]['edges'])
+        out('1d PA output (PA_M2, the 47 pF DC block\'s output pad) -> elliptic LPF -> SKY13330 -> %s -> detector coupler ->'
+            ' U.FL, every line as routed' % FLT)
+        out('   (lengths outside the parts\' pads, mm: PA_M2 %.2f, PA_M3 %.2f, PA_TX to the switch %.2f, ANT_SW %.2f; filter ->'
+            ' %.2f -> coupled run %.1f mm, %.2f mm gap, ESD shunt %.1f mm before its end on a %.2f mm stub -> %.2f -> U.FL):'
+            % (lo('PA_M2'), lo('PA_M3'), lo('PA_TX'), lo('ANT_SW'), G['flt_cpl'], G['cpl_len'], G['gap'], G['esd_from_end'],
+               B.AG_ROUTED['esd_stub'], G['cpl_ufl']))
+    else:
+        out('1d PA output (PA_M2) -> elliptic LPF -> %.1f mm -> SKY13330 -> %.1f mm -> %s -> %.1f mm -> detector coupler'
+            % (b.lines['lpf_sw'], b.lines['sw_lfcn'], FLT, G['flt_cpl']))
+        out('   (%.1f mm run, %.2f mm gap, 47 nH ESD shunt %.1f mm before its end) -> %.1f mm -> U.FL (geometry: src/layout.py):'
+            % (G['cpl_len'], G['gap'], G['esd_from_end'], G['cpl_ufl']))
     ct = b.tx_out(with_pa=False)
     S, pv = ct.sparams(FB, ['PA_M2', 'ANT'], probe=['PA_M2', 'SW2', 'SW1', 'ANT_SW', 'LF_OUT'])
     S = S[0]
@@ -345,18 +369,28 @@ def lfcn_table_rej(f):
 
 
 def study1f():
-    """6f-10f (and 2f-5f) over the routed trace lengths still unknown: the two filters (LPF, LFCG) with the
-    switch between them interact through their reflective stop bands."""
+    """6f-10f (and 2f-5f) over trace lengths: the two filters (LPF, LFCG) with the switch between them interact
+    through their reflective stop bands.  Routed board: line ADDED at the switch's two ports (0 = as routed), as a
+    margin for a re-layout; pre-route: the lengths themselves."""
     out()
-    out('1f Harmonics over layouts: lpf_sw and sw_lfcn (switch to filter) each 1, 2, 3, 5, 8, 12 mm and the filter to')
-    out('   coupler line 0.9 (as placed), 3 and 6 mm: 108 layouts, 50-ohm rejection as in 1e.  Worst layout per harmonic.')
     b = B.Board()
-    sweep = [1.0, 2.0, 3.0, 5.0, 8.0, 12.0]
+    if b.routed:
+        out('1f Harmonics over layouts: as routed, plus 0, 1, 2, 4, 7, 11 mm of 50-ohm line added at each of the switch\'s')
+        out('   RF2 (LPF side) and RF1 (filter side) ports, and the filter to coupler line %.2f (as routed), 3 and 6 mm: 108'
+            % B.GEOM['flt_cpl'])
+        out('   layouts, 50-ohm rejection as in 1e.  Worst layout per harmonic (a re-layout margin; the routed board is the 0/0 case).')
+        sweep = [0.0, 1.0, 2.0, 4.0, 7.0, 11.0]
+        l3s = (B.GEOM['flt_cpl'], 3.0, 6.0)
+    else:
+        out('1f Harmonics over layouts: lpf_sw and sw_lfcn (switch to filter) each 1, 2, 3, 5, 8, 12 mm and the filter to')
+        out('   coupler line 0.9 (as placed), 3 and 6 mm: 108 layouts, 50-ohm rejection as in 1e.  Worst layout per harmonic.')
+        sweep = [1.0, 2.0, 3.0, 5.0, 8.0, 12.0]
+        l3s = (0.9, 3.0, 6.0)
     worst = {(p, g): {n: 99.0 for n in NH} for p, g in ((35.0, 6.0), (30.0, 2.15))}
     lossw = 0.0
     for l1 in sweep:
         for l2 in sweep:
-            for l3 in (0.9, 3.0, 6.0):
+            for l3 in l3s:
                 ln = {'lpf_sw': l1, 'sw_lfcn': l2, 'flt_cpl': l3}
                 rej = harmonic_rejection(b, None, lines=ln, pa_src=False)
                 S = b.tx_out(with_pa=False, lines=ln).sparams(FB, ['PA_M2', 'ANT'])[0]
@@ -373,7 +407,8 @@ def study1f():
     n35 = min(NH, key=lambda n: worst[(35.0, 6.0)][n])
     w30 = min(worst[(30.0, 2.15)].values())
     n30 = min(NH, key=lambda n: worst[(30.0, 2.15)][n])
-    summ('1', 'harmonics 2f-10f at 35 dBm, 6 dBi, worst of 108 layouts', verdict_margin(w35),
+    summ('1', 'harmonics 2f-10f at 35 dBm, 6 dBi, worst of 108 layouts' + (' (re-layout margin)' if b.routed else ''),
+         verdict_margin(w35),
          'worst %.1f dB at %df (6f-10f rest on the ASSUMED -45 dBc PA level)' % (w35, n35))
     summ('1', 'harmonics 2f-10f, US default 30 dBm, 2.15 dBi, worst layout', verdict_margin(w30),
          'worst %.1f dB at %df' % (w30, n30))
@@ -443,7 +478,7 @@ def harmonic_table(rej, b, loss=None):
     mh = lambda p, g, n: min(float(res[(p, g)][n]['fcc'][0]), float(res[(p, g)][n]['ham'][0]))
     hi = min(mh(35.0, 6.0, n) for n in range(6, 11))
     hn = min(range(6, 11), key=lambda n: mh(35.0, 6.0, n))
-    summ('1', 'harmonics 6f-10f at 35 dBm, 6 dBi, layout as placed', verdict_margin(hi),
+    summ('1', 'harmonics 6f-10f at 35 dBm, 6 dBi, layout %s' % ('as routed' if b.routed else 'as placed'), verdict_margin(hi),
          'worst margin %.1f dB at %df (PA level there ASSUMED -45 dBc; %s typical table to 10 GHz)' % (hi, hn, FLT))
     res['hi68'] = hi
     return res
@@ -481,7 +516,7 @@ def plot_tx(b, rej, hres):
     a.set_title('35 dBm, 6 dBi: margin to the FCC limit (grey = 6f-10f: PA level assumed)', fontsize=10)
     a.grid(alpha=0.25, axis='y')
     fig.tight_layout()
-    fig.savefig(os.path.join(HERE, 'tx_chain.png'), dpi=110)
+    fig.savefig(os.path.join(OUTDIR, 'tx_chain.png'), dpi=110)
     plt.close(fig)
 
 
@@ -612,7 +647,7 @@ def plot_mc(allnotch):
         a.set_ylabel('runs')
     ax[1].legend(fontsize=8)
     fig.tight_layout()
-    fig.savefig(os.path.join(HERE, 'monte_carlo.png'), dpi=110)
+    fig.savefig(os.path.join(OUTDIR, 'monte_carlo.png'), dpi=110)
     plt.close(fig)
 
 
@@ -635,7 +670,7 @@ def study3():
     out('  at the firmware cap.')
     b = B.Board()
     refs = B.PAD_REFS
-    nodes = {r: tuple(B.BY_REF[r].pins.values()) for r in refs}
+    nodes = {r: tuple(model_pins(r)) for r in refs}
     worst = {}
     res = []
     for pset in (20.0, 21.0, 22.0, 23.0):
@@ -660,7 +695,7 @@ def study3():
         res.append((pset, dict(pw), pin_pa))
     labels = {}
     for r in refs:
-        a, bb = nodes[r]
+        a, bb = B.BY_REF[r].pins['1'], B.BY_REF[r].pins['2']
         labels[r] = '%s %s (%s-%s)' % (r, B.parts.PARTS[B.BY_REF[r].part]['value'], a, bb)
     out('  SX1262 setting   ' + '   '.join('%-26s' % labels[r] for r in refs) + '   PA input')
     for pset, pw, pin in res:
@@ -716,7 +751,7 @@ def study3():
     ax.legend(fontsize=8, loc='lower left')
     ax.set_title('Pi pad: power in the first 68 R vs its derated rating', fontsize=10)
     fig.tight_layout()
-    fig.savefig(os.path.join(HERE, 'pad.png'), dpi=110)
+    fig.savefig(os.path.join(OUTDIR, 'pad.png'), dpi=110)
     plt.close(fig)
     return res
 
@@ -823,7 +858,7 @@ def study4():
     ax.grid(alpha=0.25)
     ax.legend(fontsize=8)
     fig.tight_layout()
-    fig.savefig(os.path.join(HERE, 'receive.png'), dpi=110)
+    fig.savefig(os.path.join(OUTDIR, 'receive.png'), dpi=110)
     plt.close(fig)
     return rows
 
@@ -906,7 +941,7 @@ def study5():
     ax.set_title('nRF52840 32 MHz crystal frequency budget', fontsize=10)
     ax.legend(fontsize=8, loc='lower right')
     fig.tight_layout()
-    fig.savefig(os.path.join(HERE, 'frequency.png'), dpi=110)
+    fig.savefig(os.path.join(OUTDIR, 'frequency.png'), dpi=110)
     plt.close(fig)
 
 
@@ -937,16 +972,19 @@ def study6():
     out('         2450AT18A100 chip antenna, 2400-2483.5 MHz, with tolerances (0.8 pF GJM...W +-0.05 pF, other GJM +-0.1 pF,')
     out('         LQW15AN +-0.2 nH).')
     out('=' * 100)
-    out('No PCB yet: the antenna is modelled as what Johanson\'s tee matches on Johanson\'s EVB (data sheet: "matching values')
-    out('on the client PCB will be different"); the routed-board check (EM model or VNA on built boards) follows.  The nRF')
-    out('ANT pin\'s optimum load is taken as what Nordic\'s nominal pi presents at 2442 MHz with 50 ohm behind it (ASSUMED:')
-    out('Nordic\'s reference values are right for the chip); "RL" below is the power-wave mismatch against that load.')
+    out('The antenna is modelled as what Johanson\'s tee matches on Johanson\'s EVB, at its feed pad (data sheet: "matching')
+    out('values on the client PCB will be different"; the board\'s own ground and the antenna\'s surroundings are not modelled:')
+    out('an EM model or a VNA on built boards settles it).  The nRF ANT pin\'s optimum load is taken as what Nordic\'s nominal')
+    out('pi, lumped, presents at 2442 MHz with 50 ohm behind it (ASSUMED: Nordic\'s reference values are right for the chip);')
+    out('"RL" below is the power-wave mismatch against that load.  The board: the parts joined by the routed lines (routed.json),')
+    out('ball to antenna feed, and each shunt\'s routed ground return.')
     out('Criterion: RL >= 9.5 dB (Johanson spec, VSWR ~2) over 2400-2483.5 MHz: PASS >= 99 % of MC runs, MARGINAL >= 90 %.')
     fb = np.linspace(2.40e9, 2.4835e9, 18)
     b = B.Board()
-    zant, za, q = antenna_model(b)
+    b0 = B.Board(routed=False)        # the references (Johanson's tee, Nordic's pi) are lumped, as published
+    zant, za, q = antenna_model(b0)
     out('  antenna model: Z(2442 MHz) = %.1f %+.1fj ohm, Q %.1f (2:1 VSWR bandwidth 180 MHz ASSUMED)' % (za.real, za.imag, q))
-    pi = b.ble_pi().sparams([2.442e9], ['NRF_ANT', 'BLE_50R'])[0][0]
+    pi = b0.ble_pi().sparams([2.442e9], ['NRF_ANT', 'BLE_50R'])[0][0]
     zopt = complex(R.gamma_to_z(pi[0, 0]))
     out('  Nordic pi with 50 ohm behind it presents %.1f %+.1fj ohm to the ANT pin (taken as the chip\'s optimum load)'
         % (zopt.real, zopt.imag))
@@ -964,6 +1002,19 @@ def study6():
     res = {}
     Sn = chain(b).sparams(fb, ['NRF_ANT'])[0]
     rln = R.rl_db(gp(R.gamma_to_z(Sn[:, 0, 0])))
+    Sp = chain(b0).sparams(fb, ['NRF_ANT'])[0]
+    rlp = R.rl_db(gp(R.gamma_to_z(Sp[:, 0, 0])))
+    if b.routed:
+        rn = B.RT['nets']
+        out('  routed lines (outside the pads, mm): ' + ', '.join('%s %.2f' % (n, sum(e['len_out'] for e in rn[n]['edges']))
+                                                             for n in B.NETS_BLE))
+        out('  nominal worst RL over the band: pre-layout (lumped) %.1f dB; as routed %.1f dB' % (np.min(rlp), np.min(rln)))
+        for nets, lab in ((['NRF_ANT'], 'ball -> pi line left out'), (['BLE_FEED'], 'tee -> antenna feed line left out'),
+                          (['BLE_50R', 'BLE_T'], 'the lines inside the pi-to-tee section left out')):
+            bx = B.Board()
+            bx.no_route = set(nets)
+            Sx = chain(bx).sparams(fb, ['NRF_ANT'])[0]
+            out('    sensitivity, %-48s %.1f dB' % (lab + ':', np.min(R.rl_db(gp(R.gamma_to_z(Sx[:, 0, 0]))))))
     for T in (-40, 25, 85):
         bm = B.Board(nsamp=NMC, temp_c=T, mode='mc', seed=600 + T)
         S = chain(bm).sparams(fb, ['NRF_ANT'], nsamp=NMC)
@@ -987,22 +1038,25 @@ def study6():
             sens.append((float(np.min(R.rl_db(gp(R.gamma_to_z(S[:, 0, 0]))))), c.ref, B.parts.PARTS[c.part]['value'], sgn))
     for v, ref, val, sgn in sorted(sens)[:6]:
         out('   %-5s %-7s %s tolerance: %.1f dB' % (ref, val, '+' if sgn > 0 else '-', v))
-    summ('6', 'Bluetooth match over tolerance (pre-layout)', 'PASS' if y >= 0.99 else ('MARGINAL' if y >= 0.9 else 'FAIL'),
-         'yield %.1f %%, worst RL %.1f dB, nominal %.1f dB (antenna = Johanson EVB model; re-check on the routed board)'
-         % (100 * y, min(res[T][0].min() for T in res), np.min(rln)))
+    summ('6', 'Bluetooth match over tolerance (%s)' % ('routed lines' if b.routed else 'pre-layout'),
+         'PASS' if y >= 0.99 else ('MARGINAL' if y >= 0.9 else 'FAIL'),
+         'yield %.1f %%, worst RL %.1f dB, nominal %.1f dB (pre-layout nominal %.1f dB; antenna = Johanson EVB model, not an EM'
+         ' model of this board)' % (100 * y, min(res[T][0].min() for T in res), np.min(rln), np.min(rlp)))
     fig, ax = plt.subplots(figsize=(7, 4.2))
     rl25 = res[25][1]
     ax.fill_between(fb / 1e6, np.percentile(rl25, 0.5, axis=0), np.percentile(rl25, 99.5, axis=0), color=C1, alpha=0.2,
                     lw=0, label='99 % of tolerance runs (25 C)')
-    ax.plot(fb / 1e6, rln, color=C1, lw=2, label='nominal')
+    ax.plot(fb / 1e6, rln, color=C1, lw=2, label='nominal' + (', as routed' if b.routed else ''))
+    if b.routed:
+        ax.plot(fb / 1e6, rlp, color=CG, lw=1.3, ls=':', label='nominal, pre-layout (lumped)')
     ax.axhline(9.5, color=CR, ls='--', lw=1, label='9.5 dB (Johanson spec)')
     ax.set_xlabel('MHz')
     ax.set_ylabel('return loss at the nRF52840 ANT pin, dB')
     ax.grid(alpha=0.25)
     ax.legend(fontsize=8)
-    ax.set_title('Bluetooth antenna match (pre-layout model)', fontsize=10)
+    ax.set_title('Bluetooth antenna match (%s)' % ('routed board' if b.routed else 'pre-layout model'), fontsize=10)
     fig.tight_layout()
-    fig.savefig(os.path.join(HERE, 'bluetooth.png'), dpi=110)
+    fig.savefig(os.path.join(OUTDIR, 'bluetooth.png'), dpi=110)
     plt.close(fig)
 
 
@@ -1017,6 +1071,24 @@ def flt_vrating(t_c):
     return math.sqrt(2 * R.Z0 * flt_rating_w(t_c))
 
 
+def pa_held(vpa, b, ckt, ct):
+    """Model A at a supply, on the routed board held to the matched U.FL power it gives on the lumped (pre-route) network,
+    less the routed lines' extra 50-ohm loss: the load-line model cannot say what the moved die load (1c) does to the
+    power, so the stress studies keep the power and take the routed network's voltages and currents."""
+    pa = PA(vpa)
+    if not b.routed:
+        return pa
+    b0 = B.Board(routed=False)
+    c0, t0 = b0.tx_out(with_pa=True), b0.tx_out(with_pa=False)
+    f = [915e6]
+    p_lump = float(R.w_to_dbm(np.abs(pa.solve(c0, f, 0.0)[0]['ANT'][0, 0]) ** 2 / (2 * R.Z0)))
+    dl = float(-R.db20(ct.sparams(f, ['PA_M2', 'ANT'])[0][0, 1, 0]) + R.db20(t0.sparams(f, ['PA_M2', 'ANT'])[0][0, 1, 0]))
+    p_now = float(R.w_to_dbm(np.abs(pa.solve(ckt, f, 0.0)[0]['ANT'][0, 0]) ** 2 / (2 * R.Z0)))
+    pa2 = PA(vpa * 10 ** ((p_lump - dl - p_now) / 20))
+    pa2.vpa = vpa
+    return pa2
+
+
 def open_stress(b, ckt, ct, ph, vpas=(2.7, 3.6, 4.0)):
     """Peak node voltages with the U.FL open (every phase, 902-928 MHz) for model A (saturated PA at each VPA)
     and model B (50-ohm source; at the same matched power as A, and at 30 dBm, the US cap)."""
@@ -1024,7 +1096,7 @@ def open_stress(b, ckt, ct, ph, vpas=(2.7, 3.6, 4.0)):
     loss = -R.db20(S[:, 1, 0])
     resA, resB = {}, {}
     for vpa in vpas:
-        pa = PA(vpa)
+        pa = pa_held(vpa, b, ckt, ct)
         v0, _ = pa.solve(ckt, FB, 0.0)
         p_ant = R.w_to_dbm(np.abs(v0['ANT'][0]) ** 2 / (2 * R.Z0))
         vmax = {n: np.zeros(3) for n in OPEN_NODES}
@@ -1067,6 +1139,9 @@ def study7(s1):
     out('  (B) a 50-ohm source whose available power gives model A\'s output into a matched antenna (and, for the US')
     out('  setting, 30 dBm).  The firmware\'s US mode is VPA 2.7 V with the SX1262 drive set for 30 dBm, i.e. between the two.')
     b = B.Board()
+    if b.routed:
+        out('  Routed board: model A is held to the matched power it gives on the lumped network at each supply, less the routed')
+        out('  lines\' extra loss (1c: off the EVB load the load-line model\'s own power is not to be trusted).')
     ckt = b.tx_out(with_pa=True)
     ct = b.tx_out(with_pa=False)
     ph = np.linspace(0, 2 * np.pi, 180, endpoint=False)
@@ -1184,7 +1259,7 @@ def study7(s1):
     ax.grid(alpha=0.25)
     ax.legend(fontsize=7)
     fig.tight_layout()
-    fig.savefig(os.path.join(HERE, 'open_antenna.png'), dpi=110)
+    fig.savefig(os.path.join(OUTDIR, 'open_antenna.png'), dpi=110)
     plt.close(fig)
     heat7b = study7b(b, ckt, resA)
     return dict(resA=resA, resB=resB, sw=sw, heat=heat, heat7b=heat7b, vs_pa=vs_pa)
@@ -1321,7 +1396,7 @@ def study7b(b, ckt, resA):
     ax.grid(alpha=0.25)
     ax.legend(fontsize=8)
     fig.tight_layout()
-    fig.savefig(os.path.join(HERE, 'heating.png'), dpi=110)
+    fig.savefig(os.path.join(OUTDIR, 'heating.png'), dpi=110)
     plt.close(fig)
     return worst
 
@@ -1347,6 +1422,32 @@ def _fw_constants():
 
 
 FW = _fw_constants()
+
+
+def _fw_ant_rules():
+    """The two-condition rule's constants in variant.h: {'robust': ..., 'default': ...} (the #if / #else branches)."""
+    import re
+    try:
+        txt = open(os.path.join(HERE, '..', '..', 'firmware', 'variant', 'variant.h')).read()
+    except OSError:
+        return {}
+    i = txt.find('OFFGRID_ANT_FIT_ROBUST) &&')
+    if i < 0:
+        return {}
+    j = txt.find('#else', i)
+    k = txt.find('#endif', j)
+    keys = (('fmin30', 'OFFGRID_ANT_FMIN30_MV', 1e-3), ('fkt', 'OFFGRID_ANT_FMIN_KT', 1.0), ('fkp', 'OFFGRID_ANT_FMIN_KP', 1.0),
+            ('r30', 'OFFGRID_ANT_R30', 1.0), ('rkt', 'OFFGRID_ANT_R_KT', 1.0), ('rkp', 'OFFGRID_ANT_R_KP', 1.0))
+    res = {}
+    for name, part in (('robust', txt[i:j]), ('default', txt[j:k])):
+        d = {}
+        for key, nm, sc in keys:
+            m = re.search(r'#define\s+%s\s+([0-9.]+)f?' % nm, part)
+            if m:
+                d[key] = float(m.group(1)) * sc
+        if len(d) == 6:
+            res[name] = d
+    return res
 
 
 def fw_threshold(p_dbm, t_c):
@@ -1837,6 +1938,50 @@ def study8(s7):
              ('MARGINAL' if min(fw_g, fw_m) > 0 else 'FAIL'),
              'FWD >= %.0f mV and ratio > %.2f, else the old REFL thresholds: worst good %+.1f dB, missing %+.1f dB (30-36 dBm); '
              'use the two-condition rule (FWD_DET low = fault, not "wait")' % (1e3 * FW['fwd_min'], FW['ratio'], fw_g, fw_m))
+    # 5) the two-condition rule as committed in firmware (its constants were fitted on the pre-route model), on this board
+    fwr = _fw_ant_rules()
+    if fwr:
+        out()
+        out('  (5) The two-condition rule with the constants committed in %s (fitted on the 20 Oct pre-route model),'
+            ' on this' % FW['src'])
+        out('      board: worst margin dB (good antenna / missing), every pairing, both models, -40..85 C; also with the real power')
+        out('      1 dB under / over the firmware\'s model:')
+        rds = {0.0: rd, -1.0: det_readings(tab, pairs=PAIRS, dp=-1.0), 1.0: det_readings(tab, pairs=PAIRS, dp=1.0)}
+        fw_rows = {}
+        for name, c_ in fwr.items():
+            fmf = lambda p, t, c_=c_: c_['fmin30'] * c_['fkt'] ** (t - 25) * c_['fkp'] ** (p - 30)
+            rrf = lambda p, t, c_=c_: c_['r30'] * c_['rkt'] ** (t - 25) * c_['rkp'] ** (p - 30)
+            for p in (30.0, 33.0, 35.0, 36.0):
+                row = []
+                for dpw in (0.0, -1.0, 1.0):
+                    g, m = 99.0, 99.0
+                    for k, (vr, vf, ra) in rds[dpw].items():
+                        if k[0] != p:
+                            continue
+                        fm, r_ = fmf(p, k[2]), rrf(p, k[2])
+                        if k[1] == 'missing':
+                            m = min(m, 8.686 * float(np.maximum(np.log(fm / np.maximum(vf, 1e-6)),
+                                                                np.log(np.maximum(ra, 1e-9) / r_)).min()))
+                        else:
+                            g = min(g, 8.686 * float(np.minimum(np.log(np.maximum(vf, 1e-6) / fm),
+                                                                np.log(r_ / np.maximum(ra, 1e-9))).min()))
+                    row.append((g, m))
+                fw_rows[(name, p)] = row
+                out('      %-8s %2.0f dBm: nominal %+5.1f / %+5.1f   1 dB under %+5.1f / %+5.1f   1 dB over %+5.1f / %+5.1f%s'
+                    % ((name, p) + row[0] + row[1] + row[2] + (('   <- a missing antenna passes' if min(x[1] for x in row) < 0
+                                                                else ('   <- false "missing"' if row[0][0] < 0 else '')),)))
+        for name, p_from in (('default', FW['min_dbm']), ('robust', 33.0)):
+            if name not in fwr:
+                continue
+            rows_ = [fw_rows[(name, p)] for p in (30.0, 33.0, 35.0, 36.0) if p >= p_from]
+            g0 = min(r_[0][0] for r_ in rows_)
+            m0 = min(r_[0][1] for r_ in rows_)
+            m1 = min(min(x[1] for x in r_) for r_ in rows_)
+            g1 = min(min(x[0] for x in r_) for r_ in rows_)
+            v = 'PASS' if (min(g0, m0) >= 1.0 and m1 > 0) else ('MARGINAL' if min(g0, m0) > 0 else 'FAIL')
+            summ('8', 'firmware rule as committed (%s constants) on this board, from %.0f dBm' % (name, p_from), v,
+                 'nominal power: good %+.1f, missing %+.1f dB; with +-1 dB power error: good %+.1f, missing %+.1f dB'
+                 ' (a negative missing margin = a missing antenna not caught)' % (g0, m0, g1, m1))
     # margins table with the selected threshold
     out()
     out('  Margins with that threshold (dB, + = read correctly; typical pair [worst pairing]):')
@@ -1875,7 +2020,9 @@ def study8(s7):
                     ('coupler gap %.2f mm (etch)' % round(B.GEOM['gap'] + 0.02, 3), dict(gap=round(B.GEOM['gap'] + 0.02, 3))),
                     ('CJ %.2f pF (data-sheet max)' % (1e12 * B.DIODE_RF[B.DIODE_PART]['cj_max']),
                      dict(cj=B.DIODE_RF[B.DIODE_PART]['cj_max'])),
-                    ('REFL_DET 1 nF / 100 k as PLACED (21 mm)', dict(cathode='placed'))):
+                    (('1 nF / 100 k along the routed tracks (REFL %.1f, FWD %.1f mm)'
+                      % (B.REFL_DET_TRACK['length'], (B.FWD_DET_TRACK or {}).get('length', 0.0))) if B.USE_ROUTED else
+                     'REFL_DET 1 nF / 100 k as PLACED (21 mm)', dict(cathode='placed'))):
         tb = det_table(b, pa36=pa36, powers=pw, **kw)
         rdx = det_readings(tb)
         mv2 = min(R.db20(th(k[0], k[2]) / float(v_[2].max())) for k, v_ in rdx.items() if k[1] == 'VSWR 2')
@@ -1945,7 +2092,7 @@ def plot_detector(rd, th):
         a.grid(alpha=0.25)
         a.legend(fontsize=7, loc='lower right')
     fig.tight_layout()
-    fig.savefig(os.path.join(HERE, 'detector%s.png' % ('_' + B.DIODE_PART if os.environ.get('RF_DIODE') else '')), dpi=110)
+    fig.savefig(os.path.join(OUTDIR, 'detector%s.png' % ('_' + B.DIODE_PART if os.environ.get('RF_DIODE') else '')), dpi=110)
     plt.close(fig)
 
 
@@ -1971,20 +2118,23 @@ def flt_fit_report():
 def main():
     out('Mesh Radio v1 - RF simulation results (sim/rf/run.py%s)' % (' --quick' if QUICK else ''))
     out('Board values from src/circuit.py; part models and sources in sim/rf/README.md and rflib.py.')
-    out('Antenna filter FL1 = %s; missing-antenna detector coupler %.1f mm x %.2f mm gap (src/layout.py).'
-        % (FLT, B.GEOM['cpl_len'], B.GEOM['gap']))
+    out('Antenna filter FL1 = %s; missing-antenna detector coupler %.1f mm x %.2f mm gap (%s).'
+        % (FLT, B.GEOM['cpl_len'], B.GEOM['gap'], B.GEOM['source']))
+    out('RF lines: %s.' % ('as routed (routed.json from mesh-radio.kicad_pcb; sim/rf/routed.txt is the audit)' if B.USE_ROUTED
+                           else 'PRE-ROUTE model (RF_ROUTED=0): lumped nets, placement lengths'))
     out()
     if os.environ.get('RF_DIODE'):
         # comparison run: the detector study only, with another diode in the same places (results_<diode>.txt)
         b = B.Board()
         ckt = b.tx_out(with_pa=True)
+        ct = b.tx_out(with_pa=False)
         resA = {}
         for vpa in (2.7, 3.6, 4.0):
-            pa = PA(vpa)
+            pa = pa_held(vpa, b, ckt, ct)
             v0, _ = pa.solve(ckt, FB, 0.0)
             resA[vpa] = (R.w_to_dbm(np.abs(v0['ANT'][0]) ** 2 / (2 * R.Z0)), None, None, pa)
         study8(dict(resA=resA))
-        with open(os.path.join(HERE, 'results_%s.txt' % B.DIODE_PART), 'w') as fh:
+        with open(os.path.join(OUTDIR, 'results_%s.txt' % B.DIODE_PART), 'w') as fh:
             fh.write('\n'.join(LINES) + '\n')
         return
     flt_fit_report()
@@ -2003,7 +2153,7 @@ def main():
     out('=' * 100)
     for st, item, v, nums in SUMMARY:
         out('  %-2s  %-62s %-9s %s' % (st, item, v, nums))
-    with open(os.path.join(HERE, 'results.txt'), 'w') as fh:
+    with open(os.path.join(OUTDIR, 'results.txt' if B.USE_ROUTED else 'results_preroute.txt'), 'w') as fh:
         fh.write('\n'.join(LINES) + '\n')
 
 

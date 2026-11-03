@@ -223,6 +223,7 @@ class Circuit:
         c = Circuit(self.name)
         c.nodes = list(self.nodes)
         c.elems = list(self.elems)
+        c._routed = set(getattr(self, '_routed', ()))     # rfboard: the routed nets already in it
         return c
 
     def ymatrix(self, w, nsamp=1, extra=None):
@@ -435,10 +436,11 @@ def draw(info, rng, n, temp_c, mode='mc'):
     return v
 
 
-def element(info, value, shunt=False):
-    """RF model element for one part at a given (sampled) value."""
+def element(info, value, shunt=False, lmount=None):
+    """RF model element for one part at a given (sampled) value.  A shunt part gets L_VIA for its ground
+    return unless `lmount` (H) gives the routed board's (rfboard.ground_l)."""
     k = info['kind']
-    lm = L_VIA if shunt else 0.0
+    lm = (L_VIA if lmount is None else lmount) if shunt else 0.0
     if k == 'C':
         return Cap(value, info['esr1g'], info['esl'], lm)
     if k == 'L':

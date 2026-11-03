@@ -7,14 +7,23 @@ number, size), so a value change there is picked up here.  Integrated parts
 behavioural models from their data sheets (README "Models").  The antenna
 filter model is chosen by the part fitted in circuit.py (LFCG-1000+ since
 0f1ee3c; the LFCN-1000+ model stays for the 19 Oct comparison in
-followup.py).  Board traces are 50-ohm lines; the antenna section (filter ->
-detector coupler -> U.FL, the ESD shunt inside the coupled run) takes its
-geometry from src/layout.py, the other lengths are placement estimates
-until the board is routed (LINES below).
+followup.py).
+
+Board traces (since 3 Nov): every RF line as routed, from routed.json
+(routed.py reads it off mesh-radio.kicad_pcb): each net is a netlist of line
+pieces between its parts' pads (the part of a track inside a part's own pad
+is left out: the pad is the part's node), the antenna section (filter ->
+detector coupler -> U.FL, the ESD shunt's stub, the two terminations and
+the two diodes on the coupled line) from the same file, and each shunt
+part's ground return (via in its pad, or the pour to the nearest via).
+RF_ROUTED=0 (environment) runs the pre-route model instead: lumped parts
+joined at their nets, the placement lengths in LINES, the antenna section
+from src/layout.py, 0.15 nH per shunt ground; README "What changed on 3 Nov".
 """
 import os
 import sys
 
+import json
 import re
 
 import numpy as np
@@ -70,7 +79,140 @@ def _layout_geometry():
 
 GEOM = _layout_geometry()
 LINES.update(flt_cpl=GEOM['flt_cpl'], cpl_ufl=GEOM['cpl_ufl'], cpl_stub=GEOM['cpl_stub'])
+# the pre-route antenna section: the stubs as layout.py drew them, the 49.9 R and diode together at each end
+LINES.update(esd_stub=0.0, stub_term=GEOM['cpl_stub'], term_fwd=0.0, stub_rterm=GEOM['cpl_stub'], rterm_diode=0.0)
 _CPL_CACHE = {}
+
+# ----------------------------------------------------------------------------- the routed board (routed.json)
+ROUTED_FILE = os.path.join(HERE, 'routed.json')
+USE_ROUTED = os.environ.get('RF_ROUTED', '1') != '0' and os.path.exists(ROUTED_FILE)
+RT = json.load(open(ROUTED_FILE)) if USE_ROUTED else None
+# A 0.17 mm line on F.Cu over In1 (2-D field solve, coupler.single_line, 35 um copper and mask): 49.9 ohm / eeff
+# 3.30 with the pour 0.25 mm away on both sides, 50.8 ohm / 3.35 with no copper within 0.8 mm.  On 0.12 mm of
+# prepreg it is nearly a microstrip; each routed piece gets the mix its open fraction (routed.json) gives.
+Z_CPW, EE_CPW, Z_MS, EE_MS = 49.9, 3.30, 50.8, 3.35
+MANUAL = ('ANT', 'REFL_CPL')       # the antenna section: ant_section() builds it from the routed lengths
+ROUTED_NETS = set(RT['nets']) - set(MANUAL) if RT else set()
+# shunt ground return on the routed board: a 0.4/0.2 mm via in the pad reaches In1 (0.15 mm down) through
+# 0.2 h (1 + ln(4h/d)) = 0.06 nH; a pad with no via in it adds the top pour to its nearest via, 0.2 nH/mm
+# (pour 0.12 mm over In1: 0.15 nH per square, about 1.4 squares per mm; ESTIMATE)
+V_TO_IN1 = 0.06e-9
+POUR_L_MM = 0.2e-9
+
+
+def _ref_part(part):
+    return [c.ref for c in COMPS if c.part == part][0]
+
+
+def _pin_on(ref, net):
+    ps = [p for p, n in BY_REF[ref].pins.items() if n == net]
+    return sorted(ps, key=lambda p: (len(p), p))
+
+
+def _between(a, b, kind=None):
+    return [c.ref for c in COMPS if set(c.pins.values()) == {a, b}
+            and (kind is None or parts.PARTS[c.part]['kind'] == kind)]
+
+
+def _ports():
+    """The pad each routed net's model node (named as the net) sits at: the chip pin where there is one, else the
+    series part that the pre-route model used as the net's port."""
+    P = {}
+    sx, pa, sw, nrf, ae = (_ref_part(x) for x in ('SX1262', 'QPA9510', 'SKY13330', 'NRF52840', 'ANT2450'))
+    lna = _ref_part('BGA7L1BN6')
+    for net, ref in (('LORA_RFO', sx), ('PA_RFIN', pa), ('PA_OUT', pa), ('PA_TX', sw), ('ANT_SW', FL.ref),
+                     ('NRF_ANT', nrf), ('BLE_FEED', ae), ('LNA_AI', lna), ('LNA_OUT', lna),
+                     ('LORA_TX50', _between('LORA_TXC', 'LORA_TX50')[0]), ('PA_M1', DCBLOCK_OUT), ('PA_M2', DCBLOCK_OUT),
+                     ('PA_M3', _between('PA_M2', 'PA_M3', 'L')[0]), ('BLE_50R', _between('NRF_ANT', 'BLE_50R')[0])):
+        P[net] = '%s.%s' % (ref, _pin_on(ref, net)[0])
+    rx = [c.ref for c in COMPS if 'RX_SW' in c.pins.values() and c.ref != sw][0]
+    P['RX_SW'] = '%s.%s' % (rx, _pin_on(rx, 'RX_SW')[0])
+    return P
+
+
+def rnode(net, k):
+    """Model node name of node k of a routed net: the net's name at its port pad, net:REF.PIN at another pad,
+    net#k at a junction."""
+    d = RT['nets'][net]
+    pk = sorted(p for p, kk in d['pads'].items() if kk == k)
+    if PORTS.get(net) in pk:
+        return net
+    return '%s:%s' % (net, pk[0]) if pk else '%s#%d' % (net, k)
+
+
+def pad_node(net, ref, pin):
+    key = '%s.%s' % (ref, pin)
+    d = RT['nets'][net]
+    if key not in d['pads']:
+        raise KeyError('%s has no pad %s on the routed board' % (net, key))
+    return rnode(net, d['pads'][key])
+
+
+def _path(net, k0, k1):
+    """Length (outside pads) along a routed net between nodes k0 and k1."""
+    import heapq
+    d = RT['nets'][net]
+    adj = {}
+    for e in d['edges']:
+        adj.setdefault(e['a'], []).append((e['b'], e['len_out']))
+        adj.setdefault(e['b'], []).append((e['a'], e['len_out']))
+    dist, hq = {k0: 0.0}, [(0.0, k0)]
+    while hq:
+        x, u = heapq.heappop(hq)
+        if u == k1:
+            return x
+        for v, w in adj.get(u, []):
+            if x + w < dist.get(v, 1e9):
+                dist[v] = x + w
+                heapq.heappush(hq, (x + w, v))
+    raise ValueError('no path on %s' % net)
+
+
+def _routed_antenna():
+    """The antenna section's lengths on the routed board (mm, outside the pads): FL1 RF OUT -> coupled run ->
+    U.FL along ANT, the ESD shunt's junction and stub; on the coupled line its two ends to the 49.9 R
+    terminations and on to the two diodes."""
+    a, c = RT['nets']['ANT'], RT['nets']['REFL_CPL']
+    run = max(c['edges'], key=lambda e: e['len'])
+    na, nc = a['nodes'], c['nodes']
+    kf, ku = a['pads']['%s.%s' % (FL.ref, FL_OUT)], a['pads']['%s.1' % _ref_part('UFL')]
+    pf, pu = np.array(na[kf]), np.array(na[ku])
+    u = (pu - pf) / np.linalg.norm(pu - pf)
+    s = lambda p: float(np.dot(np.array(p) - pf, u))
+    e0, e1 = nc[run['a']], nc[run['b']]
+    (kc0, p0), (kc1, p1) = sorted(((run['a'], e0), (run['b'], e1)), key=lambda t: s(t[1]))
+    dv = np.array(p0) - pf
+    perp = abs(float(u[0] * dv[1] - u[1] * dv[0]))
+    esd = [c_ for c_ in rf_parts(NETS_ANT)][0].ref
+    ke = a['pads']['%s.%s' % (esd, _pin_on(esd, 'ANT')[0])]
+    stub = [e for e in a['edges'] if ke in (e['a'], e['b'])][0]
+    kj = stub['b'] if stub['a'] == ke else stub['a']
+    trim = lambda k: sum(e['len'] - e['len_out'] for e in a['edges'] if k in (e['a'], e['b']) and e is not stub)
+    term = [x for x in rf_parts(['REFL_CPL']) if parts.PARTS[x.part]['kind'] == 'R']
+    t_flt = [x.ref for x in term if 'U.FL end' not in x.note][0]
+    t_ufl = [x.ref for x in term if 'U.FL end' in x.note]
+    pk = lambda ref: c['pads']['%s.%s' % (ref, _pin_on(ref, 'REFL_CPL')[0])]
+    g = dict(cpl_len=run['len'], gap=round(perp - run['w'], 4), flt_cpl=s(p0) - trim(kf), cpl_ufl=s(pu) - s(p1) - trim(ku),
+             esd_from_end=s(p1) - s(na[kj]), esd_stub=stub['len_out'], stub_term=_path('REFL_CPL', kc0, pk(t_flt)))
+    g['term_fwd'] = _path('REFL_CPL', pk(t_flt), pk(DIODE_FWD.ref)) if DIODE_FWD is not None else 0.0
+    if t_ufl:
+        g['stub_rterm'] = _path('REFL_CPL', kc1, pk(t_ufl[0]))
+        g['rterm_diode'] = _path('REFL_CPL', pk(t_ufl[0]), pk(DIODE_REFL.ref))
+    else:
+        g['stub_rterm'], g['rterm_diode'] = _path('REFL_CPL', kc1, pk(DIODE_REFL.ref)), 0.0
+    g['cpl_stub'] = g['stub_term']
+    return {k: round(float(v), 4) for k, v in g.items()}
+
+
+def ground_l(ref):
+    """Ground-return inductance (H) of a shunt part on the routed board (None: not on the board's list)."""
+    sg = RT['shunt_ground'].get(ref) if RT else None
+    if not sg:
+        return None
+    q = sg[0]
+    if q['vias_in_pad']:
+        return V_TO_IN1 / q['vias_in_pad']
+    return V_TO_IN1 + POUR_L_MM * q['edge_to_via']
 
 
 def coupler_params(gap=None):
@@ -86,6 +228,7 @@ def coupler_params(gap=None):
 # REFL_DET as placed (src/placement.json, 20 Oct): the 1 nF and 100 k sit ~21 mm from the diode, by the nRF52840;
 # a 0.1 mm track over In1 is ~63 ohm, eeff 3.32 (coupler.py field solve, 0.6 mm to any pour).
 REFL_DET_TRACK = dict(length=21.0, z0=63.0, ee=3.32)
+FWD_DET_TRACK = None
 # Detector diode RF models: Ls + Rs + Cj (junction node REFL_J / FWD_J), by the part circuit.py fits.
 #   BAT15-02EL (Infineon data sheet v1.0, 2018-06-30): LS 0.4 nH; C 0.20 typ / 0.24 max pF at 0 V; RF 8 / 10 ohm.
 #   BAT68-04W (Infineon BAT68 data sheet 2011-06-15): LS 1.4 nH (SOT323); CT 0.75 pF at 0 V, ~0.6 pF at 1 V,
@@ -154,17 +297,60 @@ def rf_parts(nets):
 
 
 BLE_PI_REFS = [c.ref for c in rf_parts(['NRF_ANT', 'BLE_50R'])]
+PA_REF = _ref_part('QPA9510')
+SW_REF = _ref_part('SKY13330')
+ESD_REF = [c.ref for c in rf_parts(NETS_ANT)][0]
+
+PORTS = _ports() if RT else {}
+AG_ROUTED = _routed_antenna() if RT else None
+LINES_ROUTED = dict(LINES, lpf_sw=0.0, sw_lfcn=0.0, sw_rx=0.0, tx50_pad=0.0, **(AG_ROUTED or {}))
+GEOM_PLACED = dict(GEOM)
+if RT:
+    GEOM.update({k: AG_ROUTED[k] for k in ('cpl_len', 'gap', 'flt_cpl', 'cpl_ufl', 'esd_from_end', 'cpl_stub')})
+    GEOM['source'] = 'routed.json (%s)' % RT['board']
+    # the detector diodes' cathodes to their 1 nF, along the routed DC track (0.1 mm, F.Cu over In1 near the
+    # diode; ~63 ohm as in the 20 Oct note above)
+    REFL_DET_TRACK = dict(length=RT['detector_dc']['REFL_DET']['cathode_to_cap_mm'], z0=63.0, ee=3.32)
+    if 'FWD_DET' in RT['detector_dc']:
+        FWD_DET_TRACK = dict(length=RT['detector_dc']['FWD_DET']['cathode_to_cap_mm'], z0=63.0, ee=3.32)
+else:
+    GEOM['source'] = 'src/layout.py (pre-route)'
+
+
+def _tie(c, a, b, length, label):
+    """Join two model nodes: a line of `length` mm, or a 1 mohm link at zero length."""
+    if length and length > 1e-6:
+        c.add2(a, b, R.Line(length), label)
+    else:
+        c.add(a, b, R.Res(1e-3, 0.0, 0.0), label)
+
+
+def pin_node(ref, pin, routed=None):
+    """The model node a part's pin sits on (as Board.add_parts places it): its pad's node on a routed net."""
+    routed = USE_ROUTED if routed is None else (routed and USE_ROUTED)
+    net = BY_REF[ref].pins[pin]
+    if net == 'GND':
+        return 'GND'
+    if ref == ESD_REF and net == 'ANT':
+        return 'ESD_P' if (routed and AG_ROUTED['esd_stub'] > 1e-6) else 'ANT_E'
+    if routed and net in ROUTED_NETS:
+        return pad_node(net, ref, pin)
+    return net
 
 
 class Board:
     """Holds the sampled values of every RF part, so one Monte Carlo draw is used
     consistently in all the networks of a study."""
 
-    def __init__(self, nsamp=1, temp_c=25.0, mode='nom', seed=0, overrides=None, lines=None, extra=None):
+    def __init__(self, nsamp=1, temp_c=25.0, mode='nom', seed=0, overrides=None, lines=None, extra=None, routed=None):
         self.n, self.t, self.mode = nsamp, temp_c, mode
         self.rng = np.random.default_rng(seed)
         self.over = overrides or {}          # ref -> part dict (a parts.py entry or a synthetic one)
-        self.lines = dict(LINES, **(lines or {}))
+        # routed: the board as routed (routed.json); False: the pre-route model (lumped nets, LINES)
+        self.routed = USE_ROUTED if routed is None else (routed and USE_ROUTED)
+        # lines: in the routed model lpf_sw / sw_lfcn / sw_rx are EXTRA lengths in series (0 = as routed)
+        self.lines = dict(LINES_ROUTED if self.routed else LINES, **(lines or {}))
+        self.no_route = set()                # routed nets to leave lumped (sensitivity runs)
         self.extra = extra or {}
         self.info, self.val = {}, {}
         # integrated-part spreads (README): switch loss typ..max, antenna-filter frequency scaling
@@ -187,17 +373,54 @@ class Board:
             self.val[ref] = R.draw(info, self.rng, self.n, self.t, self.mode)
         return self.val[ref]
 
+    def route(self, ckt, net):
+        """Put a routed net's line pieces into ckt (once); False if the net is not routed in this model."""
+        if not self.routed or net not in ROUTED_NETS or net in self.no_route:
+            return False
+        if not hasattr(ckt, '_routed'):
+            ckt._routed = set()
+        if net in ckt._routed:
+            return True
+        ckt._routed.add(net)
+        for i, e in enumerate(RT['nets'][net]['edges']):
+            a, b = rnode(net, e['a']), rnode(net, e['b'])
+            if a == b:
+                continue
+            if e['len_out'] < 0.005:
+                ckt.add(a, b, R.Res(1e-3, 0.0, 0.0), 'rt_%s_%d' % (net, i))
+            else:
+                f = e['open_frac']
+                ckt.add2(a, b, R.Line(e['len_out'], z0=Z_CPW + f * (Z_MS - Z_CPW), eps_eff=EE_CPW + f * (EE_MS - EE_CPW)),
+                         'rt_%s_%d' % (net, i))
+        return True
+
+    def node(self, ckt, net):
+        """The model node named `net` (its routed lines put in ckt when it is routed)."""
+        self.route(ckt, net)
+        return net
+
     def add_parts(self, ckt, nets, skip=(), only=None, remap=None):
         """Add the two-terminal parts on `nets`; remap {net: model node} places a net's parts on another
-        node (a distributed net: the ESD shunt inside the coupled run, the detector's two ends)."""
+        node (a distributed net: the ESD shunt inside the coupled run, the detector's two ends).  On the routed
+        board each pin sits on its pad's node of its net's routed lines, and a shunt part's ground return is
+        the board's (ground_l)."""
         rm = remap or {}
         for c in rf_parts(nets):
             if c.ref in skip or (only is not None and c.ref not in only):
                 continue
-            a, b = rm.get(c.pins['1'], c.pins['1']), rm.get(c.pins['2'], c.pins['2'])
+            nd = []
+            for pin in ('1', '2'):
+                net = c.pins[pin]
+                if net in rm:
+                    nd.append(rm[net])
+                elif net != 'GND' and self.route(ckt, net):
+                    nd.append(pad_node(net, c.ref, pin))
+                else:
+                    nd.append(net)
+            a, b = nd
             v = self.value(c.ref)
             info = self.info[c.ref]
-            el = R.element(info, v, shunt=('GND' in (a, b)))
+            el = R.element(info, v, shunt=('GND' in (a, b)), lmount=ground_l(c.ref) if self.routed else None)
             ckt.add(a, b, el, c.ref)
         return ckt
 
@@ -256,25 +479,38 @@ class Board:
         1 nF + 100 k (REFL_C), as src/placement.json has them; 'open': the 49.9 Rs but no diode; None: no
         detector parts at all (coupled line open: never used for the board)."""
         L = dict(self.lines, **(lines or {}))
+        G = AG_ROUTED if self.routed else GEOM_PLACED
         p = coupler_params(gap)
-        lc = GEOM['cpl_len']
-        l2 = min(GEOM['esd_from_end'], lc)
+        lc = G['cpl_len']
+        l2 = min(G['esd_from_end'], lc)
         c.add2(a, 'CPL_A1', R.Line(L['flt_cpl']), 'line_flt_cpl')
         c.addn(['CPL_A1', 'ANT_E', 'CPL_B1', 'CPL_BM'], R.CoupledLine(p['ze'], p['zo'], p['ee'], p['eo'], lc - l2), 'coupler_1')
         c.addn(['ANT_E', 'CPL_A2', 'CPL_BM', 'CPL_B2'], R.CoupledLine(p['ze'], p['zo'], p['ee'], p['eo'], l2), 'coupler_2')
         c.add2('CPL_A2', 'ANT', R.Line(L['cpl_ufl']), 'line_cpl_ufl')
-        self.add_parts(c, NETS_ANT, remap={'ANT': 'ANT_E'})
+        esd = 'ANT_E'
+        if L['esd_stub'] > 1e-6:          # the routed stub from the line to the ESD shunt's pad
+            esd = 'ESD_P'
+            c.add2('ANT_E', esd, R.Line(L['esd_stub']), 'stub_esd')
+        self.add_parts(c, NETS_ANT, remap={'ANT': esd})
         if cathode is None:
             return c
-        c.add2('CPL_B1', 'REFL_T', R.Line(L['cpl_stub']), 'stub_term')
-        c.add2('CPL_B2', 'REFL_A', R.Line(L['cpl_stub']), 'stub_diode')
+        # the coupled line's filter end -> its 49.9 R (REFL_T) [-> on to the forward diode (FWD_A)]; its U.FL end ->
+        # the second 49.9 R (REFL_R) [-> on to the reflected diode (REFL_A)].  Pre-route: each pair at one node.
+        c.add2('CPL_B1', 'REFL_T', R.Line(L['stub_term']), 'stub_term')
+        rr = 'REFL_R' if L['rterm_diode'] > 1e-6 else 'REFL_A'
+        c.add2('CPL_B2', rr, R.Line(L['stub_rterm']), 'stub_diode')
+        if rr != 'REFL_A':
+            c.add2(rr, 'REFL_A', R.Line(L['rterm_diode']), 'line_rterm_diode')
+        fa = 'FWD_A' if L['term_fwd'] > 1e-6 else 'REFL_T'
+        if fa != 'REFL_T':
+            c.add2('REFL_T', fa, R.Line(L['term_fwd']), 'line_term_fwd')
         # terminations: the 49.9 R at the filter end (REFL_T) and, since 20 Oct, a second one at the U.FL end by the
-        # reflected diode (REFL_A); circuit.py's notes say which end each is
+        # reflected diode; circuit.py's notes say which end each is
         term = [x for x in rf_parts(['REFL_CPL']) if parts.PARTS[x.part]['kind'] == 'R']
         t_flt = [x.ref for x in term if 'U.FL end' not in x.note]
         t_ufl = [x.ref for x in term if 'U.FL end' in x.note]
         self.add_parts(c, ['REFL_CPL'], only=t_flt, remap={'REFL_CPL': 'REFL_T'})
-        self.add_parts(c, ['REFL_CPL'], only=t_ufl, remap={'REFL_CPL': 'REFL_A'})
+        self.add_parts(c, ['REFL_CPL'], only=t_ufl, remap={'REFL_CPL': rr})
         if cathode == 'open':           # the diode's anode left open (Thevenin source for the SPICE check)
             return c
         d = dict(DIODE_RF[DIODE_PART])
@@ -283,10 +519,16 @@ class Board:
         c.add('REFL_A', 'REFL_J', R.Ind(d['ls'], 1e9, 1e9, 0, d['rs']), 'Drefl_LsRs')
         c.add('REFL_J', 'REFL_K', R.Cap(d['cj'], 0.0, 0.0), 'Drefl_Cj')
         if DIODE_FWD is not None:
-            # the forward diode sits at the 49.9 R (the coupled line's filter end), its 1 nF + 100 k at its cathode
-            c.add('REFL_T', 'FWD_J', R.Ind(d['ls'], 1e9, 1e9, 0, d['rs']), 'Dfwd_LsRs')
+            # the forward diode at the 49.9 R end of the coupled line (routed: past the 49.9 R), its 1 nF + 100 k at
+            # its cathode ('placed': along the routed track)
+            c.add(fa, 'FWD_J', R.Ind(d['ls'], 1e9, 1e9, 0, d['rs']), 'Dfwd_LsRs')
             c.add('FWD_J', 'FWD_K', R.Cap(d['cj'], 0.0, 0.0), 'Dfwd_Cj')
-            self.add_parts(c, ['FWD_DET'], remap={'FWD_DET': 'FWD_K'})
+            if cathode == 'placed' and FWD_DET_TRACK:
+                t = FWD_DET_TRACK
+                c.add2('FWD_K', 'FWD_C', R.Line(t['length'], z0=t['z0'], eps_eff=t['ee']), 'fwd_det_track')
+                self.add_parts(c, ['FWD_DET'], remap={'FWD_DET': 'FWD_C'})
+            else:
+                self.add_parts(c, ['FWD_DET'], remap={'FWD_DET': 'FWD_K'})
         if cathode == 'placed':
             t = REFL_DET_TRACK
             c.add2('REFL_K', 'REFL_C', R.Line(t['length'], z0=t['z0'], eps_eff=t['ee']), 'refl_det_track')
@@ -320,7 +562,13 @@ class Board:
     def pa_out(self, c):
         """QPA9510 output: die (current source node DIE) -> bond wires -> PA_OUT pins and
         the external match, choke and 2F0 trap from circuit.py."""
-        c.add('DIE', 'PA_OUT', R.Ind(PA_LBOND, 40, 1e9, 0, 0.005), 'PA_bond')
+        pins = _pin_on(PA_REF, 'PA_OUT')
+        if self.route(c, 'PA_OUT'):          # routed: a bond wire to each RF OUT pin's pad, together PA_LBOND
+            for p_ in pins:
+                c.add('DIE', pad_node('PA_OUT', PA_REF, p_), R.Ind(PA_LBOND * len(pins), 40, 1e9, 0, 0.005 * len(pins)),
+                      'PA_bond' + p_)
+        else:
+            c.add('DIE', 'PA_OUT', R.Ind(PA_LBOND, 40, 1e9, 0, 0.005), 'PA_bond')
         c.add('DIE', 'GND', R.Cap(PA_CDIE, 0.05, 0.0), 'PA_Cdie')
         c.add('DIE', 'PA_2F0', R.Ind(PA_L2F0, 30, 1e9, 0, 0.05), 'PA_bond2f0')
         self.add_parts(c, NETS_PA_OUT)
@@ -335,18 +583,34 @@ class Board:
         if with_pa:
             self.pa_out(c)
         self.add_parts(c, NETS_LPF)
-        c.add2('PA_TX', 'SW2', R.Line(L['lpf_sw']), 'line_lpf_sw')
+        if self.routed:                      # PA_TX is the switch's RF2 pad; lpf_sw adds line there
+            _tie(c, self.node(c, 'PA_TX'), 'SW2', L['lpf_sw'], 'line_lpf_sw')
+        else:
+            c.add2('PA_TX', 'SW2', R.Line(L['lpf_sw']), 'line_lpf_sw')
         self.sky13330(c, 'SW2', 'SW1', isolated=None)
-        c.add2('SW1', 'ANT_SW', R.Line(L['sw_lfcn']), 'line_sw_lfcn')
+        self._sw_ant_line(c, L)
         self.ant_filter(c, 'ANT_SW', 'LF_OUT')
         self.ant_section(c, 'LF_OUT', cathode=cathode, gap=gap, lines=lines, cj=cj)
         return c
+
+    def _sw_ant_line(self, c, L):
+        """Switch RF1 (SW1) to the filter's RF IN (ANT_SW): the routed ANT_SW net (plus sw_lfcn), or a line."""
+        if self.routed and self.route(c, 'ANT_SW'):
+            _tie(c, 'SW1', pad_node('ANT_SW', SW_REF, _pin_on(SW_REF, 'ANT_SW')[0]), L['sw_lfcn'], 'line_sw_lfcn')
+        else:
+            c.add2('SW1', 'ANT_SW', R.Line(L['sw_lfcn']), 'line_sw_lfcn')
+
+    def _sw_rx_line(self, c, L):
+        if self.routed and self.route(c, 'RX_SW'):
+            _tie(c, 'SW3', pad_node('RX_SW', SW_REF, _pin_on(SW_REF, 'RX_SW')[0]), L['sw_rx'], 'line_sw_rx')
+        else:
+            c.add2('SW3', 'RX_SW', R.Line(L['sw_rx']), 'line_sw_rx')
 
     def sw_to_ant(self, lines=None):
         """Switch RF1 (node SW1) -> line -> antenna filter -> antenna section -> U.FL (ANT)."""
         L = dict(self.lines, **(lines or {}))
         c = R.Circuit('sw_ant')
-        c.add2('SW1', 'ANT_SW', R.Line(L['sw_lfcn']), 'line_sw_lfcn')
+        self._sw_ant_line(c, L)
         self.ant_filter(c, 'ANT_SW', 'LF_OUT')
         self.ant_section(c, 'LF_OUT', lines=lines)
         return c
@@ -358,9 +622,9 @@ class Board:
         c = R.Circuit('rx')
         self.ant_section(c, 'LF_OUT')
         self.ant_filter(c, 'ANT_SW', 'LF_OUT')
-        c.add2('SW1', 'ANT_SW', R.Line(self.lines['sw_lfcn']), 'line_sw_lfcn')
+        self._sw_ant_line(c, self.lines)
         self.sky13330(c, 'SW1', 'SW3')
-        c.add2('SW3', 'RX_SW', R.Line(self.lines['sw_rx']), 'line_sw_rx')
+        self._sw_rx_line(c, self.lines)
         return c
 
     def ble_pi(self):

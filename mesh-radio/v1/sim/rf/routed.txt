@@ -1,0 +1,38 @@
+Mesh Radio v1 - RF lines on the routed board (sim/rf/routed.py, mesh-radio.kicad_pcb)
+Line 0.17 mm on F.Cu over In1 (0.1164 mm); coplanar gap spec 0.25 mm (src/board.py RF_GAP).
+Per net: length (and outside the parts' own pads), layers, vias on the net, In1 under the line and 0.12 mm beyond its edges, coplanar gap sampled every 0.05 mm each side (open = no copper within 0.8 mm), ground vias within 0.6 / 1 mm.
+
+net             len  outpad layers vias In1min gapmin  open% <spec%   gndvias  closest non-ground copper (mm)
+LORA_RFO       4.08    3.19 F         0  1.000  0.165     78     15    0/1     LORA_VRPA 0.165, LORA_RFI_N 0.330
+LORA_TXA       2.20    1.00 F         0  1.000  0.276     11      0    0/0     DRN_P2 0.315, LORA_TXB 0.790
+LORA_TXB       3.76    2.27 F         0  0.969  0.216     36      4    0/1     I2C_SDA 0.216, LORA_TXA 0.790
+LORA_TXC       1.10    0.53 F         0  1.000  0.277      0      0    0/0     
+LORA_TX50      4.50    2.90 F         0  1.000  0.250     68      0    0/0     DRN_P5 0.575
+PA_DRIVE       3.85    2.54 F         0  1.000  0.221     38      4    0/0     VPA 0.221
+PA_RFIN        0.95    0.35 F         0  1.000  0.293      0      0    0/2     PA_VCC1 0.615
+PA_OUT        17.53   14.59 F         0  1.000  0.250     67      0    0/11    VPA 0.570
+PA_M1          3.45    2.11 F         0  1.000  0.251     43      0    0/0     CHG_TS 0.683
+PA_M2          8.02    5.61 F         0  1.000  0.250     28      0    0/5     
+PA_M3          7.22    3.91 F         0  1.000  0.250     32      0    0/10    
+PA_TX          5.38    3.34 F         0  1.000  0.250     38      0    0/12    
+ANT_SW         2.10    1.51 F         0  1.000  0.250      0      0    0/5     
+ANT            8.55    7.58 F         0  1.000  0.100     13     42    0/7     REFL_CPL 0.100
+RX_SW          1.05    0.53 F         0  1.000  0.250      0      0    0/5     
+LNA_INM        1.10    0.53 F         0  1.000  0.280      0      0    0/1     
+LNA_AI         0.95    0.55 F         0  1.000  0.250      0      0    0/2     LNA_EN 0.394
+LNA_OUT       15.78   15.18 F         0  0.882  0.137      6     27    3/11    BYP_ILIM 0.137, DRN_P3 0.142
+LORA_RFI_P     2.44    1.17 F         0  1.000  0.250      0      0    0/4     LORA_RFI_N 0.309
+LORA_RFI_N     2.23    0.98 F         0  1.000  0.330     40      0    0/2     LORA_RFO 0.330, LORA_RFI_P 0.330
+NRF_ANT        5.41    4.71 F         0  0.459  0.214     20      6    2/7     NRF_DEC4 0.215,  0.241, CHG_CE_N 0.693
+BLE_50R        2.65    1.79 F         0  1.000  0.413     54      0    0/0     3V3 0.733
+BLE_T          2.75    1.88 F         0  1.000  0.363     43      0    0/1     LED_BLUE 0.697
+BLE_FEED       3.70    2.30 F         0  0.905  0.251     84      0    0/2     
+REFL_CPL      10.10    7.56 F         0  1.000  0.100     17     40    0/4     ANT 0.100
+
+Shunt parts' ground pads (vias in the pad / nearest ground via, mm):
+  C37 1 in pad  C38 0.66  C49 1 in pad  C51 0.66  C53 1 in pad  C71 1 in pad  C72 1 in pad  C73 1 in pad  C75 1 in pad  C77 1 in pad  C79 1 in pad  C82 0.66  C99 0.66  FL1 0.70/0.70/0.68/1 in pad/0.62/0.95  J4 1 in pad/2 in pad  L18 1 in pad  L5 1 in pad  R46 1.05  R48 1 in pad  R51 1.11  R52 1 in pad  R74 1 in pad  R75 1.15  U10 0.79/0.78/9 in pad  U11 0.59/0.59/0.59/0.59/0.59/0.59/1 in pad  U12 0.45/0.45  U8 25 in pad/1 in pad/1 in pad  U9 1.18/0.94/0.94/1.18/6 in pad
+
+REFL_DET: diode cathode -> 1 nF 1.975 mm (D9.3 -> C82.1), track 0.1 mm wide; the whole net 34.5 mm on F.Cu, In2.Cu, In3.Cu, 4 vias
+FWD_DET: diode cathode -> 1 nF 1.365 mm (D14.3 -> C99.1), track 0.1 mm wide; the whole net 24.9 mm on F.Cu, In3.Cu, In4.Cu, 3 vias
+Bluetooth antenna ground-free box [-26.5, 8.9, -20.0, 12.7]: copper inside {'F.Cu BLE_FEED': 0.612, 'F.Cu ': 1.75, 'B.Cu VIN_CHG': 0.144}
+Ground via types (d, drill, from, to): [(0.3, 0.15, 'F.Cu', 'B.Cu'), (0.4, 0.2, 'F.Cu', 'B.Cu'), (0.5, 0.3, 'F.Cu', 'B.Cu')]
