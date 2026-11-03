@@ -25,7 +25,9 @@ import pcb, brand
 
 NAME = 'LayerCam Pro'
 # the revision, from this revision's folder name (v1 -> V1)
-REV = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).upper()
+# the revision, set here and nowhere else (docs/versioning.md): 1.0, printed V1.
+# Never from the folder's name: a moved folder must not change the copper
+REV = 'V1'
 CAP = 1.0
 # boxes kept free of stitching vias for the artwork (stitch.py), board mm
 ART = {'main': [(-8.6, -27.2, 8.6, -12.2)]}

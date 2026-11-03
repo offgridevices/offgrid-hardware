@@ -200,7 +200,7 @@ def firmware():
 
 
 if __name__ == '__main__':
-    print('== LayerCam Pro v1 design checks')
+    print('== LayerCam Pro design checks')
     regulators()
     sensor()
     case()

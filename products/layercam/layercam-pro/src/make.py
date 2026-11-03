@@ -125,7 +125,7 @@ def artwork(path):
 
 
 def build(bd, reroute=False, art=False, pictures=True):
-    print('== LayerCam Pro v1')
+    print('== LayerCam Pro')
     pcb.configure(bd)
     board = pcb.board_path(bd)
     if reroute:
