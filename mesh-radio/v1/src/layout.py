@@ -440,6 +440,26 @@ def place_all(log=print):
           low[4]: ((bp[0] + cm[0]) / 2, by1 + 0.6, 'B')}       # the NTC right under the plug, reading the cell
     left = place.pack(B, low, targets=tg)
     todo = [r_ for r_ in todo if r_ not in low]
+    # each port's ESD array right under its plug's pins (TI: as close to the
+    # connector as possible): packed by its nets it went halfway to the
+    # nRF52840, the display's under the 32 kHz crystal on top, where no via
+    # could reach its pins (3 Nov: the last open net)
+    esd = []; tg = {}
+    for c in comps:
+        if c.part != 'TPD4E05U06' or c.ref not in todo:
+            continue
+        sig = set(n for n in c.pins.values() if n and n != 'GND')
+        plug = [p_ for p_ in comps if p_.part.startswith('JST_') and sig & set(p_.pins.values())]
+        if not plug:
+            continue
+        j = plug[0].ref
+        xs = [B.pad_xy(j, pn)[0] for pn, n in B.comps[j].pins.items() if n in sig]
+        if not xs:
+            continue
+        tg[c.ref] = (sum(xs) / len(xs), B.rect(j, *B.pl[j])[3] + 1.0, 'B')
+        esd.append(c.ref)
+    left += place.pack(B, esd, targets=tg)
+    todo = [r_ for r_ in todo if r_ not in esd]
     # (the nRF52840's two crystals, their load capacitors and its regulator
     # capacitors (DEC1-6) first, at the usual gap: with the wide one the
     # crystals were pushed 10 mm from their pins and DEC3 from 1.8 to 5.4 mm)
