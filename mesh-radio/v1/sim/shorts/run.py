@@ -211,7 +211,7 @@ def main():
     L.append(S.table([[n] + [V_['%s_%d' % (n, ta)] for ta in TEMPS] for n, _, _ in base], ['case'] + ['%d C' % t for t in TEMPS]))
     L.append('')
     L.append('OCD / SCD trip currents over temperature (thresholds 85-115 mV / 400-600 mV hold over -40..85 C;')
-    L.append('RSS(on) 2.2-2.75 mOhm x (1 + 0.004 (T - 25)), 15 mOhm +-1 %, board copper %.1f mOhm x (1 + 0.00393 (T - 25))):'
+    L.append('RSS(on) 2.2-2.75 mOhm x (1 + 0.004 (T - 25)), 15 mOhm +-1 %%, board copper %.1f mOhm x (1 + 0.00393 (T - 25))):'
              % (RTR * 1e3))
     orow = []
     for ta in TEMPS:

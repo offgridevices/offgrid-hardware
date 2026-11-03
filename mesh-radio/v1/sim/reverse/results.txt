@@ -30,14 +30,14 @@ rev_nousb_held_-20     0.08525       3.961e-05       -5.988   6.074e-14      0.6
       rev_nousb_25     0.08635       4.054e-05       -6.045    2.78e-09      0.6898     0.0001701    -0.005874     -0.00278         0.633  -0.0002799   0.000151          -1.515           1.539             0     PASS    -
         rev_usb_25     0.08534       4.054e-05       -5.933  -2.442e-09       0.769     0.0001704     0.001613     0.002447        -2.287         4.2        4.2           2.285           5.813     1.017e-12     PASS    -
    rev_usb_held_25     0.07367       4.054e-05       -11.33    -4.2e-06    -4.2e-06     0.0003405        4.199        4.199        -4.197       4.199        4.2       -0.001274        0.001564      1.02e-12     PASS    -
-   rev_usb_live_25     0.07368       4.054e-05       -11.33  -1.043e-05  -1.043e-05     0.0003405        4.199        4.199        -4.197       4.199        4.2       -0.001274        0.001564     1.017e-09     PASS    -
+   rev_usb_live_25       11.83       4.054e-05       -10.11        -4.2    -4.2e-06     0.0003405       0.8503          4.2       -0.9775      0.8815      4.208       3.719e-08           3.356     1.016e-12     PASS    -
  rev_nousb_held_25     0.08631       4.054e-05       -6.044   2.147e-10      0.6884     0.0001702    -0.001024   -0.0002147        0.6329  -0.0004095  2.122e-05          -1.515           1.537             0     PASS    -
       fwd_nousb_25       4.725         0.01145    0.0001983      -4.199  -1.765e-11     2.274e-06    1.766e-05        4.203        0.6812   5.806e-06      4.198          -5.942      -1.185e-05        0.2974     PASS    -
         fwd_usb_25     0.09001       4.586e-05       -4.192      -4.202    -4.2e-06     3.205e-11        4.199        4.199        -4.196         4.2      4.202       -0.002903       0.0005388     1.017e-12     PASS    -
       rev_nousb_60     0.08697        4.13e-05        -6.03   2.793e-09      0.6846     0.0001722     -0.06068    -0.002793        0.5695   -0.001713   -0.00103          -1.519           1.533             0     PASS    -
         rev_usb_60     0.08583        4.13e-05       -5.934  -7.285e-09      0.7765     0.0001738      0.00654     0.007424        -2.307         4.2        4.2             2.3           5.818     1.021e-12     PASS    -
    rev_usb_held_60     0.07405        4.13e-05       -11.34    -4.2e-06    -4.2e-06     0.0003469        4.199        4.199        -4.197       4.199        4.2       -0.001389        0.001703     1.017e-12     PASS    -
-   rev_usb_live_60     0.07406        4.13e-05       -11.34  -1.049e-05  -1.049e-05     0.0003469        4.199        4.199        -4.197       4.199        4.2       -0.001389        0.001703     1.017e-09     PASS    -
+   rev_usb_live_60       11.12        4.13e-05        -10.8        -4.2    -4.2e-06     0.0003469       0.8504          4.2       -0.9735      0.8836      4.248      -4.768e-08           3.396     1.018e-12     PASS    -
  rev_nousb_held_60     0.08697        4.13e-05       -6.031   2.025e-09      0.6842     0.0001732    -0.006151    -0.002025        0.5695   -0.003069  -0.001715          -1.519           1.531             0     PASS    -
       fwd_nousb_60       4.621         0.01145    0.0002237      -4.199  -2.629e-10     2.593e-06     0.000263        4.202        0.6221   9.148e-05      4.198          -6.072      -0.0001715        0.2723     PASS    -
         fwd_usb_60     0.09047       4.843e-05       -4.186        -4.2    -4.2e-06      4.06e-11        4.199        4.199        -4.195         4.2      4.202       -0.003206       0.0004879     1.016e-12     PASS    -
@@ -93,14 +93,14 @@ rev_nousb_held_-20  9.034e-16  0.0004024   0.004661    2.573e-16  2.461e-33     
       rev_nousb_25  8.443e-15   0.000491   0.004653    3.895e-16  1.235e-33        1.142e-16
         rev_usb_25  3.616e-15  5.825e-12   0.005798     4.21e-12  4.509e-12         4.21e-12
    rev_usb_held_25      4e-06   4.21e-12   7.44e-06     4.21e-12  4.509e-12         4.21e-12
-   rev_usb_live_25      4e-06   4.21e-12   7.44e-06     4.21e-12  4.509e-12         4.21e-12
+   rev_usb_live_25      4e-06  4.619e-12   0.007859    4.218e-12  4.516e-12        4.218e-12
  rev_nousb_held_25  1.437e-15  0.0004896   0.004657    5.701e-16  1.235e-33        3.373e-16
       fwd_nousb_25      4e-06   0.002916      0.018    4.208e-12  4.205e-12        4.206e-12
         fwd_usb_25      4e-06  4.209e-12  1.732e-05    4.212e-12  4.509e-12         4.21e-12
       rev_nousb_60  9.563e-12  0.0005282   0.004639      8.2e-14  7.203e-34          8.2e-14
         rev_usb_60  3.047e-13   7.13e-12   0.005736    5.506e-12  5.805e-12        5.506e-12
    rev_usb_held_60      4e-06  5.506e-12  7.713e-06    5.506e-12  5.805e-12        5.506e-12
-   rev_usb_live_60      4e-06  5.506e-12  7.713e-06    5.506e-12  5.805e-12        5.506e-12
+   rev_usb_live_60      4e-06  5.923e-12   0.007731    5.553e-12  5.805e-12        5.553e-12
  rev_nousb_held_60  3.181e-13  0.0005279   0.004639    1.504e-13  8.539e-34        1.504e-13
       fwd_nousb_60      4e-06   0.003021     0.0184    5.504e-12    5.5e-12        5.502e-12
         fwd_usb_60      4e-06  5.505e-12  1.851e-05    5.508e-12  5.805e-12        5.506e-12
@@ -113,50 +113,50 @@ rev_nousb_held_-20  9.034e-16  0.0004024   0.004661    2.573e-16  2.461e-33     
         fwd_usb_85      4e-06  2.831e-11  1.952e-05    2.831e-11  2.861e-11        2.831e-11
 
 Before the plug (no cell): the reverse FET must be off (VGS above -0.85 V), so the plug pads are dead:
-              case  FET VGS just before plug  reverse FET  BATT_PLUS - CELL_MINUS max
-------------------  ------------------------  -----------  --------------------------
-     rev_nousb_-40                 1.847e-09          off                   -0.004196
-       rev_usb_-40                -3.754e-09          off                   -0.003153
-  rev_usb_held_-40                  -4.2e-06          off                      0.5541
-  rev_usb_live_-40                -1.032e-05          off                      0.5545
-rev_nousb_held_-40                  3.12e-15          off                   -0.004196
-     fwd_nousb_-40                -4.328e-15          off                    0.004196
-       fwd_usb_-40                  -4.2e-06          off                      0.4577
-     rev_nousb_-20                 2.764e-09          off                   -0.004196
-       rev_usb_-20                -2.647e-09          off                   -0.003252
-  rev_usb_held_-20                  -4.2e-06          off                       0.234
-  rev_usb_live_-20                -1.035e-05          off                      0.5562
-rev_nousb_held_-20                 6.071e-14          off                   -0.004195
-     fwd_nousb_-20                -6.419e-14          off                    0.004195
-       fwd_usb_-20                  -4.2e-06          off                      0.2429
-       rev_nousb_0                 2.778e-09          off                   -0.004194
-         rev_usb_0                -2.469e-09          off                   -0.003303
-    rev_usb_held_0                  -4.2e-06          off                      0.2336
-    rev_usb_live_0                -1.039e-05          off                      0.2363
-  rev_nousb_held_0                 1.232e-11          off                    -0.00419
-       fwd_nousb_0                -9.823e-13          off                     0.00419
-         fwd_usb_0                  -4.2e-06          off                      0.2297
-      rev_nousb_25                  2.78e-09          off                   -0.004158
-        rev_usb_25                -2.441e-09          off                   -0.003329
-   rev_usb_held_25                  -4.2e-06          off                      0.2355
-   rev_usb_live_25                -1.043e-05          off                       0.236
- rev_nousb_held_25                 2.147e-10          off                   -0.004094
-      fwd_nousb_25                -1.765e-11          off                    0.004083
-        fwd_usb_25                  -4.2e-06          off                      0.8749
-      rev_nousb_60                 2.793e-09          off                   -0.003572
-        rev_usb_60                -7.204e-09          off                   -0.002351
-   rev_usb_held_60                  -4.2e-06          off                      0.2471
-   rev_usb_live_60                -1.049e-05          off                      0.2437
- rev_nousb_held_60                 2.025e-09          off                    -0.00323
-      fwd_nousb_60                -2.629e-10          off                    0.002414
-        fwd_usb_60                  -4.2e-06          off                       0.253
-      rev_nousb_85                  2.79e-09          off                   -0.002991
-        rev_usb_85                -3.876e-08          off                     0.01647
-   rev_usb_held_85                -4.198e-06          off                      0.2747
-   rev_usb_live_85                -1.049e-05          off                      0.2789
- rev_nousb_held_85                  2.68e-09          off                   -0.002896
-      fwd_nousb_85                 -4.16e-10          off                   0.0009537
-        fwd_usb_85                -4.198e-06          off                      0.2834
+              case  FET VGS just before plug     reverse FET  BATT_PLUS - CELL_MINUS max
+------------------  ------------------------  --------------  --------------------------
+     rev_nousb_-40                 1.847e-09             off                   -0.004196
+       rev_usb_-40                -3.754e-09             off                   -0.003153
+  rev_usb_held_-40                  -4.2e-06             off                      0.5541
+  rev_usb_live_-40                -1.032e-05             off                      0.5545
+rev_nousb_held_-40                  3.12e-15             off                   -0.004196
+     fwd_nousb_-40                -4.328e-15             off                    0.004196
+       fwd_usb_-40                  -4.2e-06             off                      0.4577
+     rev_nousb_-20                 2.764e-09             off                   -0.004196
+       rev_usb_-20                -2.647e-09             off                   -0.003252
+  rev_usb_held_-20                  -4.2e-06             off                       0.234
+  rev_usb_live_-20                -1.035e-05             off                      0.5562
+rev_nousb_held_-20                 6.071e-14             off                   -0.004195
+     fwd_nousb_-20                -6.419e-14             off                    0.004195
+       fwd_usb_-20                  -4.2e-06             off                      0.2429
+       rev_nousb_0                 2.778e-09             off                   -0.004194
+         rev_usb_0                -2.469e-09             off                   -0.003303
+    rev_usb_held_0                  -4.2e-06             off                      0.2336
+    rev_usb_live_0                -1.039e-05             off                      0.2363
+  rev_nousb_held_0                 1.232e-11             off                    -0.00419
+       fwd_nousb_0                -9.823e-13             off                     0.00419
+         fwd_usb_0                  -4.2e-06             off                      0.2297
+      rev_nousb_25                  2.78e-09             off                   -0.004158
+        rev_usb_25                -2.441e-09             off                   -0.003329
+   rev_usb_held_25                  -4.2e-06             off                      0.2355
+   rev_usb_live_25                      -4.2  ON (pads live)                         4.2
+ rev_nousb_held_25                 2.147e-10             off                   -0.004094
+      fwd_nousb_25                -1.765e-11             off                    0.004083
+        fwd_usb_25                  -4.2e-06             off                      0.8749
+      rev_nousb_60                 2.793e-09             off                   -0.003572
+        rev_usb_60                -7.204e-09             off                   -0.002351
+   rev_usb_held_60                  -4.2e-06             off                      0.2471
+   rev_usb_live_60                      -4.2  ON (pads live)                         4.2
+ rev_nousb_held_60                 2.025e-09             off                    -0.00323
+      fwd_nousb_60                -2.629e-10             off                    0.002414
+        fwd_usb_60                  -4.2e-06             off                       0.253
+      rev_nousb_85                  2.79e-09             off                   -0.002991
+        rev_usb_85                -3.876e-08             off                     0.01647
+   rev_usb_held_85                -4.198e-06             off                      0.2747
+   rev_usb_live_85                -1.049e-05             off                      0.2789
+ rev_nousb_held_85                  2.68e-09             off                   -0.002896
+      fwd_nousb_85                 -4.16e-10             off                   0.0009537
+        fwd_usb_85                -4.198e-06             off                      0.2834
 
 Protector flags (OCD/SCD, OCC, OVP, UVP) and late VSYS / 3V3:
               case    OCD    OCC    OVP    UVP      VSYS V  3V3 V
@@ -208,7 +208,7 @@ Every node, min / max after the plug (V), 25 C:
   rev_nousb_25: 3v3 0.00/0.00, bat_p -0.00/0.00, bat_p_c -0.03/0.03, batt_plus -6.03/-0.00, cell_minus -1.52/1.54, mux_in1 -0.00/0.00, pa_in 0.00/0.00, prot_bat -1.52/1.54, prot_cout -0.00/0.00, prot_d -0.51/0.99, prot_dout -1.52/1.54, prot_s2 -0.00/0.00, prot_vm -0.89/0.00, rev_g -0.02/0.72, vbat_sense -0.00/0.00, vin_chg -0.00/-0.00, vpa 0.00/0.00, vsys 0.00/0.00
   rev_usb_25: 3v3 3.30/3.30, bat_p 4.20/4.20, bat_p_c 4.17/4.23, batt_plus -1.72/4.19, cell_minus 2.29/5.81, mux_in1 4.20/4.20, pa_in 0.00/0.00, prot_bat 2.29/5.82, prot_cout -0.00/0.00, prot_d 2.93/5.36, prot_dout 2.29/5.81, prot_s2 -0.00/0.00, prot_vm -0.00/0.00, rev_g 4.20/5.00, usb_5v 5.00/5.00, usb_vbus 5.00/5.00, vbat_sense 2.52/2.52, vin_chg 4.76/4.76, vpa 0.00/0.00, vsys 4.50/4.50
   rev_usb_held_25: 3v3 3.30/3.30, bat_p 4.20/4.20, bat_p_c 4.16/4.23, batt_plus -7.10/-0.00, cell_minus -0.00/0.00, mux_in1 4.20/4.20, pa_in 0.00/0.00, prot_bat 4.20/4.20, prot_cout 4.20/4.20, prot_d -0.00/0.00, prot_dout 4.20/4.20, prot_s2 -0.00/0.00, prot_vm -0.00/0.00, rev_g 4.16/4.23, usb_5v 5.00/5.00, usb_vbus 5.00/5.00, vbat_sense 2.52/2.52, vin_chg 4.76/4.76, vpa 0.00/0.00, vsys 4.50/4.50
-  rev_usb_live_25: 3v3 3.30/3.30, bat_p 4.20/4.20, bat_p_c 4.16/4.23, batt_plus -7.10/0.00, cell_minus -0.00/0.00, mux_in1 4.20/4.20, pa_in 0.00/0.00, prot_bat 4.20/4.20, prot_cout 4.20/4.20, prot_d -0.00/0.00, prot_dout 4.20/4.20, prot_s2 -0.00/0.00, prot_vm -0.00/0.00, rev_g 4.16/4.23, usb_5v 5.00/5.00, usb_vbus 5.00/5.00, vbat_sense 2.52/2.52, vin_chg 4.76/4.76, vpa 0.00/0.00, vsys 4.50/4.50
+  rev_usb_live_25: 3v3 3.30/3.30, bat_p 0.88/4.21, bat_p_c 0.88/4.21, batt_plus -7.86/4.20, cell_minus 0.00/3.36, mux_in1 0.88/4.21, pa_in 0.00/0.00, prot_bat 0.98/4.61, prot_cout -0.00/4.59, prot_d -0.00/3.30, prot_dout 0.11/4.62, prot_s2 -0.00/0.39, prot_vm -0.13/0.32, rev_g -0.00/4.20, usb_5v 4.89/5.03, usb_vbus 4.90/5.03, vbat_sense 0.53/2.52, vin_chg 4.56/4.82, vpa 0.00/0.00, vsys 4.45/4.51
   rev_nousb_held_25: 3v3 0.00/0.00, bat_p -0.00/0.00, bat_p_c -0.03/0.03, batt_plus -6.03/-0.00, cell_minus -1.52/1.54, mux_in1 -0.00/0.00, pa_in 0.00/0.00, prot_bat -1.52/1.54, prot_cout -0.00/0.00, prot_d -0.51/0.99, prot_dout -1.52/1.54, prot_s2 -0.00/0.00, prot_vm -0.88/0.00, rev_g -0.02/0.71, vbat_sense -0.00/0.00, vin_chg -0.00/-0.00, vpa 0.00/0.00, vsys 0.00/0.00
   fwd_nousb_25: 3v3 0.00/3.30, bat_p 0.00/4.20, bat_p_c -0.03/4.20, batt_plus 0.00/4.20, cell_minus -5.94/-0.00, mux_in1 0.00/4.20, pa_in 0.00/0.00, prot_bat -5.94/4.20, prot_cout -1.17/4.21, prot_d -1.00/0.62, prot_dout -5.94/4.21, prot_s2 -0.16/0.00, prot_vm -5.26/0.00, rev_g -0.03/3.61, vbat_sense 0.00/2.52, vin_chg -0.00/-0.00, vpa 0.00/0.00, vsys 0.00/4.19
   fwd_usb_25: 3v3 3.30/3.30, bat_p 4.20/4.20, bat_p_c 4.17/4.24, batt_plus 0.01/4.86, cell_minus -0.00/0.00, mux_in1 4.20/4.20, pa_in 0.00/0.00, prot_bat 4.20/4.20, prot_cout 4.20/4.20, prot_d -0.00/0.00, prot_dout 4.20/4.20, prot_s2 -0.00/0.00, prot_vm -0.00/0.00, rev_g -0.00/4.24, usb_5v 5.00/5.00, usb_vbus 5.00/5.00, vbat_sense 2.52/2.52, vin_chg 4.76/4.76, vpa 0.00/0.00, vsys 4.50/4.50

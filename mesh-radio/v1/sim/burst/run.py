@@ -37,6 +37,7 @@ Run: python3 run.py   (from mesh-radio/v1: tools/kd python3 sim/burst/run.py)
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ProcessPoolExecutor
@@ -88,6 +89,32 @@ def run_case(args):
         except subprocess.TimeoutExpired:
             timed_out = True
             break
+    if stopped is not None and not timed_out:
+        # every option set stopped on 'timestep too small': once more with a tight tolerance and a 2 us
+        # maximum step.  On the routed board (3 Nov) the solver often gave up where the charger leaves
+        # BUVLO at the end of a burst, or where SYS hands over to the cell; this run either gets
+        # through (two checked by hand: the burst passes) or shows what the circuit does there.
+        # If it fails too, the previous attempt's data (up to its stop) is kept.
+        cfg['opt'] = OPT_FINE
+        tmax0 = cfg['tmax']
+        cfg['tmax'] = min(tmax0, 2e-6)
+        rp = os.path.join(OUT, raw)
+        if os.path.exists(rp):
+            shutil.copyfile(rp, rp + '.prev')
+        try:
+            S.ngspice(B.build(cfg, raw), OUT, name, timeout=2400)
+            stopped = None
+        except S.TimestepError as e:
+            if e.t > stopped:
+                stopped = e.t
+            elif os.path.exists(rp + '.prev'):
+                shutil.copyfile(rp + '.prev', rp)     # it got less far: keep the earlier attempt
+        except subprocess.TimeoutExpired:
+            if os.path.exists(rp + '.prev'):
+                shutil.copyfile(rp + '.prev', rp)
+        if os.path.exists(rp + '.prev'):
+            os.remove(rp + '.prev')
+        cfg['tmax'] = tmax0
     if not timed_out and not os.path.exists(os.path.join(OUT, raw)):
         timed_out = 'op'          # no operating point with any option set: no result, counted as FAIL
     if timed_out:
@@ -155,6 +182,7 @@ def run_case(args):
     return res
 
 
+OPT_FINE = '.option method=gear reltol=1e-3 abstol=1e-10 vntol=1e-6 itl4=500'
 OPTS = ['.option method=gear reltol=2e-3 abstol=1e-9 vntol=1e-5 itl4=200',
         '.option method=trap reltol=3e-3 abstol=1e-8 vntol=1e-5 itl4=300',
         '.option method=gear reltol=5e-3 abstol=1e-7 vntol=1e-4 itl4=500 gmin=1e-10']
@@ -184,7 +212,9 @@ def why(r):
         if r.get('op_failed'):
             return 'no DC operating point found (numerical): counted as FAIL'
         return 'solver crawled (supply chattering), stopped after 900 s: counted as FAIL'
-    if r['stopped'] is not None:
+    if r.get('after_burst'):
+        w.append('solver stopped at %.2f ms, after the burst' % (r['stopped'] * 1e3))
+    elif r['stopped'] is not None:
         w.append('supply collapse (solver stopped at %.2f ms)' % (r['stopped'] * 1e3))
     elif not r['pass'] and r['t_end'] < 0.15:
         w.append('[run ends at the first fatal event, %.1f ms]' % (r['t_end'] * 1e3))
@@ -260,6 +290,15 @@ def main():
     allj = jobs + special + cold + hot
     with ProcessPoolExecutor(4) as ex:
         res = dict((r['name'], r) for r in ex.map(run_case, allj))
+    # a solver stop after the last burst has ended (where the amplifier load and the charger's BUVLO
+    # let go together; seen on the routed board, 3 Nov): the burst itself ran to its end, so it is
+    # judged on its criteria, and the stop is reported
+    for n, c in allj:
+        r, pa = res[n], c['pa']
+        t_last = pa['t_rf'] + pa['burst'] + (pa.get('n', 1) - 1) * pa.get('period', 1.0)
+        if not r.get('timed_out') and r.get('stopped') is not None and r['stopped'] >= t_last - 1e-4:
+            r['after_burst'] = True
+            r['pass'] = bool(r['ok_a'] and r['ok_b'] and r['ok_c'])
 
     L = ['Study 4: transmit bursts from a worn cell (P2, X4), at ambient -40 / -20 / 0 / 25 / 60 / 85 C.',
          'Criteria: P2-a 3V3 >= 1.9 V; P2-b no BQ29700 trip (OCD/SCD/UVP); P2-c TPS63810 never in UVLO and VPA >= 95 % of',

@@ -49,7 +49,9 @@ microstrip inductances are added (no mutual coupling counted: pessimistic).
 Part pins, the parts' own lead inductance and capacitor ESL are not included.
 
 The simulation's mapping (board.py): its BAT_P node is the reverse FET's
-source pins (Q1); its VSYS node is the charger's SYS pins (U4).
+source pins (Q1); its VSYS node is the charger's SYS pins (U4).  board.py
+uses L only on the high-current and input paths (TRACE_BAT, _MUX1, _PAIN,
+_VPA, _USB, _SOLAR, _DRONE); the other branches are R only there.
 """
 import math
 import os
@@ -686,9 +688,12 @@ def main():
     L.append('')
     L.append('board.py values (copy):')
     for k, (r, l) in new.items():
-        L.append('  %s = (%.4f, %.1fe-9)' % (k, r, l * 1e9))
-    now = [k for k in new if getattr(B, k, None) is not None and
-           (abs(getattr(B, k)[0] - new[k][0]) > 2e-4 or abs(getattr(B, k)[1] - new[k][1]) > 0.2e-9)]
+        L.append('  %s = (%.4f, %.1fe-9)' % (k, r, l * 1e9) if k != 'SENSE_TRACE' else '  %s = %.4f' % (k, r))
+    def cur(k):
+        v = getattr(B, k, None)
+        return (v, 0.0) if isinstance(v, float) else v
+    now = [k for k in new if cur(k) is None or
+           abs(cur(k)[0] - new[k][0]) > 2e-4 or abs(cur(k)[1] - new[k][1]) > 0.2e-9]
     L.append('board.py differs from these (re-run the studies after copying): %s' % (', '.join(now) or 'none'))
     txt = '\n'.join(L) + '\n'
     print(txt)

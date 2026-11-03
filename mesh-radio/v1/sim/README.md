@@ -42,24 +42,26 @@ as changed on 19 Oct (next section).  Ambient corners -40 / -20 / 0 / 25 /
 
 | study / case | -40 C | -20 C | 0 C | 25 C | 60 C | 85 C | note |
 |---|---|---|---|---|---|---|---|
-| hotplug: USB 5 V, 20 V fault, 5 -> 20 V step; 6 V and 12 V panels; drone 5 / 20 V; panel and drone reversed | PASS | PASS | PASS | PASS | PASS | PASS | eFuse IN 22.9 V max (28 V); MAX17608 IN 37.6 / -47 V (65 / -70 V); nRF VBUS 5.27 V max in the step |
+| hotplug: USB 5 V, 20 V fault, 5 -> 20 V step; 6 V and 12 V panels; drone 5 / 20 V; panel and drone reversed | PASS | PASS | PASS | PASS | PASS | PASS | eFuse IN 22.8 V max (28 V); MAX17608 IN 34.6 / -47.2 V (65 / -70 V); nRF VBUS 5.27 V max in the step |
 | hotplug: USB 5.5 V source | MARG | MARG | MARG | MARG | MARG | MARG | by design: the USB OV cut-off (5.22-5.57 V) sits on vSafe5V max to keep VBUS under the nRF52840's 5.5 V |
 | USB UVLO vs zener leakage (bound) | PASS | PASS | PASS | PASS | PASS | MARG | only at a 64 uA leakage bound; bench check |
 | RB060MM leakage onto VBUS (USB out, 10.4 V on VIN_CHG) | PASS | PASS | PASS | PASS | PASS | PASS | 0.5 V typ, 2.6 V at 5x leakage, 85 C |
 | reverse cell: no USB / USB / USB with the protector on | PASS | PASS | PASS | PASS | PASS | PASS | reverse FET stays off; no pin current |
-| reverse cell into live pads (right-way cell pulled out under USB, then a reversed one) | PASS* | PASS* | PASS* | PASS | PASS | PASS | 20 Oct: check-FET gate clamped (4.7 V zener): its gate stays in rating. Still 20-21 A for ~0.2 ms until the protector trips (reverse FET 48 A pulsed rating). *At <= 0 C the solver started unlatched, so those runs did not test it |
+| reverse cell into live pads (right-way cell pulled out under USB, then a reversed one) | PASS* | PASS* | PASS* | PASS | PASS | PASS* | 20 Oct: check-FET gate clamped (4.7 V zener): its gate stays in rating. Still 11-12 A (20-21 A before the routed board's copper) for ~0.2 ms until the protector trips (reverse FET 48 A pulsed rating). *At <= 0 C and (routed board) at 85 C the solver started unlatched, so those runs did not test it |
 | right-way cell, with and without USB | PASS | PASS | PASS | PASS | PASS | PASS | FET on ~3 ms after the plug |
-| shorts: 3V3, header 3V3, VSYS, VPA, PA_IN (also with USB) | PASS | PASS | PASS | PASS | PASS | PASS | VSYS: TPS22950 holds the cell to 1.0 A |
-| shorts: BAT_P (cell terminals) | MARG | MARG | MARG | MARG | MARG | MARG | protector trips in ~0.3 ms (29 A peak, 48 A IDM FET); restart on the cell alone: bench |
-| burst 3 W, fresh cell 4.2 V / 50 mOhm | cap 2 W | PASS | PASS | PASS | PASS | PASS | |
-| burst 3 W, mid cell 3.7 V / 150 mOhm | no TX | no TX | cap 2 W | PASS | PASS | PASS | |
-| burst 1 W, worn cell 3.3 V / 300 mOhm | no TX | no TX | no TX | PASS | PASS | PASS | |
-| cold start (switch on, first burst) | 1 W fresh cell only | | | | | | worn or 150 mOhm cells cannot burst at -40 C (R_int x9) |
-| hot: USB in, charging off, 3 bursts 1 / 2.5 / 3 W | | | | | | PASS | <= 0.07 mA into the cell (P7) |
-| USB only, no cell, 1 W (firmware sets PA_SRC_SYS) | | | | PASS | | | 1.6 W and up exceed the charger's 1.05 A input |
-| USB in, cell too weak for 1 W: firmware sets PA_SRC_SYS | | | | PASS | | | without it the weak cell trips UVP |
-| solar 6 V panel (charges inside 0-45 C, <= 1 mA outside) and USB charge path | PASS | PASS | PASS | PASS | PASS | PASS | harvest 56 / 76 % of MPP (3.0 / 4.1 V cell), 37 / 53 % at 20 % sun |
-| derating (E4) | | | | | | | 81 rows: 0 FAIL (20 Oct, with the gate clamp), 11 MARGINAL (3 W: QPA9510 2.3 A vs 2.4 A, TPS63810, TPS2121 IN1 4.0 A; BQ25185 ILIM at 1.1 A; nRF VBUS at OV max 96 % of abs max) |
+| shorts: 3V3 (also with USB), header 3V3, VPA; VSYS with a mid cell | PASS | PASS | PASS | PASS | PASS | PASS | VSYS: TPS22950 holds the cell to 1.0 A |
+| shorts: VSYS (fresh cell, and with USB), PA_IN (fresh cell) | PASS | PASS | **MARG** | **MARG** | **MARG** | **MARG** | routed board: was PASS.  The cell's share through the charger's BATFET (VSYS) or the mux's 4.5 A limit (PA_IN) is 3.0-4.5 A, over the protector's OCD now (2.1-3.8 A, was 4.8-6.7 A): it cuts the cell off after 20 ms, safely, but then the BAT_P restart rule applies (bench).  At -40 / -20 C the cell's R_int keeps the current under OCD |
+| shorts: BAT_P (cell terminals) | MARG | MARG | MARG | MARG | MARG | MARG | protector trips in ~0.3 ms (25 A peak, was 29 A; 48 A IDM FET); restart on the cell alone: bench |
+| burst 3 W, fresh cell 4.2 V / 50 mOhm | cap 2 W | **cap 2.5 W** | PASS | **cap 2.5 W** | **cap 2.5 W** | **cap 2.5 W** | routed board: was PASS at -20..85 C.  2.85 A from the cell is over the protector's OCD (2.8 A typ at 25 C, 18 mOhm of sense-loop copper): it trips 20 ms into the burst.  0 C passes by 1 % at the typical threshold |
+| burst 3 W, mid cell 3.7 V / 150 mOhm | no TX | no TX | cap 2 W | **cap 2 W** | **cap 2 W** | **cap 2 W** | routed board: was PASS at 25-85 C (OCD trip, or the TPS63810 resets on PA_IN at 2.5 W+) |
+| burst 1 W, worn cell 3.3 V / 300 mOhm | no TX | no TX | no TX | **no TX** | PASS | PASS | routed board: was PASS at 25 C (the 0.06 Ohm of BAT_P + PA_IN track and the sense copper take the last margin) |
+| cold start (switch on, first burst) | 1 W fresh cell only | | | | | | worn or 150 mOhm cells cannot burst at -40 C (R_int x9); unchanged |
+| hot: USB in, charging off, 3 bursts 1 / 2.5 / 3 W | | | | | | **1 W only** | routed board: was PASS at all three.  2.5 W: OCD trip (2.9 A; 85 C copper puts OCD at 2.5 A typ), 3 W: TPS63810 reset.  <= 0.16 mA into the cell (P7) |
+| USB in + mid cell 3.7 V / 150 mOhm, 3 W | | | | **FAIL** | | | routed board: was PASS.  The amplifier runs from the cell (IN1 priority): PA_IN falls to 1.9 V and the TPS63810 resets.  A firmware cap, like the battery-only rows |
+| USB only, no cell, 1 W (firmware sets PA_SRC_SYS) | | | | PASS | | | 1.6 W and up exceed the charger's 1.05 A input; unchanged |
+| USB in, cell too weak for 1 W: firmware sets PA_SRC_SYS | | | | **FAIL** | | | routed board: was PASS.  The mux's IN2 pin is 237 mOhm of VSYS track from the charger, 0.23 V below SYS at 0.96 A; when SYS sags to the cell (charger at its 1.05 A limit, supplement mode) the 3.1 V cell on IN1 is > 280 mV above IN2, the mux switches over and its 100 us gap resets the TPS63810 (the study's run stops on the solver at 4.67 ms; re-run with a 1 us step it shows the switch-over and reset at 4.7 ms) |
+| solar 6 V panel (charges inside 0-45 C, <= 1 mA outside) and USB charge path | PASS | PASS | PASS | PASS | PASS | PASS | harvest 56 / 76 % of MPP (3.0 / 4.1 V cell), 37 / 53 % at 20 % sun (unchanged).  USB top-off of a 4.15 V cell: 115 mA (was 217 mA): the charger holds 4.2 V at its own BAT pin, 188 mOhm of BAT_P from the cell |
+| derating (E4) | | | | | | | 81 rows: 0 FAIL, 9 MARGINAL (3 W: QPA9510 2.3 A vs 2.4 A, TPS63810 output current and dissipation; BQ25185 ILIM at 1.1 A; nRF VBUS at OV max 96 % of abs max).  TPS2121 IN1 and TPS63810 input current dropped from MARGINAL (4.0 A) to PASS (2.8 A) only because the protector now trips before the bursts that loaded them |
 
 "cap" / "no TX": the firmware cap from `burst/results.txt` (highest level that passes for that cell
 and temperature); a capped level browns the board out or trips the protector, nothing is damaged.
@@ -72,6 +74,41 @@ VBAT_SENSE says no cell, drive CHG_CE_N high for ~1 s (BAT_P then decays below t
 threshold in well under a second) and back low.  That needs the processor running; with the
 board switched off and external power in, the window stays open.  A hardware cure needs a cell-
 presence signal (a 3-pin battery plug); bench-test the sequence either way.
+
+## Changed by the routed board (3 Nov 2026)
+
+Every study was re-run with the extracted parasitics (*Parasitics*; the
+pre-routing estimates were 3-6 mOhm per path).  Status changes, all for the
+worse:
+
+- **Burst: 3 W no longer runs from any cell at 25-85 C, and 2.5 W is
+  marginal.**  PROT_S2 detours through In1 between Q3 and R34, so the
+  BQ29700 senses 15 + 18.1 mOhm (+ RSS(on)) and its OCD falls to 2.36-3.27 A
+  at 25 C, 2.08-2.88 A at 85 C (it was 4.8-6.7 A).  A 3 W burst draws
+  2.7-3.7 A from the cell and the protector cuts it off 20 ms in.  The burst
+  grid uses the typical 100 mV threshold; at the datasheet minimum (85 mV) a
+  2.5 W burst (2.1-2.6 A) can trip it too, so 2 W (<= 2.1 A) is the level
+  that holds on every part.  Fresh cell, 3 W: PASS -> cap 2.5 W at -20 C and
+  25-85 C; mid cell, 3 W: PASS -> cap 2 W at 25-85 C; worn cell, 1 W at
+  25 C: PASS -> no TX; hot USB case at 85 C: PASS -> 1 W only; USB + mid
+  cell at 3 W: PASS -> FAIL.  The firmware cap table is `burst/results.txt`.
+- **Weak cell with USB, firmware sets PA_SRC_SYS: PASS -> FAIL**, from the
+  237 mOhm VSYS track to the mux's IN2 (Verdict note).
+- **Shorts on VSYS (fresh cell, with USB) and PA_IN: PASS -> MARGINAL at
+  0-85 C**: the 3.0-4.5 A that the charger's BATFET or the mux's limit let
+  through now trips the protector (safely); the BAT_P restart rule then
+  applies (bench).
+- Unchanged: hotplug (peaks 0-3 V lower), reverse cell, BAT_P shorts (25 A
+  peak, was 29 A), solar harvest, derating 0 FAIL (9 MARGINAL, was 11).
+  The live-pad reverse case latched only at 25 and 60 C this time (was
+  25-85 C); at the other corners the solver started unlatched.
+
+What would undo it (layout, then re-run `sim/extract.py` and the studies):
+R34 beside Q3 on B.Cu with short wide copper, so the sense loop's copper is
+<= 2 mOhm (OCD back to 4.3-6.0 A); BAT_P Q1 -> TPS2121 and PA_IN TPS2121 ->
+TPS63810 (34.6 and 26.1 mOhm, mostly 0.3-0.6 mm on 0.5 oz inner layers) on
+outer copper or pours, ~10 mOhm each; VSYS charger -> TPS2121 IN2 widened
+to <= ~50 mOhm.
 
 ## Changes made on 19 Oct (src/circuit.py, src/parts.py)
 
@@ -239,7 +276,9 @@ solver starts from the state the board really reaches.
 Hard shorts (10 mOhm + 5 nH) on 3V3, the header's 3V3, VSYS (the buck input
 since the load switch went), VPA, PA_IN and BAT_P, with fresh, mid and worn
 cells and with USB; and the BQ29700 OCD / SCD thresholds over temperature with
-15 mOhm sense (OCD 4.6-7.0 A, SCD 21.5-36 A).  Criteria: no part above its
+15 mOhm sense plus the routed board's 18.1 mOhm of sense-loop copper (OCD
+2.1-3.8 A, SCD 9.8-20 A over -40..85 C; with 15 mOhm alone it was 4.6-7.0 A
+and 21.5-36 A).  Criteria: no part above its
 pulsed rating before the protector or a current limit acts; the board runs
 again once the short goes.  BAT_P shorts trip the protector (its supply is
 lost in ~0.3 ms) and whether it releases on the cell alone is a bench item
@@ -254,7 +293,10 @@ not), a cold start at -40 C and three bursts at 85 C on USB with charging
 disabled.  Criteria: 3V3 >= 1.9 V, no protector trip, no TPS63810 UVLO, VPA
 >= 95 %; hot case <= 1 mA into the cell between bursts.  Limits: the cell is
 OCV + resistance (no diffusion RC: real cells sag less in a 0.2 s burst, more
-over 1 s in the cold).
+over 1 s in the cold).  Solver: when every option set stops on "timestep too
+small", one more run with a tight tolerance and a 2 us step; a stop after the
+burst has ended (seen where the amplifier load and the charger's BUVLO let go
+together) is reported but the burst is judged on its criteria.
 
 ### solar (P5, P7)
 A 6 V 1 W panel through the MAX17608 and the charger's VINDPM into a 3.0 /
