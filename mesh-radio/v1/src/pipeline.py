@@ -980,12 +980,22 @@ def power_pours(path, layers, grow=POUR_GROW, clearance=0.15, log=log):
             if l == pcbnew.B_Cu:
                 area = area.difference(gap)
             area = area.simplify(0.05)
-            for q in _simple(area):
-                if q.area < 0.5:
+            # one zone per separate piece, its holes kept (pieces split at
+            # their holes would touch, a DRC error between zones of a net)
+            for q in getattr(area, 'geoms', [area]):
+                if q.geom_type != 'Polygon' or q.area < 0.5:
                     continue
-                pts = [(x - pcb.CX, y - pcb.CY) for x, y in list(q.exterior.coords)[:-1]]
-                pcb.zone(b, n, l, pts, clearance=clearance, min_width=0.2, priority=pri, thermal=False,
-                         name='power: %s' % n)
+                z = pcb.zone(b, n, l, [(x - pcb.CX, y - pcb.CY) for x, y in list(q.exterior.coords)[:-1]],
+                             clearance=clearance, min_width=0.2, priority=pri, thermal=False,
+                             name='power: %s' % n)
+                ol = z.Outline()
+                for h in q.interiors:
+                    hp = list(h.coords)[:-1]
+                    if len(hp) < 3:
+                        continue
+                    ol.NewHole()
+                    for x, y in hp:
+                        ol.Append(pcb.MM(x), pcb.MM(y), 0, 0)
                 k += 1
         pri += 1
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
