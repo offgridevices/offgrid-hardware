@@ -53,6 +53,45 @@ def _via_stubs(b, uid):
     return _remove(b, ids)
 
 
+def _branch(b, uid):
+    """A dangling track and the whole dead-end run of track behind it, up to
+    the first point where it meets a pad, a via, a fill or a third track
+    (3 Nov: a VSYS run on In4 cut back one piece per round, rounds ran out)."""
+    t = _by_uuid(b, uid)
+    if t is None or t.GetClass() != 'PCB_TRACK':
+        return False
+    net, lay = t.GetNetname(), t.GetLayer()
+    segs = [o for o in b.GetTracks() if o.GetClass() == 'PCB_TRACK' and o.GetNetname() == net and o.GetLayer() == lay]
+    vias = [o for o in b.GetTracks() if o.GetClass() == 'PCB_VIA' and o.GetNetname() == net]
+    pads = [pd for fp in b.GetFootprints() for pd in fp.Pads() if pd.GetNetname() == net and pd.IsOnLayer(lay)]
+    zones = [z for z in b.Zones() if not z.GetIsRuleArea() and z.GetNetname() == net and z.IsOnLayer(lay)]
+    near = lambda p, q, r: (p - q).EuclideanNorm() <= r
+
+    def anchored(p, w):
+        return (any(near(p, v.GetPosition(), v.GetWidth(lay) / 2 + w / 2) for v in vias)
+                or any(pd.HitTest(p) for pd in pads)
+                or any(z.HitTestFilledArea(lay, p) for z in zones))
+
+    def others_at(p, skip):
+        return [o for o in segs if o.m_Uuid.AsString() not in skip and (near(o.GetStart(), p, 1000) or near(o.GetEnd(), p, 1000))]
+
+    # the dangling end: the one with nothing on it
+    take = {uid}
+    ends = [e for e in (t.GetStart(), t.GetEnd()) if not anchored(e, t.GetWidth()) and not others_at(e, take)]
+    if not ends:
+        return False
+    cur, p = t, (t.GetEnd() if ends[0] == t.GetStart() else t.GetStart())
+    for _ in range(500):
+        if anchored(p, cur.GetWidth()):
+            break
+        nxt = others_at(p, take)
+        if len(nxt) != 1:
+            break
+        cur = nxt[0]; take.add(cur.m_Uuid.AsString())
+        p = cur.GetEnd() if near(cur.GetStart(), p, 1000) else cur.GetStart()
+    return _remove(b, take)
+
+
 def _trim(b, uid):
     """Pull a dangling end that overshoots a T-junction back to it."""
     t = _by_uuid(b, uid)
@@ -128,8 +167,30 @@ def _join(b, uid):
     return True
 
 
+def _dedupe(path):
+    """Take out every track piece that is an exact copy of another (same
+    net, layer, width and ends, either way round).  A dangling stub laid
+    twice is otherwise never removed: taking out either copy alone leaves
+    the other dangling, so no warning goes away (3 Nov: two VSYS stubs)."""
+    b = pcbnew.LoadBoard(path)
+    seen, dup = set(), []
+    for t in b.GetTracks():
+        if t.GetClass() != 'PCB_TRACK':
+            continue
+        a, e = (t.GetStart().x, t.GetStart().y), (t.GetEnd().x, t.GetEnd().y)
+        k = (t.GetNetname(), t.GetLayer(), t.GetWidth(), min(a, e), max(a, e))
+        if k in seen:
+            dup.append(t)
+        seen.add(k)
+    for t in dup:
+        pcb.remove(b, t)
+    if dup:
+        b.Save(path)
+    return len(dup)
+
+
 OPS = {'remove': lambda b, ids: _remove(b, set(ids)), 'via_stubs': lambda b, ids: _via_stubs(b, ids[0]),
-       'trim': lambda b, ids: _trim(b, ids[0]), 'join': lambda b, ids: _join(b, ids[0])}
+       'trim': lambda b, ids: _trim(b, ids[0]), 'branch': lambda b, ids: _branch(b, ids[0]), 'join': lambda b, ids: _join(b, ids[0])}
 
 
 def clean(path, extra_rules='', rounds=6, log=print):
@@ -150,6 +211,9 @@ def clean(path, extra_rules='', rounds=6, log=print):
             return None
         return drc()
 
+    n = _dedupe(path)
+    if n:
+        log('  %d duplicate track pieces taken out' % n)
     state = list(drc())
     log('clean-up start: ' + _counts(*state))
 
@@ -199,6 +263,9 @@ def clean(path, extra_rules='', rounds=6, log=print):
         if not take_out(items):
             break
 
+    for v in [v for v in state[1] if v['type'] == 'track_dangling']:
+        if keep_if_no_worse('branch', [v['items'][0]['uuid']], need_fewer_warnings=True):
+            log('  took out the dead-end run behind %s' % v['items'][0]['description'][:40])
     for v in [v for v in state[1] if v['type'] == 'track_dangling']:
         if keep_if_no_worse('trim', [v['items'][0]['uuid']], need_fewer_warnings=True):
             log('  trimmed %s' % v['items'][0]['description'][:40])
