@@ -84,6 +84,9 @@ RULES = pcb.POFV_RULES + """
   (condition "A.NetClass == 'RF' && B.Type == 'Zone'")
   (constraint clearance (min %.2fmm)))
 """ % RF_GAP + """
+(rule "gap pad: ground vias only"
+  (condition "A.Type == 'Via' && A.NetName != 'GND' && A.intersectsArea('gap pad')")
+  (constraint disallow via))
 (rule "USB-C locating slot (Amphenol 12401610 drawing)"
   (condition "A.Type == 'Pad' && A.memberOfFootprint('J1') && B.memberOfFootprint('J1')")
   (constraint edge_clearance (min 0.25mm)))
@@ -186,6 +189,17 @@ def build(out, replace=False):
     x0, y0, x1, y1 = layout.ANT_BOX
     pcb.rule_area(b, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)], [pcbnew.F_Cu], tracks=False, vias=True,
                   pads=False, pours=True, name='Bluetooth antenna: no pour')
+    # the gap pad (layout.GAP_PAD): bare ground copper on the bottom, no
+    # solder mask, for a 10 x 10 mm thermal pad to a metal wall.  No tracks on
+    # B.Cu there (the ground pour after routing fills it); vias only of ground
+    # (RULES 'gap pad: ground vias only')
+    gx0, gy0, gx1, gy1 = layout.GAP_PAD
+    gpoly = [(gx0, gy0), (gx1, gy0), (gx1, gy1), (gx0, gy1)]
+    pcb.rule_area(b, gpoly, [pcbnew.B_Cu], tracks=True, vias=False, pads=False, pours=False, name='gap pad')
+    sh = pcbnew.PCB_SHAPE(b)
+    sh.SetShape(pcbnew.SHAPE_T_RECT); sh.SetFilled(True); sh.SetLayer(pcbnew.B_Mask); sh.SetWidth(0)
+    sh.SetStart(pcb.P(gx0, gy0)); sh.SetEnd(pcb.P(gx1, gy1))
+    b.Add(sh)
     for poly, layers, name in layout.keepouts():
         pcb.rule_area(b, poly, [pcb.layer_id(l) for l in layers], tracks=True, vias=True, pads=False,
                       pours=True, name=name)

@@ -38,6 +38,12 @@ HDR_X0, HDR_Y = -7.0, 0.0         # the expansion header (dropped 2 Nov 2026; ke
 PACK_GAP_LEFT = float(os.environ.get('PACK_GAP_LEFT', 0.45))   # mm between small parts' courtyards left of PACK_LEFT_X
 PACK_LEFT_X = float(os.environ.get('PACK_LEFT_X', -8.0))
 NRF_RING = 0.6                     # mm kept free round the nRF52840's courtyard (its dog-bone vias reach 0.55 mm past it)
+BAT_X = 21.2                       # the battery plug: its pins right of the amplifier's paddle vias
+# the gap pad (owner, 19 Oct 2026: 10 x 10 mm from the board's bottom to a
+# metal wall) cannot sit under the amplifier since every plug moved to the
+# upper edge (2 Nov 2026): it goes just below the plugs' row, under the
+# amplifier's output end, and the planes carry the heat to it (sim/thermal)
+GAP_PAD = (13.0, 2.5, 23.0, 12.5)
 NRF_X, SX_X = -12.6, -5.4          # the nRF52840 and the SX1262 (the TX line grows right from the SX1262)
 JST_SH6_ROT = 0     # the GPS plug's turn for its opening at the upper edge (checked by check_plugs)
 JST_SH10_ROT = 0    # KiCad's SM10B footprint on the bottom: nails (and opening) towards -y (checked: plugs face the edge)
@@ -80,15 +86,21 @@ def anchors(comps):
         # PH / SH / GH drawings, "end face of wafer on the mating side"), so
         # the nails face the edge, their copper 0.35 mm inside it
         # every plug on the upper long edge (owner, 2 Nov 2026), left to right:
-        # solar, display, battery, drone, GPS.  The display plug sits over the
+        # solar, display, GPS, drone, battery.  The display plug sits over the
         # nRF52840 (until 2 Nov it was at the right end: its ten wires crossed
         # the whole board, 54 connections crossed x = -5 mm, and every route
-        # ended 11-12 nets short)
+        # ended 11-12 nets short).  The amplifier's nine paddle vias come out
+        # on the bottom 6 mm from the edge, where an SH or GH plug has its pin
+        # row: they landed on the GPS plug's pins 3 and 4 (and before on the
+        # display plug's), which no router could reach.  The battery plug
+        # (PH) has its pins 4.8 mm from the edge and its nails at the edge, so
+        # it goes at the right end with the vias under its body, left of its
+        # pins (pads 0.4 mm clear of them)
         (R('JST_SH2'), -24.2, -HY + 3.19, 0, 'B'),             # solar, under the power switch
         (R('JST_SH10'), -14.95, -HY + 3.125, JST_SH10_ROT, 'B'),  # display / I2C: its nails' copper 0.35 mm inside the edge
-        (R('JST_PH2'), -4.0, -HY + 4.98, 0, 'B'),           # battery: its body clear of the TCXO under the SX1262
-        (R('JST_GH6'), 7.7, -HY + 3.65, 0, 'B'),            # drone port
-        (R('JST_SH6'), 18.2, -HY + 3.29, JST_SH6_ROT, 'B'),  # GPS
+        (R('JST_SH6'), -3.55, -HY + 3.29, JST_SH6_ROT, 'B'),  # GPS: its pins clear of the TCXO under the SX1262
+        (R('JST_GH6'), 6.91, -HY + 3.65, 0, 'B'),           # drone port
+        (R('JST_PH2'), BAT_X, -HY + 4.98, 0, 'B'),          # battery
         # ---- bottom: inputs.  USB: behind the USB-C, under the board's left
         # end; solar beside its plug; drone beside the drone plug
         (R('TVS2200', 'USB surge clamp'), -HX + 10.6, 0.6, 0, 'B'),
@@ -100,14 +112,11 @@ def anchors(comps):
         (R('MAX17608', 'DRN 60 V current limiter'), 8.6, 1.6, 0, 'B'),
         # (the drone port's clamp and ESD, the GPS port's switch and ESD and the
         # battery protection's MOSFETs and shunt are packed by their pins)
-        # ---- bottom: charger and battery protection, by the battery plug
-        # (left of the battery plug, under the display plug's row)
-        (R('CSD25310Q2'), -9.55, -4.6, 0, 'B'),
-        (R('BQ29700'), -12.05, -4.6, 0, 'B'),
+        # ---- bottom: charger; the battery protection is packed by the
+        # battery plug's pins (place_all)
         # the charger away from the battery plug (sim/thermal: its heat reached
         # the NTC and the cell); the NTC right by the plug, reading the cell
         (R('BQ25185'), -HX + 4.7, 0.5, 0, 'B'),             # behind the USB-C, between its shell legs (1 Nov: out of the jam under the nRF52840)
-        (R('NTC10K'), -7.4, -2.0, 0, 'B'),               # under the battery plug's corner, clear of the nRF52840's keepout
         (R('TPS22950'), -6.4, -0.6, 0, 'B'),                # clear of the SX1262's pins above (its balls take vias)
         (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -1.5, 0, 'B'),   # clear of the battery plug's body above
         # ---- bottom: 3.3 V
@@ -118,7 +127,7 @@ def anchors(comps):
         (R('NMOS', 'mux on with the amplifier'), 9.6, -1.6, 0, 'B'),
         (R('TPS63810'), 15.6, -3.4, 90, 'B'),               # clear of the drive pad's R68 above (its balls take vias)
         (R('L470n'), 13.8, -0.4, 90, 'B'),
-        (R('TMP1075'), HX - 10.4, -4.4, 0, 'B'),
+        (R('TMP1075'), 13.0, -3.6, 0, 'B'),                 # between the mux and the buck-boost, 6 mm from the amplifier (the battery plug's body is right of it)
         # ---- top: indicators, the amplifier's control-voltage LDO
         # LEDs in a row between the slide switch and the USB-C, right of the upper-left hole
         (R('LED_R'), -HX + 8.2, -5.95, 0, 'T'),
@@ -195,6 +204,7 @@ def place_all(log=print):
     # area, so a part there cannot be reached (C15, C87, C88 and the
     # charger's pins were, even on an empty board: 20 Oct)
     B.keep_out((cx0 - g, cy0 - g, cx1 + g, cy1 + g), ('B',))
+    B.keep_out(GAP_PAD, ('B',))          # the gap pad's bare copper: no parts underneath
     # a lane on the top from the nRF52840's SPI side to the SX1262's SPI
     # pins (BUSY, NRESET, MISO, MOSI, SCK along its lower edge): with the
     # nRF52840's DEC4 and crystal capacitors packed in it, Freerouting and the
@@ -422,9 +432,13 @@ def place_all(log=print):
     # cell current's path was among the last nets no router could join
     bat = ref(comps, 'JST_PH2')
     cm = [B.pad_xy(bat, p) for p, n in B.comps[bat].pins.items() if n == 'CELL_MINUS'][0]
-    low = [ref(comps, 'SSM10N954L'), ref(comps, 'R15m')]
-    left = place.pack(B, low[:1], targets={low[0]: (cm[0], cm[1], 'B')})
-    left += place.pack(B, low[1:])
+    bp = [B.pad_xy(bat, p) for p, n in B.comps[bat].pins.items() if n == 'BATT_PLUS'][0]
+    by1 = B.rect(bat, *B.pl[bat])[3]
+    low = [ref(comps, 'CSD25310Q2'), ref(comps, 'SSM10N954L'), ref(comps, 'BQ29700'), ref(comps, 'R15m'),
+           ref(comps, 'NTC10K')]
+    tg = {low[0]: (bp[0], by1 + 1.5, 'B'), low[1]: (cm[0], by1 + 1.5, 'B'), low[2]: (cm[0] + 2.5, by1 + 1.5, 'B'),
+          low[4]: ((bp[0] + cm[0]) / 2, by1 + 0.6, 'B')}       # the NTC right under the plug, reading the cell
+    left = place.pack(B, low, targets=tg)
     todo = [r_ for r_ in todo if r_ not in low]
     # (the nRF52840's two crystals, their load capacitors and its regulator
     # capacitors (DEC1-6) first, at the usual gap: with the wide one the
