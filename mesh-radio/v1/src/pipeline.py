@@ -1154,6 +1154,75 @@ def endgame(fin, work, rounds=3):
     return e, wn, u
 
 
+def local_repair(b, nets, w, cl, protect, margin=1.2, tries=8, seed=1, log=log):
+    """The last few open nets, each a short gap boxed in by its neighbours'
+    copper: every unlocked track and via of another net (not `protect`)
+    within `margin` mm of the gap is torn out, and the open net and the
+    torn nets are routed again (their islands joined, locally) in up to
+    `tries` orders; an order is kept only if every net ends with no more
+    islands than before, else everything is put back.  Returns nets open."""
+    import random
+    from shapely.geometry import Point, LineString
+    from shapely.ops import nearest_points, unary_union
+    rnd = random.Random(seed)
+    protect = set(protect)
+    isl = lambda n: len(finish._net_components(b, n))
+    for net in nets:
+        if finish.route_net(b, net, track_w=w.get(net, finish.SIG_W), clmap=cl, lock=False) == 0:
+            log('   local %-12s routed as it stands' % net)
+            continue
+        comps = finish._net_components(b, net)
+        if len(comps) <= 1:
+            continue
+        # the closest pair of islands, and the gap's midpoint
+        best = None
+        for i in range(len(comps)):
+            for j in range(i + 1, len(comps)):
+                ga = unary_union([g for gl in comps[i].values() for g in gl])
+                gb = unary_union([g for gl in comps[j].values() for g in gl])
+                d = ga.distance(gb)
+                if best is None or d < best[0]:
+                    best = (d, nearest_points(ga, gb))
+        d, (pa, pb) = best
+        zone = Point((pa.x + pb.x) / 2, (pa.y + pb.y) / 2).buffer(d / 2 + margin)
+        victims = []
+        for t in b.GetTracks():
+            n_ = t.GetNetname()
+            if n_ == net or n_ in protect or t.IsLocked():
+                continue
+            if t.GetClass() == 'PCB_VIA':
+                q = t.GetPosition(); g = Point(finish.mm(q.x), finish.mm(q.y)).buffer(t.GetWidth(pcbnew.F_Cu) / 2e6)
+            else:
+                s_, e_ = t.GetStart(), t.GetEnd()
+                g = LineString([(finish.mm(s_.x), finish.mm(s_.y)), (finish.mm(e_.x), finish.mm(e_.y))])
+            if g.intersects(zone):
+                victims.append(t)
+        group = sorted(set(t.GetNetname() for t in victims))
+        base = {n_: isl(n_) for n_ in group}
+        done = False
+        for k in range(tries):
+            before = set(t.m_Uuid.AsString() for t in b.GetTracks())
+            for t in victims:
+                pcb.remove(b, t)
+            order = group[:]; rnd.shuffle(order)
+            order = [net] + order if k % 2 == 0 else order + [net]
+            for n_ in order:
+                finish.route_net(b, n_, track_w=w.get(n_, finish.SIG_W), clmap=cl, lock=False)
+            now = {n_: isl(n_) for n_ in group}
+            if isl(net) == 1 and all(now[n_] <= base[n_] for n_ in group):
+                log('   local %-12s gap %.2f mm, routed on try %d, re-laid %s' % (net, d, k, group))
+                done = True
+                break
+            for t in list(b.GetTracks()):
+                if t.m_Uuid.AsString() not in before:
+                    pcb.remove(b, t)
+            for t in victims:
+                b.Add(t)
+        if not done:
+            log('   local %-12s gap %.2f mm, no order worked (%d tries, nets %s)' % (net, d, tries, group))
+    return [x for x in finish.unrouted_nets(b) if x in set(nets)]
+
+
 ROUND_PASSES = int(os.environ.get('ROUND_PASSES', 5))   # Freerouting passes per saved round
 # In1 carries signals too, except under the RF lines and the antenna
 # (rf_reference_keepouts): 20 Oct trial, first routing round, 59 open
@@ -1200,6 +1269,21 @@ if __name__ == '__main__':
     elif '--from-clean' in sys.argv:
         # a finished board from the hole pass on (a run that died in the clean-up)
         finish_clean(os.path.join(work, 'fin.kicad_pcb'), work)
+    elif '--local-repair' in sys.argv:
+        # the tail's input again, its last open nets repaired locally, then the tail
+        fin = os.path.join(work, 'fin.kicad_pcb'); ti = os.path.join(work, 'tail_in.kicad_pcb')
+        shutil.copy(ti, fin); pcb.copy_project(ti, fin)
+        comps = circuit.build(); w, cl = widths(comps), clearances(comps)
+        setup_routers()
+        b = pcbnew.LoadBoard(fin)
+        left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
+        log('local repair of %s' % (left,))
+        rest = local_repair(b, left, w, cl, protect=PLANES + list(board.RF_NETS) + list(board.RF_EXTRA),
+                            margin=float(os.environ.get('LOCAL_MARGIN', 1.2)))
+        log('after the local repair: open %s' % (rest,))
+        b.Save(fin)
+        write_rules(fin)
+        finish_tail(fin, work, w, cl)
     elif '--from-fin' in sys.argv:
         # the maze router's result as it stands: the supply pours, repair and tail only
         finish_rest(os.path.join(work, 'fin.kicad_pcb'), work)

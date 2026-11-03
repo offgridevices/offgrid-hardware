@@ -294,6 +294,9 @@ SIG_W = float(os.environ.get('SIG_W', 0.09))
 SIG_CL = float(os.environ.get('SIG_CL', 0.09))
 # a net that will not fit at its own width may fall back to SIG_W
 WIDTH_FALLBACK = True
+# route_net's last resort: a soft-copper path that crosses nothing (exact check)
+EXACT_FALLBACK = bool(int(os.environ.get('EXACT_FALLBACK', 1)))
+SOFT_EXCLUDE = ('GND',)   # never soft: the plane net's copper
 # the price (grid cells of detour) of crossing another net's copper once
 RIP_COST = float(os.environ.get('RIP_COST', 60))
 # search budget (cells) of route_connection's last, whole-board try
@@ -700,6 +703,28 @@ def route_net(board, net, track_w=None, clmap=None, lock=True, soft_nets=None, v
             for _d, i, j in pairs[:PAIR_TRIES]:
                 res = route_connection(board, net, comps[i], comps[j], track_w=SIG_W, clmap=clmap,
                                        soft_nets=soft_nets, victims_out=victims_out)
+                if res:
+                    break
+        if not res and EXACT_FALLBACK:
+            # the grid blocks a cell when copper is within the clearance at
+            # the cell's resolution, a little more than the rule asks: in a
+            # squeeze (a 0.4 mm-pitch pin between two vias) it finds no way
+            # where the exact geometry has one.  A path that may cross other
+            # nets' copper at a cost, kept only if it crosses none of it and
+            # keeps every clearance measured exactly (the DRC checks it again)
+            soft = set(t.GetNetname() for t in board.GetTracks()) - {net} - set(SOFT_EXCLUDE)
+            for _d, i, j in pairs[:PAIR_TRIES]:
+                for tw in sorted({track_w, SIG_W}, reverse=True):
+                    pre = set(t.m_Uuid.AsString() for t in board.GetTracks())
+                    vic = set()
+                    res = route_connection(board, net, comps[i], comps[j], track_w=tw, clmap=clmap,
+                                           soft_nets=soft, victims_out=vic)
+                    if res and not vic:
+                        break
+                    for t in list(board.GetTracks()):
+                        if t.m_Uuid.AsString() not in pre:
+                            pcb.remove(board, t)
+                    res = None
                 if res:
                     break
         if not res:

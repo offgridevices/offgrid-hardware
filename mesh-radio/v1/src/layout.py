@@ -36,7 +36,7 @@ import pcb, circuit, parts, place
 HX, HY = pcb.HX, pcb.HY
 HDR_X0, HDR_Y = -7.0, 0.0         # the expansion header (dropped 2 Nov 2026; kept for an old circuit)
 PACK_GAP_LEFT = float(os.environ.get('PACK_GAP_LEFT', 0.45))   # mm between small parts' courtyards left of PACK_LEFT_X
-PACK_LEFT_X = float(os.environ.get('PACK_LEFT_X', -8.0))
+PACK_LEFT_X = float(os.environ.get('PACK_LEFT_X', 2.0))   # 3 Nov: -8 left 8-10 nets open, 2 left 3
 NRF_RING = 0.6                     # mm kept free round the nRF52840's courtyard (its dog-bone vias reach 0.55 mm past it)
 BAT_X = 21.2                       # the battery plug: its pins right of the amplifier's paddle vias
 # the gap pad (owner, 19 Oct 2026: 10 x 10 mm from the board's bottom to a
