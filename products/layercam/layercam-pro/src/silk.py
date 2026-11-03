@@ -24,7 +24,6 @@ from shapely import affinity
 import pcb, brand
 
 NAME = 'LayerCam Pro'
-# the revision, from this revision's folder name (v1 -> V1)
 # the revision, set here and nowhere else (docs/versioning.md): 1.0, printed V1.
 # Never from the folder's name: a moved folder must not change the copper
 REV = 'V1'

@@ -6,7 +6,7 @@ and its v1 result. Results are for this revision only
 braces, such as pass: 0 errors, 0 warnings, 0 unconnected, is filled in from the routed board's build on the
 final commit (built 2 Nov 2026). The rest were run on 1 Nov 2026.
 
-CI (`ci / layercam-pro-v1`) rebuilds the artwork and fab files from the
+CI (`ci / layercam-pro`, running `tools/ci.sh`) rebuilds the artwork and fab files from the
 committed board on every pull request and checks them against the
 committed ones, then runs the design checks, the simulations and the
 firmware's host tests. The case's checks need Prusa's files, which are not
@@ -100,7 +100,7 @@ coverage.
 ## Firmware (`firmware/`, host tests)
 
 `python3 -m unittest` from `firmware/`: **212 run, all pass** in CI
-(`ci / layercam-pro-v1`, which has ffmpeg and `ssh-keygen`). On a PC
+(`ci / layercam-pro`, which has ffmpeg and `ssh-keygen`). On a PC
 without them the MP4 and recording tests and the SSH fingerprint
 cross-check skip themselves (2 Nov 2026: 212 run, 1 skipped, without
 `ssh-keygen`). They cover:

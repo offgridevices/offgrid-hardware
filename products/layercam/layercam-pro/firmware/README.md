@@ -664,7 +664,7 @@ python3 -m unittest            # from this folder; 212 tests, about 15 s
 The MP4, recording and whole-service tests need `ffmpeg` and `ffprobe`
 with libx264 on the PC (they make the test video); without them they are
 skipped, and the SSH fingerprint cross-check needs `ssh-keygen`. CI
-(`ci / layercam-pro-v1`: ffmpeg installed, `ssh-keygen` in its image)
+(`ci / layercam-pro`: ffmpeg installed, `ssh-keygen` in its image)
 runs all 212; on 2 Nov 2026 on a PC with ffmpeg and without `ssh-keygen`
 (Python 3.13): **212 run, 211 pass, 1 skipped** (the `ssh-keygen` one).
 

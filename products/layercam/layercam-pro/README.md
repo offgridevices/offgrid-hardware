@@ -303,7 +303,7 @@ cd firmware && python3 -m unittest          # camera software host tests
 ```
 
 Prusa's case files (Printables model 1343977) are downloaded, not
-committed. CI (`ci / layercam-pro-v1`) rebuilds the fab files from the
+committed. CI (`ci / layercam-pro`, running `tools/ci.sh`) rebuilds the fab files from the
 committed board and checks them, with the design checks, the simulations
 and the firmware's tests.
 
