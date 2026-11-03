@@ -8,8 +8,8 @@ the parts it has just built).  Exits 1 if a check fails.
 
   1. the board (geometry.OUTLINE with its USB-C tab, 1.6 mm) fits: every
      part keeps CLEAR (0.5 mm) from it except the four screw pads, which
-     touch it only inside BOSS_D; the tab's end (bare 0.6 mm border) may
-     come closer;
+     touch it only inside BOSS_D; the tab's end (no copper within 0.3 mm
+     of it) may come closer;
   2. every light-rod channel runs from its LED to its front hole: the 2.0 mm
      rod along it touches nothing, the channel is walled from the front
      plate to the tube's top, it opens at the hole, and its top end is 0.3 mm
@@ -97,7 +97,7 @@ def run(parts, info, folder=None, log=print):
                    G.BOARD_Z, G.BOARD_Z + G.BOARD_T) - pads - tab_end
     fit_gap = min(gap(fitb, m - pads) for m in parts.values())
     report('board clearance', gmin >= C.CLEAR - 0.02 and min(tab_gaps.values()) >= 0.15 and min(pad_touch) > 0.0,
-           'board to case %.2f mm (front %.2f, back %.2f, lid %.2f); tab end (0.6 mm bare border) %.2f mm; '
+           'board to case %.2f mm (front %.2f, back %.2f, lid %.2f); tab end (no copper within 0.3 mm) %.2f mm; '
            'the four screw pads touch it only inside Ø%.1f (Ø%.1f round them clear by %.2f mm); '
            'with FIT_OUTLINE the board clears the case by %.2f mm'
            % (gmin, gaps['front-shell'], gaps['back-shell'], gaps['lid'], min(tab_gaps.values()), G.BOSS_D,

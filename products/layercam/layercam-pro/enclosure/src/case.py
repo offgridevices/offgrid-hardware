@@ -859,7 +859,7 @@ def sma_search(folder, step=0.5):
                 continue
             P = sma_keep_points(c, n, 1.0)
             # over the board's parts zone: 3.7 mm above its back face; over its
-            # 0.6 mm bare border: 0.5 mm; beside the board: anywhere in the cavity
+            # 0.6 mm part-free border (CORNER_CLEAR): 0.5 mm; beside the board: anywhere in the cavity
             zmin = np.where([parts_zone.contains(Point(q[0], q[1])) for q in P], BOARD_BACK + 3.7,
                             np.where([border.contains(Point(q[0], q[1])) for q in P], BOARD_BACK + CLEAR, -99))
             clear = min((P[:, 2] - zmin).min(), LID_SEAT_Z - 0.25 - P[:, 2].max())
