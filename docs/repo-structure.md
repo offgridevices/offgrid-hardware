@@ -6,7 +6,7 @@ Every product lives in `products/`, one folder each, named after it and
 edited in place; there are no revision folders ([versioning.md](versioning.md)).
 Variants of one line share a family folder with a short README that says
 how they differ: `products/ridge/` (Ridge 3, Ridge 3 Lite) and
-`products/layercam/` (LayerCam; LayerCam Pro joins it from its branch). Each variant is still a
+`products/layercam/` (LayerCam, LayerCam Pro). Each variant is still a
 product of its own, with its own revision, `TESTS.md` and CI job.
 
 ```

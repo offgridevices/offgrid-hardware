@@ -216,9 +216,12 @@ from Prusa's published files (GPL v2), so `enclosure/` is GPL v2 too.
 The owner prints it in PC carbon fibre (PCCF), as Prusa recommends for
 this case: hardened 0.4 mm nozzle, 0.20 mm layers, 4 perimeters (Prusa
 uses 2; the new walls are 1.6-2.1 mm), no supports. Carbon-fibre plastic
-conducts a little, so no bare copper may touch it: copper and parts keep
-0.6 mm from the board's edge, and the case keeps off the board everywhere
-but round the four screw holes. The holes are plated, their rings on
+conducts a little, so no bare copper may touch it: the copper stops
+0.3 mm from the board's edge (the ground fills; tracks and vias about
+0.5 mm), all under solder mask, and the case keeps 0.5 mm off the board
+everywhere but round the four M2 screw holes. (The plan asked for 0.6 mm of
+copper-free border; the board keeps 0.6 mm only for parts, where the
+antenna jack's room comes close, `geometry.CORNER_CLEAR`.) The holes are plated, their rings on
 ground (4.5 mm for the M2s, 3.4 mm for the holder's M1.6s); the case
 touches the board only at the M2s' rings.
 

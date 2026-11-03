@@ -74,7 +74,7 @@ Run on 2 Nov 2026, with `geometry.OUTLINE` as committed.
 | Check | Why | Result |
 |---|---|---|
 | Prusa's front holes: the six LED holes, the light window, the lens bore where Prusa's STEP file has them | the outside stays Prusa's | pass |
-| **Board clearance**: 0.5 mm from the case everywhere but the screw pads | carbon-filled plastic conducts a little | pass: 0.50 mm to the front and back shells, 3.00 to the lid; the USB-C tab's end 0.24 mm (its 0.6 mm bare border) |
+| **Board clearance**: 0.5 mm from the case everywhere but the screw pads | carbon-filled plastic conducts a little | pass: 0.50 mm to the front and back shells, 3.00 to the lid; the USB-C tab's end 0.24 mm (no copper within 0.3 mm of it) |
 | Board outline against the case's walls (1.6 mm wall, 0.5 mm gap) | the board has to go in | pass: the outline, cut down at Prusa's two shoulders, lies wholly inside |
 | Board seat: four 4.5 mm bosses at the seam, 1.7 x 5.5 mm pilots | the board's height sets the focus | pass |
 | Light rods: six 2.15 mm channels from each LED to its hole, walled end to end | the light reaches the holes | pass: leaning 0.5°, 4.2°, 3.4°, 1.1°, 4.4°, 2.9° (0° to 300°), rods 18.95-19.01 mm, 0.07 mm rod to case, 0.3 mm to each LED (1.75 mm tall) |

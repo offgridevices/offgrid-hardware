@@ -64,8 +64,8 @@ which is up to 0.45 mm off `geometry.hole_xy`'s R 13.0 every 60°: at 0°
   USB-C tab, as `src/pcb.py` draws it, clamped at the case's widest point, front face on four Ø4.5
   boss tops at Z 21.0 (Prusa's outer seam), screws through the board and
   the back shell's Ø4.5 pads. 0.5 mm round the board everywhere else; the
-  USB-C tab runs into a slot in the wall (0.25 mm at its end, its 0.6 mm
-  bare border). Walls are 2.0 mm normal to Prusa's outside (a 2 mm ball
+  USB-C tab runs into a slot in the wall (0.25 mm at its end; no copper
+  within 0.3 mm of it). Walls are 2.0 mm normal to Prusa's outside (a 2 mm ball
   erosion of Prusa's case, in 0.2 mm slabs, one per print layer), 1.6 mm
   where something must come closer.
 - **Light rods**: six channels Ø2.15 for 2.0 mm clear rods, from each
@@ -170,7 +170,7 @@ Check results (2 Nov 2026 build):
 |---|---|
 | Board seat | four Ø4.5 boss tops at Z 21.00, pilots Ø1.7 x 5.5 |
 | Board outline | `geometry.OUTLINE` lies wholly inside the room the case leaves (1.6 mm wall, 0.5 mm round the board from Z 20.5 to 23.1) |
-| Board clearance | 0.50 mm to the front shell and the back shell, 3.0 to the lid; the USB-C tab's end 0.24 (its 0.6 mm bare border); only the four Ø4.5 pads touch it |
+| Board clearance | 0.50 mm to the front shell and the back shell, 3.0 to the lid; the USB-C tab's end 0.24 (no copper within 0.3 mm of it); only the four Ø4.5 pads touch it |
 | Prusa's front holes | LED holes, window and bore cut where Prusa's STEP file has them |
 | Rod channels | all six walled from the front plate to the tube top, open at both ends, rod to case 0.07 mm, 0.3 mm to each LED, rods 18.95 to 19.01 mm |
 | Light-sensor tube | open end to end, 0.65 mm short of the sensor |

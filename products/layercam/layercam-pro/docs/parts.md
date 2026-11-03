@@ -141,5 +141,5 @@ Why each:
 - **Screws.** M2 x 8 for the board and shells, M2 x 6 for the lid,
   self-tapping into the case's 1.7 mm pilots, as Prusa's.
 - **Case material.** PCCF, as Prusa prints its case; PETG softens near
-  70 °C. It conducts a little: the board's copper keeps 0.6 mm from its
-  edge, and the case touches it only at the screw pads.
+  70 °C. It conducts a little: the board's copper stops 0.3 mm from its
+  edge, under solder mask, and the case touches it only at the screw pads.

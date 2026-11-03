@@ -35,7 +35,7 @@ OUTLINE = [
 SCREWS = [(-13.0, 25.5), (13.0, 25.5), (-28.0, 0.0), (28.0, 0.0)]
 SCREW_D = 2.2
 BOSS_D = 4.5              # the boss under the board (front face): no part within this
-CORNER_CLEAR = 0.6        # copper and parts keep this far from the edge (the case is carbon-filled: it conducts a little)
+CORNER_CLEAR = 0.6        # the case may come within 0.5 mm of the board's back face this far in from its edge (enclosure/src/case.py: the antenna jack's room): no part there. The copper stops 0.3 mm from the edge (pcb.py)
 
 # ---------------------------------------------------------------- lens stack
 # Lens: Towin CCL127028MPR (M12, 2.8 mm, IR corrected, total track 20.9)
