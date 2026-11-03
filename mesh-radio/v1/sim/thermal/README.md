@@ -13,7 +13,7 @@ The four studies are:
 
 ```
 tools/kd python3 sim/thermal/run.py        # from mesh-radio/v1; about 45 min with NPROC=2
-tools/kd python3 sim/thermal/followup.py   # the follow-up below; about FOLLOWUP_MIN min with NPROC=2
+tools/kd python3 sim/thermal/followup.py   # the follow-up below; about 55 min with NPROC=2
 ```
 
 `run.py` reads `src/circuit.py`, `src/parts.py`, `src/pcb.py`,
@@ -271,7 +271,92 @@ If a part must change:
   - Until fixes 2 and 3 are measured on a built board, treat 1 W as the
     field limit.
 
-FOLLOWUP_SECTION
+## Follow-up: data-sheet efficiency, power per board option
+
+`followup.py` uses the same model, the routed board and the same pass
+criteria as `run.py`, with h = 10 W/m²K and no charging. It writes
+`results_followup.txt` and `power_table.png`. (Its first version, 19 Oct,
+compared 4- and 6-layer guesses; those rows are gone, the board is
+built.)
+
+### The amplifier's efficiency
+
+**Nominal case: the QPA9510 data sheet (23 Jun 2025), p.4, "PAE vs.
+Average Output Power",** 915 MHz curve, VCC = 3.6 V, VAPC = 2.8 V, 215 mA
+quiescent, 25 °C, GSM bursts (Pin +4.5 dBm, 37.5 % duty, p.3). PAE is
+31.5 % at 30 dBm, 45 % at 33 dBm, 56 % at 35 dBm, peak 57.5 % at
+35.5 dBm (p.3 cross-check: 35.4 dBm at 1.7 A from 3.6 V is 56.7 %).
+
+- The amplifier must deliver the antenna power plus 1.13 dB, the loss to
+  the U.FL found by `sim/rf`.
+- Firmware sets VPA so the amplifier works at its 35 dBm-equivalent point,
+  within 2.7–4.0 V. This assumes a saturated amplifier keeps its PAE when
+  VCC and the output scale together.
+- The amplifier then gives off **1.36 / 1.44 / 2.03 / 2.56 / 3.14 W** at
+  30 / 31.5 / 33 / 34 / 35 dBm at the antenna.
+
+**Pessimistic case: the plan's supply power.** The amplifier then gives off
+1.40 / 1.87 / 2.60 / 3.94 / 5.10 W.
+
+### Highest dBm at the antenna that passes
+
+Each cell is nominal / pessimistic; "–" means not even 30 dBm. A storm is
+1 s on, 3 s off. "Paddle fixes" = the paddle joined to the top pour and
+copper-filled paddle vias; "pad" = the 10 × 10 mm gap pad at
+`layout.GAP_PAD` to a metal wall.
+
+| Board option | 25 °C: 1 s/min | 25 °C: 2 s/min | 25 °C: storm | 45 °C: 1 s/min | 45 °C: 2 s/min | 45 °C: storm | 60 °C: 1 s/min | 60 °C: 2 s/min | 60 °C: storm |
+|---|---|---|---|---|---|---|---|---|---|
+| As built | 35/33 | 34/33 | 31.5/31.5 | 33/31.5 | 31.5/30 | –/– | –/– | –/– | –/– |
+| As built + pad | 35/33 | 34/33 | 34/33 | 33/31.5 | 31.5/30 | 31.5/30 | –/– | –/– | –/– |
+| As built + pad at its old spot | 35/33 | 34/33 | 35/33 | 33/31.5 | 31.5/31.5 | 33/31.5 | –/– | –/– | –/– |
+| Paddle fixes | 35/35 | 35/34 | 33/33 | 35/33 | 34/33 | –/– | 31.5/31.5 | 31.5/30 | –/– |
+| Paddle fixes + pad | 35/35 | 35/34 | 35/34 | 35/33 | 34/33 | 33/31.5 | 31.5/31.5 | 31.5/30 | 31.5/30 |
+| Paddle fixes + 2 oz outer | 35/35 | 35/35 | 34/33 | 35/34 | 34/33 | –/– | 33/31.5 | 31.5/31.5 | –/– |
+| Paddle fixes + 2 oz outer + pad | 35/35 | 35/35 | 35/34 | 35/34 | 35/33 | 34/33 | 33/31.5 | 33/31.5 | 31.5/31.5 |
+
+At 60 °C the cell-at-60 °C criterion is left out, because the box sets
+it. Against 19 Oct: the routed board with the two paddle fixes gives
+exactly what the old "6-layer + fixes, 1 oz" guess gave (that guess had
+the paddle joined and copper-filled vias); as built, without them, it
+passes nothing at 60 °C. The best row is 1 dB short of the old best
+(34 → 33 dBm once a minute at 60 °C, 33 → 31.5 dBm in a storm), because
+the gap pad moved away from the amplifier.
+
+### Which fix helps most
+
+Case / junction peak, nominal PAE:
+
+| Change | 25 °C, 34 dBm, 1 s/min | 45 °C, 33 dBm, 2 s/min | 60 °C, 30 dBm, storm |
+|---|---|---|---|
+| As built | 68 / 100 °C | 86 / 111 °C | 95 / 112 °C |
+| The 19 Oct uniform guess for six layers | 70 / 102 | 88 / 113 | 96 / 113 |
+| Paddle joined to the top pour | 59 / 91 | 78 / 103 | 90 / 107 |
+| Copper-filled paddle vias | 57 / 89 | 75 / 101 | 88 / 105 |
+| 2 oz outer | 67 / 99 | 84 / 110 | 93 / 110 |
+| Both paddle fixes | 52 / 84 | 72 / 97 | 86 / 103 |
+| Both paddle fixes + 2 oz outer | 48 / 80 | 67 / 92 | 83 / 100 |
+| Gap pad as built | 67 / 99 | 84 / 109 | 87 / 104 |
+| Gap pad at its old spot under the PA | 65 / 97 | 81 / 106 | 83 / 100 |
+| Both paddle fixes + 2 oz outer + gap pad | 46 / 78 | 65 / 90 | 75 / 92 |
+
+The two paddle fixes are worth 9–11 °C each, and most together (16 °C at
+25 °C). The gap pad matters in storms (−8 °C at 60 °C) and hardly for a
+single packet (−1 °C); at its old spot it was worth 4 °C more.
+
+### The charger as built
+
+ISET 1 k (300 mA), the charger U4 at the USB end, NTC TH1 beside J3:
+
+- **At 25 °C** the charger junction is 79 °C from a 3.0 V cell (TREG
+  100 °C: full current); the board under J3 and the NTC read 34 °C.
+  400 mA would also pass (97 °C); 497 mA would throttle to 84 %.
+- **At 45 °C ambient** the board round J3 is 51–53 °C at any current, so
+  firmware must stop charging (the 45 °C rule); the charger's own NTC
+  hot stop (55.6 °C at the earliest) does not trip.
+- The NTC now reads the cell plug's board, and the amplifier's heat with
+  it: firmware should not read it during or just after a burst.
+
 
 ## Model
 
