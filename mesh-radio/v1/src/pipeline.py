@@ -21,7 +21,7 @@ from collections import Counter
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import pcbnew
-import pcb, route, finish, board, circuit
+import pcb, route, finish, board, circuit, layout
 
 PLANES = ['GND']
 EDGE = 0.3                      # mm of bare board along the outline (board setup's edge clearance)
@@ -57,9 +57,21 @@ def plane_fanout(path):
                                      tracks=False, vias=True, pads=False, pours=False, name='hole ring'))
     ex, ey = pcb.HX - 0.45, pcb.HY - 0.45
     inpad = dict(d=board.VIA_SIG[0], drill=board.VIA_SIG[1], cl=0.13, hole_cl=0.2, hole_gap=0.25, min_pad=0.38)
+    # every RF shunt's ground pad and each of the harmonic filter's six takes
+    # a via of its own, done first (until 3 Nov C38, C51, R46, R51, R75, the
+    # detectors' 1 nF and five of FL1's six shared one 0.6-1.1 mm away: sim/rf R8)
+    rfn = set(board.RF_NETS + board.RF_EXTRA + ['FWD_DET', 'REFL_DET'])
+    own = set()
+    for fp in b.GetFootprints():
+        nets_ = set(p.GetNetname() for p in fp.Pads())
+        if 'GND' in nets_ and nets_ & rfn and (len(fp.Pads()) == 2 or fp.GetValue().upper().startswith('LFCG')
+                                               or 'LFCG' in fp.GetFPIDAsString().upper()):
+            own.add(fp.GetReference())
+    log('plane fan-out: own ground vias for %s' % sorted(own))
     n, failed = fanout.fanout(b, set(PLANES), (-ex + pcb.CX, -ey + pcb.CY, ex + pcb.CX, ey + pcb.CY),
                               via_d=board.VIA_SIG[0], via_drill=board.VIA_SIG[1], clearance=0.13,
-                              stub_w=0.2, ep_pitch=1.0, share=0.6, inpad=inpad, ep_join=0.2, ep_min_area=0.8)
+                              stub_w=0.2, ep_pitch=1.0, share=0.6, inpad=inpad, ep_join=0.2, ep_min_area=0.8,
+                              own=own, own_inpad=dict(d=board.VIA_PAD[0], drill=board.VIA_PAD[1], min_pad=0.3))
     for z in tmp:
         pcb.remove(b, z)
     for t in b.GetTracks():
@@ -97,8 +109,20 @@ def rf_reference_keepouts(b, margin=0.6, log=log):
             if cy.OutlineCount():
                 bb = cy.BBox()
                 chips.append(_box(bb.GetLeft() / 1e6, bb.GetTop() / 1e6, bb.GetRight() / 1e6, bb.GetBottom() / 1e6))
+    # but the Bluetooth line's escape from inside the nRF52840 keeps In1
+    # under it too, over its line and coplanar gap only (LORA_NRESET ran on
+    # In1 right under it, in the chip's cut-out: sim/rf R6)
+    inner = []
+    for t in b.GetTracks():
+        if t.GetClass() != 'PCB_VIA' and t.GetLayer() == pcbnew.F_Cu and t.GetNetname() == 'NRF_ANT':
+            s_, e_ = t.GetStart(), t.GetEnd()
+            inner.append(LineString([(s_.x / 1e6, s_.y / 1e6), (e_.x / 1e6, e_.y / 1e6)])
+                         .buffer(t.GetWidth() / 2e6 + board.RF_GAP))
     k = 0
-    for q in _simple(unary_union(band).difference(unary_union(chips))):
+    areas = unary_union(band).difference(unary_union(chips))
+    if inner:
+        areas = unary_union([areas, unary_union(inner)])
+    for q in _simple(areas):
         if q.area < 0.02:
             continue
         pts = [(x - pcb.CX, y - pcb.CY) for x, y in list(q.exterior.coords)[:-1]]
@@ -412,6 +436,10 @@ def clearances(comps):
     for n in nets:
         if n in board.POWER:
             cl[n] = 0.12
+    # the RF lines' coplanar gap to every other net's copper (sim/rf R5:
+    # LNA_OUT ran 0.14 mm from BYP_ILIM, LORA_TXB 0.22 mm from I2C_SDA)
+    for n in nets & set(board.RF_NETS + board.RF_EXTRA):
+        cl[n] = board.RF_GAP
     return cl
 
 
@@ -896,6 +924,76 @@ def island_pours(path, nets, margin=0.6, log=log):
     return kept
 
 
+# the power nets poured round their own copper after routing (sim/
+# extract, 3 Nov: as thin tracks, the cell to the mux 35 mR, the charger's
+# SYS to the mux 237 mR, the drone plug to its limiter 144 mR); the
+# switching nodes stay tracks (a pour there is an antenna)
+POUR_NETS = [n for n in board.HEAVY + board.POWER if n not in ('PA_LX1', 'PA_LX2', 'BUCK_SW')]
+POUR_GROW = 1.2     # mm round the net's tracks, pads and vias on that layer
+
+
+def power_pours(path, layers, grow=POUR_GROW, clearance=0.15, log=log):
+    """Each power net gets a zone on each layer it is routed on, its outline
+    its own copper there grown by `grow` (not on the gap pad's bottom
+    copper), above the ground fill: KiCad fills it with whatever room the
+    other nets leave, so a thin route becomes a wide one.  Islands that do
+    not touch the net's copper are removed."""
+    from shapely.geometry import LineString, Point, box as _box
+    from shapely.ops import unary_union
+    b = pcbnew.LoadBoard(path)
+    mm = lambda v: v / 1e6
+    ex, ey = pcb.HX - 0.35, pcb.HY - 0.35
+    outline = _box(-ex + pcb.CX, -ey + pcb.CY, ex + pcb.CX, ey + pcb.CY)
+    gx0, gy0, gx1, gy1 = layout.GAP_PAD
+    gap = _box(gx0 + pcb.CX - 0.3, gy0 + pcb.CY - 0.3, gx1 + pcb.CX + 0.3, gy1 + pcb.CY + 0.3)
+    geo = {}
+    for t in b.GetTracks():
+        n = t.GetNetname()
+        if n not in POUR_NETS:
+            continue
+        if t.GetClass() == 'PCB_VIA':
+            q = t.GetPosition()
+            geo.setdefault((n, 'via'), []).append(Point(mm(q.x), mm(q.y)))
+            continue
+        if t.GetLayer() in layers:
+            s_, e_ = t.GetStart(), t.GetEnd()
+            geo.setdefault((n, t.GetLayer()), []).append(
+                LineString([(mm(s_.x), mm(s_.y)), (mm(e_.x), mm(e_.y))]).buffer(mm(t.GetWidth()) / 2))
+    for fp in b.GetFootprints():
+        for p in fp.Pads():
+            n = p.GetNetname()
+            if n not in POUR_NETS:
+                continue
+            q = p.GetPosition()
+            for l in layers:
+                if p.IsOnLayer(l):
+                    geo.setdefault((n, 'pad', l), []).append(Point(mm(q.x), mm(q.y)))
+    k = 0
+    pri = 10
+    for n in POUR_NETS:
+        for l in layers:
+            tr = geo.get((n, l), [])
+            if not tr:
+                continue                         # not routed on this layer: no pour there
+            items = tr + geo.get((n, 'via'), []) + geo.get((n, 'pad', l), [])
+            area = unary_union([g.buffer(grow) for g in items]).intersection(outline)
+            if l == pcbnew.B_Cu:
+                area = area.difference(gap)
+            area = area.simplify(0.05)
+            for q in _simple(area):
+                if q.area < 0.5:
+                    continue
+                pts = [(x - pcb.CX, y - pcb.CY) for x, y in list(q.exterior.coords)[:-1]]
+                pcb.zone(b, n, l, pts, clearance=clearance, min_width=0.2, priority=pri, thermal=False,
+                         name='power: %s' % n)
+                k += 1
+        pri += 1
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    b.Save(path)
+    log('power pours: %d zones on %d nets' % (k, len(POUR_NETS)))
+    return k
+
+
 def fatten(path, log=log, neck=0.45):
     """Widen the heavy-current and power tracks the routers laid thin
     (board.HEAVY_ROUTE_W / POWER_ROUTE_W) wherever there is room: each
@@ -999,8 +1097,10 @@ def finish_tail(fin, work, w, cl):
     # the ground pour on every routing layer but the plane's own (In1 has
     # the 'GND plane' zone: a second one there is a DRC error)
     plane = pcb.layer_id(pcb.INNER['gnd'])
+    power_pours(fin, [l for l in finish.ROUTE_LAYERS if l != plane])
     pcb.pour_ground(fin, [l for l in finish.ROUTE_LAYERS if l != plane], clearance=0.15)
     b = pcbnew.LoadBoard(fin)
+    stitch.stitch_rf(b, set(board.RF_NETS + board.RF_EXTRA), via=board.VIA_SIG, clearance=0.13, log=log)
     stitch.stitch_ground(b, pitch=1.0, via=board.VIA_SIG, clearance=0.13, log=log)
     b.Save(fin)
     opens('pour and stitch')

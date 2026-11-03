@@ -130,7 +130,7 @@ def inpad_spots(pg, d):
 def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
            ep_min_area=2.0, stub_w=0.25, skip=(), via_ok=None, ep_pitch=1.0, share=0.0,
            inpad=None, ep_join=0.0, steps=(0.02, 0.15, 0.3, 0.5, 0.75, 1.0, 1.3), far_share=0.0,
-           off_drill=None, ep_only=()):
+           off_drill=None, ep_only=(), own=(), own_inpad=None):
     """ep_pitch: via grid pitch inside exposed pads.  share > 0: a pad with a
     same-net via within `share` mm of its edge joins that via with a stub
     instead of taking a via spot of its own.
@@ -143,14 +143,20 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
     off_drill: drill of a via placed beside its pad (default via_drill).
     ep_only: nets whose ordinary pads are left alone (they reach the plane
     through the poured copper and its stitching vias); only their exposed
-    pads take vias here."""
+    pads take vias here.
+    own: parts whose plane pads each take a via of their own (no sharing),
+    done first; own_inpad: dict(d, drill, min_pad), a smaller in-pad via
+    tried for them when the usual one does not fit (RF shunt grounds and
+    the harmonic filter's ground pads: sim/rf R8)."""
     """nets: set of net names to take into the planes.  bounds: (x0,y0,x1,y1)
     in board mm inside which vias may go (board edge minus clearance)."""
     layers = [l for l in board.GetEnabledLayers().CuStack()]
     obs = Obstacles(board, layers)
     rv = via_d / 2
     placed, failed, ep_failed = 0, [], []
-    for fp in board.GetFootprints():
+    fps = sorted(board.GetFootprints(), key=lambda f: f.GetReference() not in own)
+    for fp in fps:
+        mine = fp.GetReference() in own
         fc = fp.GetPosition(); fcx, fcy = mm(fc.x), mm(fc.y)
         if fp.GetReference() in skip:
             continue
@@ -227,8 +233,12 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                 if done:
                     continue
             spot = None
+            tries = []
             if inpad and min(maxx - minx, maxy - miny) >= inpad['min_pad']:
-                d_in, dr_in = inpad['d'], inpad['drill']
+                tries.append((inpad['d'], inpad['drill']))
+            if inpad and mine and own_inpad and min(maxx - minx, maxy - miny) >= own_inpad['min_pad']:
+                tries.append((own_inpad['d'], own_inpad['drill']))
+            for d_in, dr_in in tries:
                 rr = max(inpad['cl'] + d_in / 2, inpad['hole_cl'] + dr_in / 2)
                 for x, y in inpad_spots(pg, d_in):
                     vg = Point(x, y).buffer(d_in / 2)
@@ -238,6 +248,8 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                             and (via_ok is None or via_ok(x, y, net))):
                         spot = (x, y)
                         break
+                if spot:
+                    break
             if spot:
                 x, y = spot
                 if True:
@@ -247,7 +259,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                     obs.netvias.append((x, y, net)); obs.holes.append((x, y, dr_in / 2))
                     placed += 1
                     continue
-            if share > 0:
+            if share > 0 and not mine:
                 from shapely.geometry import LineString
                 best = None
                 for vx, vy, vn in obs.netvias:

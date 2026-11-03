@@ -61,6 +61,7 @@ POWER_W = 0.3
 # finish widens every stretch that has room to HEAVY_W / POWER_W
 # (pipeline.fatten), and keeps thin only the necks at fine-pitch pins.
 HEAVY_ROUTE_W, POWER_ROUTE_W = 0.3, 0.2
+SENSE_W = 0.6     # the protection FETs to the current-sense shunt (drawn with the board, B.Cu)
 HEAVY = ['VPA', 'PA_IN', 'PA_LX1', 'PA_LX2', 'BAT_P', 'BATT_PLUS', 'CELL_MINUS', 'PROT_S2',
          'PA_VCC1', 'PA_VCC2', 'PA_V1F', 'PA_V2F']
 POWER = ['VSYS', 'VSYS_SW', 'VIN_CHG', 'USB_VBUS', 'USB_5V', 'SOLAR_CONN', 'SOLAR_RAW',
@@ -86,7 +87,10 @@ RULES = pcb.POFV_RULES + """
   (condition "A.NetClass == 'RF' && B.Type == 'Zone'")
   (constraint clearance (min %.2fmm)))
 """ % RF_GAP + """
-(rule "gap pad: ground vias only"
+(rule "RF gap to other nets' tracks and vias"
+  (condition "A.NetClass == 'RF' && A.Type == 'Track' && (B.Type == 'Track' || B.Type == 'Via') && B.NetClass != 'RF' && B.NetName != 'GND'")
+  (constraint clearance (min %.2fmm)))
+""" % RF_GAP + """(rule "gap pad: ground vias only"
   (condition "A.Type == 'Via' && A.NetName != 'GND' && A.intersectsArea('gap pad')")
   (constraint disallow via))
 (rule "USB-C locating slot (Amphenol 12401610 drawing)"
@@ -113,7 +117,9 @@ def net_classes(b, comps):
     nets = set(n for c in comps for n in c.pins.values() if n)
     # RF lines keep 0.1 mm to pads (the chips' 0.5 mm pitch needs it); their
     # 0.18 mm gap to ground is the top pour's own clearance (RF_GAP)
-    pcb.netclass(b, 'RF', sorted(nets & set(RF_NETS + RF_EXTRA)), RF_W, clearance=0.1, via_d=VIA_SIG[0],
+    # (0.25 since 3 Nov, the routers' gap to them: sim/rf R5; the DRC holds
+    # tracks and vias of other nets to it, pads to the fab minimum, RULES)
+    pcb.netclass(b, 'RF', sorted(nets & set(RF_NETS + RF_EXTRA)), RF_W, clearance=RF_GAP, via_d=VIA_SIG[0],
                  via_drill=VIA_SIG[1])
     pcb.netclass(b, 'Heavy', sorted(nets & set(HEAVY)), HEAVY_ROUTE_W, clearance=0.1, via_d=0.5, via_drill=0.25)
     pcb.netclass(b, 'Power', sorted(nets & set(POWER)), POWER_ROUTE_W, clearance=0.12, via_d=VIA_SIG[0], via_drill=VIA_SIG[1])
@@ -177,6 +183,25 @@ def build(out, replace=False):
     for net, pts, w in layout.rf_tracks(b, nodes):
         before = set(t.m_Uuid.AsString() for t in b.GetTracks())
         pcb.track(b, pts, w, pcbnew.F_Cu, net)
+        for t in b.GetTracks():
+            if t.m_Uuid.AsString() not in before:
+                t.SetLocked(True)
+    # the cell current's sense loop: the protection FETs' source pins
+    # straight into the 15 mR shunt beside them on the bottom, short and
+    # wide, no layer change (until 3 Nov it dropped to In1 and back: 18 mR
+    # in series with the shunt halved the protector's trip, sim/shorts)
+    fet = [c.ref for c in comps if c.part == 'SSM10N954L']
+    shunt = [c.ref for c in comps if c.part == 'R15m']
+    if fet and shunt:
+        mm_ = lambda p: (p.GetPosition().x / 1e6 - pcb.CX, p.GetPosition().y / 1e6 - pcb.CY)
+        f = b.FindFootprintByReference(fet[0]); r = b.FindFootprintByReference(shunt[0])
+        rx, ry = mm_([p for p in r.Pads() if p.GetNetname() == 'PROT_S2'][0])
+        sp = sorted((mm_(p) for p in f.Pads() if p.GetNetname() == 'PROT_S2'), key=lambda q: (round(q[1], 2), -q[0]))
+        ends = [sp[0], sp[-1]]                      # the outer pin of each row (its neighbour joins it, join_pads)
+        before = set(t.m_Uuid.AsString() for t in b.GetTracks())
+        for px, py in ends:
+            pcb.track(b, [(px, py), (rx, py), (rx, ry)] if abs(py - ry) > 0.05 else [(px, py), (rx, ry)],
+                      SENSE_W, pcbnew.B_Cu, 'PROT_S2')
         for t in b.GetTracks():
             if t.m_Uuid.AsString() not in before:
                 t.SetLocked(True)

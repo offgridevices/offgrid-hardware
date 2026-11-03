@@ -84,7 +84,7 @@ LINES.update(esd_stub=0.0, stub_term=GEOM['cpl_stub'], term_fwd=0.0, stub_rterm=
 _CPL_CACHE = {}
 
 # ----------------------------------------------------------------------------- the routed board (routed.json)
-ROUTED_FILE = os.path.join(HERE, 'routed.json')
+ROUTED_FILE = os.environ.get('RF_ROUTED_FILE', os.path.join(HERE, 'routed.json'))   # (RF_ROUTED_FILE: a trial board's)
 USE_ROUTED = os.environ.get('RF_ROUTED', '1') != '0' and os.path.exists(ROUTED_FILE)
 RT = json.load(open(ROUTED_FILE)) if USE_ROUTED else None
 # A 0.17 mm line on F.Cu over In1 (2-D field solve, coupler.single_line, 35 um copper and mask): 49.9 ohm / eeff

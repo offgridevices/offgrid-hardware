@@ -33,7 +33,7 @@ import board as BD                              # noqa: E402
 import pcb                                      # noqa: E402
 import layout                                   # noqa: E402
 
-BOARD = os.path.join(V1, 'mesh-radio.kicad_pcb')
+BOARD = os.environ.get('RF_BOARD', os.path.join(V1, 'mesh-radio.kicad_pcb'))   # (RF_BOARD: a trial board)
 CX, CY = pcb.CX, pcb.CY
 NETS = BD.RF_NETS + BD.RF_EXTRA
 RAY = 0.8          # mm: farther than this the side counts as open (no coplanar ground)
@@ -290,9 +290,9 @@ def main():
                                                         for l in CU for n, g in U[l].items()
                                                         if g.intersects(ab) and g.intersection(ab).area > 1e-3})
     res['gnd_via_types'] = sorted({(v['d'], v['drill'], v['top'], v['bot']) for v in vias.get('GND', [])})
-    json.dump(res, open(os.path.join(HERE, 'routed.json'), 'w'), indent=0)
+    json.dump(res, open(os.path.join(os.environ.get('RF_OUT', HERE), 'routed.json'), 'w'), indent=0)
     report(res)
-    open(os.path.join(HERE, 'routed.txt'), 'w').write('\n'.join(TXT) + '\n')
+    open(os.path.join(os.environ.get('RF_OUT', HERE), 'routed.txt'), 'w').write('\n'.join(TXT) + '\n')
 
 
 def report(res):

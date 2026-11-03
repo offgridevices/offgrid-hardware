@@ -154,3 +154,85 @@ def stitch_ground(b, pitch=1.0, via=(0.4, 0.2), clearance=0.13, hole_gap=0.25, l
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     log('  ground stitching: %d vias' % n)
     return n
+
+
+def _polys(z, l):
+    fp_ = z.GetFilledPolysList(l)
+    out = []
+    for i in range(fp_.OutlineCount()):
+        o = fp_.Outline(i)
+        pts = [(mm(o.CPoint(j).x), mm(o.CPoint(j).y)) for j in range(o.PointCount())]
+        if len(pts) >= 3:
+            out.append(Polygon(pts).buffer(0))
+    return out
+
+
+def stitch_rf(b, nets, via=(0.4, 0.2), pitch=1.0, clearance=0.13, hole_gap=0.25, log=print):
+    """Ground vias along both sides of every RF line on F.Cu, about `pitch`
+    apart, as close as the top pour allows (its edge is the line's
+    coplanar gap away): they tie the pour's fingers between the lines to
+    In1 (until 3 Nov no TX or antenna line had a ground via within 0.6 mm,
+    sim/rf R7).  A via goes only where it lies wholly in the top ground
+    pour, outside every rule area that forbids vias, and clears every other
+    net's copper on all layers.  Returns the count."""
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    d, drill = via
+    obs = fanout.Obstacles(b, CU)
+    top, novia = [], []
+    for z in b.Zones():
+        if z.GetIsRuleArea():
+            if z.GetDoNotAllowVias():
+                o = z.Outline().Outline(0)
+                novia.append(Polygon([(mm(o.CPoint(j).x), mm(o.CPoint(j).y))
+                                      for j in range(o.PointCount())]).buffer(0))
+            continue
+        if z.GetNetname() == 'GND':
+            if z.IsOnLayer(pcbnew.F_Cu):
+                top += _polys(z, pcbnew.F_Cu)
+            continue
+        if z.GetZoneName() in ('GND plane', 'VBAT plane'):
+            continue
+        for l in CU:
+            if z.IsOnLayer(l):
+                obs.items[l].extend((g, z.GetNetname()) for g in _polys(z, l))
+    obs._index()
+    area = unary_union(top).buffer(-d / 2 - 0.02)
+    bad = unary_union(novia).buffer(d / 2) if novia else None
+    gv = [(mm(v.GetPosition().x), mm(v.GetPosition().y)) for v in b.GetTracks()
+          if v.GetClass() == 'PCB_VIA' and v.GetNetname() == 'GND']
+    n = 0
+    for t in list(b.GetTracks()):
+        if t.GetClass() == 'PCB_VIA' or t.GetLayer() != pcbnew.F_Cu or t.GetNetname() not in nets:
+            continue
+        ax, ay, bx, by = mm(t.GetStart().x), mm(t.GetStart().y), mm(t.GetEnd().x), mm(t.GetEnd().y)
+        L = math.hypot(bx - ax, by - ay)
+        if L < 0.3:
+            continue
+        ux, uy = (bx - ax) / L, (by - ay) / L
+        hw = mm(t.GetWidth()) / 2
+        k = max(1, int(L / 0.25))
+        for i in range(k + 1):
+            px, py = ax + ux * L * i / k, ay + uy * L * i / k
+            for sgn in (1, -1):
+                for off in (0.475, 0.535, 0.615):      # past the line's edge (0.56-0.7 mm from a 0.17 mm line's centre)
+                    x, y = px - uy * sgn * (hw + off), py + ux * sgn * (hw + off)
+                    if any((x - vx) ** 2 + (y - vy) ** 2 < (pitch * 0.9) ** 2 for vx, vy in gv):
+                        break
+                    pt = Point(x, y)
+                    if not area.contains(pt) or (bad is not None and bad.contains(pt)):
+                        continue
+                    g = pt.buffer(d / 2, 16)
+                    if not obs.hole_room(x, y, drill / 2, hole_gap) or not obs.clear(g, 'GND', CU, clearance):
+                        continue
+                    v = pcbnew.PCB_VIA(b)
+                    v.SetPosition(pcbnew.VECTOR2I(MM(x), MM(y)))
+                    v.SetWidth(MM(d)); v.SetDrill(MM(drill))
+                    v.SetNet(b.FindNet('GND'))
+                    b.Add(v)
+                    obs.add(g, 'GND', CU); obs.holes.append((x, y, drill / 2)); obs.vias.append((x, y))
+                    gv.append((x, y))
+                    n += 1
+                    break
+    pcbnew.ZONE_FILLER(b).Fill(b.Zones())
+    log('  RF line stitching: %d ground vias' % n)
+    return n
