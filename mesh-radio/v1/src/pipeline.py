@@ -1220,7 +1220,44 @@ def local_repair(b, nets, w, cl, protect, margin=1.2, tries=8, seed=1, log=log):
                 b.Add(t)
         if not done:
             log('   local %-12s gap %.2f mm, no order worked (%d tries, nets %s)' % (net, d, tries, group))
+            done = spare_ground_vias(b, net, zone, w, cl, isl, log)
     return [x for x in finish.unrouted_nets(b) if x in set(nets)]
+
+
+def spare_ground_vias(b, net, zone, w, cl, isl, log=log):
+    """Ground vias in the gap `zone` that are spare (taken out, ground
+    has no more islands: the pads they serve reach the plane another way)
+    come out, nearest the gap first, until `net` routes; if it never does
+    they all go back.  (3 Nov: the GPS port ESD array's ground-pin via
+    stood on the LoRa PA supply pin's only way out.)"""
+    from shapely.geometry import Point
+    c = zone.centroid
+    vias = []
+    for t in b.GetTracks():
+        if t.GetClass() == 'PCB_VIA' and t.GetNetname() == 'GND':
+            q = t.GetPosition(); p_ = Point(finish.mm(q.x), finish.mm(q.y))
+            if zone.contains(p_):
+                vias.append((p_.distance(c), t))
+    base = isl('GND')
+    gone = []
+    for _, v in sorted(vias, key=lambda x: x[0]):
+        pcb.remove(b, v)
+        if isl('GND') > base:
+            b.Add(v); continue
+        gone.append(v)
+        pre = set(t.m_Uuid.AsString() for t in b.GetTracks())
+        if finish.route_net(b, net, track_w=w.get(net, finish.SIG_W), clmap=cl, lock=False) == 0:
+            q = v.GetPosition()
+            log('   local %-12s routed with %d spare ground via(s) out (last at %.2f, %.2f)'
+                % (net, len(gone), finish.mm(q.x) - pcb.CX, finish.mm(q.y) - pcb.CY))
+            return True
+        for t in list(b.GetTracks()):
+            if t.m_Uuid.AsString() not in pre:
+                pcb.remove(b, t)
+    for v in gone:
+        b.Add(v)
+    log('   local %-12s no spare ground via made room (%d tried)' % (net, len(vias)))
+    return False
 
 
 ROUND_PASSES = int(os.environ.get('ROUND_PASSES', 5))   # Freerouting passes per saved round
