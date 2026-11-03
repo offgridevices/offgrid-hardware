@@ -50,16 +50,16 @@ as changed on 19 Oct (next section).  Ambient corners -40 / -20 / 0 / 25 /
 | reverse cell into live pads (right-way cell pulled out under USB, then a reversed one) | PASS* | PASS* | PASS* | PASS | PASS | PASS* | 20 Oct: check-FET gate clamped (4.7 V zener): its gate stays in rating. Still 11-12 A (20-21 A before the routed board's copper) for ~0.2 ms until the protector trips (reverse FET 48 A pulsed rating). *At <= 0 C and (routed board) at 85 C the solver started unlatched, so those runs did not test it |
 | right-way cell, with and without USB | PASS | PASS | PASS | PASS | PASS | PASS | FET on ~3 ms after the plug |
 | shorts: 3V3 (also with USB), header 3V3, VPA; VSYS with a mid cell | PASS | PASS | PASS | PASS | PASS | PASS | VSYS: TPS22950 holds the cell to 1.0 A |
-| shorts: VSYS (fresh cell, and with USB), PA_IN (fresh cell) | PASS | PASS | **MARG** | **MARG** | **MARG** | **MARG** | routed board: was PASS.  The cell's share through the charger's BATFET (VSYS) or the mux's 4.5 A limit (PA_IN) is 3.0-4.5 A, over the protector's OCD now (2.1-3.8 A, was 4.8-6.7 A): it cuts the cell off after 20 ms, safely, but then the BAT_P restart rule applies (bench).  At -40 / -20 C the cell's R_int keeps the current under OCD |
+| shorts: VSYS (fresh cell, and with USB), PA_IN (fresh cell) | PASS | PASS | **MARG** | **MARG** | **MARG** | **MARG** | routed board: was PASS.  The cell's share through the charger's BATFET (VSYS) or the mux's 4.5 A limit (PA_IN) is 3.0-4.5 A, over the protector's OCD now (2.1-3.8 A over -40..85 C, was 4.6-7.0 A): it cuts the cell off after 20 ms, safely, but then the BAT_P restart rule applies (bench).  At -40 / -20 C the cell's R_int keeps the current under OCD |
 | shorts: BAT_P (cell terminals) | MARG | MARG | MARG | MARG | MARG | MARG | protector trips in ~0.3 ms (25 A peak, was 29 A; 48 A IDM FET); restart on the cell alone: bench |
 | burst 3 W, fresh cell 4.2 V / 50 mOhm | cap 2 W | **cap 2.5 W** | PASS | **cap 2.5 W** | **cap 2.5 W** | **cap 2.5 W** | routed board: was PASS at -20..85 C.  2.85 A from the cell is over the protector's OCD (2.8 A typ at 25 C, 18 mOhm of sense-loop copper): it trips 20 ms into the burst.  0 C passes by 1 % at the typical threshold |
 | burst 3 W, mid cell 3.7 V / 150 mOhm | no TX | no TX | cap 2 W | **cap 2 W** | **cap 2 W** | **cap 2 W** | routed board: was PASS at 25-85 C (OCD trip, or the TPS63810 resets on PA_IN at 2.5 W+) |
-| burst 1 W, worn cell 3.3 V / 300 mOhm | no TX | no TX | no TX | **no TX** | PASS | PASS | routed board: was PASS at 25 C (the 0.06 Ohm of BAT_P + PA_IN track and the sense copper take the last margin) |
+| burst 1 W, worn cell 3.3 V / 300 mOhm | no TX | no TX | no TX | PASS | PASS | PASS | unchanged |
 | cold start (switch on, first burst) | 1 W fresh cell only | | | | | | worn or 150 mOhm cells cannot burst at -40 C (R_int x9); unchanged |
 | hot: USB in, charging off, 3 bursts 1 / 2.5 / 3 W | | | | | | **1 W only** | routed board: was PASS at all three.  2.5 W: OCD trip (2.9 A; 85 C copper puts OCD at 2.5 A typ), 3 W: TPS63810 reset.  <= 0.16 mA into the cell (P7) |
 | USB in + mid cell 3.7 V / 150 mOhm, 3 W | | | | **FAIL** | | | routed board: was PASS.  The amplifier runs from the cell (IN1 priority): PA_IN falls to 1.9 V and the TPS63810 resets.  A firmware cap, like the battery-only rows |
 | USB only, no cell, 1 W (firmware sets PA_SRC_SYS) | | | | PASS | | | 1.6 W and up exceed the charger's 1.05 A input; unchanged |
-| USB in, cell too weak for 1 W: firmware sets PA_SRC_SYS | | | | **FAIL** | | | routed board: was PASS.  The mux's IN2 pin is 237 mOhm of VSYS track from the charger, 0.23 V below SYS at 0.96 A; when SYS sags to the cell (charger at its 1.05 A limit, supplement mode) the 3.1 V cell on IN1 is > 280 mV above IN2, the mux switches over and its 100 us gap resets the TPS63810 (the study's run stops on the solver at 4.67 ms; re-run with a 1 us step it shows the switch-over and reset at 4.7 ms) |
+| USB in, cell too weak for 1 W: firmware sets PA_SRC_SYS | | | | **FAIL** | | | routed board: was PASS.  The mux's IN2 pin is 237 mOhm of VSYS track from the charger, 0.23 V below SYS at 0.96 A; when SYS sags to the cell (charger at its 1.05 A limit, supplement mode) the 3.1 V cell on IN1 is > 280 mV above IN2, the mux switches over and its 100 us gap resets the TPS63810 at 4.7 ms |
 | solar 6 V panel (charges inside 0-45 C, <= 1 mA outside) and USB charge path | PASS | PASS | PASS | PASS | PASS | PASS | harvest 56 / 76 % of MPP (3.0 / 4.1 V cell), 37 / 53 % at 20 % sun (unchanged).  USB top-off of a 4.15 V cell: 115 mA (was 217 mA): the charger holds 4.2 V at its own BAT pin, 188 mOhm of BAT_P from the cell |
 | derating (E4) | | | | | | | 81 rows: 0 FAIL, 9 MARGINAL (3 W: QPA9510 2.3 A vs 2.4 A, TPS63810 output current and dissipation; BQ25185 ILIM at 1.1 A; nRF VBUS at OV max 96 % of abs max).  TPS2121 IN1 and TPS63810 input current dropped from MARGINAL (4.0 A) to PASS (2.8 A) only because the protector now trips before the bursts that loaded them |
 
@@ -87,11 +87,11 @@ worse:
   at 25 C, 2.08-2.88 A at 85 C (it was 4.8-6.7 A).  A 3 W burst draws
   2.7-3.7 A from the cell and the protector cuts it off 20 ms in.  The burst
   grid uses the typical 100 mV threshold; at the datasheet minimum (85 mV) a
-  2.5 W burst (2.1-2.6 A) can trip it too, so 2 W (<= 2.1 A) is the level
-  that holds on every part.  Fresh cell, 3 W: PASS -> cap 2.5 W at -20 C and
-  25-85 C; mid cell, 3 W: PASS -> cap 2 W at 25-85 C; worn cell, 1 W at
-  25 C: PASS -> no TX; hot USB case at 85 C: PASS -> 1 W only; USB + mid
-  cell at 3 W: PASS -> FAIL.  The firmware cap table is `burst/results.txt`.
+  2.5 W burst (2.1-2.6 A) can trip it too, and even 2 W (up to 2.1 A from a
+  3.3 V cell) is at the 85 C minimum (2.08 A).  Fresh cell, 3 W: PASS -> cap 2.5 W at -20 C and
+  25-85 C; mid cell, 3 W: PASS -> cap 2 W at 25-85 C; hot USB case at 85 C:
+  PASS -> 1 W only; USB + mid cell at 3 W: PASS -> FAIL.  1 W from mid and
+  worn cells is unchanged.  The firmware cap table is `burst/results.txt`.
 - **Weak cell with USB, firmware sets PA_SRC_SYS: PASS -> FAIL**, from the
   237 mOhm VSYS track to the mux's IN2 (Verdict note).
 - **Shorts on VSYS (fresh cell, with USB) and PA_IN: PASS -> MARGINAL at

@@ -143,10 +143,10 @@
   "part": "TPS22950",
   "ref": "U (cell-to-SYS)",
   "qty": "switch current (any case)",
-  "value": 0.7393212388383468,
+  "value": 1.0156066754276625,
   "unit": "A",
   "rating": 2.7,
   "kind": "derate",
-  "case": "gn_0_3.1_50_2 (2.7 A continuous; its own limit 0.75-1.25 A)"
+  "case": "gn_0_4.2_300_2 (2.7 A continuous; its own limit 0.75-1.25 A)"
  }
 ]
