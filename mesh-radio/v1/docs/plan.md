@@ -125,11 +125,14 @@ with its parts), for a total of roughly **$40**. See question 2.
 - **Mounting: four M3 holes**, one per corner (3.2 mm, plated, on ground,
   6.4 mm ring), with a 7 mm keep-out for a washer or a hex standoff.
 - **Every cable leaves the upper long edge**, the plugs all on the bottom
-  side with their openings at that edge, left to right: solar (JST-SH 2),
-  battery (JST-PH 2), drone (JST-GH 6), GPS (JST-SH 6), display / I2C
-  (JST-SH 10: GND, 3V3, SDA, SCL, SCK, MOSI, CS, DC, RST, backlight, every
-  signal on an ESD array). The USB-C stays on the short edge and the
-  antenna U.FL by the antenna end.
+  side with their openings at that edge. Seen from the top with the USB-C
+  on the left, left to right: solar (JST-SH 2), display / I2C (JST-SH 10:
+  GND, 3V3, SDA, SCL, SCK, MOSI, CS, DC, RST, backlight), GPS (JST-SH 6),
+  drone (JST-GH 6), battery (JST-PH 2), as routed on 3 Nov. Each plug's
+  ESD array sits right under its pins on the bottom (TI's placement
+  advice; it also freed the space round the nRF52840 that the display's
+  array had blocked). The USB-C stays on the short edge and the antenna
+  U.FL by the antenna end.
 - **6-layer board** (owner, 19 Oct), JLCPCB stackup JLC06161H-2116B:
   layer 2 is ground, kept solid under every radio line and the Bluetooth
   antenna; elsewhere it, and layers 3, 4 and 5, carry signals with ground
@@ -308,6 +311,11 @@ only once the windowed-listening firmware exists and is proven.
 
 1. **Keep 3 W and fix the heat:** a 10 × 10 mm gap pad from under the
    amplifier to a metal enclosure wall, nine filled vias under its paddle.
+   (3 Nov: on the 70 mm board the plugs and their ESD arrays fill the
+   bottom under the amplifier, so the gap pad sits at the bottom right,
+   x 13–23 and y 2.5–12.5 mm from the board centre, about 9 mm from the
+   amplifier, joined to it through the ground layers; `sim/thermal` gives
+   the cost.)
 2. **6 layers.**
 3. **New parts:** the designer's choice where the simulations needed them
    (60 V current limiters on solar and drone, the Alps SKRP buttons rated
