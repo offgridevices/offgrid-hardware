@@ -380,9 +380,10 @@ def side_pen(c):
 SIDE_PEN, SIDE_PEN_DECOUPLING = 1.5, 3.0
 
 
-def pack(B, refs, prefer=None, step=0.25, rmax=14.0, log=print, targets=None):
+def pack(B, refs, prefer=None, step=0.25, rmax=14.0, log=print, targets=None, rots=None):
     """Place every part in refs beside its anchor pin.  prefer: ref -> side
-    to try first.  Returns the parts that found no room."""
+    to try first; rots: ref -> the rotations it may take (else 0 and 90).
+    Returns the parts that found no room."""
     left = []
     for ref in refs:
         if ref in B.pl:
@@ -424,7 +425,7 @@ def pack(B, refs, prefer=None, step=0.25, rmax=14.0, log=print, targets=None):
                 for i in range(n):
                     a = 2 * math.pi * i / n
                     x, y = tx + r * math.cos(a), ty + r * math.sin(a)
-                    for rot in (0, 90):
+                    for rot in (rots or {}).get(ref, (0, 90)):
                         if B.fits(ref, x, y, rot, side, PACK_GAP(x, y)):
                             # prefer the spot that puts the part's own pad of that net nearest the target
                             _, pp = B.geom(ref, x, y, rot, side)

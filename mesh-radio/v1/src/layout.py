@@ -444,7 +444,7 @@ def place_all(log=print):
     # connector as possible): packed by its nets it went halfway to the
     # nRF52840, the display's under the 32 kHz crystal on top, where no via
     # could reach its pins (3 Nov: the last open net)
-    esd = []; tg = {}
+    esd = []; tg = {}; rots = {}
     for c in comps:
         if c.part != 'TPD4E05U06' or c.ref not in todo:
             continue
@@ -458,7 +458,22 @@ def place_all(log=print):
             continue
         tg[c.ref] = (sum(xs) / len(xs), B.rect(j, *B.pl[j])[3] + 1.0, 'B')
         esd.append(c.ref)
-    left += place.pack(B, esd, targets=tg)
+        # flow-through: the array's signal row parallel to the plug's pins,
+        # facing them, in the plug's order (3 Nov: the drone port's came out
+        # turned 90 degrees, its four lines crossing, two nets left open)
+        order = lambda pts: [n for n, _ in sorted(pts, key=lambda t: t[1])]
+        want = order([(n, B.pad_xy(j, pn)[0]) for pn, n in B.comps[j].pins.items() if n in sig])
+        for rot in (0, 180):
+            _, pp = B.geom(c.ref, tg[c.ref][0], tg[c.ref][1], rot, 'B')
+            sp = [(n, pp[pn]) for pn, n in c.pins.items() if n in sig and pn in pp]
+            nc = [pp[pn] for pn in pp if not c.pins.get(pn)]
+            facing = not nc or (sum(q[1] for _, q in sp) / len(sp) < sum(q[1] for q in nc) / len(nc))
+            if facing and order([(n, q[0]) for n, q in sp]) == want:
+                rots[c.ref] = (rot,)
+                break
+        else:
+            log('  %s: no rotation puts its pins in %s order facing it' % (c.ref, j))
+    left += place.pack(B, esd, targets=tg, rots=rots)
     todo = [r_ for r_ in todo if r_ not in esd]
     # (the nRF52840's two crystals, their load capacitors and its regulator
     # capacitors (DEC1-6) first, at the usual gap: with the wide one the
