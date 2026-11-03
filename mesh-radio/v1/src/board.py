@@ -22,6 +22,8 @@ if pcb.LEN != pcb.DEFAULT_LEN:
     # committed placement is the default length's; until 20 Oct such trials
     # silently reused it on the longer outline)
     PLACEMENT = PLACEMENT.replace('.json', '_%g.json' % pcb.LEN)
+# a trial run may name its own placement file (several routes at once)
+PLACEMENT = os.environ.get('PLACEMENT_FILE', PLACEMENT)
 CU = pcb.CU_IDS
 SEED = 7
 
