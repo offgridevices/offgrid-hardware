@@ -3,9 +3,15 @@
 brand faces (brand.py): words in Instrument Sans 500, numbers and codes in
 JetBrains Mono 500.  White silk.
 
-  F (back, under the lid): the US flag, the lockup, "LayerCam Pro" and the
-     revision in the free upper-right quarter; the 5V test pad; the licence.
-  B (front, the lens side): the IR-cut lead's name.
+  F (back, under the lid): the US flag over the OffGrid lockup, one badge
+     centred on the board's middle line in the open band at the top; each
+     test pad's name (the console row 5V G TX RX, the recovery row D- D+ G
+     BOOT).  Nothing else: what each part is lives in the documentation.
+  B (front, the lens side): the IR-cut lead's name, and the product and
+     revision in one line (a board must say what it is, for repairs).
+
+The licence asks only that people can find the source (CERN-OHL-S-2.0,
+section 4): the documentation and the repository say it, not the board.
 
 Every label is placed where it touches no pad, hole or mask opening (the
 fab would clip it there), searched outwards from where it is meant to go.
@@ -22,7 +28,7 @@ NAME = 'LayerCam Pro'
 REV = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).upper()
 CAP = 1.0
 # boxes kept free of stitching vias for the artwork (stitch.py), board mm
-ART = {'main': [(3.0, -25.0, 19.5, -9.0)]}
+ART = {'main': [(-8.6, -27.2, 8.6, -12.2)]}
 
 
 def strip(b):
@@ -92,7 +98,7 @@ def ink(g, what='text'):
     g = g.buffer(INK, quad_segs=4)
     thin = brand.thin_parts(g) / g.area
     if thin > 0.06:
-        raise SystemExit('silk: %s has %.0f %% of its ink under 0.15 mm' % (what, 100 * thin))
+        raise SystemExit('silk: %s has %.0f %% of its ink under %.2f mm' % (what, 100 * thin, brand.MIN_STROKE))
     return g
 
 
@@ -101,72 +107,79 @@ def text(fam, s, cap=CAP):
     return ink(g, s)
 
 
-# The badges: the OffGrid lockup, the board's name and its revision, and the
-# US flag where there is room for one at 5.26 mm of hoist (stars 0.32 mm,
-# the smallest the silkscreen keeps).  Each is set at an exact place on the
-# board's own axes; if anything there is in the way the build stops.  Text
-# 1.0 mm or larger and the lockup 7.7 mm or wider keep the strokes at the
-# fab's 0.15 mm (brand.thin_parts).
-# every board 'LayerCam – <board>' and its revision (the USB board's block
-# is too narrow for one line: the line break stands for the dash)
+# The badge: the US flag over the OffGrid lockup, centred on x = 0, in the
+# open band above the lens.  Set exactly; if anything is in the way the
+# build stops.  PCBWay's silkscreen (pcbway.com capabilities and silkscreen
+# guide, 2 Nov 2026): 0.15 mm lines, 0.8 mm text, 0.25 mm knocked-out
+# shapes.  Every piece here keeps 0.18 mm ink and 0.25 mm bare
+# (brand.thin_parts, brand.thin_gaps), or the build stops: the flag at
+# 8 mm of hoist with round stars (0.49 mm; the ink round the union's top
+# row 0.19 mm), the lockup 12 mm across.
 NAMES = {'main': 'LayerCam Pro'}
-FLAG_HOIST = 5.26
-# back face, the upper-right quarter (no parts there, kept free of vias:
-# ART): the flag, the lockup under it, the name and revision under that
-MAIN_FLAG = (11.2, -21.3)
-MAIN_LOCKUP = (11.2, -16.0, 9.0)
-MAIN_NAME = (11.2, -12.3, 1.0)
+FLAG_HOIST = 8.0
+BADGE_X = 0.0
+FLAG_Y = -22.6            # the flag's centre
+LOCKUP_W = 12.0
+BADGE_GAP = 2.4           # flag to lockup
+LABEL_CAP = 1.0           # test pad names: JetBrains Mono, 1.0 mm caps (PCBWay's floor 0.8)
+# each test pad's name, set centred above it (or below: draw())
+PAD_NAMES = {'TP4': '5V', 'TP3': 'G', 'TP1': 'TX', 'TP2': 'RX',
+             'TP6': 'D-', 'TP7': 'D+', 'TP8': 'G', 'TP5': 'BOOT'}
+PAD_LABEL_DY = -1.45      # pad centre to the name's centre (above the 1.0 mm pad)
+NAME_B = (0.0, -21.0)     # front face: the product and revision, centred above the lens
+
+
+def _fits(placer, g):
+    return placer.free.contains(g.buffer(0.12)) and not any(u.intersects(g.buffer(0.3)) for u in placer.used)
 
 
 def _set(placer, g, what):
     """Put an artwork already in board coordinates, exactly there."""
-    if not placer.free.contains(g.buffer(0.12)) or any(u.intersects(g.buffer(0.3)) for u in placer.used):
+    # (a few per cent are corners and serifs, which the ink only rounds)
+    if brand.thin_parts(g) > 0.06 * g.area or brand.thin_gaps(g) > 0.05 * g.area:
+        raise SystemExit('silk: the %s has ink under %.2f mm or gaps under %.2f mm'
+                         % (what, brand.MIN_STROKE, brand.MIN_GAP))
+    if not _fits(placer, g):
         raise SystemExit('silk: the %s does not fit where it is set' % what)
     placer.used.append(g)
     brand.add(placer.b, g, placer.layer)
 
 
-def _block(rows, lockup_w, cap, gap):
-    """The lockup over rows of type, each centred: geometry with its box
-    centred on the origin (y down, as read)."""
-    lk, _ = brand.lockup_mm(lockup_w)
-    lb = lk.bounds
-    parts = [affinity.translate(lk, -(lb[0] + lb[2]) / 2, -lb[1])]
-    y = lb[3] - lb[1]
-    for segs in rows:
-        t, _ = brand.line(segs, cap)
-        t = ink(t)
-        tb = t.bounds
-        y += gap
-        # rows on a cap-height grid: the baseline a cap below the gap
-        parts.append(affinity.translate(t, -(tb[0] + tb[2]) / 2, y + cap))
-        y += cap
-    g = unary_union(parts)
-    b0 = g.bounds
-    return affinity.translate(g, -(b0[0] + b0[2]) / 2, -(b0[1] + b0[3]) / 2)
-
-
 def draw(b):
     top = Placer(b, 'T')
-    x, y = MAIN_FLAG
-    _set(top, brand.place(brand.flag_mm(FLAG_HOIST), x, y), 'flag')
-    x, y, w = MAIN_LOCKUP
-    _set(top, brand.place(brand.lockup_mm(w)[0], x, y), 'lockup')
-    x, y, cap = MAIN_NAME
-    _set(top, brand.place(ink(brand.line([('sans', NAMES['main']), ('mono', REV)], cap)[0]), x, y), 'name')
-    # the bring-up pads: 5V on its own.  The console's pads are a row 2.0 mm
-    # apart (G, TX, RX from the 5V side), and left of the SoC D- D+ G BOOT:
-    # README.md names them; BOOT is labelled, the one to bridge
-    x, y = pcb.xy(b.FindFootprintByReference('TP4').GetPosition())
-    if not any(top.put(text('mono', '5V', 0.8), x + dx, y + dy, search=2.0, must=False)
-               for dx, dy in ((0, -1.4), (-1.7, -1.4), (1.6, 0), (-1.6, 0))):
-        raise SystemExit('silk: no room for the 5V label')
-    x, y = pcb.xy(b.FindFootprintByReference('TP5').GetPosition())
-    if not any(top.put(text('mono', 'BOOT', 0.8), x + dx, y + dy, search=2.0, must=False)
-               for dx, dy in ((0, -1.4), (0, 1.4), (2.4, 0))):
-        raise SystemExit('silk: no room for the BOOT label')
-    top.put(ink(brand.line([('mono', 'CERN-OHL-S-2.0'), ('sans', 'offgridevices')], 1.0)[0]), -6.0, -24.0,
-            search=5.0, must=False)
+    flag = brand.place(brand.flag_mm(FLAG_HOIST, round_stars=True), BADGE_X, FLAG_Y)
+    _set(top, flag, 'flag')
+    lk, _ = brand.lockup_mm(LOCKUP_W)
+    lb = lk.bounds
+    _set(top, brand.place(lk, BADGE_X, flag.bounds[3] + BADGE_GAP + (lb[3] - lb[1]) / 2), 'lockup')
+    # each row of pads has its names on one side (the side more of them fit
+    # on); a name a part's pad would clip there goes on the other
+    rows = {}
+    for ref, label in PAD_NAMES.items():
+        x, y = pcb.xy(b.FindFootprintByReference(ref).GetPosition())
+        rows.setdefault(round(y, 1), []).append((ref, label, x, y))
+    for _, row in sorted(rows.items()):
+        def at(label, x, y, dy):
+            return brand.place(text('mono', label, LABEL_CAP), x, y + dy)
+        side = max((PAD_LABEL_DY, -PAD_LABEL_DY),
+                   key=lambda dy: sum(_fits(top, at(l, x, y, dy)) for _, l, x, y in row))
+        for ref, label, x, y in row:
+            # the row's side; a name a part's pad would clip there takes the other
+            g = next((g for g in (at(label, x, y, side), at(label, x, y, -side)) if _fits(top, g)),
+                     at(label, x, y, side))
+            _set(top, g, 'name of ' + ref)
     bot = Placer(b, 'B')
     x, y = pcb.xy(b.FindFootprintByReference('J3').GetPosition())
-    bot.put(text('sans', 'IR-cut', 1.0), x + 2.5, y - 4.0, search=4.0, must=False)
+    # by the IR-cut lead's socket, clear of its body: across it, else
+    # upright beside it on either side
+    ir = text('sans', 'IR-cut', 1.2)
+    import placer
+    cy = placer.courtyard(b.FindFootprintByReference('J3'), 'B').buffer(0.4)
+    clear = lambda gx, gy, r: not cy.intersects(brand.place(ir, gx, gy, 'c', r, True))
+    bot.put(ir, x + 2.5, y - 4.0, search=4.0, must=False, ok=lambda px, py: clear(px, py, 0)) or \
+        bot.put(ir, x + 4.0, y, rot=90, search=2.0, must=False, ok=lambda px, py: clear(px, py, 90)) or \
+        bot.put(ir, x - 4.75, y, rot=90, search=4.0, ok=lambda px, py: clear(px, py, 90))
+    x, y = NAME_B
+    # centred: searched up and down the middle line only
+    bot.put(ink(brand.line([('sans', NAMES['main']), ('mono', REV)], 1.2)[0]), x, y, search=3.0,
+            ok=lambda px, py: abs(px - x) < 1e-6)

@@ -81,7 +81,7 @@ def _blocked_points(b):
     pads = defaultdict(list)
     for fp in b.GetFootprints():
         for p in fp.Pads():
-            for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
+            for layer in pcb.cu_layers():
                 if p.IsOnLayer(layer):
                     pads[(p.GetNetname(), layer)] += _polys(p, layer)
     return vias, pads
@@ -149,7 +149,9 @@ def miter(path, clearance=None):
     # other nets' copper per layer, as shapes with their net
     obst = defaultdict(list)
     for t in b.GetTracks():
-        lays = [pcbnew.F_Cu, pcbnew.B_Cu] if t.GetClass() == 'PCB_VIA' else [t.GetLayer()]
+        # a via passes every copper layer: an inner-layer bridge must keep
+        # clear of it too (In2 corners are cut as well)
+        lays = list(pcb.cu_layers()) if t.GetClass() == 'PCB_VIA' else [t.GetLayer()]
         for layer in lays:
             for s in _polys(t, layer):
                 obst[layer].append((s, t.GetNetname()))
@@ -159,8 +161,10 @@ def miter(path, clearance=None):
     for z in b.Zones():
         if z.GetIsRuleArea() or z.GetNetname() == 'GND':
             continue                            # the ground fill is poured afterwards, around the tracks
-        for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
-            if z.IsOnLayer(layer):
+        for layer in pcb.cu_layers():
+            # In3's 3.3 V pours round the tracks that hop through it (finish.py);
+            # every other fixed copper, the 0.9 V plane too, is kept clear
+            if z.IsOnLayer(layer) and not (layer == pcbnew.In3_Cu and z.GetNetname() == 'VCC_3V3'):
                 ol = z.Outline()
                 for i in range(ol.OutlineCount()):
                     o = ol.Outline(i)

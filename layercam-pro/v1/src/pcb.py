@@ -106,8 +106,14 @@ def _main_polygon():
     """The board in board mm (x = X, y = -Y): the case-shaped outline
     (geometry.OUTLINE) with the USB-C tab on its -X upper edge."""
     from shapely.geometry import Polygon
-    poly = Polygon([(x, -y) for x, y in G.OUTLINE])
-    return poly.union(usb_tab()).simplify(0.001)
+    poly = Polygon([(x, -y) for x, y in G.OUTLINE]).union(usb_tab())
+    # every inside corner rounded to the fab's cutter: PCBWay routes the
+    # outline with a 2.0 mm bit (0.8 mm smallest), so an inside corner comes
+    # out with its radius whatever the drawing says; drawn here, the
+    # Gerbers, the DRC and the case all see the board as it is cut
+    r = G.INSIDE_R
+    poly = poly.buffer(r, join_style='round', quad_segs=16).buffer(-r, join_style='round', quad_segs=16)
+    return poly.simplify(0.001)
 
 
 def outline_items(board=None):
@@ -153,9 +159,9 @@ def new_board(path=None):
     if LAYERS == 6:
         ds.m_TrackMinWidth = MM(0.09)
         ds.m_MinClearance = MM(0.09)
-        ds.m_ViasMinSize = MM(0.35)
+        ds.m_ViasMinSize = MM(0.4)
         ds.m_MinThroughDrill = MM(0.2)
-        ds.m_ViasMinAnnularWidth = MM(0.075)
+        ds.m_ViasMinAnnularWidth = MM(0.1)            # PCBWay's 4 mil ring (their Medium tier)
     else:
         ds.m_TrackMinWidth = MM(0.127)
         ds.m_MinClearance = MM(0.127)
@@ -164,8 +170,8 @@ def new_board(path=None):
         ds.m_ViasMinAnnularWidth = MM(0.13)
     ds.m_CopperEdgeClearance = MM(0.3)
     ds.m_HoleClearance = MM(0.2)
-    ds.m_HoleToHoleMin = MM(0.25)
-    ds.m_SolderMaskExpansion = MM(0.0)
+    ds.m_HoleToHoleMin = MM(0.28)                     # PCBWay: 11 mil
+    ds.m_SolderMaskExpansion = MM(0.05)               # PCBWay: openings 2-4 mil over the pad
     ds.m_SolderMaskMinWidth = MM(0.1)
     nc = ds.m_NetSettings.GetDefaultNetclass()
     nc.SetClearance(MM(CLEAR)); nc.SetTrackWidth(MM(TRACK))
@@ -393,7 +399,7 @@ RULES = """(version 1)
 
 
 ESCAPE_RULE = '''# The SoC's escape band (layout_main.ESCAPE): 0.1 mm, PCBWay's 6-layer
-# floor, between its 0.35 mm-pitch pins' stubs and vias.
+# floor (4 mil), between its 0.35 mm-pitch pins' stubs and 0.4 mm vias.
 (rule "SoC escape band"
   (condition "A.intersectsArea('escape band') && B.intersectsArea('escape band')")
   (constraint clearance (min 0.1mm)))
@@ -565,7 +571,7 @@ def dedupe_vias(path):
                 continue
             pc = vias[j].GetPosition()
             d = ((pa.x - pc.x) ** 2 + (pa.y - pc.y) ** 2) ** 0.5 / 1e6
-            if d < (a.GetDrillValue() + vias[j].GetDrillValue()) / 2e6 + 0.25:
+            if d < (a.GetDrillValue() + vias[j].GetDrillValue()) / 2e6 + 0.28:
                 gone[j] = i
     for j, i in gone.items():
         pj, pi = vias[j].GetPosition(), vias[i].GetPosition()

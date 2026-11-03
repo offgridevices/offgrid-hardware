@@ -40,6 +40,27 @@ DIFF = {'main': {'MIPI': (['CSI_D0P', 'CSI_D0N', 'CSI_D1P', 'CSI_D1N', 'CSI_CKP'
 
 
 
+def lay_stubs(b, layout):
+    """layout.STUBS: (ref, pad, (x, y), via) - a short straight track from a
+    pad to (x, y) on the pad's face, with a via there if asked; locked, so
+    Freerouting keeps it.  For pins whose neighbours box them in when the
+    routers choose (two adjacent pins of a small bridge that must leave
+    side by side)."""
+    import pcbnew
+    for ref, num, (x, y), via in getattr(layout, 'STUBS', ()):
+        p = next(q for q in b.FindFootprintByReference(ref).Pads() if q.GetNumber() == num)
+        net = p.GetNetname()
+        w = POWER.get(pcb.BOARD, {}).get(net, pcb.TRACK)
+        layer = pcbnew.B_Cu if p.IsOnLayer(pcbnew.B_Cu) else pcbnew.F_Cu
+        t = pcbnew.PCB_TRACK(b)
+        t.SetStart(p.GetPosition()); t.SetEnd(pcb.P(x, y))
+        t.SetWidth(pcbnew.FromMM(w)); t.SetLayer(layer); t.SetNet(p.GetNet()); t.SetLocked(True)
+        b.Add(t)
+        if via:
+            v = pcb.via(b, x, y, net)
+            v.SetLocked(True)
+
+
 def build(board, path, rounds=12):
     """Build the board; a small part that ends up with a plane pad and no
     room for its via is moved: the board is built again with that spot
@@ -114,6 +135,7 @@ def _build(board, path, avoid):
         p = next(q for q in fp.Pads() if q.GetNumber() == num)
         x, y = pcb.xy(p.GetPosition())
         pcb.via(b, x, y, p.GetNetname())
+    lay_stubs(b, layout)
     if hasattr(layout, 'escapes'):
         # a fine-pitch chip's signal pins that leave its face: a stub and a
         # via each, laid out together before routing (locked, or Freerouting
@@ -141,6 +163,10 @@ def _build(board, path, avoid):
         pcb.rule_area_shape(b, layout.escape_area(), pcb.cu_layers(), name='escape band', tracks=False, vias=False)
     if hasattr(layout, 'sensor_area'):
         pcb.rule_area_shape(b, layout.sensor_area(), pcb.cu_layers(), name='sensor band', tracks=False, vias=False)
+    # fine-pitch parts: their mask openings exactly the pads, so a mask dam
+    # stays between pins (the board's 0.05 mm expansion would join them)
+    for ref in getattr(layout, 'MASK_AS_PADS', ()):
+        b.FindFootprintByReference(ref).SetLocalSolderMaskMargin(0)
     pcbnew.SaveBoard(path, b)
     pcb.write_rules(path)
     stuck = {f.split('.')[0] for f in f2} & small

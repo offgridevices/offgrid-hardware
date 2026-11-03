@@ -104,6 +104,10 @@ USB_NORMAL_DEG = 149.6
 # case's outer facet on the plug's axis.  The board and the case both use it.
 USB_MOUTH = 4.2
 USB_TAB = 2.8                              # how far the tab stands out from the edge
+# The outline's inside corners (where the tab meets the edge): PCBWay
+# routes the outline with a 2.0 mm bit, so they come out at 1.0 mm radius;
+# drawn so, for the board (pcb.py) and the case (enclosure/) alike
+INSIDE_R = 1.0
 USB_TAB_W = 11.4
 
 # ---------------------------------------------------------------- Wi-Fi

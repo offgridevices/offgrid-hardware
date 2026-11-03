@@ -120,8 +120,14 @@ def case():
     # the USB tab into the wall (the tab's own shape: since the outline was
     # cut down to fit, the tab stands 3.2 mm out of it, not USB_TAB, and an
     # area check against USB_TAB x USB_TAB_W failed)
-    extra = board.difference(outline.union(pcb.usb_tab()).buffer(0.01)).area
-    check(extra < 0.01, 'board inside the case outline but for the USB tab (%.2f mm2 outside)' % extra)
+    # (and the fillets the cutter leaves where the tab meets the outline:
+    # geometry.INSIDE_R, the case's pocket has the same)
+    r = G.INSIDE_R
+    inside = outline.union(pcb.usb_tab()).buffer(r, join_style='round', quad_segs=16) \
+        .buffer(-r, join_style='round', quad_segs=16)
+    extra = board.difference(inside.buffer(0.01)).area
+    check(extra < 0.01, 'board inside the case outline but for the USB tab and its %.1f mm fillets (%.2f mm2 outside)'
+          % (r, extra))
     d = min(board.exterior.distance(Point(x, -y)) for x, y in G.SCREWS)
     check(d >= 3.0, 'screw holes 3.0 mm or more from the edge (closest %.2f mm)' % d)
     x0, y0, x1, y1 = G.HOLDER_BOX

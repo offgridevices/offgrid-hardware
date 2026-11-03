@@ -10,7 +10,8 @@ Used by make.py --reroute.
   4. finish.py           the connections Freerouting leaves: a maze router
                          with rip-up and re-route, plane necks re-opened,
                          dangling stubs taken off
-  5. every track corner cut to 45 degrees or less (miter.py)
+  5. the maze router's stair-steps drawn as straight runs (straighten.py),
+     then every track corner cut to 45 degrees or less (miter.py)
   6. ground fill and stitching (stitch.py)
   7. KiCad DRC           must be 0 errors / 0 warnings / 0 unconnected
 
@@ -20,7 +21,7 @@ import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import pcbnew
-import pcb, board, route, stitch, miter, finish
+import pcb, board, route, stitch, miter, finish, straighten
 
 
 def log(s):
@@ -30,7 +31,10 @@ def log(s):
 from board import PLANE_NETS
 
 
-def run(bd, work, passes=int(os.environ.get('PASSES', 40))):
+# 12 passes: the main board's dense layout takes ~30 min a round at 12;
+# at 40 a round ran past the time limit and gained nothing (the finisher
+# completes what Freerouting leaves)
+def run(bd, work, passes=int(os.environ.get('PASSES', 12))):
     os.makedirs(work, exist_ok=True)
     placed = os.path.join(work, '%s-placed.kicad_pcb' % bd)
     routed = os.path.join(work, '%s-routed.kicad_pcb' % bd)
@@ -105,8 +109,25 @@ def run(bd, work, passes=int(os.environ.get('PASSES', 40))):
                 t.SetWidth(pcbnew.FromMM(esc['via'][0]))
         pcbnew.SaveBoard(routed, b)
     log('  unrouted after Freerouting: %d' % left)
+    # Freerouting does not know every rule (a pad with no net, the escape
+    # band): its tracks that break one come off here, and the finisher,
+    # which keeps every rule, draws those connections again
+    pcb.write_rules(routed)
+    e, _, _ = pcb.drc(routed, os.path.join(work, '%s-freerouted-drc.json' % bd))
+    bad = {i['uuid'] for v in e if v['type'] == 'clearance' for i in v['items']
+           if i['description'].startswith(('Track', 'Via'))}
+    if bad:
+        b = pcbnew.LoadBoard(routed)
+        gone = [t for t in b.GetTracks() if t.m_Uuid.AsString() in bad and not t.IsLocked()]
+        for t in gone:
+            b.Remove(t)
+        pcbnew.SaveBoard(routed, b)
+        log('  %d tracks and vias too close to other copper taken off for the finisher' % len(gone))
     log('== finish (maze router, rip-up and re-route)')
     unc, split = finish.finish(routed, log=log)
+    log('== straight runs (the maze router\'s stair-steps)')
+    r_, a_ = straighten.straighten(routed)
+    log('  %d tracks redrawn as %d' % (r_, a_))
     log('== 45-degree corners')
     done, failed, left = miter.miter(routed)
     log('  %d corners cut; left at a joint or too tight: %s' % (done, left or 'none'))

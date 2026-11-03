@@ -3,7 +3,7 @@
 	(generator "pcbnew")
 	(generator_version "10.0")
 	(layer "F.Cu")
-	(descr "M1.6 screw hole 1.8 mm: washer r 1.9 behind")
+	(descr "M1.6 screw hole 1.8 mm, plated ring 3.4 mm: washer r 2.0 behind")
 	(property "Reference" ""
 		(at 0 0 0)
 		(layer "F.SilkS")
@@ -63,7 +63,7 @@
 	)
 	(fp_circle
 		(center 0 0)
-		(end 1.9 0)
+		(end 2 0)
 		(stroke
 			(width 0.05)
 			(type default)
@@ -72,11 +72,12 @@
 		(layer "F.CrtYd")
 		(uuid "a74a3c54-0833-4f13-91d1-81bca08d7b58")
 	)
-	(pad "" np_thru_hole circle
+	(pad "1" thru_hole circle
 		(at 0 0)
-		(size 1.8 1.8)
+		(size 3.4 3.4)
 		(drill 1.8)
-		(layers "*.Mask")
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
 		(uuid "7333fc0d-2057-4b95-827e-4c542500b0ef")
 	)
 	(embedded_fonts no)

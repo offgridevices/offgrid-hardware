@@ -39,21 +39,21 @@ looked at before it was carried over:
 |---|---|---|
 | Every part has a footprint and an LCSC number; no single-pin net; every pin on its footprint, every pad in `circuit.py` | a wrong or missing pad is a dead board | pass: 189 footprints, 175 assembled parts |
 | KiCad 10.0.7 DRC with PCBWay's limits | the fab rejects or mis-builds what breaks its rules | pass: 0 errors, 0 warnings, 0 unconnected |
-| Every pad's net on the routed board equals `circuit.py` | the copper is the circuit | pass: 566 pads |
+| Every pad's net on the routed board equals `circuit.py` | the copper is the circuit | pass: 572 pads (the six plated mounting holes are ground pads now) |
 | Every track corner 45° or less | no acid traps; the owner's rule | pass |
 | Each MIPI pair's two tracks the same length, within 0.15 mm | an unmatched pair turns into common-mode noise | pass: D0 23.20 / 23.20 mm, clock 20.63 / 20.63, D1 17.40 / 17.38 (P on D0 and the clock tuned by a serpentine, `pairs.tune`) |
 | BOM and CPL list exactly the assembled parts; the board's footprints equal `circuit.py`'s parts | nothing missing or extra on the line | 175 parts in 52 BOM lines |
 | The Gerber job file says 1.6 mm, ENIG, green mask | the fab's CAM reads it | pass: 1.6 mm, ENIG, green |
-| The badge: the OffGrid lockup, `LayerCam Pro` and `V1`, the US flag (5.26 mm hoist), clear of every pad and via, strokes at least 0.15 mm | the fab drops silk that is too thin or on a pad | pass (`silk.py` stops the build if any of it does not fit or is thin); labels 5V, BOOT, IR-cut |
+| The silkscreen: the US flag (8 mm hoist, round stars) over the OffGrid lockup, centred; each test pad's name; `IR-cut` and `LayerCam Pro V1` on the front. Clear of every pad and via; ink at least 0.18 mm and enclosed gaps at least 0.25 mm (PCBWay prints 0.15 mm lines and keeps 0.25 mm knocked-out shapes) | the fab drops silk that is too thin, fills in what is too small, and holds an order with silk on a pad | pass: the flag and lockup centred on x = 0 above the lens; the eight test pad names above their pads (parts and vias are kept out of each name's box at placement); `IR-cut` upright beside its socket, clear of the socket's body; `LayerCam Pro V1` centred above the lens on the front |
 | Committed fab files equal what `make.py` builds (`tools/check_outputs.py`) | someone orders from the committed files | pass, in CI |
 
 ## Routing
 
 | Step | Result |
 |---|---|
-| Placement (`src/layout_main.py`): every part placed, plane vias, the SoC's and the sensor's escapes | 189 parts placed, placement DRC 0 errors (checked before routing); 225 plane vias; 27 of the SoC's pins escape by vias (pin 27, 3.3 V, is left to the router) |
-| Freerouting, then the finisher (`src/finish.py`) | Freerouting left 29 connections in 20 nets; the finisher routed them all in 3 min (maze router to 7, rip-up and re-route to 0) |
-| Vias, plane vias, track length per layer | 563 vias (514 at 0.45 mm, 49 at 0.35 mm round the SoC and the sensor); tracks 2.11 m (F 833 mm, B 636, In2 631, In3 7); plane vias 225, and 137 ground stitching vias |
+| Placement (`src/layout_main.py`, `src/placer.py`): every part placed in rows facing the pin it serves, plane vias, the SoC's and the sensor's escapes | 189 parts placed, placement DRC 0 errors (checked before routing); 228 plane vias; 37 of the SoC's pins escape by vias; the IR-cut bridge's two outputs leave by fixed stubs (`STUBS`) |
+| Freerouting, then the finisher (`src/finish.py`), then straight runs (`src/straighten.py`) and 45° corners (`src/miter.py`) | Freerouting (12 passes) left 31 connections in 20 nets; the finisher routed all but IRCUT_1 (maze router to 4, rip-up and re-route to 1), which the IR-cut stubs then closed; 131 stair-stepped tracks redrawn as 81 straight ones |
+| Vias, plane vias, track length per layer | 568 vias (510 at 0.45 mm, 58 at 0.40 mm round the SoC and the sensor); tracks 2.24 m (F 817 mm, In2 735, B 658, In3 26); plane vias 228, and 121 ground stitching vias |
 
 ## Design checks (`src/verify.py`)
 

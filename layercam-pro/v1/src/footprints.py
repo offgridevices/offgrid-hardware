@@ -299,19 +299,21 @@ def led_plcc2_fp():
     return fp
 
 
-def hole_fp(name, d, keep_f, keep_b, desc):
-    """Unplated mounting hole, d mm, with a round courtyard on each side:
-    keep_f on F (the back face: screw head or washer), keep_b on B (the
-    housing's boss or the lens holder)."""
+def hole_fp(name, d, ring, keep_f, keep_b, desc):
+    """Plated mounting hole, d mm, in a round plated ring `ring` mm across
+    on both faces (the screw head and the case's boss bear on the ring, not
+    on the glass fibre, and its plating holds the hole's wall), pin 1 (the
+    circuit ties it to ground); a round courtyard on each side: keep_f on F
+    (the back face: screw head or washer), keep_b on B (the housing's boss
+    or the lens holder)."""
     fp = pcbnew.FOOTPRINT(None)
     fp.SetFPID(pcbnew.LIB_ID('lc', name))
     fp.SetAttributes(pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
     fp.SetLibDescription(desc)
     p = pcbnew.PAD(fp)
-    p.SetNumber(''); p.SetAttribute(pcbnew.PAD_ATTRIB_NPTH); p.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
-    p.SetSize(pcbnew.VECTOR2I(MM(d), MM(d))); p.SetDrillSize(pcbnew.VECTOR2I(MM(d), MM(d)))
-    ls = pcbnew.LSET(); ls.AddLayer(pcbnew.F_Mask); ls.AddLayer(pcbnew.B_Mask)
-    p.SetLayerSet(ls)
+    p.SetNumber('1'); p.SetAttribute(pcbnew.PAD_ATTRIB_PTH); p.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+    p.SetSize(pcbnew.VECTOR2I(MM(ring), MM(ring))); p.SetDrillSize(pcbnew.VECTOR2I(MM(d), MM(d)))
+    p.SetLayerSet(pcbnew.PAD.PTHMask())
     fp.Add(p)
     for lay, r in ((pcbnew.F_CrtYd, keep_f), (pcbnew.B_CrtYd, keep_b)):
         c = pcbnew.PCB_SHAPE(fp, pcbnew.SHAPE_T_CIRCLE)
@@ -331,8 +333,11 @@ def main():
     for path in sorted(glob.glob(os.path.join(RAW, '*.kicad_mod'))):
         _save(LIB, clean_easyeda(path)); n += 1
     for fp in (smd_pad_fp('PAD_TP', 1.0, desc='Test pad, SMD, 1.0 mm'),
-               hole_fp('MOUNT_M2', 2.2, 2.1, 2.25, 'M2 screw hole 2.2 mm: head r 2.1 behind, boss r 2.25 in front'),
-               hole_fp('MOUNT_M1V6', 1.8, 1.9, 1.0, 'M1.6 screw hole 1.8 mm: washer r 1.9 behind'),
+               # M2 (the case's screws): the head (3.8 mm) and its tool keep 5 mm clear behind
+               hole_fp('MOUNT_M2', 2.2, 4.5, 2.5, 2.25,
+                       'M2 screw hole 2.2 mm, plated ring 4.5 mm: head and tool r 2.5 behind, boss r 2.25 in front'),
+               hole_fp('MOUNT_M1V6', 1.8, 3.4, 2.0, 1.0,
+                       'M1.6 screw hole 1.8 mm, plated ring 3.4 mm: washer r 2.0 behind'),
                led_plcc2_fp()):
         _save(LIB, fp); n += 1
     print('wrote %d footprints to %s' % (n, LIB))

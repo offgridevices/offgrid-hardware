@@ -417,6 +417,9 @@ def board_polygon(pad=0.0, outline=None):
     t = affinity.rotate(t, a, origin=(0, 0), use_radians=True)
     t = affinity.translate(t, ex, ey)
     p = poly.union(t)
+    # the inside corners at the router's radius, as the board is cut (src/pcb.py)
+    r = G.INSIDE_R
+    p = p.buffer(r, join_style='round', quad_segs=16).buffer(-r, join_style='round', quad_segs=16)
     return p.buffer(pad, quad_segs=8) if pad else p
 
 

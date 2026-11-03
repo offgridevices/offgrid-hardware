@@ -3,7 +3,7 @@
 	(generator "pcbnew")
 	(generator_version "10.0")
 	(layer "F.Cu")
-	(descr "M2 screw hole 2.2 mm: head r 2.1 behind, boss r 2.25 in front")
+	(descr "M2 screw hole 2.2 mm, plated ring 4.5 mm: head and tool r 2.5 behind, boss r 2.25 in front")
 	(property "Reference" ""
 		(at 0 0 0)
 		(layer "F.SilkS")
@@ -63,7 +63,7 @@
 	)
 	(fp_circle
 		(center 0 0)
-		(end 2.1 0)
+		(end 2.5 0)
 		(stroke
 			(width 0.05)
 			(type default)
@@ -72,11 +72,12 @@
 		(layer "F.CrtYd")
 		(uuid "69e6f249-a05e-4d68-87a8-faf37fdcabb8")
 	)
-	(pad "" np_thru_hole circle
+	(pad "1" thru_hole circle
 		(at 0 0)
-		(size 2.2 2.2)
+		(size 4.5 4.5)
 		(drill 2.2)
-		(layers "*.Mask")
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
 		(uuid "6f382ce2-5778-483d-abca-bd268f997196")
 	)
 	(embedded_fonts no)

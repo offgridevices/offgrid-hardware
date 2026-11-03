@@ -40,7 +40,7 @@ Right: the antenna socket (RP-SMA) in the back shell.*
 | The case | [`enclosure/README.md`](enclosure/README.md) (GPL v2, from Prusa's published files) |
 | Camera software | [`firmware/README.md`](firmware/README.md) |
 | Toolchain | KiCad 10.0.7 (pinned image, `tools/Dockerfile`), Freerouting 1.9.0 and 2.5.0 |
-| Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../docs/brand.md)): the lockup, the name and revision, the US flag, on the back face |
+| Brand | OffGrid v3.2.2 ([`docs/brand.md`](../../docs/brand.md)): the US flag over the OffGrid lockup, centred on the back face; the product and revision in one line on the front face. Otherwise only the test pads' names |
 
 ## What it had to do, and whether it does
 
@@ -123,11 +123,22 @@ lines, on both sides.
   track / 0.15 mm gap, on layer 1 (F.Cu, over In1) and layer 6 (B.Cu,
   over In4) (`sim/impedance.md`). Nothing else is controlled.
 - **Via in pad, resin filled and capped (POFV).**
-- Minimum track and gap 0.1 mm, only round the main chip and the image
-  sensor; 0.127 mm elsewhere. Minimum drill 0.2 mm. Two via sizes:
-  0.45 / 0.2 mm, and 0.35 / 0.2 mm round the main chip.
+- **Min track/gap 4/4 mil (PCBWay's "Medium" tier):** 0.1 mm, only round
+  the main chip and the image sensor; 0.127 mm (5 mil) elsewhere. Minimum
+  drill 0.2 mm. Two via sizes: 0.45 / 0.2 mm, and 0.4 / 0.2 mm round the
+  main chip and the sensor (a 0.1 mm, 4 mil ring). Hole to hole 0.28 mm or
+  more.
+- **Solder mask:** openings 0.05 mm over each pad, but exactly the pads
+  on the main chip (U1, 0.35 mm pitch) and the USB-C (J1), so a mask dam
+  stays between their pins: "use the mask layers as supplied".
+- **Outline:** the inside corners are drawn at 1.0 mm radius (the 2.0 mm
+  router bit).
+- **Four plated M2 holes** (2.2 mm, 4.5 mm ring) and two plated M1.6
+  holes (1.8 mm, 3.4 mm ring), on ground.
 - ENIG, green mask, white silk.
-- Parts on both sides.
+- Parts on both sides. **Ask PCBWay to panelise it with rails and
+  fiducials** (the board is not rectangular and has parts near its edge;
+  the rails carry the fiducials, so the board itself has none).
 
 **Assembly notes for PCBWay** (write them in the order):
 - **The image sensor (U8, SmartSens SC4336H, 35-ball CSP):** no

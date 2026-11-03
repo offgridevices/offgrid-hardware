@@ -159,7 +159,7 @@ def allow_via_in_pad(dsn_path, d, drill):
 def freeroute(dsn_path, ses_path, passes=20, timeout=None, log=None, extra=()):
     """extra: more command-line options (e.g. -inc CLASS,... to leave
     those net classes unrouted)."""
-    timeout = timeout or int(os.environ.get('FREEROUTING_TIMEOUT', 1800))
+    timeout = timeout or int(os.environ.get('FREEROUTING_TIMEOUT', 3600))
     if FR2:
         # Freerouting 2.x: headless, multi-threaded optimiser; no usage
         # analytics leave the machine

@@ -9,7 +9,7 @@
 (rule "one spoke is enough"
   (constraint min_resolved_spokes 1))
 # The SoC's escape band (layout_main.ESCAPE): 0.1 mm, PCBWay's 6-layer
-# floor, between its 0.35 mm-pitch pins' stubs and vias.
+# floor (4 mil), between its 0.35 mm-pitch pins' stubs and 0.4 mm vias.
 (rule "SoC escape band"
   (condition "A.intersectsArea('escape band') && B.intersectsArea('escape band')")
   (constraint clearance (min 0.1mm)))

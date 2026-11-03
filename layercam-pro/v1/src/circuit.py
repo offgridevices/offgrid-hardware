@@ -483,10 +483,11 @@ def main_usb():
 def main_mechanics():
     # four M2 screws into the case's bosses; the two M1.6 screws that hold
     # the IR-cut holder over the sensor
+    # (plated, their rings on ground)
     for i in range(4):
-        add('H', 'HOLE_M2', {}, 'mounting', 'M2 hole', ref='H%d' % (i + 1))
+        add('H', 'HOLE_M2', {'1': GND}, 'mounting', 'M2 hole', ref='H%d' % (i + 1))
     for i in range(2):
-        add('H', 'HOLE_M1V6', {}, 'mounting', 'lens holder screw', ref='H%d' % (i + 5))
+        add('H', 'HOLE_M1V6', {'1': GND}, 'mounting', 'lens holder screw', ref='H%d' % (i + 5))
 
 
 FUNCS = None

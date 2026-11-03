@@ -177,7 +177,14 @@ FOOT = {'U1': (9.0, 9.0), 'U2': (3.0, 1.7), 'L1': (2.5, 2.0), 'U3': (3.0, 3.0), 
         'L3': (2.5, 2.0), 'L4': (2.5, 2.0), 'U4': (3.0, 1.7), 'L5': (2.5, 2.0), 'U6': (13.2, 12.5),
         'U5': (8.0, 6.0), 'U7': (2.0, 2.0), 'Q1': (2.9, 1.3), 'J1': (8.9, 7.3), 'U8': (5.75, 3.87),
         'U9': (2.0, 2.0), 'D2': (3.5, 2.8), 'D3': (3.5, 2.8), 'D4': (3.5, 2.8), 'D5': (3.5, 2.8),
-        'D6': (3.5, 2.8), 'D7': (3.5, 2.8), 'R45': (3.2, 1.6), 'R46': (3.2, 1.6), 'R47': (3.2, 1.6)}
+        'D6': (3.5, 2.8), 'D7': (3.5, 2.8), 'R90': (3.2, 1.6), 'R91': (3.2, 1.6), 'R92': (3.2, 1.6)}
+ROT = {}          # ref -> rotation on the board, degrees (placements() fills it)
+
+
+def foot(ref):
+    """A part's footprint on the board: FOOT's (w, h), swapped when the part is turned a quarter."""
+    w, h = FOOT.get(ref, (2.0, 2.0))
+    return (h, w) if round(ROT.get(ref, 0)) % 180 == 90 else (w, h)
 
 # ---------------------------------------------------------------- the heatsink and the RV1106
 SINK = G.HEATSINK                 # 20 x 20 x 15 mm
@@ -226,14 +233,16 @@ def placements():
     if os.path.exists(ROUTED):
         s = open(ROUTED).read()
         for m in re.finditer(r'\(footprint "[^"]*"\s.*?\(layer "([FB])\.Cu"\).*?\(at ([-\d.]+) ([-\d.]+)'
-                             r'(?: [-\d.]+)?\).*?\(property "Reference" "([A-Z]+\d+)"', s, re.S):
-            out[m.group(4)] = (float(m.group(2)) - pcb.CX, float(m.group(3)) - pcb.CY, m.group(1))
+                             r'(?: ([-\d.]+))?\).*?\(property "Reference" "([A-Z]+\d+)"', s, re.S):
+            out[m.group(5)] = (float(m.group(2)) - pcb.CX, float(m.group(3)) - pcb.CY, m.group(1))
+            ROT[m.group(5)] = float(m.group(4) or 0)
         if out:
             PLACE_SRC = 'the routed board (layercam-pro.kicad_pcb)'
             return out
     for ref, v in LM.FIXED.items():
         if v:
             out[ref] = (float(v[0]), float(v[1]), v[3])
+            ROT[ref] = float(v[2])
     for ref, _code in power.string_resistors():
         led = LM.ANCHOR.get([c.note for c in power.COMPS['main'] if c.ref == ref][0], ('D2', '1'))[0]
         x, y, _ = out[led]
@@ -329,7 +338,7 @@ class Board:
         for ref, p in heat.items():
             if ref in self.place and p:
                 x, y, _ = self.place[ref]
-                m = self.mask(x, y, *FOOT.get(ref, (2.0, 2.0)))
+                m = self.mask(x, y, *foot(ref))
                 if m.sum() == 0:
                     raise ValueError('no board under ' + ref)
                 q[m] += p / m.sum()
@@ -359,7 +368,7 @@ class Board:
 
     def at(self, T, ref, w=None, h=None, stat='mean'):
         x, y, _ = self.place[ref]
-        fw, fh = FOOT.get(ref, (2.0, 2.0))
+        fw, fh = foot(ref)
         m = self.mask(x, y, w or fw, h or fh)
         return float(np.nanmax(T[m]) if stat == 'max' else np.nanmean(T[m]))
 

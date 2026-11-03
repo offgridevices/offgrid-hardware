@@ -55,9 +55,9 @@ PAIR_Y0 = 2.5                      # where each lane's two tracks are coupled
 LANE_X0 = (-0.80, 0.0, 1.28)       # lane centrelines there (D0, CK, D1)
 
 # The sensor's other inner balls: a 0.1 mm stub each to a via between the
-# balls (0.35 / 0.2 mm, as the SoC's escapes: 0.16 mm to the next ball's
+# balls (0.4 / 0.2 mm, as the SoC's escapes: 0.135 mm to the next ball's
 # pad); the edge balls are routed.  net -> [(ball, via)]
-ESC_VIA = (0.35, 0.2)
+ESC_VIA = (0.4, 0.2)          # PCBWay's 0.1 mm ring
 SENSOR_VIAS = {
     'GND': [('A1', (1.60, -0.87)), ('B2', (1.60, -0.87)), ('B5', (-0.96, -0.87)),
             ('C7', (-1.60, 0.29)), ('D6', (-1.60, 0.29))],

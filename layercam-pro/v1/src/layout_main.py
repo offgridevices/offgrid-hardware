@@ -42,9 +42,13 @@ FIXED = {
     'L1': (16.2, 18.6, 0, F),
     'Y1': (11.7, 17.2, 90, F),        # 24 MHz by the SoC's OSC pins (68/69, right side), clear of the heatsink and the 0.9 V strip
     'U5': (-13.0, 23.0, 90, F),       # SPI NAND, below-left (its pins are the SoC's bottom-left row)
-    # Wi-Fi: the module upper-left, its SDIO corner (pins 24-29) towards
-    # the SoC's SDMMC0 pins (11-18, left side); its buck beside it
-    'U6': (-17.9, 2.4, 0, F),
+    # Wi-Fi: the module upper-left, turned a quarter (270) so its antenna
+    # socket (the module's corner by pin 1) is at its upper-right corner,
+    # about 9 mm from the USB-C and facing the antenna jack: unturned it sat
+    # 1-2 mm from the USB-C's shell, too tight to fit the lead's plug.  Its
+    # SDIO pins (24-29) then face down, towards the SoC's SDMMC0 pins
+    # (11-18, left side); its buck above it
+    'U6': (-18.3, 2.4, 270, F),
     'U4': (-14.0, -6.5, 0, F),
     'L5': (-17.6, -6.6, 90, F),
     # USB-C on the edge tab, its mouth along the edge's outward normal
@@ -56,16 +60,16 @@ FIXED = {
     'D1': (-19.0, -15.2, 0, F),       # 5 V TVS
     'U9': (-3.6, -3.4, 0, F),         # the sensor's 2.8 V LDO, behind the sensor
     'LED1': (12.0, 2.4, 0, F),        # status, in the lid's vent window
-    # test pads.  Along the bottom edge, below the heatsink: the console's
-    # G TX RX for a 3.3 V USB-serial lead (left to right), 5V on its own.
-    # Left of the SoC, in one row 2.0 mm apart: the C6's USB pair for
+    # test pads.  Along the bottom edge, below the heatsink, one row centred
+    # on the middle line, 2.54 mm apart (a 0.1 in pogo or header strip fits both rows): 5V, then the console's G TX RX for
+    # a 3.3 V USB-serial lead (left to right).
+    # Left of the SoC, in one row 2.54 mm apart: the C6's USB pair for
     # recovery, then G and BOOT for tweezers (D- D+ G BOOT, left to right).
     # BOOT sits by the SoC's boot pin 23 on its left side: from the bottom
     # row its wire had to cross the SoC's crowded bottom-left corner and
     # the router could not finish it
-    'TP3': (-1.0, 27.4, 0, F), 'TP1': (1.0, 27.4, 0, F), 'TP2': (3.0, 27.4, 0, F),
-    'TP4': (-7.0, 27.4, 0, F),
-    'TP6': (-19.4, 13.6, 0, F), 'TP7': (-17.4, 13.6, 0, F), 'TP8': (-15.4, 13.6, 0, F), 'TP5': (-13.4, 13.6, 0, F),
+    'TP4': (-3.81, 27.4, 0, F), 'TP3': (-1.27, 27.4, 0, F), 'TP1': (1.27, 27.4, 0, F), 'TP2': (3.81, 27.4, 0, F),
+    'TP6': (-21.02, 13.6, 0, F), 'TP7': (-18.48, 13.6, 0, F), 'TP8': (-15.94, 13.6, 0, F), 'TP5': (-13.4, 13.6, 0, F),
     # B, the front face
     # the image sensor on the lens axis; its MIPI balls (rows D-E) towards
     # the SoC.  KiCad flips a front-face part top to bottom (a pad at
@@ -111,7 +115,9 @@ FIXED['J1'] = _usb_place()
 # their net reaches: note -> (ref, pad) of the pin they serve
 ANCHOR = {
     '5 V bulk': ('U3', '10'),
-    'VBUS detect top': ('U1', '25'), 'VBUS detect bottom': ('U1', '25'), 'VBUS detect filter': ('U1', '25'),
+    # the divider's top resistor at the USB-C: only the thin sense line runs
+    # to the SoC, not 5 V in under its corner (the router left VSYS open there)
+    'VBUS detect top': ('J1', '*VSYS'), 'VBUS detect bottom': ('U1', '25'), 'VBUS detect filter': ('U1', '25'),
     '0.9 V buck input': ('U2', '4'), '0.9 V feedback top': ('U2', '5'), '0.9 V feedback bottom': ('U2', '5'),
     '0.9 V feed-forward': ('U2', '5'),
     '0.9 V output': ('L1', '2'),
@@ -143,7 +149,7 @@ ANCHOR = {
     'Wi-Fi supply bulk': ('U6', '3'), 'Wi-Fi supply HF': ('U6', '3'),
     'Wi-Fi EN pull-down': ('U6', '8'), 'Wi-Fi EN filter': ('U6', '8'),
     'Wi-Fi GPIO9 pull-up': ('U6', '23'), 'Wi-Fi GPIO8 pull-up': ('U6', '22'),
-    'SDIO clock series R': ('U1', '15'), 'SDIO pull-up': ('U6', '*'), 'SDIO card-detect to ground': ('U1', '11'),
+    'SDIO clock series R': ('U1', '15'), 'SDIO pull-up': ('U1', '*'), 'SDIO card-detect to ground': ('U1', '11'),
     'sensor LDO input': ('U9', '6'), 'sensor LDO output': ('U9', '1'),
     'sensor AVDD': ('U8', 'B1'), 'sensor AVDD HF': ('U8', 'B1'), 'sensor AVDD HF 2': ('U8', 'B7'),
     'sensor DOVDD filter R': ('U8', 'C2'), 'sensor DOVDD': ('U8', 'C2'), 'sensor DOVDD HF': ('U8', 'C3'),
@@ -166,12 +172,12 @@ SIDE = {
     '1.8 V decoupling (DDR PLL, OSC/PLL)': B, '1.8 V decoupling (DDR PLL)': B,
     '3.3 V decoupling (VCCIO, PMU, USB)': B, '3.3 V bulk at the SoC': B,
     'MIPI supply filter C': B, 'MIPI supply bulk': B,
-    'ADC/USB supply filter C': F, 'codec supply': F, 'codec VCM': F,
+    'ADC/USB supply filter C': B, 'codec supply': F, 'codec VCM': F,
     'RTC supply C': B,
     'VBUS detect top': B, 'VBUS detect bottom': B, 'VBUS detect filter': B, '24 MHz drive R': B,
     'ADC/USB supply filter R': B,
     'OTP/TSADC supply': B, 'Ethernet supply': B, 'DRAM ZQ 240R 1 %': B,
-    '24 MHz load': F, 'RTC load': B, 'SDIO pull-up': B,
+    '24 MHz load': F, 'RTC load': B, 'SDIO pull-up': B, 'SDIO card-detect to ground': B,
     # the sensor's decoupling on its own face, inside the holder's recess
     'sensor DOVDD filter R': B,
     # the 0.9 V output capacitor under its buck on the front face: on the
@@ -180,6 +186,17 @@ SIDE = {
 }
 
 CLEAR = 0.15          # courtyard to courtyard
+
+# Mask openings exactly the pads for the fine-pitch parts: the SoC's 0.35 mm
+# pins (0.17 mm dams) and the USB-C's 0.5 mm contacts (0.2 mm); the rest of
+# the board takes PCBWay's 0.05 mm expansion (pcb.py)
+MASK_AS_PADS = ('U1', 'J1')
+
+# Room between the parts of a row for the SoC's pins to run out: 0.5 mm
+# more than their widths' spacing leaves two 0.127 mm tracks between each
+# pair (a solid column of resistors at 1.25 mm left one, and the SD bus
+# could not get out).
+ROW_CHANNEL = {'U1': 0.5}
 
 
 def _core_band():
@@ -236,6 +253,10 @@ def via_ring():
 # J3's contact 2 has contact 1 on one side and the connector's two tabs on
 # the others: no way out on B, so it drops straight through to In2
 PAD_VIAS = [('J3', '2')]
+# The IR-cut bridge's outputs (U7 pins 2 and 3, side by side at 0.5 mm,
+# between its ground and 3.3 V tracks) leave straight out together, OUT2 to
+# a via: left to the routers, one took the other's way out (IRCUT_1 open).
+STUBS = [('U7', '3', (13.45, 5.35), True), ('U7', '2', (13.00, 5.85), False)]
 
 
 SENSOR = 'U8'    # the image sensor, on B under the lens
@@ -283,13 +304,14 @@ def escapes(b):
     return {'U1': sorted(out)}
 
 
-# The SoC's 0.35 mm-pitch pins: their escape (and plane) vias 0.35 / 0.2 mm
-# with 0.1 mm stubs.  With the board's 0.45 mm vias two escapes a pin apart
-# (0.7 mm) left 0.25 mm between them, no room for the pin in the middle; at
-# 0.35 mm a 0.1 mm stub passes with 0.125 mm each side.  0.126 mm keeps the
-# 0.2 mm copper-to-hole rule (0.075 mm ring + 0.125); in the band the gap
-# rule is PCBWay's 6-layer floor, 0.1 mm (pcb.ESCAPE_RULE).
-ESCAPE = dict(ref='U1', via=(0.35, 0.2), clr=0.126, w=0.1)
+# The SoC's 0.35 mm-pitch pins: their escape (and plane) vias 0.4 / 0.2 mm
+# with 0.1 mm stubs.  0.4 mm leaves a 0.1 mm ring, PCBWay's 4 mil (their
+# Medium tier; 0.35 mm left 0.075, under it).  With the board's 0.45 mm
+# vias two escapes a pin apart (0.7 mm) left no room for the pin in the
+# middle; at 0.4 mm a 0.1 mm stub passes with 0.1 mm each side, the band's
+# gap rule (pcb.ESCAPE_RULE: PCBWay's 6-layer floor), and the 0.2 mm
+# copper-to-hole rule holds (0.1 ring + 0.1).
+ESCAPE = dict(ref='U1', via=(0.4, 0.2), clr=0.1, w=0.1)
 
 
 SENSOR_BAND = (-2.7, -2.4, 2.7, 2.7)    # round the image sensor's balls: its escape stubs and vias
@@ -315,13 +337,30 @@ RECESS = (-5.6, -4.4, 5.6, 4.4)
 UNDER_HOLDER_MAX_H = 0.6
 
 
+def art_keepout():
+    """No vias under the silkscreen: the badge's box and each test pad's
+    name (silk.py sets them at fixed places; a via there would clip the ink
+    and stop the build after routing)."""
+    import silk
+    boxes = [box(*a) for a in silk.ART['main']]
+    for ref, label in silk.PAD_NAMES.items():
+        x, y = FIXED[ref][:2]
+        cy = y + silk.PAD_LABEL_DY
+        hw = max(1.15, (lambda b: (b[2] - b[0]) / 2)(silk.text('mono', label, silk.LABEL_CAP).bounds) + 0.3)
+        boxes.append(box(x - hw, cy - 0.7, x + hw, cy + 0.7))
+    return unary_union(boxes)
+
+
 def keepouts(side):
     """Areas a part on `side` may not touch: (shapely geometry, max height
     allowed there or 0)."""
     out = []
     if side == F:
         for x, y in G.HOLDER_SCREWS:
-            out.append((Point(x, -y).buffer(1.95), 0))     # the screw heads
+            out.append((Point(x, -y).buffer(2.05), 0))     # the screw heads (courtyard r 2.0)
+        # the silkscreen: the badge and each test pad's name (a part's pad
+        # there would clip the ink; the vias are kept out by the same shapes)
+        out.append((art_keepout(), 0))
         # the SoC's breakout band: no part within 1.8 mm outside its pins
         cx, cy = FIXED['U1'][:2]
         out.append((box(cx - BREAKOUT, cy - BREAKOUT, cx + BREAKOUT, cy + BREAKOUT)
@@ -346,8 +385,11 @@ def keepouts(side):
         for a in G.LED_ANGLES:
             lx, ly = G.led_xy(a)
             out.append((Point(lx, -ly).buffer(2.6).difference(box(lx - 2.4, -ly - 1.6, lx + 2.4, -ly + 1.6)), 0))
+    # the M2 screws: no part within 2.75 mm of the hole's centre on either
+    # face (the plated ring is 2.25; the head and the driver behind it, the
+    # case's boss in front)
     for x, y in G.SCREWS:
-        out.append((Point(x, -y).buffer(2.15), 0))
+        out.append((Point(x, -y).buffer(2.75), 0))
     return out
 
 
@@ -385,7 +427,7 @@ CORE_HALF = 5.85                  # to the pin ring's middle: the 3.3 V pins' vi
 # the strip out to the buck: from the SoC's right side below its 3.3 V
 # pins there (81 and 88, above the centre) out to the buck and its
 # inductor below-right
-STRIP = (19.6, 4.6, 8.0)          # x1, then y0 / y1 from the SoC's centre
+STRIP = (19.6, 4.6, 9.0)          # x1, then y0 / y1 from the SoC's centre (9.0: room for the third core bulk capacitor beside the 0.4 mm vias)
 
 
 def plane_polys():

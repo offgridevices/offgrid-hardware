@@ -40,7 +40,8 @@ WORD = dict(x=240.0, y=141.12, size=92.0, tracking=-3.0, weight=600)
 NODE_R = 17.0                     # clear space round the mark = 1 x node radius
 
 # silkscreen floor (JLCPCB and PCBWay): 0.15 mm lines
-MIN_STROKE = 0.15
+MIN_STROKE = 0.18        # PCBWay prints 0.15 mm lines; 0.18 keeps them crisp, not at the limit
+MIN_GAP = 0.25           # PCBWay: knocked-out (bare) shapes in the ink at least 0.25 mm
 
 
 # ---------------------------------------------------------------- the mark
@@ -320,7 +321,21 @@ def _star(cx, cy, d):
     return Polygon(pts)
 
 
-def flag_mm(hoist):
+def thin_gaps(g, w=MIN_GAP):
+    """Area of the bare shapes enclosed by the ink (letter counters, the
+    flag's stars and white stripes) narrower than w: what the ink would
+    fill in.  0 means every enclosed gap is at least w.  (The open space
+    between letters is not counted: ink spreading there only rounds a
+    corner.)"""
+    holes = []
+    for p in (getattr(g, 'geoms', None) or [g]):
+        holes += [Polygon(r) for r in p.interiors]
+    if not holes:
+        return 0.0
+    return thin_parts(unary_union(holes), w)
+
+
+def flag_mm(hoist, round_stars=False):
     """The US flag centred on the origin (y down), drawn to the Flag Code /
     Executive Order 10834: hoist A = 1, fly B = 1.9, union C = 7/13 by
     D = 0.76, star spacing E = F = 0.054 and G = H = 0.063, star diameter
@@ -336,7 +351,10 @@ def flag_mm(hoist):
     for row in range(9):
         for k in (range(6) if row % 2 == 0 else range(5)):
             sx = x0 + G * (2 * k + 1) if row % 2 == 0 else x0 + G * (2 * k + 2)
-            stars.append(_star(sx, y0 + E * (row + 1), K))
+            sy = y0 + E * (row + 1)
+            # round: a five-pointed star 0.5 mm across has arms the
+            # silkscreen cannot keep bare; a round one prints
+            stars.append(Point(sx, sy).buffer(K / 2, quad_segs=8) if round_stars else _star(sx, sy, K))
     return unary_union(red + [union]).difference(unary_union(stars))
 
 
