@@ -416,12 +416,22 @@ def place_all(log=print):
     # every route ended with a dozen or more connections that found no way
     # through (62 mm and 70 mm, 1-2 Nov 2026): its small parts pack with room
     # for a track and a via between them; the rest of the board as before
+    # the battery's low side (protection FETs, then the 15 mR current sense)
+    # beside the plug's minus pin, before anything else takes the room: packed
+    # by their own nets they went 14 mm away, past the nRF52840, and the
+    # cell current's path was among the last nets no router could join
+    bat = ref(comps, 'JST_PH2')
+    cm = [B.pad_xy(bat, p) for p, n in B.comps[bat].pins.items() if n == 'CELL_MINUS'][0]
+    low = [ref(comps, 'SSM10N954L'), ref(comps, 'R15m')]
+    left = place.pack(B, low[:1], targets={low[0]: (cm[0], cm[1], 'B')})
+    left += place.pack(B, low[1:])
+    todo = [r_ for r_ in todo if r_ not in low]
     # (the nRF52840's two crystals, their load capacitors and its regulator
     # capacitors (DEC1-6) first, at the usual gap: with the wide one the
     # crystals were pushed 10 mm from their pins and DEC3 from 1.8 to 5.4 mm)
     xtal = {c.ref for c in comps if c.ref in todo and any(
         n in ('XC1', 'XC2', 'XL1', 'XL2') or n.startswith('NRF_DEC') for n in c.pins.values() if n)}
-    left = place.pack(B, sorted(xtal, key=lambda r_: (r_[0] != 'Y', r_)), prefer=prefer)
+    left += place.pack(B, sorted(xtal, key=lambda r_: (r_[0] != 'Y', r_)), prefer=prefer)
     todo = [r_ for r_ in todo if r_ not in xtal]
     place.PACK_GAP = lambda x, y: PACK_GAP_LEFT if x < PACK_LEFT_X else place.GAP
     left += place.pack(B, sorted(todo, key=key), prefer=prefer)

@@ -380,7 +380,7 @@ def side_pen(c):
 SIDE_PEN, SIDE_PEN_DECOUPLING = 1.5, 3.0
 
 
-def pack(B, refs, prefer=None, step=0.25, rmax=14.0, log=print):
+def pack(B, refs, prefer=None, step=0.25, rmax=14.0, log=print, targets=None):
     """Place every part in refs beside its anchor pin.  prefer: ref -> side
     to try first.  Returns the parts that found no room."""
     left = []
@@ -389,15 +389,18 @@ def pack(B, refs, prefer=None, step=0.25, rmax=14.0, log=print):
             continue
         c = B.comps[ref]
         cands = anchor_pad(B, c)
-        if not cands:
+        if not cands and not (targets and ref in targets):
             left.append(ref); continue
+        cands = cands or [(None, None)]
         # target: the nearest candidate pad to the mean of all of them
         tx, ty, tside = None, None, None
-        pts = [(B.pad_xy(r, p), B.pl[r][3]) for r, p in cands]
-        (tx, ty), tside = pts[0]
+        pts = [(B.pad_xy(r, p), B.pl[r][3]) for r, p in cands if r]
+        (tx, ty), tside = pts[0] if pts else ((0, 0), 'B')
         mid = series_mid(B, c)
         if mid:
             (tx, ty), tside = mid
+        if targets and ref in targets:
+            tx, ty, tside = targets[ref]
         sides = [prefer.get(ref, tside)] if prefer and ref in prefer else [tside]
         sides += [s for s in ('T', 'B') if s not in sides]
         # both sides searched together, ring by ring: the other side costs
