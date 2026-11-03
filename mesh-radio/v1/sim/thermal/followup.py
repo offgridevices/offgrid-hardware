@@ -3,16 +3,17 @@
 
   A. Amplifier heat from the QPA9510 data sheet's efficiency (nominal) and
      from the plan's supply currents (pessimistic bound), for 30 / 31.5 /
-     33 / 34 / 35 dBm at the U.FL (the PA delivers 1.1 dB more: sim/rf).
-  B. A 6-layer stack-up (JLC 6-layer, 1.6 mm), 1 oz and 2 oz outer copper,
-     with the board fixes; which fix helps most.
+     33 / 34 / 35 dBm at the U.FL (the PA delivers 1.13 dB more: sim/rf).
+  B. The routed 6-layer board (run.py reads its copper) and the fixes still
+     open on it; which helps most; the uniform estimate of 19 Oct beside it.
   C. The highest power at the antenna that passes every criterion of run.py
      for one 1 s packet a minute, one 2 s packet a minute and a 25 % storm
-     (1 s on, 3 s off), at 25, 45 and 60 C, for eight board options.
-  D. The charger at 300 / 400 mA and with the NTC moved beside the battery
-     plug J3, at 25 and 45 C.
+     (1 s on, 3 s off), at 25, 45 and 60 C, for seven board options (with
+     and without the gap pad at layout.GAP_PAD, and at its old spot).
+  D. The charger as built (ISET from circuit.py, NTC TH1 beside the battery
+     plug J3) and at higher currents, at 25 and 45 C.
 
-    tools/kd python3 sim/thermal/followup.py      (from mesh-radio/v1; ~20-30 min on 3 cores)
+    tools/kd python3 sim/thermal/followup.py      (from mesh-radio/v1; NPROC workers)
 
 Writes results_followup.txt and power_table.png next to this file.
 """
@@ -40,9 +41,9 @@ def out(s=''):
 
 # ---------------------------------------------------------------------------
 # A. Amplifier operating points
-LOSS_DB = 1.1                       # PA output -> U.FL (sim/rf; coordinator's figure)
-# blocks of that loss, in sim/rf's proportions (LPF 0.40, switch 0.30, LFCN 0.67, traces 0.07 of 1.44 dB)
-LOSS_SPLIT = dict(match=0.07, lpf=0.40, switch=0.30, lfcn=0.67)
+LOSS_DB = 1.13                      # PA output -> U.FL (sim/rf/results.txt 1d)
+# blocks of that loss, in sim/rf's proportions (LPF 0.21, switch 0.30, LFCG-1000+ 0.67, coupler section 0.08)
+LOSS_SPLIT = dict(match=0.08, lpf=0.21, switch=0.30, filter=0.67)
 ANT_DBM = [30.0, 31.5, 33.0, 34.0, 35.0]
 # QPA9510 data sheet 23 Jun 2025, p.4 "PAE vs. Average Output Power", 915 MHz curve,
 # VCC = VCC1 = VCC2 = 3.6 V, VAPC1 = VAPC2 = 2.8 V, ICQ 215 mA, 25 C, 50 ohm, GSM bursts
@@ -89,7 +90,7 @@ def tx_sources_level(ant_dbm, mode):
          'J_BAT': i_cell ** 2 * R.R_JST, 'L_CHOKE': icc ** 2 * R.R_CHOKE}
     tot = sum(LOSS_SPLIT.values())
     p = p_rf
-    for k in ('match', 'lpf', 'switch', 'lfcn'):
+    for k in ('match', 'lpf', 'switch', 'filter'):
         loss = p * (1 - 10 ** (-LOSS_DB * LOSS_SPLIT[k] / tot / 10))
         s['RF_' + k] = loss
         p -= loss
@@ -103,22 +104,23 @@ def tx_sources_level(ant_dbm, mode):
 
 
 # ---------------------------------------------------------------------------
-# B. Board options
-FIX = {'pa_island': False, 'k_via_fill': 385.0, 'via_density': 25.0}
-FOUR = {}
-FOUR_FIX = dict(FIX, t_cu=[70e-6, 35e-6, 35e-6, 70e-6], cov=[0.85, 1.0, 0.8, 0.85])     # = run.py ALL_FIXES
-# JLC 6-layer 1.6 mm impedance stack (JLC help centre: 2313 prepreg 0.1 mm outside, 0.565 mm cores,
-# 2116 prepreg 0.127 mm in the middle; 35 um outer, 0.5 oz inner).  F | In1 GND | In2 sig+fill | In3 sig+fill | In4 GND | B
-SIX = dict(t_cu=[35e-6, 15.2e-6, 15.2e-6, 15.2e-6, 15.2e-6, 35e-6], cov=[0.70, 1.0, 0.5, 0.5, 1.0, 0.70],
-           t_diel=[0.10e-3, 0.565e-3, 0.127e-3, 0.565e-3, 0.10e-3])
-SIX_FIX = dict(SIX, **FIX)
-SIX_FIX['cov'] = [0.85, 1.0, 0.5, 0.5, 1.0, 0.85]
-SIX_FIX2 = dict(SIX_FIX, t_cu=[70e-6, 15.2e-6, 15.2e-6, 15.2e-6, 15.2e-6, 70e-6])
-PAD = [(15.0, -12.7, 25.0, -2.7, -1, 3000.0)]   # 10 x 10 mm gap pad (>= 3 W/mK, 1 mm) to a metal wall
-BOARDS = [('4L as placed', FOUR), ('4L + fixes (2/1 oz)', FOUR_FIX), ('6L + fixes (1 oz outer)', SIX_FIX),
-          ('6L + fixes, 2 oz outer', SIX_FIX2)]
-OPTIONS = [(lab + (' + pad' if pad else ''), dict(ch, sinks=PAD) if pad else dict(ch)) for lab, ch in BOARDS
-           for pad in (False, True)]
+# B. Board options: the routed board (R.PARAMS after R.setup()) and the fixes
+# still open on it.  Filled by options() once the board is read.
+FIX = {'pa_island': False, 'k_via_fill': 385.0}       # paddle joined to the top pour, copper-filled paddle vias
+OPTIONS = []
+PAD, OLD_PAD = R.PAD_SINK, R.OLD_PAD_SINK
+
+
+def options():
+    boards = [('6L as built', {}), ('6L + paddle fixes', dict(FIX)), ('6L + paddle fixes + 2 oz outer', dict(R.ALL_FIXES))]
+    o = []
+    for lab, ch in boards:
+        o.append((lab, dict(ch)))
+        o.append((lab + ' + pad', dict(ch, sinks=PAD)))
+    o.insert(2, ('6L as built + pad at old spot', dict(sinks=OLD_PAD)))
+    OPTIONS[:] = o
+
+
 PATTERNS = [('1 s / min', 1, 59), ('2 s / min', 2, 58), ('25 % storm', 1, 3)]
 TAMBS = [25, 45, 60]
 MODES = ['nominal', 'pessimistic']
@@ -162,21 +164,15 @@ def _probe(lab, ch, probes):
 
 
 # ---------------------------------------------------------------------------
-# D. Charger
-NTC_NEW = (-17.5, -8.5)        # beside J3 (its body -16..-10 mm), 9.6 mm from the charger U4 (-11.2, -1.2), bottom
-
-
+# D. Charger (as built: the charger at the USB end, TH1 beside J3)
 def _charger(ta, h=10.0):
     cs = R.Case(dict(R.PARAMS), h, ta)
     lm, _ = cs.steady_metrics(R.LISTEN)
-    # the moved NTC: board under a 1.0 x 0.5 mm part at NTC_NEW on the bottom
-    ii, w = cs.B.rect_weights(NTC_NEW[0], NTC_NEW[1], 1.0, 0.5, cs.B.L - 1)
-    vnew = np.zeros(cs.B.G.shape[0]); vnew[ii] = w
     o = {}
     for vb in (3.0, 3.7):
         cm, th = cs.steady_metrics(R.chg_sources(vb))
-        o[vb] = (cm, float(vnew @ th))
-    return ta, lm, o, float(vnew @ cs.B.steady(cs.q(R.LISTEN))), cs.names
+        o[vb] = cm
+    return ta, lm, o, cs.names
 
 
 def ntc_window():
@@ -188,12 +184,13 @@ def ntc_window():
 # ---------------------------------------------------------------------------
 def main():
     t0 = time.time()
-    R.COMPS = R.circuit.build()
-    R.CBYREF = {c.ref: c for c in R.COMPS}
-    R.load_placement()
+    R.setup()
+    options()
     nproc = R.NPROC
     out('Mesh Radio v1 - thermal follow-up (sim/thermal/followup.py), %s' % time.strftime('%Y-%m-%d'))
     out('Model, criteria and every other source: run.py / results.txt.  h = 10 W/m2K (still air in an enclosure).')
+    out('Board: the routed %s (copper, vias and stackup read by run.py); pad = 10 x 10 mm gap pad at layout.GAP_PAD %s'
+        % (os.path.relpath(R.BOARD_FILE, R.V1), str(R.GAP_PAD)))
     out()
     out('=' * 100)
     out('A. Amplifier operating points (PA output = antenna + %.1f dB, sim/rf)' % LOSS_DB)
@@ -295,18 +292,17 @@ def main():
     out('B. Which fix helps most (nominal PAE): QPA9510 case / junction peak, C')
     out('=' * 100)
     probes = [(25, '1 s / min', 1, 59, 34.0), (45, '2 s / min', 2, 58, 33.0), (60, '25 % storm', 1, 3, 30.0)]
-    six_plain = dict(SIX)
     variants = [
-        ('4L as placed', FOUR),
-        ('6L plain (island pad, resin vias, 8 vias/cm2, 70 % pours)', six_plain),
-        ('6L + pad joined to the top pour', dict(six_plain, pa_island=False)),
-        ('6L + copper-filled pad vias', dict(six_plain, k_via_fill=385.0)),
-        ('6L + stitching 25 /cm2 and 85 % outer pours', dict(six_plain, via_density=25.0, cov=SIX_FIX['cov'])),
-        ('6L + 2 oz outer', dict(six_plain, t_cu=SIX_FIX2['t_cu'])),
-        ('6L + all fixes (1 oz outer)', SIX_FIX),
-        ('6L + all fixes + 2 oz outer', SIX_FIX2),
-        ('6L + all fixes + 2 oz outer + pad', dict(SIX_FIX2, sinks=PAD)),
-        ('4L + all fixes (2/1 oz)', FOUR_FIX),
+        ('6L as built', {}),
+        ('uniform 6L estimate of 19 Oct (70/100/50/50/100/70 %, 8 vias/cm2)', dict(R.ESTIMATE)),
+        ('as built + paddle joined to the top pour', {'pa_island': False}),
+        ('as built + copper-filled paddle vias', {'k_via_fill': 385.0}),
+        ('as built + 2 oz outer', {'t_cu': R.OUTER2}),
+        ('as built + both paddle fixes (1 oz outer)', dict(FIX)),
+        ('as built + both paddle fixes + 2 oz outer', dict(R.ALL_FIXES)),
+        ('as built + gap pad (layout.GAP_PAD)', {'sinks': PAD}),
+        ('as built + gap pad at its old spot under the PA', {'sinks': OLD_PAD}),
+        ('both paddle fixes + 2 oz outer + gap pad', dict(R.ALL_FIXES, sinks=PAD)),
     ]
     with mp.Pool(nproc) as pool:
         pr = pool.starmap(_probe, [(lab, ch, probes) for lab, ch in variants])
@@ -318,36 +314,40 @@ def main():
     # ---- D: charger
     out()
     out('=' * 100)
-    out('D. Charger: ISET 497 / 400 / 300 mA, NTC (TH1) as placed and moved beside J3 at (%.1f, %.1f) mm bottom' % NTC_NEW)
+    i0 = R.I_CHG
+    th1 = R.PLACEMENT[R.ref('NTC10K')]
+    j3 = R.PLACEMENT[R.ref('JST_PH2')]
+    u4 = R.PLACEMENT[R.ref('BQ25185')]
+    out('D. Charger as built: ISET %.0f mA (circuit.py), charger %s at (%.1f, %.1f), NTC TH1 at (%.1f, %.1f) beside J3 (%.1f, %.1f)'
+        % (i0 * 1e3, R.ref('BQ25185'), u4[0], u4[1], th1[0], th1[1], j3[0], j3[1]))
     out('=' * 100)
     t_hot, t_hot_lo = ntc_window()
     out('  TS hot stop: NTC at %.1f C typ (as low as %.1f C over the tolerances; verdict uses this); resumes ~5 C lower.  TREG 100 C.  Listening, h = 10,'
-        ' 4-layer as placed.' % (t_hot, t_hot_lo))
-    out('  ISET = 300 A.ohm / ICHG (SLUSF65B): 604 R -> 497 mA, 750 R -> 400 mA, 1.00 k -> 300 mA.'
-        '  Loss scaled with current from the 497 mA solution.')
-    with mp.Pool(nproc) as pool:
+        ' the routed board, no transmit.' % (t_hot, t_hot_lo))
+    out('  ISET = 300 A.ohm / ICHG (SLUSF65B): 1.00 k -> 300 mA (as built), 750 R -> 400 mA, 604 R -> 497 mA.'
+        '  Loss scaled with current from the %.0f mA solution.' % (i0 * 1e3))
+    with mp.Pool(min(nproc, 2)) as pool:
         ch_res = pool.map(_charger, [25, 45])
-    out('  %-4s %-5s %-7s | %-10s %-8s %-8s %-10s %-10s | %s' % ('Ta', 'VBAT', 'ICHG', 'Tj unthr.', 'charge%', 'cell C',
-                                                               'NTC as pl.', 'NTC moved', 'verdict'))
-    for ta, lm, o, lnew, names in ch_res:
+    out('  %-4s %-5s %-7s | %-10s %-8s %-8s %-8s | %s' % ('Ta', 'VBAT', 'ICHG', 'Tj unthr.', 'charge%', 'cell C', 'NTC C', 'verdict'))
+    for ta, lm, o, names in ch_res:
         ib = names.index('BQ25185 Tj'); ij = names.index('battery plug J3'); it = names.index('NTC TH1')
         for vb in (3.0, 3.7):
-            cm, cnew = o[vb]
-            for ichg in (0.497, 0.400, 0.300):
+            cm = o[vb]
+            for ichg in (i0, 0.400, 0.497):
                 k = ichg / R.I_CHG
                 base = ta + lm
                 tj0 = base[ib] + k * cm[ib]
                 frac = 1.0 if tj0 <= 100 else max(0.0, (100 - base[ib]) / (k * cm[ib]))
                 cell = base[ij] + frac * k * cm[ij]
-                ntc_old = base[it] + frac * k * cm[it]
-                ntc_new = ta + lnew + frac * k * cnew
+                ntc = base[it] + frac * k * cm[it]
                 v = []
                 v.append('TREG ok' if frac >= 0.999 else 'throttled')
-                v.append('NTC trips' if ntc_new >= t_hot_lo else 'NTC ok')
+                v.append('NTC trips' if ntc >= t_hot_lo else 'NTC ok')
                 v.append('cell > 45' if cell > 45.0 else 'cell ok')
-                out('  %-4d %-5.1f %-7s | %-10.0f %-8.0f %-8.0f %-10.0f %-10.0f | %s'
-                    % (ta, vb, '%d mA' % round(ichg * 1e3), tj0, 100 * frac, cell, ntc_old, ntc_new, ', '.join(v)))
-    out('  (moved NTC: on the board 1.5 mm from J3; it still reads the board, not the cell itself)')
+                out('  %-4d %-5.1f %-7s | %-10.0f %-8.0f %-8.0f %-8.0f | %s'
+                    % (ta, vb, '%d mA' % round(ichg * 1e3), tj0, 100 * frac, cell, ntc, ', '.join(v)))
+    out('  (cell = the board under J3; TH1 reads the board %.1f mm from J3 (%s side), not the cell itself)'
+        % (math.hypot(th1[0] - j3[0], th1[1] - j3[1]), 'top' if th1[3] == 'T' else 'bottom'))
     out()
     out('run time %.0f s' % (time.time() - t0))
     open(os.path.join(HERE, 'results_followup.txt'), 'w').write('\n'.join(OUT) + '\n')

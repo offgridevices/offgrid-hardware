@@ -249,7 +249,7 @@ PROT = dict(ovp=4.275, ovp_t=1.25, uvp=2.80, uvp_t=0.144, ocd=0.100, ocd_t=0.020
             occ=-0.100, occ_t=0.008, rss=2.75e-3, rsense=15e-3)   # 15 mOhm since 19 Oct (was 22)
 
 
-def battery_block(p, lm='tps', prot=None, lm_ron=0.079, trace_bat=(0.006, 6e-9), rev='v2', on='1'):
+def battery_block(p, lm='tps', prot=None, lm_ron=0.079, trace_bat=(0.006, 6e-9), rev='v2', on='1', byp_in='BAT_P'):
     """src/circuit.py charger(): JST pads BATT_PLUS / CELL_MINUS, the
     CSD25485F5 reverse P-FET (gate 100 k to CELL_MINUS), the BQ29700 + SSM10N954L
     + 22 mOhm protector on the minus side, the LM66100 from BAT_P to VSYS
@@ -262,6 +262,7 @@ def battery_block(p, lm='tps', prot=None, lm_ron=0.079, trace_bat=(0.006, 6e-9),
     BATT_PLUS to CELL_MINUS keeps it off with no cell), and the cell-to-SYS
     path is a TPS22950 (on = the power switch, expression `on`) then an
     RB060MM Schottky (BYP_OUT -> VSYS) that blocks SYS from charging the cell.
+    byp_in: the TPS22950's VIN node (board.py puts its BAT_P trace in front of it).
 
     BQ29700 behaviour (SLUSBU9I): supply valid above BAT-VSS 1.5 V; OVP
     BAT-VSS > ovp for ovp_t -> COUT low; UVP < uvp for uvp_t -> DOUT low
@@ -340,7 +341,7 @@ def battery_block(p, lm='tps', prot=None, lm_ron=0.079, trace_bat=(0.006, 6e-9),
         'V%samgnd %s_gnd 0 0' % (k, k),
         '* --- battery sense 1 M / 1.5 M',
         'R%sbs1 BAT_P VBAT_SENSE 1Meg' % k, 'R%sbs2 VBAT_SENSE 0 1.5Meg' % k,
-        (tps22950(k + 'lm', 'BAT_P', 'BYP_OUT', on) + schottky(k + 'byd', 'BYP_OUT', 'VSYS') + 'R%sbyp BYP_OUT 0 10Meg\n' % k)
+        (tps22950(k + 'lm', byp_in, 'BYP_OUT', on) + schottky(k + 'byd', 'BYP_OUT', 'VSYS') + 'R%sbyp BYP_OUT 0 10Meg\n' % k)
         if lm == 'tps' else lm66100(k + 'lm', 'BAT_P', 'VSYS', lm, lm_ron),
     )
     return s

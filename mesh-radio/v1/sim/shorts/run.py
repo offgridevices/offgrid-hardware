@@ -15,7 +15,8 @@ side of the reverse FET), and with USB present 3V3, VSYS and BAT_P.
 The protector's trip timing is checked separately: a current step on
 BAT_P (electronic load) at 2-20 A, BQ29700 thresholds at typ; min / max
 bands from the datasheet tolerances (OCD 100 +-15 mV / 20 ms +-20 %, SCD
-500 +-100 mV / 250 us +-50 %) over 15 mOhm +-1 % (22 mOhm before 19 Oct) + RSS(on) 2.2-2.75 mOhm.
+500 +-100 mV / 250 us +-50 %) over 15 mOhm +-1 % (22 mOhm before 19 Oct) + RSS(on) 2.2-2.75 mOhm
++ the routed board's copper inside the sense loop (board.SENSE_TRACE, 18 mOhm at 25 C, sim/extract.py).
 
 Pass criteria (X2 / X5), fixed before running:
   every pass element stays inside its pulse / continuous rating for the
@@ -26,8 +27,9 @@ Pass criteria (X2 / X5), fixed before running:
   the fault current is limited, the faulted rail is cut within its
   protection's time, and the board runs again after the short is removed
   (3V3 back above 3.0 V) - or the reason it does not is stated
-  OCD trips between 4.8 and 6.7 A, SCD at 22-35 A (15 mOhm), both with the
-  datasheet delays
+  OCD trips between 4.8 and 6.7 A, SCD at 22-35 A (15 mOhm alone: the
+  routed board's 18 mOhm of sense-loop copper lowers these, see results.txt),
+  both with the datasheet delays
 
 Outputs: results.txt, stress.json, shorts.png.   Run: python3 run.py
 """
@@ -45,6 +47,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = S.scratch('shorts')
 T_ON, T_OFF, TSTOP = 5e-3, 65e-3, 110e-3
 RS = 0.015          # protector sense resistor since 19 Oct (was 22 mOhm)
+RTR = B.SENSE_TRACE  # board copper in the sense loop at 25 C (extracted, +0.393 %/C)
 OPTS = ['.option method=gear reltol=2e-3 abstol=1e-9 vntol=1e-5 itl4=200',
         '.option method=trap reltol=3e-3 abstol=1e-8 vntol=1e-5 itl4=300',
         '.option method=gear reltol=5e-3 abstol=1e-7 vntol=1e-4 itl4=500 gmin=1e-10']
@@ -173,7 +176,7 @@ def main():
     cases = [('%s_%d' % (n, ta), cfg(*a, temp=float(ta), **kw)) for ta in TEMPS for n, a, kw in base]
     with ProcessPoolExecutor(4) as ex:
         res = list(ex.map(run, cases))
-        trips = list(ex.map(trip_run, [3.0, 4.0, 4.5, 5.0, 5.5, 6.0, 7.0, 10.0, 16.0, 22.0, 28.0, 34.0]))
+        trips = list(ex.map(trip_run, [2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 7.0, 10.0, 16.0, 22.0, 28.0, 34.0]))
 
     L = ['Study 3: shorts (X2) and cell-protector trip timing (X5).  Short 10 mOhm + 5 nH (header: 40 mOhm + 15 nH)',
          'from 5 ms to 65 ms, run to 110 ms.  Fresh cell = 4.2 V / 50 mOhm, mid = 3.7 V / 150 mOhm, worn = 3.7 V / 300 mOhm.',
@@ -208,21 +211,22 @@ def main():
     L.append(S.table([[n] + [V_['%s_%d' % (n, ta)] for ta in TEMPS] for n, _, _ in base], ['case'] + ['%d C' % t for t in TEMPS]))
     L.append('')
     L.append('OCD / SCD trip currents over temperature (thresholds 85-115 mV / 400-600 mV hold over -40..85 C;')
-    L.append('RSS(on) 2.2-2.75 mOhm x (1 + 0.004 (T - 25)), 15 mOhm +-1 %):')
+    L.append('RSS(on) 2.2-2.75 mOhm x (1 + 0.004 (T - 25)), 15 mOhm +-1 %, board copper %.1f mOhm x (1 + 0.00393 (T - 25))):'
+             % (RTR * 1e3))
     orow = []
     for ta in TEMPS:
         k = 1 + 0.004 * (ta - 25)
-        rlo, rhi = RS * 0.99 + 0.0022 * k, RS * 1.01 + 0.00275 * k
+        kc = 1 + B.CU_TC * (ta - 25)
+        rlo, rhi = RS * 0.99 + 0.0022 * k + RTR * kc, RS * 1.01 + 0.00275 * k + RTR * kc
         orow.append(['%d C' % ta, 0.085 / rhi, 0.115 / rlo, 0.4 / rhi, 0.6 / rlo])
     L.append(S.table(orow, ['ambient', 'OCD min A', 'OCD max A', 'SCD min A', 'SCD max A']))
     L.append('  A short on BAT_P also takes away the BQ29700\'s supply (its BAT pin is on BAT_P through 330 R), so')
     L.append('  its FETs open in ~0.3 ms whatever the current; it then re-trips on V- and stays off (release rule below).')
     L.append('')
     L.append('Protector trip vs. load current (typical thresholds, simulated) and datasheet bands:')
-    rsum = (RS, RS + 0.00275)
     trows = []
     for il, tr, vm in trips:
-        vlo, vhi = il * RS * 0.99 + il * 0.0022, il * RS * 1.01 + il * 0.00275
+        vlo, vhi = il * (RS * 0.99 + 0.0022 + RTR), il * (RS * 1.01 + 0.00275 + RTR)
         band = 'none'
         if vhi > 0.085:
             band = 'OCD 16-24 ms' if vlo > 0.115 else 'OCD maybe (16-24 ms)'
@@ -230,9 +234,10 @@ def main():
             band = 'SCD 125-375 us' if vlo > 0.6 else 'SCD maybe (125-375 us), else OCD'
         trows.append([il, vm * 1e3, '%.3f ms' % (tr * 1e3) if tr is not None else 'no trip', band])
     L.append(S.table(trows, ['load A', 'V- - VSS mV at 1 ms', 'trip (typ, sim)', 'datasheet band']))
-    L.append('  OCD trips for %.2f-%.2f A (85-115 mV over 17-18 mOhm); SCD for %.1f-%.1f A (400-600 mV).' % (
-        0.085 / (RS * 1.01 + 0.00275), 0.115 / (RS * 0.99 + 0.0022), 0.4 / (RS * 1.01 + 0.00275),
-        0.6 / (RS * 0.99 + 0.0022)))
+    rlo, rhi = RS * 0.99 + 0.0022 + RTR, RS * 1.01 + 0.00275 + RTR
+    L.append('  At 25 C OCD trips for %.2f-%.2f A (85-115 mV over %.1f-%.1f mOhm: 15 mOhm, RSS(on) and %.1f mOhm of board'
+             % (0.085 / rhi, 0.115 / rlo, rlo * 1e3, rhi * 1e3, RTR * 1e3))
+    L.append('  copper); SCD for %.1f-%.1f A (400-600 mV).' % (0.4 / rhi, 0.6 / rlo))
     L.append('  Release after OCD / SCD needs BAT - V- > 1 V (checked after the 8 ms recovery delay): the BQ29700 sinks')
     L.append('  8-24 uA from V- to VSS.  Once the cell is cut off, the board\'s supply (BAT_P to GND) collapses, its')
     L.append('  regulators fall into UVLO and its load drops; the protector releases only if the board then draws less')
@@ -275,8 +280,8 @@ def main():
         a.legend(fontsize=7)
     a = ax[2]
     il = np.linspace(2, 30, 300)
-    a.fill_between(il, 16, 24, where=(il * (RS + 0.00275) > 0.085), color='C1', alpha=0.2, label='OCD band 16-24 ms')
-    a.fill_between(il, 0.125, 0.375, where=(il * (RS + 0.00275) > 0.4), color='C3', alpha=0.2, label='SCD band 125-375 us')
+    a.fill_between(il, 16, 24, where=(il * (RS + 0.00275 + RTR) > 0.085), color='C1', alpha=0.2, label='OCD band 16-24 ms')
+    a.fill_between(il, 0.125, 0.375, where=(il * (RS + 0.00275 + RTR) > 0.4), color='C3', alpha=0.2, label='SCD band 125-375 us')
     xs = [x for x, tr, _ in trips if tr is not None]
     ys = [tr * 1e3 for x, tr, _ in trips if tr is not None]
     a.plot(xs, ys, 'ko', label='simulated (typ)')

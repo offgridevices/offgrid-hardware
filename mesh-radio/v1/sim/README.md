@@ -26,10 +26,13 @@ logs and decimated waveforms go to `sim/out/` (ignored by the repository's
 `out/` rule).  `derating/` reads the other studies' `stress.json`, so it
 runs last.
 
-**The board is not routed.**  Every PCB resistance and inductance below is
-an estimate (see *Parasitics*).  These studies are re-run on the routed
-board with extracted values before the order; that is a change to a few
-constants in `board.py`, not to the studies.
+**Routed board (3 Nov 2026).**  The PCB resistances and inductances are
+extracted from the routed `mesh-radio.kicad_pcb` by `sim/extract.py` (see
+*Parasitics*), and every study here was re-run with them.  They are several
+times the pre-routing estimates (most power tracks run on 0.5 oz inner
+layers), and the copper inside the cell protector's sense loop moves its
+over-current trip into the 3 W burst current: see *Changed by the routed
+board* below.
 
 ## Verdict
 
@@ -154,29 +157,60 @@ makers' bias curves, typical X5R/X7R): C47u 6.3 V 0805 at 4 V 19 uF;
 C22u16 0805 at 4.5 V 14 uF; C10u25 0805 at 4-5 V 7-8 uF; C1u25 0603 0.6-0.9 uF;
 C10u 0603 10 V at 4.5 V 5 uF; C4u7 0603 10 V 2.4-2.8 uF; 5 mOhm ESR each.
 
-### Parasitics (estimates until the board is routed)
+### Parasitics (extracted from the routed board)
 
-| where | value | basis |
-|---|---|---|
-| USB cable, 1 m | 0.2 Ohm, 1 uH | both conductors |
-| solar lead, 1 m | 0.1 Ohm, 1 uH | |
-| drone cable, 30 cm JST-GH | 0.05 Ohm, 0.3 uH | |
-| battery leads + JST-PH | 2 x (20 mOhm, 0.1 uH) | ~10 mOhm contact + ~7 cm of 26 AWG each |
-| JST pads -> reverse FET -> BAT_P | 6 mOhm, 6 nH | `TRACE_BAT` |
-| BAT_P -> TPS2121 IN1 | 5 mOhm, 5 nH | `TRACE_MUX1` |
-| TPS2121 OUT -> TPS63810 | 3 mOhm, 3 nH | `TRACE_PAIN` |
-| TPS63810 -> QPA9510 | 5 mOhm, 5 nH | `TRACE_VPA` |
-| USB-C -> TVS / eFuse | 5 mOhm, 5 nH | `TRACE_USB` |
+`tools/kd python3 sim/extract.py` (from `mesh-radio/v1`) reads
+`mesh-radio.kicad_pcb` with pcbnew and prints this table, also to
+`sim/extract.txt`, with every piece.  Copper 1.758e-8 Ohm m at 25 C; 35 um
+outer, 17.5 um inner (the board's stackup); via barrels 18 um plating.
 
-Each R includes its ground return (1 oz copper, 0.5 mOhm/square, ~1 nH/mm
-of loop).  **To re-run on the routed board:** extract the loop resistance
-and inductance of these five paths from the layout (KiCad's net lengths and
-widths, or a field solver), put them into `TRACE_*` at the top of
-`board.py`, update `CABLE_USB` / `LEAD_PANEL` if the accessories are
-chosen, and run `sim/run_all.sh`.  The protector sense path (15 mOhm +
-RSS(on)) is in `powerlib.PROT`; a long return between the sense resistor
-and the BQ29700's V- pin adds to the OCD/SCD thresholds and should be
-added there.
+| where | pre-routing estimate | extracted (25 C) | constant |
+|---|---|---|---|
+| USB cable, 1 m | 0.2 Ohm, 1 uH | (accessory, unchanged) | `CABLE_USB` |
+| solar lead, 1 m | 0.1 Ohm, 1 uH | (accessory, unchanged) | `LEAD_PANEL` |
+| drone cable, 30 cm JST-GH | 0.05 Ohm, 0.3 uH | (accessory, unchanged) | hotplug |
+| battery leads + JST-PH | 2 x (20 mOhm, 0.1 uH) | (accessory, unchanged) | `powerlib.cell` |
+| JST -> reverse FET (BATT_PLUS) + CELL_MINUS and GND back, outside the sense loop | 6 mOhm, 6 nH | 4.4 mOhm, 4.5 nH | `TRACE_BAT` |
+| reverse FET -> TPS2121 IN1 (BAT_P) | 5 mOhm, 5 nH | **34.6 mOhm**, 4.9 nH | `TRACE_MUX1` |
+| TPS2121 OUT -> TPS63810 VIN (PA_IN) | 3 mOhm, 3 nH | **26.1 mOhm**, 4.9 nH | `TRACE_PAIN` |
+| TPS63810 VOUT -> QPA9510 collector choke L14 (VPA) + GND back | 5 mOhm, 5 nH | 12.3 mOhm, 3.3 nH | `TRACE_VPA` |
+| USB-C VBUS -> TPS259470A IN + GND back from the charger | 5 mOhm, 5 nH | 19.1 mOhm, 4.2 nH | `TRACE_USB` |
+| TPS259470A OUT -> RB060MM -> BQ25185 IN | (none) | 30.7 mOhm, 5.9 nH | `TRACE_5V` (new) |
+| reverse FET -> BQ25185 BAT (BAT_P, across the board) | (none) | **188.5 mOhm**, 25.9 nH | `TRACE_CHG` (new) |
+| reverse FET -> TPS22950 VIN (BAT_P) | (none) | 83.2 mOhm, 12.4 nH | `TRACE_BYP` (new) |
+| BQ25185 SYS -> TPS2121 IN2 (VSYS) | (none) | **236.8 mOhm**, 28.3 nH | `TRACE_SYS2` (new) |
+| solar JST-SH -> MAX17608 IN + GND back | 5 mOhm, 5 nH (hotplug) | 4.1 mOhm, 0.5 nH | `TRACE_SOLAR` (new) |
+| drone JST-GH -> MAX17608 IN + GND back | 5 mOhm, 5 nH (hotplug) | **143.6 mOhm**, 16.3 nH | `TRACE_DRONE` (new) |
+| BQ29700 sense loop, in series with the 15 mOhm resistor | (none) | **18.1 mOhm** | `SENSE_TRACE` (new) |
+
+The sense loop is VSS (U5, on CELL_MINUS) -> Q3 0.65 mOhm, PROT_S2 Q3 ->
+R34 16.9 mOhm, and GND R34 -> R33 (the 2.2 k to V-) 0.51 mOhm.  PROT_S2
+leaves Q3's 0.4 mm-pitch pads through 0.1-0.3 mm necks, drops through a via
+to In1 (0.5 oz), runs 5 mm there and comes back up to R34 on F.Cu, 2.6 mm
+from Q3 as the crow flies.  The BQ29700 measures V- - VSS across all of it,
+so the sense resistance is 15 + 18.1 mOhm (+ 2.2-2.75 mOhm RSS(on)), not 15.
+
+How the numbers are made: each power net is a resistor network of its track
+segments (rho L / (w t) on the layer's copper), joined where copper touches,
+with via barrels between layers; a part's pins on the net are one terminal,
+and R is solved on the whole network (parallel routes included).  None of
+these nets has a pour.  Ground is all GND copper on the six layers
+(fills, tracks, pads, 570 vias) rasterised at 0.1 mm and solved as a mesh
+(0.2 mm gives the same within 0.07 mOhm); a path's ground return is R between
+the GND pads of its two ends.  L is the least-resistance route, each segment
+a microstrip (Wheeler / Hammerstad, in air) over whichever copper layer has
+GND under it there, plus 0.2 h (ln(4h/d) + 1) nH per via: a partial-
+inductance estimate, pessimistic where both conductors are tracks.  Track
+inside a pad counts as track.  Not included: the parts' own pins and DCR
+(L14, the ferrites), capacitor ESL.  `board.py` puts the BAT_P node at the
+reverse FET's source and VSYS at the charger's SYS pins, and scales every
+board trace with copper's +0.393 %/C (x0.74 at -40 C, x1.24 at 85 C).
+
+Not modelled (small at their currents): VSYS from the charger to the
+TPS62840 159 mOhm (<= 0.13 A: 21 mV), the MAX17608 outputs to the charger
+58 mOhm (solar) / 148 mOhm (drone).  Layout notes for the owner: the
+TPS2121's two 1 uF input caps (C87 BAT_P, C88 VSYS) sit by the charger, ~30 mm
+from the mux; and PROT_S2 (above) is the one path that changes a result.
 
 ### hotplug (X3, abs-max pins)
 Plugs each input in through its cable or lead (USB 5 / 5.5 / 20 V, a 5 -> 20 V
@@ -247,8 +281,10 @@ with that reason.
   turn-on at 85 C (zener leakage bound); the eFuse's real OVLO response to a
   5 -> 20 V step (the model trusts the datasheet's 1.2 us); the MAX17608
   start-up with a weak panel (its UVLO falling threshold has no min/max).
-- The board is not routed (moving to 6 layers): TRACE_* in board.py are
-  estimates; re-run with extracted values (Parasitics above).
+- PCB parasitics are extracted from track geometry (Parasitics above), not
+  a field solver: R to a few per cent (plating thickness and etch are the
+  spread), L to perhaps +-30 %.  Re-run `sim/extract.py` and copy its values
+  into `board.py` after any change to the copper.
 - Thermal: junction temperatures are static (ambient + P x RthJA); bursts are
   short, see `sim/thermal` (another study).
 - Stock figures were read from DigiKey and LCSC/JLCPCB on 19 Oct 2026.

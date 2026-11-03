@@ -15,18 +15,34 @@ The circuit as changed on 19 Oct (src/circuit.py):
   BAT_P --IN1-- TPS2121 --IN2-- VSYS   (PR1 562 k / 374 k; a GPIO FET can pull PR1 low)
                   OUT = PA_IN -- TPS63810 -- VPA (2 x 47 uF 1206 X7S) -- QPA9510
 
-PCB parasitics are estimates for a board that is not routed yet (README):
-they are the TRACE_* values below and are replaced by extracted values when
-the studies are re-run on the routed board.
+PCB parasitics (TRACE_*, SENSE_TRACE) are extracted from the routed board
+(../mesh-radio.kicad_pcb, 3 Nov 2026) by extract.py, which prints them next
+to the pre-routing estimates; re-run it after any change to the copper and
+copy its values here.  The simulation's BAT_P node is the reverse FET's
+source pins (Q1), its VSYS node the charger's SYS pins (U4).  Track
+resistance follows copper's +0.393 %/C from 25 C (build()).
 """
 import powerlib as P
 
-# --- PCB estimates (R includes the ground return; L ~1 nH/mm of loop) -------
-TRACE_BAT = (0.006, 6e-9)      # JST pads -> reverse FET -> BAT_P node (~6 mm, 1 mm wide, 1 oz, + return)
-TRACE_MUX1 = (0.005, 5e-9)     # BAT_P -> TPS2121 IN1
-TRACE_PAIN = (0.003, 3e-9)     # TPS2121 OUT -> TPS63810 VIN (its caps)
-TRACE_VPA = (0.005, 5e-9)      # TPS63810 VOUT -> QPA9510 VCC
-TRACE_USB = (0.005, 5e-9)      # USB-C VBUS -> TVS / eFuse
+# --- PCB parasitics, extracted (sim/extract.py; R at 25 C includes the GND return
+# where noted; L is the loop over the nearest GND copper) ------------------------
+#               R (Ohm)  L (H)        pre-routing estimate (R, L): path
+TRACE_BAT = (0.0044, 4.5e-9)    # (6 mOhm, 6 nH): J3 -> Q1 (BATT_PLUS) + J3 <- Q3 (CELL_MINUS) + GND U14 -> R34, outside the sense loop
+TRACE_MUX1 = (0.0346, 4.9e-9)   # (5, 5): Q1 source -> TPS2121 IN1 (BAT_P: In2/In3/In4, 0.5 oz)
+TRACE_PAIN = (0.0261, 4.9e-9)   # (3, 3): TPS2121 OUT -> TPS63810 VIN (PA_IN)
+TRACE_VPA = (0.0123, 3.3e-9)    # (5, 5): TPS63810 VOUT -> L14 collector choke (VPA) + GND QPA9510 -> TPS63810
+TRACE_USB = (0.0191, 4.2e-9)    # (5, 5): USB-C VBUS -> TPS259470A IN + GND charger -> USB-C
+TRACE_5V = (0.0307, 5.9e-9)     # (none): TPS259470A OUT -> RB060MM -> BQ25185 IN (USB_5V + VIN_CHG)
+TRACE_CHG = (0.1885, 25.9e-9)   # (none): Q1 source -> BQ25185 BAT (BAT_P, 50 mm across the board)
+TRACE_BYP = (0.0832, 12.4e-9)   # (none): Q1 source -> TPS22950 VIN (BAT_P)
+TRACE_SYS2 = (0.2368, 28.3e-9)  # (none): BQ25185 SYS -> TPS2121 IN2 (VSYS)
+TRACE_SOLAR = (0.0041, 0.5e-9)  # (5, 5 in hotplug): solar JST -> MAX17608 IN + GND charger -> JST
+TRACE_DRONE = (0.1436, 16.3e-9) # (5, 5 in hotplug): drone JST-GH -> MAX17608 IN + GND charger -> JST-GH
+# in the BQ29700's sense loop, in series with the 15 mOhm sense resistor (V- through
+# 2.2 k to GND at R33, VSS on CELL_MINUS at U5): CELL_MINUS VSS tap -> Q3 0.65,
+# PROT_S2 Q3 -> R34 16.9 (0.1-0.6 mm, 5 mm on In1), GND R34 -> R33 0.51 mOhm
+SENSE_TRACE = 0.0181            # (none: the README asked for it to be added here)
+CU_TC = 0.00393                 # copper, 1/K
 CABLE_USB = (0.200, 1.0e-6)    # 1 m USB cable, both conductors
 LEAD_PANEL = (0.10, 1.0e-6)    # 1 m solar lead
 
@@ -77,6 +93,10 @@ def build(cfg, datfile):
     nb, per = pa.get('n', 1), pa.get('period', 1.0)
     t_off = pa['t_rf'] + pa['burst']
     P.set_temp(c.get('temp', 25.0))
+    kcu = 1 + CU_TC * (P.TEMP - 25.0)
+
+    def tr(t):
+        return (t[0] * kcu, t[1])
     s = ['* Mesh Radio v1 power path (sim/board.py), %g C' % P.TEMP, P.models()]
     # ---------------------------------------------------------------- battery
     cl = c['cell']
@@ -86,8 +106,13 @@ def build(cfg, datfile):
     else:
         s.append('Rnob1 BATT_PLUS 0 10Meg\nRnob2 CELL_MINUS 0 10Meg\n')
     sw = 'time > %g' % c['sw_on'] if c.get('sw_on') is not None else '1'
-    s.append(P.battery_block('PB', lm=c['lm'], prot=c['prot'], trace_bat=TRACE_BAT, rev=c.get('rev', 'v2'), on=sw))
-    s.append(P.cap('cbat1', 'BAT_P', '0', 7e-6))      # C10u25 at BAT (charger)
+    prot = dict(rsense=P.PROT['rsense'] + SENSE_TRACE * kcu)
+    prot.update(c['prot'])
+    s.append(P.battery_block('PB', lm=c['lm'], prot=prot, trace_bat=tr(TRACE_BAT), rev=c.get('rev', 'v2'), on=sw,
+                             byp_in='BAT_BYP'))
+    s.append(P.rl('tbyp', 'BAT_P', 'BAT_BYP', *tr(TRACE_BYP)))
+    s.append(P.rl('tchg', 'BAT_P', 'BAT_CHG', *tr(TRACE_CHG)))
+    s.append(P.cap('cbat1', 'BAT_CHG', '0', 7e-6))    # C10u25 at BAT (charger)
     s.append(P.cap('cbat2', 'BAT_P', '0', 0.8e-6))    # C1u25 at mux IN1
     # ---------------------------------------------------------------- inputs
     if c['usb'] is not None:
@@ -97,41 +122,42 @@ def build(cfg, datfile):
         else:
             s.append('Vusb usb_src 0 %g' % c['usb'])
         s.append(P.rl('cab', 'usb_src', 'usb_conn', *CABLE_USB))
-        s.append(P.rl('tusb', 'usb_conn', 'USB_VBUS', *TRACE_USB))
+        s.append(P.rl('tusb', 'usb_conn', 'USB_VBUS', *tr(TRACE_USB)))
         s.append(P.tvs2200('tvsu', 'USB_VBUS'))
         s.append(P.cap('cvb', 'USB_VBUS', '0', 0.9e-6))                    # C1u50 (1 uF 50 V X5R) at 5 V
         s.append(P.cap('csnb', 'USB_VBUS', 'usb_snb', 4.4e-6) + 'Rsnb usb_snb 0 1\n')   # 4.7 uF 50 V X7R + 1 R
         s.append(P.efuse('FU', 'USB_VBUS', 'USB_5V', 20e3, 7.68e3, 1e6, 287e3, 2210, cov=100e-12))
         s.append('R5vb USB_5V 0 2.2k\nC5vs USB_5V 0 1n\nR22v USB_5V NRF_VBUS 22\n' + P.cap('c5v', 'NRF_VBUS', '0', 5.0e-6))
-        s.append(P.schottky('dusb', 'USB_5V', 'VIN_CHG'))
+        s.append(P.schottky('dusb', 'USB_5V', 'VIN_USB') + P.rl('t5v', 'VIN_USB', 'VIN_CHG', *tr(TRACE_5V)))
     if c['solar']:
         so = c['solar']
         s.append(P.panel('PV', 'pv_p0', '0', so['voc'], so['isc'], so['ncell'], so.get('temp_c', 25.0)))
         s.append('Vpvam pv_p0 pv_p 0\n')
-        s.append(P.rl('pvl', 'pv_p', 'SOLAR_CONN', *LEAD_PANEL))
+        s.append(P.rl('pvl', 'pv_p', 'pv_c', *LEAD_PANEL) + P.rl('tsol', 'pv_c', 'SOLAR_CONN', *tr(TRACE_SOLAR)))
         s.append(P.smf33ca('tvss', 'SOLAR_CONN'))
         s.append(P.cap('csr', 'SOLAR_CONN', '0', 0.9e-6))
         s.append(P.max17608('FS', 'SOLAR_CONN', 'VIN_CHG', ok='SOLAR_OK'))
     s.append(P.cap('cvc1', 'VIN_CHG', '0', 0.9e-6) + 'Rvcl VIN_CHG 0 1Meg\n')     # 1 uF only since 19 Oct (was 1 + 10 uF)
-    s.append(P.bq25185('CH', 'VIN_CHG', 'VSYS', 'BAT_P', c['chg']))
+    s.append(P.bq25185('CH', 'VIN_CHG', 'VSYS', 'BAT_CHG', c['chg']))
     # ---------------------------------------------------------------- system rail
     tx = _win(pa['t_apc'], t_off + 0.1e-3, nb, per) if pa['on'] else '0'
     s.append(P.system_rail('SR', iload='(%g + %s*%g)' % (c['i3v3_idle'], tx, c['i3v3_tx'] - c['i3v3_idle']),
                            t_on=c.get('sw_on'), loadsw=c.get('loadsw', False)))
     # ---------------------------------------------------------------- amplifier supply
     en = _any(pa['t_en'], t_off + 1e-3, nb, per) if pa['on'] else '0'
-    s.append(P.rl('tm1', 'BAT_P', 'MUX_IN1', *TRACE_MUX1))
+    s.append(P.rl('tm1', 'BAT_P', 'MUX_IN1', *tr(TRACE_MUX1)))
+    s.append(P.rl('tm2', 'VSYS', 'MUX_IN2', *tr(TRACE_SYS2)))
     mux = dict(c['mux'])
     if c['pr_force_low']:
         mux['pr_ratio'] = 0.0
-    s.append(P.tps2121('MX', 'MUX_IN1', 'VSYS', 'PA_IN', en=en, cfg=mux))
+    s.append(P.tps2121('MX', 'MUX_IN1', 'MUX_IN2', 'PA_IN', en=en, cfg=mux))
     s.append(P.cap('cpa1', 'PA_IN', '0', 14e-6) + P.cap('cpa2', 'PA_IN', '0', 14e-6))
-    s.append(P.rl('tpi', 'PA_IN', 'BB_IN', *TRACE_PAIN))
+    s.append(P.rl('tpi', 'PA_IN', 'BB_IN', *tr(TRACE_PAIN)))
     s.append(P.cap('cpa3', 'BB_IN', '0', 7e-6))
     s.append(P.tps63810('BB', 'BB_IN', 'BB_OUT', en, pa['vset'], c['bb']))
     # 2 x 47 uF 1206 X7S (C3216X7S0J476M160AC): ~25 uF each left at 4 V (TDK DC-bias curve, read roughly)
     s.append(P.cap('cvp1', 'BB_OUT', '0', 25e-6) + P.cap('cvp2', 'BB_OUT', '0', 25e-6))
-    s.append(P.rl('tvp', 'BB_OUT', 'VPA', *TRACE_VPA))
+    s.append(P.rl('tvp', 'BB_OUT', 'VPA', *tr(TRACE_VPA)))
     s.append(P.cap('cvp3', 'VPA', '0', 2.8e-6) + P.cap('cvp4', 'VPA', '0', 2.8e-6))
     apc = _win(pa['t_apc'], t_off + 0.1e-3, nb, per) if pa['on'] else '0'
     rf = _win(pa['t_rf'], t_off, nb, per, 40e-6) if pa['on'] else '0'
@@ -150,7 +176,7 @@ def build(cfg, datfile):
     # protector's off state is also a valid DC solution, see README)
     v0 = cl['ocv'] if (cl['present'] and not cl['reverse'] and cl['plug_t'] is None) else 0.0
     vs0 = 4.5 if c['usb'] else v0
-    ns = dict(BATT_PLUS=v0, BAT_P_C=v0, BAT_P=v0, MUX_IN1=v0, PROT_BAT=v0, CELL_MINUS=0, PROT_DOUT=v0,
+    ns = dict(BATT_PLUS=v0, BAT_P_C=v0, BAT_P=v0, BAT_CHG=v0, BAT_BYP=v0, MUX_IN1=v0, MUX_IN2=vs0, PROT_BAT=v0, CELL_MINUS=0, PROT_DOUT=v0,
               PROT_COUT=v0, PBval=1 if v0 > 1.5 else 0, VSYS=vs0, CHbuv=1 if v0 > 3.0 else 0,
               PROT_D=0, PROT_S2=0, REV_G=0 if v0 > 1.5 else max(v0, 4.2 if c['usb'] else 0.0))
     if c.get('loadsw'):
@@ -162,7 +188,7 @@ def build(cfg, datfile):
     ns['CHok'] = 1 if c['usb'] else 0
     if c['usb']:
         u = c['usb']
-        ns.update(FUramp=u, USB_VBUS=u, usb_conn=u, USB_5V=u - 0.05, VIN_CHG=u - 0.45, FUuv=1, FUuvp=1, FUovl=0,
+        ns.update(FUramp=u, USB_VBUS=u, usb_conn=u, USB_5V=u - 0.05, VIN_USB=u - 0.45, VIN_CHG=u - 0.45, FUuv=1, FUuvp=1, FUovl=0,
                   FUtov=0)
     ns.update(c.get('nodeset', {}))
     ctl = ['.nodeset ' + ' '.join('v(%s)=%g' % kv for kv in ns.items())]

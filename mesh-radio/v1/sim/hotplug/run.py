@@ -43,6 +43,7 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+import board as B
 import powerlib as P
 import simlib as S
 
@@ -78,7 +79,9 @@ def netlist(case, raw):
         s.append(P.rl('cab', 'pvs', 'conn', 0.1, 1e-6))
     vmax = max(abs(case.get('v', 0.0)), abs(case.get('step', (0, 0))[1]), case.get('voc', 0.0) * 1.25)
     hi = vmax > 10
-    s.append(P.rl('tr', 'conn', 'RAW', 0.005, 5e-9))
+    # connector -> TVS / eFuse or MAX17608 input, extracted from the routed board (board.py)
+    trace = B.TRACE_USB if kind == 'usb' else (B.TRACE_DRONE if kind == 'drone' else B.TRACE_SOLAR)
+    s.append(P.rl('tr', 'conn', 'RAW', trace[0] * (1 + B.CU_TC * (P.TEMP - 25.0)), trace[1]))
     s.append(P.cap('craw', 'RAW', '0', 0.55e-6 if hi else 0.9e-6))          # 1 uF 50 V X5R 0603 at 20 / 5 V
     if not hv:
         s.append(P.tvs2200('tvs', 'RAW', case.get('tvs', 'MAX')))

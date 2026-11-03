@@ -2,26 +2,32 @@
 """Mesh Radio v1 thermal studies (README E1-E4, P7).
 
   1. Board thermal model: a layered (2.5-D) finite-difference model of the
-     62 x 25.4 mm, 4-layer JLC04161H-7628 board.  Each copper layer is a
-     conducting sheet (copper coverage is an input: the routed board's real
-     copper replaces it later), FR-4 between the layers, plated vias, the
-     QPA9510's paddle and its nine filled vias, convection + radiation from
-     both faces.  Heat sources sit at the parts' positions from
-     src/placement.json.  Steady listening; Meshtastic transmit duty cycles
-     (one 1 s message a minute, 25 % and 50 % "storms", continuous) at
-     1 W, 2.5 W and 3 W; USB charging on top.  Ambient -40 ... 85 C, still
-     air in an enclosure (h = 10 W/m2K) and a small sealed case (5 W/m2K).
+     routed board, pcb.LEN x pcb.WID mm (70 x 25.4), six copper layers
+     (JLC06161H-2116B).  Each copper layer is a conducting sheet whose
+     copper, cell by cell, is read from mesh-radio.kicad_pcb
+     (board_copper.py: every fill, track, pad and via land), FR-4 between
+     the layers at the board's own stackup thicknesses, the board's own
+     ground vias where they are, the QPA9510's paddle and the vias found
+     in it, convection + radiation from both faces.  Heat sources sit at
+     the parts' positions from src/placement.json.  Steady listening;
+     Meshtastic transmit duty cycles (one 1 s message a minute, 25 % and
+     50 % "storms", continuous) at 1 W, 2.5 W and 3 W; USB charging on top.
+     Ambient -40 ... 85 C, still air in an enclosure (h = 10 W/m2K) and a
+     small sealed case (5 W/m2K).  The gap pad (layout.GAP_PAD) to a metal
+     wall is an option, since it needs the enclosure.
   2. Temperature-rating audit of every part in parts.py used by circuit.py,
      and the charger's NTC (TS) window.
-  3. Cold start at -40 C: clocks, the X5R capacitance in the converter
-     loops against the datasheet minimums, mechanical notes.
+  3. Cold start at -40 C: clocks, the capacitance in the converter loops
+     against the datasheet minimums, mechanical notes.
   4. Compactness: board length and amplifier copper against the heat.
 
 Run from mesh-radio/v1 in the pinned container:
     tools/kd python3 sim/thermal/run.py
-Writes results.txt and the PNGs next to this file (about 5-10 min, 4 cores).
-Needs numpy, scipy (sparse LU) and matplotlib; reads src/circuit.py,
-src/parts.py and src/placement.json and changes nothing in src/.
+Writes results.txt and the PNGs next to this file.  NPROC sets the worker
+processes (default: all cores).  Needs pcbnew (reads the routed board),
+numpy, scipy (sparse LU), matplotlib and PIL; reads src/circuit.py,
+src/parts.py, src/pcb.py, src/layout.py, src/placement.json and
+mesh-radio.kicad_pcb, and changes nothing outside this folder.
 
 Every number that is an assumption rather than a datasheet value is marked
 ASSUMED in PARAMS or in the source table below.
@@ -47,8 +53,13 @@ from matplotlib.colors import LinearSegmentedColormap
 HERE = os.path.dirname(os.path.abspath(__file__))
 V1 = os.path.normpath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, os.path.join(V1, 'src'))
+sys.path.insert(0, HERE)
 import circuit  # noqa: E402
 import parts    # noqa: E402
+import pcb      # noqa: E402  (board size and centre; needs pcbnew)
+import layout   # noqa: E402  (ANT_BOX, GAP_PAD)
+import board_copper  # noqa: E402
+BOARD_FILE = os.path.join(V1, 'mesh-radio.kicad_pcb')
 
 SIGMA = 5.670e-8
 OUT = []
@@ -60,33 +71,77 @@ def out(s=''):
 
 
 # ---------------------------------------------------------------------------
-# Board and stack-up (JLC04161H-7628, 1.6 mm): F 1 oz | 7628 0.2104 | In1 0.5 oz |
-# core 1.065 | In2 0.5 oz | 7628 0.2104 | B 1 oz
+# Board and stack-up.  setup() fills the board's own numbers in from
+# mesh-radio.kicad_pcb (board_copper.read): the stackup thicknesses (6 layers,
+# JLC06161H-2116B: F 1 oz | 2116 0.1164 | In1 0.5 oz | core 0.5 | In2 | 1080
+# 0.0764 | In3 | core 0.5 | In4 | 2116 0.1164 | B 1 oz), the copper map of every
+# layer (cov None = the board's), its vias (via_density None = the board's) and
+# the vias in the amplifier's paddle.  A list of numbers in cov / via_density
+# instead is a uniform estimate (how the model ran before the board was routed).
 PARAMS = dict(
-    length=62.0, width=25.4, dx=0.5,            # mm; dx = grid pitch
+    length=pcb.LEN, width=pcb.WID, dx=0.5,      # mm; dx = grid pitch
     x_cut=0.0,                                  # mm taken off the USB (-x) end (study 4)
-    t_cu=[35e-6, 15.2e-6, 15.2e-6, 35e-6],      # m, finished copper F, In1, In2, B
-    cov=[0.70, 1.00, 0.50, 0.70],               # copper coverage (INPUT; routed board replaces it)
-    t_diel=[0.2104e-3, 1.065e-3, 0.2104e-3],    # m, F-In1 prepreg, core, In2-B prepreg
+    t_cu=None, t_diel=None,                     # m, from the board's stackup (setup)
+    cov=None,                                   # None = the routed board's copper, cell by cell
+    copper=None,                                # board_copper.read() result (setup)
     k_cu=385.0,                                 # W/mK, electrodeposited copper
-    k_fr4_z=0.29, k_fr4_xy=0.81,                # W/mK, FR-4 (7628 glass) through / in plane
+    k_fr4_z=0.29, k_fr4_xy=0.81,                # W/mK, FR-4 through / in plane
     rc_cu=3.45e6, rc_fr4=2.0e6,                 # J/m3K volumetric heat capacity
-    via_density=8.0,                            # ASSUMED stitching vias per cm2 (0.4/0.2 mm), ground pours
+    via_density=None,                           # None = the board's ground vias; a number = per cm2 everywhere
+    via_nets=('GND',),                          # vias that join the planes (every pour is ground)
     via_drill=0.2e-3, plating=20e-6,            # m; JLC plates ~18-25 um in the barrel (ASSUMED 20)
-    pa_vias=9, pa_via_drill=0.3e-3,             # src/board.py PA_VIAS: nine 0.3 mm holes, 0.55 mm grid
+    pa_vias=None, pa_via_drill=None,            # the vias in the paddle, counted on the board (setup)
     k_via_fill=0.5,                             # W/mK resin fill (POFV, non-conductive epoxy; ASSUMED)
     paddle=1.5e-3, paste_frac=0.75 * 0.8,       # 1.5 mm paddle; paste 75 % of it (footprints.py), 20 % voids ASSUMED
     t_solder=50e-6, k_solder=58.0,              # SAC305 joint under the paddle (ASSUMED 50 um)
-    pa_island=True,                             # paddle copper on F joins the F pour only through vias (conservative)
+    pa_island=True,                             # paddle copper on F joins the F pour only through vias (as routed: README)
     theta_jc=12.5,                              # C/W QPA9510 data sheet (23 Jun 2025) p.3
     pa_case_C=0.015,                            # J/K package + die (3 x 3 x 0.85 mm), ASSUMED
     emissivity=0.9,                             # solder mask
     radiation=True,
     sinks=[],                                   # extra paths to ambient (x0, y0, x1, y1, layer, W/m2K) for fixes
 )
+# the copper a uniform estimate used before routing (followup.py's 6-layer
+# board; study 1 shows it beside the real board)
+ESTIMATE = dict(cov=[0.70, 1.0, 0.5, 0.5, 1.0, 0.70], via_density=8.0, pa_vias=9, pa_via_drill=0.3e-3)
 
-CU_LAYERS = ['F.Cu', 'In1.Cu', 'In2.Cu', 'B.Cu']
-ANT_BOX = (-22.6, 8.9, -11.9, 12.7)             # src/layout.py: Bluetooth antenna, no copper on In1/In2/B, no pour on F
+CU_LAYERS = ['F.Cu', 'In1.Cu', 'In2.Cu', 'In3.Cu', 'In4.Cu', 'B.Cu']   # setup() takes the board's
+ANT_BOX = layout.ANT_BOX                        # Bluetooth antenna: no copper on any layer (estimate only; the board has its own)
+GAP_PAD = layout.GAP_PAD                        # bare ground copper on B for a gap pad to a metal wall
+PAD_SINK = [GAP_PAD + (-1, 3000.0)]             # 10 x 10 mm gap pad, >= 3 W/mK, 1 mm (3000 W/m2K) to a wall at ambient
+OLD_PAD_SINK = [(15.0, -12.7, 25.0, -2.7, -1, 3000.0)]   # where the gap pad was until 2 Nov (under the PA end), for comparison
+
+
+def _bin_board(B, cop, p):
+    """The board's copper on B's grid: coverage per layer and ground-via barrel
+    area per cell (m2).  Cells beyond the routed board (a longer board,
+    study 4) get the board's mean."""
+    ras = cop['raster']
+    px = cop['px']
+    nl, nyp, nxp = ras.shape
+    cw = (B.xc[1] - B.xc[0])
+    ch = (B.yc[1] - B.yc[0])
+    ix = np.floor((cop['x0'] + (np.arange(nxp) + 0.5) * px - (B.xc[0] - cw / 2)) / cw).astype(int)
+    iy = np.floor((cop['y0'] + (np.arange(nyp) + 0.5) * px - (B.yc[0] - ch / 2)) / ch).astype(int)
+    ok = ((iy >= 0) & (iy < B.ny))[:, None] & ((ix >= 0) & (ix < B.nx))[None, :]
+    cell = (iy[:, None] * B.nx + ix[None, :])[ok]
+    cnt = np.bincount(cell, minlength=B.N).astype(float)
+    cov = []
+    for l in range(nl):
+        sm = np.bincount(cell, weights=ras[l][ok].astype(float), minlength=B.N)
+        c = np.where(cnt > 0, sm / np.maximum(cnt, 1), ras[l].mean())
+        cov.append(c.reshape(B.ny, B.nx))
+    v = cop['vias']
+    v = v[np.isin(cop['via_net'], p['via_nets'])]
+    r = v[:, 2] / 2
+    a = math.pi * (r ** 2 - np.maximum(r - p['plating'], 0) ** 2)
+    jx = np.floor((v[:, 0] - (B.xc[0] - cw / 2)) / cw).astype(int)
+    jy = np.floor((v[:, 1] - (B.yc[0] - ch / 2)) / ch).astype(int)
+    m = (jx >= 0) & (jx < B.nx) & (jy >= 0) & (jy < B.ny)
+    va = np.bincount(jy[m] * B.nx + jx[m], weights=a[m], minlength=B.N)
+    mean = a.sum() / (nxp * nyp * (px * 1e-3) ** 2) * B.dxm * B.dym     # per cell, over the routed board
+    va = np.where(cnt > 0, va, mean).reshape(B.ny, B.nx)
+    return cov, va
 
 
 class Board:
@@ -114,14 +169,19 @@ class Board:
         self.case = L * N
         n = L * N + 1
         A = self.dxm * self.dym
-        # copper coverage maps
-        cov = [np.full((ny, nx), c, float) for c in p['cov']]
-        x0, y0, x1, y1 = ANT_BOX
-        ant = (X > x0) & (X < x1) & (Y > y0) & (Y < y1)
-        for l in range(L):
-            cov[l][ant] = 0.0
+        # copper coverage maps: the routed board's, or a uniform estimate
+        if p['cov'] is None:
+            cov, self.via_area = _bin_board(self, p['copper'], p)
+        else:
+            cov = [np.full((ny, nx), c, float) for c in p['cov']]
+            x0, y0, x1, y1 = ANT_BOX
+            ant = (X > x0) & (X < x1) & (Y > y0) & (Y < y1)
+            for l in range(L):
+                cov[l][ant] = 0.0
+            self.via_area = None
+        assert len(cov) == L, (len(cov), L)
         # amplifier paddle cells (F): an island of solid copper
-        pa = self.part_xy('U11')
+        pa = self.part_xy(PA_REF)
         hp = p['paddle'] / 2 * 1e3 + 1e-6
         self.pad = (np.abs(X - pa[0]) <= hp) & (np.abs(Y - pa[1]) <= hp)
         if not self.pad.any():
@@ -161,7 +221,7 @@ class Board:
             gv = g.ravel(); vals.extend(np.r_[gv, gv, -gv, -gv])
             Cap[base:base + N] = A * (p['rc_cu'] * p['t_cu'][l] * cov[l] + p['rc_fr4'] * share[l]).ravel()
         # vertical: dielectric + stitching vias (+ the paddle vias)
-        a_bar = math.pi * ((p['via_drill'] / 2 + 0) ** 2 - (p['via_drill'] / 2 - p['plating']) ** 2)
+        a_bar = math.pi * ((p['via_drill'] / 2) ** 2 - (p['via_drill'] / 2 - p['plating']) ** 2)
         a_pa = math.pi * ((p['pa_via_drill'] / 2) ** 2 - (p['pa_via_drill'] / 2 - p['plating']) ** 2)
         a_fill = math.pi * (p['pa_via_drill'] / 2 - p['plating']) ** 2
         self.via = dict(a_barrel_stitch=a_bar, a_barrel_pa=a_pa)
@@ -169,8 +229,11 @@ class Board:
         for l in range(L - 1):
             t = p['t_diel'][l] + (p['t_cu'][l] + p['t_cu'][l + 1]) / 2
             g = p['k_fr4_z'] * A / p['t_diel'][l] * np.ones((ny, nx))
-            gvia = p['via_density'] * 1e4 * A * p['k_cu'] * a_bar / t
-            g = g + gvia * np.minimum(cov[0] > 0, cov[L - 1] > 0)
+            if self.via_area is None:
+                gvia = p['via_density'] * 1e4 * A * p['k_cu'] * a_bar / t
+                g = g + gvia * np.minimum(cov[0] > 0, cov[L - 1] > 0)
+            else:
+                g = g + p['k_cu'] * self.via_area / t
             gpa = p['pa_vias'] * (p['k_cu'] * a_pa + p['k_via_fill'] * a_fill) / t
             g = g + np.where(self.pad, gpa / npad, 0.0)
             ia = idx.ravel() + l * N
@@ -243,10 +306,53 @@ class Board:
 PLACEMENT = {}
 
 
+PA_REF = None       # the QPA9510's reference (setup: looked up by part, not hard-coded)
+BOARD = {}          # what setup() read off the routed board, for the report
+
+
 def load_placement():
     d = json.load(open(os.path.join(V1, 'src', 'placement.json')))
     d.pop('_nodes', None)
     PLACEMENT.update({k: tuple(v) for k, v in d.items()})
+
+
+def load_board():
+    """The routed board's stackup, copper and vias into PARAMS (and BOARD for the report)."""
+    global CU_LAYERS, ALL_FIXES, OUTER2
+    cop = board_copper.read(BOARD_FILE, pcb.LEN, pcb.WID, pcb.CX, pcb.CY, pa_ref=PA_REF)
+    PARAMS['copper'] = cop
+    PARAMS['t_cu'], PARAMS['t_diel'] = list(cop['t_cu']), list(cop['t_diel'])
+    assert len(cop['t_cu']) == len(cop['layers']) == len(cop['t_diel']) + 1
+    PARAMS['pa_vias'], PARAMS['pa_via_drill'] = cop['pa_vias']
+    CU_LAYERS = cop['layers']
+    OUTER2 = [70e-6] + PARAMS['t_cu'][1:-1] + [70e-6]
+    # the board fixes still open on the routed board (README fix 2)
+    ALL_FIXES = {'pa_island': False, 'k_via_fill': 385.0, 't_cu': OUTER2}
+    BOARD.update(cop=cop, mtime=time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(BOARD_FILE))))
+
+
+def setup():
+    """Circuit, placement and the routed board; call before building a Case."""
+    global COMPS, CBYREF, PA_REF
+    COMPS = circuit.build()
+    CBYREF = {c.ref: c for c in COMPS}
+    load_placement()
+    PA_REF = ref('QPA9510')
+    global I_CHG
+    iset = [c for c in COMPS if c.ref.startswith('R') and 'CHG_ISET' in c.pins.values()]
+    assert len(iset) == 1, iset
+    I_CHG = 300.0 / _ohms(parts.PARTS[iset[0].part]['value'])      # BQ25185 KISET 300 A.ohm (SLUSF65B)
+    load_board()
+
+
+def _ohms(v):
+    v = v.replace('Ohm', '').replace('R', '').strip()
+    mult = {'k': 1e3, 'M': 1e6, 'm': 1e-3}
+    for k, f in mult.items():
+        if k in v:
+            a, b = v.split(k)
+            return float(a + '.' + b if b else a) * f
+    return float(v)
 
 
 def ref(part, note=None):
@@ -265,24 +371,27 @@ def between(a, b, prefix):
 # body sizes (mm) used to spread a part's heat and to average the board under it
 SIZE = {'QPA9510': (3, 3), 'TPS63810': (2.2, 1.4), 'L470n': (2.5, 2.0), 'TPS2121': (2, 2), 'BQ25185': (2.2, 2.0),
         'RB060MM': (3.5, 1.8), 'TPS259470A': (2, 2), 'TPS62840': (1.4, 1.0), 'L2u2': (2.0, 1.6),
-        'SX1262': (4, 4), 'NRF52840': (7, 7), 'CSD25485F5': (1.5, 0.8), 'SSM10N954L': (2.0, 1.4),
-        'R22m': (3.2, 1.6), 'JST_PH2': (6.0, 4.0), 'SKY13330': (2, 2), 'LFCN1000': (3.2, 1.6),
+        'SX1262': (4, 4), 'NRF52840': (7, 7), 'CSD25310Q2': (2.0, 2.0), 'SSM10N954L': (2.0, 1.4),
+        'R15m': (3.2, 1.6), 'JST_PH2': (6.0, 4.0), 'SKY13330': (2, 2), 'LFCG1000': (2.0, 1.25),
+        'SKRP': (4.2, 3.2), 'JST_SH10': (13.0, 4.3), 'MAX17608': (3, 3), 'TPS22950': (1.2, 0.8),
+        'BAT68_04W': (2.0, 1.25), 'SMF33CA': (3.5, 1.8), 'ZENER5V6': (1.7, 1.25),
         'L8.1nH_PA': (2.5, 2.3), 'L3.6nH_0805': (2.0, 1.25), 'L3.2nH_0805': (2.0, 1.25),
         'R68_0805': (2.0, 1.25), 'R68_0805_AS': (2.0, 1.25), 'R150_0805': (2.0, 1.25), 'BGA7L1BN6': (1.1, 0.7), 'TLV75528': (1, 1),
         'TMP1075': (1.6, 1.2), 'NTC10K': (1.0, 0.5), 'LM66100': (2, 2.1), 'TPS22965': (2, 2), 'TPS22916': (0.8, 0.8),
         'BQ29700': (1.5, 1.5), 'XTAL32K': (3.2, 1.5), 'XTAL32M': (2.0, 1.6), 'TCXO32': (2.0, 1.6),
-        'B3U': (3.0, 2.5), 'SLIDE': (6.7, 2.6), 'USBC': (8.9, 7.3), 'UFL': (3, 2.6), 'JST_GH6': (9, 4.3),
+        'SLIDE': (6.7, 2.6), 'USBC': (8.9, 7.3), 'UFL': (3, 2.6), 'JST_GH6': (9, 4.3),
         'JST_SH2': (4, 4.3), 'JST_SH6': (8, 4.3), 'LED_R': (1.6, 0.8), 'LED_G': (1.6, 0.8), 'LED_B': (1.6, 0.8),
         'ANT2450': (3.2, 1.6), 'TVS2200': (2, 2), 'TPD4E05U06': (2.5, 1.0), 'ZENER4V7': (1.7, 1.25), 'NMOS': (1, 0.6),
         'FB120': (1.0, 0.5), 'HDR_2x10': (2, 2), 'TP': (1, 1)}
-CAP_SIZE = {'og:C_0402': (1.0, 0.5), 'og:C_0603': (1.6, 0.8), 'og:C_0805': (2.0, 1.25)}
+CHIP_SIZE = {'0402': (1.0, 0.5), '0603': (1.6, 0.8), '0805': (2.0, 1.25), '1206': (3.2, 1.6)}
 
 
 def size_of(c):
+    """Body size: the table above, or an R / L / C chip's case size from its footprint."""
     if c.part in SIZE:
         return SIZE[c.part]
     fp = parts.PARTS[c.part]['fp']
-    return CAP_SIZE.get(fp, (1.0, 0.5))
+    return CHIP_SIZE.get(fp.rsplit('_', 1)[-1], (1.0, 0.5))
 
 
 # ---------------------------------------------------------------------------
@@ -294,13 +403,13 @@ TX = {   # name: (VCC, ICC, RF out W, TPS63810 efficiency)
     '3W': (4.0, 2.3, 3.16, 0.87),     # 35 dBm; ~89 % at 2.3 A from 3.6 V, -2 pts deeper boost; sim/README "85 % deep boost"
 }
 R_MUX = 0.090        # TPS2121 RON max -40..105 C, data sheet SLVSEA3F p.7
-R_REVFET = 0.062     # CSD25485F5: 42 mOhm max at VGS -4.5 V, ~48 at -3.4 V, x1.3 hot (SLPS606B p.4) ASSUMED
+R_REVFET = 0.033     # CSD25310Q2: 19.9 mOhm max at VGS -4.5 V (parts.py), ~25 at -3.4 V ASSUMED, x1.3 hot
 R_PROT = 0.0036      # SSM10N954L 2.75 mOhm max x1.3 hot
-R_SENSE = 0.022      # R22m
+R_SENSE = 0.015      # R15m (Vishay WSLP1206, 15 mOhm)
 R_JST = 0.020        # JST PH contacts, 2 x 10 mOhm initial, ASSUMED half of the heat on the board side
 R_CHOKE = 0.008      # 0908SQ-8N1 DCR (< 10 mOhm, Coilcraft) ASSUMED
-IL_DB = dict(match=0.10, lpf=0.40, switch=0.30, lfcn=0.67)   # dB: sim/rf/results.txt (LPF 0.40, SKY13330 0.30 typ, LFCN 0.67 typ); match 0.10 ASSUMED
-I_CHG = 0.497        # A, ISET 604 R (sim/README)
+IL_DB = dict(match=0.08, lpf=0.21, switch=0.30, filter=0.67)  # dB: sim/rf/results.txt 1d (LPF 0.21, SKY13330 0.30 typ, LFCG-1000+ 0.67 typ, coupler section 0.08 put at the match)
+I_CHG = None         # A, 300 A.ohm / ISET (setup reads the ISET resistor from circuit.py: 1 k -> 300 mA)
 V_USB = 5.0          # V at the charger input (user's case: covers a 5.25 V port minus the Schottky)
 VF_D4 = 0.33         # V, RB060MM-30 at 0.5 A (p.1: 0.40 typ at 1 A)
 
@@ -321,7 +430,7 @@ def tx_sources(power):
     s['J_BAT'] = i_cell ** 2 * R_JST
     s['L_CHOKE'] = icc ** 2 * R_CHOKE
     p = pout
-    for k in ('match', 'lpf', 'switch', 'lfcn'):
+    for k in ('match', 'lpf', 'switch', 'filter'):
         loss = p * (1 - 10 ** (-IL_DB[k] / 10))
         s['RF_' + k] = loss
         p -= loss
@@ -348,11 +457,11 @@ def build_maps():
     """source name -> list of (ref, fraction); metric name -> (ref, psi, source name)."""
     lpf = [between('PA_M2', 'PA_M3', 'L'), between('PA_M3', 'PA_TX', 'L')]
     src = {
-        'U_PA': [('U11', 1.0)], 'U_BB': [(ref('TPS63810'), 1.0)], 'U_MUX': [(ref('TPS2121'), 1.0)],
-        'Q_REV': [(ref('CSD25485F5'), 1.0)], 'Q_PROT': [(ref('SSM10N954L'), 1.0)], 'R_SENSE': [(ref('R22m'), 1.0)],
+        'U_PA': [('PA', 1.0)], 'U_BB': [(ref('TPS63810'), 1.0)], 'U_MUX': [(ref('TPS2121'), 1.0)],
+        'Q_REV': [(ref('CSD25310Q2'), 1.0)], 'Q_PROT': [(ref('SSM10N954L'), 1.0)], 'R_SENSE': [(ref('R15m'), 1.0)],
         'J_BAT': [(ref('JST_PH2'), 1.0)], 'L_CHOKE': [(ref('L8.1nH_PA'), 1.0)],
         'RF_match': [(between('PA_OUT', 'PA_M1', 'L'), 1.0)], 'RF_lpf': [(lpf[0], 0.5), (lpf[1], 0.5)],
-        'RF_switch': [(ref('SKY13330'), 1.0)], 'RF_lfcn': [(ref('LFCN1000'), 1.0)],
+        'RF_switch': [(ref('SKY13330'), 1.0)], 'RF_filter': [(ref('LFCG1000'), 1.0)],
         'U_SX': [(ref('SX1262'), 1.0)], 'U_BUCK': [(ref('TPS62840'), 0.7), (ref('L2u2'), 0.3)],
         'U_NRF': [(ref('NRF52840'), 1.0)], 'U_APC': [(ref('TLV75528'), 1.0)], 'U_LNA': [(ref('BGA7L1BN6'), 1.0)],
         'U_CHG': [(ref('BQ25185'), 1.0)], 'D_USB': [(ref('RB060MM', 'USB into the charger'), 1.0)],
@@ -363,10 +472,10 @@ def build_maps():
     src['R_PAD3'] = [(between('PA_DRIVE', 'GND', 'R'), 1.0)]
     # junction metrics: Tj = board under the part + psi_JB x its own power
     met = {
-        'QPA9510 Tj': ('U11', None, 'U_PA'),             # handled specially (case + theta_jc)
+        'QPA9510 Tj': ('PA', None, 'U_PA'),              # handled specially (case + theta_jc)
         'TPS63810 Tj': (ref('TPS63810'), 20.5, 'U_BB'),  # psi_JB, SLVSEK4C p.5
         'TPS2121 Tj': (ref('TPS2121'), 15.5, 'U_MUX'),   # psi_JB, SLVSEA3F p.7
-        'CSD25485F5 Tj': (ref('CSD25485F5'), 30.0, 'Q_REV'),   # ASSUMED R_jb (only RthJA 90/245 C/W published)
+        'CSD25310Q2 Tj': (ref('CSD25310Q2'), 30.0, 'Q_REV'),   # ASSUMED R_jb (SON 2 x 2; not read)
         'BQ25185 Tj': (ref('BQ25185'), 34.7, 'U_CHG'),   # psi_JB, SLUSF65B p.5
         'TPS62840 Tj': (ref('TPS62840'), 39.4, 'U_BUCK'),
         'USB eFuse Tj': (ref('TPS259470A', 'USB eFuse'), 27.6, 'U_EFUSE'),
@@ -375,7 +484,7 @@ def build_maps():
     return src, met
 
 
-TJMAX = {'QPA9510 Tj': 175.0, 'TPS63810 Tj': 125.0, 'TPS2121 Tj': 125.0, 'CSD25485F5 Tj': 150.0,
+TJMAX = {'QPA9510 Tj': 175.0, 'TPS63810 Tj': 125.0, 'TPS2121 Tj': 125.0, 'CSD25310Q2 Tj': 150.0,
          'BQ25185 Tj': 125.0, 'TPS62840 Tj': 125.0, 'USB eFuse Tj': 125.0, 'RB060MM (USB) Tj': 150.0}
 
 
@@ -385,8 +494,8 @@ def ambient_rated():
     d = {}
     lim = {'SX1262': 85, 'NRF52840': 85, 'SKY13330': 85, 'BGA7L1BN6': 85, 'BQ29700': 85, 'TPS22916': 85,
            'XTAL32K': 85, 'XTAL32M': 85, 'TCXO32': 105, 'LED_R': 85, 'LED_G': 85, 'LED_B': 85,
-           'JST_PH2': 85, 'JST_GH6': 85, 'JST_SH2': 85, 'JST_SH6': 85, 'B3U': 70, 'SLIDE': 85, 'USBC': 85,
-           'UFL': 90, 'LFCN1000': 100, 'L8.1nH_PA': 125, 'NTC10K': 125, 'TMP1075': 125}
+           'JST_PH2': 85, 'JST_GH6': 85, 'JST_SH2': 85, 'JST_SH6': 85, 'JST_SH10': 85, 'SKRP': 85, 'SLIDE': 85,
+           'USBC': 85, 'UFL': 90, 'LFCG1000': 125, 'L8.1nH_PA': 125, 'NTC10K': 125, 'TMP1075': 125}
     for c in COMPS:
         if c.part in lim:
             d[c.ref] = ('%s %s' % (c.part, c.ref), lim[c.part])
@@ -421,7 +530,7 @@ class Case:
         for name, lst in self.src_map.items():
             v = np.zeros(B.G.shape[0])
             for r, f in lst:
-                if r == 'U11':
+                if r == 'PA':
                     v[B.case] += f
                     continue
                 c = CBYREF[r]
@@ -431,12 +540,12 @@ class Case:
         # metric weights
         self.Wmet = {}
         for m, (r, psi, sname) in self.met_map.items():
-            if r == 'U11':
+            if r == 'PA':
                 v = np.zeros(B.G.shape[0]); v[B.case] = 1.0
             else:
                 v = np.zeros(B.G.shape[0])
                 ii, w = B.part_weights(r, *size_of(CBYREF[r])); v[ii] = w
-            self.Wmet[m] = (v, psi if r != 'U11' else p['theta_jc'], sname)
+            self.Wmet[m] = (v, psi if r != 'PA' else p['theta_jc'], sname)
         self.amb = ambient_rated()
         self.Wamb = {}
         for r in self.amb:
@@ -523,7 +632,7 @@ def verdict_rows(case, tot_peak, charging, chg_frac):
     tj, tc = v['QPA9510 Tj'], v['QPA9510 case']
     vt = 'FAIL' if (tc > 85 or tj > 175) else ('MARGINAL' if (tj > 160 or tc > 80) else 'PASS')
     rows.append(('QPA9510 case <= 85 (Tj <= 160)', '%.0f / %.0f' % (tc, tj), vt))
-    for m in ('TPS63810 Tj', 'TPS2121 Tj', 'CSD25485F5 Tj', 'TPS62840 Tj', 'USB eFuse Tj', 'RB060MM (USB) Tj'):
+    for m in ('TPS63810 Tj', 'TPS2121 Tj', 'CSD25310Q2 Tj', 'TPS62840 Tj', 'USB eFuse Tj', 'RB060MM (USB) Tj'):
         lim = TJMAX[m]
         if not charging and m in ('USB eFuse Tj', 'RB060MM (USB) Tj'):
             continue
@@ -600,9 +709,8 @@ def _work(p, h, ta, offs):
     return d
 
 
-ALL_FIXES = {'pa_island': False, 'k_via_fill': 385.0, 't_cu': [70e-6, 35e-6, 35e-6, 70e-6],
-             'cov': [0.85, 1.0, 0.8, 0.85], 'via_density': 25.0}
-PAD_SINK = [(15.0, -12.7, 25.0, -2.7, -1, 3000.0)]
+ALL_FIXES = None     # setup(): paddle joined to the top pour, copper-filled paddle vias, 2 oz outer copper
+OUTER2 = None
 
 
 def _maxduty_variant(ch, tambs, offs):
@@ -654,24 +762,54 @@ def _variant(lab, ch, probe):
 # ---------------------------------------------------------------------------
 def main():
     t0 = time.time()
-    global COMPS, CBYREF
-    COMPS = circuit.build()
-    CBYREF = {c.ref: c for c in COMPS}
-    load_placement()
+    setup()
     p = dict(PARAMS)
+    cop = p['copper']
+    nl = len(p['t_cu'])
     out('Mesh Radio v1 - thermal studies (sim/thermal/run.py), %s' % time.strftime('%Y-%m-%d'))
-    out('Board %.0f x %.1f mm, grid %.2f mm; copper F/In1/In2/B %s um at coverage %s; via density %.0f /cm2'
-        % (p['length'], p['width'], p['dx'], [round(t * 1e6, 1) for t in p['t_cu']], p['cov'], p['via_density']))
-    pa = PLACEMENT['U11']
-    out('QPA9510 (U11) at (%.2f, %.2f) mm top (placement.json; the task brief said ~(21.7, -6.7))' % (pa[0], pa[1]))
+    out('Board %.0f x %.1f mm, %d copper layers, grid %.2f mm; the routed board %s (saved %s)'
+        % (p['length'], p['width'], nl, p['dx'], os.path.relpath(BOARD_FILE, V1), BOARD['mtime']))
+    pa = PLACEMENT[PA_REF]
+    out('QPA9510 (%s) at (%.2f, %.2f) mm %s (placement.json)' % (PA_REF, pa[0], pa[1], 'top' if pa[3] == 'T' else 'bottom'))
+
+    # ---- what the routed board gives the model
+    out()
+    out('--- Read from the routed board (board_copper.py)')
+    out('  stackup: copper %s um; dielectric %s mm' % ([round(t * 1e6, 1) for t in p['t_cu']],
+                                                      [round(t * 1e3, 4) for t in p['t_diel']]))
+    out('  copper coverage per layer (every fill, track, pad, via land): ' +
+        ', '.join('%s %.0f %%' % (nm, 100 * cop['raster'][l].mean()) for l, nm in enumerate(cop['layers'])))
+    pbox = (pa[0] - 5, pa[1] - 5, pa[0] + 5, pa[1] + 5)
+    out('  within 5 mm of the QPA9510: ' + ', '.join('%s %.0f %%' % (nm, 100 * board_copper.coverage_in(cop, l, pbox))
+                                                       for l, nm in enumerate(cop['layers'])))
+    v = cop['vias']
+    gnd = np.isin(cop['via_net'], p['via_nets'])
+    near = gnd & (np.abs(v[:, 0] - pa[0]) < 5) & (np.abs(v[:, 1] - pa[1]) < 5)
+    dr = sorted(set(float(x) for x in np.round(v[gnd, 2] * 1e3, 2)))
+    out('  vias: %d (+ %d in the paddle), %d of them ground (drills %s mm), %.0f ground vias /cm2 on average,'
+        ' %.0f /cm2 within 5 mm of the PA; only ground vias join the planes in the model'
+        % (len(v), p['pa_vias'], gnd.sum(), dr, gnd.sum() / (p['length'] * p['width'] / 100), near.sum() / 1.0))
+    out('  paddle vias: %d x %.2f mm drill, epoxy-filled and capped (POFV)' % (p['pa_vias'], p['pa_via_drill'] * 1e3))
+    area = cop['pa_fill'][0]
+    out('  paddle (pad 17) on F: %s' % ('inside a %.0f mm2 ground-fill outline, which joins it to the top pour only through'
+                                      ' a neck at one package corner (0.2-0.3 mm wide, read off a render): modelled as an'
+                                      ' island (pa_island)' % area if area > 3 else 'an island of its own (no fill joins it)'))
+    gx0, gy0, gx1, gy1 = GAP_PAD
+    mask_ok = any(abs(m[0] - gx0) < 0.05 and abs(m[1] - gy0) < 0.05 and abs(m[2] - gx1) < 0.05 and abs(m[3] - gy1) < 0.05
+                  for m in cop['mask_B'])
+    out('  gap pad layout.GAP_PAD (%.1f, %.1f)-(%.1f, %.1f) mm on B: copper %.0f %%, B.Mask opening on the board %s'
+        % (gx0, gy0, gx1, gy1, 100 * board_copper.coverage_in(cop, nl - 1, GAP_PAD), 'matches' if mask_ok else 'NOT FOUND'))
+    out('  Bluetooth antenna box layout.ANT_BOX: copper ' + ', '.join('%.0f %%' % (100 * board_copper.coverage_in(cop, l, ANT_BOX))
+                                                                 for l in range(nl)))
 
     # ---- via array and paddle numbers
     B = Board(p, 10.0, 25.0)
     a_pa = B.via['a_barrel_pa']
     t1 = p['t_diel'][0] + (p['t_cu'][0] + p['t_cu'][1]) / 2
-    tall = sum(p['t_diel']) + sum(p['t_cu'][1:3]) + (p['t_cu'][0] + p['t_cu'][3]) / 2
+    tall = sum(p['t_diel']) + sum(p['t_cu'][1:-1]) + (p['t_cu'][0] + p['t_cu'][-1]) / 2
     a_fill = math.pi * (p['pa_via_drill'] / 2 - p['plating']) ** 2
     g1 = p['k_cu'] * a_pa + p['k_via_fill'] * a_fill
+    npv = p['pa_vias']
     out()
     out('=' * 100)
     out('STUDY 1: board thermal model')
@@ -679,13 +817,13 @@ def main():
     out('Heat path from the QPA9510 die:')
     out('  junction -> case (paddle)      theta_jc %.1f C/W (QPA9510 data sheet 23 Jun 2025, p.3, CW)' % p['theta_jc'])
     out('  paddle solder (%.0f %% of 1.5 mm sq wetted, %.0f um SAC305)  %.2f C/W' % (100 * p['paste_frac'], p['t_solder'] * 1e6, 1 / B.g_solder))
-    out('  one 0.3 mm via, %.0f um plating, resin-filled: barrel %.4f mm2; F->In1 %.0f C/W, F->B %.0f C/W'
-        % (p['plating'] * 1e6, a_pa * 1e6, t1 / g1, tall / g1))
-    out('  nine in parallel (src/board.py PA_VIAS): F->In1 %.1f C/W, F->B %.1f C/W' % (t1 / g1 / 9, tall / g1 / 9))
-    out('  (copper-filled vias would be %.1f C/W F->B for nine)' % (tall / (p['k_cu'] * math.pi * (p['pa_via_drill'] / 2) ** 2) / 9))
-    sheet = [p['k_cu'] * t * c for t, c in zip(p['t_cu'], p['cov'])]
-    out('  copper sheet conductance per square: F %.1f, In1 %.1f, In2 %.1f, B %.1f mW/K (sum %.1f)'
-        % tuple([s * 1e3 for s in sheet] + [sum(sheet) * 1e3]))
+    out('  one %.2f mm via, %.0f um plating, resin-filled: barrel %.4f mm2; F->In1 %.1f C/W, F->B %.0f C/W'
+        % (p['pa_via_drill'] * 1e3, p['plating'] * 1e6, a_pa * 1e6, t1 / g1, tall / g1))
+    out('  %d in parallel (counted on the board): F->In1 %.2f C/W, F->B %.1f C/W' % (npv, t1 / g1 / npv, tall / g1 / npv))
+    out('  (copper-filled vias would be %.1f C/W F->B for %d)' % (tall / (p['k_cu'] * math.pi * (p['pa_via_drill'] / 2) ** 2) / npv, npv))
+    sheet = [p['k_cu'] * t * float(np.mean(c)) for t, c in zip(p['t_cu'], B.cov)]
+    out('  copper sheet conductance per square (board mean): ' + ', '.join('%s %.1f' % (nm, x * 1e3) for nm, x in zip(CU_LAYERS, sheet))
+        + ' mW/K (sum %.1f)' % (sum(sheet) * 1e3))
 
     # ---- the operating points
     out()
@@ -705,8 +843,9 @@ def main():
     out('  Listening: %.3f W in all (nRF52840, SX1262 RX, LNA, buck)' % sum(LISTEN.values()))
     for vb in (3.0, 3.7, 4.1):
         c = chg_sources(vb)
-        out('  USB charging, cell %.1f V: BQ25185 %.2f W ((5.0 - VBAT) x 0.497 A + SYS), Schottky D4 %.2f W, eFuse %.3f W'
-            % (vb, c['U_CHG'], c['D_USB'], c['U_EFUSE']))
+        out('  USB charging, cell %.1f V: BQ25185 %.2f W ((5.0 - VBAT) x %.3f A + SYS), Schottky D4 %.2f W, eFuse %.3f W'
+            % (vb, c['U_CHG'], I_CHG, c['D_USB'], c['U_EFUSE']))
+    out('  (charge current %.0f mA: ISET resistor in circuit.py, 300 A.ohm / R)' % (I_CHG * 1e3))
 
     # ---- run every (h, ambient)
     TAMBS = [-40, -20, 0, 25, 60, 85]
@@ -760,7 +899,7 @@ def main():
                             note = '(charging is blocked below 0 C by TS/firmware) ' + note
                         out('  %-6s %-5s %-11s %-3s | %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f %5.0f | %-8s %s'
                             % (ta, pw, NAMED[off], 'yes' if chg else 'no', v['QPA9510 Tj'], v['QPA9510 case'], v['TPS63810 Tj'],
-                               v['TPS2121 Tj'], v['CSD25485F5 Tj'], v['BQ25185 Tj'] if chg else float('nan'),
+                               v['TPS2121 Tj'], v['CSD25310Q2 Tj'], v['BQ25185 Tj'] if chg else float('nan'),
                                v['battery plug J3'], v['NTC TH1'], ov, note))
                         summary[(h, ta, pw, off, chg)] = (ov, rows, v, frac)
 
@@ -827,7 +966,7 @@ def main():
     out('  (BQ25185 Tj column is without throttling; "charge %" is what TREG 100 C leaves; cell and NTC columns are after throttling)')
 
     out()
-    out('--- Charging current options (ISET), cell 3.0 V, listening, h = 10 (scaled from the 497 mA run; loss ~ current)')
+    out('--- Charging current options (ISET), cell 3.0 V, listening, h = 10 (scaled from the %.0f mA run; loss ~ current)' % (I_CHG * 1e3))
     out('  %-8s %-5s | %-10s %-9s %-7s %-7s' % ('ICHG', 'Ta', 'BQ25185 Tj', 'charge %', 'cell C', 'NTC C'))
     for ichg in (0.497, 0.400, 0.300, 0.200):
         for ta in (0, 25, 40):
@@ -842,15 +981,19 @@ def main():
             out('  %-8s %-5d | %-10.0f %-9.0f %-7.0f %-7.0f' % ('%d mA' % round(ichg * 1e3), ta, ta + lm[ib] + cm[ib],
                                                              100 * frac, v['battery plug J3'], v['NTC TH1']))
     out('  (40 C uses the 25 C board solution shifted by 15 C; ISET = 300 A.ohm / I: 604 R -> 497 mA, 750 R -> 400 mA,'
-        ' 1.0 k -> 300 mA, 1.5 k -> 200 mA)')
+        ' 1.0 k -> 300 mA (as built), 1.5 k -> 200 mA)')
 
     out()
     out('--- Highest passing duty (no charging, h = 10) with the board fixes')
-    fixv = (('ALL board fixes', dict(ALL_FIXES)), ('ALL board fixes + thermal pad to metal wall', dict(ALL_FIXES, sinks=PAD_SINK)))
+    fixv = (('as built + gap pad (layout.GAP_PAD) to a metal wall', {'sinks': PAD_SINK}),
+            ('ALL board fixes (paddle joined to the top pour, Cu-filled paddle vias, 2 oz outer)', dict(ALL_FIXES)),
+            ('ALL board fixes + gap pad to a metal wall', dict(ALL_FIXES, sinks=PAD_SINK)))
     with mp.Pool(NPROC) as pool:
         parts_md = pool.starmap(_maxduty_variant, [(ch, [ta], OFFS) for lab, ch in fixv for ta in (25, 60)])
+    fix_md = {}
     for k, (lab, ch) in enumerate(fixv):
         md = dict(parts_md[2 * k]); md.update(parts_md[2 * k + 1])
+        fix_md[lab] = md
         out('  %s:' % lab)
         for pw in TX:
             out('    %-5s ' % pw + ' | '.join('%d C: %s' % (ta, ('%.0f %%' % (100 * md[(pw, ta)])) if md[(pw, ta)] >= 0.1 else
@@ -860,7 +1003,9 @@ def main():
 
     # TMP1075 vs PA case: offsets for a firmware limit
     out()
-    out('--- TMP1075 (U17, bottom, under the PA end) against the PA case, 60 C ambient, h = 10')
+    tq = PLACEMENT[ref('TMP1075')]
+    out('--- TMP1075 (%s, %s at (%.1f, %.1f), %.1f mm from the PA) against the PA case, 60 C ambient, h = 10'
+        % (ref('TMP1075'), 'bottom' if tq[3] == 'B' else 'top', tq[0], tq[1], math.hypot(tq[0] - pa[0], tq[1] - pa[1])))
     offs = []
     for pw in TX:
         for off in (59, 14, 3, 1, 0):
@@ -874,8 +1019,9 @@ def main():
         o = max(offs[5 * k:5 * k + 5])
         out('  -> %s: the burst alone lifts the PA case %.0f C above the TMP1075; to hold the case at 85 C the TMP1075 must'
             ' read below %.0f C before a message%s' % (pw, o, 85 - o, '' if 85 - o > 0 else ' (impossible: never at this power)'))
-    out('  The spike happens inside the 1 s burst, within 2-3 mm of the PA: the TMP1075 (3 mm away, under the board) sees'
-        ' the slow average only.  It can enforce the duty-cycle limit, not protect a single burst.')
+    out('  The spike happens inside the 1 s burst, within 2-3 mm of the PA: the TMP1075 (%.1f mm away, %s) sees'
+        ' the slow average only.  It can enforce the duty-cycle limit, not protect a single burst.'
+        % (math.hypot(tq[0] - pa[0], tq[1] - pa[1]), 'under the board' if tq[3] == 'B' else 'on top'))
 
     # ---- burst swing (solder fatigue)
     out()
@@ -890,22 +1036,23 @@ def main():
     # sensitivity and fixes (60 C, h = 10)
     out()
     out('--- Sensitivity and fixes: 60 C ambient, PA case / PA Tj / TPS63810 Tj peak, C')
+    hx, hy = min(pcb.HOLES, key=lambda h: math.hypot(h[0] - pa[0], h[1] - pa[1]))
+    L0 = p['length']
     variants = [
-        ('baseline (as placed, coverage 70/100/50/70 %)', {}),
+        ('baseline: the routed board as built', {}),
         ('h=5 and no radiation (worst sealed box)', {'radiation': False, '_h': 5.0}),
-        ('copper coverage 50/100/30/50 %', {'cov': [0.5, 1.0, 0.3, 0.5]}),
-        ('copper coverage 85/100/80/85 % (solid pours)', {'cov': [0.85, 1.0, 0.8, 0.85]}),
-        ('2 oz outer + 1 oz inner copper', {'t_cu': [70e-6, 35e-6, 35e-6, 70e-6]}),
+        ('uniform copper estimate (70/100/50/50/100/70 %, 8 vias/cm2)', dict(ESTIMATE)),
+        ('2 oz outer copper', {'t_cu': OUTER2}),
         ('PA paddle joined to the top pour (no island)', {'pa_island': False}),
         ('copper-filled paddle vias (VIPPO Cu)', {'k_via_fill': 385.0}),
-        ('stitching vias 25 /cm2 round the PA end', {'via_density': 25.0}),
-        ('thermal pad 10x10 mm under PA end to a metal case wall', {'sinks': [(15.0, -12.7, 25.0, -2.7, -1, 3000.0)]}),
-        ('M2 screw at the PA-end hole to a metal standoff/wall', {'sinks': [(26.4, -12.1, 30.4, -8.1, -1, 1500.0)]}),
-        ('board 52 mm (10 mm off the USB end)', {'x_cut': 10.0}),
-        ('board 72 mm (10 mm longer at the USB end)', {'_shift': 5.0}),
-        ('board 42 mm (20 mm off the USB end)', {'x_cut': 20.0}),
-        ('ALL board fixes (no island, Cu vias, 2/1 oz, 85 % pours, 25 vias/cm2)', dict(ALL_FIXES)),
-        ('ALL board fixes + 10x10 mm thermal pad to a metal wall', dict(ALL_FIXES, sinks=PAD_SINK)),
+        ('gap pad as built (layout.GAP_PAD) to a metal wall', {'sinks': PAD_SINK}),
+        ('gap pad at its old spot under the PA (before 2 Nov)', {'sinks': OLD_PAD_SINK}),
+        ('M3 screw at the PA-end hole (%.1f, %.1f) to a metal standoff' % (hx, hy), {'sinks': [(hx - 2, hy - 2, hx + 2, hy + 2, -1, 1500.0)]}),
+        ('board %.0f mm (10 mm off the USB end)' % (L0 - 10), {'x_cut': 10.0}),
+        ('board %.0f mm (10 mm longer at the USB end)' % (L0 + 10), {'_shift': 5.0}),
+        ('board %.0f mm (20 mm off the USB end)' % (L0 - 20), {'x_cut': 20.0}),
+        ('ALL board fixes (paddle joined, Cu-filled paddle vias, 2 oz outer)', dict(ALL_FIXES)),
+        ('ALL board fixes + gap pad as built', dict(ALL_FIXES, sinks=PAD_SINK)),
     ]
     probe = [('1W', 59), ('1W', 3), ('2.5W', 59), ('2.5W', 3), ('3W', 59), ('3W', 3)]
     out('  %-55s ' % '' + ' '.join('%-17s' % ('%s 1/%d' % (pw, 1 + off) if off else '%s cont.' % pw) for pw, off in probe))
@@ -956,7 +1103,7 @@ def plot_field(cs, r, fn, title):
         T = cs.tamb + th[l * B.N:(l + 1) * B.N].reshape(B.ny, B.nx)
         im = ax.imshow(T, origin='upper', extent=[B.xc[0], B.xc[-1], B.yc[-1], B.yc[0]], cmap=SEQ, vmin=cs.tamb, vmax=vmax,
                        aspect='equal')
-        for rr, lab in (('U11', 'PA'), (ref('TPS63810'), '63810'), (ref('TPS2121'), '2121'), (ref('JST_PH2'), 'J3 cell'),
+        for rr, lab in ((PA_REF, 'PA'), (ref('TPS63810'), '63810'), (ref('TPS2121'), '2121'), (ref('JST_PH2'), 'J3 cell'),
                         (ref('BQ25185'), 'charger'), (ref('NRF52840'), 'nRF'), (ref('SX1262'), 'SX1262')):
             x, y, rot, side = PLACEMENT[rr]
             if (side == 'T') == (l == 0):
@@ -1011,7 +1158,7 @@ def plot_maxduty(md, tambs):
         style(ax)
     axs[0].set_ylabel('1 s messages allowed (duty)', fontsize=9, color=INK2)
     axs[0].legend(fontsize=8, frameon=False)
-    fig.suptitle('Highest transmit duty that passes every limit (board as placed, no charging)', fontsize=10, color=INK)
+    fig.suptitle('Highest transmit duty that passes every limit (routed board as built, no gap pad, no charging)', fontsize=10, color=INK)
     fig.tight_layout()
     fig.savefig(os.path.join(HERE, 'max_duty.png'), dpi=130)
     plt.close(fig)
@@ -1030,7 +1177,7 @@ def plot_charging(tab, tambs):
         ax.set_xlabel('ambient (C)', fontsize=9, color=INK2)
         style(ax)
         ax.legend(fontsize=8, frameon=False)
-    fig.suptitle('USB charging at 497 mA, listening, h = 10', fontsize=10, color=INK)
+    fig.suptitle('USB charging at %.0f mA, listening, h = 10' % (I_CHG * 1e3), fontsize=10, color=INK)
     fig.tight_layout()
     fig.savefig(os.path.join(HERE, 'charging.png'), dpi=130)
     plt.close(fig)
@@ -1154,6 +1301,24 @@ RATING = {
     'RF0.5pF': (-55, 125, 'C0G class', 'Murata GJM series', 'd'),
 }
 RATING['R68_0805_AS'] = (-55, 155, 'operating', 'Vishay RCS0805 series', 'd')
+# parts added since 19 Oct (none of these data sheets was read in this session: 'd')
+RATING['C47u'] = (-55, 125, 'X7S class', 'TDK C3216X7S0J476M160AC (X7S)', 'd')
+RATING['C1u50'] = (-55, 85, 'X5R class', 'Taiyo Yuden UMK107BJ105KA (X5R)', 'd')
+RATING['C4u7_50'] = (-55, 125, 'X7R class', 'Samsung CL31B series', 'd')
+RATING['CSD25310Q2'] = (-55, 150, 'junction TJ', 'TI CSD25310Q2 (TI FemtoFET/SON family)', 'd')
+RATING['BAT68_04W'] = (-55, 150, 'junction Tj', 'Infineon BAT68 series', 'd')
+RATING['SMF33CA'] = (-55, 150, 'junction Tj', 'Littelfuse SMF series', 'd')
+RATING['ZENER5V6'] = (None, 150, 'junction Tj (storage -55)', 'Rohm UDZV series', 'd')
+RATING['MAX17608'] = (-40, 125, 'operating', 'Analog Devices MAX17608 (listing)', 'd')
+RATING['TPS22950'] = (-40, 125, 'junction TJ', 'TI TPS22950 (listing)', 'd')
+RATING['LFCG1000'] = (-55, 125, 'operating (5.5 W at 25 C, 1 W at 125 C)', 'Mini-Circuits LFCG-1000+ (parts.py, sim/rf)', 'd')
+RATING['JST_SH10'] = (-25, 85, 'incl. temperature rise', 'JST SH catalogue (as JST_SH2/SH6)', 'd')
+RATING['SKRP'] = (-40, 85, 'operating (parts.py says +90, docs/part-audit.md +85)', 'Alps Alpine SKRP series', 'd')
+RATING['R15m'] = (-65, 170, 'operating', 'Vishay WSLP series', 'd')
+for _k in ('R1R_0805', 'R49.9R_0805'):
+    RATING[_k] = (-55, 155, 'operating', 'Vishay CRCW-HP series', 'd')
+for _k in ('R1.15k', 'R2.1k', 'R20k', 'R374k', 'R7.68k', 'R49.9R'):
+    RATING[_k] = (-55, 155, 'operating', 'Yageo RC_L series', 'd')
 RATING['L3.2nH_0805'] = (-55, 125, 'operating', 'Murata LQW2BAN series', 'd')
 RATING['L3.6nH_0805'] = (-55, 125, 'operating', 'Murata LQW2BAN series', 'd')
 for _k in ('HV2.0pF', 'HV3.6pF', 'HV1.3pF', 'HV0.9pF'):
@@ -1215,9 +1380,10 @@ def study2_3():
     out('Parts that do not cover -40..+85 C:')
     for k, refs, lo, hi in fails:
         out('  %s (%s): %s..%s C' % (k, ' '.join(refs), lo, hi))
-    out('  Owner decision 3 (docs/plan.md) accepts the buttons and JST connectors at -25 C; it does not mention their'
-        ' upper limits: B3U +70 C is BELOW the 85 C of E1 and only 10 C above the 60 C box.')
-    out('  Unverified: Amphenol USB-C lower limit (listings say -40 or -20 C); Coilcraft 0908SQ full current only to +80 C.')
+    out('  Owner decision 3 (docs/plan.md) accepts the JST connectors at -25 C.  The buttons are now Alps SKRP'
+        ' (-40..+85 C; parts.py says +90): the B3U\'s +70 C limit is gone with it.')
+    out('  Unverified: Amphenol USB-C lower limit (listings say -40 or -20 C); Coilcraft 0908SQ full current only to +80 C;'
+        ' every rating added since 19 Oct (flag d).')
 
     # NTC window
     out()
@@ -1246,8 +1412,8 @@ def study2_3():
     out('=' * 100)
     out('STUDY 3: cold start at -40 C')
     out('=' * 100)
-    out('Outside their range at -40 C: B3U buttons (-25 C), JST PH/GH/SH (-25 C) [accepted, owner decision 3];'
-        ' Amphenol USB-C if its true lower limit is -20 C (unverified).  Every IC, crystal and passive covers -40 C.')
+    out('Outside their range at -40 C: JST PH/GH/SH (-25 C) [accepted, owner decision 3]; Amphenol USB-C if its true'
+        ' lower limit is -20 C (unverified).  Every IC, crystal, button and passive covers -40 C.')
     out('Clocks:')
     out('  ABM11W 32 MHz (-D1X: -40..85 C): ESR <= 50 Ohm over temperature, C0 <= 2 pF (ABM11W p.1) vs nRF52840'
         ' RS_HFXO_3PF <= 100 Ohm (PS p.96): PASS, 2x margin for start-up.')
@@ -1260,7 +1426,7 @@ def study2_3():
     out('  TCXO ECS-TXO-20CSMV4-320-AP: -40..+105 C, +-0.5 ppm, start-up 2 ms (p.1): PASS (firmware TCXO delay >= 5 ms).')
     out('Converter loops (effective capacitance = nominal x tolerance x DC bias x cold; X5R loses up to 15 % at -40 C):')
     rows = [
-        ('TPS63810 COUT (VPA)', '2 x 47u 0805 6.3 V X5R (19 uF each at 4.0 V) + 2 x 4.7u 0603 10 V (2.6 uF at 4 V)',
+        ('TPS63810 COUT (VPA)', '2 x 47u 1206 6.3 V X7S (19 uF each at 4.0 V kept from the 0805 X5R) + 2 x 4.7u 0603 (2.6 uF)',
          2 * 19 * 0.8 * 0.85 + 2 * 2.6 * 0.9 * 0.85, 16.0, 'SLVSEK4C p.4 (13 min) / p.27 (16 recommended)'),
         ('TPS63810 CIN (PA_IN)', '2 x 22u 0805 16 V X5R (14 uF at 4.5 V) + 10u 0805 25 V (7 uF)',
          2 * 14 * 0.8 * 0.85 + 7 * 0.9 * 0.85, 5.0, 'SLVSEK4C p.4 / p.26'),
@@ -1283,7 +1449,7 @@ def study2_3():
     out('  0908SQ air-core choke (L14): tinned copper coil on copper pads, CTE close to the board (17 vs 14-17 ppm/C), the'
         ' spring coil is compliant, so thermal cycling is a small risk; shock is the bigger one (a 2-3 mm tall coil on two'
         ' joints).  Stake it with a dot of low-loss RF adhesive; do not let adhesive fill the coil (it shifts the inductance).')
-    out('  WLCSP parts (TPS63810, TPS62840, TPS22916, SSM10N954L, CSD25485F5) and the nRF52840 aQFN: per-burst swings at'
+    out('  WLCSP parts (TPS63810, TPS62840, TPS22950, SSM10N954L) and the nRF52840 aQFN: per-burst swings at'
         ' the TPS63810 are a few C (study 1) but 500 k cycles a year at one message a minute; with drop shock, underfill'
         ' (or corner bonding) of the WLCSPs is advisable for the field build.')
 
