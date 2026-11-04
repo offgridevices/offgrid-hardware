@@ -248,6 +248,13 @@ def place_all(log=print):
     pin3 = B.pad_xy(pa, '3')
     B.pl.pop(pa); B.taken['T'].pop()
     B.put(pa, end[0] + 0.7 - pin3[0], end[1] - pin3[1], 0, 'T', check=False)
+    # its nine paddle vias (board.PA_VIAS, made with the board) come out on
+    # the bottom: no part there (3 Nov: with the battery plug moved off them
+    # the packer put FB1 and C66 on them, shorting both to ground)
+    import board as BD
+    px_, py_ = B.pl[pa][0], B.pl[pa][1]
+    r_ = max(max(abs(a), abs(b_)) for a, b_ in BD.PA_VIAS) + 0.25 + 0.3     # (0.5 mm vias)
+    B.keep_out((px_ - r_, py_ - r_, px_ + r_, py_ + r_), ('B',))
     # the output line runs down the right of the amplifier's four output
     # pins: they join it square, the choke goes up from its top, the match
     # starts below the lowest pin

@@ -62,10 +62,18 @@ class Obstacles:
                     g = LineString([(mm(s.x), mm(s.y)), (mm(e.x), mm(e.y))]).buffer(mm(t.GetWidth()) / 2)
                     self.items[t.GetLayer()].append((g, t.GetNetname()))
         self.keepouts = []
+        self.track_keepouts = {l: [] for l in layers}     # rule areas with no tracks, by layer (a stub is a track)
         for z in board.Zones():
-            if z.GetIsRuleArea() and z.GetDoNotAllowVias():
-                ol = z.Outline().Outline(0)
-                self.keepouts.append(Polygon([(mm(ol.CPoint(j).x), mm(ol.CPoint(j).y)) for j in range(ol.PointCount())]))
+            if not z.GetIsRuleArea():
+                continue
+            ol = z.Outline().Outline(0)
+            poly = Polygon([(mm(ol.CPoint(j).x), mm(ol.CPoint(j).y)) for j in range(ol.PointCount())])
+            if z.GetDoNotAllowVias():
+                self.keepouts.append(poly)
+            if z.GetDoNotAllowTracks():
+                for l in layers:
+                    if z.IsOnLayer(l):
+                        self.track_keepouts[l].append(poly)
         self._index()
 
     def _index(self):
@@ -97,7 +105,7 @@ class Obstacles:
     NET_CL = {}
     MARGIN = 0.0
 
-    def clear(self, geom, net, layers, clearance):
+    def clear(self, geom, net, layers, clearance, track=False):
         cmax = max([clearance] + list(self.NET_CL.values())) + self.MARGIN
         g = geom.buffer(cmax)
         for l in layers:
@@ -110,6 +118,13 @@ class Obstacles:
         for k in self.keepouts:
             if k.intersects(geom):
                 return False
+        # a stub may not enter an area that forbids tracks on its layer (3 Nov:
+        # a ground stub ran 0.02 mm into the gap pad's area, items_not_allowed)
+        if track:
+            for l in layers:
+                for k in self.track_keepouts.get(l, ()):
+                    if k.intersects(geom):
+                        return False
         return True
 
 def inpad_spots(pg, d):
@@ -224,7 +239,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                     dx, dy = q.x - px, q.y - py; L = math.hypot(dx, dy) or 1.0
                     ex, ey = float(q.x + dx / L * 0.1), float(q.y + dy / L * 0.1)
                     sg = LineString([(px, py), (ex, ey)]).buffer(ep_join / 2)
-                    if obs.clear(sg, net, [layer], inpad['cl'] if inpad else clearance):
+                    if obs.clear(sg, net, [layer], inpad["cl"] if inpad else clearance, track=True):
                         t = pcbnew.PCB_TRACK(board)
                         t.SetStart(pcbnew.VECTOR2I(MM(px), MM(py))); t.SetEnd(pcbnew.VECTOR2I(MM(ex), MM(ey)))
                         t.SetWidth(MM(ep_join)); t.SetLayer(layer); t.SetNet(pad.GetNet())
@@ -268,7 +283,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                     d = pg.distance(Point(vx, vy))
                     if d <= share + rv and (best is None or d < best[0]):
                         sg = LineString([(px, py), (vx, vy)]).buffer(stub_w / 2)
-                        if obs.clear(sg, net, [layer], clearance):
+                        if obs.clear(sg, net, [layer], clearance, track=True):
                             best = (d, vx, vy, sg)
                 if best:
                     _, vx, vy, sg = best
@@ -295,7 +310,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                         continue
                     if not obs.clear(vg, net, layers, clearance):
                         continue
-                    if not obs.clear(sg, net, [layer], clearance):
+                    if not obs.clear(sg, net, [layer], clearance, track=True):
                         continue
                     v = pcbnew.PCB_VIA(board); v.SetPosition(pcbnew.VECTOR2I(MM(x), MM(y)))
                     v.SetWidth(MM(via_d)); v.SetDrill(MM(off_drill or via_drill)); v.SetNet(pad.GetNet())
@@ -326,7 +341,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                 if best:
                     _, ox, oy = best
                     sg = LineString([(px, py), (ox, oy)]).buffer(0.1)
-                    if obs.clear(sg, net, [layer], clearance):
+                    if obs.clear(sg, net, [layer], clearance, track=True):
                         t = pcbnew.PCB_TRACK(board)
                         t.SetStart(pcbnew.VECTOR2I(MM(px), MM(py))); t.SetEnd(pcbnew.VECTOR2I(MM(ox), MM(oy)))
                         t.SetWidth(MM(0.2)); t.SetLayer(layer); t.SetNet(pad.GetNet())
@@ -341,7 +356,7 @@ def fanout(board, nets, bounds, via_d=0.5, via_drill=0.25, clearance=0.15,
                     d = pg.distance(Point(vx, vy))
                     if d <= far_share and (best is None or d < best[0]):
                         sg = LineString([(px, py), (vx, vy)]).buffer(stub_w / 2)
-                        if obs.clear(sg, net, [layer], clearance):
+                        if obs.clear(sg, net, [layer], clearance, track=True):
                             best = (d, vx, vy, sg)
                 if best:
                     _, vx, vy, sg = best
@@ -529,7 +544,7 @@ def dogbones(board, pins, via_d=0.35, via_drill=0.2, width=0.2, cl=0.1, hole_gap
                 ex, ey = qx + nx * (d - 0.0), qy + ny * (d - 0.0)
                 pts = [(sx, sy), (ex, ey)] if lat == 0 else [(sx, sy), (qx + nx * (d - abs(lat)), qy + ny * (d - abs(lat))), (vx, vy)]
                 sg = LineString(pts).buffer(width / 2)
-                if not obs.clear(sg, net, [L], cl):
+                if not obs.clear(sg, net, [L], cl, track=True):
                     continue
                 spot = (vx, vy, pts, 0 if k == 0 or dists[0] == near else 1)
                 break

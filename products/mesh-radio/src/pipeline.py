@@ -906,8 +906,20 @@ def island_pours(path, nets, margin=0.6, log=log):
         if hull.is_empty or hull.geom_type != 'Polygon':
             continue
         pts = [(x - pcb.CX, y - pcb.CY) for x, y in list(hull.exterior.coords)[:-1]]
+        # (on the bottom not over the gap pad: its solder mask is open, and a
+        # BAT_P join there bridged it to ground, 3 Nov)
+        gx0, gy0, gx1, gy1 = layout.GAP_PAD
+        gap = box(gx0 + pcb.CX - 0.3, gy0 + pcb.CY - 0.3, gx1 + pcb.CX + 0.3, gy1 + pcb.CY + 0.3)
+        bot = hull.difference(gap)
+        bot = max(getattr(bot, 'geoms', [bot]), key=lambda q: q.area) if not bot.is_empty else None
         for L in order:
-            z = pcb.zone(b, net, L, pts, clearance=0.15, min_width=0.2, priority=5, thermal=False,
+            if L == pcbnew.B_Cu and hull.intersects(gap):
+                if bot is None or bot.geom_type != 'Polygon' or bot.area < 0.5:
+                    continue
+                lp = [(x - pcb.CX, y - pcb.CY) for x, y in list(bot.exterior.coords)[:-1]]
+            else:
+                lp = pts
+            z = pcb.zone(b, net, L, lp, clearance=0.15, min_width=0.2, priority=5, thermal=False,
                          name=net + ' join')
             filler.Fill([z])
             n1 = len(finish._net_components(b, net))
@@ -980,23 +992,29 @@ def power_pours(path, layers, grow=POUR_GROW, clearance=0.15, log=log):
             if l == pcbnew.B_Cu:
                 area = area.difference(gap)
             area = area.simplify(0.05)
-            # one zone per separate piece, its holes kept (pieces split at
-            # their holes would touch, a DRC error between zones of a net)
-            for q in getattr(area, 'geoms', [area]):
-                if q.geom_type != 'Polygon' or q.area < 0.5:
-                    continue
-                z = pcb.zone(b, n, l, [(x - pcb.CX, y - pcb.CY) for x, y in list(q.exterior.coords)[:-1]],
-                             clearance=clearance, min_width=0.2, priority=pri, thermal=False,
-                             name='power: %s' % n)
-                ol = z.Outline()
+            # one zone per net and layer, every separate piece an outline of
+            # it with its holes (separate zones of one net that touch after
+            # simplifying are a DRC error, zones_intersect, 3 Nov)
+            polys = [q for q in getattr(area, 'geoms', [area]) if q.geom_type == 'Polygon' and q.area >= 0.5]
+            if not polys:
+                continue
+            z = pcb.zone(b, n, l, [(x - pcb.CX, y - pcb.CY) for x, y in list(polys[0].exterior.coords)[:-1]],
+                         clearance=clearance, min_width=0.2, priority=pri, thermal=False,
+                         name='power: %s' % n)
+            ol = z.Outline()
+            ol.RemoveAllContours()
+            for q in polys:
+                oi = ol.NewOutline()
+                for x, y in list(q.exterior.coords)[:-1]:
+                    ol.Append(pcb.MM(x), pcb.MM(y), oi, -1)
                 for h in q.interiors:
                     hp = list(h.coords)[:-1]
                     if len(hp) < 3:
                         continue
-                    ol.NewHole()
+                    hi = ol.NewHole(oi)
                     for x, y in hp:
-                        ol.Append(pcb.MM(x), pcb.MM(y), 0, 0)
-                k += 1
+                        ol.Append(pcb.MM(x), pcb.MM(y), oi, hi)
+            k += 1
         pri += 1
     pcbnew.ZONE_FILLER(b).Fill(b.Zones())
     b.Save(path)

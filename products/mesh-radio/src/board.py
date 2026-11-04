@@ -88,7 +88,7 @@ RULES = pcb.POFV_RULES + """
   (constraint clearance (min %.2fmm)))
 """ % RF_GAP + """
 (rule "RF gap to other nets' tracks and vias"
-  (condition "A.NetClass == 'RF' && A.Type == 'Track' && (B.Type == 'Track' || B.Type == 'Via') && B.NetClass != 'RF' && B.NetName != 'GND'")
+  (condition "A.NetClass == 'RF' && A.Type == 'Track' && (B.Type == 'Track' || B.Type == 'Via') && B.NetClass != 'RF' && B.NetName != 'GND' && !B.intersectsCourtyard('U*')")
   (constraint clearance (min %.2fmm)))
 """ % RF_GAP + """(rule "gap pad: ground vias only"
   (condition "A.Type == 'Via' && A.NetName != 'GND' && A.intersectsArea('gap pad')")
@@ -118,7 +118,9 @@ def net_classes(b, comps):
     # RF lines keep 0.1 mm to pads (the chips' 0.5 mm pitch needs it); their
     # 0.18 mm gap to ground is the top pour's own clearance (RF_GAP)
     # (0.25 since 3 Nov, the routers' gap to them: sim/rf R5; the DRC holds
-    # tracks and vias of other nets to it, pads to the fab minimum, RULES)
+    # tracks and vias of other nets to it outside the chips' courtyards,
+    # where a ball's own via sits between the pins, and pads to the fab
+    # minimum, RULES)
     pcb.netclass(b, 'RF', sorted(nets & set(RF_NETS + RF_EXTRA)), RF_W, clearance=RF_GAP, via_d=VIA_SIG[0],
                  via_drill=VIA_SIG[1])
     pcb.netclass(b, 'Heavy', sorted(nets & set(HEAVY)), HEAVY_ROUTE_W, clearance=0.1, via_d=0.5, via_drill=0.25)
@@ -196,8 +198,14 @@ def build(out, replace=False):
         mm_ = lambda p: (p.GetPosition().x / 1e6 - pcb.CX, p.GetPosition().y / 1e6 - pcb.CY)
         f = b.FindFootprintByReference(fet[0]); r = b.FindFootprintByReference(shunt[0])
         rx, ry = mm_([p for p in r.Pads() if p.GetNetname() == 'PROT_S2'][0])
-        sp = sorted((mm_(p) for p in f.Pads() if p.GetNetname() == 'PROT_S2'), key=lambda q: (round(q[1], 2), -q[0]))
-        ends = [sp[0], sp[-1]]                      # the outer pin of each row (its neighbour joins it, join_pads)
+        sp = [mm_(p) for p in f.Pads() if p.GetNetname() == 'PROT_S2']
+        # each row's pin nearest the shunt (its neighbour joins it, join_pads):
+        # from the other one the 0.6 mm track's end came 0.035 mm from the
+        # row's CELL_MINUS pin, a clearance error (3 Nov)
+        rows = {}
+        for q in sp:
+            rows.setdefault(round(q[1], 2), []).append(q)
+        ends = [min(v, key=lambda q: abs(q[0] - rx)) for _, v in sorted(rows.items())]
         before = set(t.m_Uuid.AsString() for t in b.GetTracks())
         for px, py in ends:
             pcb.track(b, [(px, py), (rx, py), (rx, ry)] if abs(py - ry) > 0.05 else [(px, py), (rx, ry)],

@@ -67,7 +67,7 @@ def nudge_vias(path, drc_json, out=None, clearances=None, steps=26, log=print):
                 for t in segs:
                     q = t.GetEnd() if t.GetStart() == P else t.GetStart()
                     sg = LineString([(x, y), (_mm(q.x), _mm(q.y))]).buffer(_mm(t.GetWidth()) / 2)
-                    if not obs.clear(sg, net, [t.GetLayer()], 0.1):
+                    if not obs.clear(sg, net, [t.GetLayer()], 0.1, track=True):
                         ok = False
                         break
                 if ok:
