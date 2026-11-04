@@ -68,13 +68,6 @@ the variant's hooks are the ones linked) and on unpatched v2.7.26 (flash
 89.9 %). Still 51 warnings, none from the variant or the patch. Compiles
 only: not run on a board.
 
-**Result on 4 Nov 2026** (SX1262 lines and FWD_DET moved: DIO1 P0.02, BUSY
-P1.15, NRESET P1.14, FWD_DET P0.29/AIN5; see the pin map): SUCCESS on the
-same v2.7.26 tree with the four-part patch as on 2 Nov (flash 90.2 %,
-735,504 of 815,104 bytes; RAM 41.1 %, 102,356 bytes). Still 51 warnings,
-none from the variant. The bootloader files do not use the moved pins.
-Compiles only: not run on a board.
-
 **Checking the 250 ppm crystal setting.** Take the compile line for
 `Bluefruit52Lib/bluefruit.cpp` from `pio run -v`, swap `-o …bluefruit.cpp.o`
 for `-E -o -`, and look at `clock_cfg`: it must read `.accuracy = (0)`
@@ -161,7 +154,7 @@ over the USB serial port), or send the `-ota.zip` over Bluetooth.
 | Function | nRF52840 | Arduino # | Notes |
 |---|---|---|---|
 | SX1262 NSS / SCK / MOSI / MISO | P1.10 / P1.11 / P1.12 / P1.13 | 42 / 43 / 44 / 45 | Same as the RAK4631 |
-| SX1262 BUSY / DIO1 / NRESET | P1.15 / P0.02 / P1.14 | 47 / 2 / 46 | Moved 4 Nov 2026 for the layout (the RAK4631 has P1.14 / P1.15 / P1.06): the seven SX1262 lines leave the nRF52840 in the SX1262's pin order |
+| SX1262 BUSY / DIO1 / NRESET | P1.14 / P1.15 / P1.06 | 46 / 47 / 38 | Same as the RAK4631 |
 | PA_EN → `SX126X_TXEN` | P1.07 | 39 | Enables the amplifier's 2.8 V control-voltage LDO |
 | LNA_EN → `SX126X_RXEN` | P1.05 | 37 | High = LNA gain, low = bypass |
 | DIO2 (on the SX1262) | — | — | Antenna switch (`SX126X_DIO2_AS_RF_SWITCH`) |
@@ -180,11 +173,11 @@ over the USB serial port), or send the `-ota.zip` over Bluetooth.
 | CHG_CE_N / STAT1 / STAT2 | P0.09 / P0.24 / P0.25 | 9 / 24 / 25 | /CE driven low (charging on). STAT2 low = charging. |
 | SOLAR_OK / DRONE_OK | P0.04 / P0.03 (AIN2 / AIN1) | 4 / 3 | Analog: input voltage / 16 (1.5 M / 100 k). Read to tell whether external power is in. |
 | REFL_DET | P0.30 / AIN6 | 30 (A3) | Antenna detector, reflected wave (BAT68-04W into 1 nF ∥ 100 k) |
-| FWD_DET | P0.29 / AIN5 | 29 (A2) | Antenna detector, forward wave (BAT68-04W into 1 nF ∥ 100 k). New 20 Oct; on P0.02/AIN0 until 4 Nov. |
+| FWD_DET | P0.02 / AIN0 | 2 (A5) | Antenna detector, forward wave (BAT68-04W into 1 nF ∥ 100 k). New 20 Oct. |
 | CHG_TS | P0.31 / AIN7 | 31 (A4) | The charger's TS/MR pin: battery NTC, 38 µA bias while an input is present |
 | USB VBUS | — | — | Read through the POWER peripheral (`NRF_APM`); the VBUS pin is fed through 22 R (net NRF_VBUS) |
 | Display SPI1 (display / I2C plug, JST-SH 10) | SCK P0.07, MOSI P0.08, CS P0.12, DC P0.26, RST P0.27, BL P1.08 | | Defined, but no display is turned on. Write-only: P0.11 (MISO) is not connected. Plug: 1 GND, 2 3V3, 3 SDA, 4 SCL, 5 SCK, 6 MOSI, 7 CS, 8 DC, 9 RST, 10 BL |
-| Not connected | P0.28 (AIN4), P1.02, P1.06, P0.10, P0.11 | 28, 34, 38, 10, 11 | (P1.06 was LORA_NRESET until 4 Nov.) The expansion header's spare pins and the display's MISO, until 2 Nov 2026 (the header gave way to the display / I2C plug) |
+| Not connected | P0.28 (AIN4), P0.29 (AIN5), P1.02, P0.10, P0.11 | 28, 29, 34, 10, 11 | The expansion header's spare pins and the display's MISO, until 2 Nov 2026 (the header gave way to the display / I2C plug) |
 
 **Why the GPS is on Serial1 and the drone on Serial2.** Meshtastic's nRF52
 code fixes which serial port does which job:
@@ -400,7 +393,7 @@ A printed coupler between the antenna filter and the U.FL, terminated in
 1 nF ∥ 100 k:
 
 - **REFL_DET**, P0.30/AIN6: the reflected wave (U.FL end);
-- **FWD_DET**, P0.29/AIN5: the forward wave (filter end; new, 20 Oct; P0.02/AIN0 until 4 Nov).
+- **FWD_DET**, P0.02/AIN0: the forward wave (filter end; new, 20 Oct).
 
 **The rule** (`sim/rf/results.txt` and `sim/rf/README.md`, study 8). With P
 the modelled U.FL power in dBm and T the board temperature in °C, the
