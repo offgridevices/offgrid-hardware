@@ -1,0 +1,3 @@
+#!/bin/sh
+# LayerCam: replaces Buildroot's dhcpcd service (the package is also removed in buildroot.fragment): it would manage wlan0 against layercam-net's udhcpc, in access point mode too.
+exit 0

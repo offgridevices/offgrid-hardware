@@ -1,0 +1,111 @@
+(footprint "LED_PLCC2_VSMY3850"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(descr "Vishay VSMY3850 PLCC-2 IR LED, 3.5 x 2.8 mm; pad 1 anode")
+	(property "Reference" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(uuid "fa8c3ce2-f99e-4193-94b5-d4555fbecc2f")
+		(effects
+			(font
+				(size 0.5 0.5)
+				(thickness 0.08)
+			)
+		)
+	)
+	(property "Value" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "d5cf18a4-137d-46f8-979b-6f46becb5602")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "2df51d37-a0f1-4b45-a3aa-86755c1e8919")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "1e42c1a1-be54-4165-80d0-98d3e5980706")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(attr smd)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_rect
+		(start -2.35 -1.55)
+		(end 2.35 1.55)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(fill no)
+		(layer "F.CrtYd")
+		(uuid "4e29969a-852c-44d5-a5fe-3bab442e6c7b")
+	)
+	(fp_line
+		(start -1.75 -0.9)
+		(end -1.25 -1.4)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(layer "F.Fab")
+		(uuid "f934a7d2-e609-476b-bf0e-672b901b23cb")
+	)
+	(fp_rect
+		(start -1.75 -1.4)
+		(end 1.75 1.4)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(fill no)
+		(layer "F.Fab")
+		(uuid "1031fa61-50a6-4588-a210-f31d88e40b19")
+	)
+	(pad "1" smd rect
+		(at -1.4 0)
+		(size 1.6 2.6)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(uuid "c75f5612-409c-46a3-8a12-0e07abc10eac")
+	)
+	(pad "2" smd rect
+		(at 1.4 0)
+		(size 1.6 2.6)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(thermal_bridge_angle 45)
+		(uuid "61022504-4339-4869-a2fc-1bcf6d53082d")
+	)
+	(embedded_fonts no)
+	(model "${KIPRJMOD}/lc.3dshapes/LED-SMD_L3.5-W2.8-R-RD_RED-1.stpZ"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

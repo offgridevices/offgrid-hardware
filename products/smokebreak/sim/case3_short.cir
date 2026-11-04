@@ -1,0 +1,65 @@
+* SmokeBreak v1 - Case 3: dead short (10 mOhm) at the drone while ON
+* Board per src/circuit.py: TPS48000 SCP (CS+/CS- on the low-side shunt,
+* vscp = 2 uA x RISCP + 19 mV, tSC <= 4 us), peak path INA181A2 -> LMV331 ->
+* latch -> AND -> INP with threshold thr_a (A); thr_a=1e3 disables it; optional
+* fixed hard-short LMV331 on the shunt at hsv volts (hsv=10: not fitted).
+* Short closes at t=10 us at the drone end of 10 cm leads (150 nH + 150 nH
+* round trip), drone 2200 uF bulk at the same point.
+* Run from sim/:  ngspice -b case3_short.cir
+.include lib/smokebreak.lib
+.include lib/board.lib
+
+.param ncell=14 vcell=4.35 rcell=3m cin=2u cd=1p rd=1 c1=1p rz=1G csn=1p rsn=1
+.param vscp=49.8m tsc=4u tpd_inp=0.36u thr_a=60 lout=150n rshort=10m tstop=40u
+.param tvs_vbr=78.6 tvs_vrwm=64 tvs_vc=103 tvs_ipp=5.8 slew=2e6 wp=1.319e6 gain=50 hsv=10 pbv=33 vio2=0 vio1=0
+.param vb={ncell*vcell}
+
+XB vin gnd BATT ncell={ncell} vcell={vcell} rcell={rcell} lser=250n rlead=3m
+Rg0 gnd 0 1u
+V33 v33 gnd 3.3
+XPP vin src gate vout gnd dneg inp scp PPATH cin={cin} cd={cd} rd={rd} c1={c1} rz={rz}
++ csn={csn} rsn={rsn} vscp={vscp} tsc={tsc} tpd_inp={tpd_inp} tvs_vbr={tvs_vbr}
++ tvs_vrwm={tvs_vrwm} tvs_vc={tvs_vc} tvs_ipp={tvs_ipp}
+XPR vin vout gnd preon guard PRECH
+XAX vin vout gnd aux v33 vlo AUXSENSE
+XPRB vout gnd v33 p0 p0 PROBE pbv={pbv}
+Vp0 p0 0 0
+Vpre preon gnd 0
+Vguard guard gnd 3.3
+Ven en 0 1
+Vthr thr 0 {thr_a*0.001*gain}
+XPK dneg gnd thr en isense pkok inpdrv PEAKPATH slew={slew} wp={wp} gain={gain} hsv={hsv} vio1={vio1} vio2={vio2}
+Rinp inpdrv inp 100
+
+* drone: + lead, - lead, bulk and the short at the far end
+Lol vout d1 {lout/2}
+Rol d1 drn 1m
+Lon dneg dn1 {lout/2}
+Ron dn1 drnn 1m
+XBK drn drnn BULK c=2200u esr=30m
+Ridle drn drnn 100
+Ssh drn shn ctl 0 SWS
+Rsh shn drnn {rshort}
+.model SWS SW(Ron=1m Roff=1G Vt=0.5 Vh=0.1)
+Vctl ctl 0 PWL(0 0 10u 0 10.001u 1)
+
+.nodeset v(vin)={vb} v(vout)={vb} v(drn)={vb} v(d1)={vb} v(src)={vb} v(gate)={vb+11}
++ v(xpp.bst)={vb+11} v(xpp.xu1.enok)=1
+.ic v(xpk.lat)=0 v(xpp.xu1.lat)=0
+.options method=gear reltol=1e-3 abstol=1e-6 vntol=1e-4 chgtol=1e-12 itl4=300
+.tran 1n {tstop} 0 5n
+.control
+set wr_singlescale
+set wr_vecnames
+option numdgt=7
+run
+let iq1 = i(v.xpp.vq1)
+let pq1 = v(vin,src)*i(v.xpp.vq1)
+let pq2 = v(vout,src)*i(v.xpp.vq2)
+let vds1 = v(vin,src)
+let vds2 = v(vout,src)
+let vgs = v(gate,src)
+let vprobe = v(v33,xprb.pb)
+wrdata work/c3.dat v(vin) v(vout) v(src) v(gate) iq1 pq1 pq2 vds1 vds2 vgs v(scp) i(v.xpp.vtvs) v(xpp.vsf) v(aux) v(drn) v(inp) v(isense) vprobe v(dneg)
+.endc
+.end

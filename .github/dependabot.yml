@@ -1,0 +1,12 @@
+# The workflows pin every action to a commit (a tag is mutable). Dependabot
+# keeps those pins current: one grouped pull request a month, so CI and the
+# review run once for all of them.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']

@@ -1,0 +1,386 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * OffGrid LayerCam v1: RV1106G3 camera board in Prusa's Buddy3D housing.
+ *
+ * Modelled on the Luckfox SDK's rv1106g-luckfox-pico-pro-max.dts (camera,
+ * flash, USB) and rv1106g-luckfox-pico-ultra.dts (SDIO Wi-Fi), commit
+ * 824b817f of github.com/LuckfoxTECH/luckfox-pico.  Every pin is the one
+ * src/circuit.py's main_soc() gives it; tests/test_pins.py checks this file
+ * against circuit.py.  Copy it to sysdrv/source/kernel/arch/arm/boot/dts/
+ * and point RK_KERNEL_DTS at it (README.md, Building the image).
+ *
+ * Not yet booted on a board.
+ */
+
+/dts-v1/;
+
+#include "rv1106.dtsi"
+#include "rv1106-evb.dtsi"
+
+/ {
+	model = "OffGrid LayerCam v1";
+	compatible = "offgrid,layercam-v1", "rockchip,rv1106g3";
+
+	/* as Luckfox's boards; on SPI NAND, U-Boot's environment supplies root= */
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0xff4c0000 console=ttyFIQ0 rootwait snd_soc_core.prealloc_buffer_size_kbytes=16 coherent_pool=0";
+	};
+
+	/* No keys: the camera has no button.  The evb's adc-keys would poll
+	 * SARADC_IN0, which here is the BOOT pad (TP5), the boot ROM's MaskROM
+	 * strap, and report it as volume keys.  The camera software reads the
+	 * pin only to warn when it leaks towards ground (layercam/hw.py). */
+	/delete-node/ adc-keys;
+
+	vcc_1v8: vcc-1v8 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_1v8";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+	};
+
+	vcc_3v3: vcc-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc_3v3";
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+	};
+
+	/* the 0.9 V buck is fixed (TLV62569, 0.882 V), as Luckfox's */
+	vdd_arm: vdd-arm {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd_arm";
+		regulator-min-microvolt = <800000>;
+		regulator-max-microvolt = <1000000>;
+		regulator-init-microvolt = <900000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	/* LED1, green, GPIO1_C0 through 1k: /sys/class/leds/status */
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&status_led_pin>;
+
+		status_led: status {
+			label = "status";
+			gpios = <&gpio1 RK_PC0 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+	};
+
+	/* AP6256 WL_REG_ON on GPIO1_A2 (100k pull-down on the board: off
+	 * until Linux raises it), as the Luckfox Pico Ultra W */
+	sdio_pwrseq: sdio-pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_enable_h>;
+		reset-gpios = <&gpio1 RK_PA2 GPIO_ACTIVE_LOW>;
+		post-power-on-delay-ms = <200>;
+	};
+
+	/* out-of-band interrupt for bcmdhd (built with CONFIG_BCMDHD_OOB):
+	 * WL_HOST_WAKE on GPIO0_A3.  The 32.768 kHz sleep clock comes from the
+	 * board's own oscillator (Y4), always on, so no clock here. */
+	wireless_wlan: wireless-wlan {
+		compatible = "wlan-platdata";
+		rockchip,grf = <&grf>;
+		wifi_chip_type = "ap6256";
+		pinctrl-names = "default";
+		pinctrl-0 = <&wifi_host_wake_irq>;
+		WIFI,host_wake_irq = <&gpio0 RK_PA3 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+
+	/* Bluetooth is wired (UART1_M0 with RTS/CTS, BT_REG_ON GPIO0_A1,
+	 * BT_WAKE GPIO0_A2, BT_HOST_WAKE GPIO0_A4) but not used by v1's
+	 * software; BT_REG_ON stays low (100k pull-down).  To use it, enable
+	 * &uart1 and this node, and the SDK's rv1106-bt.config. */
+	wireless_bluetooth: wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		uart_rts_gpios = <&gpio0 RK_PA5 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "rts_gpio";
+		pinctrl-0 = <&uart1m0_rtsn>;
+		pinctrl-1 = <&uart1_gpios>;
+		BT,reset_gpio = <&gpio0 RK_PA1 GPIO_ACTIVE_HIGH>;
+		BT,wake_gpio = <&gpio0 RK_PA2 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio0 RK_PA4 GPIO_ACTIVE_HIGH>;
+		status = "disabled";
+	};
+};
+
+&cpu0 {
+	cpu-supply = <&vdd_arm>;
+};
+
+/********** flash: W25N02KV, quad SPI NAND (as the Pro Max) **********/
+&sfc {
+	status = "okay";
+	flash@0 {
+		compatible = "spi-nand";
+		reg = <0>;
+		spi-max-frequency = <75000000>;
+		spi-rx-bus-width = <4>;
+		spi-tx-bus-width = <1>;
+	};
+};
+
+/********** SDIO: AP6256 at 3.3 V (SDIO_VSEL low, VCCIO4 3.3 V) **********/
+&sdmmc {
+	max-frequency = <50000000>;
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cap-sdio-irq;
+	keep-power-in-suspend;
+	non-removable;
+	no-1-8-v;
+	supports-sdio;
+	rockchip,default-sample-phase = <90>;
+	mmc-pwrseq = <&sdio_pwrseq>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc0_clk &sdmmc0_cmd &sdmmc0_bus4 &sdmmc0_det>;
+	status = "okay";
+};
+
+/********** not fitted on this board **********/
+&gmac {
+	status = "disabled";
+};
+
+&i2s0_8ch {
+	status = "disabled";
+};
+
+&acodec {
+	status = "disabled";
+};
+
+/********** USB-C: device only (the layercam-setup console, CDC-ACM) **********/
+/* peripheral, not otg: the USB-C has Rd on CC and no VBUS switch, so it is
+ * never a host, and with no ID pin or role switch otg could only guess.
+ * MaskROM (BOOT pads) and U-Boot's loader (reboot loader) flash over the
+ * same port without Linux, so nothing here affects them. */
+&u2phy {
+	status = "okay";
+};
+
+&u2phy_otg {
+	rockchip,dis-u2-susphy;
+	status = "okay";
+};
+
+&usbdrd {
+	status = "okay";
+};
+
+&usbdrd_dwc3 {
+	status = "okay";
+	dr_mode = "peripheral";
+};
+
+&rtc {
+	status = "okay";
+};
+
+/********** ADC: SARADC_IN0 BOOT pad (diagnostics only), SARADC_IN1 light sensor; 1.8 V reference **********/
+&saradc {
+	status = "okay";
+	vref-supply = <&vcc_1v8>;
+};
+
+&tsadc {
+	status = "okay";
+};
+
+/********** IR LEDs: PWM3 on its M1 pin (GPIO1_B0) to the AO3400A gate **********/
+&pwm3 {
+	status = "okay";
+	pinctrl-names = "active";
+	pinctrl-0 = <&pwm3m1_pins>;
+};
+
+/********** camera: SC3336, 2 lanes, I2C4_M2, MCLK on GPIO3_C4, PWDN GPIO3_C5 (as the Pro Max) **********/
+&csi2_dphy_hw {
+	status = "okay";
+};
+
+&csi2_dphy0 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			csi_dphy_input0: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&sc3336_out>;
+				data-lanes = <1 2>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			csi_dphy_output: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&mipi_csi2_input>;
+			};
+		};
+	};
+};
+
+&i2c4 {
+	status = "okay";
+	clock-frequency = <400000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c4m2_xfer>;
+
+	sc3336: sc3336@30 {
+		compatible = "smartsens,sc3336";
+		status = "okay";
+		reg = <0x30>;
+		clocks = <&cru MCLK_REF_MIPI0>;
+		clock-names = "xvclk";
+		pwdn-gpios = <&gpio3 RK_PC5 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&mipi_refclk_out0>;
+		rockchip,camera-module-index = <0>;
+		rockchip,camera-module-facing = "back";
+		/* these two names pick the IQ file sc3336_CMK-OT2119-PC1_30IRC-F16.json */
+		rockchip,camera-module-name = "CMK-OT2119-PC1";
+		rockchip,camera-module-lens-name = "30IRC-F16";
+		port {
+			sc3336_out: endpoint {
+				remote-endpoint = <&csi_dphy_input0>;
+				data-lanes = <1 2>;
+			};
+		};
+	};
+};
+
+&mipi0_csi2 {
+	status = "okay";
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_csi2_input: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&csi_dphy_output>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			mipi_csi2_output: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&cif_mipi_in>;
+			};
+		};
+	};
+};
+
+&rkcif {
+	status = "okay";
+};
+
+&rkcif_mipi_lvds {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&mipi_pins>;
+	port {
+		cif_mipi_in: endpoint {
+			remote-endpoint = <&mipi_csi2_output>;
+		};
+	};
+};
+
+&rkcif_mipi_lvds_sditf {
+	status = "okay";
+	port {
+		mipi_lvds_sditf: endpoint {
+			remote-endpoint = <&isp_in>;
+		};
+	};
+};
+
+&rkisp {
+	status = "okay";
+};
+
+&rkisp_vir0 {
+	status = "okay";
+	port@0 {
+		isp_in: endpoint {
+			remote-endpoint = <&mipi_lvds_sditf>;
+		};
+	};
+};
+
+/********** pins **********/
+&pinctrl {
+	/* the IR-cut H-bridge inputs (DRV8837 IN1/IN2, pulled down inside the
+	 * driver too): plain GPIOs, low, so the bridge is off until the
+	 * camera software pulses the coil.  Held by the pin controller itself. */
+	pinctrl-names = "default";
+	pinctrl-0 = <&ircut_pins>;
+
+	ircut {
+		ircut_pins: ircut-pins {
+			rockchip,pins =
+				/* IRCUT_A, GPIO1_A0 */
+				<1 RK_PA0 RK_FUNC_GPIO &pcfg_pull_down>,
+				/* IRCUT_B, GPIO1_A1 */
+				<1 RK_PA1 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+	};
+
+	leds {
+		status_led_pin: status-led-pin {
+			rockchip,pins = <1 RK_PC0 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	wifi {
+		wifi_enable_h: wifi-enable-h {
+			rockchip,pins = <1 RK_PA2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+		wifi_host_wake_irq: wifi-host-wake-irq {
+			rockchip,pins = <0 RK_PA3 RK_FUNC_GPIO &pcfg_pull_down>;
+		};
+	};
+
+	wireless-bluetooth {
+		uart1_gpios: uart1-gpios {
+			rockchip,pins = <0 RK_PA5 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+	};
+
+	/* SDMMC0_DET has 10k to ground on the board: the "card" is always there */
+	sdmmc0 {
+		sdmmc0_det: sdmmc0-det {
+			rockchip,pins = <3 RK_PA1 1 &pcfg_pull_down>;
+		};
+	};
+};

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Replaces Luckfox's S99usb0config, which configures the RNDIS network
+# (usb0) and polls dmesg every 5 s to restart adb.  LayerCam's USB-C carries
+# only the setup console (S50usbdevice), so there is nothing to do.
+exit 0

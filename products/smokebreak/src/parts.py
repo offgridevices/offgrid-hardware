@@ -1,0 +1,209 @@
+"""Every part on the SmokeBreak v1 board, and where it comes from.
+
+Each entry is one orderable line: the footprint the board uses, the
+manufacturer and manufacturer part number (MPN) PCBWay buys from, the LCSC
+number where LCSC stocks it, a description, and how it is fitted:
+
+  smt   placed by PCBWay (top side only: one-sided assembly)
+  tht   through-hole, hand-soldered by the owner (connectors, toggle,
+        pre-charge resistor)
+  off   not on the board: bought and fitted separately (the display panel,
+        it plugs into J7)
+
+Special parts' footprints and 3D models come from LCSC's own library
+(easyeda2kicad, ../lib/smokebreak.pretty); passives use KiCad's standard
+footprints.  Part research and prices: ../docs/PARTS.md.
+"""
+
+LIB = 'smokebreak'
+STD_R = {'0402': 'Resistor_SMD:R_0402_1005Metric', '0603': 'Resistor_SMD:R_0603_1608Metric',
+         '0805': 'Resistor_SMD:R_0805_2012Metric', '1206': 'Resistor_SMD:R_1206_3216Metric'}
+STD_C = {'0402': 'Capacitor_SMD:C_0402_1005Metric', '0603': 'Capacitor_SMD:C_0603_1608Metric',
+         '0805': 'Capacitor_SMD:C_0805_2012Metric', '1206': 'Capacitor_SMD:C_1206_3216Metric',
+         '1210': 'Capacitor_SMD:C_1210_3225Metric'}
+
+
+def P(fp, mfr, mpn, lcsc, desc, fit='smt'):
+    return dict(fp=None if fp is None else (fp if ':' in fp else f'{LIB}:{fp}'), mfr=mfr, mpn=mpn, lcsc=lcsc, desc=desc, fit=fit)
+
+
+PARTS = {
+    # ---------------------------------------------------------- power path
+    'TPS48000':  P('VSSOP-19_L5.1-W3.0-P0.50-LS4.9', 'Texas Instruments', 'TPS48000QDGXRQ1', 'C43131315',
+                   'Smart high-side driver, 3.5-95 V, -65 V reverse, low-side sense, SCP'),
+    'BSC040':    P('PG-TDSON-8_L5.9-W5.1-P1.27-LS6.1-BL', 'Infineon', 'BSC040N10NS5', 'C534334',
+                   'N-MOSFET 100 V 4.0 mOhm, SuperSO8'),
+    'SHUNT1M':   P('RES-SMD_4P-L3.8-W3.1', 'Vishay Dale', 'WSK12161L000FEA', 'C844476',
+                   'Current shunt 1 mOhm 1 % 3 W, four-terminal 1216'),
+    'INA181A2':  P('SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL', 'Texas Instruments', 'INA181A2IDBVR', 'C2058784',
+                   'Current-sense amplifier, gain 50, -0.2..26 V CM (low side: CM ~0 V)'),
+    'TVS64':     P('SMB_L4.6-W3.6-LS5.3-BI', 'Littelfuse', 'SMBJ64CA', 'C151269',
+                   'TVS bidirectional 64 V stand-off, 600 W, SMB'),
+    'SUD50P10':  P('TO-252-3_L6.5-W5.8-P4.58-BR', 'Vishay Siliconix', 'SUD50P10-43L-E3', 'C913430',
+                   'P-MOSFET 100 V 43 mOhm DPAK (pre-charge switch: ~7.5 A peak through RPRE)'),
+    'MMBTA42':   P('SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR', 'onsemi', 'MMBTA42LT1G', 'C94389',
+                   'NPN 300 V (pre-charge gate pull-down: sees VIN)'),
+    'MMBT5401':  P('SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR', 'onsemi', 'MMBT5401LT1G', 'C21488',
+                   'PNP 150 V (probe switch: a reversed drone-side pack puts -60 V on it)'),
+    'D2TO20R3R9': P('Package_TO_SOT_SMD:TO-263-2', 'Vishay', 'D2TO020C3R900FRE3', 'C4267031',
+                   'Pre-charge resistor 3.9 Ohm 20 W thick film, TO-263, element isolated from the tab; '
+                   '~10 J single pulse at 100 ms (datasheet curve). Two in series. Consign / global sourcing'),
+    'FUSE40':    P('Fuse_Eaton_2822HC', 'Eaton Bussmann', '2822HC40-RTR', 'C5493215',
+                   'Fuse 40 A 72/80 V DC, 1000 A interrupting @ 80 V DC, 7.6 x 6.0 x 4.2 mm brick (consign; '
+                   'stocked alternate Littelfuse 0456040.DRSDE C3166225 needs a 12.2 mm footprint)'),
+    'AC05R3R9':  P('RES-TH_BD7.5-L18.0-P22.00-D1.0', 'Vishay', 'AC05000003909JAC00', 'C3419184',
+                   'Pre-charge resistor 3.9 Ohm 5 W cemented wirewound, pulse rated (two in series)', fit='tht'),
+    'BSC070L':   P('PG-TDSON-8_L5.9-W5.1-P1.27-LS6.1-BL', 'Infineon', 'BSC070N10LS5ATMA1', 'C3278731',
+                   'N-MOSFET 100 V logic level, 8.5 mOhm at 4.5 V (reverse-battery switch in the battery return)'),
+    'BZT52C12':  P('SOD-123_L2.7-W1.6-LS3.7-RD', 'Diodes Incorporated', 'BZT52C12-7-F', 'C727004',
+                   'Zener 12 V (Q11 gate clamp)'),
+    'BZT52C15':  P('SOD-123_L2.7-W1.6-LS3.7-RD', 'Diodes Incorporated', 'BZT52C15-7-F', 'C177014',
+                   'Zener 15 V (Q1/Q2 gate-source clamp)'),
+    'DMP10H':    P('SOT-223_L6.5-W3.5-P2.30-LS7.0-BR', 'Diodes Incorporated', 'DMP10H400SE-13', 'C156277',
+                   'P-MOSFET -100 V 250 mOhm, SOT-223 (pre-charge switch)'),
+    'RPRE22':    P('RES-TH_BD7.5-L18.0-P22.00-D1.0', 'Vishay', 'AC05000002209JAC00', 'C1364873',
+                   'Resistor 22 Ohm 5 W cemented wirewound, pulse rated (pre-charge)', fit='tht'),
+    'SS2H10':    P('Diode_SMD:D_SMB', 'Vishay', 'SS2H10-E3/52T', 'C435843',
+                   'Schottky 100 V 2 A, SMB / DO-214AA (pre-charge reverse block)'),
+    # ---------------------------------------------------------- aux supply
+    'LMR36506':  P('VQFN-9_L2.1-W2.1-P0.50-TL', 'Texas Instruments', 'LMR36506R5RPER', 'C2866484',
+                   'Buck 3.6-65 V in, 5 V fixed, 600 mA (pin-compatible with LMR36503R5)'),
+    'LM5164':    P('Package_SO:SOIC-8-1EP_3.9x4.9mm_P1.27mm_EP2.41x3.3mm', 'Texas Instruments', 'LM5164DDAR', 'C477928',
+                   'Sync buck 6-100 V in, 1 A, COT (aux 5 V)'),
+    'L47U6045':  P('Inductor_SMD:L_Changjiang_FNR6045S', 'Sunlord', 'SWPA6045S470MT', 'C36414',
+                   'Inductor 47 uH 6x6x4.5 mm, 1.2 A rated / 1.4 A'),
+    'L47U':      P('IND-SMD_L4.0-W4.0_SLS3DXX', 'Sunlord', 'SWPA4030S470MT', 'C54731',
+                   'Inductor 47 uH 4x4x3 mm'),
+    'TLV75533':  P('SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR', 'Texas Instruments', 'TLV75533PDBVR', 'C404027',
+                   'LDO 3.3 V 500 mA'),
+    # ---------------------------------------------------------- logic
+    'STM32G0B1': P('LQFP-64_L10.0-W10.0-P0.50-LS12.0-BL', 'STMicroelectronics', 'STM32G0B1RBT6', 'C5143679',
+                   'MCU Cortex-M0+ 64 MHz, 128 KB flash, 144 KB RAM, USB crystal-less, LQFP-64 '
+                   '(STM32G0B1RET6 / RCT6 fit the same pads)'),
+    'DRV5032':   P('SOT-23-3_L2.9-W1.3-P0.95-LS2.4-BR', 'Texas Instruments', 'DRV5032FADBZR', 'C140921',
+                   'Hall switch, omnipolar, push-pull, 1.3 uA (guard magnet)'),
+    'LVC1G11':   P('SC-88-6_L2.0-W1.3-P0.65-LS2.1-BL', 'Nexperia', '74LVC1G11GW,125', 'C282348',
+                   '3-input AND gate (switch enable)'),
+    'LMV331':    P('SOT-23-5_L3.0-W1.7-P0.95-LS2.8-BR', 'Texas Instruments', 'LMV331IDBVR', 'C34731',
+                   'Comparator, open drain, ~200 ns (peak current)'),
+    'LVC1G74':   P('SSOP-8_L2.0-W2.3-P0.50-LS3.1-BR', 'Texas Instruments', 'SN74LVC1G74DCUR', 'C70285',
+                   'D flip-flop with clear (peak-trip latch)'),
+    'AHCT1G125': P('Package_TO_SOT_SMD:SOT-23-5', 'Texas Instruments', 'SN74AHCT1G125DBVR', 'C7484',
+                   'Buffer 5 V, TTL inputs (LED data level shift)'),
+    # ---------------------------------------------------------- small discretes
+    'BAT46WJ':   P('SOD-323F_L2.0-W1.6-LS2.5-RD', 'Nexperia', 'BAT46WJ,115', 'C114696',
+                   'Schottky 100 V 250 mA, SOD-323F'),
+    'BAT54S':    P('SOT-23-3_L3.0-W1.7-P0.95-LS2.9-BR', 'Nexperia', 'BAT54S,215', 'C47546',
+                   'Dual series Schottky 30 V (ADC clamp)'),
+    '1N4148WS':  P('SOD-323_L1.8-W1.3-LS2.5-RD', 'Jiangsu Changjing (CJ)', '1N4148WS', 'C2128',
+                   'Switching diode 100 V / 75 V working, SOD-323 (supply and balance OR)'),
+    'BZT52C10':  P('SOD-123_L2.7-W1.6-LS3.7-RD', 'Diodes Incorporated', 'BZT52C10-7-F', 'C155227',
+                   'Zener 10 V (P-FET gate clamp)'),
+    '2N7002':    P('SOT-23_L2.9-W1.3-P1.90-LS2.4-BR', 'Nexperia', '2N7002,215', 'C65189',
+                   'N-MOSFET 60 V small signal'),
+    'BC817':     P('SOT-23-3_L2.9-W1.6-P1.90-LS2.8-BR', 'Nexperia', 'BC817-40,215', 'C52801',
+                   'NPN 45 V 500 mA'),
+    'AO3401A':   P('SOT-23_L2.9-W1.3-P1.90-LS2.4-BR', 'Alpha & Omega', 'AO3401A', 'C15127',
+                   'P-MOSFET -30 V (3 V probe source)'),
+    'AO3400A':   P('SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR', 'Alpha & Omega', 'AO3400A', 'C20917',
+                   'N-MOSFET 30 V (backlight PWM)'),
+    'NTC10K':    P('R0402', 'Murata', 'NCP15XH103F03RC', 'C77131', 'NTC 10 k 1 % B3380, 0402'),
+    # ---------------------------------------------------------- user interface
+    'WS2812':    P('LED-SMD_4P-L2.2-W2.0-P1.00_WS2815C-2020-4P', 'Worldsemi', 'WS2812B-2020-V6', 'C52917434',
+                   'Addressable RGB LED 2020 (status ring)'),
+    'MLT8530':   P('BUZ-SMD_4P-L8.5-W8.5-P8.50-BR', 'Jiangsu Huaneng', 'MLT-8530', 'C94599',
+                   'Magnetic buzzer 8.5 mm, 80 dB @ 10 cm'),
+    'B3U':       P('KEY-SMD_B3U-1000PM', 'Omron', 'B3U-1000P', 'C231329', 'Tact switch 3 x 2.5 mm (Limit rocker)'),
+    'TOGGLE':    P('SW_Toggle_SPDT_P4.70mm_THT', 'C&K', '7107SYCQE', None,
+                   'Toggle ON-OFF-(ON), 1/4-40, PC pins (alternates: NKK MN19SS1W03, '
+                   'E-Switch 100SP5T1B1M2QEH)', fit='tht'),
+    'FH12_8':    P('Connector_FFC-FPC:Hirose_FH12-8S-0.5SH_1x08-1MP_P0.50mm_Horizontal', 'Hirose', 'FH12-8S-0.5SH(55)',
+                   'C597995', 'FPC connector 8 pin 0.5 mm, bottom contact, 2.0 mm high (display)'),
+    'TFT225':    P(None, 'EastRising (BuyDisplay)', 'ER-TFT2.25-1', None,
+                   'Display 2.25" 76x284 IPS, 4-wire SPI, 8-pin 0.5 mm FPC (plugs into J7). The firmware assumes '
+                   'an ST7789P3; BuyDisplay lists an NV3023B for this bare module: confirm before ordering', fit='off'),
+    # ---------------------------------------------------------- connectors
+    'XT60M':     P('CONN-TH_XT60PW-M', 'Amass', 'XT60PW-M', 'C98732', 'XT60 male, PCB horizontal (battery)', fit='tht'),
+    'XT30M':     P('CONN-TH_XT30PW-M', 'Amass', 'XT30PW-M30.G.Y', 'C431092', 'XT30 male, PCB horizontal (battery)', fit='tht'),
+    # drone side: female plugs on short pigtails (length set at assembly), soldered to pads
+    'XT60F_LEAD': P('WirePads_12AWG_NS', 'Amass', 'XT60H-F.G.Y', 'C30170202',
+                    'XT60 female plug on a 12 AWG silicone pigtail, 50-75 mm, soldered to the J3 pads (drone side)', fit='tht'),
+    'XT30F_LEAD': P('WirePads_16AWG_NS', 'Amass', 'XT30U-F', 'C99102',
+                    'XT30 female plug on a 16 AWG silicone pigtail, 50-75 mm, soldered to the J4 pads (drone side)', fit='tht'),
+    # balance: one top-entry JST-XH per size, in the well behind the battery plugs
+    'XHT3':      P('JST_XH_B3B-XH-A_1x03_P2.50mm_Vertical_Tight', 'JST', 'B3B-XH-A(LF)(SN)', 'C144394', 'JST-XH 3 pin top entry (2S balance)', fit='tht'),
+    'XHT4':      P('JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical_Tight', 'JST', 'B4B-XH-A(LF)(SN)', 'C144395', 'JST-XH 4 pin top entry (3S balance)', fit='tht'),
+    'XHT5':      P('JST_XH_B5B-XH-A_1x05_P2.50mm_Vertical_Tight', 'JST', 'B5B-XH-A(LF)(SN)', 'C157991', 'JST-XH 5 pin top entry (4S balance)', fit='tht'),
+    'XHT6':      P('JST_XH_B6B-XH-A_1x06_P2.50mm_Vertical_Tight', 'JST', 'B6B-XH-A(LF)(SN)', 'C144397', 'JST-XH 6 pin top entry (5S balance)', fit='tht'),
+    'XHT7':      P('JST_XH_B7B-XH-A_1x07_P2.50mm_Vertical_Tight', 'JST', 'B7B-XH-A(LF)(SN)', 'C144398', 'JST-XH 7 pin top entry (6S balance)', fit='tht'),
+    'USBC':      P('USB-C_SMD-TYPE-C-31-M-12_1', 'Korean Hroparts', 'TYPE-C-31-M-12', 'C165948', 'USB-C receptacle 16 pin'),
+    'USBLC6':    P('SOT-23-6_L2.9-W1.6-P0.95-LS2.8-BL', 'STMicroelectronics', 'USBLC6-2SC6', 'C7519', 'USB ESD protection'),
+    'SWDPADS':   P('SWD_Pads_1x5_P2.54', None, None, None,
+                   'SWD pogo pads on the underside (3V3, SWDIO, NRST, SWCLK, GND), no part', fit='none'),
+    'HOLE':      P('MountingHole_M3_Washer', None, None, None, 'M3 mounting hole, plated, washer ring', fit='none'),
+}
+
+# ---------------------------------------------------------------- passives
+# Yageo resistors (RC = 1 %, RT = 0.1 % thin film), Samsung MLCCs.
+RES_SERIES = {'1%': 'RC{size}FR-07{val}L', '0.1%': 'RT{size}BRD07{val}L'}
+
+
+def yageo_value(ohms):
+    """'4K7', '100R', '1M1' style values as Yageo writes them in MPNs."""
+    for unit, k in (('M', 1e6), ('K', 1e3)):
+        if ohms >= k:
+            v = ohms / k
+            whole = int(v)
+            frac = round((v - whole) * 100)
+            if frac == 0:
+                return f'{whole}{unit}'
+            s = f'{v:.3g}'.replace('.', unit)
+            return s
+    v = ohms
+    if v == int(v):
+        return f'{int(v)}R'
+    return f'{v:g}'.replace('.', 'R')
+
+
+def resistor(ohms, size='0402', tol='1%'):
+    key = f'R{size}-{ohms:g}-{tol}'
+    if key not in PARTS:
+        series = 'RL{size}FR-07{val}L' if ohms < 1 else RES_SERIES[tol]     # Yageo RL: low-ohm thick film
+        mpn = series.format(size=size, val=yageo_value(ohms))
+        PARTS[key] = P(STD_R[size], 'Yageo', mpn, None, f'Resistor {fmt_ohms(ohms)} {tol} {size}')
+    return key
+
+
+CAPS = {
+    ('100n', '16V', '0402'): 'CL05B104KO5NNNC',
+    ('1n', '50V', '0402'): 'CL05B102KB5NNNC',
+    ('10n', '50V', '0402'): 'CL05B103KB5NNNC',
+    ('1u', '25V', '0402'): 'CL05A105KA5NQNC',
+    ('1u', '25V', '0603'): 'CL10A105KA8NNNC',
+    ('4u7', '10V', '0603'): 'CL10A475KP8NNNC',
+    ('10u', '10V', '0805'): 'CL21A106KPFNNNE',
+    ('100n', '100V', '0603'): 'CL10B104KC8NNNC',
+    ('1u', '100V', '1206'): 'CL31B105KCHNNNE',
+    ('2u2', '100V', '1210'): 'CL32B225KCJSNNE',
+    ('4u7', '100V', '1210'): 'CL32B475KCJSNNE',
+    ('22n', '50V', '0402'): 'CL05B223KB5NNNC',
+    ('2n2', '50V', '0402'): 'CL05B222KB5NNNC',
+    ('3n3', '50V', '0402'): 'CL05B332KB5NNNC',
+    ('56p', '50V', '0402'): 'CL05C560JB5NNNC',
+}
+
+
+def cap(value, volts, size):
+    key = f'C{size}-{value}-{volts}'
+    if key not in PARTS:
+        PARTS[key] = P(STD_C[size], 'Samsung Electro-Mechanics', CAPS[(value, volts, size)], None,
+                       f'Capacitor {value}F {volts} {size} X7R/X5R')
+    return key
+
+
+def fmt_ohms(o):
+    if o >= 1e6:
+        return f'{o / 1e6:g} M'
+    if o >= 1e3:
+        return f'{o / 1e3:g} k'
+    return f'{o:g} Ohm'

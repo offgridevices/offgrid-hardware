@@ -1,0 +1,4 @@
+# Ed25519 public keys (64 hex characters, one per line) whose signatures this
+# camera accepts on app updates (layercam/update.py).  Empty = updates refused.
+# Make a key pair with tools/layercam-sign.py keygen and give the public key
+# to board/install-into-sdk.sh (UPDATE_PUBKEY=...), which appends it here.
