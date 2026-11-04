@@ -26,6 +26,9 @@ def pad_poly(pad, layer):
             polys.append(Polygon(pts))
     return unary_union(polys) if polys else None
 
+EDGE_CL = 0.3      # mm: copper to the board edge (board setup)
+
+
 class Obstacles:
     """Copper on each layer, tagged with its net, for clearance checks."""
     def __init__(self, board, layers):
@@ -61,6 +64,15 @@ class Obstacles:
                     from shapely.geometry import LineString
                     g = LineString([(mm(s.x), mm(s.y)), (mm(e.x), mm(e.y))]).buffer(mm(t.GetWidth()) / 2)
                     self.items[t.GetLayer()].append((g, t.GetNetname()))
+        # the board's outline less the edge clearance (board setup, 0.3 mm):
+        # nothing new may reach past it (4 Nov: a lone pad's dog-bone via
+        # came 0.01 mm from the upper edge)
+        eb = board.GetBoardEdgesBoundingBox()
+        self.inside = None
+        if eb.GetWidth() > 0:
+            from shapely.geometry import box as _bx
+            self.inside = _bx(mm(eb.GetLeft()) + EDGE_CL, mm(eb.GetTop()) + EDGE_CL,
+                              mm(eb.GetRight()) - EDGE_CL, mm(eb.GetBottom()) - EDGE_CL)
         self.keepouts = []
         self.track_keepouts = {l: [] for l in layers}     # rule areas with no tracks, by layer (a stub is a track)
         for z in board.Zones():
@@ -106,6 +118,8 @@ class Obstacles:
     MARGIN = 0.0
 
     def clear(self, geom, net, layers, clearance, track=False):
+        if self.inside is not None and not self.inside.contains(geom):
+            return False
         cmax = max([clearance] + list(self.NET_CL.values())) + self.MARGIN
         g = geom.buffer(cmax)
         for l in layers:
