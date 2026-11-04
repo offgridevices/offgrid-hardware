@@ -68,6 +68,13 @@ the variant's hooks are the ones linked) and on unpatched v2.7.26 (flash
 89.9 %). Still 51 warnings, none from the variant or the patch. Compiles
 only: not run on a board.
 
+**Result on 4 Nov 2026** (SX1262 lines and FWD_DET moved: DIO1 P0.02, BUSY
+P1.15, NRESET P1.14, FWD_DET P0.29/AIN5; see the pin map): SUCCESS on the
+same v2.7.26 tree with the four-part patch as on 2 Nov (flash 90.2 %,
+735,504 of 815,104 bytes; RAM 41.1 %, 102,356 bytes). Still 51 warnings,
+none from the variant. The bootloader files do not use the moved pins.
+Compiles only: not run on a board.
+
 **Checking the 250 ppm crystal setting.** Take the compile line for
 `Bluefruit52Lib/bluefruit.cpp` from `pio run -v`, swap `-o …bluefruit.cpp.o`
 for `-E -o -`, and look at `clock_cfg`: it must read `.accuracy = (0)`
