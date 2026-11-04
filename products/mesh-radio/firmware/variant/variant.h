@@ -101,10 +101,10 @@ extern "C" {
  */
 #define PIN_A0 (5)  // P0.05 / AIN3  VBAT_SENSE
 #define PIN_A1 (28) // P0.28 / AIN4  not connected
-#define PIN_A2 (29) // P0.29 / AIN5  not connected
+#define PIN_A2 (29) // P0.29 / AIN5  FWD_DET (antenna detector, forward wave; P0.02/AIN0 until 4 Nov)
 #define PIN_A3 (30) // P0.30 / AIN6  REFL_DET (missing-antenna detector)
 #define PIN_A4 (31) // P0.31 / AIN7  CHG_TS (charger TS/MR pin, battery NTC)
-#define PIN_A5 (2)  // P0.02 / AIN0  FWD_DET (antenna detector, forward wave)
+#define PIN_A5 (0xff) // (P0.02 / AIN0 is LORA_DIO1 since 4 Nov)
 #define PIN_A6 (0xff)
 #define PIN_A7 (0xff)
 
@@ -118,7 +118,7 @@ static const uint8_t A6 = PIN_A6;
 static const uint8_t A7 = PIN_A7;
 #define ADC_RESOLUTION 14
 
-// P0.02/AIN0 is FWD_DET here, so there is no usable external reference pin.
+// P0.02/AIN0 is LORA_DIO1 here, so there is no usable external reference pin.
 #define PIN_AREF (0xff)
 static const uint8_t AREF = PIN_AREF;
 
@@ -202,10 +202,12 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #define PIN_WIRE_SCL (14) // P0.14 I2C_SCL
 
 /*
- * LoRa: SX1262, wired as on the RAK4631
+ * LoRa: SX1262, the bus as on the RAK4631
  *
- * P1.10 NSS, P1.11 SCK, P1.12 MOSI, P1.13 MISO, P1.14 BUSY, P1.15 DIO1,
- * P1.06 NRESET.  DIO2 drives the SKY13330 antenna switch (high = transmit),
+ * P1.10 NSS, P1.11 SCK, P1.12 MOSI, P1.13 MISO (as the RAK4631); P1.15 BUSY,
+ * P1.14 NRESET, P0.02 DIO1 (since 4 Nov 2026, for the layout: the lines leave
+ * the nRF52840 in the SX1262's pin order; the RAK4631 has P1.14 BUSY, P1.15
+ * DIO1, P1.06 NRESET).  DIO2 drives the SKY13330 antenna switch (high = transmit),
  * DIO3 powers the TCXO.
  *
  * External front end, through RadioLib's RF-switch pins:
@@ -220,9 +222,9 @@ static const uint8_t SCK = PIN_SPI_SCK;
  */
 #define USE_SX1262
 #define SX126X_CS (32 + 10)    // P1.10 LORA_NSS
-#define SX126X_DIO1 (32 + 15)  // P1.15 LORA_DIO1
-#define SX126X_BUSY (32 + 14)  // P1.14 LORA_BUSY
-#define SX126X_RESET (32 + 6)  // P1.06 LORA_NRESET
+#define SX126X_DIO1 (2)        // P0.02 LORA_DIO1
+#define SX126X_BUSY (32 + 15)  // P1.15 LORA_BUSY
+#define SX126X_RESET (32 + 14) // P1.14 LORA_NRESET
 #define SX126X_TXEN (32 + 7)   // P1.07 PA_EN
 #define PIN_LNA_EN (32 + 5)    // P1.05 LNA_EN
 #if !defined(OFFGRID_LNA_BYPASS) || (OFFGRID_LNA_BYPASS == 0)
@@ -400,7 +402,7 @@ static const uint8_t SCK = PIN_SPI_SCK;
  * coupler between the antenna filter and the U.FL, terminated in 49.9 R at
  * both ends, feeds two BAT68-04W diode detectors, each into 1 nF || 100 k:
  *   REFL_DET  P0.30 / AIN6  the reflected wave (U.FL end)
- *   FWD_DET   P0.02 / AIN0  the forward wave (filter end)
+ *   FWD_DET   P0.29 / AIN5  the forward wave (filter end)
  *
  * Rule (sim/rf/results.txt and sim/rf/README.md, study 8): with P the
  * modelled U.FL power (dBm) and T the board temperature (C), the antenna is
@@ -434,8 +436,8 @@ static const uint8_t SCK = PIN_SPI_SCK;
  */
 #define PIN_REFL_DET (30) // P0.30 / AIN6 REFL_DET
 #define REFL_DET_AIN 7     // SAADC PSELP value for AIN6 (AINx = x + 1)
-#define PIN_FWD_DET (2)    // P0.02 / AIN0 FWD_DET
-#define FWD_DET_AIN 1      // SAADC PSELP value for AIN0
+#define PIN_FWD_DET (29)   // P0.29 / AIN5 FWD_DET
+#define FWD_DET_AIN 6      // SAADC PSELP value for AIN5 (AINx = x + 1)
 #ifndef OFFGRID_REFL_SAMPLE_US
 #define OFFGRID_REFL_SAMPLE_US 750 // after startTransmit(); needs the RF at full power by ~415 us
 #endif

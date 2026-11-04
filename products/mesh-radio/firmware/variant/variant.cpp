@@ -112,7 +112,7 @@ static_assert(OFFGRID_PA_VOUT_LICENSED_MV <= PA_VOUT_ABS_MAX_MV, "amplifier supp
 static_assert(OFFGRID_PA_VOUT_US_MV <= OFFGRID_PA_VOUT_LICENSED_MV, "licensed supply below the unlicensed one");
 static_assert(PIN_PA_EN == 32 + 7, "paEnDrivenHigh() reads P1.07");
 static_assert(REFL_DET_AIN == SAADC_CH_PSELP_PSELP_AnalogInput6, "REFL_DET is AIN6");
-static_assert(FWD_DET_AIN == SAADC_CH_PSELP_PSELP_AnalogInput0, "FWD_DET is AIN0");
+static_assert(FWD_DET_AIN == SAADC_CH_PSELP_PSELP_AnalogInput5, "FWD_DET is AIN5");
 static_assert(PIN_PA_SRC_SYS == 32 + 9, "PA_SRC_SYS is P1.09");
 static_assert(OFFGRID_SOFTSTART_VPA_MIN_MV >= PA_VOUT_MIN_MV && OFFGRID_SOFTSTART_VPA_MIN_MV <= OFFGRID_PA_VOUT_US_MV,
               "soft-start supply floor outside 1.8 V .. the US level");

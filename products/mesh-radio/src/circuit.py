@@ -320,7 +320,7 @@ def mcu():
     _block[0] = 'mcu'
     gpio = {
         'D2': 'XL1', 'F2': 'XL2',
-        'A12': 'FWD_DET', 'B13': 'DRONE_OK', 'J1': 'SOLAR_OK', 'K2': 'VBAT_SENSE',
+        'A10': 'FWD_DET', 'B13': 'DRONE_OK', 'J1': 'SOLAR_OK', 'K2': 'VBAT_SENSE',
         'L1': 'TEMP_ALERT', 'M2': 'DISP_SCK', 'N1': 'DISP_MOSI', 'L24': 'CHG_CE_N', 
         'U1': 'DISP_CS', 'AD8': 'I2C_SDA', 'AC9': 'I2C_SCL',
         'AD10': 'DRONE_RX', 'AC11': 'DRONE_TX', 'AD12': 'GPS_PPS', 'AC13': 'NRF_RESET',
@@ -328,10 +328,17 @@ def mcu():
         'AD20': 'CHG_STAT1', 'AC21': 'CHG_STAT2', 'G1': 'DISP_DC', 'H2': 'DISP_RST',
         'B9': 'REFL_DET', 'A8': 'CHG_TS',
         'AD22': 'BTN_USER', 'Y23': 'PA_PWR_EN', 'V23': 'LED_GREEN', 'U24': 'LED_BLUE',
-        'T23': 'LNA_EN', 'R24': 'LORA_NRESET', 'P23': 'PA_EN', 'P2': 'DISP_BL', 'R1': 'PA_SRC_SYS',
-        'A20': 'LORA_NSS', 'B19': 'LORA_SCK', 'B17': 'LORA_MOSI', 'A16': 'LORA_MISO', 'B15': 'LORA_BUSY',
-        'A14': 'LORA_DIO1',
+        'T23': 'LNA_EN', 'P23': 'PA_EN', 'P2': 'DISP_BL', 'R1': 'PA_SRC_SYS',
+        'A20': 'LORA_NSS', 'B19': 'LORA_SCK', 'B17': 'LORA_MOSI', 'A16': 'LORA_MISO', 'B15': 'LORA_NRESET',
+        'A14': 'LORA_BUSY', 'A12': 'LORA_DIO1',
     }
+    # The SX1262's seven lines leave the nRF52840's edge facing it in the
+    # order of the SX1262's pins (DIO1, BUSY, NRESET, MISO, MOSI, SCK, NSS),
+    # so they need not cross (4 Nov 2026: with NRESET on R24, the bottom
+    # edge under the Bluetooth match, and BUSY between DIO1 and MISO, neither
+    # could be routed once In1 stayed solid under the antenna line, sim/rf
+    # R6).  DIO1 moved from P1.15 to P0.02, BUSY from P1.14 to P1.15, NRESET
+    # from P1.06 to P1.14, FWD_DET from P0.02/AIN0 to P0.29/AIN5.
     # P0.09/P0.10 are NFC pins until UICR NFCPINS makes them GPIO (the
     # Adafruit bootloader does).  P1.10-P1.15 are 'low-frequency I/O' pins in
     # the PS; the SX1262 bus sits there exactly as on the RAK4631.
@@ -345,7 +352,9 @@ def mcu():
         'B7': GND, '0': GND, 'F23': GND,
         # unused since 2 Nov 2026 (the expansion header's spare pins and the
         # display's MISO; the display plug is write-only)
-        'T2': None, 'B11': None, 'A10': None, 'W24': None, 'J24': None,
+        'T2': None, 'B11': None, 'W24': None, 'J24': None,
+        # P1.06 (R24) was LORA_NRESET until 4 Nov 2026 (below)
+        'R24': None,
     })
     add('U', 'NRF52840', pins, note='nRF52840')
     # supply decoupling (Nordic config 2/4 values)

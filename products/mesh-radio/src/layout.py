@@ -489,6 +489,12 @@ def place_all(log=print):
         put_fit(B, low[3], q3[2] + 0.75, q3[1] + 0.35 - pp[sense][1] + 0.2, 270, (0.1, 0.05), side='B', tries=40)
     left += place.pack(B, low[2:], targets=tg, prefer={r_: 'B' for r_ in low})
     todo = [r_ for r_ in todo if r_ not in low]
+    # ---- each RF shunt's ground pad (and each of the harmonic filter's)
+    # takes a via of its own (pipeline.plane_fanout): the spot under it on
+    # the bottom stays free of the parts packed from here on (3 Nov: R17
+    # under R51 left that pad on a top ground island no via could reach;
+    # set after the battery's low side, whose places the sense loop needs)
+    shunt_keepouts(B, comps)
     # each port's ESD array right under its plug's pins (TI: as close to the
     # connector as possible): packed by its nets it went halfway to the
     # nRF52840, the display's under the 32 kHz crystal on top, where no via
@@ -566,6 +572,31 @@ def chip_rings(B, comps, ring=CHIP_RING):
                     (x0 - ring, y0, x0, y1), (x1, y0, x1 + ring, y1)):
             B.keep_out(box, (side,))
         n += 1
+    return n
+
+
+def shunt_keepouts(B, comps, half=0.35):
+    """A small box on the bottom under the ground pad of every top
+    resistor that ends an RF line at ground (the attenuator's and the
+    detector's terminations), for its via.  (The RF capacitors' and the
+    harmonic filter's ground pads all found theirs on 3 Nov; a box under
+    each of those too moved the amplifier's 1.6 nH supply choke 3 mm off
+    its pin.)"""
+    import board as BD
+    rf = set(BD.RF_NETS + BD.RF_EXTRA + ['FWD_DET', 'REFL_DET'])
+    n = 0
+    for c in comps:
+        if c.ref not in B.pl or B.pl[c.ref][3] != 'T':
+            continue
+        nets = set(c.pins.values())
+        if 'GND' not in nets or not nets & rf or len(c.pins) != 2 or not c.ref.startswith('R'):
+            continue
+        for pn, net in c.pins.items():
+            if net != 'GND':
+                continue
+            x, y = B.pad_xy(c.ref, pn)
+            B.keep_out((x - half, y - half, x + half, y + half), ('B',))
+            n += 1
     return n
 
 
