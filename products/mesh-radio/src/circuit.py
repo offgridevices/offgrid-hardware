@@ -367,9 +367,14 @@ def mcu():
     C('RF10pF', 'XL1'); C('RF10pF', 'XL2')
     # Bluetooth: Nordic's ANT match (0.8 pF / 4.7 nH / 0.5 pF), a 50 ohm line,
     # then Johanson's tee for the chip antenna (1.0 pF / 2.7 nH / 3.9 nH). tune
-    C('RF0.8pF_W', 'NRF_ANT', note='tune'); L('L4.7nH', 'NRF_ANT', 'BLE_50R', note='tune'); C('RF0.5pF', 'BLE_50R', note='tune')
-    add('C', 'RF1.0pF', {'1': 'BLE_50R', '2': 'BLE_T'}, note='tune')
-    L('L2.7nH', 'BLE_T', GND, note='tune'); L('L3.9nH', 'BLE_T', 'BLE_FEED', note='tune')
+    # (values re-fitted on 4 Nov to the routed lines, sim/rf study 6: Nordic's
+    # 0.8 pF / 4.7 nH / 0.5 pF and Johanson's 1.0 pF / 2.7 nH / 3.9 nH, lumped
+    # references, gave 7.1 dB return loss through 7.4 mm of line; these give
+    # 16.5 dB nominal, 9.6 dB worst over tolerance.  They are the starting
+    # point for the VNA tune on the bench, not its result)
+    C('RF0.8pF_W', 'NRF_ANT', note='tune'); L('L3.9nH', 'NRF_ANT', 'BLE_50R', note='tune'); C('RF0.9pF_W', 'BLE_50R', note='tune')
+    add('C', 'RF1.6pF', {'1': 'BLE_50R', '2': 'BLE_T'}, note='tune')
+    L('L1.5nH', 'BLE_T', GND, note='tune'); L('L2.7nH', 'BLE_T', 'BLE_FEED', note='tune')
     add('AE', 'ANT2450', {'1': 'BLE_FEED', '2': None}, note='Bluetooth antenna')
     # debug and reset
     TP('SWDIO', 'SWD'); TP('SWDCLK', 'SWD'); TP('NRF_RESET', 'reset')

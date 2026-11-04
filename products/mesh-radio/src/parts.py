@@ -364,7 +364,7 @@ cap('C22p', '22pF', '0402', '50V C0G', 'GRM1555C1H220JA01D', 'C76960', MURATA)
 cap('C12p', '12pF', '0402', '50V C0G', 'CL05C120JB5NNNC', 'C26406')
 # RF: Murata GJM high-Q C0G
 for v, code, lc in [('0.5pF', 'R50B', 'C76911'), ('1.0pF', '1R0B', 'C76898'),
-                    ('1.5pF', '1R5B', 'C76900'), ('1.8pF', '1R8B', 'C76902'), ('2.4pF', '2R4B', 'C88888'),
+                    ('1.5pF', '1R5B', 'C76900'), ('1.6pF', '1R6B', 'C161311'), ('1.8pF', '1R8B', 'C76902'), ('2.4pF', '2R4B', 'C88888'),
                     ('3.0pF', '3R0B', 'C88891'), ('5.6pF', '5R6B', 'C161329'), ('10pF', '100J', 'C85874'),
                     ('11pF', '110J', 'C426107'), ('15pF', '150J', 'C88877'), ('27pF', '270J', 'C88884'),
                     ('39pF', '390J', 'C426038'), ('47pF', '470J', 'C161322')]:
@@ -376,6 +376,8 @@ for v, size, mpn, lc in [('0.9pF', '0603', 'GQM1875C2ER90BB12D', 'C1865143'), ('
     cap('HV' + v, v, size, '250V C0G high-Q', mpn, lc, MURATA)
 # the Bluetooth match's 0.8 pF at +-0.05 pF (sim/rf: +-0.1 pF loses 1 % of boards)
 cap('RF0.8pF_W', '0.8pF', '0402', '50V C0G high-Q +-0.05pF', 'GJM1555C1HR80WB01D', 'C88902', MURATA)
+# the Bluetooth pi's second shunt, re-fitted to the routed lines (4 Nov, sim/rf study 6)
+cap('RF0.9pF_W', '0.9pF', '0402', '50V C0G high-Q +-0.05pF', 'GJM1555C1HR90WB01D', 'C161350', MURATA)
 
 for v, code, lc in [('0R', '0R', 'C106231'), ('22R', '22R', 'C114765'), ('330R', '330R', 'C105875'), ('470R', '470R', 'C114877'),
                     ('604R', '604R', 'C273693'), ('287k', '287K', 'C327358'), ('1k', '1K', 'C106235'), ('2.2k', '2K2', 'C114762'), ('2.21k', '2K21', 'C138019'),

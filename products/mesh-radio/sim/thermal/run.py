@@ -1244,7 +1244,7 @@ RATING = {
     'L10u': (-55, 125, 'operating', 'TDK MLZ2012 series', 'd'),
     'L11nH': (-55, 125, 'operating', 'Murata LQW15AN series', 'd'), 'L11nH_0603': (-55, 125, 'operating', 'Murata LQW18AN series', 'd'),
     'L15nH': (-55, 125, 'operating', 'Murata LQW15AN series', 'd'), 'L15u': (-55, 125, 'operating', 'TDK MLZ2012 series', 'd'),
-    'L2.5nH': (-55, 125, 'operating', 'Murata LQW15AN series', 'd'), 'L2.7nH': (-55, 125, 'operating', 'Murata LQW15AN series', 'd'),
+    'L1.5nH': (-55, 125, 'operating', 'Murata LQW15AN series', 'd'), 'L2.5nH': (-55, 125, 'operating', 'Murata LQW15AN series', 'd'), 'L2.7nH': (-55, 125, 'operating', 'Murata LQW15AN series', 'd'),
     'L2u2': (-40, 125, 'incl. self-heating', 'Murata DFE201610E series', 'd'),
     'L3.6nH_0603': (-55, 125, 'operating', 'Murata LQW18AN series', 'd'), 'L3.9nH': (-55, 125, 'operating', 'Murata LQW15AN series', 'd'),
     'L4.7nH': (-55, 125, 'operating', 'Murata LQW15AN series', 'd'), 'L4.7nH_0603': (-55, 125, 'operating', 'Murata LQW18AN series', 'd'),
@@ -1323,7 +1323,7 @@ RATING['L3.2nH_0805'] = (-55, 125, 'operating', 'Murata LQW2BAN series', 'd')
 RATING['L3.6nH_0805'] = (-55, 125, 'operating', 'Murata LQW2BAN series', 'd')
 for _k in ('HV2.0pF', 'HV3.6pF', 'HV1.3pF', 'HV0.9pF'):
     RATING[_k] = (-55, 125, 'C0G class', 'Murata GQM series', 'd')
-for _k in ('RF0.8pF_W', 'RF0.8pF', 'RF1.0pF', 'RF1.5pF', 'RF1.8pF', 'RF10pF', 'RF15pF', 'RF2.4pF', 'RF27pF', 'RF3.0pF', 'RF39pF',
+for _k in ('RF0.8pF_W', 'RF0.9pF_W', 'RF0.8pF', 'RF1.0pF', 'RF1.5pF', 'RF1.6pF', 'RF1.8pF', 'RF10pF', 'RF15pF', 'RF2.4pF', 'RF27pF', 'RF3.0pF', 'RF39pF',
            'RF47pF', 'RF5.6pF'):
     RATING[_k] = (-55, 125, 'C0G class', 'Murata GJM series', 'd')
 

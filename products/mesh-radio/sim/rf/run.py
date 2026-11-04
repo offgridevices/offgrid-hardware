@@ -965,12 +965,32 @@ def antenna_model(b, f0=2.442e9, bw2=180e6):
     return zant, za, q
 
 
+BLE_REFERENCE = {('shunt', 'NRF_ANT'): 'RF0.8pF_W', ('series', 'BLE_50R', 'NRF_ANT'): 'L4.7nH',
+                 ('shunt', 'BLE_50R'): 'RF0.5pF', ('series', 'BLE_50R', 'BLE_T'): 'RF1.0pF',
+                 ('shunt', 'BLE_T'): 'L2.7nH', ('series', 'BLE_FEED', 'BLE_T'): 'L3.9nH'}   # Nordic's pi, Johanson's tee
+
+
+def ble_reference():
+    """The Bluetooth match parts at Nordic's and Johanson's published values, by ref."""
+    over = {}
+    for c in B.rf_parts(['NRF_ANT', 'BLE_50R', 'BLE_T', 'BLE_FEED']):
+        nets = sorted(n for n in set(c.pins.values()) if n)
+        key = ('shunt', [n for n in nets if n != 'GND'][0]) if 'GND' in nets else ('series',) + tuple(nets)
+        if key in BLE_REFERENCE:
+            over[c.ref] = B.parts.PARTS[BLE_REFERENCE[key]]
+    assert len(over) == 6, over
+    return over
+
+
 def study6():
     out()
     out('=' * 100)
-    out('STUDY 6  Bluetooth match: Nordic pi (0.8 pF / 4.7 nH / 0.5 pF) + Johanson tee (1.0 pF / 2.7 nH / 3.9 nH) +')
-    out('         2450AT18A100 chip antenna, 2400-2483.5 MHz, with tolerances (0.8 pF GJM...W +-0.05 pF, other GJM +-0.1 pF,')
-    out('         LQW15AN +-0.2 nH).')
+    out('STUDY 6  Bluetooth match: the pi and tee as on the board (%s) +' % ' / '.join(
+        '%s %s' % (c.ref, B.parts.PARTS[c.part]['value']) for c in B.rf_parts(['NRF_ANT', 'BLE_50R', 'BLE_T', 'BLE_FEED'])
+        if c.part not in ('NRF52840', 'ANT2450')))
+    out('         2450AT18A100 chip antenna, 2400-2483.5 MHz, with tolerances (GJM...W +-0.05 pF, other GJM +-0.1 pF,')
+    out('         LQW15AN +-0.2 nH).  Since 4 Nov the values are re-fitted to the routed lines (Nordic pi 0.8 pF /')
+    out('         4.7 nH / 0.5 pF and Johanson tee 1.0 pF / 2.7 nH / 3.9 nH, the references below, gave 7.1 dB).')
     out('=' * 100)
     out('The antenna is modelled as what Johanson\'s tee matches on Johanson\'s EVB, at its feed pad (data sheet: "matching')
     out('values on the client PCB will be different"; the board\'s own ground and the antenna\'s surroundings are not modelled:')
@@ -981,7 +1001,10 @@ def study6():
     out('Criterion: RL >= 9.5 dB (Johanson spec, VSWR ~2) over 2400-2483.5 MHz: PASS >= 99 % of MC runs, MARGINAL >= 90 %.')
     fb = np.linspace(2.40e9, 2.4835e9, 18)
     b = B.Board()
-    b0 = B.Board(routed=False)        # the references (Johanson's tee, Nordic's pi) are lumped, as published
+    # the references (Johanson's tee, Nordic's pi) are lumped and at their
+    # published values, whatever the board carries (since 4 Nov the board's
+    # values are re-fitted to its routed lines: the target must not move with them)
+    b0 = B.Board(routed=False, overrides=ble_reference())
     zant, za, q = antenna_model(b0)
     out('  antenna model: Z(2442 MHz) = %.1f %+.1fj ohm, Q %.1f (2:1 VSWR bandwidth 180 MHz ASSUMED)' % (za.real, za.imag, q))
     pi = b0.ble_pi().sparams([2.442e9], ['NRF_ANT', 'BLE_50R'])[0][0]
