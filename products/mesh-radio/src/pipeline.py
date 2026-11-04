@@ -1282,6 +1282,105 @@ def endgame(fin, work, rounds=3):
     return e, wn, u
 
 
+GROUND_REACH = 0.6     # mm: a ground pad with no ground via this near gets one of its own
+
+
+def ground_pads(path, w, cl, protect, reach=GROUND_REACH, log=log):
+    """Every SMD pad on GND with no ground via within `reach` mm gets one, at
+    the nearest legal spot: in the pad (a filled via, board.VIA_PAD), else
+    just off it joined by a stub on the pad's layer.  Copper that may not
+    move (locked, `protect`ed, other pads) must clear the spot; other nets'
+    unlocked tracks and vias in the way are torn out and those nets routed
+    again (local_repair), and the via is kept only if they all close.
+    Works file to file, the board loaded afresh for each pad.  (4 Nov 2026:
+    plane_fanout left R46, R48, C93, C32, C7, C19 and C87 without a via; the
+    routers then crossed the spots, and three of them ended on outer-layer
+    pour islands.)  Returns the pads given a via."""
+    import math, fanout
+    from shapely.geometry import Point, LineString, Polygon
+    layers = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
+    mmv = lambda v: v / 1e6
+    b = pcbnew.LoadBoard(path)
+    vias = [(mmv(t.GetPosition().x), mmv(t.GetPosition().y)) for t in b.GetTracks()
+            if t.GetClass() == 'PCB_VIA' and t.GetNetname() == 'GND']
+    cands = []
+    for fp in list(b.GetFootprints()):
+        for p in list(fp.Pads()):
+            if p.GetNetname() != 'GND' or p.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
+                continue
+            l = pcbnew.F_Cu if p.IsOnLayer(pcbnew.F_Cu) else pcbnew.B_Cu
+            sp = p.GetEffectivePolygon(l).Outline(0)
+            poly = Polygon([(mmv(sp.CPoint(q).x), mmv(sp.CPoint(q).y)) for q in range(sp.PointCount())])
+            if any(poly.distance(Point(x, y)) <= reach for x, y in vias):
+                continue
+            cands.append((fp.GetReference(), p.GetNumber(), l, poly))
+    del b
+    log('ground pads with no via within %.1f mm: %s' % (reach, ['%s.%s' % c[:2] for c in cands]))
+    d_, dr_ = board.VIA_PAD
+    done = []
+    for ref_, num_, l, poly in cands:
+        b = pcbnew.LoadBoard(path)
+        removable = [t for t in b.GetTracks() if t.GetNetname() not in ('GND', '') and t.GetNetname() not in protect
+                     and not t.IsLocked()]
+        rid = set(t.m_Uuid.AsString() for t in removable)
+        # the fixed copper: everything but those (a second copy of the board, thinned)
+        bf = pcbnew.LoadBoard(path)
+        for t in list(bf.GetTracks()):
+            if t.m_Uuid.AsString() in rid:
+                pcb.remove(bf, t)
+        fixed = fanout.Obstacles(bf, layers)
+        full = fanout.Obstacles(b, layers)
+        c = poly.centroid
+        spots = [(c.x, c.y, False)]
+        for r in (0.35, 0.45, 0.55):
+            for k in range(16):
+                a = 2 * math.pi * k / 16
+                x, y = c.x + r * math.cos(a), c.y + r * math.sin(a)
+                if poly.distance(Point(x, y)) <= reach and not poly.contains(Point(x, y)):
+                    spots.append((x, y, True))
+        spots.sort(key=lambda q: (q[2], poly.distance(Point(q[0], q[1]))))
+        pick = None
+        for x, y, stub in spots:
+            dd = d_ if not stub else board.VIA_SIG[0]
+            dr = dr_ if not stub else board.VIA_SIG[1]
+            vg = Point(x, y).buffer(dd / 2, 16)
+            sg = LineString([(c.x, c.y), (x, y)]).buffer(0.1) if stub else None
+            ok = fixed.clear(vg, 'GND', layers, 0.1) and fixed.hole_room(x, y, dr / 2, 0.2) \
+                and (sg is None or fixed.clear(sg, 'GND', [l], 0.1, track=True))
+            if ok:
+                pick = (x, y, stub, dd, dr, vg.buffer(0.13), sg.buffer(0.13) if sg is not None else None)
+                break
+        if pick is None:
+            log('   ground %s %s: no legal spot within %.1f mm' % (ref_, num_, reach))
+            continue
+        x, y, stub, dd, dr, keep, skeep = pick
+        torn = set()
+        for t in list(b.GetTracks()):
+            if t.m_Uuid.AsString() not in rid:
+                continue
+            g = finish._geom_of(t)
+            if any(q.intersects(keep) or (skeep is not None and lay == l and q.intersects(skeep))
+                   for lay, gl in g.items() for q in gl):
+                torn.add(t.GetNetname()); pcb.remove(b, t)
+        v = pcbnew.PCB_VIA(b); v.SetPosition(pcbnew.VECTOR2I(pcbnew.FromMM(x), pcbnew.FromMM(y)))
+        v.SetWidth(pcbnew.FromMM(dd)); v.SetDrill(pcbnew.FromMM(dr)); v.SetNet(b.FindNet('GND')); v.SetLocked(True)
+        b.Add(v)
+        if stub:
+            pcb.track(b, [(c.x - pcb.CX, c.y - pcb.CY), (x - pcb.CX, y - pcb.CY)], 0.2, l, 'GND')
+        # (a small area and few orders: the nets were whole a moment ago and
+        # lost only what stood on this spot; unbounded, one pad took hours)
+        left = local_repair(b, sorted(torn), w, cl, protect=list(protect) + ['GND'], margin=0.6, tries=3,
+                            log=lambda *a: None) if torn else []
+        if left:
+            log('   ground %s %s: a via would leave %s open, not taken' % (ref_, num_, left))
+            continue
+        b.Save(path)
+        done.append('%s.%s' % (ref_, num_))
+        log('   ground %s %s: via %s%s' % (ref_, num_, 'beside it' if stub else 'in the pad',
+                                          (', re-laid ' + ', '.join(sorted(torn))) if torn else ''))
+    return done
+
+
 def local_repair(b, nets, w, cl, protect, margin=1.2, tries=8, seed=1, log=log):
     """The last few open nets, each a short gap boxed in by its neighbours'
     copper: every unlocked track and via of another net (not `protect`)
@@ -1486,6 +1585,7 @@ if __name__ == '__main__':
                             margin=float(os.environ.get('LOCAL_MARGIN', 1.2)))
         log('after the local repair: open %s' % (rest,))
         b.Save(fin)
+        ground_pads(fin, w, cl, protect=PLANES + list(board.RF_NETS) + list(board.RF_EXTRA))
         write_rules(fin)
         finish_tail(fin, work, w, cl)
     elif '--from-fin' in sys.argv:
