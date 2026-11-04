@@ -1395,6 +1395,39 @@ ROUND_PASSES = int(os.environ.get('ROUND_PASSES', 5))   # Freerouting passes per
 ROUTE_IN1 = bool(int(os.environ.get('ROUTE_IN1', 1)))
 
 
+# routed first, alone, and locked: the SX1262's bus between it and the
+# nRF52840 (4 Nov 2026: routed with everything else, the strip between the
+# two chips filled with other nets on every layer and two to three of these
+# lines were left open, whatever their pin order; the placement keeps a lane
+# for them on top only)
+FIRST_NETS = ['LORA_DIO1', 'LORA_BUSY', 'LORA_NRESET', 'LORA_MISO', 'LORA_MOSI', 'LORA_SCK', 'LORA_NSS']
+
+
+def route_first(placed, out, nets=FIRST_NETS, passes=10, log=log):
+    """Route only `nets` on the placed board (Freerouting, every other net
+    dropped from the DSN), lock what it laid, save as `out`.  Returns the
+    count of those nets left open."""
+    import re
+    work = os.path.dirname(os.path.abspath(out))
+    dsn = os.path.join(work, 'first.dsn'); ses = os.path.join(work, 'first.ses')
+    route.export_dsn(placed, dsn)
+    txt = open(dsn).read()
+    names = re.findall(r'\(net (\S+)\s*\n\s*\(pins', txt)
+    route.drop_nets(dsn, [n for n in names if n not in nets])
+    route.freeroute(dsn, ses, passes=passes, log=os.path.join(work, 'freerouting_first.log'))
+    pcb.copy_project(placed, out)
+    route.import_ses(placed, ses, out)
+    b = pcbnew.LoadBoard(out)
+    k = 0
+    for t in b.GetTracks():
+        if t.GetNetname() in nets and not t.IsLocked():
+            t.SetLocked(True); k += 1
+    b.Save(out)
+    left = [n for n in finish.unrouted_nets(b) if n in nets]
+    log('first: %s routed alone and locked (%d pieces); open %s' % (', '.join(nets), k, left))
+    return left
+
+
 def run(work, passes=40, from_routed=False):
     os.makedirs(work, exist_ok=True)
     placed = os.path.join(work, 'placed.kicad_pcb')
@@ -1411,8 +1444,12 @@ def run(work, passes=40, from_routed=False):
         # every stage's board file gets the project (KiCad 10 keeps the
         # rules and net classes there): without it KiCad, the DSN export
         # and the DRC fall back to KiCad's defaults
-        pcb.copy_project(placed, routed)
-        n = route.route_resumable(placed, routed, passes=ROUND_PASSES, rounds=max(1, passes // ROUND_PASSES), log=log)
+        first = os.path.join(work, 'first.kicad_pcb')
+        if FIRST_NETS and not os.path.exists(first):
+            route_first(placed, first)
+        src = first if FIRST_NETS else placed
+        pcb.copy_project(src, routed)
+        n = route.route_resumable(src, routed, passes=ROUND_PASSES, rounds=max(1, passes // ROUND_PASSES), log=log)
         log('Freerouting: %d connections left, %d duplicate vias removed' % (n, pcb.dedupe_vias(routed)))
         write_rules(routed)
     finish_stage(routed, fin, work)
