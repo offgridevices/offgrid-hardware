@@ -1345,10 +1345,14 @@ def ground_pads(path, w, cl, protect, reach=GROUND_REACH, log=log):
             dr = dr_ if not stub else board.VIA_SIG[1]
             vg = Point(x, y).buffer(dd / 2, 16)
             sg = LineString([(c.x, c.y), (x, y)]).buffer(0.1) if stub else None
-            ok = fixed.clear(vg, 'GND', layers, 0.1) and fixed.hole_room(x, y, dr / 2, 0.2) \
+            # copper 0.1 mm from the via, 0.2 mm from its hole (board setup), and
+            # the filled via 0.45 mm from a drilled pad hole (RULES, POFV)
+            ok = fixed.clear(vg, 'GND', layers, 0.1) and fixed.hole_room(x, y, dr / 2, 0.46) \
+                and fixed.clear(Point(x, y).buffer(dr / 2, 16), 'GND', layers, 0.21) \
                 and (sg is None or fixed.clear(sg, 'GND', [l], 0.1, track=True))
             if ok:
-                pick = (x, y, stub, dd, dr, vg.buffer(0.13), sg.buffer(0.13) if sg is not None else None)
+                pick = (x, y, stub, dd, dr, vg.buffer(0.13).union(Point(x, y).buffer(dr / 2 + 0.21, 16)),
+                        sg.buffer(0.13) if sg is not None else None)
                 break
         if pick is None:
             log('   ground %s %s: no legal spot within %.1f mm' % (ref_, num_, reach))
