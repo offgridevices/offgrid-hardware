@@ -1321,7 +1321,7 @@ for _k in ('R1.15k', 'R2.1k', 'R20k', 'R374k', 'R7.68k', 'R49.9R'):
     RATING[_k] = (-55, 155, 'operating', 'Yageo RC_L series', 'd')
 RATING['L3.2nH_0805'] = (-55, 125, 'operating', 'Murata LQW2BAN series', 'd')
 RATING['L3.6nH_0805'] = (-55, 125, 'operating', 'Murata LQW2BAN series', 'd')
-for _k in ('HV2.0pF', 'HV3.6pF', 'HV1.3pF', 'HV0.9pF'):
+for _k in ('HV2.0pF', 'HV3.6pF', 'HV1.3pF', 'HV0.9pF', 'HV2.2pF', 'HV3.0pF'):
     RATING[_k] = (-55, 125, 'C0G class', 'Murata GQM series', 'd')
 for _k in ('RF0.8pF_W', 'RF0.9pF_W', 'RF0.8pF', 'RF1.0pF', 'RF1.5pF', 'RF1.6pF', 'RF1.8pF', 'RF10pF', 'RF15pF', 'RF2.4pF', 'RF27pF', 'RF3.0pF', 'RF39pF',
            'RF47pF', 'RF5.6pF'):

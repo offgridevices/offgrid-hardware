@@ -372,7 +372,10 @@ for v, code, lc in [('0.5pF', 'R50B', 'C76911'), ('1.0pF', '1R0B', 'C76898'),
 # PA harmonic filter: 250 V C0G (an open antenna roughly doubles the RF
 # voltage); values from sim/rf (lowest loss with 2f-5f rejection, with the LFCN)
 for v, size, mpn, lc in [('0.9pF', '0603', 'GQM1875C2ER90BB12D', 'C1865143'), ('1.3pF', '0603', 'GQM1875C2E1R3BB12D', 'C3901219'),
-                         ('2.0pF', '0603', 'GQM1875C2E2R0BB12D', 'C6867410'), ('3.6pF', '0603', 'GQM1875C2E3R6BB12D', 'C2178747')]:
+                         ('2.0pF', '0603', 'GQM1875C2E2R0BB12D', 'C6867410'), ('3.6pF', '0603', 'GQM1875C2E3R6BB12D', 'C2178747'),
+                         # the re-fitted filter's (5 Nov; JLCPCB stock 2,641 / 11,099 / 4,923)
+                         ('2.2pF', '0603', 'GQM1875C2E2R2BB12D', 'C2179335'), ('3.0pF', '0603', 'GQM1875C2E3R0BB12D', 'C2178931'),
+                         ('1.5pF', '0603', 'GQM1875C2E1R5BB12D', 'C3869699')]:
     cap('HV' + v, v, size, '250V C0G high-Q', mpn, lc, MURATA)
 # the Bluetooth match's 0.8 pF at +-0.05 pF (sim/rf: +-0.1 pF loses 1 % of boards)
 cap('RF0.8pF_W', '0.8pF', '0402', '50V C0G high-Q +-0.05pF', 'GJM1555C1HR80WB01D', 'C88902', MURATA)

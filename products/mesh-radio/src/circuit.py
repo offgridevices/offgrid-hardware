@@ -438,11 +438,17 @@ def frontend():
     # LPF1: 5th-order elliptic, notches near 1.4 and 2.3 GHz (sim/rf: chosen for the
     # lowest loss with the LFCN-1000+ carrying 2f-5f; 0.4 dB less loss than the
     # textbook 2f/3f notches, so 3 W still reaches the U.FL). tune
-    C('HV2.0pF', 'PA_M2')
-    L('L3.2nH_0805', 'PA_M2', 'PA_M3'); add('C', 'HV3.6pF', {'1': 'PA_M2', '2': 'PA_M3'})
-    C('HV1.3pF', 'PA_M3')
-    L('L3.2nH_0805', 'PA_M3', 'PA_TX'); add('C', 'HV1.3pF', {'1': 'PA_M3', '2': 'PA_TX'})
-    C('HV0.9pF', 'PA_TX')
+    # (values re-fitted on 5 Nov to the routed lines, sim/rf: the routed board
+    # had pulled both notches to 2.15 GHz and the worst 2f-5f margin to 10.6 dB
+    # over tolerance; with these the notches are back at 1.42 / 2.46 GHz, the
+    # margin 18.3 dB, the loss 0.05 dB lower.  Was 2.0 / 3.2 nH || 3.6 / 1.3 /
+    # 3.2 nH || 1.3 / 0.9 pF.  Textbook notches on 2f and 3f did not raise the
+    # margin and 3f is out of reach of the stocked 0805 inductors)
+    C('HV2.2pF', 'PA_M2')
+    L('L3.2nH_0805', 'PA_M2', 'PA_M3'); add('C', 'HV3.0pF', {'1': 'PA_M2', '2': 'PA_M3'})
+    C('HV2.2pF', 'PA_M3')
+    L('L3.6nH_0805', 'PA_M3', 'PA_TX'); add('C', 'HV0.9pF', {'1': 'PA_M3', '2': 'PA_TX'})
+    C('HV1.5pF', 'PA_TX')
     # SKY13330: CTRL high (transmit) = RF1-RF2, low = RF1-RF3; ENABLE 2.0 V
     add('U', 'SKY13330', {'11': 'PA_TX', '5': 'RX_SW', '2': 'ANT_SW', '7': 'RF_SW_CTRL', '8': 'RF_SW_EN', '9': '3V3',
                           '1': GND, '3': GND, '4': GND, '6': GND, '10': GND, '12': GND, '13': GND}, note='antenna switch')
