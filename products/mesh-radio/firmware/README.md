@@ -404,11 +404,17 @@ antenna is called missing if
 
 | Fit | Works from | Fmin(P, T) | R(P, T) | Worst margin |
 |---|---|---|---|---|
-| Nominal power (default) | 30 dBm | 53 mV × 1.0064^(T−25) × 1.252^(P−30) | 0.245 × 1.0101^(T−25) × 1.051^(P−30) | +1.9 dB |
+| Nominal power (default; re-fitted 5 Nov on the re-routed board) | 30 dBm | 41 mV × 1.0072^(T−25) × 1.267^(P−30) | 0.242 × 1.0095^(T−25) × 1.062^(P−30) | +1.6 dB |
 | ±1 dB power-model error (`-D OFFGRID_ANT_FIT_ROBUST=1`) | 33 dBm | 70 mV × 1.0054^(T−25) × 1.231^(P−30) | 0.424 × 1.0020^(T−25) × 1.010^(P−30) | +1.9 dB |
 
 The constants are `#define`s in `variant.h` (`OFFGRID_ANT_FMIN30_MV`,
-`_FMIN_KT`, `_FMIN_KP`, `OFFGRID_ANT_R30`, `_R_KT`, `_R_KP`).
+`_FMIN_KT`, `_FMIN_KP`, `OFFGRID_ANT_R30`, `_R_KT`, `_R_KP`).  On the
+5 Nov board (sim/rf study 8) the default rule holds at the modelled power
+(good antenna +1.7 dB, missing +1.6 dB) but not with ±1 dB of power-model
+error (good −5.8 dB: a false "antenna missing"); the robust constants hold
+with it (+0.4 / +0.6 dB) from 33 dBm.  The 20 Oct default constants (53 mV,
+0.245) failed a good antenna on this board by 0.8 dB.  Compile only: the
+new constants are not built or run on a board here.
 
 - **A low FWD_DET is a fault, not a reason to wait.** With a saturated
   amplifier and the antenna missing, FWD_DET collapses to a few mV at some

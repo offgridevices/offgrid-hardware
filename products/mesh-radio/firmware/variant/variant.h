@@ -453,13 +453,15 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #define OFFGRID_ANT_R_KT 1.0020f
 #define OFFGRID_ANT_R_KP 1.010f
 #else
-// sim/rf study 8, nominal-power fit; works from 30 dBm (default)
-#define OFFGRID_ANT_FMIN30_MV 53.0f
-#define OFFGRID_ANT_FMIN_KT 1.0064f
-#define OFFGRID_ANT_FMIN_KP 1.252f
-#define OFFGRID_ANT_R30 0.245f
-#define OFFGRID_ANT_R_KT 1.0101f
-#define OFFGRID_ANT_R_KP 1.051f
+// sim/rf study 8, nominal-power fit; works from 30 dBm (default).  Re-fitted
+// 5 Nov 2026 on the re-routed board with its re-fitted harmonic filter (the
+// 20 Oct constants, 53 mV / 0.245, failed a good antenna by 0.8 dB there)
+#define OFFGRID_ANT_FMIN30_MV 41.0f
+#define OFFGRID_ANT_FMIN_KT 1.0072f
+#define OFFGRID_ANT_FMIN_KP 1.267f
+#define OFFGRID_ANT_R30 0.242f
+#define OFFGRID_ANT_R_KT 1.0095f
+#define OFFGRID_ANT_R_KP 1.062f
 #endif
 #endif
 #ifndef OFFGRID_ANT_RETRY_MS
