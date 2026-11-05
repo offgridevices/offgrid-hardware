@@ -472,9 +472,15 @@ def rf_gap_strip(b, log=log):
                 court.append(box(bb.GetLeft() / 1e6, bb.GetTop() / 1e6, bb.GetRight() / 1e6, bb.GetBottom() / 1e6))
     court = unary_union(court) if court else None
     k = 0
+    padxy = set((p.GetPosition().x, p.GetPosition().y) for fp in b.GetFootprints() for p in fp.Pads())
     for t in list(b.GetTracks()):
         n = t.GetNetname()
-        if n in rf or n in ('GND', '') or t.IsLocked():
+        if n in rf or n in ('GND', ''):
+            continue
+        # locked copper stays, but for a via of its own beside a pad (a lone
+        # pad's: _pad_via locks it; 5 Nov one sat 0.2 mm from LNA_OUT)
+        if t.IsLocked() and not (t.GetClass() == 'PCB_VIA' and n not in FIRST_NETS
+                                 and (t.GetPosition().x, t.GetPosition().y) not in padxy):
             continue
         for l, gl in finish._geom_of(t).items():
             if l not in lines:
@@ -1180,7 +1186,7 @@ def finish_tail(fin, work, w, cl):
     return finish_clean(fin, work, w, cl)
 
 
-def prune_dangling(fin, work, rounds=6, log=log):
+def prune_dangling(fin, work, rounds=20, log=log):
     """The dangling track ends the clean-up leaves (5 Nov: inner-layer
     stubs of nets the local repair re-laid; its trims keep only a change
     with fewer warnings by its own count) are taken out run by run, from
@@ -1203,6 +1209,8 @@ def prune_dangling(fin, work, rounds=6, log=log):
         b.Save(fin)
         e1, w1, u1 = pcb.drc(fin, os.path.join(work, 'prune.json'))
         if len(e1) > len(e0) or len(u1) > len(u0):
+            log('  prune: taking out %d more pieces made it worse (%d/%d errors, %d/%d open), put back'
+                % (n, len(e1), len(e0), len(u1), len(u0)))
             shutil.copy(bak, fin)
             break
         k += n
