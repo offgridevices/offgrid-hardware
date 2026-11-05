@@ -1,6 +1,6 @@
-Mesh Radio v1 - thermal follow-up (sim/thermal/followup.py), 2026-11-03
+Mesh Radio v1 - thermal follow-up (sim/thermal/followup.py), 2026-11-05
 Model, criteria and every other source: run.py / results.txt.  h = 10 W/m2K (still air in an enclosure).
-Board: the routed mesh-radio.kicad_pcb (copper, vias and stackup read by run.py); pad = 10 x 10 mm gap pad at layout.GAP_PAD (13.0, 2.5, 23.0, 12.5)
+Board: the routed mesh-radio.kicad_pcb (copper, vias and stackup read by run.py); pad = 10 x 10 mm gap pad at layout.GAP_PAD (12.4, -2.4, 22.4, 7.6)
 
 ====================================================================================================
 A. Amplifier operating points (PA output = antenna + 1.1 dB, sim/rf)
@@ -39,140 +39,140 @@ C. Highest power AT THE ANTENNA (dBm) that passes every criterion: nominal (data
   6L as built                        | 35/33   34/33   31.5/31.5 | 33/31.5 31.5/30 -/-      | -/-     -/-     -/-     
   6L as built + pad                  | 35/33   34/33   34/33    | 33/31.5 31.5/30 31.5/30  | -/-     -/-     -/-     
   6L as built + pad at old spot      | 35/33   34/33   35/33    | 33/31.5 31.5/31.5 33/31.5  | -/-     -/-     -/-     
-  6L + paddle fixes                  | 35/35   35/34   33/33    | 35/33   34/33   -/-      | 31.5/31.5 31.5/30 -/-     
-  6L + paddle fixes + pad            | 35/35   35/34   35/34    | 35/33   34/33   33/31.5  | 31.5/31.5 31.5/30 31.5/30 
-  6L + paddle fixes + 2 oz outer     | 35/35   35/35   34/33    | 35/34   34/33   -/-      | 33/31.5 31.5/31.5 -/-     
-  6L + paddle fixes + 2 oz outer + pad | 35/35   35/35   35/34    | 35/34   35/33   34/33    | 33/31.5 33/31.5 31.5/31.5
+  6L + paddle fixes                  | 35/35   35/34   34/33    | 35/33   34/33   -/-      | 31.5/31.5 31.5/30 -/-     
+  6L + paddle fixes + pad            | 35/35   35/34   35/34    | 35/33   34/33   34/33    | 31.5/31.5 31.5/30 31.5/30 
+  6L + paddle fixes + 2 oz outer     | 35/35   35/35   34/33    | 35/34   35/33   30/30    | 33/31.5 31.5/31.5 -/-     
+  6L + paddle fixes + 2 oz outer + pad | 35/35   35/35   35/35    | 35/34   35/33   35/33    | 33/31.5 33/31.5 31.5/31.5
    left out at 60 C (fails while only listening): cell area <= 60
 
 Detail: QPA9510 case / junction and TPS63810 junction peak (C), and the first failing criterion, nominal PAE
-  6L as built                    25 C 1 s / min  30: 48/ 65/ 38  31.5: 49/ 67/ 41  33: 59/ 85/ 50  34: 68/100/ 59  35: 78/117/ 71
-  6L as built                    25 C 2 s / min  30: 52/ 69/ 41  31.5: 54/ 72/ 44  33: 66/ 91/ 54  34: 77/109/ 65  35: 89/128/ 78!QPA9510case
-  6L as built                    25 C 25 % storm 30: 61/ 78/ 51  31.5: 64/ 82/ 56  33: 81/106/ 70!  34: 96/128/ 85!QPA9510case  35:113/152/105!QPA9510case
-  6L as built                    45 C 1 s / min  30: 68/ 85/ 58  31.5: 69/ 87/ 61  33: 79/105/ 70  34: 88/120/ 79!QPA9510case  35: 98/137/ 91!QPA9510case
-  6L as built                    45 C 2 s / min  30: 72/ 89/ 61  31.5: 74/ 92/ 64  33: 86/111/ 74!QPA9510case  34: 96/128/ 84!QPA9510case  35:109/148/ 98!QPA9510case
-  6L as built                    45 C 25 % storm 30: 80/ 97/ 70!cellarea  31.5: 83/101/ 75!cellarea  33: 99/125/ 89!QPA9510case  34:114/146/103!QPA9510case  35:131/170/122!QPA9510case
-  6L as built                    60 C 1 s / min  30: 83/100/ 73!  31.5: 84/102/ 76!  33: 94/120/ 85!QPA9510case  34:103/135/ 94!QPA9510case  35:113/152/106!QPA9510case
-  6L as built                    60 C 2 s / min  30: 87/104/ 76!QPA9510case  31.5: 89/107/ 79!QPA9510case  33:101/126/ 89!QPA9510case  34:111/143/ 99!QPA9510case  35:123/163/113!QPA9510case
-  6L as built                    60 C 25 % storm 30: 95/112/ 84!QPA9510case  31.5: 98/116/ 89!QPA9510case  33:113/139/103!QPA9510case  34:127/159/117!QPA9510case  35:144/183/136!QPA9510case
-  6L as built + pad              25 C 1 s / min  30: 47/ 64/ 37  31.5: 48/ 66/ 40  33: 58/ 83/ 49  34: 67/ 99/ 57  35: 76/115/ 69
-  6L as built + pad              25 C 2 s / min  30: 51/ 68/ 39  31.5: 52/ 70/ 43  33: 64/ 89/ 52  34: 74/106/ 62  35: 86/125/ 75!QPA9510case
-  6L as built + pad              25 C 25 % storm 30: 52/ 69/ 41  31.5: 54/ 72/ 45  33: 65/ 91/ 55  34: 76/108/ 66  35: 89/128/ 80!QPA9510case
-  6L as built + pad              45 C 1 s / min  30: 67/ 84/ 57  31.5: 68/ 86/ 60  33: 78/103/ 69  34: 87/119/ 77!QPA9510case  35: 96/135/ 89!QPA9510case
-  6L as built + pad              45 C 2 s / min  30: 71/ 88/ 59  31.5: 72/ 90/ 63  33: 84/109/ 72!  34: 94/126/ 82!QPA9510case  35:106/145/ 95!QPA9510case
-  6L as built + pad              45 C 25 % storm 30: 72/ 89/ 61  31.5: 73/ 91/ 65  33: 85/111/ 75!QPA9510case  34: 96/128/ 85!QPA9510case  35:108/148/ 99!QPA9510case
-  6L as built + pad              60 C 1 s / min  30: 82/ 99/ 72!  31.5: 83/101/ 75!  33: 93/118/ 84!QPA9510case  34:102/134/ 92!QPA9510case  35:111/150/104!QPA9510case
-  6L as built + pad              60 C 2 s / min  30: 86/103/ 74!QPA9510case  31.5: 87/105/ 78!QPA9510case  33: 99/124/ 87!QPA9510case  34:109/141/ 97!QPA9510case  35:121/160/110!QPA9510case
-  6L as built + pad              60 C 25 % storm 30: 87/104/ 76!QPA9510case  31.5: 88/106/ 80!QPA9510case  33:100/126/ 90!QPA9510case  34:111/143/100!QPA9510case  35:123/162/114!QPA9510case
-  6L as built + pad at old spot  25 C 1 s / min  30: 46/ 63/ 35  31.5: 47/ 65/ 38  33: 57/ 82/ 45  34: 65/ 97/ 52  35: 74/113/ 62
-  6L as built + pad at old spot  25 C 2 s / min  30: 49/ 66/ 36  31.5: 50/ 68/ 39  33: 61/ 86/ 46  34: 70/102/ 54  35: 81/120/ 64!
-  6L as built + pad at old spot  25 C 25 % storm 30: 48/ 65/ 36  31.5: 49/ 67/ 39  33: 59/ 85/ 47  34: 68/100/ 55  35: 78/118/ 66
-  6L as built + pad at old spot  45 C 1 s / min  30: 66/ 83/ 55  31.5: 67/ 85/ 58  33: 77/102/ 65  34: 85/117/ 72!  35: 94/133/ 82!QPA9510case
-  6L as built + pad at old spot  45 C 2 s / min  30: 69/ 86/ 56  31.5: 70/ 88/ 59  33: 81/106/ 66!  34: 90/122/ 74!QPA9510case  35:101/140/ 84!QPA9510case
-  6L as built + pad at old spot  45 C 25 % storm 30: 68/ 85/ 56  31.5: 69/ 87/ 59  33: 79/105/ 67  34: 88/120/ 75!QPA9510case  35: 98/138/ 86!QPA9510case
-  6L as built + pad at old spot  60 C 1 s / min  30: 81/ 98/ 70!  31.5: 82/100/ 73!  33: 92/117/ 80!QPA9510case  34:100/132/ 87!QPA9510case  35:109/148/ 97!QPA9510case
-  6L as built + pad at old spot  60 C 2 s / min  30: 84/101/ 71!  31.5: 85/103/ 74!QPA9510case  33: 96/121/ 81!QPA9510case  34:105/137/ 89!QPA9510case  35:116/155/ 99!QPA9510case
-  6L as built + pad at old spot  60 C 25 % storm 30: 83/100/ 71!  31.5: 84/102/ 74!  33: 94/120/ 82!QPA9510case  34:103/135/ 90!QPA9510case  35:113/153/101!QPA9510case
-  6L + paddle fixes              25 C 1 s / min  30: 39/ 57/ 39  31.5: 40/ 58/ 42  33: 47/ 72/ 51  34: 52/ 84/ 60  35: 59/ 98/ 72
-  6L + paddle fixes              25 C 2 s / min  30: 43/ 60/ 41  31.5: 44/ 62/ 45  33: 52/ 77/ 55  34: 59/ 91/ 65  35: 67/106/ 79
-  6L + paddle fixes              25 C 25 % storm 30: 52/ 69/ 51  31.5: 55/ 73/ 56  33: 68/ 93/ 71  34: 79/111/ 86!cellarea  35: 93/132/105!QPA9510case
-  6L + paddle fixes              45 C 1 s / min  30: 59/ 76/ 58  31.5: 60/ 78/ 62  33: 67/ 92/ 70  34: 72/104/ 79  35: 78/118/ 92
-  6L + paddle fixes              45 C 2 s / min  30: 63/ 80/ 61  31.5: 64/ 82/ 64  33: 72/ 97/ 75  34: 79/111/ 85  35: 87/126/ 98!QPA9510case
-  6L + paddle fixes              45 C 25 % storm 30: 72/ 89/ 70!cellarea  31.5: 74/ 92/ 75!cellarea  33: 86/112/ 90!QPA9510case  34: 98/130/104!QPA9510case  35:111/150/123!QPA9510case
-  6L + paddle fixes              60 C 1 s / min  30: 74/ 91/ 73  31.5: 75/ 93/ 77  33: 81/107/ 85!  34: 87/119/ 94!QPA9510case  35: 93/133/106!QPA9510case
-  6L + paddle fixes              60 C 2 s / min  30: 77/ 94/ 76  31.5: 79/ 97/ 79  33: 86/112/ 89!QPA9510case  34: 93/125/100!QPA9510case  35:101/141/113!QPA9510case
-  6L + paddle fixes              60 C 25 % storm 30: 86/103/ 85!QPA9510case  31.5: 88/106/ 89!QPA9510case  33:100/126/104!QPA9510case  34:111/143/118!QPA9510case  35:124/164/136!QPA9510case
-  6L + paddle fixes + pad        25 C 1 s / min  30: 38/ 55/ 38  31.5: 39/ 57/ 41  33: 45/ 71/ 49  34: 51/ 83/ 58  35: 57/ 96/ 70
-  6L + paddle fixes + pad        25 C 2 s / min  30: 41/ 58/ 40  31.5: 42/ 60/ 43  33: 50/ 75/ 53  34: 56/ 88/ 62  35: 64/103/ 75
-  6L + paddle fixes + pad        25 C 25 % storm 30: 43/ 60/ 41  31.5: 44/ 62/ 45  33: 53/ 78/ 56  34: 60/ 92/ 66  35: 69/108/ 80
-  6L + paddle fixes + pad        45 C 1 s / min  30: 58/ 75/ 57  31.5: 59/ 77/ 61  33: 65/ 91/ 69  34: 71/103/ 78  35: 77/116/ 90
-  6L + paddle fixes + pad        45 C 2 s / min  30: 61/ 78/ 60  31.5: 62/ 80/ 63  33: 70/ 95/ 73  34: 76/108/ 82  35: 84/123/ 95!cellarea
-  6L + paddle fixes + pad        45 C 25 % storm 30: 63/ 80/ 61  31.5: 64/ 82/ 65  33: 72/ 98/ 75  34: 80/112/ 86!cellarea  35: 88/128/100!QPA9510case
-  6L + paddle fixes + pad        60 C 1 s / min  30: 73/ 90/ 72  31.5: 74/ 92/ 76  33: 80/106/ 84!  34: 86/118/ 93!QPA9510case  35: 92/131/105!QPA9510case
-  6L + paddle fixes + pad        60 C 2 s / min  30: 76/ 93/ 74  31.5: 77/ 95/ 78  33: 85/110/ 87!  34: 91/123/ 97!QPA9510case  35: 99/138/110!QPA9510case
-  6L + paddle fixes + pad        60 C 25 % storm 30: 78/ 95/ 76  31.5: 79/ 97/ 80  33: 87/113/ 90!QPA9510case  34: 95/127/101!QPA9510case  35:103/142/115!QPA9510case
-  6L + paddle fixes + 2 oz outer 25 C 1 s / min  30: 37/ 54/ 36  31.5: 38/ 56/ 39  33: 43/ 68/ 46  34: 48/ 80/ 54  35: 53/ 92/ 64
-  6L + paddle fixes + 2 oz outer 25 C 2 s / min  30: 40/ 57/ 39  31.5: 41/ 59/ 41  33: 47/ 72/ 50  34: 53/ 85/ 58  35: 60/ 99/ 70
-  6L + paddle fixes + 2 oz outer 25 C 25 % storm 30: 49/ 66/ 48  31.5: 52/ 70/ 52  33: 63/ 88/ 65  34: 73/105/ 78  35: 85/124/ 95!cellarea
-  6L + paddle fixes + 2 oz outer 45 C 1 s / min  30: 57/ 74/ 56  31.5: 58/ 76/ 59  33: 63/ 88/ 66  34: 68/100/ 74  35: 73/112/ 84
-  6L + paddle fixes + 2 oz outer 45 C 2 s / min  30: 59/ 76/ 58  31.5: 61/ 79/ 61  33: 67/ 92/ 70  34: 73/105/ 78  35: 79/119/ 89!cellarea
-  6L + paddle fixes + 2 oz outer 45 C 25 % storm 30: 68/ 85/ 67!cellarea  31.5: 71/ 89/ 71!cellarea  33: 81/107/ 84!cellarea  34: 91/123/ 97!QPA9510case  35:103/142/113!QPA9510case
-  6L + paddle fixes + 2 oz outer 60 C 1 s / min  30: 72/ 89/ 71  31.5: 73/ 91/ 74  33: 78/103/ 81  34: 82/114/ 89!  35: 88/127/ 99!QPA9510case
-  6L + paddle fixes + 2 oz outer 60 C 2 s / min  30: 74/ 91/ 73  31.5: 75/ 93/ 76  33: 82/107/ 84!  34: 87/119/ 93!QPA9510case  35: 94/133/104!QPA9510case
-  6L + paddle fixes + 2 oz outer 60 C 25 % storm 30: 83/100/ 82!  31.5: 85/103/ 86!  33: 95/121/ 98!QPA9510case  34:105/137/110!QPA9510case  35:116/155/126!QPA9510case
-  6L + paddle fixes + 2 oz outer + pad 25 C 1 s / min  30: 36/ 53/ 35  31.5: 37/ 55/ 38  33: 42/ 67/ 45  34: 46/ 78/ 52  35: 51/ 90/ 62
-  6L + paddle fixes + 2 oz outer + pad 25 C 2 s / min  30: 38/ 55/ 37  31.5: 39/ 57/ 40  33: 45/ 70/ 47  34: 50/ 82/ 55  35: 56/ 96/ 66
-  6L + paddle fixes + 2 oz outer + pad 25 C 25 % storm 30: 40/ 57/ 39  31.5: 41/ 59/ 41  33: 47/ 73/ 50  34: 53/ 85/ 59  35: 60/100/ 70
-  6L + paddle fixes + 2 oz outer + pad 45 C 1 s / min  30: 56/ 73/ 55  31.5: 57/ 75/ 58  33: 62/ 87/ 65  34: 66/ 98/ 72  35: 71/110/ 82
-  6L + paddle fixes + 2 oz outer + pad 45 C 2 s / min  30: 58/ 75/ 57  31.5: 59/ 77/ 60  33: 65/ 90/ 67  34: 70/102/ 75  35: 76/116/ 86
-  6L + paddle fixes + 2 oz outer + pad 45 C 25 % storm 30: 60/ 77/ 58  31.5: 61/ 79/ 61  33: 67/ 93/ 70  34: 73/105/ 79  35: 80/119/ 90!cellarea
-  6L + paddle fixes + 2 oz outer + pad 60 C 1 s / min  30: 71/ 88/ 70  31.5: 72/ 90/ 73  33: 77/102/ 80  34: 81/113/ 87!  35: 86/125/ 97!QPA9510case
-  6L + paddle fixes + 2 oz outer + pad 60 C 2 s / min  30: 73/ 90/ 72  31.5: 74/ 92/ 75  33: 80/105/ 82  34: 85/117/ 90!QPA9510case  35: 91/131/101!QPA9510case
-  6L + paddle fixes + 2 oz outer + pad 60 C 25 % storm 30: 74/ 91/ 73  31.5: 76/ 94/ 76  33: 82/108/ 85!  34: 88/120/ 93!QPA9510case  35: 95/134/105!QPA9510case
+  6L as built                    25 C 1 s / min  30: 48/ 65/ 38  31.5: 50/ 68/ 41  33: 59/ 85/ 49  34: 68/100/ 57  35: 78/118/ 68
+  6L as built                    25 C 2 s / min  30: 52/ 69/ 40  31.5: 54/ 72/ 44  33: 66/ 92/ 53  34: 77/109/ 63  35: 89/128/ 75!QPA9510case
+  6L as built                    25 C 25 % storm 30: 61/ 78/ 50  31.5: 64/ 82/ 55  33: 81/106/ 69!  34: 96/128/ 83!QPA9510case  35:113/152/102!QPA9510case
+  6L as built                    45 C 1 s / min  30: 68/ 85/ 57  31.5: 69/ 87/ 60  33: 79/105/ 69  34: 88/120/ 77!QPA9510case  35: 98/137/ 88!QPA9510case
+  6L as built                    45 C 2 s / min  30: 72/ 89/ 60  31.5: 74/ 92/ 63  33: 86/111/ 73!QPA9510case  34: 97/129/ 82!QPA9510case  35:109/148/ 95!QPA9510case
+  6L as built                    45 C 25 % storm 30: 80/ 97/ 69!cellarea  31.5: 83/101/ 74!cellarea  33: 99/125/ 88!QPA9510case  34:114/146/102!QPA9510case  35:131/170/120!QPA9510case
+  6L as built                    60 C 1 s / min  30: 83/100/ 72!  31.5: 84/102/ 75!  33: 94/120/ 83!QPA9510case  34:103/135/ 92!QPA9510case  35:113/152/103!QPA9510case
+  6L as built                    60 C 2 s / min  30: 87/104/ 75!QPA9510case  31.5: 89/107/ 78!QPA9510case  33:101/126/ 88!QPA9510case  34:111/143/ 97!QPA9510case  35:123/163/110!QPA9510case
+  6L as built                    60 C 25 % storm 30: 95/112/ 84!QPA9510case  31.5: 98/116/ 88!QPA9510case  33:113/139/102!QPA9510case  34:128/160/115!QPA9510case  35:144/184/133!QPA9510case
+  6L as built + pad              25 C 1 s / min  30: 47/ 64/ 36  31.5: 48/ 66/ 39  33: 58/ 83/ 47  34: 67/ 99/ 55  35: 76/115/ 65
+  6L as built + pad              25 C 2 s / min  30: 51/ 68/ 38  31.5: 52/ 70/ 41  33: 64/ 89/ 50  34: 74/106/ 58  35: 85/124/ 70!QPA9510case
+  6L as built + pad              25 C 25 % storm 30: 51/ 68/ 39  31.5: 52/ 70/ 42  33: 64/ 89/ 51  34: 74/106/ 60  35: 86/125/ 72!QPA9510case
+  6L as built + pad              45 C 1 s / min  30: 67/ 84/ 56  31.5: 68/ 86/ 59  33: 78/103/ 67  34: 87/119/ 74!QPA9510case  35: 96/135/ 85!QPA9510case
+  6L as built + pad              45 C 2 s / min  30: 71/ 88/ 58  31.5: 72/ 90/ 61  33: 84/109/ 70!  34: 94/126/ 78!QPA9510case  35:105/144/ 90!QPA9510case
+  6L as built + pad              45 C 25 % storm 30: 71/ 88/ 59  31.5: 72/ 90/ 62  33: 84/109/ 71!  34: 94/126/ 80!QPA9510case  35:106/145/ 92!QPA9510case
+  6L as built + pad              60 C 1 s / min  30: 82/ 99/ 71!  31.5: 83/101/ 74!  33: 93/118/ 82!QPA9510case  34:102/134/ 89!QPA9510case  35:111/150/100!QPA9510case
+  6L as built + pad              60 C 2 s / min  30: 86/103/ 73!QPA9510case  31.5: 87/105/ 76!QPA9510case  33: 99/124/ 85!QPA9510case  34:109/141/ 93!QPA9510case  35:120/159/105!QPA9510case
+  6L as built + pad              60 C 25 % storm 30: 86/103/ 74!QPA9510case  31.5: 87/105/ 77!QPA9510case  33: 99/124/ 86!QPA9510case  34:109/141/ 95!QPA9510case  35:120/160/107!QPA9510case
+  6L as built + pad at old spot  25 C 1 s / min  30: 46/ 63/ 34  31.5: 48/ 66/ 37  33: 57/ 82/ 44  34: 65/ 97/ 50  35: 74/114/ 60
+  6L as built + pad at old spot  25 C 2 s / min  30: 49/ 66/ 35  31.5: 51/ 68/ 38  33: 61/ 86/ 45  34: 70/102/ 52  35: 81/120/ 62!
+  6L as built + pad at old spot  25 C 25 % storm 30: 48/ 65/ 36  31.5: 50/ 68/ 39  33: 60/ 85/ 46  34: 69/101/ 53  35: 79/118/ 64
+  6L as built + pad at old spot  45 C 1 s / min  30: 66/ 83/ 54  31.5: 68/ 86/ 57  33: 77/102/ 64  34: 85/117/ 70!QPA9510case  35: 94/134/ 80!QPA9510case
+  6L as built + pad at old spot  45 C 2 s / min  30: 69/ 86/ 55  31.5: 70/ 88/ 58  33: 81/106/ 65!  34: 90/122/ 72!QPA9510case  35:101/140/ 82!QPA9510case
+  6L as built + pad at old spot  45 C 25 % storm 30: 68/ 85/ 56  31.5: 69/ 87/ 59  33: 80/105/ 66  34: 89/121/ 73!QPA9510case  35: 99/138/ 83!QPA9510case
+  6L as built + pad at old spot  60 C 1 s / min  30: 81/ 98/ 69!  31.5: 83/101/ 72!  33: 92/117/ 79!QPA9510case  34:100/132/ 85!QPA9510case  35:109/149/ 95!QPA9510case
+  6L as built + pad at old spot  60 C 2 s / min  30: 84/101/ 70!  31.5: 85/103/ 73!QPA9510case  33: 96/121/ 80!QPA9510case  34:105/137/ 87!QPA9510case  35:116/155/ 97!QPA9510case
+  6L as built + pad at old spot  60 C 25 % storm 30: 83/100/ 71!  31.5: 84/102/ 74!  33: 94/120/ 81!QPA9510case  34:103/135/ 88!QPA9510case  35:114/153/ 98!QPA9510case
+  6L + paddle fixes              25 C 1 s / min  30: 40/ 57/ 38  31.5: 41/ 59/ 41  33: 47/ 72/ 49  34: 52/ 84/ 58  35: 59/ 98/ 69
+  6L + paddle fixes              25 C 2 s / min  30: 43/ 60/ 41  31.5: 44/ 62/ 44  33: 52/ 77/ 53  34: 59/ 91/ 63  35: 67/106/ 76
+  6L + paddle fixes              25 C 25 % storm 30: 53/ 70/ 51  31.5: 55/ 73/ 55  33: 68/ 93/ 70  34: 79/111/ 84  35: 93/132/102!QPA9510case
+  6L + paddle fixes              45 C 1 s / min  30: 59/ 76/ 58  31.5: 60/ 78/ 61  33: 67/ 92/ 69  34: 72/104/ 77  35: 78/118/ 89
+  6L + paddle fixes              45 C 2 s / min  30: 63/ 80/ 60  31.5: 64/ 82/ 64  33: 72/ 97/ 73  34: 79/111/ 83  35: 87/126/ 96!QPA9510case
+  6L + paddle fixes              45 C 25 % storm 30: 72/ 89/ 70!cellarea  31.5: 74/ 92/ 74!cellarea  33: 86/112/ 88!QPA9510case  34: 98/130/102!QPA9510case  35:111/150/120!QPA9510case
+  6L + paddle fixes              60 C 1 s / min  30: 74/ 91/ 73  31.5: 75/ 93/ 76  33: 81/107/ 84!  34: 87/119/ 92!QPA9510case  35: 93/133/104!QPA9510case
+  6L + paddle fixes              60 C 2 s / min  30: 77/ 95/ 75  31.5: 79/ 97/ 78  33: 86/112/ 88!QPA9510case  34: 93/125/ 98!QPA9510case  35:101/141/110!QPA9510case
+  6L + paddle fixes              60 C 25 % storm 30: 86/103/ 84!QPA9510case  31.5: 89/107/ 88!QPA9510case  33:100/126/102!QPA9510case  34:111/143/116!QPA9510case  35:124/164/134!QPA9510case
+  6L + paddle fixes + pad        25 C 1 s / min  30: 38/ 55/ 37  31.5: 39/ 57/ 39  33: 45/ 71/ 47  34: 51/ 83/ 55  35: 57/ 96/ 66
+  6L + paddle fixes + pad        25 C 2 s / min  30: 41/ 58/ 38  31.5: 42/ 60/ 41  33: 49/ 75/ 50  34: 56/ 88/ 59  35: 63/102/ 70
+  6L + paddle fixes + pad        25 C 25 % storm 30: 42/ 59/ 39  31.5: 43/ 61/ 42  33: 51/ 76/ 51  34: 58/ 90/ 61  35: 66/105/ 73
+  6L + paddle fixes + pad        45 C 1 s / min  30: 58/ 75/ 57  31.5: 59/ 77/ 59  33: 65/ 91/ 67  34: 71/103/ 75  35: 77/116/ 86
+  6L + paddle fixes + pad        45 C 2 s / min  30: 61/ 78/ 58  31.5: 62/ 80/ 61  33: 69/ 95/ 70  34: 76/108/ 79  35: 83/122/ 90!
+  6L + paddle fixes + pad        45 C 25 % storm 30: 62/ 79/ 59  31.5: 63/ 81/ 62  33: 71/ 96/ 71  34: 78/110/ 80  35: 86/125/ 93!QPA9510case
+  6L + paddle fixes + pad        60 C 1 s / min  30: 73/ 90/ 71  31.5: 74/ 92/ 74  33: 80/106/ 82!  34: 86/118/ 90!QPA9510case  35: 92/131/101!QPA9510case
+  6L + paddle fixes + pad        60 C 2 s / min  30: 76/ 93/ 73  31.5: 77/ 95/ 76  33: 84/110/ 85!  34: 91/123/ 94!QPA9510case  35: 98/137/105!QPA9510case
+  6L + paddle fixes + pad        60 C 25 % storm 30: 77/ 94/ 74  31.5: 78/ 96/ 77  33: 86/111/ 86!QPA9510case  34: 93/125/ 95!QPA9510case  35:100/140/108!QPA9510case
+  6L + paddle fixes + 2 oz outer 25 C 1 s / min  30: 37/ 54/ 36  31.5: 38/ 56/ 39  33: 43/ 68/ 46  34: 48/ 80/ 53  35: 53/ 92/ 62
+  6L + paddle fixes + 2 oz outer 25 C 2 s / min  30: 40/ 57/ 38  31.5: 41/ 59/ 41  33: 47/ 72/ 49  34: 53/ 85/ 57  35: 59/ 99/ 68
+  6L + paddle fixes + 2 oz outer 25 C 25 % storm 30: 49/ 66/ 48  31.5: 52/ 70/ 52  33: 62/ 88/ 65  34: 73/105/ 77  35: 85/124/ 94!cellarea
+  6L + paddle fixes + 2 oz outer 45 C 1 s / min  30: 57/ 74/ 56  31.5: 58/ 76/ 58  33: 63/ 88/ 65  34: 67/ 99/ 73  35: 73/112/ 82
+  6L + paddle fixes + 2 oz outer 45 C 2 s / min  30: 59/ 76/ 58  31.5: 60/ 78/ 61  33: 67/ 92/ 69  34: 72/104/ 77  35: 79/118/ 88
+  6L + paddle fixes + 2 oz outer 45 C 25 % storm 30: 68/ 85/ 67  31.5: 71/ 89/ 71!cellarea  33: 81/107/ 83!cellarea  34: 91/123/ 95!QPA9510case  35:103/142/111!QPA9510case
+  6L + paddle fixes + 2 oz outer 60 C 1 s / min  30: 72/ 89/ 71  31.5: 73/ 91/ 73  33: 78/103/ 80  34: 82/114/ 87!  35: 87/127/ 97!QPA9510case
+  6L + paddle fixes + 2 oz outer 60 C 2 s / min  30: 74/ 91/ 73  31.5: 75/ 93/ 76  33: 82/107/ 84!  34: 87/119/ 92!QPA9510case  35: 94/133/102!QPA9510case
+  6L + paddle fixes + 2 oz outer 60 C 25 % storm 30: 83/100/ 81!  31.5: 85/103/ 85!  33: 95/121/ 97!QPA9510case  34:105/137/109!QPA9510case  35:116/155/125!QPA9510case
+  6L + paddle fixes + 2 oz outer + pad 25 C 1 s / min  30: 36/ 53/ 35  31.5: 37/ 55/ 37  33: 41/ 67/ 44  34: 46/ 78/ 50  35: 51/ 90/ 59
+  6L + paddle fixes + 2 oz outer + pad 25 C 2 s / min  30: 38/ 55/ 36  31.5: 39/ 57/ 38  33: 44/ 70/ 46  34: 50/ 82/ 53  35: 55/ 95/ 63
+  6L + paddle fixes + 2 oz outer + pad 25 C 25 % storm 30: 39/ 56/ 37  31.5: 40/ 58/ 39  33: 46/ 71/ 47  34: 52/ 84/ 55  35: 58/ 97/ 65
+  6L + paddle fixes + 2 oz outer + pad 45 C 1 s / min  30: 56/ 73/ 55  31.5: 57/ 75/ 57  33: 61/ 87/ 64  34: 66/ 98/ 70  35: 71/110/ 79
+  6L + paddle fixes + 2 oz outer + pad 45 C 2 s / min  30: 58/ 75/ 56  31.5: 59/ 77/ 58  33: 64/ 90/ 66  34: 70/102/ 73  35: 75/115/ 83
+  6L + paddle fixes + 2 oz outer + pad 45 C 25 % storm 30: 59/ 76/ 57  31.5: 60/ 78/ 59  33: 66/ 91/ 67  34: 71/103/ 75  35: 78/117/ 85
+  6L + paddle fixes + 2 oz outer + pad 60 C 1 s / min  30: 71/ 88/ 70  31.5: 72/ 90/ 72  33: 76/102/ 79  34: 81/113/ 85!  35: 86/125/ 94!QPA9510case
+  6L + paddle fixes + 2 oz outer + pad 60 C 2 s / min  30: 73/ 90/ 71  31.5: 74/ 92/ 73  33: 79/105/ 81  34: 85/117/ 88!  35: 90/130/ 98!QPA9510case
+  6L + paddle fixes + 2 oz outer + pad 60 C 25 % storm 30: 74/ 91/ 72  31.5: 75/ 93/ 74  33: 81/106/ 82!  34: 86/118/ 90!QPA9510case  35: 93/132/100!QPA9510case
   (pessimistic detail)
-  6L as built                    25 C 1 s / min  30: 49/ 66/ 38  31.5: 56/ 80/ 44  33: 69/101/ 55  34: 91/140/ 72!QPA9510case  35:110/174/ 95!QPA9510case
-  6L as built                    25 C 2 s / min  30: 53/ 71/ 41  31.5: 62/ 85/ 48  33: 77/110/ 60  34:104/153/ 80!QPA9510case  35:128/191/107!QPA9510case
-  6L as built                    25 C 25 % storm 30: 62/ 80/ 51  31.5: 74/ 98/ 62  33: 94/127/ 79!QPA9510case  34:129/179/109!QPA9510case  35:163/227/146!QPA9510case
-  6L as built                    45 C 1 s / min  30: 69/ 86/ 58  31.5: 76/ 99/ 64  33: 88/121/ 74!QPA9510case  34:111/160/ 92!QPA9510case  35:130/194/115!QPA9510case
-  6L as built                    45 C 2 s / min  30: 73/ 90/ 61  31.5: 82/105/ 68!  33: 97/129/ 80!QPA9510case  34:123/172/100!QPA9510case  35:147/211/126!QPA9510case
-  6L as built                    45 C 25 % storm 30: 81/ 99/ 70!cellarea  31.5: 93/116/ 80!QPA9510case  33:113/145/ 98!QPA9510case  34:147/196/126!QPA9510case  35:180/244/163!QPA9510case
-  6L as built                    60 C 1 s / min  30: 83/101/ 73!  31.5: 91/114/ 79!QPA9510case  33:103/136/ 89!QPA9510case  34:125/175/106!QPA9510case  35:145/209/130!QPA9510case
-  6L as built                    60 C 2 s / min  30: 88/105/ 76!QPA9510case  31.5: 97/120/ 83!QPA9510case  33:112/144/ 95!QPA9510case  34:138/187/114!QPA9510case  35:162/225/141!QPA9510case
-  6L as built                    60 C 25 % storm 30: 95/113/ 85!QPA9510case  31.5:107/131/ 95!QPA9510case  33:126/159/111!QPA9510case  34:160/209/140!QPA9510case  35:192/256/175!QPA9510case
-  6L as built + pad              25 C 1 s / min  30: 48/ 65/ 37  31.5: 55/ 78/ 43  33: 67/100/ 53  34: 89/138/ 70!QPA9510case  35:108/172/ 93!QPA9510case
-  6L as built + pad              25 C 2 s / min  30: 51/ 69/ 40  31.5: 60/ 84/ 46  33: 74/107/ 57  34:100/149/ 76!QPA9510case  35:123/187/102!QPA9510case
-  6L as built + pad              25 C 25 % storm 30: 52/ 70/ 41  31.5: 62/ 85/ 49  33: 76/109/ 61  34:103/152/ 81!QPA9510case  35:127/191/109!QPA9510case
-  6L as built + pad              45 C 1 s / min  30: 68/ 85/ 57  31.5: 75/ 98/ 63  33: 87/120/ 73!QPA9510case  34:109/158/ 90!QPA9510case  35:128/192/113!QPA9510case
-  6L as built + pad              45 C 2 s / min  30: 71/ 89/ 59  31.5: 80/104/ 66!  33: 94/127/ 77!QPA9510case  34:120/169/ 96!QPA9510case  35:143/207/122!QPA9510case
-  6L as built + pad              45 C 25 % storm 30: 72/ 90/ 61  31.5: 81/105/ 68!  33: 96/129/ 81!QPA9510case  34:122/172/101!QPA9510case  35:146/210/128!QPA9510case
-  6L as built + pad              60 C 1 s / min  30: 83/100/ 72!  31.5: 90/113/ 78!QPA9510case  33:102/135/ 88!QPA9510case  34:124/173/105!QPA9510case  35:143/207/128!QPA9510case
-  6L as built + pad              60 C 2 s / min  30: 86/104/ 74!QPA9510case  31.5: 95/119/ 81!QPA9510case  33:109/142/ 92!QPA9510case  34:135/184/111!QPA9510case  35:158/222/137!QPA9510case
-  6L as built + pad              60 C 25 % storm 30: 87/105/ 76!QPA9510case  31.5: 96/120/ 83!QPA9510case  33:111/143/ 96!QPA9510case  34:137/186/116!QPA9510case  35:161/225/143!QPA9510case
-  6L as built + pad at old spot  25 C 1 s / min  30: 47/ 64/ 35  31.5: 54/ 77/ 40  33: 66/ 98/ 48  34: 86/136/ 62!QPA9510case  35:105/168/ 81!QPA9510case
-  6L as built + pad at old spot  25 C 2 s / min  30: 50/ 67/ 36  31.5: 58/ 81/ 41  33: 71/103/ 50  34: 94/144/ 65!QPA9510case  35:115/179/ 86!QPA9510case
-  6L as built + pad at old spot  25 C 25 % storm 30: 49/ 66/ 37  31.5: 56/ 80/ 42  33: 69/101/ 51  34: 91/140/ 66!QPA9510case  35:111/175/ 87!QPA9510case
-  6L as built + pad at old spot  45 C 1 s / min  30: 67/ 84/ 55  31.5: 74/ 97/ 60  33: 86/118/ 68!QPA9510case  34:106/156/ 82!QPA9510case  35:125/188/101!QPA9510case
-  6L as built + pad at old spot  45 C 2 s / min  30: 70/ 87/ 56  31.5: 78/101/ 61  33: 91/123/ 70!QPA9510case  34:114/164/ 85!QPA9510case  35:135/199/106!QPA9510case
-  6L as built + pad at old spot  45 C 25 % storm 30: 68/ 86/ 57  31.5: 76/100/ 62  33: 89/121/ 71!QPA9510case  34:111/160/ 86!QPA9510case  35:131/194/107!QPA9510case
-  6L as built + pad at old spot  60 C 1 s / min  30: 82/ 99/ 70!  31.5: 89/112/ 75!QPA9510case  33:101/133/ 83!QPA9510case  34:121/171/ 97!QPA9510case  35:140/203/116!QPA9510case
-  6L as built + pad at old spot  60 C 2 s / min  30: 85/102/ 71!  31.5: 93/116/ 76!QPA9510case  33:106/138/ 85!QPA9510case  34:129/179/100!QPA9510case  35:150/214/121!QPA9510case
-  6L as built + pad at old spot  60 C 25 % storm 30: 83/101/ 72!  31.5: 91/114/ 77!QPA9510case  33:104/136/ 86!QPA9510case  34:126/175/101!QPA9510case  35:146/209/122!QPA9510case
-  6L + paddle fixes              25 C 1 s / min  30: 40/ 57/ 39  31.5: 45/ 68/ 45  33: 52/ 85/ 55  34: 66/115/ 73  35: 79/143/ 97
-  6L + paddle fixes              25 C 2 s / min  30: 43/ 61/ 41  31.5: 49/ 72/ 48  33: 59/ 91/ 60  34: 76/125/ 81  35: 92/156/108!QPA9510case
-  6L + paddle fixes              25 C 25 % storm 30: 53/ 71/ 52  31.5: 62/ 86/ 62  33: 78/110/ 80  34:104/154/110!QPA9510case  35:131/195/147!QPA9510case
-  6L + paddle fixes              45 C 1 s / min  30: 60/ 77/ 59  31.5: 65/ 88/ 65  33: 72/105/ 75  34: 86/135/ 93!QPA9510case  35: 99/162/116!QPA9510case
-  6L + paddle fixes              45 C 2 s / min  30: 63/ 81/ 61  31.5: 69/ 92/ 68  33: 79/111/ 80  34: 96/145/100!QPA9510case  35:112/175/127!QPA9510case
-  6L + paddle fixes              45 C 25 % storm 30: 72/ 90/ 71!cellarea  31.5: 81/105/ 81!cellarea  33: 96/129/ 98!QPA9510case  34:122/171/127!QPA9510case  35:147/211/164!QPA9510case
-  6L + paddle fixes              60 C 1 s / min  30: 75/ 92/ 74  31.5: 79/103/ 80  33: 87/120/ 90!QPA9510case  34:101/150/107!QPA9510case  35:113/177/131!QPA9510case
-  6L + paddle fixes              60 C 2 s / min  30: 78/ 95/ 76  31.5: 84/107/ 83!  33: 93/126/ 95!QPA9510case  34:110/160/115!QPA9510case  35:126/190/142!QPA9510case
-  6L + paddle fixes              60 C 25 % storm 30: 87/104/ 85!QPA9510case  31.5: 95/119/ 95!QPA9510case  33:110/142/112!QPA9510case  34:135/184/140!QPA9510case  35:160/224/176!QPA9510case
-  6L + paddle fixes + pad        25 C 1 s / min  30: 39/ 56/ 38  31.5: 43/ 67/ 44  33: 51/ 83/ 54  34: 64/113/ 71  35: 76/140/ 94
-  6L + paddle fixes + pad        25 C 2 s / min  30: 42/ 59/ 40  31.5: 47/ 71/ 46  33: 56/ 89/ 58  34: 73/122/ 77  35: 88/151/103!QPA9510case
-  6L + paddle fixes + pad        25 C 25 % storm 30: 43/ 61/ 42  31.5: 50/ 73/ 49  33: 60/ 92/ 61  34: 78/127/ 82  35: 95/158/110!QPA9510case
-  6L + paddle fixes + pad        45 C 1 s / min  30: 59/ 76/ 58  31.5: 63/ 87/ 64  33: 71/103/ 74  34: 84/133/ 91!  35: 96/160/114!QPA9510case
-  6L + paddle fixes + pad        45 C 2 s / min  30: 62/ 79/ 60  31.5: 67/ 91/ 66  33: 76/109/ 78  34: 93/142/ 97!QPA9510case  35:108/171/123!QPA9510case
-  6L + paddle fixes + pad        45 C 25 % storm 30: 63/ 81/ 62  31.5: 70/ 93/ 69  33: 80/112/ 81!cellarea  34: 97/147/102!QPA9510case  35:114/178/130!QPA9510case
-  6L + paddle fixes + pad        60 C 1 s / min  30: 74/ 91/ 73  31.5: 78/102/ 79  33: 86/118/ 89!QPA9510case  34: 99/148/106!QPA9510case  35:111/175/129!QPA9510case
-  6L + paddle fixes + pad        60 C 2 s / min  30: 77/ 94/ 75  31.5: 82/106/ 81!  33: 91/124/ 93!QPA9510case  34:108/157/112!QPA9510case  35:122/186/138!QPA9510case
-  6L + paddle fixes + pad        60 C 25 % storm 30: 78/ 96/ 77  31.5: 84/108/ 84!  33: 94/127/ 96!QPA9510case  34:112/161/117!QPA9510case  35:129/193/144!QPA9510case
-  6L + paddle fixes + 2 oz outer 25 C 1 s / min  30: 37/ 55/ 37  31.5: 41/ 65/ 42  33: 48/ 80/ 50  34: 59/108/ 65  35: 70/133/ 85
-  6L + paddle fixes + 2 oz outer 25 C 2 s / min  30: 40/ 58/ 39  31.5: 45/ 68/ 45  33: 53/ 85/ 55  34: 67/116/ 71  35: 80/144/ 93
-  6L + paddle fixes + 2 oz outer 25 C 25 % storm 30: 50/ 67/ 49  31.5: 58/ 81/ 58  33: 71/104/ 73  34: 94/144/ 99!QPA9510case  35:118/181/131!QPA9510case
-  6L + paddle fixes + 2 oz outer 45 C 1 s / min  30: 57/ 75/ 57  31.5: 61/ 85/ 61  33: 68/100/ 70  34: 79/128/ 85  35: 89/153/104!QPA9510case
-  6L + paddle fixes + 2 oz outer 45 C 2 s / min  30: 60/ 77/ 59  31.5: 65/ 88/ 64  33: 72/105/ 74  34: 86/136/ 91!QPA9510case  35:100/163/113!QPA9510case
-  6L + paddle fixes + 2 oz outer 45 C 25 % storm 30: 69/ 86/ 68!cellarea  31.5: 77/100/ 77!cellarea  33: 90/122/ 92!QPA9510case  34:112/161/117!QPA9510case  35:134/198/148!QPA9510case
-  6L + paddle fixes + 2 oz outer 60 C 1 s / min  30: 72/ 90/ 71  31.5: 76/ 99/ 76  33: 82/115/ 85!  34: 94/143/100!QPA9510case  35:104/168/119!QPA9510case
-  6L + paddle fixes + 2 oz outer 60 C 2 s / min  30: 75/ 92/ 73  31.5: 79/103/ 79  33: 87/120/ 89!QPA9510case  34:101/150/106!QPA9510case  35:114/178/128!QPA9510case
-  6L + paddle fixes + 2 oz outer 60 C 25 % storm 30: 83/101/ 82!  31.5: 91/114/ 91!QPA9510case  33:103/136/105!QPA9510case  34:125/174/130!QPA9510case  35:147/211/161!QPA9510case
-  6L + paddle fixes + 2 oz outer + pad 25 C 1 s / min  30: 36/ 54/ 36  31.5: 40/ 63/ 40  33: 46/ 79/ 49  34: 57/106/ 63  35: 67/131/ 82
-  6L + paddle fixes + 2 oz outer + pad 25 C 2 s / min  30: 38/ 56/ 37  31.5: 43/ 66/ 42  33: 50/ 83/ 52  34: 63/113/ 68  35: 75/139/ 89
-  6L + paddle fixes + 2 oz outer + pad 25 C 25 % storm 30: 40/ 58/ 39  31.5: 45/ 68/ 45  33: 53/ 86/ 55  34: 68/117/ 72  35: 81/145/ 94!
-  6L + paddle fixes + 2 oz outer + pad 45 C 1 s / min  30: 56/ 74/ 56  31.5: 60/ 83/ 60  33: 66/ 99/ 69  34: 77/126/ 83  35: 87/151/102!QPA9510case
-  6L + paddle fixes + 2 oz outer + pad 45 C 2 s / min  30: 58/ 76/ 57  31.5: 63/ 86/ 62  33: 70/103/ 72  34: 83/132/ 88!cellarea  35: 95/159/109!QPA9510case
-  6L + paddle fixes + 2 oz outer + pad 45 C 25 % storm 30: 60/ 77/ 59  31.5: 65/ 88/ 65  33: 73/106/ 75  34: 87/137/ 92!QPA9510case  35:101/165/114!QPA9510case
-  6L + paddle fixes + 2 oz outer + pad 60 C 1 s / min  30: 71/ 89/ 70  31.5: 75/ 98/ 75  33: 81/114/ 84!  34: 92/141/ 98!QPA9510case  35:102/166/117!QPA9510case
-  6L + paddle fixes + 2 oz outer + pad 60 C 2 s / min  30: 73/ 91/ 72  31.5: 78/101/ 77  33: 85/118/ 87!QPA9510case  34: 98/147/103!QPA9510case  35:110/174/123!QPA9510case
-  6L + paddle fixes + 2 oz outer + pad 60 C 25 % storm 30: 75/ 92/ 74  31.5: 80/103/ 79  33: 88/120/ 90!QPA9510case  34:102/151/107!QPA9510case  35:116/179/129!QPA9510case
+  6L as built                    25 C 1 s / min  30: 49/ 66/ 38  31.5: 56/ 80/ 43  33: 69/101/ 53  34: 91/140/ 69!QPA9510case  35:111/174/ 91!QPA9510case
+  6L as built                    25 C 2 s / min  30: 53/ 71/ 41  31.5: 62/ 86/ 47  33: 77/110/ 58  34:104/153/ 77!QPA9510case  35:128/191/102!QPA9510case
+  6L as built                    25 C 25 % storm 30: 62/ 80/ 51  31.5: 74/ 98/ 61  33: 94/127/ 78!QPA9510case  34:130/179/106!QPA9510case  35:163/227/142!QPA9510case
+  6L as built                    45 C 1 s / min  30: 69/ 86/ 58  31.5: 76/100/ 63  33: 89/121/ 73!QPA9510case  34:111/160/ 89!QPA9510case  35:130/194/111!QPA9510case
+  6L as built                    45 C 2 s / min  30: 73/ 91/ 60  31.5: 82/105/ 67!  33: 97/129/ 78!QPA9510case  34:123/173/ 97!QPA9510case  35:147/211/122!QPA9510case
+  6L as built                    45 C 25 % storm 30: 81/ 99/ 70!cellarea  31.5: 93/117/ 79!QPA9510case  33:113/145/ 96!QPA9510case  34:147/197/124!QPA9510case  35:180/244/158!QPA9510case
+  6L as built                    60 C 1 s / min  30: 84/101/ 73!  31.5: 91/115/ 78!QPA9510case  33:104/136/ 88!QPA9510case  34:126/175/104!QPA9510case  35:145/209/126!QPA9510case
+  6L as built                    60 C 2 s / min  30: 88/105/ 75!QPA9510case  31.5: 97/120/ 82!QPA9510case  33:112/144/ 93!QPA9510case  34:138/187/112!QPA9510case  35:162/226/136!QPA9510case
+  6L as built                    60 C 25 % storm 30: 96/113/ 84!QPA9510case  31.5:107/131/ 94!QPA9510case  33:127/159/110!QPA9510case  34:160/210/137!QPA9510case  35:193/256/171!QPA9510case
+  6L as built + pad              25 C 1 s / min  30: 48/ 65/ 36  31.5: 55/ 78/ 42  33: 67/100/ 51  34: 89/138/ 66!QPA9510case  35:108/172/ 87!QPA9510case
+  6L as built + pad              25 C 2 s / min  30: 51/ 69/ 38  31.5: 60/ 83/ 44  33: 74/107/ 54  34:100/149/ 71!QPA9510case  35:122/186/ 94!QPA9510case
+  6L as built + pad              25 C 25 % storm 30: 51/ 69/ 39  31.5: 60/ 83/ 45  33: 74/107/ 56  34:100/149/ 74!QPA9510case  35:122/186/ 97!QPA9510case
+  6L as built + pad              45 C 1 s / min  30: 68/ 85/ 56  31.5: 75/ 98/ 62  33: 87/120/ 71!QPA9510case  34:109/158/ 86!QPA9510case  35:128/192/107!QPA9510case
+  6L as built + pad              45 C 2 s / min  30: 71/ 89/ 58  31.5: 80/103/ 64!  33: 94/127/ 74!QPA9510case  34:120/169/ 91!QPA9510case  35:142/206/114!QPA9510case
+  6L as built + pad              45 C 25 % storm 30: 71/ 89/ 59  31.5: 80/103/ 65!  33: 94/127/ 76!QPA9510case  34:119/169/ 94!QPA9510case  35:142/206/117!QPA9510case
+  6L as built + pad              60 C 1 s / min  30: 83/100/ 71!  31.5: 90/113/ 77!QPA9510case  33:102/135/ 86!QPA9510case  34:124/173/101!QPA9510case  35:143/207/122!QPA9510case
+  6L as built + pad              60 C 2 s / min  30: 86/104/ 73!QPA9510case  31.5: 95/118/ 79!QPA9510case  33:109/142/ 89!QPA9510case  34:135/184/106!QPA9510case  35:157/221/129!QPA9510case
+  6L as built + pad              60 C 25 % storm 30: 86/104/ 74!QPA9510case  31.5: 95/118/ 80!QPA9510case  33:109/142/ 91!QPA9510case  34:134/184/108!QPA9510case  35:157/221/132!QPA9510case
+  6L as built + pad at old spot  25 C 1 s / min  30: 47/ 64/ 35  31.5: 54/ 77/ 39  33: 66/ 98/ 47  34: 87/136/ 60!QPA9510case  35:105/169/ 78!QPA9510case
+  6L as built + pad at old spot  25 C 2 s / min  30: 50/ 67/ 36  31.5: 58/ 81/ 40  33: 71/104/ 49  34: 95/144/ 63!QPA9510case  35:115/179/ 82!QPA9510case
+  6L as built + pad at old spot  25 C 25 % storm 30: 49/ 66/ 36  31.5: 56/ 80/ 41  33: 69/101/ 50  34: 91/141/ 64!QPA9510case  35:111/175/ 84!QPA9510case
+  6L as built + pad at old spot  45 C 1 s / min  30: 67/ 84/ 55  31.5: 74/ 97/ 59  33: 86/118/ 67!QPA9510case  34:107/156/ 80!QPA9510case  35:125/189/ 98!QPA9510case
+  6L as built + pad at old spot  45 C 2 s / min  30: 70/ 87/ 56  31.5: 78/101/ 60  33: 91/124/ 69!QPA9510case  34:115/164/ 83!QPA9510case  35:135/199/102!QPA9510case
+  6L as built + pad at old spot  45 C 25 % storm 30: 69/ 86/ 56  31.5: 76/100/ 61  33: 89/121/ 70!QPA9510case  34:111/161/ 84!QPA9510case  35:131/195/104!QPA9510case
+  6L as built + pad at old spot  60 C 1 s / min  30: 82/ 99/ 70!  31.5: 89/112/ 74!QPA9510case  33:101/133/ 82!QPA9510case  34:122/171/ 95!QPA9510case  35:140/204/113!QPA9510case
+  6L as built + pad at old spot  60 C 2 s / min  30: 85/102/ 71!  31.5: 93/116/ 75!QPA9510case  33:106/139/ 84!QPA9510case  34:130/179/ 98!QPA9510case  35:150/214/117!QPA9510case
+  6L as built + pad at old spot  60 C 25 % storm 30: 84/101/ 71!  31.5: 91/115/ 76!QPA9510case  33:104/136/ 85!QPA9510case  34:126/175/ 99!QPA9510case  35:146/210/119!QPA9510case
+  6L + paddle fixes              25 C 1 s / min  30: 40/ 57/ 38  31.5: 45/ 68/ 44  33: 52/ 85/ 54  34: 66/115/ 70  35: 79/142/ 92
+  6L + paddle fixes              25 C 2 s / min  30: 43/ 61/ 41  31.5: 49/ 72/ 47  33: 59/ 91/ 59  34: 76/125/ 78  35: 92/156/103!QPA9510case
+  6L + paddle fixes              25 C 25 % storm 30: 53/ 71/ 51  31.5: 62/ 86/ 61  33: 78/110/ 78  34:104/154/107!QPA9510case  35:131/194/143!QPA9510case
+  6L + paddle fixes              45 C 1 s / min  30: 60/ 77/ 58  31.5: 65/ 88/ 64  33: 72/105/ 74  34: 86/135/ 90!QPA9510case  35: 98/162/112!QPA9510case
+  6L + paddle fixes              45 C 2 s / min  30: 63/ 81/ 61  31.5: 69/ 92/ 67  33: 79/111/ 79  34: 96/145/ 98!QPA9510case  35:111/175/123!QPA9510case
+  6L + paddle fixes              45 C 25 % storm 30: 72/ 90/ 70!cellarea  31.5: 81/105/ 80!cellarea  33: 96/129/ 97!QPA9510case  34:122/171/125!QPA9510case  35:147/211/159!QPA9510case
+  6L + paddle fixes              60 C 1 s / min  30: 75/ 92/ 73  31.5: 79/103/ 79  33: 87/120/ 88!QPA9510case  34:101/150/105!QPA9510case  35:113/177/127!QPA9510case
+  6L + paddle fixes              60 C 2 s / min  30: 78/ 95/ 76  31.5: 84/107/ 82!  33: 93/126/ 93!QPA9510case  34:110/160/112!QPA9510case  35:126/190/137!QPA9510case
+  6L + paddle fixes              60 C 25 % storm 30: 87/104/ 84!QPA9510case  31.5: 95/119/ 94!QPA9510case  33:110/142/110!QPA9510case  34:135/184/138!QPA9510case  35:160/224/172!QPA9510case
+  6L + paddle fixes + pad        25 C 1 s / min  30: 39/ 56/ 37  31.5: 43/ 67/ 42  33: 51/ 83/ 51  34: 64/113/ 67  35: 76/140/ 88
+  6L + paddle fixes + pad        25 C 2 s / min  30: 41/ 59/ 38  31.5: 47/ 70/ 44  33: 56/ 88/ 55  34: 72/121/ 72  35: 86/150/ 95!QPA9510case
+  6L + paddle fixes + pad        25 C 25 % storm 30: 42/ 60/ 39  31.5: 48/ 72/ 46  33: 58/ 90/ 57  34: 74/124/ 75  35: 90/154/ 98!QPA9510case
+  6L + paddle fixes + pad        45 C 1 s / min  30: 59/ 76/ 57  31.5: 63/ 87/ 62  33: 71/103/ 71  34: 84/133/ 87!  35: 96/160/108!QPA9510case
+  6L + paddle fixes + pad        45 C 2 s / min  30: 61/ 79/ 58  31.5: 67/ 90/ 64  33: 76/108/ 75  34: 92/141/ 92!QPA9510case  35:106/170/115!QPA9510case
+  6L + paddle fixes + pad        45 C 25 % storm 30: 62/ 80/ 59  31.5: 68/ 91/ 66  33: 77/110/ 76  34: 94/143/ 94!QPA9510case  35:110/173/118!QPA9510case
+  6L + paddle fixes + pad        60 C 1 s / min  30: 74/ 91/ 72  31.5: 78/102/ 77  33: 86/118/ 86!QPA9510case  34: 99/148/102!QPA9510case  35:111/175/123!QPA9510case
+  6L + paddle fixes + pad        60 C 2 s / min  30: 76/ 94/ 73  31.5: 82/105/ 79!  33: 91/123/ 90!QPA9510case  34:107/156/107!QPA9510case  35:121/185/130!QPA9510case
+  6L + paddle fixes + pad        60 C 25 % storm 30: 77/ 95/ 74  31.5: 83/106/ 81!  33: 92/125/ 91!QPA9510case  34:109/158/109!QPA9510case  35:124/188/133!QPA9510case
+  6L + paddle fixes + 2 oz outer 25 C 1 s / min  30: 37/ 55/ 36  31.5: 41/ 65/ 41  33: 48/ 80/ 49  34: 59/108/ 63  35: 69/133/ 82
+  6L + paddle fixes + 2 oz outer 25 C 2 s / min  30: 40/ 57/ 38  31.5: 45/ 68/ 44  33: 53/ 85/ 54  34: 66/116/ 70  35: 79/143/ 91
+  6L + paddle fixes + 2 oz outer 25 C 25 % storm 30: 50/ 67/ 48  31.5: 58/ 81/ 57  33: 71/104/ 72  34: 94/143/ 98!QPA9510case  35:117/181/129!QPA9510case
+  6L + paddle fixes + 2 oz outer 45 C 1 s / min  30: 57/ 75/ 56  31.5: 61/ 85/ 61  33: 67/100/ 69  34: 79/128/ 83  35: 89/153/102!QPA9510case
+  6L + paddle fixes + 2 oz outer 45 C 2 s / min  30: 60/ 77/ 58  31.5: 65/ 88/ 64  33: 72/105/ 73  34: 86/135/ 89!QPA9510case  35: 99/163/110!QPA9510case
+  6L + paddle fixes + 2 oz outer 45 C 25 % storm 30: 69/ 86/ 67  31.5: 77/100/ 76!cellarea  33: 89/122/ 91!QPA9510case  34:112/161/115!QPA9510case  35:134/198/146!QPA9510case
+  6L + paddle fixes + 2 oz outer 60 C 1 s / min  30: 72/ 90/ 71  31.5: 76/ 99/ 76  33: 82/115/ 84!  34: 94/143/ 98!QPA9510case  35:104/168/117!QPA9510case
+  6L + paddle fixes + 2 oz outer 60 C 2 s / min  30: 75/ 92/ 73  31.5: 79/103/ 79  33: 87/120/ 88!QPA9510case  34:101/150/104!QPA9510case  35:114/177/125!QPA9510case
+  6L + paddle fixes + 2 oz outer 60 C 25 % storm 30: 83/101/ 82!  31.5: 91/114/ 90!QPA9510case  33:103/136/104!QPA9510case  34:125/174/129!QPA9510case  35:147/210/158!QPA9510case
+  6L + paddle fixes + 2 oz outer + pad 25 C 1 s / min  30: 36/ 54/ 35  31.5: 40/ 63/ 39  33: 46/ 78/ 47  34: 57/106/ 60  35: 66/130/ 78
+  6L + paddle fixes + 2 oz outer + pad 25 C 2 s / min  30: 38/ 56/ 36  31.5: 43/ 66/ 41  33: 50/ 82/ 50  34: 62/112/ 64  35: 74/138/ 83
+  6L + paddle fixes + 2 oz outer + pad 25 C 25 % storm 30: 39/ 57/ 37  31.5: 44/ 67/ 42  33: 51/ 84/ 51  34: 65/114/ 66  35: 77/141/ 86
+  6L + paddle fixes + 2 oz outer + pad 45 C 1 s / min  30: 56/ 74/ 55  31.5: 60/ 83/ 59  33: 66/ 98/ 67  34: 77/126/ 80  35: 86/150/ 98!QPA9510case
+  6L + paddle fixes + 2 oz outer + pad 45 C 2 s / min  30: 58/ 76/ 56  31.5: 63/ 86/ 61  33: 70/102/ 70  34: 82/132/ 84!  35: 94/158/103!QPA9510case
+  6L + paddle fixes + 2 oz outer + pad 45 C 25 % storm 30: 59/ 77/ 57  31.5: 64/ 87/ 62  33: 71/104/ 71  34: 85/134/ 86!  35: 97/161/106!QPA9510case
+  6L + paddle fixes + 2 oz outer + pad 60 C 1 s / min  30: 71/ 89/ 70  31.5: 75/ 98/ 74  33: 81/113/ 82!  34: 92/141/ 95!QPA9510case  35:101/165/113!QPA9510case
+  6L + paddle fixes + 2 oz outer + pad 60 C 2 s / min  30: 73/ 91/ 71  31.5: 78/101/ 76  33: 85/117/ 85!  34: 97/147/ 99!QPA9510case  35:109/173/118!QPA9510case
+  6L + paddle fixes + 2 oz outer + pad 60 C 25 % storm 30: 74/ 92/ 72  31.5: 79/102/ 77  33: 86/119/ 86!QPA9510case  34:100/149/101!QPA9510case  35:112/176/121!QPA9510case
 
 ====================================================================================================
 B. Which fix helps most (nominal PAE): QPA9510 case / junction peak, C
@@ -180,33 +180,33 @@ B. Which fix helps most (nominal PAE): QPA9510 case / junction peak, C
                                                              25 C 1 s / min 34 dBm   45 C 2 s / min 33 dBm   60 C 25 % storm 30 dBm  
   6L as built                                                 68 / 100                86 / 111                95 / 112               
   uniform 6L estimate of 19 Oct (70/100/50/50/100/70 %, 8 vias/cm2)  70 / 102                88 / 113                96 / 113               
-  as built + paddle joined to the top pour                    59 /  91                78 / 103                90 / 107               
-  as built + copper-filled paddle vias                        57 /  89                75 / 101                88 / 105               
+  as built + paddle joined to the top pour                    59 /  91                77 / 103                90 / 107               
+  as built + copper-filled paddle vias                        57 /  89                76 / 101                88 / 106               
   as built + 2 oz outer                                       67 /  99                84 / 110                93 / 110               
   as built + both paddle fixes (1 oz outer)                   52 /  84                72 /  97                86 / 103               
   as built + both paddle fixes + 2 oz outer                   48 /  80                67 /  92                83 / 100               
-  as built + gap pad (layout.GAP_PAD)                         67 /  99                84 / 109                87 / 104               
+  as built + gap pad (layout.GAP_PAD)                         67 /  99                84 / 109                86 / 103               
   as built + gap pad at its old spot under the PA             65 /  97                81 / 106                83 / 100               
-  both paddle fixes + 2 oz outer + gap pad                    46 /  78                65 /  90                75 /  92               
+  both paddle fixes + 2 oz outer + gap pad                    46 /  78                64 /  90                74 /  91               
 
 ====================================================================================================
-D. Charger as built: ISET 300 mA (circuit.py), charger U4 at (-30.3, 0.5), NTC TH1 at (20.9, -2.1) beside J3 (21.2, -7.7)
+D. Charger as built: ISET 300 mA (circuit.py), charger U4 at (-30.3, 0.5), NTC TH1 at (23.7, -1.5) beside J3 (23.0, -7.7)
 ====================================================================================================
   TS hot stop: NTC at 59.5 C typ (as low as 55.6 C over the tolerances; verdict uses this); resumes ~5 C lower.  TREG 100 C.  Listening, h = 10, the routed board, no transmit.
   ISET = 300 A.ohm / ICHG (SLUSF65B): 1.00 k -> 300 mA (as built), 750 R -> 400 mA, 604 R -> 497 mA.  Loss scaled with current from the 300 mA solution.
   Ta   VBAT  ICHG    | Tj unthr.  charge%  cell C   NTC C    | verdict
-  25   3.0   300 mA  | 79         100      34       34       | TREG ok, NTC ok, cell ok
+  25   3.0   300 mA  | 79         100      33       33       | TREG ok, NTC ok, cell ok
   25   3.0   400 mA  | 97         100      36       36       | TREG ok, NTC ok, cell ok
-  25   3.0   497 mA  | 114        84       37       37       | throttled, NTC ok, cell ok
+  25   3.0   497 mA  | 114        84       36       36       | throttled, NTC ok, cell ok
   25   3.7   300 mA  | 62         100      31       31       | TREG ok, NTC ok, cell ok
   25   3.7   400 mA  | 74         100      33       33       | TREG ok, NTC ok, cell ok
-  25   3.7   497 mA  | 85         100      35       35       | TREG ok, NTC ok, cell ok
+  25   3.7   497 mA  | 86         100      35       35       | TREG ok, NTC ok, cell ok
   45   3.0   300 mA  | 98         100      53       53       | TREG ok, NTC ok, cell > 45
   45   3.0   400 mA  | 115        78       53       53       | throttled, NTC ok, cell > 45
   45   3.0   497 mA  | 132        63       53       53       | throttled, NTC ok, cell > 45
   45   3.7   300 mA  | 81         100      51       51       | TREG ok, NTC ok, cell > 45
   45   3.7   400 mA  | 93         100      52       52       | TREG ok, NTC ok, cell > 45
   45   3.7   497 mA  | 104        93       53       53       | throttled, NTC ok, cell > 45
-  (cell = the board under J3; TH1 reads the board 5.6 mm from J3 (top side), not the cell itself)
+  (cell = the board under J3; TH1 reads the board 6.2 mm from J3 (bottom side), not the cell itself)
 
-run time 3133 s
+run time 2271 s
