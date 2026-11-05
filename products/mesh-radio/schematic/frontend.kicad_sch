@@ -9068,7 +9068,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "2.0pF"
+		(property "Value" "2.2pF"
 			(at 332 115.9 0)
 			(effects
 				(font
@@ -9086,7 +9086,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GQM1875C2E2R0BB12D"
+		(property "MPN" "GQM1875C2E2R2BB12D"
 			(at 330.2 114.3 0)
 			(effects
 				(font
@@ -9104,7 +9104,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-8124-1-ND"
+		(property "LCSC" "C2179335"
 			(at 330.2 114.3 0)
 			(effects
 				(font
@@ -9113,16 +9113,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C6867410"
-			(at 330.2 114.3 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 2.0pF 250V C0G high-Q 0603"
+		(property "Description" "Capacitor 2.2pF 250V C0G high-Q 0603"
 			(at 330.2 114.3 0)
 			(effects
 				(font
@@ -9237,7 +9228,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "1.3pF"
+		(property "Value" "2.2pF"
 			(at 344.7 115.9 0)
 			(effects
 				(font
@@ -9255,7 +9246,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GQM1875C2E1R3BB12D"
+		(property "MPN" "GQM1875C2E2R2BB12D"
 			(at 342.9 114.3 0)
 			(effects
 				(font
@@ -9273,7 +9264,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-GQM1875C2E1R3BB12DCT-ND"
+		(property "LCSC" "C2179335"
 			(at 342.9 114.3 0)
 			(effects
 				(font
@@ -9282,16 +9273,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C3901219"
-			(at 342.9 114.3 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 1.3pF 250V C0G high-Q 0603"
+		(property "Description" "Capacitor 2.2pF 250V C0G high-Q 0603"
 			(at 342.9 114.3 0)
 			(effects
 				(font
@@ -9406,7 +9388,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.9pF"
+		(property "Value" "1.5pF"
 			(at 357.4 115.9 0)
 			(effects
 				(font
@@ -9424,7 +9406,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GQM1875C2ER90BB12D"
+		(property "MPN" "GQM1875C2E1R5BB12D"
 			(at 355.6 114.3 0)
 			(effects
 				(font
@@ -9442,7 +9424,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-GQM1875C2ER90BB12DCT-ND"
+		(property "LCSC" "C3869699"
 			(at 355.6 114.3 0)
 			(effects
 				(font
@@ -9451,16 +9433,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C1865143"
-			(at 355.6 114.3 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 0.9pF 250V C0G high-Q 0603"
+		(property "Description" "Capacitor 1.5pF 250V C0G high-Q 0603"
 			(at 355.6 114.3 0)
 			(effects
 				(font
@@ -12901,7 +12874,7 @@
 				)
 			)
 		)
-		(property "Value" "3.6pF"
+		(property "Value" "3.0pF"
 			(at 332.74 183.34 0)
 			(effects
 				(font
@@ -12918,7 +12891,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GQM1875C2E3R6BB12D"
+		(property "MPN" "GQM1875C2E3R0BB12D"
 			(at 332.74 180.34 0)
 			(effects
 				(font
@@ -12936,7 +12909,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-8127-1-ND"
+		(property "LCSC" "C2178931"
 			(at 332.74 180.34 0)
 			(effects
 				(font
@@ -12945,16 +12918,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C2178747"
-			(at 332.74 180.34 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 3.6pF 250V C0G high-Q 0603"
+		(property "Description" "Capacitor 3.0pF 250V C0G high-Q 0603"
 			(at 332.74 180.34 0)
 			(effects
 				(font
@@ -13055,7 +13019,7 @@
 				)
 			)
 		)
-		(property "Value" "3.2nH"
+		(property "Value" "3.6nH"
 			(at 43.18 196.04 0)
 			(effects
 				(font
@@ -13072,7 +13036,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "LQW2BAN3N2J00L"
+		(property "MPN" "LQW2BAN3N6J00L"
 			(at 43.18 193.04 0)
 			(effects
 				(font
@@ -13090,7 +13054,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-16041-1-ND"
+		(property "DigiKey" "490-16042-1-ND"
 			(at 43.18 193.04 0)
 			(effects
 				(font
@@ -13099,7 +13063,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C2043110"
+		(property "LCSC" "C2045110"
 			(at 43.18 193.04 0)
 			(effects
 				(font
@@ -13108,7 +13072,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Inductor 3.2nH 0805 wire-wound RF 0805, harmonic filter"
+		(property "Description" "Inductor 3.6nH 0805 wire-wound RF 0805, amplifier output match"
 			(at 43.18 193.04 0)
 			(effects
 				(font
@@ -13209,7 +13173,7 @@
 				)
 			)
 		)
-		(property "Value" "1.3pF"
+		(property "Value" "0.9pF"
 			(at 81.28 196.04 0)
 			(effects
 				(font
@@ -13226,7 +13190,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GQM1875C2E1R3BB12D"
+		(property "MPN" "GQM1875C2ER90BB12D"
 			(at 81.28 193.04 0)
 			(effects
 				(font
@@ -13244,7 +13208,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-GQM1875C2E1R3BB12DCT-ND"
+		(property "DigiKey" "490-GQM1875C2ER90BB12DCT-ND"
 			(at 81.28 193.04 0)
 			(effects
 				(font
@@ -13253,7 +13217,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C3901219"
+		(property "LCSC" "C1865143"
 			(at 81.28 193.04 0)
 			(effects
 				(font
@@ -13262,7 +13226,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Capacitor 1.3pF 250V C0G high-Q 0603"
+		(property "Description" "Capacitor 0.9pF 250V C0G high-Q 0603"
 			(at 81.28 193.04 0)
 			(effects
 				(font

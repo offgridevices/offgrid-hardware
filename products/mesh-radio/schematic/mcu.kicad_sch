@@ -9039,7 +9039,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "0.5pF"
+		(property "Value" "0.9pF"
 			(at 255.8 204.8 0)
 			(effects
 				(font
@@ -9057,7 +9057,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GJM1555C1HR50BB01D"
+		(property "MPN" "GJM1555C1HR90WB01D"
 			(at 254 203.2 0)
 			(effects
 				(font
@@ -9075,7 +9075,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-6077-1-ND"
+		(property "LCSC" "C161350"
 			(at 254 203.2 0)
 			(effects
 				(font
@@ -9084,16 +9084,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C76911"
-			(at 254 203.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 0.5pF 50V C0G high-Q 0402"
+		(property "Description" "Capacitor 0.9pF 50V C0G high-Q +-0.05pF 0402"
 			(at 254 203.2 0)
 			(effects
 				(font
@@ -9208,7 +9199,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "2.7nH"
+		(property "Value" "1.5nH"
 			(at 268.5 204.8 0)
 			(effects
 				(font
@@ -9226,7 +9217,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "LQW15AN2N7C00D"
+		(property "MPN" "LQW15AN1N5C00D"
 			(at 266.7 203.2 0)
 			(effects
 				(font
@@ -9244,7 +9235,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-6800-1-ND"
+		(property "LCSC" "C167468"
 			(at 266.7 203.2 0)
 			(effects
 				(font
@@ -9253,16 +9244,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C98058"
-			(at 266.7 203.2 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Inductor 2.7nH 0402 wire-wound RF"
+		(property "Description" "Inductor 1.5nH 0402 wire-wound RF"
 			(at 266.7 203.2 0)
 			(effects
 				(font
@@ -10146,7 +10128,7 @@
 				)
 			)
 		)
-		(property "Value" "4.7nH"
+		(property "Value" "3.9nH"
 			(at 251.46 234.14 0)
 			(effects
 				(font
@@ -10163,7 +10145,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "LQW15AN4N7C00D"
+		(property "MPN" "LQW15AN3N9C00D"
 			(at 251.46 231.14 0)
 			(effects
 				(font
@@ -10181,7 +10163,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-1139-1-ND"
+		(property "DigiKey" "490-6813-1-ND"
 			(at 251.46 231.14 0)
 			(effects
 				(font
@@ -10190,7 +10172,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C167480"
+		(property "LCSC" "C98063"
 			(at 251.46 231.14 0)
 			(effects
 				(font
@@ -10199,7 +10181,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Inductor 4.7nH 0402 wire-wound RF"
+		(property "Description" "Inductor 3.9nH 0402 wire-wound RF"
 			(at 251.46 231.14 0)
 			(effects
 				(font
@@ -10300,7 +10282,7 @@
 				)
 			)
 		)
-		(property "Value" "1.0pF"
+		(property "Value" "1.6pF"
 			(at 294.64 234.14 0)
 			(effects
 				(font
@@ -10317,7 +10299,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "GJM1555C1H1R0BB01D"
+		(property "MPN" "GJM1555C1H1R6BB01D"
 			(at 294.64 231.14 0)
 			(effects
 				(font
@@ -10335,7 +10317,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-6073-1-ND"
+		(property "LCSC" "C161311"
 			(at 294.64 231.14 0)
 			(effects
 				(font
@@ -10344,16 +10326,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C76898"
-			(at 294.64 231.14 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Capacitor 1.0pF 50V C0G high-Q 0402"
+		(property "Description" "Capacitor 1.6pF 50V C0G high-Q 0402"
 			(at 294.64 231.14 0)
 			(effects
 				(font
@@ -10454,7 +10427,7 @@
 				)
 			)
 		)
-		(property "Value" "3.9nH"
+		(property "Value" "2.7nH"
 			(at 332.74 234.14 0)
 			(effects
 				(font
@@ -10471,7 +10444,7 @@
 				(hide yes)
 			)
 		)
-		(property "MPN" "LQW15AN3N9C00D"
+		(property "MPN" "LQW15AN2N7C00D"
 			(at 332.74 231.14 0)
 			(effects
 				(font
@@ -10489,7 +10462,7 @@
 				(hide yes)
 			)
 		)
-		(property "DigiKey" "490-6813-1-ND"
+		(property "DigiKey" "490-6800-1-ND"
 			(at 332.74 231.14 0)
 			(effects
 				(font
@@ -10498,7 +10471,7 @@
 				(hide yes)
 			)
 		)
-		(property "LCSC" "C98063"
+		(property "LCSC" "C98058"
 			(at 332.74 231.14 0)
 			(effects
 				(font
@@ -10507,7 +10480,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Inductor 3.9nH 0402 wire-wound RF"
+		(property "Description" "Inductor 2.7nH 0402 wire-wound RF"
 			(at 332.74 231.14 0)
 			(effects
 				(font
