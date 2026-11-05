@@ -88,10 +88,14 @@ def draw(b, comps, log=print):
             # beside the plug) the nearest free spot round the plug instead
             q = b.FindFootprintByReference(by(part)).GetPosition()
             at = None
-            for sz in (0.7, 0.6, 0.5):
-                at = bot.text_near(s, (q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY), size=sz, face='mono', radius=6.0)
+            # (5 Nov: with the denser ground stitching nothing within 6 mm
+            # was free for DISP/I2C level: turned up the board, out to 9 mm)
+            for sz, rot, rad in ((0.7, 0, 6.0), (0.6, 0, 6.0), (0.5, 0, 6.0), (0.7, 90, 6.0), (0.6, 90, 6.0),
+                                 (0.6, 0, 9.0), (0.6, 90, 9.0), (0.5, 90, 9.0)):
+                at = bot.text_near(s, (q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY), size=sz, face='mono', radius=rad,
+                                   rot=rot)
                 if at is not None:
-                    log('plug name %s at (%.1f, %.1f), %.1f mm' % (s, at[0], at[1], sz))
+                    log('plug name %s at (%.1f, %.1f), %.1f mm%s' % (s, at[0], at[1], sz, ', turned' if rot else ''))
                     break
             if at is None:
                 raise SystemExit('silk: no room for the plug name %r' % s)

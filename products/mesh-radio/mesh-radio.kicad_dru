@@ -26,6 +26,9 @@
   (condition "A.NetClass == 'RF' && B.Type == 'Zone'")
   (constraint clearance (min 0.25mm)))
 
+(rule "RF gap to other nets' tracks and vias"
+  (condition "A.NetClass == 'RF' && A.Type == 'Track' && (B.Type == 'Track' || B.Type == 'Via') && B.NetClass != 'RF' && B.NetName != 'GND' && !B.intersectsCourtyard('U*')")
+  (constraint clearance (min 0.25mm)))
 (rule "gap pad: ground vias only"
   (condition "A.Type == 'Via' && A.NetName != 'GND' && A.intersectsArea('gap pad')")
   (constraint disallow via))
