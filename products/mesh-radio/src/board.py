@@ -188,6 +188,26 @@ def build(out, replace=False):
         for t in b.GetTracks():
             if t.m_Uuid.AsString() not in before:
                 t.SetLocked(True)
+    # the SX1262's VR_PA pin (24) to its feed choke, drawn and locked: the
+    # pin sits between the chip's corner and RFO's escape, and once the
+    # ground fan-out put a via above it no router could reach it, even
+    # alone (5 Nov, three re-routes).  Straight up beside the RFO escape at
+    # the RF gap, then across to the choke's VR_PA pad above the line.
+    sxr = [c.ref for c in comps if c.part == 'SX1262']
+    chk = [c.ref for c in comps if set(c.pins.values()) == {'LORA_VRPA', 'LORA_RFO'}]
+    if sxr and chk:
+        mm_ = lambda p: (p.GetPosition().x / 1e6 - pcb.CX, p.GetPosition().y / 1e6 - pcb.CY)
+        sxf = b.FindFootprintByReference(sxr[0]); lf = b.FindFootprintByReference(chk[0])
+        p24 = [p for p in sxf.Pads() if p.GetNetname() == 'LORA_VRPA'][0]
+        x0, y0 = mm_(p24)
+        lx, ly = mm_([p for p in lf.Pads() if p.GetNetname() == 'LORA_VRPA'][0])
+        xe = x0 + p24.GetSize().x / 2e6 - 0.2 if abs(sxf.GetOrientationDegrees()) % 180 == 0 else x0
+        if ly < y0 - 1.0:
+            before = set(t.m_Uuid.AsString() for t in b.GetTracks())
+            pcb.track(b, [(x0, y0), (xe, y0), (xe, ly), (lx, ly)], 0.2, pcbnew.F_Cu, 'LORA_VRPA')
+            for t in b.GetTracks():
+                if t.m_Uuid.AsString() not in before:
+                    t.SetLocked(True)
     # the cell current's sense loop: the protection FETs' source pins
     # straight into the 15 mR shunt beside them on the bottom, short and
     # wide, no layer change (until 3 Nov it dropped to In1 and back: 18 mR
