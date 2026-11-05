@@ -16,7 +16,7 @@ Adapted from Ridge 3 Lite's pipeline: a solid ground plane on In1, routing
 on the five other layers (ground-filled after), and the RF lines kept clear
 of other copper.
 """
-import os, sys, shutil
+import os, sys, shutil, math
 from collections import Counter
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -1186,37 +1186,105 @@ def finish_tail(fin, work, w, cl):
     return finish_clean(fin, work, w, cl)
 
 
+def trim_overshoots(fin, ids, log=log):
+    """Tracks (by uuid) with a free end that run past their last joint (a
+    same-net track end, via or pad touching them part-way): the free end is
+    moved back to that joint.  Returns the count."""
+    from shapely.geometry import Point, LineString
+    b = pcbnew.LoadBoard(fin)
+    mmv = lambda v: v / 1e6
+    k = 0
+    for t in list(b.GetTracks()):
+        if t.m_Uuid.AsString() not in ids or t.GetClass() == 'PCB_VIA':
+            continue
+        n, l, hw = t.GetNetname(), t.GetLayer(), t.GetWidth() / 2e6
+        s_, e_ = t.GetStart(), t.GetEnd()
+        A, Bp = (mmv(s_.x), mmv(s_.y)), (mmv(e_.x), mmv(e_.y))
+        seg = LineString([A, Bp])
+        touch = []
+        others = [o for o in b.GetTracks() if o.GetNetname() == n and o.m_Uuid != t.m_Uuid]
+        for o in others:
+            if o.GetClass() == 'PCB_VIA':
+                q = o.GetPosition(); touch.append((mmv(q.x), mmv(q.y)))
+            elif o.GetLayer() == l:
+                for q in (o.GetStart(), o.GetEnd()):
+                    touch.append((mmv(q.x), mmv(q.y)))
+        for fp in b.GetFootprints():
+            for p in fp.Pads():
+                if p.GetNetname() == n and p.IsOnLayer(l):
+                    q = p.GetPosition(); touch.append((mmv(q.x), mmv(q.y)))
+        on = [q for q in touch if seg.distance(Point(q)) <= hw + 1e-3]
+        free = [E for E in (A, Bp) if not any(math.hypot(E[0] - q[0], E[1] - q[1]) <= hw + 1e-3 for q in on)]
+        if len(free) != 1 or not on:
+            continue
+        E = free[0]
+        q = min(on, key=lambda q: math.hypot(E[0] - q[0], E[1] - q[1]))
+        pt = seg.interpolate(seg.project(Point(q)))
+        v = pcbnew.VECTOR2I(pcbnew.FromMM(pt.x), pcbnew.FromMM(pt.y))
+        if E == A:
+            t.SetStart(v)
+        else:
+            t.SetEnd(v)
+        k += 1
+    if k:
+        b.Save(fin)
+        log('  trimmed %d tracks back to their last joint' % k)
+    return k
+
+
 def prune_dangling(fin, work, rounds=20, log=log):
     """The dangling track ends the clean-up leaves (5 Nov: inner-layer
     stubs of nets the local repair re-laid; its trims keep only a change
-    with fewer warnings by its own count) are taken out run by run, from
-    KiCad's own list, as long as nothing else gets worse."""
-    e0, w0, u0 = pcb.drc(fin, os.path.join(work, 'prune.json'))
+    with fewer warnings by its own count) are dealt with from KiCad's own
+    list, each change kept only if no error or open connection is added:
+    all taken out at once; else one by one, and a piece that carries its
+    net through its middle is cut back to its last joint instead."""
+    dj = os.path.join(work, 'prune.json')
+    e0, w0, u0 = pcb.drc(fin, dj)
+    bak = fin + '.prune'
+
+    def attempt(change):
+        shutil.copy(fin, bak)
+        if not change():
+            return False
+        pcb.tidy_tracks(fin)
+        e1, w1, u1 = pcb.drc(fin, dj)
+        if len(e1) > len(e0) or len(u1) > len(u0):
+            shutil.copy(bak, fin)
+            return False
+        return (e1, w1, u1)
+
+    def remove(ids):
+        def f():
+            b = pcbnew.LoadBoard(fin)
+            n = 0
+            for t in list(b.GetTracks()):
+                if t.m_Uuid.AsString() in ids:        # (locked too: the DRC check guards it)
+                    pcb.remove(b, t); n += 1
+            if n:
+                b.Save(fin)
+            return n
+        return f
+
     k = 0
     for _ in range(rounds):
-        ids = set(v['items'][0]['uuid'] for v in w0 if v['type'] == 'track_dangling')
+        ids = [v['items'][0]['uuid'] for v in w0 if v['type'] in ('track_dangling', 'via_dangling')]
         if not ids:
             break
-        bak = fin + '.prune'
-        shutil.copy(fin, bak)
-        b = pcbnew.LoadBoard(fin)
-        n = 0
-        for t in list(b.GetTracks()):
-            if t.m_Uuid.AsString() in ids and not t.IsLocked():
-                pcb.remove(b, t); n += 1
-        if not n:
+        r = attempt(remove(set(ids)))
+        if r:
+            e0, w0, u0 = r; k += len(ids)
+            continue
+        moved = False
+        for i in ids:
+            r = attempt(remove({i})) or attempt(lambda: trim_overshoots(fin, {i}, log=lambda *a: None))
+            if r:
+                e0, w0, u0 = r; k += 1; moved = True
+        if not moved:
             break
-        b.Save(fin)
-        e1, w1, u1 = pcb.drc(fin, os.path.join(work, 'prune.json'))
-        if len(e1) > len(e0) or len(u1) > len(u0):
-            log('  prune: taking out %d more pieces made it worse (%d/%d errors, %d/%d open), put back'
-                % (n, len(e1), len(e0), len(u1), len(u0)))
-            shutil.copy(bak, fin)
-            break
-        k += n
-        e0, w0, u0 = e1, w1, u1
     if k:
-        log('pruned %d dangling track pieces' % k)
+        log('dealt with %d dangling track pieces and vias; %d left' % (
+            k, sum(v['type'] in ('track_dangling', 'via_dangling') for v in w0)))
     return k
 
 
