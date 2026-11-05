@@ -13,8 +13,10 @@ x (1 + 0.00393 x 5) = 1.758e-8 at 25 C; thickness per layer from the
 board's own stackup (outer 35 um, inner 17.5 um); via barrels 18 um of
 plating (JLCPCB's stated minimum average; typical is 20-25 um).
 
-Power nets (tracks only: none of these nets has a pour on this board): each
-net is a resistor network.  Every track or arc segment is a resistor
+Power nets: a net with a pour (src/pipeline.py power_pours, since 4 Nov
+2026) is rasterised and solved as GND is, below (pour, tracks, pads, vias
+of the net); its L is still its track route's.  A net with tracks only is
+a resistor network.  Every track or arc segment is a resistor
 (rho L / (w t)); segment ends join where they coincide, lie inside a pad
 or a via's annular ring on that layer, or end on another segment (a T,
 which splits that segment).  A via is a chain of barrel resistors between
@@ -174,7 +176,8 @@ def l_per_mm(w, h):
 
 # ---------------------------------------------------------------- GND raster
 class Ground:
-    def __init__(self, h=GRID):
+    def __init__(self, h=GRID, net='GND'):
+        self.net = net
         bb = b.GetBoardEdgesBoundingBox()
         self.x0, self.y0 = bb.GetX() * MM, bb.GetY() * MM
         self.nx, self.ny = int(math.ceil(bb.GetWidth() * MM / h)), int(math.ceil(bb.GetHeight() * MM / h))
@@ -184,7 +187,7 @@ class Ground:
         self.X, self.Y = np.meshgrid(xs, ys)
         self.cov = {n: np.zeros((self.ny, self.nx), bool) for n in CU}
         for z in b.Zones():
-            if z.GetNetname() != 'GND' or z.GetIsRuleArea():
+            if z.GetNetname() != self.net or z.GetIsRuleArea():
                 continue
             for L in z.GetLayerSet().Seq():
                 if L not in LNAME:
@@ -192,14 +195,14 @@ class Ground:
                 self._poly(z.GetFilledPolysList(L), LNAME[L])
         self.vias = []
         for t in b.GetTracks():
-            if t.GetNetname() != 'GND':
+            if t.GetNetname() != self.net:
                 continue
             if t.GetClass() == 'PCB_VIA':
                 self.vias.append((t.GetPosition().x * MM, t.GetPosition().y * MM, t.GetDrillValue() * MM,
                                   via_span(t)))
             else:
                 self._seg(t)
-        self.gpads = [p for p in b.GetPads() if p.GetNetname() == 'GND']
+        self.gpads = [p for p in b.GetPads() if p.GetNetname() == self.net]
         for p in self.gpads:
             for n in pad_layers(p):
                 self.cov[n] |= self.pad_mask(p, n)
@@ -300,7 +303,7 @@ class Ground:
                 m = self.pad_mask(p, n) & (self.idx[n] >= 0)
                 cells += list(self.idx[n][m])
         if not cells:
-            raise SystemExit('no GND copper under %s' % ref)
+            raise SystemExit('no %s copper under %s' % (self.net, ref))
         return sorted(set(cells))
 
     def solve(self, src, snk, taps=()):
@@ -583,10 +586,23 @@ def main():
     gnd = Ground()
     nets = {}
 
+    meshes = {}
+
     def path(net, a, c, taps=()):
         if net not in nets:
             nets[net] = Net(net, gnd)
-        return nets[net].solve(a, c, taps)
+        res = nets[net].solve(a, c, taps)
+        # a net with a pour (src/pipeline.py power_pours since 4 Nov): R
+        # from the copper raster, as GND's (pour, tracks, pads and vias of
+        # the net); L stays the track route's (pessimistic)
+        if any(z.GetNetname() == net and not z.GetIsRuleArea() and z.IsFilled() for z in b.Zones()):
+            if net not in meshes:
+                meshes[net] = Ground(net=net)
+            m = meshes[net]
+            term = lambda t: m.terminal(t[0], t[1] if len(t) > 1 else None)
+            Rm, tv = m.solve(term(a), term(c), [(n, term(r)) for n, r in taps])
+            res.update(R=Rm, taps=tv, poured=True)
+        return res
 
     def gpath(a, c, taps=()):
         return gnd.solve(gnd.terminal(a), gnd.terminal(c), [(n, gnd.terminal(r)) for n, r in taps])

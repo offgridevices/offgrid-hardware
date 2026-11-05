@@ -27,21 +27,22 @@ import powerlib as P
 # --- PCB parasitics, extracted (sim/extract.py; R at 25 C includes the GND return
 # where noted; L is the loop over the nearest GND copper) ------------------------
 #               R (Ohm)  L (H)        pre-routing estimate (R, L): path
-TRACE_BAT = (0.0044, 4.5e-9)    # (6 mOhm, 6 nH): J3 -> Q1 (BATT_PLUS) + J3 <- Q3 (CELL_MINUS) + GND U14 -> R34, outside the sense loop
-TRACE_MUX1 = (0.0346, 4.9e-9)   # (5, 5): Q1 source -> TPS2121 IN1 (BAT_P: In2/In3/In4, 0.5 oz)
-TRACE_PAIN = (0.0261, 4.9e-9)   # (3, 3): TPS2121 OUT -> TPS63810 VIN (PA_IN)
-TRACE_VPA = (0.0123, 3.3e-9)    # (5, 5): TPS63810 VOUT -> L14 collector choke (VPA) + GND QPA9510 -> TPS63810
-TRACE_USB = (0.0191, 4.2e-9)    # (5, 5): USB-C VBUS -> TPS259470A IN + GND charger -> USB-C
-TRACE_5V = (0.0307, 5.9e-9)     # (none): TPS259470A OUT -> RB060MM -> BQ25185 IN (USB_5V + VIN_CHG)
-TRACE_CHG = (0.1885, 25.9e-9)   # (none): Q1 source -> BQ25185 BAT (BAT_P, 50 mm across the board)
-TRACE_BYP = (0.0832, 12.4e-9)   # (none): Q1 source -> TPS22950 VIN (BAT_P)
-TRACE_SYS2 = (0.2368, 28.3e-9)  # (none): BQ25185 SYS -> TPS2121 IN2 (VSYS)
-TRACE_SOLAR = (0.0041, 0.5e-9)  # (5, 5 in hotplug): solar JST -> MAX17608 IN + GND charger -> JST
-TRACE_DRONE = (0.1436, 16.3e-9) # (5, 5 in hotplug): drone JST-GH -> MAX17608 IN + GND charger -> JST-GH
+TRACE_BAT = (0.0202, 11.5e-9)    # (6 mOhm, 6 nH): J3 -> Q1 (BATT_PLUS) + J3 <- Q3 (CELL_MINUS) + GND U14 -> R34, outside the sense loop
+TRACE_MUX1 = (0.0826, 8.1e-9)   # (5, 5): Q1 source -> TPS2121 IN1 (BAT_P: In2/In3/In4, 0.5 oz; 15 mm since the battery plug moved right, 5 Nov)
+TRACE_PAIN = (0.0119, 7.4e-9)   # (3, 3): TPS2121 OUT -> TPS63810 VIN (PA_IN)
+TRACE_VPA = (0.0082, 3.9e-9)    # (5, 5): TPS63810 VOUT -> L14 collector choke (VPA) + GND QPA9510 -> TPS63810
+TRACE_USB = (0.0087, 3.3e-9)    # (5, 5): USB-C VBUS -> TPS259470A IN + GND charger -> USB-C
+TRACE_5V = (0.0171, 8.6e-9)     # (none): TPS259470A OUT -> RB060MM -> BQ25185 IN (USB_5V + VIN_CHG)
+TRACE_CHG = (0.1493, 29.4e-9)   # (none): Q1 source -> BQ25185 BAT (BAT_P, 50 mm across the board)
+TRACE_BYP = (0.1629, 26.5e-9)   # (none): Q1 source -> TPS22950 VIN (BAT_P)
+TRACE_SYS2 = (0.1154, 26.1e-9)  # (none): BQ25185 SYS -> TPS2121 IN2 (VSYS)
+TRACE_SOLAR = (0.0018, 0.8e-9)  # (5, 5 in hotplug): solar JST -> MAX17608 IN + GND charger -> JST
+TRACE_DRONE = (0.0356, 7.4e-9) # (5, 5 in hotplug): drone JST-GH -> MAX17608 IN + GND charger -> JST-GH
 # in the BQ29700's sense loop, in series with the 15 mOhm sense resistor (V- through
-# 2.2 k to GND at R33, VSS on CELL_MINUS at U5): CELL_MINUS VSS tap -> Q3 0.65,
-# PROT_S2 Q3 -> R34 16.9 (0.1-0.6 mm, 5 mm on In1), GND R34 -> R33 0.51 mOhm
-SENSE_TRACE = 0.0181            # (none: the README asked for it to be added here)
+# 2.2 k to GND at R33, VSS on CELL_MINUS at U5): since 5 Nov the FETs' source pins
+# run straight into R34 beside them on B.Cu, 0.6 mm wide and poured (until then
+# 18.1 mOhm: PROT_S2 dropped to In1 for 5 mm, 16.9 mOhm of it)
+SENSE_TRACE = 0.0004            # (none: the README asked for it to be added here)
 CU_TC = 0.00393                 # copper, 1/K
 CABLE_USB = (0.200, 1.0e-6)    # 1 m USB cable, both conductors
 LEAD_PANEL = (0.10, 1.0e-6)    # 1 m solar lead
