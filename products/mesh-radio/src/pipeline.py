@@ -447,6 +447,47 @@ def write_rules(path):
     pcb.write_rules(path, board.RULES)
 
 
+def rf_gap_strip(b, log=log):
+    """Freerouting takes each net class's own clearance, not the larger of
+    the pair: other nets' tracks and vias came 0.14-0.2 mm from RF lines
+    whose class keeps 0.25 (board.RF_GAP; 5 Nov, DRN_P4 along LNA_OUT).
+    Those pieces are taken out (outside the chips' courtyards, as the DRC
+    rule) and the maze, which keeps the larger clearance, lays them again.
+    Returns the count."""
+    from shapely.geometry import box
+    from shapely.ops import unary_union
+    rf = set(board.RF_NETS + board.RF_EXTRA)
+    lines = {}
+    for t in b.GetTracks():
+        if t.GetNetname() in rf and t.GetClass() != 'PCB_VIA':
+            for l, gl in finish._geom_of(t).items():
+                lines.setdefault(l, []).extend(gl)
+    lines = {l: unary_union(gl) for l, gl in lines.items()}
+    court = []
+    for fp in b.GetFootprints():
+        if fp.GetReference().startswith('U'):
+            cy = fp.GetCourtyard(pcbnew.F_CrtYd if not fp.IsFlipped() else pcbnew.B_CrtYd)
+            if cy.OutlineCount():
+                bb = cy.BBox()
+                court.append(box(bb.GetLeft() / 1e6, bb.GetTop() / 1e6, bb.GetRight() / 1e6, bb.GetBottom() / 1e6))
+    court = unary_union(court) if court else None
+    k = 0
+    for t in list(b.GetTracks()):
+        n = t.GetNetname()
+        if n in rf or n in ('GND', '') or t.IsLocked():
+            continue
+        for l, gl in finish._geom_of(t).items():
+            if l not in lines:
+                continue
+            if any(q.distance(lines[l]) < board.RF_GAP - 1e-3 and not (court is not None and court.contains(q))
+                   for q in gl):
+                pcb.remove(b, t); k += 1
+                break
+    if k:
+        log('took out %d pieces of other nets closer than %.2f mm to an RF line' % (k, board.RF_GAP))
+    return k
+
+
 def finish_stage(routed, fin, work):
     """The routing's leftovers, the ground pour and DRC.  Returns the DRC result."""
     comps = circuit.build()
@@ -458,8 +499,10 @@ def finish_stage(routed, fin, work):
         if t.GetNetname() in PLANES and not t.IsLocked():
             pcb.remove(b, t); k += 1
     if k:
-        b.Save(routed)
         log('removed %d router-made ground tracks and vias' % k)
+    g = rf_gap_strip(b)
+    if k or g:
+        b.Save(routed)
     fixed = os.path.join(work, 'fixed.kicad_pcb')
     shutil.copy(routed, fixed); pcb.copy_project(routed, fixed)
     fab_fixups(fixed)
@@ -1695,6 +1738,7 @@ if __name__ == '__main__':
         apply_moves(b)
         gone = finish.drop_area_vias(b)
         if gone: log('took out vias where only another net may stand: %s' % (gone,))
+        rf_gap_strip(b)
         # the pours filled afresh: a stale fill joined PA_V1F's pieces here
         # while KiCad's own count, after its refill, found it open (5 Nov)
         pcbnew.ZONE_FILLER(b).Fill(b.Zones())

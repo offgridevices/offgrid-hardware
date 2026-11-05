@@ -318,7 +318,7 @@ WIDTH_FALLBACK = True
 # route_net's last resort: a soft-copper path that crosses nothing (exact check)
 EXACT_FALLBACK = bool(int(os.environ.get('EXACT_FALLBACK', 1)))
 SOFT_EXCLUDE = ('GND',)
-VIA_NET_AREAS = {'gap pad': 'GND'}     # rule area name: the one net whose vias may stand in it   # never soft: the plane net's copper
+from fanout import VIA_NET_AREAS   # rule area name: the one net whose vias may stand in it   # never soft: the plane net's copper
 # the price (grid cells of detour) of crossing another net's copper once
 RIP_COST = float(os.environ.get('RIP_COST', 60))
 # search budget (cells) of route_connection's last, whole-board try

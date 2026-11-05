@@ -27,6 +27,7 @@ def pad_poly(pad, layer):
     return unary_union(polys) if polys else None
 
 EDGE_CL = 0.3      # mm: copper to the board edge (board setup)
+VIA_NET_AREAS = {'gap pad': 'GND'}   # rule area name: the one net whose vias may stand there (finish.VIA_NET_AREAS)
 
 
 class Obstacles:
@@ -74,6 +75,7 @@ class Obstacles:
             self.inside = _bx(mm(eb.GetLeft()) + EDGE_CL, mm(eb.GetTop()) + EDGE_CL,
                               mm(eb.GetRight()) - EDGE_CL, mm(eb.GetBottom()) - EDGE_CL)
         self.keepouts = []
+        self.net_areas = []                   # (area, the one net whose vias may stand there)
         self.track_keepouts = {l: [] for l in layers}     # rule areas with no tracks, by layer (a stub is a track)
         for z in board.Zones():
             if not z.GetIsRuleArea():
@@ -82,6 +84,8 @@ class Obstacles:
             poly = Polygon([(mm(ol.CPoint(j).x), mm(ol.CPoint(j).y)) for j in range(ol.PointCount())])
             if z.GetDoNotAllowVias():
                 self.keepouts.append(poly)
+            elif z.GetZoneName() in VIA_NET_AREAS:
+                self.net_areas.append((poly, VIA_NET_AREAS[z.GetZoneName()]))
             if z.GetDoNotAllowTracks():
                 for l in layers:
                     if z.IsOnLayer(l):
@@ -132,6 +136,12 @@ class Obstacles:
         for k in self.keepouts:
             if k.intersects(geom):
                 return False
+        # a via of another net may not stand where only one net's may (5 Nov:
+        # a lone pad's CELL_MINUS via went into the gap pad, bare ground copper)
+        if not track:
+            for k, only in self.net_areas:
+                if net != only and k.intersects(geom):
+                    return False
         # a stub may not enter an area that forbids tracks on its layer (3 Nov:
         # a ground stub ran 0.02 mm into the gap pad's area, items_not_allowed)
         if track:
