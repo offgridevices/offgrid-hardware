@@ -225,6 +225,12 @@ def place_all(log=print):
     # its output down the right end to the antenna switch, the antenna
     # through the filter to the U.FL, receive back along the bottom
     sx = ref(comps, 'SX1262')
+    # VDD_IN's 1 uF right off pin 1, on top (until 5 Nov it was packed on the
+    # bottom 5 mm away, and pin 1, boxed in by the SX1262's RF corner, ended
+    # open through every repair; Semtech puts it at the pin)
+    vdd = [c.ref for c in comps if c.note == 'VDD_IN'][0]
+    p1 = B.pad_xy(sx, '1')
+    put_pad(B, vdd, '3V3', (p1[0], p1[1] - 0.9), (0, -0.1), 'GND', (0, -1), tries=20)
     # the receive balun first: its inductor stands across the RFI_N line just
     # out of the pins (RFI_N on top, RFI_P below, level with pin 21's escape),
     # the RFI_P capacitor under it, then the line on through its series cap
