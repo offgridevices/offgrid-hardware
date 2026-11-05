@@ -1606,7 +1606,7 @@ FIRST_NETS = ['LORA_DIO1', 'LORA_BUSY', 'LORA_NRESET', 'LORA_MISO', 'LORA_MOSI',
               # (and the two short ones the 5 Nov re-route then left open:
               # the SX1262's VR_PA feed at its RF corner, and the mux's
               # soft-start capacitor under it)
-              'LORA_VRPA', 'MUX_SS']
+              'LORA_VRPA', 'MUX_SS', 'MUX_ILM']
 
 
 def route_first(placed, out, nets=FIRST_NETS, passes=10, log=log):
