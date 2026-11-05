@@ -1581,6 +1581,14 @@ if __name__ == '__main__':
         comps = circuit.build(); w, cl = widths(comps), clearances(comps)
         setup_routers()
         b = pcbnew.LoadBoard(fin)
+        # the SX1262 bus was locked only to route round it; the repair may
+        # move it like any other net (5 Nov: the last 3V3 and LORA_DIO2 gaps
+        # sat right at the SX1262, boxed in by the locked bus)
+        k = 0
+        for t in b.GetTracks():
+            if t.GetNetname() in FIRST_NETS and t.IsLocked():
+                t.SetLocked(False); k += 1
+        if k: log('unlocked %d pieces of the SX1262 bus' % k)
         gone = finish.drop_area_vias(b)
         if gone: log('took out vias where only another net may stand: %s' % (gone,))
         left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
