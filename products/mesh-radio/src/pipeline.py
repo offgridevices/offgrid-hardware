@@ -1180,6 +1180,38 @@ def finish_tail(fin, work, w, cl):
     return finish_clean(fin, work, w, cl)
 
 
+def prune_dangling(fin, work, rounds=6, log=log):
+    """The dangling track ends the clean-up leaves (5 Nov: inner-layer
+    stubs of nets the local repair re-laid; its trims keep only a change
+    with fewer warnings by its own count) are taken out run by run, from
+    KiCad's own list, as long as nothing else gets worse."""
+    e0, w0, u0 = pcb.drc(fin, os.path.join(work, 'prune.json'))
+    k = 0
+    for _ in range(rounds):
+        ids = set(v['items'][0]['uuid'] for v in w0 if v['type'] == 'track_dangling')
+        if not ids:
+            break
+        bak = fin + '.prune'
+        shutil.copy(fin, bak)
+        b = pcbnew.LoadBoard(fin)
+        n = 0
+        for t in list(b.GetTracks()):
+            if t.m_Uuid.AsString() in ids and not t.IsLocked():
+                pcb.remove(b, t); n += 1
+        if not n:
+            break
+        b.Save(fin)
+        e1, w1, u1 = pcb.drc(fin, os.path.join(work, 'prune.json'))
+        if len(e1) > len(e0) or len(u1) > len(u0):
+            shutil.copy(bak, fin)
+            break
+        k += n
+        e0, w0, u0 = e1, w1, u1
+    if k:
+        log('pruned %d dangling track pieces' % k)
+    return k
+
+
 def finish_clean(fin, work, w=None, cl=None):
     """The hole pass, clean-up, POFV spacing, stackup and DRC."""
     import cleanup, pofv
@@ -1195,6 +1227,7 @@ def finish_clean(fin, work, w=None, cl=None):
         finish.finish_board(fin, fin, os.path.join(work, 'fin3.json'), rules=w, clmap=cl)
         write_rules(fin)
     cleanup.clean(fin, board.RULES, log=log)
+    prune_dangling(fin, work)
     dj = os.path.join(work, 'pofv_drc.json')
     e, wn, u = pcb.drc(fin, dj)
     if any(v['type'] == 'hole_to_hole' for v in e):
@@ -1389,6 +1422,8 @@ def _pad_via(path, ref_, num_, l, poly, net, w, cl, protect, reach, inpad=True, 
             if t.m_Uuid.AsString() in rid:
                 pcb.remove(bf, t)
         fixed = fanout.Obstacles(bf, layers)
+        # (and the RF lines' own gap: 5 Nov, a lone pad's via went 0.2 mm from LNA_OUT)
+        fixed.NET_CL = {n_: board.RF_GAP for n_ in board.RF_NETS + board.RF_EXTRA}
         c = poly.centroid
         spots = [(c.x, c.y, False)] if inpad else []
         rr = [0.35, 0.45, 0.55] + ([0.65, 0.75, 0.85, 0.95] if reach > 0.6 else [])
@@ -1744,6 +1779,12 @@ if __name__ == '__main__':
         pcbnew.ZONE_FILLER(b).Fill(b.Zones())
         left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
         b.Save(fin)
+        # and every net KiCad itself finds open (its refill and connectivity
+        # are what the DRC gate counts; 5 Nov, BAT_P open to KiCad only)
+        _, _, u_ = pcb.drc(fin, os.path.join(work, 'loc_start.json'))
+        left = sorted(set(left) | set(x['items'][0]['description'].split('[')[1].split(']')[0] for x in u_
+                                      if '[' in x['items'][0]['description']) - set(PLANES))
+        b = pcbnew.LoadBoard(fin)
         if left and lone_pads(fin, left, w, cl, protect=PLANES + list(board.RF_NETS) + list(board.RF_EXTRA)):
             b = pcbnew.LoadBoard(fin)
             pcbnew.ZONE_FILLER(b).Fill(b.Zones())
