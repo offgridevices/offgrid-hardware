@@ -1598,7 +1598,11 @@ ROUTE_IN1 = bool(int(os.environ.get('ROUTE_IN1', 1)))
 # two chips filled with other nets on every layer and two to three of these
 # lines were left open, whatever their pin order; the placement keeps a lane
 # for them on top only)
-FIRST_NETS = ['LORA_DIO1', 'LORA_BUSY', 'LORA_NRESET', 'LORA_MISO', 'LORA_MOSI', 'LORA_SCK', 'LORA_NSS']
+FIRST_NETS = ['LORA_DIO1', 'LORA_BUSY', 'LORA_NRESET', 'LORA_MISO', 'LORA_MOSI', 'LORA_SCK', 'LORA_NSS',
+              # and the short nets that ended boxed in under them (5 Nov: U6's
+              # two signal balls, and the SX1262's DIO2 to its switch resistor,
+              # were the last opens through five local repairs)
+              'BYP_OUT', 'BYP_ILIM', 'LORA_DIO2']
 
 
 def route_first(placed, out, nets=FIRST_NETS, passes=10, log=log):
