@@ -1316,11 +1316,28 @@ def ground_pads(path, w, cl, protect, reach=GROUND_REACH, log=log):
             cands.append((fp.GetReference(), p.GetNumber(), l, poly))
     del b
     log('ground pads with no via within %.1f mm: %s' % (reach, ['%s.%s' % c[:2] for c in cands]))
-    d_, dr_ = board.VIA_PAD
     done = []
     for ref_, num_, l, poly in cands:
+        r_ = _pad_via(path, ref_, num_, l, poly, 'GND', w, cl, protect, reach, inpad=True)
+        if r_:
+            done.append('%s.%s' % (ref_, num_))
+    return done
+
+
+def _pad_via(path, ref_, num_, l, poly, net, w, cl, protect, reach, inpad=True, stub_w=0.2, log=log):
+    """One via for one pad of `net`, saved into the board at `path`: in the
+    pad (filled, board.VIA_PAD) when `inpad`, else at the nearest legal spot
+    beside it within `reach` mm on a stub `stub_w` wide.  Other nets'
+    unlocked copper on the spot is torn out and those nets re-laid locally;
+    kept only if they all close.  True if a via was placed."""
+    import math, fanout
+    from shapely.geometry import Point, LineString
+    layers = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.In3_Cu, pcbnew.In4_Cu, pcbnew.B_Cu]
+    d_, dr_ = board.VIA_PAD
+    tag = 'ground' if net == 'GND' else net
+    if True:
         b = pcbnew.LoadBoard(path)
-        removable = [t for t in b.GetTracks() if t.GetNetname() not in ('GND', '') and t.GetNetname() not in protect
+        removable = [t for t in b.GetTracks() if t.GetNetname() not in (net, '') and t.GetNetname() not in protect
                      and not t.IsLocked()]
         rid = set(t.m_Uuid.AsString() for t in removable)
         # the fixed copper: everything but those (a second copy of the board, thinned)
@@ -1329,10 +1346,10 @@ def ground_pads(path, w, cl, protect, reach=GROUND_REACH, log=log):
             if t.m_Uuid.AsString() in rid:
                 pcb.remove(bf, t)
         fixed = fanout.Obstacles(bf, layers)
-        full = fanout.Obstacles(b, layers)
         c = poly.centroid
-        spots = [(c.x, c.y, False)]
-        for r in (0.35, 0.45, 0.55):
+        spots = [(c.x, c.y, False)] if inpad else []
+        rr = [0.35, 0.45, 0.55] + ([0.65, 0.75, 0.85, 0.95] if reach > 0.6 else [])
+        for r in rr:
             for k in range(16):
                 a = 2 * math.pi * k / 16
                 x, y = c.x + r * math.cos(a), c.y + r * math.sin(a)
@@ -1344,19 +1361,19 @@ def ground_pads(path, w, cl, protect, reach=GROUND_REACH, log=log):
             dd = d_ if not stub else board.VIA_SIG[0]
             dr = dr_ if not stub else board.VIA_SIG[1]
             vg = Point(x, y).buffer(dd / 2, 16)
-            sg = LineString([(c.x, c.y), (x, y)]).buffer(0.1) if stub else None
+            sg = LineString([(c.x, c.y), (x, y)]).buffer(stub_w / 2) if stub else None
             # copper 0.1 mm from the via, 0.2 mm from its hole (board setup), and
             # the filled via 0.45 mm from a drilled pad hole (RULES, POFV)
-            ok = fixed.clear(vg, 'GND', layers, 0.1) and fixed.hole_room(x, y, dr / 2, 0.46) \
-                and fixed.clear(Point(x, y).buffer(dr / 2, 16), 'GND', layers, 0.21) \
-                and (sg is None or fixed.clear(sg, 'GND', [l], 0.1, track=True))
+            ok = fixed.clear(vg, net, layers, 0.1) and fixed.hole_room(x, y, dr / 2, 0.46) \
+                and fixed.clear(Point(x, y).buffer(dr / 2, 16), net, layers, 0.21) \
+                and (sg is None or fixed.clear(sg, net, [l], 0.1, track=True))
             if ok:
                 pick = (x, y, stub, dd, dr, vg.buffer(0.13).union(Point(x, y).buffer(dr / 2 + 0.21, 16)),
                         sg.buffer(0.13) if sg is not None else None)
                 break
         if pick is None:
-            log('   ground %s %s: no legal spot within %.1f mm' % (ref_, num_, reach))
-            continue
+            log('   %s %s %s: no legal spot within %.1f mm' % (tag, ref_, num_, reach))
+            return False
         x, y, stub, dd, dr, keep, skeep = pick
         torn = set()
         for t in list(b.GetTracks()):
@@ -1367,21 +1384,55 @@ def ground_pads(path, w, cl, protect, reach=GROUND_REACH, log=log):
                    for lay, gl in g.items() for q in gl):
                 torn.add(t.GetNetname()); pcb.remove(b, t)
         v = pcbnew.PCB_VIA(b); v.SetPosition(pcbnew.VECTOR2I(pcbnew.FromMM(x), pcbnew.FromMM(y)))
-        v.SetWidth(pcbnew.FromMM(dd)); v.SetDrill(pcbnew.FromMM(dr)); v.SetNet(b.FindNet('GND')); v.SetLocked(True)
+        v.SetWidth(pcbnew.FromMM(dd)); v.SetDrill(pcbnew.FromMM(dr)); v.SetNet(b.FindNet(net)); v.SetLocked(True)
         b.Add(v)
         if stub:
-            pcb.track(b, [(c.x - pcb.CX, c.y - pcb.CY), (x - pcb.CX, y - pcb.CY)], 0.2, l, 'GND')
+            pcb.track(b, [(c.x - pcb.CX, c.y - pcb.CY), (x - pcb.CX, y - pcb.CY)], stub_w, l, net)
         # (a small area and few orders: the nets were whole a moment ago and
         # lost only what stood on this spot; unbounded, one pad took hours)
-        left = local_repair(b, sorted(torn), w, cl, protect=list(protect) + ['GND'], margin=0.6, tries=3,
+        left = local_repair(b, sorted(torn), w, cl, protect=list(protect) + [net], margin=0.6, tries=3,
                             log=lambda *a: None) if torn else []
         if left:
-            log('   ground %s %s: a via would leave %s open, not taken' % (ref_, num_, left))
-            continue
+            log('   %s %s %s: a via would leave %s open, not taken' % (tag, ref_, num_, left))
+            return False
         b.Save(path)
-        done.append('%s.%s' % (ref_, num_))
-        log('   ground %s %s: via %s%s' % (ref_, num_, 'beside it' if stub else 'in the pad',
-                                          (', re-laid ' + ', '.join(sorted(torn))) if torn else ''))
+        log('   %s %s %s: via %s%s' % (tag, ref_, num_, 'beside it' if stub else 'in the pad',
+                                      (', re-laid ' + ', '.join(sorted(torn))) if torn else ''))
+        return True
+
+
+def lone_pads(path, nets, w, cl, protect, reach=1.0, log=log):
+    """Every SMD pad of an open net in `nets` with none of its own net's
+    copper on it (5 Nov: the last six opens were all such pads, U6's 0.4 mm
+    balls among them, boxed in by other nets' copper the repair would not
+    tear up) gets a via beside it on a stub (_pad_via, never in the pad):
+    the open net can then reach it on the inner layers."""
+    from shapely.geometry import Polygon
+    mmv = lambda v: v / 1e6
+    b = pcbnew.LoadBoard(path)
+    own = {}
+    for t in b.GetTracks():
+        if t.GetNetname() in nets:
+            own.setdefault(t.GetNetname(), []).append(t)
+    cands = []
+    for fp in list(b.GetFootprints()):
+        for p in list(fp.Pads()):
+            n = p.GetNetname()
+            if n not in nets or p.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
+                continue
+            l = pcbnew.F_Cu if p.IsOnLayer(pcbnew.F_Cu) else pcbnew.B_Cu
+            sp = p.GetEffectivePolygon(l).Outline(0)
+            poly = Polygon([(mmv(sp.CPoint(q).x), mmv(sp.CPoint(q).y)) for q in range(sp.PointCount())])
+            if any(q.intersects(poly) for t in own.get(n, []) for q in finish._geom_of(t).get(l, [])):
+                continue
+            cands.append((fp.GetReference(), p.GetNumber(), l, poly, n))
+    del b
+    log('lone pads of open nets: %s' % ['%s.%s %s' % (c[0], c[1], c[4]) for c in cands])
+    done = []
+    for ref_, num_, l, poly, n in cands:
+        sw = min(0.3, max(0.12, w.get(n, finish.SIG_W)))
+        if _pad_via(path, ref_, num_, l, poly, n, w, cl, protect, reach, inpad=False, stub_w=sw):
+            done.append('%s.%s' % (ref_, num_))
     return done
 
 
@@ -1591,7 +1642,14 @@ if __name__ == '__main__':
         if k: log('unlocked %d pieces of the SX1262 bus' % k)
         gone = finish.drop_area_vias(b)
         if gone: log('took out vias where only another net may stand: %s' % (gone,))
+        # the pours filled afresh: a stale fill joined PA_V1F's pieces here
+        # while KiCad's own count, after its refill, found it open (5 Nov)
+        pcbnew.ZONE_FILLER(b).Fill(b.Zones())
         left = [x for x in finish.unrouted_nets(b) if x not in PLANES]
+        b.Save(fin)
+        if left and lone_pads(fin, left, w, cl, protect=PLANES + list(board.RF_NETS) + list(board.RF_EXTRA)):
+            b = pcbnew.LoadBoard(fin)
+            pcbnew.ZONE_FILLER(b).Fill(b.Zones())
         log('local repair of %s' % (left,))
         rest = local_repair(b, left, w, cl, protect=PLANES + list(board.RF_NETS) + list(board.RF_EXTRA),
                             margin=float(os.environ.get('LOCAL_MARGIN', 1.2)))
