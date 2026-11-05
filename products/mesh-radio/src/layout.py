@@ -122,7 +122,7 @@ def anchors(comps):
         # the charger away from the battery plug (sim/thermal: its heat reached
         # the NTC and the cell); the NTC right by the plug, reading the cell
         (R('BQ25185'), -HX + 4.7, 0.5, 0, 'B'),             # behind the USB-C, between its shell legs (1 Nov: out of the jam under the nRF52840)
-        (R('TPS22950'), -6.4, -0.6, 0, 'B'),                # clear of the SX1262's pins above (its balls take vias)
+        (R('TPS22950'), -6.4, -0.6, 180, 'B'),              # clear of the SX1262's pins above (its balls take vias); turned so its BYP_OUT and BYP_ILIM balls face D8 and R35 (5 Nov: facing away, under the SX1262 bus, both stayed open)
         (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -1.5, 0, 'B'),   # clear of the battery plug's body above
         # ---- bottom: 3.3 V
         (R('TPS62840'), -5.6, 3.0, 0, 'B'),

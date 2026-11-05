@@ -1401,6 +1401,50 @@ def _pad_via(path, ref_, num_, l, poly, net, w, cl, protect, reach, inpad=True, 
         return True
 
 
+def apply_moves(b, log=log):
+    """Parts whose place in src/placement.json differs from the routed
+    board's are moved there: the copper on their pads (track ends, vias in
+    or on a pad, locked or not) is taken out first and the ball escapes are
+    made again, so the repair after it re-joins their nets.  For a small
+    placement change without routing the whole board again (5 Nov: U6
+    turned 180 degrees so its two signal balls face their parts).  Returns
+    the parts moved."""
+    from shapely.ops import unary_union
+    pl, _ = board.placement()
+    moved = []
+    for fp in list(b.GetFootprints()):
+        r = fp.GetReference()
+        if r not in pl:
+            continue
+        x, y, rot, side = pl[r]
+        q = fp.GetPosition()
+        if (side == 'B') != fp.IsFlipped():
+            continue                                   # a side change is a re-route
+        if abs(q.x / 1e6 - pcb.CX - x) < 1e-3 and abs(q.y / 1e6 - pcb.CY - y) < 1e-3 \
+                and abs(((fp.GetOrientationDegrees() - rot) + 180) % 360 - 180) < 0.01:
+            continue
+        pads = {}
+        for p in fp.Pads():
+            for l, gl in finish._geom_of(p).items():
+                pads.setdefault(l, []).extend(gl)
+        area = {l: unary_union(gl).buffer(0.01) for l, gl in pads.items()}
+        nets = set(p.GetNetname() for p in fp.Pads() if p.GetNetname())
+        k = 0
+        for t in list(b.GetTracks()):
+            if t.GetNetname() not in nets:
+                continue
+            g = finish._geom_of(t)
+            if any(l in area and any(qq.intersects(area[l]) for qq in gl) for l, gl in g.items()):
+                pcb.remove(b, t); k += 1
+        fp.SetPosition(pcb.P(x, y))
+        fp.SetOrientationDegrees(rot)
+        moved.append(r)
+        log('moved %s to its new place (%.3f, %.3f, %g); %d pieces of copper on its pads taken out' % (r, x, y, rot, k))
+    if moved:
+        ball_escapes(b)
+    return moved
+
+
 def lone_pads(path, nets, w, cl, protect, reach=1.0, log=log):
     """Every SMD pad of an open net in `nets` with none of its own net's
     copper on it (5 Nov: the last six opens were all such pads, U6's 0.4 mm
@@ -1640,6 +1684,7 @@ if __name__ == '__main__':
             if t.GetNetname() in FIRST_NETS and t.IsLocked():
                 t.SetLocked(False); k += 1
         if k: log('unlocked %d pieces of the SX1262 bus' % k)
+        apply_moves(b)
         gone = finish.drop_area_vias(b)
         if gone: log('took out vias where only another net may stand: %s' % (gone,))
         # the pours filled afresh: a stale fill joined PA_V1F's pieces here
