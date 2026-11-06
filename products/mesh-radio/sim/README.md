@@ -75,6 +75,26 @@ threshold in well under a second) and back low.  That needs the processor runnin
 board switched off and external power in, the window stays open.  A hardware cure needs a cell-
 presence signal (a 3-pin battery plug); bench-test the sequence either way.
 
+## Changed by the re-routed board (5 Nov 2026)
+
+The board was re-placed and re-routed for the findings below (R34 beside
+the protection FETs on B.Cu, power nets poured round their own copper), and
+`extract.py` now counts a net's pour. New values in `board.py`: SENSE_TRACE
+18.1 -> 0.4 mOhm, TRACE_DRONE 144 -> 36, TRACE_SYS2 237 -> 115, TRACE_CHG
+189 -> 149, TRACE_PAIN 26 -> 12, TRACE_VPA 12 -> 8, TRACE_USB 19 -> 9; worse:
+TRACE_BAT 4.4 -> 20, TRACE_MUX1 35 -> 83, TRACE_BYP 83 -> 163 mOhm (BAT_P
+runs 15 mm since the battery plug moved right for the heat).
+
+- **Protector trip back:** OCD 4.6-6.6 A at 25 C (was 2.4-3.3 A).
+- **Burst:** 3 W from a fresh cell PASS at 0-85 C (was capped 2.5 W); mid
+  cell 3 W at 25-60 C (was 2 W); USB + weak cell with PA_SRC_SYS PASS (was
+  FAIL); 85 C hot case 2.5 W PASS (was FAIL).
+- **Shorts:** VSYS and PA_IN MARGINAL -> PASS at every temperature.
+- Unchanged: hotplug, reverse, solar.  Derating 0 FAIL, 11 MARGINAL (9):
+  the now-passing 3 W bursts load the mux and buck-boost to 85-89 %.
+- shorts/run.py: a fourth, looser solver option (the worn cell at -40 C
+  stopped before the short), tried by the trip-timing runs too.
+
 ## Changed by the routed board (3 Nov 2026)
 
 Every study was re-run with the extracted parasitics (*Parasitics*; the

@@ -18,10 +18,10 @@ P7 (<= 1 mA into the cell).  The BQ25185 thermal regulation (TREG 100 C, 68.3 C/
 3.0 V   20 %      0 C    P7  TPS22950+RB060MM   7.543      12.25       92.4   201.1    7.539  4.499       -0.0707    -0.1055     PASS
 4.1 V  100 %      0 C    P7  TPS22950+RB060MM   7.166      12.25      87.78    1046    7.163  4.499      -0.07399   -0.02901     PASS
 4.1 V   20 %      0 C    P7  TPS22950+RB060MM   7.543      12.25       92.4   201.1    7.539  4.499      -0.07399    -0.1508     PASS
-3.0 V  100 %     25 C    P5  TPS22950+RB060MM   3.675      183.7      675.2   918.5    3.609  3.184         169.3      55.94     PASS
-3.0 V   20 %     25 C    P5  TPS22950+RB060MM   3.615      35.99      130.1   175.5    3.602  3.111          21.6      36.99     PASS
-4.1 V  100 %     25 C    P5  TPS22950+RB060MM    4.57      181.6        830   918.5    4.504  4.282         168.8      75.96     PASS
-4.1 V   20 %     25 C    P5  TPS22950+RB060MM   4.453       35.7        159   175.5     4.44  4.211         22.66         53     PASS
+3.0 V  100 %     25 C    P5  TPS22950+RB060MM   3.675      183.7      675.1   918.5    3.609  3.177         169.3      55.93     PASS
+3.0 V   20 %     25 C    P5  TPS22950+RB060MM   3.615      35.99      130.1   175.5    3.602   3.11          21.6      36.99     PASS
+4.1 V  100 %     25 C    P5  TPS22950+RB060MM   4.562      181.7      828.9   918.5    4.497  4.275         168.8      75.96     PASS
+4.1 V   20 %     25 C    P5  TPS22950+RB060MM   4.452       35.7      158.9   175.5    4.439   4.21         22.66      52.99     PASS
 3.0 V  100 %     60 C    P7  TPS22950+RB060MM   5.577      12.29      68.54   744.9    5.572  4.499      -0.02642   -0.01064     PASS
 3.0 V   20 %     60 C    P7  TPS22950+RB060MM   5.928      12.29      72.85   140.2    5.923  4.499      -0.02642   -0.05652     PASS
 4.1 V  100 %     60 C    P7  TPS22950+RB060MM   5.577      12.29      68.54   744.9    5.572  4.499      -0.03035    -0.0167     PASS
@@ -37,12 +37,12 @@ P7 (<= 1 mA into the cell).  The BQ25185 thermal regulation (TREG 100 C, 68.3 C/
                     USB    -40 C   3.7 V  TPS22950+RB060MM  4.499    3.7               0             0.0003687      -0.07285                    P7: <= 1 mA into the cell     PASS
                     USB    -20 C   3.7 V  TPS22950+RB060MM  4.499    3.7               0             0.0003429      -0.07282                    P7: <= 1 mA into the cell     PASS
                     USB      0 C   3.7 V  TPS22950+RB060MM  4.499    3.7               0             0.0001144      -0.07259                    P7: <= 1 mA into the cell     PASS
-                    USB     25 C   3.7 V  TPS22950+RB060MM  4.443   3.76             300            -1.016e-09         299.9  X5: ISET 300 mA +-10 %, all via the charger     PASS
+                    USB     25 C   3.7 V  TPS22950+RB060MM   4.45   3.76             300            -1.016e-09         299.9  X5: ISET 300 mA +-10 %, all via the charger     PASS
                     USB     60 C   3.7 V  TPS22950+RB060MM  4.499    3.7               0            -1.016e-09      -0.07228                    P7: <= 1 mA into the cell     PASS
-                    USB     85 C   3.7 V  TPS22950+RB060MM  4.499    3.7               0               -0.2331        0.1606                    P7: <= 1 mA into the cell     PASS
+                    USB     85 C   3.7 V  TPS22950+RB060MM  4.499    3.7               0            -1.016e-09      -0.07232                    P7: <= 1 mA into the cell     PASS
 solar, /CE high at 25 C     25 C   3.7 V  TPS22950+RB060MM  4.499    3.7               0              -0.00243      -0.07005                    P7: <= 1 mA into the cell     PASS
   USB, /CE high at 25 C     25 C   3.7 V  TPS22950+RB060MM  4.499    3.7               0            -1.016e-09      -0.07225                    P7: <= 1 mA into the cell     PASS
- USB, 4.15 V cell, 25 C     25 C  4.15 V  TPS22950+RB060MM  4.494  4.173           114.7              -0.00238         114.7  X5: ISET 300 mA +-10 %, all via the charger     PASS
+ USB, 4.15 V cell, 25 C     25 C  4.15 V  TPS22950+RB060MM  4.493  4.175           126.7              -0.00238         126.6  X5: ISET 300 mA +-10 %, all via the charger     PASS
   The old LM66100 (CE = GND) was a closed switch between BAT_P and VSYS and let SYS charge the cell at up
   to ~0.95 A outside the charger's control.  The TPS22950 alone blocks only once VSYS is 44 mV above the
   cell (~1 A of reverse current), which a panel cannot reach: it charged the cell at the panel's full 170 mA.
