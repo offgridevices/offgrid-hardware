@@ -90,18 +90,18 @@ studies, `extract.txt`); re-run it after any study.  Notes are copied from those
 | burst, battery only: highest passing level, cell 3.1 V / 50 mOhm | none | none | 1 W | 1.6 W | 1.6 W | 1.6 W | the firmware battery cap; heat caps it lower (thermal rows) |
 | burst, battery only: highest passing level, cell 3.1 V / 150 mOhm | none | none | none | 1 W | 1 W | 1 W | the firmware battery cap; heat caps it lower (thermal rows) |
 | burst, battery only: highest passing level, cell 3.1 V / 300 mOhm | none | none | none | none | none | none | the firmware battery cap; heat caps it lower (thermal rows) |
-| burst case u_37_150_3W |  |  |  | **FAIL** |  |  | [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset) |
-| burst case u_31_300_1W |  |  |  | **FAIL** |  |  | [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO |
-| burst case u_31_300_3W |  |  |  | **FAIL** |  |  | [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset) |
-| burst case u_31_300_1W_sys |  |  |  | PASS |  |  | mux left IN1 |
-| burst case n_1W |  |  |  | PASS |  |  | mux left IN1, BUVLO |
-| burst case n_1W_nofw |  |  |  | **FAIL** |  |  | [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO |
-| burst case n_1W6 |  |  |  | **FAIL** |  |  | [run ends at the first fatal event, 4.5 ms], TPS63810 UVLO (reset), BUVLO |
-| burst case n_2W5 |  |  |  | **FAIL** |  |  | [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO |
-| burst case h_3.7_1W |  |  |  |  |  | PASS | - |
-| burst case h_4.1_1W |  |  |  |  |  | PASS | - |
-| burst case h_3.7_2W5 |  |  |  |  |  | PASS | BUVLO |
-| burst case h_3.7_3W |  |  |  |  |  | **FAIL** | [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset) |
+| burst case u_37_150_3W |  |  |  | **FAIL** |  |  | USB + 3.7 V / 150 mOhm cell at 3 W: above that cell's battery cap (2.5 W at 25 C), firmware never runs it; [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset) |
+| burst case u_31_300_1W |  |  |  | **FAIL** |  |  | USB + 3.1 V / 300 mOhm cell at 1 W from the cell: too weak; firmware sets PA_SRC_SYS instead (u_31_300_1W_sys); [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO |
+| burst case u_31_300_3W |  |  |  | **FAIL** |  |  | USB + 3.1 V / 300 mOhm cell at 3 W: above that cell's battery cap, firmware never runs it; [run ends at the first fatal event, 4.2 ms], TPS63810 UVLO (reset) |
+| burst case u_31_300_1W_sys |  |  |  | PASS |  |  | the same with PA_SRC_SYS: amplifier on charger SYS; mux left IN1 |
+| burst case n_1W |  |  |  | PASS |  |  | USB only, no cell, PA_SRC_SYS, 1 W (OFFGRID_SYS_CAP_DBM); mux left IN1, BUVLO |
+| burst case n_1W_nofw |  |  |  | **FAIL** |  |  | USB only without PA_SRC_SYS (firmware forgot): why firmware must set it; [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO |
+| burst case n_1W6 |  |  |  | **FAIL** |  |  | USB only at 1.6 W: above the 1 W SYS cap (charger input 1.05 A); firmware never runs it; [run ends at the first fatal event, 4.5 ms], TPS63810 UVLO (reset), BUVLO |
+| burst case n_2W5 |  |  |  | **FAIL** |  |  | USB only at 2.5 W: above the 1 W SYS cap; firmware never runs it; [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset), BUVLO |
+| burst case h_3.7_1W |  |  |  |  |  | PASS | 85 C, 3.7 V cell, 1 W |
+| burst case h_4.1_1W |  |  |  |  |  | PASS | 85 C, 4.1 V cell, 1 W |
+| burst case h_3.7_2W5 |  |  |  |  |  | PASS | 85 C, 3.7 V cell, 2.5 W (electrically fine; in use the heat cap turns the amplifier off above 75 C board); BUVLO |
+| burst case h_3.7_3W |  |  |  |  |  | **FAIL** | 85 C, 3.7 V cell at 3 W: above the 2.5 W battery cap and the heat cap, firmware never runs it; [run ends at the first fatal event, 4.3 ms], TPS63810 UVLO (reset) |
 | solar: 6 V panel and USB charge path, every case | PASS | PASS | PASS | PASS | PASS | PASS |  |
 | derating (E4): 81 rows: 0 FAIL, 2 OVER (owner-accepted), 9 MARGINAL |  |  |  |  |  |  |  |
 | derating OVER (owner-accepted): TPS63810 (U (buck-boost)): dissipation during a 3 W burst, 85 C ambient |  |  |  |  |  |  | 1.01 W against 0.497 W (204 %, rule owner); RthJA 80.5 C/W JEDEC -> Tj 167 C at 85 C if continuous; sim/thermal Tj 152 C after a 1 s burst a minute; firmware caps 1 W from 60 C board, off from 75 C |

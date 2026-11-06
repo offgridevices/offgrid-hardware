@@ -53,6 +53,25 @@ def trip_row():
     return [['shorts: the cell protector\'s over-current (OCD) trip, min-max'] + [d.get(t, '') for t in TEMPS] + ['']]
 
 
+# What each named burst case is (burst/results.txt explains the prefixes:
+# u_ = USB + cell, n_ = USB only, h_ = 85 C hot case).  A FAIL here is a
+# level the firmware does not allow, run to show why its cap is there.
+CASES = {
+    'u_37_150_3W': 'USB + 3.7 V / 150 mOhm cell at 3 W: above that cell\'s battery cap (2.5 W at 25 C), firmware never runs it',
+    'u_31_300_1W': 'USB + 3.1 V / 300 mOhm cell at 1 W from the cell: too weak; firmware sets PA_SRC_SYS instead (u_31_300_1W_sys)',
+    'u_31_300_3W': 'USB + 3.1 V / 300 mOhm cell at 3 W: above that cell\'s battery cap, firmware never runs it',
+    'u_31_300_1W_sys': 'the same with PA_SRC_SYS: amplifier on charger SYS',
+    'n_1W': 'USB only, no cell, PA_SRC_SYS, 1 W (OFFGRID_SYS_CAP_DBM)',
+    'n_1W_nofw': 'USB only without PA_SRC_SYS (firmware forgot): why firmware must set it',
+    'n_1W6': 'USB only at 1.6 W: above the 1 W SYS cap (charger input 1.05 A); firmware never runs it',
+    'n_2W5': 'USB only at 2.5 W: above the 1 W SYS cap; firmware never runs it',
+    'h_3.7_1W': '85 C, 3.7 V cell, 1 W',
+    'h_4.1_1W': '85 C, 4.1 V cell, 1 W',
+    'h_3.7_2W5': '85 C, 3.7 V cell, 2.5 W (electrically fine; in use the heat cap turns the amplifier off above 75 C board)',
+    'h_3.7_3W': '85 C, 3.7 V cell at 3 W: above the 2.5 W battery cap and the heat cap, firmware never runs it',
+}
+
+
 def burst_rows():
     L = read('burst', 'results.txt')
     i = L.index('Highest PA level that passes, battery only (R_int at 25 C in the header) = the firmware cap:')
@@ -71,7 +90,9 @@ def burst_rows():
     for ln in L:
         m = re.match(r'\s*((?:u|n|h)_\S+)\s+(-?\d+ C)\s.*?\b(PASS|FAIL|MARGINAL)\b\s*(.*)$', ln)
         if m:
-            row = ['burst case %s' % m.group(1)] + [''] * 6 + [m.group(4).strip()]
+            what = CASES.get(m.group(1), '')
+            note = '; '.join(x for x in (what, m.group(4).strip()) if x and x != '-')
+            row = ['burst case %s' % m.group(1)] + [''] * 6 + [note]
             row[1 + TEMPS.index(m.group(2))] = SHORT[m.group(3)]
             rows.append(row)
     return rows
