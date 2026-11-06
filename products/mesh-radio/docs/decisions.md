@@ -8,7 +8,7 @@ Prices and stock are dated and go stale: re-check before ordering.
 
 | Decision | Why | Cost |
 |---|---|---|
-| **Top transmit power about 3 W (35 dBm); 1 W whenever the region is US** | About 1.5–2× the open-air range of 1 W for licensed or experimental use. Normal use stays legal. | About 2 A bursts from the cell, a bigger amplifier and filter, more heat |
+| **Top transmit power about 3 W (35 dBm); 1 W whenever the region is US** | About 1.5–2× the open-air range of 1 W for licensed or experimental use. Normal use stays legal. | About 3–4 A bursts from the cell at 3 W (sim/burst: 2.95–3.82 A; up to 4.11 A in sim/derating), a bigger amplifier and filter, more heat |
 | **Test boards from JLCPCB/PCBWay; files that a US or allied assembler can build unchanged** | Cheap, fast prototypes. A defence build changes only the factory. | The test boards themselves are not NDAA compliant. Every part needs both a DigiKey and an LCSC number. |
 | **Drone link: locking serial cable** (JST-GH, Pixhawk TELEM pinout) | Same method the Phase 2B field loggers already use (Meshtastic serial module, PROTO mode, 38400 baud). It adds no 2.4 GHz traffic, and Notion records that the Jetson's Wi-Fi already disturbs the ELRS control link. | One cable per carried node |
 | **No GPS on the board; a plug for an add-on** | The drone knows where it dropped the node, and saves 20–30 mA, space and cost | A node without the add-on cannot find its own position |

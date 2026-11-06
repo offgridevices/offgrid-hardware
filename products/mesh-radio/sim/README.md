@@ -371,7 +371,8 @@ with via barrels between layers; a part's pins on the net are one terminal,
 and R is solved on the whole network (parallel routes included).  A net
 with a pour (the power nets since 5 Nov, `src/pipeline.py` power_pours) is
 rasterised and solved as ground is, below; its L is still its track route's.  Ground is all GND copper on the six layers
-(fills, tracks, pads, 570 vias) rasterised at 0.1 mm and solved as a mesh
+(fills, tracks, pads, 466 ground vias plus the amplifier's 9 paddle vias,
+as `thermal/results.txt` counts them) rasterised at 0.1 mm and solved as a mesh
 (0.2 mm gives the same within 0.07 mOhm); a path's ground return is R between
 the GND pads of its two ends.  L is the least-resistance route, each segment
 a microstrip (Wheeler / Hammerstad, in air) over whichever copper layer has
@@ -447,8 +448,10 @@ power at full sun (3.0 / 4.1 V cell), 37 / 53 % at 20 % sun.
 ### derating (E4)
 Collects every study's stress.json plus datasheet rows at 45 / 60 / 85 C.  E4
 limit 70 %; faults are judged against absolute maxima; the rows the owner's
-3 W decision sets (amplifier, buck-boost, mux, battery plug) are MARGINAL
-with that reason.
+3 W decision sets (amplifier, buck-boost, mux) are MARGINAL at 70-100 % and
+OVER (owner-accepted) above 100 %, with that reason.  The battery plug's
+burst peak (206 % of a thermal rating, for <= 1 s) is an info row; its RMS
+row at 10 % duty is PASS (65 %).
 
 ## What this does not prove
 

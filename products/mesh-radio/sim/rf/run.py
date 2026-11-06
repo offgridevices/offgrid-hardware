@@ -4,7 +4,7 @@
     tools/kd python3 sim/rf/run.py            # from products/mesh-radio, ~3-6 min
     tools/kd python3 sim/rf/run.py --quick    # 200 Monte Carlo runs instead of 1000
 
-Board as routed (mesh-radio.kicad_pcb, 3 Nov; routed.json via routed.py): antenna filter LFCG-1000+, missing-antenna
+Board as routed (mesh-radio.kicad_pcb, re-routed 5 Nov; routed.json via routed.py): antenna filter LFCG-1000+, missing-antenna
 ratio detector (printed coupler, BAT68-04W at each end into 1 nF / 100 k: REFL_DET and FWD_DET), every RF line as
 routed.  RF_ROUTED=0 runs the pre-route model (results_preroute.txt) for comparison.  Study 8 is the detector.
 
@@ -1855,6 +1855,10 @@ def study8(s7):
     out('  (3) Two conditions: fault if FWD_DET < Fmin(P, T) (the amplifier is not delivering what the model says - with a')
     out('      saturated PA that is what an open does at some cable lengths) OR REFL/FWD > R(P, T):')
     best2 = None
+    fit_now = {}  # this run's fits, rounded as variant.h writes them, to say whether the committed constants are these
+    _as_fw = lambda c, r: {'fmin30': round(1e3 * math.exp(c[0])) * 1e-3, 'fkt': round(math.exp(c[1]), 4),
+                           'fkp': round(math.exp(c[2]), 3), 'r30': round(math.exp(r[0]), 3),
+                           'rkt': round(math.exp(r[1]), 4), 'rkp': round(math.exp(r[2]), 3)}
     for p0 in DET_POWERS:
         pw = tuple(p for p in DET_POWERS if p >= p0)
         cf, rf2, cl = two_rule(rd, pw)
@@ -1868,6 +1872,7 @@ def study8(s7):
             best2 = (p0, cf, rf2, cl)
     if best2:
         p0, cf, rf2, cl = best2
+        fit_now['default'] = _as_fw(cf, rf2)
         out('  -> two conditions work (>= 1 dB, Fmin above the ADC floor) from %.0f dBm up.  Per level and temperature'
             ' (margin dB good / missing):' % p0)
         for p in [x for x in DET_POWERS if x >= p0]:
@@ -1912,6 +1917,7 @@ def study8(s7):
                 best3 = (p1, c3, r3, cl3, mg3)
         if best3:
             p1, c3, r3, cl3, mg3 = best3
+            fit_now['robust'] = _as_fw(c3, r3)
             out('  -> fitted with +-1 dB of power error built in (good antennas 1 dB low, missing 1 dB high): works from %.0f dBm,'
                 ' worst margin %+.1f dB:' % (p1, mg3))
             out('     Fmin(P, T) = %.3f V x %.4f^(T-25) x %.3f^(P-30);  R(P, T) = %.3f x %.4f^(T-25) x %.3f^(P-30)'
@@ -1961,12 +1967,14 @@ def study8(s7):
              ('MARGINAL' if min(fw_g, fw_m) > 0 else 'FAIL'),
              'FWD >= %.0f mV and ratio > %.2f, else the old REFL thresholds: worst good %+.1f dB, missing %+.1f dB (30-36 dBm); '
              'use the two-condition rule (FWD_DET low = fault, not "wait")' % (1e3 * FW['fwd_min'], FW['ratio'], fw_g, fw_m))
-    # 5) the two-condition rule as committed in firmware (its constants were fitted on the pre-route model), on this board
+    # 5) the two-condition rule as committed in firmware, on this board; each set is compared with this run's fit
     fwr = _fw_ant_rules()
     if fwr:
+        same = lambda a, b: all(abs(a[k] - b[k]) <= 1e-9 + 1e-6 * abs(b[k]) for k in a)
+        origin = '; '.join('%s: %s' % (n, "this run's fit" if n in fit_now and same(fwr[n], fit_now[n])
+                                       else "not this run's fit (an earlier model's)") for n in ('default', 'robust') if n in fwr)
         out()
-        out('  (5) The two-condition rule with the constants committed in %s (fitted on the 20 Oct pre-route model),'
-            ' on this' % FW['src'])
+        out('  (5) The two-condition rule with the constants committed in %s (%s), on this' % (FW['src'], origin))
         out('      board: worst margin dB (good antenna / missing), every pairing, both models, -40..85 C; also with the real power')
         out('      1 dB under / over the firmware\'s model:')
         rds = {0.0: rd, -1.0: det_readings(tab, pairs=PAIRS, dp=-1.0), 1.0: det_readings(tab, pairs=PAIRS, dp=1.0)}

@@ -54,7 +54,7 @@ each path's resistance and inductance off `mesh-radio.kicad_pcb` (since
 | Battery plugged in backwards (X1) | A reversed cell, with and without USB; a right-way cell for reference | `tools/kd python3 sim/reverse/run.py` | **PASS** in all six cases, −40 to 85 °C | 1.0, 8f88f31 |
 | Short circuits (X2, X5) | Shorts on 3V3, the header's 3V3, VSYS, VPA, PA_IN and the cell; the protector's trip | `tools/kd python3 sim/shorts/run.py` | **PASS** on every rail, VSYS and PA_IN included (3 Nov: MARGINAL at 0–85 °C). BAT_P shorts MARGINAL: the protector cuts the cell; restart is a bench test. Protector over-current trip 4.6–6.6 A at 25 °C (3 Nov: 2.4–3.3 A, its sense loop's copper now 0.4 mΩ, was 18.1) | 1.0, 8f88f31 |
 | Transmit bursts (P2, X4) | 1 to 3 W from fresh, mid and worn cells, every temperature; USB cases; 85 °C hot case | `tools/kd python3 sim/burst/run.py` | 3 W from a fresh cell **PASS** at 0 to 85 °C electrically (3 Nov: capped at 2.5 W); heat limits 3 W to below 45 °C on the board (Derating, `sim/thermal`); mid cell (3.7 V / 150 mΩ) 2.5 W at 25–60 °C (was 2 W); worn cell 2.5 W at 25–85 °C (4.2 V). USB + weak cell with PA_SRC_SYS: **PASS** (was FAIL). 85 °C hot case 2.5 W: **PASS** (was FAIL). The highest passing level per cell and ambient is the firmware's cap table (`burst/results.txt`) | 1.0, fdc1260 |
-| Solar charging (P5, P7) | A 6 V panel charges inside 0–45 °C, nothing flows outside it | `tools/kd python3 sim/solar/run.py` | **PASS** at every temperature | 1.0, 11d3854 |
+| Solar charging (P5, P7) | A 6 V panel charges inside 0–45 °C, nothing flows outside it | `tools/kd python3 sim/solar/run.py` | **PASS** at every temperature run: charging at 25 °C only (169 mA in full sun, 56–76 % harvest; 22 mA at 20 % sun); ≤ 1 mA at −40, −20, 0, 60 and 85 °C. No other temperature inside 0–45 °C is run | 1.0, 11d3854 |
 | Derating (E4) | Every part at no more than 70 % of its rating | `tools/kd python3 sim/derating/run.py` (runs last) | 81 rows: **0 FAIL**, **2 OVER (owner-accepted)**: the TPS63810's dissipation in a 3 W burst, 204 % of its rating at 85 °C and 114 % at 60 °C (junction 152 / 127 °C in `sim/thermal`, over its 125 °C); the firmware's temperature cap never runs 3 W there (2 W above 45 °C, 1 W above 60 °C, off above 75 °C on the board). 9 MARGINAL: the 3 W path at 70–100 % (amplifier current, mux and buck-boost currents), the charger's input limit and the nRF52840's USB pin at OV max | 1.0, 6 Nov 2026, ce92315 |
 
 All six in order: `tools/kd sh sim/run_all.sh` (about 3 hours on 4 cores, nearly all of it the burst grid (6 Nov, re-routed board, empty cache); runs are cached in `sim/out/`, so a re-run is quicker).
@@ -62,7 +62,8 @@ All six in order: `tools/kd sh sim/run_all.sh` (about 3 hours on 4 cores, nearly
 **The live-pad sequence, in plain words** (a FAIL until 20 Oct). With USB,
 solar or drone power plugged in, pulling out a right-way battery leaves the
 reverse-protection switch on. If a battery is then plugged in backwards, it
-meets live pads: 20–21 A for about 0.2 ms until the cell protector trips,
+meets live pads: 12.3 / 11.5 / 10.8 A peak at 25 / 60 / 85 °C (0.07 A at
+−40 to 0 °C) until the cell protector trips,
 inside the parts' pulse ratings. The polarity-check transistor's gate saw
 9–11 V (rated 8 V) until a 4.7 V zener was added across it on 20 Oct; the
 study now passes at every temperature. (Until 20 Oct the study read the
@@ -87,8 +88,8 @@ filter values.
 | Amplifier load (1c) | The QPA9510 sees Qorvo's EVB load through the routed match | `tools/kd python3 sim/rf/routed.py` then `sim/rf/run.py` | **PASS**: 0.20 dB mismatch (3 Nov board: FAIL, 1.23 dB) | 1.0, c28e3ef |
 | Transmit loss, amplifier to U.FL | 3 W can reach the antenna | same | **PASS**: 1.22 dB. Over tolerance MARGINAL (18 % of boards ≤ 1.3 dB, all ≤ 2.0 dB, 3.0–3.2 W): the assumed LFCG and switch loss spreads | 1.0, c28e3ef |
 | Return loss | Every part sees a good match | same | **PASS**: worst 16.3 dB | 1.0, c28e3ef |
-| Harmonics 2f–5f (R6) | FCC limits at 30 and 35 dBm, 2.15 and 6 dBi antennas | same | **PASS**: worst margin 21.7 dB at 35 dBm / 6 dBi (3 Nov: 11.6), 18.4 dB over tolerance; worst of 108 re-layouts 8.7 dB | 1.0, c28e3ef |
-| Harmonics 6f–10f (R6) | The same, higher up | same | **PASS**: 20.4 dB at 6f (the amplifier's own levels there are assumed) | 1.0, c28e3ef |
+| Harmonics 2f–5f (R6) | FCC limits at 30 and 35 dBm, 2.15 and 6 dBi antennas | same | **PASS**: worst margin 21.7 dB at 35 dBm / 6 dBi (3 Nov: 11.6), 18.4 dB over tolerance; worst of 108 re-layouts 12.2 dB (4f) | 1.0, c28e3ef |
+| Harmonics 6f–10f (R6) | The same, higher up | same | **PASS**: 20.4 dB at 6f (the amplifier's own levels there are assumed); worst of 108 re-layouts 8.7 dB (10f) | 1.0, c28e3ef |
 | Filter notches | Where the low-pass notches fall | same | MARGINAL by design: 1.42 / 2.44 GHz (values re-fitted 5 Nov); the LFCG carries the rejection | 1.0, c28e3ef |
 | Attenuator power | The 15.9 dB pad's resistors stay cool | same | **PASS**: worst resistor 41 % of its 85 °C rating at +22 dBm | 1.0, c28e3ef |
 | Receive vs a RAK4631 (R4) | Hears at least as well as a RAK | same | **PASS**: 4.9 dB better with the receive amp on, 2.1 dB worse in bypass | 1.0, c28e3ef |
@@ -110,17 +111,19 @@ from `mesh-radio.kicad_pcb`.
 |---|---|---|---|---|
 | Listening (E2) | Board temperature while receiving | `tools/kd python3 sim/thermal/run.py` | **PASS** at −40 to 60 °C. MARGINAL at 85 °C (85 °C-rated chips 1–2 °C over) | 1.0, bcb634f |
 | Transmitting, as built (E2, E3) | Highest duty that passes every limit, 1 s messages, no charging | same | 1 W: 25 % at 25 °C, 50 % at 0 °C; at 60 °C none (the cell area passes 60 °C while only listening). 2.5 W: 1/60 at 0 °C, none at 25 °C. 3 W: 1/15 at −40 °C only. Unchanged from the 3 Nov board | 1.0, bcb634f |
-| Transmitting, gap pad on a metal wall | The same with the 10 × 10 mm pad (now 4.3 mm below the amplifier) | same | 1 W: 100 % at 25 °C. 25 °C, 25 % storm at 35 dBm: amplifier case 86 °C (3 Nov: 89), cell area 72 °C (80) | 1.0, bcb634f |
-| Highest dBm at the antenna (`followup.py`) | Nominal / pessimistic, per ambient and pattern | `tools/kd python3 sim/thermal/followup.py` | As built + gap pad: 25 °C 35/33 one a minute, 34/33 in a 25 % storm; 45 °C 33/31.5 and 31.5/30; 60 °C none (listening limit). With the paddle fixes and 2 oz outer copper: 35/35 at 25 °C in every pattern | 1.0, bcb634f |
-| Charging heat (P7) | The cell area ≤ 45 °C while charging | `run.py` | 25 °C: 1 W one a minute **PASS**; 2.5 W one a minute cell 42 °C (3 Nov: 47); 3 W one a minute 45 °C (52) | 1.0, bcb634f |
+| Transmitting, gap pad on a metal wall | The same with the 10 × 10 mm pad (now 4.3 mm below the amplifier) | same | 1 W: 100 % at 25 °C. 25 °C, 25 % storm at 35 dBm (`followup.py`): amplifier case 86 °C (3 Nov: 89), over its 85 °C limit, junction 125 °C (128), TPS63810 72 °C (80) | 1.0, bcb634f |
+| Highest dBm at the antenna (`followup.py`) | Nominal / pessimistic, per ambient and pattern | `tools/kd python3 sim/thermal/followup.py` | As built + gap pad: 25 °C 35/33 one a minute, 34/33 in a 25 % storm; 45 °C 33/31.5 and 31.5/30; 60 °C none (listening limit). With the paddle fixes, 2 oz outer copper and the pad: 35/35 at 25 °C in every pattern (without the pad 34/33 in a storm) | 1.0, bcb634f |
+| Charging heat (P7) | The cell area ≤ 45 °C while charging | `run.py` | 25 °C: 1 W one a minute **PASS**; 2.5 W one a minute cell 42 °C (3 Nov: 47); 3 W one a minute 45 °C, at the limit and flagged (52); 1 W in a 25 % storm 51 °C **FAIL** | 1.0, bcb634f |
 | Rating audit (E1) | Every part rated −40 to +85 °C | `run.py` (study 2) | Chips, crystals, buttons and passives **PASS**. JST plugs −25 °C (owner-accepted). USB-C lower limit and every rating added since 19 Oct unverified | 1.0, bcb634f |
 | Cold start at −40 °C | Crystals, TCXO and regulator loops start | `run.py` (study 3) | **PASS**. The 32.768 kHz crystal drifts to −152 ppm: MARGINAL, so the firmware declares 250 ppm | 1.0, bcb634f |
 
-**What "the heat fixes" means in that model.** The amplifier's paddle joined
-solidly to the top ground pour; its nine vias copper-filled; stitching vias
-at 25 per cm²; 85 % copper on the outer layers; and a 10 × 10 mm gap pad from
-the bottom of the board to a metal enclosure wall. The routed board must
-have these, or the 6-layer rows above do not apply.
+**What "the heat fixes" means in that model** (`results.txt`, "with the
+board fixes"): the amplifier's paddle joined to the top ground pour (on the
+board it is an island), its nine vias copper-filled (they are epoxy-filled),
+and 2 oz copper on the outer layers (it is 1 oz); the gap pad is a separate
+option. The rows above marked "as built" are the board as ordered, read from
+the routed file: 26 ground vias per cm², outer copper 80 % (top) and 82 %
+(bottom). The fixes are not on that board; the rows that use them say so.
 
 ## On hardware (not yet run)
 

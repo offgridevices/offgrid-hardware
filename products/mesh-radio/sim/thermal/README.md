@@ -34,8 +34,9 @@ y −2.4–7.6 mm, its edge 4.3 mm from the centre), and the battery plug from
 - **Highest passing duty, unchanged:** 1 W 25 % at 25 °C, none at 60 °C
   (the cell area fails at 60 °C with the radio only listening); 2.5 and 3 W
   as before. With the gap pad on a metal wall: 1 W 100 % at 25 °C.
-- **Gap pad on a wall, 25 °C, 25 % storm at 35 dBm:** amplifier case 89 →
-  86 °C, cell area 80 → 72 °C.
+- **Gap pad on a wall, 25 °C, 25 % storm at 35 dBm (`followup.py`):**
+  amplifier case 89 → 86 °C, still over its 85 °C limit; junction
+  128 → 125 °C; TPS63810 junction 80 → 72 °C.
 - **Charging (the cell area ≤ 45 °C rule), 25 °C:** 3 W one message a
   minute 52 → 45 °C, 2.5 W 47 → 42 °C, 1 W 25 % storm 53 → 51 °C.
 - The spot right under the amplifier (`followup.py`'s "old spot") would
@@ -70,7 +71,8 @@ the copper as a guess. It now models the finished board:
 - **The parts as built:** the amplifier is found by its part (U10, not
   the old U11, which is now the antenna switch); CSD25310Q2 reverse FET
   (33 mΩ hot); 15 mΩ sense resistor; LFCG-1000+ filter; the RF losses
-  from `sim/rf` (1.13 dB); the charge current read from the ISET
+  from `sim/rf` (`run.py`: per block, 1.26 dB in all; `followup.py`:
+  1.13 dB; `sim/rf` now gives 1.20–1.22 dB); the charge current read from the ISET
   resistor (1 k, **300 mA**, was 497 mA); charger U4 at the USB end; NTC
   TH1 beside the battery plug J3, next to the amplifier.
 - The Bluetooth antenna box and the gap pad come from `src/layout.py`,
@@ -81,17 +83,17 @@ Old against new, h = 10 W/m²K, no charging, peak at the end of the burst:
 
 | Case | Old (62 mm, 4 layers, guessed copper) | New (routed board) |
 |---|---|---|
-| 1 W, 1 message/min, 25 °C: case / junction | 60 / 82 °C | **53 / 75 °C** PASS |
+| 1 W, 1 message/min, 25 °C: case / junction | 60 / 82 °C | **54 / 75 °C** PASS |
 | 1 W, 25 % storm, 25 °C: case | 80 °C MARGINAL | **68 °C** PASS |
-| 1 W, 1 message/min, 60 °C: case / junction | 95 / 116 °C FAIL | **88 / 109 °C** FAIL |
-| 2.5 W, 1 message/min, 25 °C: case / junction | 121 / 180 °C | **103 / 161 °C** FAIL |
-| 3 W, 1 message/min, 25 °C: case / junction | 149 / 224 °C | **125 / 201 °C** FAIL |
-| 2.5 W, 25 % storm, 60 °C: case | 206 °C | **175 °C** FAIL |
+| 1 W, 1 message/min, 60 °C: case / junction | 95 / 116 °C FAIL | **88 / 110 °C** FAIL |
+| 2.5 W, 1 message/min, 25 °C: case / junction | 121 / 180 °C | **103 / 162 °C** FAIL |
+| 3 W, 1 message/min, 25 °C: case / junction | 149 / 224 °C | **126 / 201 °C** FAIL |
+| 2.5 W, 25 % storm, 60 °C: case | 206 °C | **176 °C** FAIL |
 | Highest duty at 25 °C: 1 W / 2.5 W / 3 W | 17 % / none / none | **25 %** / none / none |
 | Highest duty at 60 °C, any power | none | none |
 | USB charging, 3.0 V cell, 25 °C: charger junction | 115 °C, throttled to 83 % | **79 °C**, full current |
-| ... NTC reads / cell area | 60 °C (trips) / 53 °C | **34 / 34 °C** PASS |
-| Gap pad, 2.5 W storm at 60 °C, with the board fixes | 135 → 96 °C (pad under the PA) | 134 → **109 °C** (pad as built) |
+| ... NTC reads / cell area | 60 °C (trips) / 53 °C | **33 / 33 °C** PASS |
+| Gap pad, 2.5 W storm at 60 °C, with the board fixes | 135 → 96 °C (pad under the PA) | 134 → **106 °C** (pad as built) |
 
 The better numbers come from the six layers and the denser copper: the
 first prepreg is 0.116 mm, not 0.21 mm, so the paddle vias reach In1 at
@@ -114,9 +116,10 @@ less than before because it moved away from the amplifier.
 - **1 W, the US setting, works in a room** for up to a 25 % storm. In a
   60 °C sealed box nothing passes on the board as built, not even 1 W
   once a minute (case 88 °C).
-- **New: transmitting now heats the cell area.** The battery plug J3 sits
-  3 mm from the amplifier. While charging, the 45 °C cell rule fails in a
-  1 W storm at 25 °C (53 °C) and at 2.5 W once a minute (47 °C).
+- **Transmitting heats the cell area.** The battery plug J3 sits 4.5 mm
+  from the amplifier. While charging at 25 °C, the 45 °C cell rule fails in
+  a 1 W storm (51 °C); once a minute it passes at 1 W (36 °C) and 2.5 W
+  (42 °C), and 3 W reaches the limit (45 °C, flagged).
 - **The board's length is set by its parts, not by heat.** 50, 60 or
   80 mm changes the one-message-a-minute peak by 1 °C or less.
 
@@ -126,16 +129,16 @@ less than before because it moved away from the amplifier.
 |---|---|---|
 | Listening, −40 to 60 °C | **PASS** | Board about 1 °C above the air |
 | Listening at 85 °C | MARGINAL | The 85 °C-rated chips (the LNA U12 first) sit just over their limit. That is true of any 85 °C box. |
-| 1 W, 1 message/min, 25 °C | **PASS** | Amplifier case 53 °C, junction 75 °C |
+| 1 W, 1 message/min, 25 °C | **PASS** | Amplifier case 54 °C, junction 75 °C |
 | 1 W, 25 % storm, 25 °C | **PASS** | Case 68 °C, junction 90 °C |
-| 1 W, 1 message/min, 60 °C box | **FAIL** | Case 88 °C, over the 85 °C limit; junction 109 °C |
-| 2.5 W, 1 message/min, 25 °C | **FAIL** | Case 103 °C, junction 161 °C (160 °C allowed) |
-| 3 W, 1 message/min, 25 °C | **FAIL** | Case 125 °C, junction 201 °C (175 °C rating) |
-| Storms (25 %, 50 %) at 2.5–3 W | **FAIL** | At 60 °C the buck-boost (144 °C) also passes 125 °C |
+| 1 W, 1 message/min, 60 °C box | **FAIL** | Case 88 °C, over the 85 °C limit; junction 110 °C |
+| 2.5 W, 1 message/min, 25 °C | **FAIL** | Case 103 °C, junction 162 °C (160 °C allowed) |
+| 3 W, 1 message/min, 25 °C | **FAIL** | Case 126 °C, junction 201 °C (175 °C rating) |
+| Storms (25 %, 50 %) at 2.5–3 W | **FAIL** | At 60 °C the buck-boost (141 °C) also passes 125 °C |
 | Continuous transmit, any power | **FAIL** | Steady state, with nothing to stop it |
-| USB charging alone, 3.0 V cell, 25 °C | **PASS** | Charger junction 79 °C (TREG 100 °C): full 300 mA. NTC and cell area 34 °C. |
+| USB charging alone, 3.0 V cell, 25 °C | **PASS** | Charger junction 79 °C (TREG 100 °C): full 300 mA. NTC and cell area 33 °C. |
 | USB charging alone, 60 °C box | throttled | Charger junction would reach 112 °C; TREG keeps 77 % of the current |
-| Charging while transmitting, 25 °C | **FAIL** above 1 W once a minute | Cell area 38 °C at 1 W once a minute (PASS), 53 °C in a 1 W storm, 47 °C at 2.5 W once a minute (45 °C limit) |
+| Charging while transmitting, 25 °C | **FAIL** above 1 W once a minute | Cell area 36 °C at 1 W once a minute (PASS), 51 °C in a 1 W storm (FAIL), 42 °C at 2.5 W once a minute (PASS; 45 °C limit), 45 °C at 3 W once a minute (flagged) |
 | Battery area in a 60 °C box | FAIL, set by the box | The cell is at 60 °C before the radio does anything |
 
 Highest transmit duty that passes, on the board as built with 1-second
@@ -188,21 +191,21 @@ QPA9510 case peak, 2.5 W, 25 % storm, 60 °C, h = 10 (`fixes.png`):
 
 | Change | Case peak |
 |---|---|
-| The routed board as built | 175 °C |
+| The routed board as built | 176 °C |
 | The old uniform-copper guess for six layers | 179 °C |
 | 2 oz outer copper | 171 °C |
 | Paddle joined to the top pour (no island) | 158 °C |
 | Copper-filled paddle vias (VIPPO) | 154 °C |
 | M3 screw at the hole nearest the amplifier, to a metal standoff | 166 °C |
-| Gap pad as built (`layout.GAP_PAD`) to a metal wall | 150 °C |
+| Gap pad as built (`layout.GAP_PAD`) to a metal wall | 147 °C |
 | Gap pad at its old spot under the amplifier | 138 °C |
 | All board fixes (joined paddle, copper vias, 2 oz outer) | 134 °C |
-| All board fixes + gap pad as built | **109 °C** |
-| Board 50 / 60 / 80 mm long | 182 / 178 / 174 °C |
+| All board fixes + gap pad as built | **106 °C** |
+| Board 50 / 60 / 80 mm long | 182 / 178 / 175 °C |
 
-The gap pad as built takes 25 °C off a storm but almost nothing off one
+The gap pad as built takes 29 °C off a storm but almost nothing off one
 message a minute (88 → 87 °C at 1 W, 60 °C): in one second the heat does
-not reach it. At its old spot under the amplifier it was worth 12 °C more
+not reach it. At its old spot under the amplifier it was worth 9 °C more
 in a storm.
 
 ### Study 2: temperature-rating audit (E1)
@@ -237,7 +240,7 @@ in a storm.
 
 | Question | Answer |
 |---|---|
-| Is the length set by heat? | **No.** A 50, 60 or 80 mm board changes the one-message-a-minute peak by 1 °C or less, and the 25 % storm by −1 to +7 °C. |
+| Is the length set by heat? | **No.** A 50, 60 or 80 mm board changes the one-message-a-minute peak by 1 °C or less, and the 25 % storm by −2 to +9 °C (60 °C, 1–3 W). |
 | Can the amplifier area shrink? | **No.** It needs more copper and a metal heat path, not less area. |
 
 ## Fixes, layout and values first
@@ -255,22 +258,22 @@ in a storm.
    60 °C):
    - join the paddle (pad 17) to the top ground pour with a solid
      connection, for instance wide copper from GND pins 2 and 4 out to the
-     pour: 175 → 158 °C;
+     pour: 176 → 158 °C;
    - copper-filled vias in the paddle (VIPPO): → 154 °C;
    - 2 oz outer copper: → 171 °C;
    - **all of these together: 134 °C.**
 3. **The gap pad from the bottom to a metal wall or plate** of the
    enclosure, at `layout.GAP_PAD` (bare copper, mask open, on the board):
    a 10 × 10 mm gap pad of at least 3 W/mK.
-   - With fix 2 the storm case drops to **109 °C**; at 25 °C, 1 W is then
+   - With fix 2 the storm case drops to **106 °C**; at 25 °C, 1 W is then
      allowed continuously, 2.5 W up to 25 % and 3 W one message in 15 s.
    - In a 60 °C box 1 W passes up to 25 %. Nothing above 1 W passes.
-   - Under the amplifier it was worth 12 °C more; that bottom area now
+   - Under the amplifier it was worth 9 °C more; that bottom area now
      holds the plugs and the amplifier's power parts.
 4. **Charger: done on this board.** ISET 1 k (300 mA), the charger at the
    USB end, the NTC beside the plug and readable by firmware. What is left
    is firmware: the 0–45 °C rule from the NTC, which also sees the
-   amplifier's heat (in a 1 W storm at 25 °C it reads 43 °C, 51 °C while
+   amplifier's heat (in a 1 W storm at 25 °C it reads 42 °C, 50 °C while
    charging).
 5. **Firmware variant:** declare the 32.768 kHz crystal as 250 ppm
    (`NRF_CLOCK_LF_ACCURACY_250_PPM`), not 20 ppm.
@@ -306,7 +309,9 @@ quiescent, 25 °C, GSM bursts (Pin +4.5 dBm, 37.5 % duty, p.3). PAE is
 35.5 dBm (p.3 cross-check: 35.4 dBm at 1.7 A from 3.6 V is 56.7 %).
 
 - The amplifier must deliver the antenna power plus 1.13 dB, the loss to
-  the U.FL found by `sim/rf`.
+  the U.FL `sim/rf` gave when this was run. It now gives 1.20–1.22 dB, so
+  the amplifier's heat here is about 0.1 dB low (`followup.py` takes the
+  1.1 dB as an input; not re-run).
 - Firmware sets VPA so the amplifier works at its 35 dBm-equivalent point,
   within 2.7–4.0 V. This assumes a saturated amplifier keeps its PAE when
   VCC and the output scale together.
@@ -328,10 +333,10 @@ copper-filled paddle vias; "pad" = the 10 × 10 mm gap pad at
 | As built | 35/33 | 34/33 | 31.5/31.5 | 33/31.5 | 31.5/30 | –/– | –/– | –/– | –/– |
 | As built + pad | 35/33 | 34/33 | 34/33 | 33/31.5 | 31.5/30 | 31.5/30 | –/– | –/– | –/– |
 | As built + pad at its old spot | 35/33 | 34/33 | 35/33 | 33/31.5 | 31.5/31.5 | 33/31.5 | –/– | –/– | –/– |
-| Paddle fixes | 35/35 | 35/34 | 33/33 | 35/33 | 34/33 | –/– | 31.5/31.5 | 31.5/30 | –/– |
-| Paddle fixes + pad | 35/35 | 35/34 | 35/34 | 35/33 | 34/33 | 33/31.5 | 31.5/31.5 | 31.5/30 | 31.5/30 |
-| Paddle fixes + 2 oz outer | 35/35 | 35/35 | 34/33 | 35/34 | 34/33 | –/– | 33/31.5 | 31.5/31.5 | –/– |
-| Paddle fixes + 2 oz outer + pad | 35/35 | 35/35 | 35/34 | 35/34 | 35/33 | 34/33 | 33/31.5 | 33/31.5 | 31.5/31.5 |
+| Paddle fixes | 35/35 | 35/34 | 34/33 | 35/33 | 34/33 | –/– | 31.5/31.5 | 31.5/30 | –/– |
+| Paddle fixes + pad | 35/35 | 35/34 | 35/34 | 35/33 | 34/33 | 34/33 | 31.5/31.5 | 31.5/30 | 31.5/30 |
+| Paddle fixes + 2 oz outer | 35/35 | 35/35 | 34/33 | 35/34 | 35/33 | 30/30 | 33/31.5 | 31.5/31.5 | –/– |
+| Paddle fixes + 2 oz outer + pad | 35/35 | 35/35 | 35/35 | 35/34 | 35/33 | 35/33 | 33/31.5 | 33/31.5 | 31.5/31.5 |
 
 At 60 °C the cell-at-60 °C criterion is left out, because the box sets
 it. Against 19 Oct: the routed board with the two paddle fixes gives
@@ -349,25 +354,25 @@ Case / junction peak, nominal PAE:
 |---|---|---|---|
 | As built | 68 / 100 °C | 86 / 111 °C | 95 / 112 °C |
 | The 19 Oct uniform guess for six layers | 70 / 102 | 88 / 113 | 96 / 113 |
-| Paddle joined to the top pour | 59 / 91 | 78 / 103 | 90 / 107 |
-| Copper-filled paddle vias | 57 / 89 | 75 / 101 | 88 / 105 |
+| Paddle joined to the top pour | 59 / 91 | 77 / 103 | 90 / 107 |
+| Copper-filled paddle vias | 57 / 89 | 76 / 101 | 88 / 106 |
 | 2 oz outer | 67 / 99 | 84 / 110 | 93 / 110 |
 | Both paddle fixes | 52 / 84 | 72 / 97 | 86 / 103 |
 | Both paddle fixes + 2 oz outer | 48 / 80 | 67 / 92 | 83 / 100 |
-| Gap pad as built | 67 / 99 | 84 / 109 | 87 / 104 |
+| Gap pad as built | 67 / 99 | 84 / 109 | 86 / 103 |
 | Gap pad at its old spot under the PA | 65 / 97 | 81 / 106 | 83 / 100 |
-| Both paddle fixes + 2 oz outer + gap pad | 46 / 78 | 65 / 90 | 75 / 92 |
+| Both paddle fixes + 2 oz outer + gap pad | 46 / 78 | 64 / 90 | 74 / 91 |
 
 The two paddle fixes are worth 9–11 °C each, and most together (16 °C at
-25 °C). The gap pad matters in storms (−8 °C at 60 °C) and hardly for a
-single packet (−1 °C); at its old spot it was worth 4 °C more.
+25 °C). The gap pad matters in storms (−9 °C at 60 °C) and hardly for a
+single packet (−1 °C); at its old spot it was worth 3 °C more.
 
 ### The charger as built
 
 ISET 1 k (300 mA), the charger U4 at the USB end, NTC TH1 beside J3:
 
 - **At 25 °C** the charger junction is 79 °C from a 3.0 V cell (TREG
-  100 °C: full current); the board under J3 and the NTC read 34 °C.
+  100 °C: full current); the board under J3 and the NTC read 33 °C.
   400 mA would also pass (97 °C); 497 mA would throttle to 84 %.
 - **At 45 °C ambient** the board round J3 is 51–53 °C at any current, so
   firmware must stop charging (the 45 °C rule); the charger's own NTC

@@ -1039,9 +1039,9 @@ void variantTxPending()
 // begun and PA_EN has been high for at least ~0.25 ms.  The QPA9510's 2.8 V
 // control supply (TLV75528, PA_EN) takes 550 us typical (no maximum given)
 // to start, the QPA9510 ramps in ~40 us, and the detectors then settle in
-// 34 us (FWD_DET) to 335 us (REFL_DET, antenna missing, 30 dBm, -40 C;
+// 34 us (FWD_DET) to 401 us (REFL_DET, antenna missing, 30 dBm, -40 C;
 // sim/rf study 8).  So the 750 us sample needs the RF at full power by
-// ~415 us after startTransmit: a bench check.
+// ~349 us after startTransmit: a bench check.
 void variantTxStarted()
 {
     txActive = true;

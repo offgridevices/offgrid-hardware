@@ -91,7 +91,7 @@ be checked. The *v1* column is from the re-routed board's checks and simulations
 | R3 | **1 W (30 dBm) whenever the radio is set to the US region**, the Part 15 limit. Above 1 W only in Meshtastic's licensed (ham) mode or with custom firmware. | Firmware power table (`TX_GAIN_LORA`) from the PA's gain; measured | ⏳ table written from a model: a 30 dBm request gives about 29.0 dBm. Needs the core patch (part 1) and bench measurement (`firmware/README.md`). |
 | R4 | Receive at least as well as the RAK4631 (SX1262 sensitivity, about −131 dBm at LongFast). The amplifier's receive path must not make it worse. | Noise-figure budget; measured side by side with a RAK | ✅ in simulation on the routed board (5 Nov): 4.9 dB better than a RAK4631 with the receive amp on (the default); 2.1 dB worse in battery-saver bypass (`sim/rf`). ⏳ side by side. |
 | R5 | **LoRa antenna on a U.FL connector** at the end of the board, as on the Heltec V4 | Layout | ❌ placed at the amplifier end of the antenna chain, about 12 mm in from the end; the drone and GPS plugs take the very end (`src/placement.json`, owner: "the U.FL stays put", 3 Nov) |
-| R6 | Transmit harmonics filtered so a 3 W burst stays inside FCC spurious limits | Filter simulation; measured with a spectrum analyser | ✅ in simulation on the routed board (5 Nov, harmonic filter values re-fitted): 2nd to 10th harmonics pass, worst margin 21.7 dB at 35 dBm with a 6 dBi antenna, 18.4 dB over tolerance (`sim/rf`). Above the 3rd harmonic the amplifier's levels are assumed. ⏳ spectrum analyser. |
+| R6 | Transmit harmonics filtered so a 3 W burst stays inside FCC spurious limits | Filter simulation; measured with a spectrum analyser | ✅ in simulation on the routed board (5 Nov, harmonic filter values re-fitted): 2nd to 10th harmonics pass at 35 dBm with a 6 dBi antenna: 2nd–5th worst margin 21.7 dB (5th), 18.4 dB over tolerance; 6th–10th worst 20.4 dB (6th) (`sim/rf`). Above the 3rd harmonic the amplifier's levels are assumed. ⏳ spectrum analyser. |
 | R7 | **Bluetooth LE on an on-board antenna** (no second connector), for setup from the Meshtastic app; turned off in firmware when not wanted | Antenna in layout; firmware setting | ✅ in simulation on the routed board (5 Nov, values re-fitted to the routed lines): 16.4 dB return loss nominal, 9.6 dB worst, 100 % yield (`sim/rf`). The antenna is Johanson's EVB model, not an EM model of this board. ⏳ network analyser. |
 
 ### Power
@@ -99,19 +99,19 @@ be checked. The *v1* column is from the re-routed board's checks and simulations
 | # | Requirement | How it is checked | v1 |
 |---|---|---|---|
 | P1 | **Listening (receive, Bluetooth off): 10 mA or less.** The RAK WisBlock idles near 20 mA. Lower is better. | Current budget from datasheets; measured | ❌ met only in battery-saver mode (about 7–9 mA, receive amp off). The default, with the receive amp on, is about 12–14 mA; the owner accepted about 13 mA for the range on 18 Oct (`docs/plan.md`). Power study (`sim/power`, 2 Nov): 12.7 mA as the firmware stood, about 11.9 mA with two firmware fixes now in (no range lost); about 8 mA with full range is possible later (windowed listening plus a small board change, `docs/plan.md`). Datasheet estimates; ⏳ measured. |
-| P2 | Transmit bursts up to about 2 A from the battery at 3 W, without the 3.3 V rail dropping or the board resetting | Supply simulation with a worn battery | ✅ in simulation on the routed board's copper (5 Nov), at the levels the firmware's battery cap table allows: no brown-out, no reset. A worn 4.2 V cell gets 2.5 W at 25 °C and up; at −40 °C a cell below 4.2 V gets nothing, except a low-resistance (50 mΩ) 3.7 V cell, which gets 1 W (`sim/burst`). The temperature cap is lower still above 45 °C (E4). ⏳ bench. |
+| P2 | Transmit bursts of about 3–4 A from the battery at 3 W, without the 3.3 V rail dropping or the board resetting | Supply simulation with a worn battery | ✅ in simulation on the routed board's copper (5 Nov), at the levels the firmware's battery cap table allows: no brown-out, no reset. A 3 W burst at 25 °C draws 2.95–3.82 A from a 50 mΩ cell (4.2 / 3.7 V), up to 4.11 A in the derating study's worst case. A worn 4.2 V cell gets 2.5 W at 25 °C and up; at −40 °C a cell below 4.2 V gets nothing, except a low-resistance (50 mΩ) 3.7 V cell, which gets 1 W (`sim/burst`). The temperature cap is lower still above 45 °C (E4). ⏳ bench. |
 | P3 | **One LiPo cell (3.0–4.2 V) on a JST-PH 2.0 connector with standard (Adafruit/SparkFun) polarity**, which is the opposite of RAK's | Footprint and silkscreen | ⏳ wired pad 1 = + from the footprint drawing; check with a meter on a real Adafruit cell before ordering (`docs/plan.md`) |
 | P4 | **USB-C** for power, charging, firmware and the serial console | Layout | ✅ placed at one end (`src/placement.json`) |
-| P5 | **Solar input (5–6 V panel)** on its own connector, charging the cell | Charger simulation | ✅ in simulation on the routed board (5 Nov): a 6 V panel charges at every temperature inside 0–45 °C (`sim/solar`) |
+| P5 | **Solar input (5–6 V panel)** on its own connector, charging the cell | Charger simulation | ✅ in simulation on the routed board (5 Nov), at 25 °C only, the one temperature run inside the 0–45 °C charging window: a 6 V panel charges the cell at 169 mA in full sun (56–76 % of the panel's maximum power), 22 mA at 20 % sun; at −40, −20, 0, 60 and 85 °C no more than 1 mA flows, as P7 requires (`sim/solar`). ⏳ other temperatures inside the window, and the bench. |
 | P6 | Optional 5 V from the drone's serial cable charges the cell while it is carried | Power-path simulation | ⏳ drone 5 V plug-in passes (`sim/hotplug`); it uses the same path as solar, but drone charging was not run as its own case |
-| P7 | Charging stops when the cell is too hot or too cold (LiPo in a 60 °C box) | Charger temperature input and thermistor placement | ⏳ the firmware's 0–45 °C window passes in simulation (`sim/solar`, 5 Nov); the sensor reads the board beside the plug, not the cell. Charging heat at 25 °C keeps the cell area at or under 45 °C up to 3 W one message a minute (`sim/thermal`, 5 Nov). |
+| P7 | Charging stops when the cell is too hot or too cold (LiPo in a 60 °C box) | Charger temperature input and thermistor placement | ⏳ the firmware's 0–45 °C window passes in simulation (`sim/solar`, 5 Nov); the sensor reads the board beside the plug, not the cell. Charging while transmitting once a minute at 25 °C: the cell area reaches 36 °C at 1 W and 42 °C at 2.5 W (pass); 3 W reaches the 45 °C limit (53 °C in a sealed box, h = 5); a 1 W 25 % storm reaches 51 °C and fails (`sim/thermal`, 5 Nov). |
 | P8 | Power slide switch | Layout | ✅ placed (`src/placement.json`): a vertical C&K JS202011JCQN, lever up like the buttons (owner, 2 Nov), framed and labelled POWER on the silk. ⏳ which lever position is ON: check on the first board, then mark it on the silk |
 
 ### Protection: it must not burn out
 
 | # | Requirement | How it is checked | v1 |
 |---|---|---|---|
-| X1 | Battery plugged in backwards: no damage | Simulation; tested on built boards | ✅ in simulation on the routed board, all six cases at −40 to 85 °C (5 Nov). One sequence (a right-way cell pulled out under external power, then a reversed one) still draws about 20 A for 0.2 ms until the protector trips, inside every part's pulse rating; firmware clears that state when the processor runs. Bench test (`sim/reverse/results.txt`). |
+| X1 | Battery plugged in backwards: no damage | Simulation; tested on built boards | ✅ in simulation on the routed board, all seven cases at −40 to 85 °C (5 Nov). One sequence (a right-way cell pulled out under external power, then a reversed one) still peaks at 12.3 / 11.5 / 10.8 A at 25 / 60 / 85 °C (0.07 A at −40 to 0 °C) until the protector trips, inside every part's pulse rating; firmware clears that state when the processor runs. Bench test (`sim/reverse/results.txt`). |
 | X2 | Short circuit on any output pin or the battery path: current is limited and the board recovers | eFuse / current-limit simulation | ✅ in simulation on the routed board (5 Nov), every rail, VSYS and PA_IN included. The protector trips at 4.6–6.6 A (25 °C); a short on the cell cuts it off, and restart on the cell alone is a bench test (`sim/shorts`). |
 | X3 | Wrong or surging input on USB, solar or the drone port, up to at least 20 V and with plug-in spikes: no damage | Hot-plug and overvoltage simulation | ✅ in simulation on the routed board at every temperature (5 Nov): 20 V faults, a 12 V panel, reversed supplies, a 5 → 20 V step (`sim/hotplug`) |
 | X4 | A bad or weak battery (high internal resistance, deep discharge to 2.5 V, a 4.35 V "HV" cell, the cell pulled out while on solar): no damage, clean restart | Simulation set | ⏳ worn and cold cells pass with the firmware caps (`sim/burst`); a 4.35 V cell is inside the protector's rating (`sim/derating`). Deep discharge to 2.5 V and a cell pulled out on solar were not run as their own cases. |
@@ -125,7 +125,7 @@ be checked. The *v1* column is from the re-routed board's checks and simulations
 |---|---|---|---|
 | E1 | Every part rated −40 to +85 °C or better | BOM audit | ⏳ chips, crystals, buttons and passives pass (`sim/thermal`, 5 Nov). Exceptions: JST plugs −25 °C (owner-accepted); USB-C lower limit and the ratings added since 19 Oct unverified. |
 | E2 | **Works continuously in a sealed box at 60 °C**, including a storm of messages (sustained transmitting) | Thermal simulation on the routed board, 60 °C air, worst-case duty cycle | ❌ in simulation on the routed board (5 Nov): in a 60 °C box the cell area passes its 60 °C limit with the radio only listening, so no transmit duty passes there; at 25 °C, 1 W passes at 25 % duty without the gap pad, 100 % with it (`sim/thermal`, *Limits*). |
-| E3 | 3 W transmitting is held back by firmware before any part overheats | Thermal simulation; temperature sensing in firmware | ⏳ firmware caps power by board temperature and by the cell (the cap table re-fitted to the routed board, 6 Nov). The sensor lags the amplifier by up to 36 °C, so it limits duty; it cannot protect a single burst (`firmware/README.md`). |
+| E3 | 3 W transmitting is held back by firmware before any part overheats | Thermal simulation; temperature sensing in firmware | ⏳ firmware caps power by board temperature and by the cell (the cap table re-fitted to the routed board, 6 Nov). Within one 1 s burst the amplifier's case rises above what the sensor reads by about 27–31 °C at 1 W, 74–86 °C at 2.5 W and 95–110 °C at 3 W (`sim/thermal`), so it limits duty; it cannot protect a single burst (`firmware/README.md`). |
 | E4 | Large headroom: every part runs at no more than about 70 % of its rated current, voltage and power in the worst case | Derating table | ⏳ 81 rows on the routed board (6 Nov): 0 fail, 9 over 70 %, and 2 **over 100 % (owner-accepted)**: the TPS63810 buck-boost would dissipate 204 % (85 °C) and 114 % (60 °C) of its rating during a 3 W burst. The firmware never runs 3 W there: its temperature cap allows 2 W above 45 °C, 1 W above 60 °C and turns the amplifier off above 75 °C on the board (*Limits*, `sim/derating/results.txt`) |
 
 ### Connections
@@ -313,10 +313,23 @@ probe (J-Link, nRF52-DK or CMSIS-DAP) for the bootloader.
   3 W pass at no duty (not even one 1 s message a minute); in a 60 °C box
   nothing passes, because the cell's area passes 60 °C with the radio only
   listening (`sim/thermal`, 5 Nov).
-- **The gap pad to a metal wall is what makes power above 1 W usable:** with
-  it, 1 W runs continuously at 25 °C and 35 dBm passes one message a minute
-  (34 dBm in a 25 % storm). The pad sits just below the plugs' row, 4.3 mm
-  from the amplifier, not under it (the plugs are there).
+- **Above 1 W the two heat studies disagree, by their amplifier efficiency.**
+  With the gap pad on a metal wall, 1 W runs continuously at 25 °C (both).
+  `sim/thermal/run.py`, with the plan's supply currents (2.0 A at 3.6 V,
+  2.3 A at 4.0 V), passes no 2.5 W or 3 W duty at 25 °C, pad or not.
+  `followup.py`, with the data sheet's efficiency, passes 35 dBm one message
+  a minute at 25 °C (34 dBm in a 25 % storm); with the plan's supply power
+  it passes 33 dBm (33 dBm in a storm). At 45 °C it passes 33 dBm (31.5);
+  at 60 °C nothing. Which is right is a bench measurement. The pad sits
+  just below the plugs' row, 4.3 mm from the amplifier, not under it (the
+  plugs are there).
+- **The firmware's temperature cap assumes heat fixes this board does not
+  have.** It allows the configured maximum (up to 35 dBm) up to 45 °C on
+  the board and 33 dBm to 60 °C: what `followup.py` passes at those ambients with the
+  amplifier's paddle joined to the top pour, copper-filled paddle vias,
+  2 oz outer copper and the pad. The board as ordered has only the pad,
+  where `followup.py` passes 33 dBm (31.5 dBm pessimistic) at 45 °C and
+  nothing at 60 °C. A change to the cap is waiting on the owner.
 - **Antenna switch with the antenna missing:** at a 4.0 V amplifier supply
   (the opt-in `OFFGRID_PA_ALLOW_4V0` build) the SKY13330 sees 109 % of its
   rating. The firmware holds the supply at 3.6 V (98 %) after the first
@@ -324,11 +337,11 @@ probe (J-Link, nRF52-DK or CMSIS-DAP) for the bootloader.
   runs at its own level for up to 750 µs first. Simulation only.
 - **The harmonic filter's notches** sit at 1.42 / 2.44 GHz, not on 2f and
   3f: marginal by design. The LFCG-1000+ filter carries the rejection
-  (21.7 dB margin at 35 dBm, 6 dBi).
+  (2nd–5th: 21.7 dB margin at 35 dBm, 6 dBi).
 - **The transmit-loss spread is an assumption:** 82 % of simulated boards
   lose more than 1.3 dB (3 W at 4.0 V needs ≤ 1.3 dB), but that spread is
   the LFCG-1000+ and SKY13330 losses taken as ×1.0–1.5 and typical-to-max;
-  with them at typical no board loses more than 1.26 dB. Measure it.
+  with every part at its typical value the loss is 1.20–1.22 dB. Measure it.
 - **The TPS63810 buck-boost cannot carry a 3 W burst in a hot box.** During
   a 3 W burst it dissipates about 1 W: 204 % of its rated dissipation at
   85 °C ambient and 114 % at 60 °C (`sim/derating`, listed as OVER,

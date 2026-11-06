@@ -216,14 +216,15 @@ the port stays open until the next reboot. See *Listening power*.
 ## Transmit power
 
 Power is set by the SX1262's drive level. The drive goes through a 15.9 dB
-pad into the QPA9510, which has fixed gain, then 1.1 dB of harmonic-filter, switch
-and antenna-filter loss to the U.FL (sim/rf study 1). The net gain from the SX1262 pin to
-the U.FL is about 16.8 dB.
+pad into the QPA9510, which has fixed gain, then 1.2 dB of harmonic-filter, switch
+and antenna-filter loss to the U.FL (sim/rf study 1: 1.20–1.22 dB). The net gain from the
+SX1262 pin to the U.FL is about 16.7 dB. The power table still uses the earlier 1.1 dB
+(16.8 dB), so it errs about 0.1 dB towards too little output.
 
 - **`SX126X_MAX_POWER 20`.** The SX1262 is never driven above +20 dBm.
-  - At that drive the first resistor of the pad dissipates 73 mW, 58 % of
-    its rating.
-  - The amplifier input sees about +4 dBm, against an absolute maximum of
+  - At that drive the first resistor of the pad dissipates 74 mW, 26 % of
+    its 85 °C rating (sim/rf study 3).
+  - The amplifier input sees about +3.3 dBm, against an absolute maximum of
     +13 dBm.
 - **Unlicensed mode (Meshtastic's default).**
   - Meshtastic caps the request at the region limit: 30 dBm for US.
@@ -300,9 +301,17 @@ the switched-off amplifier: in practice the node is not heard. Meshtastic's
 queue keeps moving.
 
 **By board temperature** (TMP1075 at 0x48, beside the amplifier). From the
-sim/thermal follow-up table for the 6-layer board with the heat fixes and the
-gap pad (35 dBm passes up to 45 °C ambient for 1 s a minute, 33 dBm at 60 °C,
-31.5 dBm in a 60 °C storm):
+sim/thermal follow-up table for the 6-layer board with the heat fixes (paddle
+joined to the top pour, copper-filled paddle vias, 2 oz outer copper) and the
+gap pad: 35 dBm passes up to 45 °C ambient for 1 s a minute, 33 dBm at 60 °C,
+31.5 dBm in a 60 °C storm (`results_followup.txt`, that row).
+
+**The board as ordered does not have those fixes**, only the gap pad. For it
+the same table passes 33 dBm (31.5 dBm with the plan's pessimistic supply
+power) at 45 °C and nothing at 60 °C, and `sim/thermal/run.py` passes no
+2.5 W or 3 W duty even at 25 °C. So this cap allows more than the heat
+studies pass on the ordered board; a change is waiting on the owner. The
+table below is what the code does today:
 
 | Board temperature | Cap | Back up when |
 |---|---|---|
@@ -315,9 +324,10 @@ gap pad (35 dBm passes up to 45 °C ambient for 1 s a minute, 33 dBm at 60 °C,
 **TEMP_ALERT.** The TMP1075's limits are now 75 °C (HLIM) and 70 °C (LLIM),
 comparator mode. ALERT means amplifier off, the same as the top row, so the
 cut-off holds even if the I2C reading fails. (Before 19 Oct it lowered the
-supply to 2.7 V at 80 °C.) The sensor sees only the slow average, up to
-36 °C behind the amplifier case at 1 W (sim/thermal): it limits duty, it
-cannot protect a single burst.
+supply to 2.7 V at 80 °C.) The sensor sees only the slow average: within
+one 1 s burst the amplifier case rises above what it reads by about 27–31 °C at
+1 W, 74–86 °C at 2.5 W and 95–110 °C at 3 W (sim/thermal, "TMP1075 against
+the PA case"). It limits duty; it cannot protect a single burst.
 
 **By the cell** (sim/burst/results.txt, "Highest PA level that passes,
 battery only": no brown-out, no protector trip, no TPS63810 reset). The table
@@ -359,12 +369,14 @@ high:
   USB-only case passes at 1 W, and 1.6 W and up exceed the charger's 1.05 A
   input (sim/burst);
 - **with USB in and a cell the table puts below 1 W**, cap 30 dBm
-  (`u_31_300_1W_sys` passes; without it the weak cell trips UVP).
+  (`u_31_300_1W_sys` passes; without it, `u_31_300_1W`, the TPS63810 drops
+  into UVLO, a reset, with BUVLO).
 
 The source is only switched while no packet is going out, and the TPS63810
 is re-programmed after it (the mux gap can reset it).
 
-**Cell test, and the reverse-FET latch** (sim/README.md, the one FAIL: with
+**Cell test, and the reverse-FET latch** (sim/README.md, the residual risk, no
+longer a FAIL since the 20 Oct gate clamp: with
 external power in, pulling a right-way cell leaves the reverse FET latched
 on, so a reversed cell plugged in next sees live pads). With external power
 in, the variant holds /CE high for 1 s (`OFFGRID_CELL_TEST_MS`) and then
@@ -411,19 +423,19 @@ antenna is called missing if
 - **FWD_DET < Fmin(P, T)**, or
 - **REFL_DET / FWD_DET > R(P, T)**.
 
-| Fit | Works from | Fmin(P, T) | R(P, T) | Worst margin |
+| Fit | Works from | Fmin(P, T) | R(P, T) | Worst margin on the 5 Nov board: modelled power / ±1 dB |
 |---|---|---|---|---|
-| Nominal power (default; re-fitted 5 Nov on the re-routed board) | 30 dBm | 41 mV × 1.0072^(T−25) × 1.267^(P−30) | 0.242 × 1.0095^(T−25) × 1.062^(P−30) | +1.6 dB |
-| ±1 dB power-model error (`-D OFFGRID_ANT_FIT_ROBUST=1`) | 33 dBm | 70 mV × 1.0054^(T−25) × 1.231^(P−30) | 0.424 × 1.0020^(T−25) × 1.010^(P−30) | +1.9 dB |
+| Nominal power (default; re-fitted 5 Nov on the re-routed board) | 30 dBm | 41 mV × 1.0072^(T−25) × 1.267^(P−30) | 0.242 × 1.0095^(T−25) × 1.062^(P−30) | +1.6 / −5.8 dB |
+| ±1 dB power-model error (`-D OFFGRID_ANT_FIT_ROBUST=1`; fitted on the 20 Oct model, unchanged) | 33 dBm | 70 mV × 1.0054^(T−25) × 1.231^(P−30) | 0.424 × 1.0020^(T−25) × 1.010^(P−30) | +2.5 / +0.4 dB |
 
 The constants are `#define`s in `variant.h` (`OFFGRID_ANT_FMIN30_MV`,
 `_FMIN_KT`, `_FMIN_KP`, `OFFGRID_ANT_R30`, `_R_KT`, `_R_KP`).  On the
 5 Nov board (sim/rf study 8) the default rule holds at the modelled power
 (good antenna +1.7 dB, missing +1.6 dB) but not with ±1 dB of power-model
 error (good −5.8 dB: a false "antenna missing"); the robust constants hold
-with it (+0.4 / +0.6 dB) from 33 dBm.  The 20 Oct default constants (53 mV,
-0.245) failed a good antenna on this board by 0.8 dB.  Compile only: the
-new constants are not built or run on a board here.
+with it (+0.4 / +0.6 dB) from 33 dBm (sim/rf study 8, "firmware rule as
+committed").  The default constants replaced the 20 Oct ones (53 mV, 0.245).
+The firmware is compiled with them, not run on a board.
 
 - **A low FWD_DET is a fault, not a reason to wait.** With a saturated
   amplifier and the antenna missing, FWD_DET collapses to a few mV at some
@@ -468,10 +480,10 @@ new constants are not built or run on a board here.
   amplifier's supply, not the cell voltage: the switch's voltage follows the
   supply the TPS63810 makes, whatever the cell. Checked by simulation only.
 
-**Timing (bench check).** REFL_DET takes up to 335 µs to reach 99 % after
+**Timing (bench check).** REFL_DET takes up to 401 µs to reach 99 % after
 the RF is at full power (30 dBm, −40 °C, antenna missing, worst phase), and
 FWD_DET 34 µs. So the 750 µs sample needs **the RF at full power by
-~415 µs after startTransmit**.
+~349 µs after startTransmit** (sim/rf study 8, "Timing").
 
 - RadioLib 7.6.0 (`SX126x::launchMode()`) raises PA_EN, sends SetTx, then
   waits for the SX1262's BUSY to fall. BUSY falls only after the oscillator
@@ -614,10 +626,12 @@ the SX1262 at *i* dBm.
 **The model.**
 
 - Gain: 33.8 dB (QPA9510) − 15.9 dB (pad) − 1.1 dB (amplifier to U.FL,
-  sim/rf) = 16.8 dB small-signal. Before sim/rf put a number on that loss,
+  sim/rf's earlier figure; it now gives 1.20–1.22 dB, so the real gain is
+  about 0.1 dB lower and the table errs towards too little) = 16.8 dB
+  small-signal. Before sim/rf put a number on that loss,
   the table left it out (18 dB), which erred towards too little output.
 - Compression: Rapp, p = 2, towards a saturated output of about 35 dBm at
-  the U.FL at 4.0 V (sim/rf Monte Carlo: 34.8–35.2 dBm). That ceiling scales
+  the U.FL at 4.0 V (sim/rf Monte Carlo: 34.7–35.1 dBm). That ceiling scales
   as 20·log(V): about 34 dBm at 3.6 V and 31.5 dBm at 2.7 V.
 - Rounding: computed on the 4.0 V curve and rounded up. So, in the model, a
   request is never exceeded at any amplifier supply. At the US supply
@@ -713,7 +727,7 @@ before it is sold; that is separate from this firmware.
   35 dBm, hot and cold, over several cable lengths, with three loads: a good
   antenna, a VSWR-2 load and an open U.FL. Refit the six constants from
   those readings. Also:
-  - **that the RF is at full power by ~415 µs after startTransmit** (see
+  - **that the RF is at full power by ~349 µs after startTransmit** (see
     *Timing*);
   - that dropping PA_EN mid-packet is clean.
 - **The soft start**:

@@ -436,9 +436,9 @@ static const uint8_t SCK = PIN_SPI_SCK;
  *
  * When: OFFGRID_REFL_SAMPLE_US after the SX1262 was told to transmit, both
  * pins in one SAADC scan (40 us acquisition each, back to back, 3.6 V full
- * scale).  REFL_DET takes up to 335 us to settle (99 %) after the RF reaches
+ * scale).  REFL_DET takes up to 401 us to settle (99 %) after the RF reaches
  * full power (30 dBm, -40 C, antenna missing, worst phase), FWD_DET 34 us,
- * so the RF must be at full power by ~415 us after startTransmit (bench
+ * so the RF must be at full power by ~349 us after startTransmit (bench
  * check: the TLV75528 that powers the amplifier's control input starts in
  * 550 us typical from PA_EN, which rises >= ~0.25 ms before the hook).
  * On a fault: amplifier off at once, for this packet and the ones after;
@@ -451,7 +451,7 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #define PIN_FWD_DET (2)    // P0.02 / AIN0 FWD_DET
 #define FWD_DET_AIN 1      // SAADC PSELP value for AIN0
 #ifndef OFFGRID_REFL_SAMPLE_US
-#define OFFGRID_REFL_SAMPLE_US 750 // after startTransmit(); needs the RF at full power by ~415 us
+#define OFFGRID_REFL_SAMPLE_US 750 // after startTransmit(); needs the RF at full power by ~349 us
 #endif
 #ifndef OFFGRID_REFL_MIN_DBM
 #define OFFGRID_REFL_MIN_DBM 30 // packets modelled below this are not checked
@@ -459,7 +459,8 @@ static const uint8_t SCK = PIN_SPI_SCK;
 // The six constants below are overridden together (define all six).
 #ifndef OFFGRID_ANT_FMIN30_MV
 #if defined(OFFGRID_ANT_FIT_ROBUST) && (OFFGRID_ANT_FIT_ROBUST == 1)
-// sim/rf study 8, fitted with +-1 dB of power-model error; works from 33 dBm
+// sim/rf study 8, fitted with +-1 dB of power-model error on the 20 Oct model;
+// works from 33 dBm (on the 5 Nov board: +2.5 dB, +0.4 dB with +-1 dB error)
 #define OFFGRID_ANT_FMIN30_MV 70.0f
 #define OFFGRID_ANT_FMIN_KT 1.0054f
 #define OFFGRID_ANT_FMIN_KP 1.231f
@@ -468,8 +469,8 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #define OFFGRID_ANT_R_KP 1.010f
 #else
 // sim/rf study 8, nominal-power fit; works from 30 dBm (default).  Re-fitted
-// 5 Nov 2026 on the re-routed board with its re-fitted harmonic filter (the
-// 20 Oct constants, 53 mV / 0.245, failed a good antenna by 0.8 dB there)
+// 5 Nov 2026 on the re-routed board with its re-fitted harmonic filter
+// (replacing the 20 Oct constants, 53 mV / 0.245)
 #define OFFGRID_ANT_FMIN30_MV 41.0f
 #define OFFGRID_ANT_FMIN_KT 1.0072f
 #define OFFGRID_ANT_FMIN_KP 1.267f

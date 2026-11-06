@@ -66,4 +66,4 @@ board.py values (copy):
   TRACE_SOLAR = (0.0018, 0.8e-9)
   TRACE_DRONE = (0.0356, 7.4e-9)
   SENSE_TRACE = 0.0004
-board.py differs from these (re-run the studies after copying): TRACE_BAT, TRACE_MUX1, TRACE_PAIN, TRACE_VPA, TRACE_USB, TRACE_5V, TRACE_CHG, TRACE_BYP, TRACE_SYS2, TRACE_SOLAR, TRACE_DRONE, SENSE_TRACE
+board.py differs from these (re-run the studies after copying): none

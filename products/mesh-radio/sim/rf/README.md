@@ -70,7 +70,8 @@ value sets were re-fitted to the routed lines (`results.txt` is this run):
   are the starting point for the VNA tune on the bench.
 - **TX loss over tolerance** stays MARGINAL (18 % of boards ≤ 1.3 dB): the
   spread is the LFCG-1000+ loss (×1.0–1.5) and SKY13330 loss (typ–max),
-  both ASSUMED; with those at typical no board exceeds 1.26 dB.
+  both ASSUMED; with every part at its typical value the loss is
+  1.20–1.22 dB (study 1).
 - **Firmware**: the default antenna-rule constants are re-fitted to this
   board (`firmware/variant/variant.h`).
 - **The switch at 4.0 V** (6 Nov): study 7 gives the SKY13330 31.0 V peak

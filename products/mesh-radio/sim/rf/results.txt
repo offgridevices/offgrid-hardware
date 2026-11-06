@@ -431,7 +431,7 @@ Criteria: a ratio threshold (fixed, or of the form R25 x exp(b (T-25) + c (P-30)
   -> two conditions, fitted with +-1 dB of power-model error: MARGINAL  [from 33 dBm, worst margin +1.9 dB: Fmin 0.059 V x 1.0059^(T-25) x 1.242^(P-30), R 0.423 x 1.0020^(T-25) x 1.010^(P-30)]
   -> two conditions with +-1 dB between the power model and the real power: MARGINAL  [-1 dB: good antenna -5.8, missing -1.8 dB; +1 dB: good +0.4, missing +2.0 dB (a negative good-antenna margin = a false "antenna missing" and a 1 W retry, not a missed fault)]
 
-  (5) The two-condition rule with the constants committed in firmware/variant/variant.h (fitted on the 20 Oct pre-route model), on this
+  (5) The two-condition rule with the constants committed in firmware/variant/variant.h (default: this run's fit; robust: not this run's fit (an earlier model's)), on this
       board: worst margin dB (good antenna / missing), every pairing, both models, -40..85 C; also with the real power
       1 dB under / over the firmware's model:
       robust   30 dBm: nominal  -3.8 /  -3.7   1 dB under -11.5 /  -3.8   1 dB over  +1.7 /  -2.3   <- a missing antenna passes
