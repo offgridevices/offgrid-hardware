@@ -476,15 +476,17 @@ uint16_t vpaForCapMv(int8_t capDbm, uint16_t ceilingMv)
 // ---------------------------------------------------------------------------
 // Battery cap: sim/burst/results.txt, "Highest PA level that passes, battery
 // only".  dBm at the U.FL, 0 = not even 1 W.  Rows: OCV 4.2 / 3.7 / 3.3 /
-// 3.1 V; columns: R_int at 25 C 50 / 150 / 300 mOhm.  60 C and 85 C are
-// the same as 25 C or better, so 25 C stands for everything above.
+// 3.1 V; columns: R_int at 25 C 50 / 150 / 300 mOhm.  The last band is the
+// lowest of 25, 60 and 85 C.  From the 5 Nov run on the re-routed board's
+// copper (sim/extract.py); until then the 19 Oct pre-route estimates, which
+// were up to 2 dB higher at -20 C and at 3.3-3.7 V.
 // ---------------------------------------------------------------------------
 const uint16_t BURST_OCV_MV[4] = {4200, 3700, 3300, 3100};
 const int8_t BURST_CAP[4][4][3] = {
-    {{33, 0, 0}, {32, 0, 0}, {0, 0, 0}, {0, 0, 0}},          // -40 C
-    {{35, 32, 0}, {33, 0, 0}, {30, 0, 0}, {0, 0, 0}},        // -20 C
-    {{35, 34, 32}, {35, 33, 30}, {33, 30, 0}, {32, 0, 0}},   // 0 C
-    {{35, 35, 34}, {35, 35, 33}, {35, 33, 30}, {33, 30, 0}}, // 25 C and above
+    {{33, 0, 0}, {30, 0, 0}, {0, 0, 0}, {0, 0, 0}},          // -40 C
+    {{34, 30, 0}, {33, 0, 0}, {30, 0, 0}, {0, 0, 0}},        // -20 C
+    {{35, 34, 32}, {34, 33, 30}, {33, 30, 0}, {30, 0, 0}},   // 0 C
+    {{35, 35, 34}, {34, 33, 32}, {33, 32, 30}, {32, 30, 0}}, // 25 C and above
 };
 
 // R_int over temperature, as sim/burst scales it (powerlib.rint_k)

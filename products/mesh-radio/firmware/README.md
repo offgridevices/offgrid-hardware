@@ -320,8 +320,9 @@ is indexed by:
   passing row and a failing one the failing one is used;
 - **cell temperature**: the charger NTC when it is biased (an input is
   present), the TMP1075, the lower of the two, or 0 °C with neither. The
-  table's colder band is used (−40 / −20 / 0 / 25 °C; 60 and 85 °C are the
-  same as 25 °C or better);
+  table's colder band is used (−40 / −20 / 0 / 25 °C; the 25 °C band is
+  the lowest of 25, 60 and 85 °C: from the 5 Nov run on the re-routed board,
+  85 °C is up to 1 dB below 25 °C for a 3.7 V cell);
 - **R_int at 25 °C**: 150 mΩ (the table's mid cell) until measured, then
   estimated from the sag under each packet of 40 ms or more at 29 dBm or
   more: (V_idle − V_load) scaled up for the 60 ms VBAT_SENSE filter, over the
