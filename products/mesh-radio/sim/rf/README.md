@@ -54,7 +54,7 @@ value sets were re-fitted to the routed lines (`results.txt` is this run):
 | LPF notches | 2.14 / 2.15 GHz | 1.42 / 2.44 GHz (the design's own 1.4 / 2.3 intent; MARGINAL against the 2f / 3f bands, by design) |
 | Bluetooth match (6) | FAIL, 5.7 dB nominal, 0 % yield | **PASS**, 16.4 dB nominal, 9.6 dB worst, 100 % |
 | PA VSWR, antenna missing | FAIL 11.2:1 | **PASS** 9.0:1 |
-| SKY13330 peak, antenna missing, 3.6 / 4.0 V | 121 / 135 % FAIL | 98 % MARGINAL / 109 % FAIL |
+| SKY13330 peak, antenna missing, 3.6 / 4.0 V | 121 / 135 % FAIL | 98 % MARGINAL / 109 % FAIL; 4.0 V handled in firmware (below) |
 | Firmware antenna rule, default constants | FAIL | MARGINAL (constants re-fitted, below) |
 
 - **Harmonic filter values re-fitted** (C75 2.2 pF, L16 3.2 nH ∥ C76 3.0 pF,
@@ -73,6 +73,13 @@ value sets were re-fitted to the routed lines (`results.txt` is this run):
   both ASSUMED; with those at typical no board exceeds 1.26 dB.
 - **Firmware**: the default antenna-rule constants are re-fitted to this
   board (`firmware/variant/variant.h`).
+- **The switch at 4.0 V** (6 Nov): study 7 gives the SKY13330 31.0 V peak
+  (98 %) at a 3.6 V supply and 34.4 V (109 %) at 4.0 V, antenna missing,
+  worst phase. The firmware now holds the supply at or under 3.6 V
+  (`OFFGRID_ANT_FAULT_VPA_MAX_MV`, about 33.8 dBm at the U.FL) after the
+  first antenna fault of a power cycle; only the opt-in 4.0 V build goes
+  above it. The packet that finds the antenna missing still runs at its own
+  level for the 750 µs before the cut-off. Verified by simulation only.
 
 ## The routed board (3 Nov)
 

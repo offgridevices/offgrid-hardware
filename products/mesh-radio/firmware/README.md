@@ -68,6 +68,14 @@ the variant's hooks are the ones linked) and on unpatched v2.7.26 (flash
 89.9 %). Still 51 warnings, none from the variant or the patch. Compiles
 only: not run on a board.
 
+**Result on 6 Nov 2026** (the re-routed board: the antenna-rule default
+constants and the battery cap table re-fitted, and the antenna-fault supply
+ceiling, below; SX1262 pins as on the RAK4631): SUCCESS on the same v2.7.26
+tree with the four-part patch: flash 90.2 % (735,504 of 815,104 bytes), RAM
+41.1 % (102,356 bytes); with `-D OFFGRID_PA_ALLOW_4V0=1` flash 90.3 %
+(735,728 bytes). 51 warnings, none from the variant. Compiles only: not run
+on a board.
+
 **Checking the 250 ppm crystal setting.** Take the compile line for
 `Bluefruit52Lib/bluefruit.cpp` from `pio run -v`, swap `-o …bluefruit.cpp.o`
 for `-E -o -`, and look at `clock_cfg`: it must read `.accuracy = (0)`
@@ -90,7 +98,7 @@ Build options go in `build_flags`:
 
 | Flag | Effect |
 |---|---|
-| `-D OFFGRID_PA_ALLOW_4V0=1` | Licensed mode runs the amplifier at 4.0 V (about 35 dBm) instead of 3.6 V. **Use only with a known-good antenna.** The QPA9510 is rated for a 10:1 mismatch (a missing antenna) at 3.6 V only. |
+| `-D OFFGRID_PA_ALLOW_4V0=1` | Licensed mode runs the amplifier at 4.0 V (about 35 dBm) instead of 3.6 V. **Use only with a known-good antenna.** The QPA9510 is rated for a 10:1 mismatch (a missing antenna) at 3.6 V only, and the antenna switch is over its rating with the antenna missing at 4.0 V: after an antenna fault the supply drops to 3.6 V until restart (*Missing-antenna cut-off*). |
 | `-D OFFGRID_LNA_BYPASS=1` | The receive amplifier is always in bypass. This is the battery saver: about 5 mA less, and about 7 dB less sensitive. |
 | `-D OFFGRID_PA_VOUT_US_MV=…` | Amplifier supply in unlicensed mode (default 2700). Set it from the bench measurements. |
 | `-D OFFGRID_TCAP_…`, `OFFGRID_REFL_…`, `OFFGRID_ANT_…`, `OFFGRID_CHG_…`, `OFFGRID_CELL_TEST_MS`, … | Every threshold below is an `#ifndef` default in `variant.h`; set it from bench data here. The antenna rule's six constants are overridden together (define `OFFGRID_ANT_FMIN30_MV` and the other five). |
@@ -448,6 +456,17 @@ new constants are not built or run on a board here.
   wait doubles, up to 10 minutes (`OFFGRID_ANT_RETRY_MS`,
   `OFFGRID_ANT_RETRY_MAX_MS`). Packets at or below 1 W are not held back
   during the retry wait, only during the amplifier-off time before it.
+- **The antenna switch's limit after a fault** (6 Nov): with the antenna
+  missing, the SKY13330 sees 31.0 V peak at a 3.6 V amplifier supply (98 %
+  of its +40 dBm / 31.6 V absolute maximum) and 34.4 V at 4.0 V (109 %; sim/rf
+  study 7, worst phase). So after the first fault of a power cycle the supply
+  stays at or under `OFFGRID_ANT_FAULT_VPA_MAX_MV` (3,600 mV, about 33.8 dBm
+  at the U.FL) until restart, even when the retry finds the antenna again.
+  Only the 4.0 V build (`OFFGRID_PA_ALLOW_4V0=1`) goes above that, so every
+  other setting is unchanged. The packet that finds the antenna missing still
+  runs at its own level until the cut-off (750 µs). The condition is the
+  amplifier's supply, not the cell voltage: the switch's voltage follows the
+  supply the TPS63810 makes, whatever the cell. Checked by simulation only.
 
 **Timing (bench check).** REFL_DET takes up to 335 µs to reach 99 % after
 the RF is at full power (30 dBm, −40 °C, antenna missing, worst phase), and

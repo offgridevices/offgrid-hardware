@@ -293,6 +293,20 @@ static const uint8_t SCK = PIN_SPI_SCK;
 #undef OFFGRID_PA_VOUT_LICENSED_MV
 #define OFFGRID_PA_VOUT_LICENSED_MV 4000
 #endif
+// The antenna switch with the antenna missing (sim/rf/results.txt study 7,
+// "SKY13330 voltage, antenna missing", and the open_antenna table): its peak
+// is 31.0 V at a 3.6 V amplifier supply (98 % of the +40 dBm / 31.6 V abs max,
+// model B, worst phase) and 34.4 V at 4.0 V (109 %).  So once the antenna
+// check has found the antenna missing or bad (study 8 rule), the supply is
+// held at or under OFFGRID_ANT_FAULT_VPA_MAX_MV, about 33.8 dBm at the U.FL,
+// for the rest of the power cycle: the highest simulated level at or under
+// 100 %.  Only the 4.0 V build (OFFGRID_PA_ALLOW_4V0) goes above it; every
+// other setting is unchanged.  The packet that finds the antenna missing
+// still runs at its own level until the cut-off (OFFGRID_REFL_SAMPLE_US).
+#ifndef OFFGRID_ANT_FAULT_VPA_MAX_MV
+#define OFFGRID_ANT_FAULT_VPA_MAX_MV 3600 // mV, supply ceiling after an antenna fault
+#endif
+#define OFFGRID_ANT_FAULT_CAP_DBM 33.8f // the U.FL power at that supply (sim/rf open_antenna table), logged
 #ifndef OFFGRID_PA_CHECK_MS
 #define OFFGRID_PA_CHECK_MS 2000 // how often the main loop re-checks the TPS63810, TMP1075 and charger NTC
 #endif

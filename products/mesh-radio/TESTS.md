@@ -38,7 +38,7 @@ own results file.
 | Copper nets equal the circuit, pad for pad | The copper is the schematic | `tools/kd python3 src/make.py` | pass, 792 pads | 5 Nov 2026, 260f321 |
 | BOM and CPL list exactly the 251 assembled parts | Assembly gets what the board needs | `tools/kd python3 src/make.py` | pass: 251 parts, 133 BOM lines, 18 Gerber files | 5 Nov 2026, 260f321 |
 | Committed fab files equal the build (CI) | Someone orders from them | `tools/ci/local.sh products/mesh-radio` (as `.github/workflows/ci.yml`; the proxy's CA passed in here) | pass: all gates, Gerbers, drills, BOM, CPL, netlist and rules match the committed files | 6 Nov 2026, aa66297 |
-| Meshtastic variant builds | The board has firmware | `pio run -e offgrid_mesh_radio_v1` (steps in `firmware/README.md`) | pass on Meshtastic v2.7.26, with and without the core patch; flash 90.0 %, RAM 41.1 % | 19 Oct 2026 |
+| Meshtastic variant builds | The board has firmware | `pio run -e offgrid_mesh_radio_v1` (steps in `firmware/README.md`) | pass on Meshtastic v2.7.26 with the core patch: flash 90.2 %, RAM 41.1 %; with `OFFGRID_PA_ALLOW_4V0=1` flash 90.3 %. Compile only | 6 Nov 2026 |
 | Bootloader builds | Drag-and-drop UF2 flashing | `make BOARD=offgrid_mesh_radio_v1 all` (Adafruit_nRF52_Bootloader 0.11.0) | pass | 19 Oct 2026 |
 | Part audit: maker, stock, lifecycle | NDAA sourcing; parts can be bought | by hand, DigiKey and LCSC/JLC (`docs/part-audit.md`) | 129 assembled lines: every maker from the US, Japan, Taiwan, Korea, Norway or Germany; no part last-time-buy; lines short at DigiKey have a non-Chinese second source named, except the 8.1 nH choke (not sold at DigiKey: Coilcraft direct); lines short at LCSC/JLC are bought at DigiKey and sent to JLC. Country of origin not yet recorded. | 19 Oct 2026 |
 
@@ -98,7 +98,7 @@ filter values.
 | Frequency | LoRa offset between nodes; the 32 MHz Bluetooth crystal | same | LoRa **PASS** (8.6 kHz against 31 kHz). Crystal MARGINAL: 42–47 ppm against Nordic's 40 ppm |
 | Bluetooth match (R7) | The chip antenna's match over tolerance, routed lines | same | **PASS**: 16.4 dB nominal, 9.6 dB worst, 100 % yield (values re-fitted 5 Nov; 3 Nov: FAIL, 5.7 dB). Antenna = Johanson EVB model, not an EM model of this board |
 | Antenna missing: amplifier (X7) | The QPA9510 survives an open U.FL | same | **PASS**: 9.0:1, inside its 10:1 rating at 3.6 V (3 Nov: FAIL 11.2:1) |
-| Antenna missing: antenna switch (X7) | The SKY13330 survives an open U.FL | same | 2.7 V **PASS** (74 %); 3.6 V MARGINAL (98 % of +40 dBm); 4.0 V **FAIL** (109 %). The detector cut-off (0.75 ms) limits the exposure |
+| Antenna missing: antenna switch (X7) | The SKY13330 survives an open U.FL | same | 2.7 V **PASS** (74 %); 3.6 V MARGINAL (98 % of +40 dBm); 4.0 V **FAIL** (109 %), handled in firmware: after an antenna fault the supply stays at or under 3.6 V until restart (6 Nov; sim only); the fault packet itself runs ≤ 750 µs before the cut-off |
 | Antenna missing: inductor heating (X7) | L15 and L18 with an open U.FL, 60 °C | same (7b) | **PASS**: L15 105 °C at 4.0 V, 25 % duty, no cut-off (limit 125 °C) |
 | Missing-antenna detector (study 8) | The firmware rule tells a good antenna from a missing one | same | Rule from 30 dBm **PASS** (+1.6 dB); firmware default constants (re-fitted 5 Nov) MARGINAL (fail with ±1 dB power-model error); robust constants **PASS** from 33 dBm |
 | 50 Ω line width (M4) | RF lines are 50 Ω on this stackup | `sim/rf/coupler.py` (field solve) | 0.17 mm line with 0.25 mm gaps = 49.9 Ω; used in `src/board.py` |

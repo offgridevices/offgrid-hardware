@@ -110,6 +110,7 @@ constexpr uint16_t PA_VOUT_MIN_MV = 1800; // also the "amplifier off" supply
 static_assert(OFFGRID_PA_VOUT_US_MV <= 3600, "unlicensed amplifier supply above 3.6 V");
 static_assert(OFFGRID_PA_VOUT_LICENSED_MV <= PA_VOUT_ABS_MAX_MV, "amplifier supply above 4.0 V");
 static_assert(OFFGRID_PA_VOUT_US_MV <= OFFGRID_PA_VOUT_LICENSED_MV, "licensed supply below the unlicensed one");
+static_assert(OFFGRID_ANT_FAULT_VPA_MAX_MV <= 3600, "antenna-fault supply ceiling above the 3.6 V the switch was simulated at (sim/rf study 7)");
 static_assert(PIN_PA_EN == 32 + 7, "paEnDrivenHigh() reads P1.07");
 static_assert(REFL_DET_AIN == SAADC_CH_PSELP_PSELP_AnalogInput6, "REFL_DET is AIN6");
 static_assert(FWD_DET_AIN == SAADC_CH_PSELP_PSELP_AnalogInput0, "FWD_DET is AIN0");
@@ -537,9 +538,14 @@ int8_t burstCapLookup(uint16_t ocvMv, int32_t centiC, float r25)
 // ---------------------------------------------------------------------------
 // Caps
 // ---------------------------------------------------------------------------
+// Set by the first antenna fault of this power cycle (antennaFault): from
+// then on the supply stays at or under OFFGRID_ANT_FAULT_VPA_MAX_MV (variant.h)
+bool antFaultSeen = false;
+
 uint16_t paCeilingMv()
 {
-    return devicestate.owner.is_licensed ? OFFGRID_PA_VOUT_LICENSED_MV : OFFGRID_PA_VOUT_US_MV;
+    const uint16_t c = devicestate.owner.is_licensed ? OFFGRID_PA_VOUT_LICENSED_MV : OFFGRID_PA_VOUT_US_MV;
+    return (antFaultSeen && c > OFFGRID_ANT_FAULT_VPA_MAX_MV) ? (uint16_t)OFFGRID_ANT_FAULT_VPA_MAX_MV : c;
 }
 
 int8_t tempCapDbm()
@@ -718,6 +724,7 @@ bool supplyReady(uint16_t mv)
 void antennaFault()
 {
     paRelease(); // amplifier standby now, mid-packet
+    antFaultSeen = true; // the switch's limit from now on (paCeilingMv)
     const AntState was = antState;
     antState = ANT_BLOCKED;
     if (!tpsProgram(PA_VOUT_MIN_MV))
@@ -1271,6 +1278,10 @@ void variant_nrf52LoopHook(void)
                      (unsigned)(antBackoffMs / 1000));
         else
             LOG_INFO("Antenna OK again (FWD_DET %u mV, REFL/FWD %u%%): full power", antLastFwdMv, ratioPct);
+        if (devicestate.owner.is_licensed && OFFGRID_PA_VOUT_LICENSED_MV > OFFGRID_ANT_FAULT_VPA_MAX_MV)
+            LOG_WARN("After an antenna fault the amplifier supply stays at or under %u mV (~%.1f dBm) until restart "
+                     "(the antenna switch's rating, sim/rf study 7)",
+                     (unsigned)OFFGRID_ANT_FAULT_VPA_MAX_MV, (double)OFFGRID_ANT_FAULT_CAP_DBM);
     }
     if (softLatePending) {
         softLatePending = false;

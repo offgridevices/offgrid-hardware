@@ -19,9 +19,10 @@ input.
 >   STEP are in [`production/`](production/) and [`mechanical/`](mechanical/);
 >   renders in [`images/`](images/).
 > - **Simulations** (power, radio, heat) re-ran on the re-routed board
->   (5 Nov). Still failing: the antenna switch's peak with the antenna
->   missing at 4.0 V (109 % of its rating), and transmitting above 1 W in
->   a hot box (the heat study's duty table). Results: [`TESTS.md`](TESTS.md).
+>   (5 Nov). Still failing: transmitting above 1 W in a hot box (the heat
+>   study's duty table). The antenna switch's overload with the antenna
+>   missing at 4.0 V is handled by a firmware ceiling (checked by
+>   simulation only). Results: [`TESTS.md`](TESTS.md).
 > - **Firmware:** the Meshtastic variant builds. Nothing has run on
 >   hardware.
 > - **Owner decisions, 19 Oct:** keep 3 W and fix the heat (a gap pad to a
@@ -262,12 +263,21 @@ byte-identical.
 1. ~~Finish routing~~ (3 Nov), ~~re-route for the routed-board studies~~
    (5 Nov): `src/make.py` gates pass.
 2. ~~Run every simulation again on the routed board~~ (5 Nov, `TESTS.md`).
-3. **Open items from the studies:** the SKY13330's peak with the antenna
-   missing at 4.0 V (the detector cut-off limits it; consider 3.6 V as the
-   licensed-mode ceiling); the 0805 output-match and filter inductors
-   (LQW2BAN3N2 / 3N6) are not stocked at JLCPCB, so consign them from
-   DigiKey; BAT_P from the protection FETs to the mux is 83 mOhm now that
-   the battery plug sits further right (3 W still passes).
+3. **Open items from the studies:**
+   - ~~The SKY13330 over its rating with the antenna missing at 4.0 V
+     (109 %).~~ Handled in firmware (6 Nov): after an antenna fault the
+     amplifier supply stays at or under 3.6 V (98 %, sim/rf study 7) until
+     restart. Checked by simulation and a compile only.
+   - **0805 inductor sourcing, open (owner: decide later).** The output
+     match and filter inductors, Murata LQW2BAN3N2J00L (3.2 nH, 1 per
+     board) and LQW2BAN3N6J00L (3.6 nH, 2 per board), have 2 and 3 in stock
+     at JLCPCB and no stocked drop-in there (other 0805 wire-wound parts at
+     this value are out of stock; the stocked multilayer chips cannot carry
+     3 W). Options: buy them at DigiKey (1,318 / 1,935 in stock on 19 Oct,
+     about $0.24 each at 100) and consign them to JLCPCB, about $0.75 per
+     board; or JLCPCB's global-sourcing pre-order of the same parts, slower.
+   - BAT_P from the protection FETs to the mux is 83 mOhm now that the
+     battery plug sits further right (3 W still passes).
 4. **Before ordering:** check the battery plug's polarity with a meter on a
    real Adafruit cell, and re-check stock (the audit is dated 19 Oct).
 5. **Order 5 test boards.** Bring them up and run the hardware rows in
