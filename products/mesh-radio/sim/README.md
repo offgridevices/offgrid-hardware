@@ -27,12 +27,13 @@ logs and decimated waveforms go to `sim/out/` (ignored by the repository's
 `out/` rule).  `derating/` reads the other studies' `stress.json`, so it
 runs last.
 
-**Routed board (3 Nov 2026).**  The PCB resistances and inductances are
-extracted from the routed `mesh-radio.kicad_pcb` by `sim/extract.py` (see
-*Parasitics*), and every study here was re-run with them.  They are several
-times the pre-routing estimates (most power tracks run on 0.5 oz inner
-layers), and the copper inside the cell protector's sense loop moves its
-over-current trip into the 3 W burst current: see *Changed by the routed
+**Routed board (re-routed 5 Nov 2026).**  The PCB resistances and
+inductances are extracted from the routed `mesh-radio.kicad_pcb` by
+`sim/extract.py` (see *Parasitics*), power-net pours included, and every
+study here was re-run with them.  On the first routing (3 Nov) the copper
+inside the cell protector's sense loop (18.1 mOhm) moved its over-current
+trip into the 3 W burst current; the re-routed board cut that loop to
+0.4 mOhm and the trip is back at 4.5-6.9 A: see *Changed by the re-routed
 board* below.
 
 ## Verdict
@@ -198,7 +199,7 @@ runs 15 mm since the battery plug moved right for the heat).
 
 - **Protector trip back:** OCD 4.6-6.6 A at 25 C (was 2.4-3.3 A).
 - **Burst:** 3 W from a fresh cell PASS at 0-85 C (was capped 2.5 W); mid
-  cell 3 W at 25-60 C (was 2 W); USB + weak cell with PA_SRC_SYS PASS (was
+  cell (3.7 V / 150 mOhm) 2.5 W at 25-60 C (was 2 W); USB + weak cell with PA_SRC_SYS PASS (was
   FAIL); 85 C hot case 2.5 W PASS (was FAIL).
 - **Shorts:** VSYS and PA_IN MARGINAL -> PASS at every temperature.
 - Unchanged: hotplug, reverse, solar.  Derating (re-run 6 Nov with an
