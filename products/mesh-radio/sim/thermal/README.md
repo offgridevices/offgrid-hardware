@@ -23,6 +23,24 @@ tools/kd python3 sim/thermal/followup.py   # the follow-up below; about 55 min w
 It needs pcbnew, numpy, scipy, matplotlib and PIL, which the pinned image
 has. `NPROC` sets the number of worker processes (default: every core).
 
+## What changed on 5 Nov: the re-routed board
+
+`run.py` and `followup.py` ran again (NPROC=2) on the board re-placed for the
+3 Nov findings: the gap pad moved from 9.2 mm below the amplifier's centre
+(x 13–23, y 2.5–12.5 mm) to just under the plugs' row (x 12.4–22.4,
+y −2.4–7.6 mm, its edge 4.3 mm from the centre), and the battery plug from
+2.7 to 4.5 mm along from it.
+
+- **Highest passing duty, unchanged:** 1 W 25 % at 25 °C, none at 60 °C
+  (the cell area fails at 60 °C with the radio only listening); 2.5 and 3 W
+  as before. With the gap pad on a metal wall: 1 W 100 % at 25 °C.
+- **Gap pad on a wall, 25 °C, 25 % storm at 35 dBm:** amplifier case 89 →
+  86 °C, cell area 80 → 72 °C.
+- **Charging (the cell area ≤ 45 °C rule), 25 °C:** 3 W one message a
+  minute 52 → 45 °C, 2.5 W 47 → 42 °C, 1 W 25 % storm 53 → 51 °C.
+- The spot right under the amplifier (`followup.py`'s "old spot") would
+  still be 2–8 °C better, but the plugs' row is there.
+
 ## What changed on 3 Nov: the routed board
 
 The study was written for the 62 mm, 4-layer board before routing, with

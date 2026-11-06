@@ -3,7 +3,7 @@
   "part": "R15m 1206 1 W",
   "ref": "R (sense)",
   "qty": "energy in a battery short (SCD)",
-  "value": 9.107735966579387,
+  "value": 9.379152349200048,
   "unit": "W",
   "rating": 1.0,
   "kind": "pulse",
@@ -13,27 +13,27 @@
   "part": "TPS22950",
   "ref": "U (cell-to-SYS)",
   "qty": "current through a VSYS short (its own limit)",
-  "value": 1.0156068786242742,
+  "value": 1.0156068786242738,
   "unit": "A",
   "rating": 4.1,
   "kind": "absmax",
-  "case": "vsys_usb_60 (4.1 A pulsed abs max; thermal shutdown then cycles it)"
+  "case": "vsys_usb_25 (4.1 A pulsed abs max; thermal shutdown then cycles it)"
  },
  {
   "part": "CSD25310Q2",
   "ref": "Q (reverse FET)",
   "qty": "dissipation during a short (until the protector or a limit acts)",
-  "value": 14.130797443721946,
+  "value": 10.846378289202415,
   "unit": "W",
   "rating": 2.9,
   "kind": "pulse",
-  "case": "batp_fresh_60 (5.0 mJ; fully on, RDS(on) x I^2; 2.9 W continuous)"
+  "case": "batp_usb_85 (4.1 mJ; fully on, RDS(on) x I^2; 2.9 W continuous)"
  },
  {
   "part": "CSD25310Q2",
   "ref": "Q (reverse FET)",
   "qty": "peak drain current in a short (< 0.4 ms)",
-  "value": 24.64107136006791,
+  "value": 25.005535852686766,
   "unit": "A",
   "rating": 48.0,
   "kind": "absmax",

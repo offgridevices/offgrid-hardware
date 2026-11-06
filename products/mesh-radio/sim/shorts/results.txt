@@ -3,78 +3,78 @@ from 5 ms to 65 ms, run to 110 ms.  Fresh cell = 4.2 V / 50 mOhm, mid = 3.7 V / 
 
           case_T  Ishort pk  Ishort avg   Icell pk  TPS22950 pk  (no load sw)  rev FET W avg  rev FET mJ  buck out pk  mux pk  BB in pk  BATFET pk         protector  3V3 at end   verdict                                                                               notes
 ----------------  ---------  ----------  ---------  -----------  ------------  -------------  ----------  -----------  ------  --------  ---------  ----------------  ----------  --------  ----------------------------------------------------------------------------------
-   3v3_fresh_-40      103.5         1.1    0.02845    1.063e-05             0      1.677e-07   1.017e-05          1.1       0         0     0.1118           no trip       3.297      PASS                                                                                   -
-hdr3v3_fresh_-40      47.76         1.1     0.0473    7.921e-06             0      2.256e-06   0.0001356          1.1       0         0     0.1678           no trip       3.297      PASS                                                                                   -
-  vsys_fresh_-40        146       1.749      5.255        1.016             0        0.05313       3.244        0.013       0         0      29.17           no trip       3.297      PASS                                                                                   -
-    vsys_mid_-40      128.7       1.015      1.775        1.016             0        0.03117       1.934        0.013       0         0      25.23           no trip       3.297      PASS                                                                                   -
-   vpa_fresh_-40      86.96       3.497     0.3257    5.093e-06             0      0.0004298     0.02581         0.13  0.3454     2.333     0.1412           no trip       3.274      PASS                                                                                   -
-  pain_fresh_-40      165.8      0.5986      2.919    0.0003346             0        0.02971      0.7836         0.13     4.5    0.5928     0.3008           no trip       3.274      PASS                                                                                   -
-  batp_fresh_-40      49.29       5.483      6.117     0.003097             0          1.941       1.036        0.013       0         0    0.01138   OCD/SCD 0.34 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-    batp_mid_-40      43.23        1.94      1.969      0.00281             0          0.388      0.3103        0.013       0         0    0.01297   OCD/SCD 0.43 ms       3.275  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-   batp_worn_-40      42.74      0.4011      1.161      0.00283             0         0.1418       5.832        0.013       0         0    0.01302  OCD/SCD 20.24 ms   0.0004789  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     3v3_usb_-40      106.8         1.1  2.434e-05    8.661e-06             0      3.401e-12   2.032e-10          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
-    vsys_usb_-40        156       2.799      5.217        1.016             0        0.05313       3.246        0.013       0         0      30.04           no trip       3.297      PASS                                                                                   -
-    batp_usb_-40      49.34       5.807      6.117     0.002922             0          1.931       1.038        0.013       0         0          0   OCD/SCD 0.34 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-   3v3_fresh_-20      105.2         1.1    0.03266    1.029e-05             0      1.858e-07   1.127e-05          1.1       0         0      0.103           no trip       3.297      PASS                                                                                   -
-hdr3v3_fresh_-20      48.26         1.1    0.05708    7.619e-06             0      2.496e-06   0.0001501          1.1       0         0     0.1588           no trip       3.297      PASS                                                                                   -
-  vsys_fresh_-20      147.9       2.648      7.004        1.016             0         0.1329       8.025        0.013       0         0      27.71           no trip       3.297      PASS                                                                                   -
-    vsys_mid_-20      130.8       1.015      2.942        1.016             0        0.02415       1.561        0.013       0         0      24.18           no trip       3.297      PASS                                                                                   -
-   vpa_fresh_-20      85.09       3.497     0.3527    4.578e-06             0      0.0004821     0.02895         0.13  0.3448     2.321     0.1393           no trip       3.274      PASS                                                                                   -
-  pain_fresh_-20      170.8       2.173      4.251    0.0003238             0          0.166       5.106         0.13     4.5    0.6014     0.3974           no trip       3.274      PASS                                                                                   -
-  batp_fresh_-20      49.68       8.304        9.7     0.003097             0          3.314       1.474        0.013       0         0    0.01138   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-    batp_mid_-20      43.66       3.092      3.375     0.002812             0         0.7787      0.4786        0.013       0         0    0.01294   OCD/SCD 0.34 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-   batp_worn_-20      43.53         2.1      1.799     0.002808             0         0.3913      0.2495        0.013       0         0    0.01297   OCD/SCD 0.37 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     3v3_usb_-20      108.3         1.1   3.48e-05    8.296e-06             0      8.974e-12   5.378e-10          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
-    vsys_usb_-20      157.4       3.706      6.933        1.016             0         0.1336       8.067        0.013       0         0      28.46           no trip       3.297      PASS                                                                                   -
-    batp_usb_-20      49.75        8.77      9.702     0.002915             0          3.375       1.477        0.013       0         0          0   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     3v3_fresh_0      105.1         1.1    0.03766    1.004e-05             0      2.038e-07   1.238e-05          1.1       0         0    0.09626           no trip       3.297      PASS                                                                                   -
-  hdr3v3_fresh_0      48.67         1.1     0.0684    7.401e-06             0      2.735e-06   0.0001646          1.1       0         0     0.1499           no trip       3.297      PASS                                                                                   -
-    vsys_fresh_0      151.2       3.341      9.039        1.016             0         0.2047         4.2        0.013       0         0      26.51  OCD/SCD 20.24 ms   0.0004846  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-      vsys_mid_0      132.9       1.268      5.402        1.016             0        0.03497       2.151        0.013       0         0      22.96           no trip       3.297      PASS                                                                                   -
-     vpa_fresh_0      83.14       3.497     0.3991    3.822e-06             0      0.0005391     0.03237         0.13  0.3599     2.317     0.1372           no trip       3.274      PASS                                                                                   -
-    pain_fresh_0      174.8         4.5       4.63    0.0003126             0          0.422       8.538         0.13     4.5    0.6129       0.13  OCD/SCD 20.24 ms       3.161  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-    batp_fresh_0      50.15       14.85      17.27     0.003088             0          7.698       3.007        0.013       0         0    0.01137   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-      batp_mid_0      44.14       6.054      7.209     0.002806             0          2.229       1.042        0.013       0         0    0.01292   OCD/SCD 0.29 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     batp_worn_0      44.09       3.596      4.119     0.002804             0          1.053      0.6195        0.013       0         0    0.01293   OCD/SCD 0.34 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-       3v3_usb_0      109.7         1.1  4.893e-05     7.77e-06             0      2.136e-11   1.282e-09          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
-      vsys_usb_0      161.2       4.391      8.943        1.016             0         0.2047       4.202        0.013       0         0      27.15  OCD/SCD 20.24 ms   0.0004847  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-      batp_usb_0      50.24       15.19      17.27     0.002901             0          7.551       3.025        0.013       0         0          0   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-    3v3_fresh_25      106.7         1.1    0.03824    1.043e-05             0      2.264e-07   1.376e-05          1.1       0         0    0.09055           no trip       3.297      PASS                                                                                   -
- hdr3v3_fresh_25      49.07         1.1    0.07079    7.901e-06             0      3.039e-06   0.0001829          1.1       0         0      0.141           no trip       3.297      PASS                                                                                   -
-   vsys_fresh_25      149.3       3.352      9.492        1.016             0          0.217       4.332        0.013       0         0      25.01  OCD/SCD 20.24 ms    0.000762  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     vsys_mid_25      134.8       1.677      6.719        1.016             0        0.06506       3.957        0.013       0         0      21.72           no trip       3.297      PASS                                                                                   -
-    vpa_fresh_25      80.53       3.497     0.4308    1.095e-05             0      0.0006252     0.03754         0.13  0.3743     2.333     0.1343           no trip       3.274      PASS                                                                                   -
-   pain_fresh_25      178.1         4.5       4.63    0.0003021             0         0.4314        8.73         0.13     4.5    0.6153       0.13  OCD/SCD 20.24 ms       3.274  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-   batp_fresh_25      50.57       20.46      23.17     0.003089             0          12.47       4.597        0.013       0         0    0.01137   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     batp_mid_25      44.54       9.428       11.6     0.002808             0          4.159       1.709        0.013       0         0    0.01291   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-    batp_worn_25      44.51       6.074      7.233     0.002807             0          2.197       1.072        0.013       0         0    0.01292   OCD/SCD 0.29 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-      3v3_usb_25        111         1.1  4.598e-05    1.017e-12             0      3.223e-11   1.934e-09          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
-     vsys_usb_25      161.7       4.337      9.364        1.016             0         0.2079       4.239        0.013       0         0       25.7  OCD/SCD 20.24 ms   0.0007616  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     batp_usb_25      50.58       20.79      23.17    1.018e-12             0          11.87       4.598        0.013       0         0          0   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-    3v3_fresh_60      106.1         1.1     0.0372    3.072e-05             0      2.582e-07   1.568e-05          1.1       0         0    0.08488           no trip       3.297      PASS                                                                                   -
- hdr3v3_fresh_60      48.42         1.1    0.06737    5.725e-05             0      3.465e-06   0.0002085          1.1       0         0     0.1339           no trip       3.297      PASS                                                                                   -
-   vsys_fresh_60      146.9       3.126      8.856        1.016             0         0.2119       4.165        0.013       0         0      23.07  OCD/SCD 20.24 ms   0.0004842  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     vsys_mid_60      131.2       1.951      6.607        1.016             0         0.1021       6.397        0.013       0         0      20.19           no trip       3.297      PASS                                                                                   -
-    vpa_fresh_60      76.24       3.497     0.4436    0.0001691             0      0.0007629      0.0458         0.13  0.3806     2.363     0.1327           no trip       3.274      PASS                                                                                   -
-   pain_fresh_60      176.4         4.5       4.63    0.0003578             0          0.485       9.814         0.13     4.5    0.5678     0.1299  OCD/SCD 20.24 ms       3.274  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-   batp_fresh_60      48.93       23.22      24.48      0.00331             0          14.13       5.014        0.013       0         0    0.01137   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     batp_mid_60      43.12       10.67      13.16     0.003016             0          5.068       1.932        0.013       0         0    0.01291   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-    batp_worn_60       43.1       7.088      8.537     0.003016             0          2.732        1.17        0.013       0         0    0.01291   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-      3v3_usb_60      109.7         1.1  4.854e-05    1.016e-12             0      4.081e-11   2.449e-09          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
-     vsys_usb_60      159.9       4.177      8.736        1.016             0         0.2123       4.106        0.013       0         0       23.7  OCD/SCD 20.24 ms   0.0004845  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     batp_usb_60         49       23.42      24.48    1.016e-12             0          13.84       5.005        0.013       0         0          0   OCD/SCD 0.25 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-    3v3_fresh_85      105.6         1.1    0.03722    0.0001564             0      2.809e-07   1.705e-05          1.1       0         0    0.08253           no trip       3.297      PASS                                                                                   -
- hdr3v3_fresh_85      47.27         1.1    0.06608    0.0002925             0       3.77e-06   0.0002267          1.1       0         0     0.1311           no trip       3.297      PASS                                                                                   -
-   vsys_fresh_85      142.8       3.009      8.391        1.016             0         0.2128       4.103        0.013       0         0      21.75  OCD/SCD 20.24 ms   0.0001671  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     vsys_mid_85      127.5       1.921      6.378        1.016             0         0.1069       6.762        0.013       0         0      19.13           no trip       3.297      PASS                                                                                   -
-    vpa_fresh_85      72.85       3.497      0.448    0.0008752             0      0.0008714     0.05232         0.13  0.3823     2.384     0.1307           no trip       3.274      PASS                                                                                   -
-   pain_fresh_85        171         4.5       4.63    0.0008085             0         0.5262       10.65         0.13     4.5    0.5941     0.1292  OCD/SCD 20.24 ms       3.274  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-   batp_fresh_85      46.51       22.86      24.64     0.003752             0          14.01       4.932        0.013       0         0    0.01134   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     batp_mid_85      40.97       11.06      13.59     0.003441             0          5.194       1.936        0.013       0         0    0.01288   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-    batp_worn_85      40.95       7.327      8.947      0.00344             0          2.851       1.151        0.013       0         0    0.01288   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-      3v3_usb_85      106.8         1.1  0.0001569    0.0002343             0       5.47e-10    3.28e-08          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
-     vsys_usb_85      155.1       4.034      8.303        1.016             0         0.2093       4.026        0.013       0         0      22.32  OCD/SCD 20.24 ms   0.0001671  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
-     batp_usb_85      46.53       22.98      24.64     0.003535             0          13.81       4.932        0.013       0         0          0   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+   3v3_fresh_-40        103         1.1     0.0291    1.058e-05             0      1.677e-07   1.017e-05          1.1       0         0     0.1115           no trip       3.297      PASS                                                                                   -
+hdr3v3_fresh_-40      47.83         1.1    0.04859    7.858e-06             0      2.256e-06   0.0001356          1.1       0         0      0.168           no trip       3.297      PASS                                                                                   -
+  vsys_fresh_-40      145.9       1.786      5.343        1.016             0        0.05576        3.41        0.013       0         0      29.26           no trip       3.297      PASS                                                                                   -
+    vsys_mid_-40      128.3       1.015      1.781        1.016             0        0.03117       1.937        0.013       0         0      25.52           no trip       3.297      PASS                                                                                   -
+   vpa_fresh_-40      95.65       3.497     0.3118    4.654e-06             0      0.0003828     0.02299         0.13  0.3512     2.336     0.1406           no trip       3.274      PASS                                                                                   -
+  pain_fresh_-40      166.5      0.8914       2.78    0.0002445             0        0.03881      0.6921         0.13     4.5    0.6177     0.3003           no trip       3.274      PASS                                                                                   -
+  batp_fresh_-40      51.23       5.652      6.134     0.002958             0          1.848      0.9712        0.013       0         0    0.01138   OCD/SCD 0.34 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+    batp_mid_-40      44.89      0.7632      1.971     0.002682             0         0.2163      0.3992        0.013       0         0    0.01296   OCD/SCD 0.59 ms       3.201  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+   batp_worn_-40      44.17      0.5202      1.125     3.53e-06             0         0.1761       5.817        0.013       0         0    0.01302  OCD/SCD 20.25 ms   0.0004789  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+     3v3_usb_-40      106.8         1.1  2.167e-05     8.66e-06             0      2.502e-12   1.492e-10          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
+    vsys_usb_-40      155.1       2.835      5.311        1.016             0        0.05575        3.41        0.013       0         0      30.06           no trip       3.297      PASS                                                                                   -
+    batp_usb_-40      51.33       5.826      6.134     0.002781             0          1.892      0.9711        0.013       0         0          0   OCD/SCD 0.34 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+   3v3_fresh_-20      104.8         1.1    0.03386    1.025e-05             0      1.857e-07   1.127e-05          1.1       0         0     0.1028           no trip       3.297      PASS                                                                                   -
+hdr3v3_fresh_-20      48.34         1.1    0.05949    7.567e-06             0      2.495e-06   0.0001501          1.1       0         0     0.1588           no trip       3.297      PASS                                                                                   -
+  vsys_fresh_-20      145.1       2.777      7.297        1.016             0         0.1477        8.91        0.013       0         0      27.88           no trip       3.297      PASS                                                                                   -
+    vsys_mid_-20      130.5       1.015      2.943        1.016             0        0.02414       1.564        0.013       0         0      23.59           no trip       3.297      PASS                                                                                   -
+   vpa_fresh_-20      94.58       3.497     0.3305    4.252e-06             0      0.0004254     0.02555         0.13  0.3339     2.324     0.1373           no trip       3.274      PASS                                                                                   -
+  pain_fresh_-20      171.8       1.644      3.861    0.0002358             0         0.1089       2.501         0.13     4.5    0.6286     0.3333           no trip       3.274      PASS                                                                                   -
+  batp_fresh_-20      51.41       8.133      9.749     0.002972             0          3.353       1.703        0.013       0         0    0.01137   OCD/SCD 0.33 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+    batp_mid_-20      45.14       3.182      3.381     0.002697             0         0.7307      0.4629        0.013       0         0    0.01294   OCD/SCD 0.34 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+   batp_worn_-20       44.7       2.252      1.801     0.002628             0         0.3703      0.2452        0.013       0         0    0.01297   OCD/SCD 0.39 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+     3v3_usb_-20      108.3         1.1  3.149e-05    8.295e-06             0       7.05e-12   4.223e-10          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
+    vsys_usb_-20      158.2       3.832      7.227        1.016             0         0.1483       8.942        0.013       0         0      28.57           no trip       3.297      PASS                                                                                   -
+    batp_usb_-20      51.45       8.302      9.749     0.002786             0          3.095       1.489        0.013       0         0          0   OCD/SCD 0.29 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+     3v3_fresh_0      104.6         1.1    0.03973    1.001e-05             0      2.038e-07   1.239e-05          1.1       0         0    0.09576           no trip       3.297      PASS                                                                                   -
+  hdr3v3_fresh_0       48.8         1.1    0.07286    7.353e-06             0      2.735e-06   0.0001646          1.1       0         0     0.1504           no trip       3.297      PASS                                                                                   -
+    vsys_fresh_0      149.5       3.487      9.679        1.016             0         0.2248       13.41        0.013       0         0      26.52           no trip       3.297      PASS                                                                                   -
+      vsys_mid_0      133.1       1.288      5.582        1.016             0        0.03622        2.23        0.013       0         0      23.24           no trip       3.297      PASS                                                                                   -
+     vpa_fresh_0      93.41       3.497     0.3613    3.701e-06             0      0.0004714      0.0283         0.13  0.3209      2.32     0.1329           no trip       3.274      PASS                                                                                   -
+    pain_fresh_0      176.2         4.5       4.63    0.0002358             0          0.422       25.31         0.13     4.5    0.6271       0.13           no trip       3.274      PASS                                                                                   -
+    batp_fresh_0      51.72       14.27       17.4     0.002975             0          7.258       2.824        0.013       0         0    0.01137   OCD/SCD 0.27 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+      batp_mid_0      45.51       6.001      7.238     0.002702             0          2.268       1.136        0.013       0         0    0.01292   OCD/SCD 0.34 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+     batp_worn_0      45.45       3.657      4.129       0.0027             0         0.9945      0.5853        0.013       0         0    0.01293   OCD/SCD 0.34 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+       3v3_usb_0      109.7         1.1  4.542e-05    7.769e-06             0        1.8e-11    1.08e-09          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
+      vsys_usb_0      160.2       4.508      9.575        1.016             0         0.2207       13.15        0.013       0         0      27.16           no trip       3.297      PASS                                                                                   -
+      batp_usb_0      51.73        14.2       17.4     0.002781             0          7.074        2.83        0.013       0         0          0   OCD/SCD 0.27 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+    3v3_fresh_25      107.5         1.1    0.04072    1.034e-05             0      2.264e-07   1.377e-05          1.1       0         0    0.09104           no trip       3.297      PASS                                                                                   -
+ hdr3v3_fresh_25      49.19         1.1    0.07598    7.807e-06             0      3.038e-06   0.0001828          1.1       0         0     0.1417           no trip       3.297      PASS                                                                                   -
+   vsys_fresh_25        152       3.347      10.32        1.016             0         0.2159       13.02        0.013       0         0      24.92           no trip       3.297      PASS                                                                                   -
+     vsys_mid_25      134.9       1.961      7.115        1.016             0        0.09322        5.93        0.013       0         0      21.83           no trip       3.297      PASS                                                                                   -
+    vpa_fresh_25      91.66       3.497     0.3806     8.17e-06             0        0.00054     0.03242         0.13  0.3145     2.337     0.1306           no trip       3.274      PASS                                                                                   -
+   pain_fresh_25      178.8         4.5       4.63    0.0002401             0         0.4314       25.88         0.13     4.5    0.6236       0.13           no trip       3.274      PASS                                                                                   -
+   batp_fresh_25      51.97        18.5      23.43     0.002988             0          10.26       3.954        0.013       0         0    0.01137   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+     batp_mid_25      45.75       8.519      11.68     0.002715             0          3.528         1.7        0.013       0         0    0.01291   OCD/SCD 0.29 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+    batp_worn_25      45.73       6.045      7.265     0.002714             0          2.091       1.035        0.013       0         0    0.01292   OCD/SCD 0.30 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+      3v3_usb_25        111         1.1  4.314e-05    1.016e-12             0      2.811e-11   1.687e-09          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
+     vsys_usb_25      161.4       4.368      10.18        1.016             0         0.2119       12.79        0.013       0         0       25.7           no trip       3.297      PASS                                                                                   -
+     batp_usb_25      51.96       18.41      23.43    1.018e-12             0          10.04       3.948        0.013       0         0          0   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+    3v3_fresh_60      105.6         1.1     0.0398    2.909e-05             0      2.582e-07   1.569e-05          1.1       0         0    0.08515           no trip       3.297      PASS                                                                                   -
+ hdr3v3_fresh_60      48.56         1.1    0.07274    5.368e-05             0      3.464e-06   0.0002084          1.1       0         0     0.1346           no trip       3.297      PASS                                                                                   -
+   vsys_fresh_60      150.4       3.095      9.677        1.016             0         0.2068       12.49        0.013       0         0      23.03           no trip       3.297      PASS                                                                                   -
+     vsys_mid_60      132.1       2.086      7.063        1.016             0         0.1176       7.351        0.013       0         0      20.21           no trip       3.297      PASS                                                                                   -
+    vpa_fresh_60      87.79       3.497     0.3871    0.0001244             0      0.0006477     0.03889         0.13  0.3154     2.367     0.1288           no trip       3.274      PASS                                                                                   -
+   pain_fresh_60      176.2         4.5       4.63    0.0003132             0          0.485       29.09         0.13     4.5    0.6367     0.1299           no trip       3.274      PASS                                                                                   -
+   batp_fresh_60      50.12        19.6      24.82     0.003212             0          10.77       4.161        0.013       0         0    0.01137   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+     batp_mid_60      44.19       9.804      13.28     0.002925             0           4.22       1.915        0.013       0         0    0.01291   OCD/SCD 0.29 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+    batp_worn_60      44.16       6.789      8.587     0.002925             0          2.502       1.154        0.013       0         0    0.01291   OCD/SCD 0.29 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+      3v3_usb_60      109.7         1.1  4.573e-05    1.016e-12             0       3.59e-11   2.154e-09          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
+     vsys_usb_60        160       4.119      9.548        1.016             0         0.2032       12.28        0.013       0         0      23.77           no trip       3.297      PASS                                                                                   -
+     batp_usb_60      50.15        19.5      24.81    1.016e-12             0          10.32       4.188        0.013       0         0          0   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+    3v3_fresh_85      105.2         1.1    0.03999    0.0001459             0      2.808e-07   1.706e-05          1.1       0         0    0.08217           no trip       3.297      PASS                                                                                   -
+ hdr3v3_fresh_85      47.42         1.1    0.07136    0.0002743             0      3.768e-06   0.0002267          1.1       0         0     0.1309           no trip       3.297      PASS                                                                                   -
+   vsys_fresh_85      140.9        2.94      9.195        1.016             0         0.2018        12.2        0.013       0         0       21.9           no trip       3.297      PASS                                                                                   -
+     vsys_mid_85        127       2.076      6.841        1.016             0         0.1256       7.863        0.013       0         0      19.17           no trip       3.297      PASS                                                                                   -
+    vpa_fresh_85      84.37       3.497     0.3891    0.0006472             0       0.000731     0.04388         0.13  0.3144     2.389     0.1276           no trip       3.274      PASS                                                                                   -
+   pain_fresh_85      170.4         4.5       4.63    0.0006339             0         0.5262       31.56         0.13     4.5    0.6451     0.1294           no trip       3.274      PASS                                                                                   -
+   batp_fresh_85      47.54        19.2      25.01     0.003647             0          10.64        4.06        0.013       0         0    0.01134   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+     batp_mid_85      41.93       10.18      13.73     0.003344             0            4.7        1.85        0.013       0         0    0.01288   OCD/SCD 0.27 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+    batp_worn_85      41.91       6.906      9.007     0.003343             0          2.616       1.154        0.013       0         0    0.01289   OCD/SCD 0.28 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
+      3v3_usb_85      106.8         1.1  4.691e-05    1.016e-12             0       4.09e-11   2.454e-09          1.1       0         0          0           no trip       3.297      PASS                                                                                   -
+     vsys_usb_85      153.2       3.965      9.058        1.016             0         0.1983       11.99        0.013       0         0      22.54           no trip       3.297      PASS                                                                                   -
+     batp_usb_85      47.57       19.49         25    1.017e-12             0          10.85       4.061        0.013       0         0          0   OCD/SCD 0.26 ms       3.297  MARGINAL  cell cut off by the protector; restart after the short: bench (release rule below)
   Peaks under 10 us are the board capacitors discharging into the short (ESR-limited) and are not failed.
   "avg" columns are over the time the short current flows (until the protector trips).
 
@@ -83,50 +83,50 @@ Verdict per case and ambient:
 ------------  --------  --------  --------  --------  --------  --------
    3v3_fresh      PASS      PASS      PASS      PASS      PASS      PASS
 hdr3v3_fresh      PASS      PASS      PASS      PASS      PASS      PASS
-  vsys_fresh      PASS      PASS  MARGINAL  MARGINAL  MARGINAL  MARGINAL
+  vsys_fresh      PASS      PASS      PASS      PASS      PASS      PASS
     vsys_mid      PASS      PASS      PASS      PASS      PASS      PASS
    vpa_fresh      PASS      PASS      PASS      PASS      PASS      PASS
-  pain_fresh      PASS      PASS  MARGINAL  MARGINAL  MARGINAL  MARGINAL
+  pain_fresh      PASS      PASS      PASS      PASS      PASS      PASS
   batp_fresh  MARGINAL  MARGINAL  MARGINAL  MARGINAL  MARGINAL  MARGINAL
     batp_mid  MARGINAL  MARGINAL  MARGINAL  MARGINAL  MARGINAL  MARGINAL
    batp_worn  MARGINAL  MARGINAL  MARGINAL  MARGINAL  MARGINAL  MARGINAL
      3v3_usb      PASS      PASS      PASS      PASS      PASS      PASS
-    vsys_usb      PASS      PASS  MARGINAL  MARGINAL  MARGINAL  MARGINAL
+    vsys_usb      PASS      PASS      PASS      PASS      PASS      PASS
     batp_usb  MARGINAL  MARGINAL  MARGINAL  MARGINAL  MARGINAL  MARGINAL
 
 OCD / SCD trip currents over temperature (thresholds 85-115 mV / 400-600 mV hold over -40..85 C;
-RSS(on) 2.2-2.75 mOhm x (1 + 0.004 (T - 25)), 15 mOhm +-1 %, board copper 18.1 mOhm x (1 + 0.00393 (T - 25))):
+RSS(on) 2.2-2.75 mOhm x (1 + 0.004 (T - 25)), 15 mOhm +-1 %, board copper 0.4 mOhm x (1 + 0.00393 (T - 25))):
 ambient  OCD min A  OCD max A  SCD min A  SCD max A
 -------  ---------  ---------  ---------  ---------
-  -40 C      2.772      3.839      13.05      20.03
-  -20 C      2.631      3.645      12.38      19.02
-    0 C      2.504      3.469      11.78       18.1
-   25 C      2.361      3.272      11.11      17.07
-   60 C      2.187       3.03      10.29      15.81
-   85 C      2.077      2.879      9.773      15.02
+  -40 C      4.862      6.855      22.88      35.77
+  -20 C      4.793      6.771      22.56      35.33
+    0 C      4.726       6.69      22.24       34.9
+   25 C      4.645       6.59      21.86      34.38
+   60 C      4.536      6.456      21.34      33.68
+   85 C      4.461      6.363      20.99       33.2
   A short on BAT_P also takes away the BQ29700's supply (its BAT pin is on BAT_P through 330 R), so
   its FETs open in ~0.3 ms whatever the current; it then re-trips on V- and stays off (release rule below).
 
 Protector trip vs. load current (typical thresholds, simulated) and datasheet bands:
 load A  V- - VSS mV at 1 ms  trip (typ, sim)                    datasheet band
 ------  -------------------  ---------------  --------------------------------
-     2                71.58          no trip                              none
-   2.5                89.46          no trip              OCD maybe (16-24 ms)
-     3                107.4        20.245 ms              OCD maybe (16-24 ms)
-   3.5                125.3        20.243 ms                      OCD 16-24 ms
-     4                143.3        20.242 ms                      OCD 16-24 ms
-   4.5                161.4        20.242 ms                      OCD 16-24 ms
-     5                179.4        20.242 ms                      OCD 16-24 ms
-   5.5                197.5        20.242 ms                      OCD 16-24 ms
-     6                215.7        20.242 ms                      OCD 16-24 ms
-     7                251.7        20.243 ms                      OCD 16-24 ms
-    10                362.8        20.242 ms                      OCD 16-24 ms
-    16                 7408         0.257 ms  SCD maybe (125-375 us), else OCD
-    22                 8349         0.256 ms                    SCD 125-375 us
-    28                 9287         0.256 ms                    SCD 125-375 us
-    34            1.022e+04         0.256 ms                    SCD 125-375 us
-  At 25 C OCD trips for 2.36-3.27 A (85-115 mV over 35.1-36.0 mOhm: 15 mOhm, RSS(on) and 18.1 mOhm of board
-  copper); SCD for 11.1-17.1 A (400-600 mV).
+     2                36.02          no trip                              none
+   2.5                45.07          no trip                              none
+     3                54.17          no trip                              none
+   3.5                63.32          no trip                              none
+     4                72.51          no trip                              none
+   4.5                81.76          no trip                              none
+     5                91.06          no trip              OCD maybe (16-24 ms)
+   5.5                100.4        20.244 ms              OCD maybe (16-24 ms)
+     6                109.9        20.243 ms              OCD maybe (16-24 ms)
+     7                128.7        20.244 ms                      OCD 16-24 ms
+    10                187.9        20.242 ms                      OCD 16-24 ms
+    16                323.9        20.242 ms                      OCD 16-24 ms
+    22                 8235         0.259 ms  SCD maybe (125-375 us), else OCD
+    28                 9143         0.257 ms  SCD maybe (125-375 us), else OCD
+    34            1.005e+04         0.256 ms  SCD maybe (125-375 us), else OCD
+  At 25 C OCD trips for 4.64-6.59 A (85-115 mV over 17.4-18.3 mOhm: 15 mOhm, RSS(on) and 0.4 mOhm of board
+  copper); SCD for 21.9-34.4 A (400-600 mV).
   Release after OCD / SCD needs BAT - V- > 1 V (checked after the 8 ms recovery delay): the BQ29700 sinks
   8-24 uA from V- to VSS.  Once the cell is cut off, the board's supply (BAT_P to GND) collapses, its
   regulators fall into UVLO and its load drops; the protector releases only if the board then draws less

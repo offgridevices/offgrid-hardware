@@ -50,7 +50,10 @@ RS = 0.015          # protector sense resistor since 19 Oct (was 22 mOhm)
 RTR = B.SENSE_TRACE  # board copper in the sense loop at 25 C (extracted, +0.393 %/C)
 OPTS = ['.option method=gear reltol=2e-3 abstol=1e-9 vntol=1e-5 itl4=200',
         '.option method=trap reltol=3e-3 abstol=1e-8 vntol=1e-5 itl4=300',
-        '.option method=gear reltol=5e-3 abstol=1e-7 vntol=1e-4 itl4=500 gmin=1e-10']
+        '.option method=gear reltol=5e-3 abstol=1e-7 vntol=1e-4 itl4=500 gmin=1e-10',
+        # (5 Nov: with the re-routed board's parasitics the worn cell at -40 C
+        # stopped at 0.23 ms, before the short, under all three above)
+        '.option method=gear reltol=1e-2 abstol=1e-6 vntol=1e-3 itl4=1000 gmin=1e-9']
 
 
 def short(node, r=0.010, l=5e-9):
@@ -146,16 +149,21 @@ def trip_cfg(iload):
 def trip_run(iload):
     name = 'trip_%g' % iload
     c = trip_cfg(iload)
-    c['opt'] = OPTS[0]
-    try:
-        S.ngspice(B.build(c, name + '.raw'), OUT, name)
-    except S.TimestepError:
-        pass
-    r = S.rawread(os.path.join(OUT, name + '.raw'))
-    os.remove(os.path.join(OUT, name + '.raw'))
-    t = r['time']
+    # every solver option in turn, as run() (5 Nov: OPTS[0] alone stopped
+    # before the 3 ms read-out on the re-routed board's parasitics)
+    for o in OPTS:
+        c['opt'] = o
+        try:
+            S.ngspice(B.build(c, name + '.raw'), OUT, name)
+        except S.TimestepError:
+            pass
+        r = S.rawread(os.path.join(OUT, name + '.raw'))
+        os.remove(os.path.join(OUT, name + '.raw'))
+        t = r['time']
+        if t[-1] > 3e-3:
+            break
     tr = t[np.argmax(r['v(pbocd)'] > 0.5)] - 2e-3 if r['v(pbocd)'].max() > 0.5 else None
-    return iload, tr, float(r['v(prot_vm,cell_minus)'][np.searchsorted(t, 3e-3)])
+    return iload, tr, float(r['v(prot_vm,cell_minus)'][min(np.searchsorted(t, 3e-3), len(t) - 1)])
 
 
 def main():

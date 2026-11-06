@@ -207,24 +207,43 @@ tools/kd python3 src/make.py --artwork        # lay the silkscreen out again fir
 ```
 
 The committed copper came from `src/pipeline.py` on `src/placement.json`
-(3 Nov): Freerouting rounds, the maze router, the repair passes and the
-tail (ground pours, stitching, clean-up). That left five nets open, which
-two `--local-repair` passes closed (the second with `LOCAL_MARGIN=2.2`),
-then the clean-up again (`--from-clean`):
+(re-routed 5 Nov for the radio, heat and power findings of the routed-board
+studies; `git log` has each change and its reason):
 
 ```
-python3 src/pipeline.py <work> --passes 25                       # ~3 h on 4 cores
-python3 src/pipeline.py <work> --local-repair                    # 5 open -> 3
-LOCAL_MARGIN=2.2 python3 src/pipeline.py <work> --local-repair   # 3 -> 0 (one spare ground via moved)
-python3 src/pipeline.py <work> --from-clean
+python3 src/pipeline.py <work> --passes 25       # ~1.5 h on 4 cores: 4 open, 23 DRC errors
+python3 src/pipeline.py <work> --local-repair    # run four times: 0 open, 0 errors, 6 warnings
+python3 src/pipeline.py <work> --from-clean      # 0 errors, 0 warnings, 0 unconnected
 ```
 
-`make.py --reroute` runs only the first of these, so on its own it ends
-with a few nets open. Two placement-code changes from the same day are not
-in the committed placement (it would route differently):
-`src/layout.py` now turns each port ESD array so its pins face the plug in
-the plug's order (the drone port's array, D10, is turned 90 degrees on this
-board, which works but crosses its four lines under the plug).
+What the pipeline does, in order:
+
+- **Board** (`src/board.py`): parts at `placement.json`; the RF lines, the
+  cell protector's sense loop (FETs straight into R34 on B.Cu, 0.6 mm) and
+  the SX1262's VR_PA escape (pin 24 up beside RFO's escape) are drawn and
+  locked; In1 solid under the RF lines and the antenna.
+- **Fan-out**: ball escapes; a ground via per ground pad, its own for each
+  RF shunt and each of the harmonic filter's ground pads.
+- **First pass, alone, locked** (`FIRST_NETS`): the SX1262 bus and the short
+  nets that otherwise ended boxed in (U6's BYP_OUT/BYP_ILIM, LORA_DIO2,
+  LORA_VRPA, MUX_SS, MUX_ILM).
+- **Freerouting** (25 passes), then other nets' pieces closer than 0.25 mm
+  to an RF line are taken out (`rf_gap_strip`: Freerouting keeps each class's
+  own clearance, not the larger).
+- **Tail**: the maze, repairs, power nets poured round their own copper
+  (`power_pours`), ground pours and stitching, clean-up.
+- **`--local-repair`** (each run from the tail's saved input): parts whose
+  `placement.json` place differs are moved on the routed board
+  (`apply_moves`); the pours refilled and KiCad's own open list taken with
+  the pipeline's; a via beside every lone pad of an open net
+  (`lone_pads`); the local rip-up repair; a via for every ground pad with
+  none within 0.6 mm (`ground_pads`); the tail again.
+- **`--from-clean`**: hole pass, clean-up, dangling stubs taken out or cut
+  back to their joint (`prune_dangling`), POFV spacing, stackup, DRC.
+
+The code changed between the repair runs of 5 Nov (each fix is a commit);
+the whole recipe has not been run again from scratch on the final code.
+`make.py --reroute` runs only the first step.
 
 ## How to rebuild the schematic
 

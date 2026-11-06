@@ -39,6 +39,41 @@ tools/kd python3 sim/rf/design_lpf.py    # re-derives the harmonic-filter values
     ground return.
   - `firmware/variant/variant.h`: the firmware thresholds.
 
+## The re-routed board (5 Nov)
+
+The board was placed and routed again for the 3 Nov findings below, and two
+value sets were re-fitted to the routed lines (`results.txt` is this run):
+
+| Check | 3 Nov board | 5 Nov board |
+|---|---|---|
+| PA die load vs Qorvo's EVB (1c) | FAIL, 1.23 dB mismatch | **PASS**, 0.20 dB (output match 0.6 mm from the pins, C71/C72 at them) |
+| TX loss PA → U.FL | 1.24 dB | 1.22 dB |
+| Harmonics 2f–5f, 35 dBm / 6 dBi | 11.6 dB | **21.7 dB** |
+| Harmonics, worst of 108 re-layouts | MARGINAL 1.7 dB | **PASS** 8.7 dB |
+| Monte Carlo worst harmonic margin | 9.2 dB | 18.4 dB |
+| LPF notches | 2.14 / 2.15 GHz | 1.42 / 2.44 GHz (the design's own 1.4 / 2.3 intent; MARGINAL against the 2f / 3f bands, by design) |
+| Bluetooth match (6) | FAIL, 5.7 dB nominal, 0 % yield | **PASS**, 16.4 dB nominal, 9.6 dB worst, 100 % |
+| PA VSWR, antenna missing | FAIL 11.2:1 | **PASS** 9.0:1 |
+| SKY13330 peak, antenna missing, 3.6 / 4.0 V | 121 / 135 % FAIL | 98 % MARGINAL / 109 % FAIL |
+| Firmware antenna rule, default constants | FAIL | MARGINAL (constants re-fitted, below) |
+
+- **Harmonic filter values re-fitted** (C75 2.2 pF, L16 3.2 nH ∥ C76 3.0 pF,
+  C77 2.2 pF, L17 3.6 nH ∥ C78 0.9 pF, C79 1.5 pF; were 2.0 / 3.2 ∥ 3.6 /
+  1.3 / 3.2 ∥ 1.3 / 0.9). The routed lines had pulled both notches to
+  2.15 GHz. Fitted within GQM1875C2E (250 V C0G 0603) and LQW2BAN (0805), JLCPCB-stocked values
+  only; held with the inductors' Q and SRF moved 30 %; textbook notches on
+  2f and 3f gave no margin and 3f is out of reach of the stocked inductors.
+- **Bluetooth match re-fitted** (C37 0.8 pF, L4 3.9 nH, C38 0.9 pF, C39
+  1.6 pF, L5 1.5 nH, L6 2.7 nH; were Nordic's 0.8 / 4.7 / 0.5 and
+  Johanson's 1.0 / 2.7 / 3.9). Study 6 now takes its target load and
+  antenna model from those published values, not from the board's. These
+  are the starting point for the VNA tune on the bench.
+- **TX loss over tolerance** stays MARGINAL (18 % of boards ≤ 1.3 dB): the
+  spread is the LFCG-1000+ loss (×1.0–1.5) and SKY13330 loss (typ–max),
+  both ASSUMED; with those at typical no board exceeds 1.26 dB.
+- **Firmware**: the default antenna-rule constants are re-fitted to this
+  board (`firmware/variant/variant.h`).
+
 ## The routed board (3 Nov)
 
 ### How the board is read now
