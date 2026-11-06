@@ -10,6 +10,7 @@ products/
   layercam/                 LayerCam family (README: how the variants differ)
     layercam/               LayerCam
     layercam-pro/           LayerCam Pro
+  mesh-radio/               Mesh Radio
   packet-logger-carrier/    Packet Logger Carrier
   print-hub/                Print Hub
   ridge/                    Ridge family (README: how the variants differ)
@@ -25,6 +26,7 @@ tools/ci/                   CI helpers shared by every product
 | [Canary](products/canary/) | v1 | 60 × 40 mm first-vent detector for lithium batteries charging at home — VOC + CO₂ + heat fusion, 100 dB sounder, USB-C | designed and simulation-verified, not yet built |
 | [LayerCam](products/layercam/layercam/) | v1 | A camera for the inside of a Prusa CORE One, in Prusa's own Buddy3D case — RV1106 Linux SoC, 1080p wide angle with IR night vision, Prusa Connect, per-layer timelapse to a NAS or S3; three boards, 6 layers for the main one | designed, not yet built |
 | [LayerCam Pro](products/layercam/layercam-pro/) | v1 | LayerCam's camera on **one** 6-layer board in the same Buddy3D case — SC4336H sensor soldered on, ESP32-C6 Wi-Fi with an external antenna, no board-to-board cables, rated for a 65 °C chamber | designed, not yet built |
+| [Mesh Radio](products/mesh-radio/) | 1.0 | 70 × 25.4 mm LoRa + Bluetooth mesh radio, up to 3 W (SX1262 + QPA9510, nRF52840), 6 layers, from parts a US or allied factory can build | routed and simulated, not yet built |
 | [Packet Logger Carrier](products/packet-logger-carrier/) | v1 | 86 × 58 mm carrier for a LoRa mesh packet logger — RAK19003 + XIAO ESP32-C6 + microSD | ordered, not yet bench-verified |
 | [Print Hub](products/print-hub/) | v1 | 86 × 50 mm, five switched USB ports for a resin printer's accessories, ESP32-S3 on Wi-Fi and USB, USB-PD in, printed enclosure | designed, not yet built |
 | [Ridge 3](products/ridge/ridge-3/) | 2.0 | A 36 × 36 mm flight controller with HD or analog video and a separate 4-in-1 ESC on a machined heatsink, for 3" FPV quads | designed and simulated, not yet ordered |

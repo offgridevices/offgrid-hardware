@@ -18,6 +18,7 @@ Where each product sets its revision, and what the board prints:
 |---|---|---|
 | Canary | `src/finish.py` (silkscreen and title block), `src/schematic.py` (title block) | `CANARY v1`, `v1  2026` |
 | LayerCam | `REV` in `src/silk.py` | `V1` on all three boards |
+| Mesh Radio | `REV` in `src/silk.py` | `V1` |
 | Packet Logger Carrier | `src/design.py` (silkscreen), `src/emit_kicad.py` (title block), `src/emit_gerber.py` (Gerber header) | `PACKET LOGGER CARRIER V1` |
 | Print Hub | `REV` in `src/silk.py` | `V1` |
 | Ridge 3 | `REVISION` in `src/fc_layout.py` and `src/esc_layout.py`, one per board | `REV 2.0` |

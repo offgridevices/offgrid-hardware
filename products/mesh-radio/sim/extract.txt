@@ -1,0 +1,69 @@
+PCB parasitics of the power path, extracted from mesh-radio.kicad_pcb by sim/extract.py
+(copper 1.76e-08 Ohm m at 25 C; outer 35.0 um, inner 17.5 um, via plating 18 um; GND mesh 0.10 mm)
+
+constant     estimate (R, L)        extracted (R, L)        path
+TRACE_BAT      6.0 mOhm   6.0 nH     20.2 mOhm  11.5 nH   J3 -> Q1 drain (BATT_PLUS) + J3 <- Q3 (CELL_MINUS, outside the sense) + GND U14 -> R34 (outside the sense)
+TRACE_MUX1     5.0 mOhm   5.0 nH     82.6 mOhm   8.1 nH   Q1 source -> U13 IN1 (BAT_P)
+TRACE_PAIN     3.0 mOhm   3.0 nH     11.9 mOhm   7.4 nH   U13 OUT -> U14 VIN (PA_IN)
+TRACE_VPA      5.0 mOhm   5.0 nH      8.2 mOhm   3.9 nH   U14 VOUT -> L14 collector choke (VPA) + GND U10 -> U14
+TRACE_USB      5.0 mOhm   5.0 nH      8.7 mOhm   3.3 nH   J1 VBUS -> U1 IN (USB_VBUS) + GND U4 -> J1
+TRACE_5V     (not modelled)          17.1 mOhm   8.6 nH   U1 OUT -> D4 (USB_5V) + D4 -> U4 IN (VIN_CHG)
+TRACE_CHG    (not modelled)         149.3 mOhm  29.4 nH   Q1 source -> U4 BAT (BAT_P)
+TRACE_BYP    (not modelled)         162.9 mOhm  26.5 nH   Q1 source -> U6 VIN (BAT_P)
+TRACE_SYS2   (not modelled)         115.4 mOhm  26.1 nH   U4 SYS -> U13 IN2 (VSYS)
+TRACE_SOLAR    5.0 mOhm   5.0 nH      1.8 mOhm   0.8 nH   J2 -> U2 IN (SOLAR_CONN) + GND U4 -> J2
+TRACE_DRONE    5.0 mOhm   5.0 nH     35.6 mOhm   7.4 nH   J5 -> U3 IN (DRONE_5V_CONN) + GND U4 -> J5
+SENSE_TRACE  (not modelled)           0.4 mOhm   0.0 nH   in the BQ29700 sense loop: CELL_MINUS VSS tap -> Q3, PROT_S2 Q3 -> R34, GND R34 -> R33
+
+Pieces (R solved on the whole network; L and vias along the least-resistance route):
+  batt_plus   net   18.92 mOhm  (route 93.20 mOhm, 4 vias) 10.48 nH 
+  cell_minus  net    0.51 mOhm  (route 2.05 mOhm, 0 vias)  0.73 nH tap vss 0.00 mOhm
+  prot_s2     net    0.15 mOhm  (route 1.24 mOhm, 0 vias)  0.24 nH 
+  gnd_cell    GND    1.08 mOhm vm 0.29 mOhm
+  mux1        net   82.57 mOhm  (route 79.68 mOhm, 3 vias)  8.11 nH 
+  byp         net  162.93 mOhm  (route 162.84 mOhm, 5 vias) 26.50 nH 
+  chg         net  149.26 mOhm  (route 163.43 mOhm, 8 vias) 29.39 nH 
+  pain        net   11.94 mOhm  (route 47.61 mOhm, 3 vias)  7.38 nH 
+  vpa         net    7.20 mOhm  (route 14.64 mOhm, 2 vias)  3.93 nH 
+  gnd_pa      GND    0.95 mOhm 
+  usb         net    8.03 mOhm  (route 15.64 mOhm, 2 vias)  3.32 nH 
+  gnd_usb     GND    0.64 mOhm 
+  usb5        net   11.70 mOhm  (route 23.25 mOhm, 2 vias)  4.10 nH 
+  vinchg      net    5.43 mOhm  (route 23.00 mOhm, 0 vias)  4.49 nH 
+  sol         net    0.47 mOhm  (route 3.21 mOhm, 0 vias)  0.79 nH 
+  gnd_sol     GND    1.34 mOhm 
+  sol_out     net   26.63 mOhm  (route 66.23 mOhm, 2 vias) 10.78 nH 
+  drn         net   30.76 mOhm  (route 54.05 mOhm, 3 vias)  7.37 nH 
+  gnd_drn     GND    4.84 mOhm 
+  drn_out     net   74.75 mOhm  (route 129.12 mOhm, 2 vias) 19.11 nH 
+  sys_mux2    net  115.40 mOhm  (route 247.21 mOhm, 5 vias) 26.07 nH 
+  sys_buck    net  163.66 mOhm  (route 259.83 mOhm, 6 vias) 28.77 nH 
+
+Per net: track length by layer (mm), narrowest track, vias
+  BATT_PLUS  F.Cu 28.2 B.Cu 1.7 In2.Cu 12.8 In3.Cu 13.2  min 0.30 mm, 5 vias
+  CELL_MINUS F.Cu 7.0 B.Cu 13.6 In2.Cu 5.0 In4.Cu 5.8  min 0.17 mm, 4 vias
+  PROT_S2    B.Cu 5.4  min 0.17 mm, 0 vias
+  BAT_P      F.Cu 20.7 B.Cu 45.6 In1.Cu 13.7 In2.Cu 16.9 In3.Cu 21.9 In4.Cu 6.7  min 0.18 mm, 11 vias
+  PA_IN      F.Cu 1.3 B.Cu 15.4 In2.Cu 10.3 In3.Cu 15.1 In4.Cu 5.0  min 0.20 mm, 5 vias
+  VPA        F.Cu 16.3 B.Cu 1.9 In1.Cu 3.4 In3.Cu 4.5 In4.Cu 5.7  min 0.20 mm, 7 vias
+  USB_VBUS   F.Cu 8.6 B.Cu 8.6 In4.Cu 10.0  min 0.20 mm, 3 vias
+  USB_5V     B.Cu 13.7 In3.Cu 7.7 In4.Cu 0.9  min 0.20 mm, 3 vias
+  VIN_CHG    B.Cu 44.6 In2.Cu 19.8  min 0.15 mm, 3 vias
+  SOLAR_CONN F.Cu 4.2 B.Cu 8.7 In1.Cu 0.1 In2.Cu 7.6 In3.Cu 11.9  min 0.20 mm, 3 vias
+  DRONE_5V_CONN F.Cu 2.7 B.Cu 18.5 In2.Cu 7.9 In3.Cu 11.7  min 0.20 mm, 5 vias
+  VSYS       F.Cu 5.1 B.Cu 13.4 In1.Cu 21.1 In3.Cu 45.3 In4.Cu 24.0  min 0.20 mm, 11 vias
+
+board.py values (copy):
+  TRACE_BAT = (0.0202, 11.5e-9)
+  TRACE_MUX1 = (0.0826, 8.1e-9)
+  TRACE_PAIN = (0.0119, 7.4e-9)
+  TRACE_VPA = (0.0082, 3.9e-9)
+  TRACE_USB = (0.0087, 3.3e-9)
+  TRACE_5V = (0.0171, 8.6e-9)
+  TRACE_CHG = (0.1493, 29.4e-9)
+  TRACE_BYP = (0.1629, 26.5e-9)
+  TRACE_SYS2 = (0.1154, 26.1e-9)
+  TRACE_SOLAR = (0.0018, 0.8e-9)
+  TRACE_DRONE = (0.0356, 7.4e-9)
+  SENSE_TRACE = 0.0004
+board.py differs from these (re-run the studies after copying): none

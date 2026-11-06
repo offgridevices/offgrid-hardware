@@ -1,0 +1,212 @@
+[
+ {
+  "part": "TPS259470A",
+  "ref": "U (USB eFuse IN)",
+  "qty": "peak input voltage",
+  "value": 22.90632424391258,
+  "unit": "V",
+  "rating": 28.0,
+  "kind": "absmax",
+  "case": "USB 5 V -> 20 V step, 1 us, -40 C"
+ },
+ {
+  "part": "TPS259470A",
+  "ref": "U (USB eFuse IN)",
+  "qty": "steady input voltage (20 V fault)",
+  "value": 20.0,
+  "unit": "V",
+  "rating": 23.0,
+  "kind": "rec",
+  "case": "23 V recommended maximum"
+ },
+ {
+  "part": "TPS259470A",
+  "ref": "U (EN/UVLO pin)",
+  "qty": "peak voltage",
+  "value": 5.667794800170935,
+  "unit": "V",
+  "rating": 6.5,
+  "kind": "absmax",
+  "case": "USB 5 V -> 20 V step, 1 us, 85 C"
+ },
+ {
+  "part": "TPS259470A",
+  "ref": "U (OVLO pin)",
+  "qty": "peak voltage",
+  "value": 4.459930393614308,
+  "unit": "V",
+  "rating": 6.5,
+  "kind": "absmax",
+  "case": "USB 5 V -> 20 V step, 1 us, -40 C"
+ },
+ {
+  "part": "MAX17608",
+  "ref": "U (solar / drone IN)",
+  "qty": "peak input voltage",
+  "value": 36.71389756195554,
+  "unit": "V",
+  "rating": 65.0,
+  "kind": "absmax",
+  "case": "drone 20 V hot plug (fault), -40 C"
+ },
+ {
+  "part": "MAX17608",
+  "ref": "U (solar / drone IN)",
+  "qty": "steady input voltage, 12 V panel at -40 C (Voc)",
+  "value": 26.148,
+  "unit": "V",
+  "rating": 60.0,
+  "kind": "derate",
+  "case": "60 V operating maximum"
+ },
+ {
+  "part": "MAX17608",
+  "ref": "U (solar / drone IN)",
+  "qty": "reverse input voltage (plug-in ring)",
+  "value": 47.20227561681366,
+  "unit": "V",
+  "rating": 70.0,
+  "kind": "absmax",
+  "case": "12 V panel reversed (-26.1 V source), 85 C (IN to GND -70 V abs max; blocks to -60 V)"
+ },
+ {
+  "part": "nRF52840",
+  "ref": "U (SOLAR_OK / DRONE_OK ADC pin)",
+  "qty": "peak voltage",
+  "value": 2.2946185976222213,
+  "unit": "V",
+  "rating": 3.6,
+  "kind": "absmax",
+  "case": "drone 20 V hot plug (fault), -40 C"
+ },
+ {
+  "part": "C1u50 0603 50 V",
+  "ref": "C (raw inputs)",
+  "qty": "steady voltage, 12 V panel at -40 C",
+  "value": 26.148,
+  "unit": "V",
+  "rating": 50.0,
+  "kind": "derate",
+  "case": "solar / drone input; USB input 20 V fault: 40 %"
+ },
+ {
+  "part": "C4u7_50 1206 50 V",
+  "ref": "C (USB snubber)",
+  "qty": "voltage, 20 V fault",
+  "value": 20.0,
+  "unit": "V",
+  "rating": 50.0,
+  "kind": "derate",
+  "case": ""
+ },
+ {
+  "part": "TVS2200",
+  "ref": "D (USB clamp)",
+  "qty": "standoff, 20 V fault",
+  "value": 20.0,
+  "unit": "V",
+  "rating": 22.0,
+  "kind": "rec",
+  "case": "VRWM 22 V"
+ },
+ {
+  "part": "SMF33CA",
+  "ref": "D (solar / drone clamp)",
+  "qty": "standoff, 12 V panel at -40 C (a wrong input, X3)",
+  "value": 26.148,
+  "unit": "V",
+  "rating": 33.0,
+  "kind": "rec",
+  "case": "VRWM 33 V: no conduction below it"
+ },
+ {
+  "part": "nRF52840",
+  "ref": "U (VBUS)",
+  "qty": "peak voltage",
+  "value": 5.272920032079128,
+  "unit": "V",
+  "rating": 5.8,
+  "kind": "absmax",
+  "case": "USB 5 V -> 20 V step, 1 us, 85 C"
+ },
+ {
+  "part": "RB060MM (USB into charger)",
+  "ref": "D / USB_5V",
+  "qty": "USB_5V peak (eFuse cut-off delay)",
+  "value": 17.048268623397572,
+  "unit": "V",
+  "rating": 30.0,
+  "kind": "absmax",
+  "case": "USB 5 V -> 20 V step, 1 us, 85 C"
+ },
+ {
+  "part": "nRF52840",
+  "ref": "U (VBUS)",
+  "qty": "steady voltage at OV max",
+  "value": 5.570411396191884,
+  "unit": "V",
+  "rating": 5.8,
+  "kind": "absmax",
+  "case": "a source just under the USB OV cut-off (5.5 V recommended: the USB 5.5 V case, MARGINAL)"
+ },
+ {
+  "part": "BQ25185",
+  "ref": "U (IN)",
+  "qty": "peak voltage",
+  "value": 16.755640807291545,
+  "unit": "V",
+  "rating": 25.0,
+  "kind": "absmax",
+  "case": "USB 5 V -> 20 V step, 1 us, 85 C"
+ },
+ {
+  "part": "BQ25185",
+  "ref": "U (IN)",
+  "qty": "steady voltage (MAX17608 OV cut-off max)",
+  "value": 10.433781636590625,
+  "unit": "V",
+  "rating": 18.0,
+  "kind": "rec",
+  "case": "VIN_OP 18 V"
+ },
+ {
+  "part": "C10u25 0805 25 V",
+  "ref": "C (VIN_CHG)",
+  "qty": "steady voltage (MAX17608 OV max)",
+  "value": 10.433781636590625,
+  "unit": "V",
+  "rating": 25.0,
+  "kind": "derate",
+  "case": "solar / drone pass up to their OV cut-off"
+ },
+ {
+  "part": "C4u7 0603 10 V",
+  "ref": "C (nRF VBUS)",
+  "qty": "voltage at OV max",
+  "value": 5.570411396191884,
+  "unit": "V",
+  "rating": 10.0,
+  "kind": "derate",
+  "case": ""
+ },
+ {
+  "part": "R1R_0805 pulse-proof",
+  "ref": "R (USB snubber)",
+  "qty": "energy, 20 V plug-in (0.5 C V^2)",
+  "value": 0.5599999999999999,
+  "unit": "mJ",
+  "rating": 10.0,
+  "kind": "info",
+  "case": "CRCW-HP 0805 single-pulse capability not checked"
+ },
+ {
+  "part": "UDZV5.6B",
+  "ref": "D (USB EN clamp)",
+  "qty": "current, 20 V fault",
+  "value": 0.7200000000000001,
+  "unit": "mA",
+  "rating": 35.7,
+  "kind": "derate",
+  "case": "200 mW / 5.6 V"
+ }
+]

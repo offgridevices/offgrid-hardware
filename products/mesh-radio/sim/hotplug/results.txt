@@ -1,0 +1,129 @@
+Study 1: hot plug and over-voltage (X3), circuit as changed on 19 Oct.  Limits: USB eFuse IN 28 V abs max,
+IN slew 100 V/us up / 10 V/us down, EN/UVLO and OVLO 6.5 V, nRF52840 VBUS 5.8 V (5.5 V recommended); MAX17608
+IN -60..60 V, slew 100 V/us, <name>_OK ADC pin 3.6 V; BQ25185 IN 25 V; 20 V never passes an input;
+TVS2200 DC breakdown current <= 18 mA, SMF33CA none.
+
+                                  case  ambient    IN max V     IN min V  dV/dt up V/us  dV/dt down V/us  EN / OK max    OVLO max  eFuse OUT max  nRF VBUS max  VIN_CHG max  eFuse   TVS pk A  TVS DC mA   verdict                    notes
+--------------------------------------  -------  ----------  -----------  -------------  ---------------  -----------  ----------  -------------  ------------  -----------  -----  ---------  ---------  --------  -----------------------
+                      USB 5 V hot plug    -40 C       5.525            0          2.722           0.2053         1.53       1.115          4.914         4.914         4.48     on  0.0001787   0.001895      PASS                        -
+      USB 5.5 V (vSafe5V max) hot plug    -40 C       6.089            0          2.997           0.2325        1.687       1.226         0.1905       0.07161    0.0003929    off  0.0001959  5.501e-09  MARGINAL  input did not switch on
+             USB 20 V hot plug (fault)    -40 C       22.86            0           12.9           0.9192         5.49        4.46        0.03494       0.01629    6.423e-05    off  0.0005878      2e-08      PASS                        -
+            USB 5 V -> 20 V step, 1 us    -40 C       22.91            0          8.775            1.256         5.49        4.46           15.5         5.206        15.04    off  0.0002756      2e-08      PASS                        -
+12 V panel (21 V Voc at 25 C), TVS min    -40 C       26.14      0.02193          7.286            4.945        1.634        3.95              0             0            0    off   0.001127  1.009e-07      PASS                        -
+     6 V 1 W panel (7.2 V Voc at 25 C)    -40 C        8.91     0.007477          1.623            1.028       0.5569       1.346          4.147             0        4.147     on  0.0002529  2.852e-09      PASS                        -
+                    drone 5 V hot plug    -40 C       9.068            0          9.326            7.046       0.5668      0.8937          4.907             0        4.907     on   0.001471  3.507e-09      PASS                        -
+           drone 20 V hot plug (fault)    -40 C       36.71            0          45.73            38.93        2.295       3.486              0             0            0    off   0.004571  1.558e-08      PASS                        -
+  12 V panel reversed (-26.1 V source)    -40 C           0       -45.93          23.24            34.71            0           0              0             0            0    off      3.389   2.16e-08      PASS                        -
+       drone -20 V (reversed) hot plug    -40 C           0        -36.4          36.46            45.63            0           0              0             0            0    off   0.004673  1.554e-08      PASS                        -
+                      USB 5 V hot plug    -20 C       5.506            0          2.669           0.2091        1.525       1.114          4.913         4.913        4.505     on  0.0001768   0.002305      PASS                        -
+      USB 5.5 V (vSafe5V max) hot plug    -20 C       6.067            0          2.941           0.2362        1.681       1.226         0.1905       0.06873     0.003212    off  0.0001929  5.513e-09  MARGINAL  input did not switch on
+             USB 20 V hot plug (fault)    -20 C       22.73            0          12.66           0.8718        5.517        4.46        0.03503       0.01628     0.000693    off  0.0005773  2.001e-08      PASS                        -
+            USB 5 V -> 20 V step, 1 us    -20 C        22.8            0          8.628              1.2        5.518        4.46          15.09          5.18        14.66    off  0.0002713  2.001e-08      PASS                        -
+12 V panel (21 V Voc at 25 C), TVS min    -20 C       24.55       0.0206          6.483            4.405        1.535        3.71              0             0            0    off   0.001016   1.09e-07      PASS                        -
+     6 V 1 W panel (7.2 V Voc at 25 C)    -20 C       8.382     0.007034          1.451           0.8944       0.5239       1.267          4.139             0        4.139     on  0.0002286  2.857e-09      PASS                        -
+                    drone 5 V hot plug    -20 C       9.015  -2.103e-291          9.011            6.722       0.5634      0.8965          4.898             0        4.898     on   0.001443  3.514e-09      PASS                        -
+           drone 20 V hot plug (fault)    -20 C       36.46  -2.104e-291          44.39            37.97        2.279       3.493              0             0            0    off   0.004431  1.559e-08      PASS                        -
+  12 V panel reversed (-26.1 V source)    -20 C   5.71e-292       -46.19          23.23            33.85   3.569e-293  1.783e-293              0             0            0    off      3.236   2.15e-08      PASS                        -
+       drone -20 V (reversed) hot plug    -20 C  2.164e-291       -36.51          34.96            44.46   1.353e-292  6.794e-294              0             0            0    off   0.004531  1.556e-08      PASS                        -
+                      USB 5 V hot plug      0 C       5.489            0          2.617           0.2132         1.52       1.114          4.911         4.911        4.531     on  0.0001744   0.002411      PASS                        -
+      USB 5.5 V (vSafe5V max) hot plug      0 C       6.048            0          2.889           0.2411        1.676       1.226         0.1905       0.06607      0.01404    off  0.0001901  5.608e-09  MARGINAL  input did not switch on
+             USB 20 V hot plug (fault)      0 C        22.6            0          12.43           0.8328        5.544        4.46        0.03515       0.01623     0.004583    off  0.0005682  2.011e-08      PASS                        -
+            USB 5 V -> 20 V step, 1 us      0 C        22.7            0          8.485            1.155        5.546        4.46           14.8         5.158        14.39    off  0.0002673  2.011e-08      PASS                        -
+12 V panel (21 V Voc at 25 C), TVS min      0 C       22.97      0.01927          5.764            3.851        1.436       3.471              0             0            0    off  0.0009152  1.178e-07      PASS                        -
+     6 V 1 W panel (7.2 V Voc at 25 C)      0 C       7.854     0.006591          1.297           0.7751       0.4909       1.187          4.128             0        4.128     on  0.0002068  2.878e-09      PASS                        -
+                    drone 5 V hot plug      0 C       8.901  -8.916e-254          8.679            6.545       0.5563      0.9035           4.89             0         4.89     on   0.001409  3.542e-09      PASS                        -
+           drone 20 V hot plug (fault)      0 C       36.51  -8.905e-254           42.9            35.76        2.282        3.49              0             0            0    off   0.004344  1.563e-08      PASS                        -
+  12 V panel reversed (-26.1 V source)      0 C  1.467e-254       -46.46          22.99            33.01   9.171e-256  1.082e-255              0             0            0    off      3.086  2.144e-08      PASS                        -
+       drone -20 V (reversed) hot plug      0 C  1.786e-253       -36.46          34.07            43.24   1.116e-254  1.701e-256              0             0            0    off   0.004399  1.559e-08      PASS                        -
+                      USB 5 V hot plug     25 C       5.472  -9.184e-315          2.566           0.2173        1.515       1.114          4.909         4.909        4.563     on  0.0001729  0.0006798      PASS                        -
+      USB 5.5 V (vSafe5V max) hot plug     25 C       6.031  -4.447e-323          2.838           0.2461        1.671       1.226         0.1907       0.06376       0.0373    off  0.0001878  6.499e-09  MARGINAL  input did not switch on
+             USB 20 V hot plug (fault)     25 C       22.48  -6.423e-323          12.22           0.8009        5.578        4.46        0.03492       0.01622      0.01486    off  0.0005611    2.1e-08      PASS                        -
+            USB 5 V -> 20 V step, 1 us     25 C        22.6  -1.797e-314           8.34            1.115         5.58        4.46          14.63         5.141        14.26    off   0.000265    2.1e-08      PASS                        -
+12 V panel (21 V Voc at 25 C), TVS min     25 C       20.99      0.01761          5.023            3.274        1.312       3.172     2.348e-299             0   2.348e-299    off  0.0008122  1.307e-07      PASS                        -
+     6 V 1 W panel (7.2 V Voc at 25 C)     25 C       7.194     0.006037          1.137           0.6494       0.4496       1.087          4.111             0        4.111     on  0.0001841   3.17e-09      PASS                        -
+                    drone 5 V hot plug     25 C       8.884  -3.597e-194          8.409            6.229       0.5552      0.9063          4.879             0        4.879     on    0.00138  3.912e-09      PASS                        -
+           drone 20 V hot plug (fault)     25 C        36.3  -3.603e-194          41.89            34.94        2.269       3.486     3.186e-279             0   3.186e-279    off    0.00429  1.606e-08      PASS                        -
+  12 V panel reversed (-26.1 V source)     25 C  3.946e-193        -46.7             23            32.22   2.466e-194  5.441e-195     3.186e-279             0   3.186e-279    off      2.869  2.191e-08      PASS                        -
+       drone -20 V (reversed) hot plug     25 C  2.715e-195       -36.29          32.91            42.01   1.697e-196  1.325e-196     3.186e-279             0   3.186e-279    off    0.00429  1.602e-08      PASS                        -
+                      USB 5 V hot plug     60 C       5.479  -1.103e-190          2.614           0.2108        1.517       1.114          4.906         4.906        4.608     on  0.0001786   0.001137      PASS                        -
+      USB 5.5 V (vSafe5V max) hot plug     60 C       6.038  -4.057e-219          2.885           0.2384        1.673       1.226         0.1906       0.06621      0.07772    off   0.000195  1.849e-08  MARGINAL  input did not switch on
+             USB 20 V hot plug (fault)     60 C       22.56   -5.36e-219          12.42           0.8205        5.628        4.46          0.035       0.01629      0.01627    off  0.0005802  3.299e-08      PASS                        -
+            USB 5 V -> 20 V step, 1 us     60 C       22.69  -1.403e-190          8.432            1.151         5.63        4.46          15.58         5.174        15.25    off  0.0002689  3.299e-08      PASS                        -
+12 V panel (21 V Voc at 25 C), TVS min     60 C       18.22      0.01528          4.605            2.871        1.139       2.753    -1.167e-187             0  -1.167e-187    off  0.0007636  1.709e-07      PASS                        -
+     6 V 1 W panel (7.2 V Voc at 25 C)     60 C       6.269     0.005261          1.055           0.5546       0.3918      0.9473          4.085             0        4.085     on  0.0001745  1.125e-08      PASS                        -
+                    drone 5 V hot plug     60 C       8.869  -7.364e-132          8.604            6.316       0.5543       0.894          4.864             0        4.864     on    0.00144  1.336e-08      PASS                        -
+           drone 20 V hot plug (fault)     60 C       36.29  -7.357e-132          42.75            35.21        2.268       3.468    -2.259e-178             0  -2.259e-178    off   0.004384  2.745e-08      PASS                        -
+  12 V panel reversed (-26.1 V source)     60 C  7.374e-132       -46.99          24.52            33.04   4.609e-133  6.499e-134    -2.259e-178             0  -2.259e-178    off      2.554  3.624e-08      PASS                        -
+       drone -20 V (reversed) hot plug     60 C  9.842e-132       -36.16          33.33            42.85   6.151e-133  6.933e-134    -2.259e-178             0  -2.259e-178    off   0.004429  2.719e-08      PASS                        -
+                      USB 5 V hot plug     85 C       5.514            0          2.718           0.2054        1.528       1.115          4.934         4.926        4.683     on  0.0001921  6.521e-08      PASS                        -
+      USB 5.5 V (vSafe5V max) hot plug     85 C       6.066            0          2.989           0.2259         1.68       1.226         0.1904       0.07632       0.1227    off  0.0002062  6.577e-08  MARGINAL  input did not switch on
+             USB 20 V hot plug (fault)     85 C        22.8            0          12.87           0.9001        5.667        4.46        0.03484       0.01629      0.01628    off  0.0006152  8.027e-08      PASS                        -
+            USB 5 V -> 20 V step, 1 us     85 C       22.85            0          8.434            1.224        5.668        4.46          17.05         5.273        16.76    off   0.000278  8.027e-08      PASS                        -
+12 V panel (21 V Voc at 25 C), TVS min     85 C       16.24       0.0136          4.594            2.745        1.015       2.453              0             0            0    off  0.0007761  3.153e-07      PASS                        -
+     6 V 1 W panel (7.2 V Voc at 25 C)     85 C       5.609     0.004701          1.063           0.5175       0.3506      0.8476          4.066             0        4.066     on  0.0001787   6.49e-08      PASS                        -
+                    drone 5 V hot plug     85 C       8.834  -1.604e-305          9.111            6.691       0.5521      0.8778           4.91             0         4.91     on   0.001549  7.236e-08      PASS                        -
+           drone 20 V hot plug (fault)     85 C       36.31  -1.685e-305          45.17            35.81        2.269       3.436              0             0            0    off    0.00465  9.904e-08      PASS                        -
+  12 V panel reversed (-26.1 V source)     85 C  5.991e-305        -47.2          26.45            34.99   3.744e-306  7.695e-307              0             0            0    off      2.331  1.239e-07      PASS                        -
+       drone -20 V (reversed) hot plug     85 C  1.236e-305       -36.22          34.82            45.22   7.723e-307  5.752e-307              0             0            0    off   0.004689  9.684e-08      PASS                        -
+  (USB: eFuse OUT = USB_5V, EN = the TPS259470A EN/UVLO pin.  Solar / drone: the MAX17608 output is VIN_CHG,
+  "EN / OK" is the processor's SOLAR_OK / DRONE_OK ADC pin; the falling-slew limit is the TPS259470A's only.)
+
+Verdict per case and ambient:
+                                  case     -40 C     -20 C       0 C      25 C      60 C      85 C
+--------------------------------------  --------  --------  --------  --------  --------  --------
+                      USB 5 V hot plug      PASS      PASS      PASS      PASS      PASS      PASS
+      USB 5.5 V (vSafe5V max) hot plug  MARGINAL  MARGINAL  MARGINAL  MARGINAL  MARGINAL  MARGINAL
+             USB 20 V hot plug (fault)      PASS      PASS      PASS      PASS      PASS      PASS
+            USB 5 V -> 20 V step, 1 us      PASS      PASS      PASS      PASS      PASS      PASS
+12 V panel (21 V Voc at 25 C), TVS min      PASS      PASS      PASS      PASS      PASS      PASS
+     6 V 1 W panel (7.2 V Voc at 25 C)      PASS      PASS      PASS      PASS      PASS      PASS
+                    drone 5 V hot plug      PASS      PASS      PASS      PASS      PASS      PASS
+           drone 20 V hot plug (fault)      PASS      PASS      PASS      PASS      PASS      PASS
+  12 V panel reversed (-26.1 V source)      PASS      PASS      PASS      PASS      PASS      PASS
+       drone -20 V (reversed) hot plug      PASS      PASS      PASS      PASS      PASS      PASS
+
+12 V panel (36 cells, 21.0 V Voc at 25 C, -2.2 mV/C/cell) against the SMF33CA (VBR 36.7 V min, +0.1 %/C)
+and the MAX17608 (60 V):
+cell temp  Voc V  SMF33CA VBR min  TVS  of MAX17608 60 V
+---------  -----  ---------------  ---  ----------------
+     25 C     21             36.7   no              35 %
+      0 C  22.98            35.78   no              38 %
+    -10 C  23.77            35.42   no              40 %
+    -20 C  24.56            35.05   no              41 %
+    -30 C  25.36            34.68   no              42 %
+    -40 C  26.15            34.31   no              44 %
+
+USB EN/UVLO threshold vs. the 5.6 V zener's leakage at the 1.2 V threshold, 20 k on top since 19 Oct
+(UDZV5.6B: IR <= 1 uA at 2.5 V, 25 C; taken as <= 1 uA at 1.2 V too and doubling every 10 C, a generic
+junction figure the datasheet does not give).  OV cut-off 5.22-5.57 V; above it USB never switches on.
+ambient  UVLO rise V (no leak)  leak max uA  UVLO at max leak V   verdict
+-------  ---------------------  -----------  ------------------  --------
+  -40 C                  4.325      0.01105               4.325      PASS
+  -20 C                  4.325      0.04419               4.326      PASS
+    0 C                  4.325       0.1768               4.329      PASS
+   25 C                  4.325            1               4.345      PASS
+   60 C                  4.325        11.31               4.551      PASS
+   85 C                  4.325           64               5.605  MARGINAL
+  This is a bound, not a prediction: the 1 uA is a 2.5 V test limit and a zener this far below its knee
+  leaks nA; at the bound USB could be refused at 85 C (UVLO above 4.75 V, or above OV) - MARGINAL, a bench
+  check of the USB turn-on at 85 C.  With the old 4.7 V zener
+  (2 uA at 1 V) and 1 M on top the same leakage put UVLO at 6.3 V at 25 C: above OV, USB never on.
+  USB sources may legally sit at up to 5.25 V (USB 2.0) / 5.5 V (Type-C vSafe5V); the USB OV cut-off is
+  5.22-5.57 V (comparator and 1 % resistor tolerance), set by the nRF52840 VBUS 5.5 V recommended maximum:
+  a 5.25-5.5 V charger can be refused (MARGINAL by design).  Once tripped, OVLO only releases below
+  1.09 V on the pin, i.e. 4.89 V on VBUS.
+
+RB060MM reverse leakage into USB_5V (nRF52840 VBUS, 2.2 k bleed since 19 Oct) with USB unplugged and VIN_CHG
+held up by solar or drone power (10.4 V: the MAX17608 OV cut-off maximum; 7.2 V: a 6 V panel the charger
+is not loading).  Leakage = the diode fit (IS 2.8 uA at 25 C, EG 0.69 eV, XTI 2), typical, and x5 (the
+datasheet maximum, 50 uA at 30 V and 25 C, is ~5x the fit).  Limits: VBUS abs max 5.8 V; VBUS detect 3.4 V.
+ambient  USB_5V @ 10.4 V typ  @ 7.2 V typ  @ 10.4 V, leak x5  verdict
+-------  -------------------  -----------  -----------------  -------
+  -40 C            4.362e-06    4.355e-06          2.172e-05     PASS
+  -20 C            5.941e-05     5.94e-05          0.0002969     PASS
+    0 C            0.0005599    0.0005599           0.002799     PASS
+   25 C             0.006133     0.006133            0.03067     PASS
+   60 C              0.09756      0.09756             0.4878     PASS
+   85 C               0.5114       0.5114              2.557     PASS
+  Above ~3.4 V the nRF52840 reports USB present (VBUS detect); above 5.8 V VBUS is over its absolute maximum.
+

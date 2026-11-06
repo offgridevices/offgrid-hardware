@@ -1,0 +1,111 @@
+Mesh Radio v1 - missing-antenna detector coupler (sim/rf/coupler.py)
+Stack: F.Cu 0.035 mm + 0.015 mm mask (er 3.8, ASSUMED) over 0.1164 mm 2116 (er 4.16) to In1; lines 0.17 mm, outer gap to the top pour 0.25 mm.
+Field-solver check: 0.22 mm line, 0.18 mm gaps, copper one grid cell thin and no mask: 49.6 ohm (eeff 3.08);
+  impedance.py closed form for the same: 51.6 ohm (eeff 3.12).  (The 2.5 um grid reads ~1 ohm low.)
+The line with 35 um copper and mask (the real board):
+   w 0.22 mm, gap 0.18 mm: 43.0 ohm, eeff 3.30
+   w 0.20 mm, gap 0.18 mm: 45.0 ohm, eeff 3.29
+   w 0.17 mm, gap 0.25 mm: 49.9 ohm, eeff 3.30
+   w 0.16 mm, gap 0.18 mm: 49.9 ohm, eeff 3.27
+  -> the drawn 0.22 / 0.18 mm line is ~43-44 ohm, not 51.6 (copper side walls 0.18 mm from the pour, and the mask).
+     0.17 / 0.25 mm is 50 ohm; the coupler below uses it for both lines.
+
+Coupled pair, both lines 0.17 mm, each with 0.25 mm to the pour on its outer side:
+   gap s   Z0e    Z0o    eeff_e  eeff_o   k (dB)   Z0 = sqrt(Ze Zo)
+   0.100   60.0   38.2   3.422   3.189    -13.1    47.9
+   0.125   58.6   40.5   3.429   3.177    -14.8    48.7
+   0.150   57.3   42.2   3.434   3.174    -16.4    49.2
+   0.200   55.5   44.7   3.438   3.178    -19.4    49.8
+
+Coupler alone, 50 ohm on all ports, 915 MHz (coupling = reflected wave at the U.FL end -> diode end;
+directivity = coupling minus the forward wave leaking to the same port):
+   gap s  length   coupling  directivity
+   0.10    5.0 mm     28.1 dB     28.5 dB
+   0.10    5.5 mm     27.3 dB     28.4 dB
+   0.10    6.0 mm     26.5 dB     28.3 dB
+   0.10    8.0 mm     24.1 dB     27.9 dB
+   0.10   10.0 mm     22.3 dB     27.4 dB
+   0.12    5.0 mm     29.9 dB     22.0 dB
+   0.12    5.5 mm     29.1 dB     22.0 dB
+   0.12    6.0 mm     28.3 dB     22.0 dB
+   0.12    8.0 mm     25.9 dB     21.9 dB
+   0.12   10.0 mm     24.1 dB     21.7 dB
+   0.15    5.0 mm     31.6 dB     18.8 dB
+   0.15    5.5 mm     30.7 dB     18.7 dB
+   0.15    6.0 mm     30.0 dB     18.7 dB
+   0.15    8.0 mm     27.6 dB     18.7 dB
+   0.15   10.0 mm     25.7 dB     18.6 dB
+   0.20    5.0 mm     34.6 dB     14.9 dB
+   0.20    5.5 mm     33.7 dB     14.9 dB
+   0.20    6.0 mm     33.0 dB     14.9 dB
+   0.20    8.0 mm     30.6 dB     14.9 dB
+   0.20   10.0 mm     28.7 dB     14.8 dB
+
+Detector levels at REFL_DET (BAT15-02EL into 1 nF || 100 k; diode model ASSUMED, see DIODE), 902-928 MHz, the
+antenna reflection at every phase.  Forward power = the conducted power at the U.FL; "missing" = |Gamma| 1 at the
+U.FL; good antennas VSWR 1.5 (|Gamma| 0.2) and 2 (0.33).  Range = min..max over phase and band.
+
+  design: gap 0.10 mm, length 5.5 mm  (coupling 27.3 dB, directivity 28.4 dB at 915 MHz)
+   P(U.FL)  antenna      -40 C          25 C          85 C        RF peak at anode   reverse peak
+     30 dBm VSWR 1.5  0.00-0.01 V  0.04-0.09 V  0.08-0.14 V    0.14-0.21 V      0.22 V
+     30 dBm VSWR 2    0.03-0.08 V  0.12-0.18 V  0.17-0.24 V    0.25-0.32 V      0.41 V
+     30 dBm missing   0.52-0.61 V  0.62-0.71 V  0.70-0.78 V    0.81-0.90 V      1.51 V
+     35 dBm VSWR 1.5  0.03-0.12 V  0.11-0.22 V  0.17-0.28 V    0.24-0.37 V      0.49 V
+     35 dBm VSWR 2    0.18-0.30 V  0.28-0.40 V  0.35-0.47 V    0.44-0.57 V      0.87 V
+     35 dBm missing   1.12-1.28 V  1.22-1.38 V  1.30-1.46 V    1.44-1.60 V      2.89 V
+     36 dBm VSWR 1.5  0.05-0.16 V  0.14-0.26 V  0.19-0.32 V    0.27-0.41 V      0.57 V
+     36 dBm VSWR 2    0.23-0.36 V  0.33-0.46 V  0.40-0.54 V    0.49-0.64 V      1.01 V
+     36 dBm missing   1.30-1.48 V  1.39-1.57 V  1.47-1.65 V    1.61-1.80 V      3.27 V
+
+  design: gap 0.12 mm, length 5.5 mm  (coupling 29.1 dB, directivity 22.0 dB at 915 MHz)
+   P(U.FL)  antenna      -40 C          25 C          85 C        RF peak at anode   reverse peak
+     30 dBm VSWR 1.5  0.00-0.01 V  0.02-0.08 V  0.04-0.13 V    0.08-0.20 V      0.21 V
+     30 dBm VSWR 2    0.00-0.06 V  0.07-0.15 V  0.11-0.21 V    0.17-0.29 V      0.35 V
+     30 dBm missing   0.35-0.48 V  0.45-0.58 V  0.53-0.65 V    0.63-0.76 V      1.24 V
+     35 dBm VSWR 1.5  0.00-0.11 V  0.05-0.20 V  0.09-0.27 V    0.15-0.35 V      0.46 V
+     35 dBm VSWR 2    0.07-0.25 V  0.17-0.35 V  0.23-0.42 V    0.31-0.52 V      0.77 V
+     35 dBm missing   0.82-1.05 V  0.91-1.14 V  0.99-1.22 V    1.12-1.36 V      2.40 V
+     36 dBm VSWR 1.5  0.00-0.14 V  0.06-0.24 V  0.10-0.31 V    0.16-0.40 V      0.54 V
+     36 dBm VSWR 2    0.10-0.31 V  0.20-0.41 V  0.26-0.48 V    0.35-0.58 V      0.89 V
+     36 dBm missing   0.95-1.21 V  1.05-1.30 V  1.13-1.38 V    1.26-1.52 V      2.73 V
+
+  design: gap 0.15 mm, length 5.5 mm  (coupling 30.7 dB, directivity 18.7 dB at 915 MHz)
+   P(U.FL)  antenna      -40 C          25 C          85 C        RF peak at anode   reverse peak
+     30 dBm VSWR 1.5  0.00-0.01 V  0.01-0.07 V  0.01-0.12 V    0.05-0.19 V      0.19 V
+     30 dBm VSWR 2    0.00-0.04 V  0.03-0.13 V  0.07-0.19 V    0.12-0.26 V      0.30 V
+     30 dBm missing   0.23-0.37 V  0.33-0.47 V  0.41-0.55 V    0.50-0.65 V      1.02 V
+     35 dBm VSWR 1.5  0.00-0.09 V  0.02-0.18 V  0.04-0.25 V    0.08-0.33 V      0.42 V
+     35 dBm VSWR 2    0.02-0.20 V  0.10-0.30 V  0.15-0.37 V    0.22-0.47 V      0.67 V
+     35 dBm missing   0.60-0.86 V  0.70-0.95 V  0.77-1.03 V    0.89-1.16 V      2.02 V
+     36 dBm VSWR 1.5  0.00-0.12 V  0.02-0.22 V  0.04-0.28 V    0.09-0.37 V      0.49 V
+     36 dBm VSWR 2    0.03-0.26 V  0.12-0.36 V  0.17-0.43 V    0.25-0.52 V      0.78 V
+     36 dBm missing   0.70-0.99 V  0.80-1.09 V  0.88-1.17 V    1.00-1.30 V      2.29 V
+
+  design: gap 0.15 mm, length 8.0 mm  (coupling 27.6 dB, directivity 18.7 dB at 915 MHz)
+   P(U.FL)  antenna      -40 C          25 C          85 C        RF peak at anode   reverse peak
+     30 dBm VSWR 1.5  0.00-0.04 V  0.01-0.13 V  0.03-0.19 V    0.07-0.27 V      0.31 V
+     30 dBm VSWR 2    0.01-0.13 V  0.07-0.23 V  0.11-0.29 V    0.18-0.38 V      0.51 V
+     30 dBm missing   0.43-0.64 V  0.53-0.74 V  0.61-0.82 V    0.72-0.94 V      1.58 V
+     35 dBm VSWR 1.5  0.00-0.21 V  0.03-0.31 V  0.06-0.38 V    0.12-0.48 V      0.69 V
+     35 dBm VSWR 2    0.08-0.39 V  0.17-0.49 V  0.23-0.57 V    0.31-0.67 V      1.07 V
+     35 dBm missing   0.97-1.35 V  1.07-1.45 V  1.15-1.53 V    1.28-1.67 V      3.02 V
+     36 dBm VSWR 1.5  0.00-0.26 V  0.04-0.36 V  0.08-0.44 V    0.13-0.53 V      0.80 V
+     36 dBm VSWR 2    0.11-0.47 V  0.20-0.57 V  0.27-0.65 V    0.35-0.76 V      1.23 V
+     36 dBm missing   1.12-1.55 V  1.22-1.65 V  1.30-1.73 V    1.44-1.88 V      3.43 V
+
+Firmware threshold per power setting (it reads the reflected wave, so it scales with forward power).  Worst
+case over -40..85 C, 902-928 MHz and every phase: the highest reading with a VSWR-2 antenna against the lowest
+with the antenna missing.  "D 15 dB" repeats it with the directivity forced down to 15 dB (layout, U.FL).
+   gap 0.100 x 5.5 mm, 30 dBm: VSWR-2 max 0.24 V, missing min 0.52 V -> threshold 0.35 V (contrast 6.7 dB); D 15 dB: 0.38 / 0.38 V
+   gap 0.100 x 5.5 mm, 35 dBm: VSWR-2 max 0.47 V, missing min 1.12 V -> threshold 0.73 V (contrast 7.5 dB); D 15 dB: 0.73 / 0.86 V
+   gap 0.125 x 5.5 mm, 30 dBm: VSWR-2 max 0.21 V, missing min 0.35 V -> threshold 0.27 V (contrast 4.3 dB); D 15 dB: 0.33 / 0.24 V
+   gap 0.125 x 5.5 mm, 35 dBm: VSWR-2 max 0.42 V, missing min 0.82 V -> threshold 0.59 V (contrast 5.7 dB); D 15 dB: 0.63 / 0.61 V
+   gap 0.150 x 5.5 mm, 30 dBm: VSWR-2 max 0.19 V, missing min 0.23 V -> threshold 0.21 V (contrast 1.9 dB); D 15 dB: 0.28 / 0.14 V
+   gap 0.150 x 5.5 mm, 35 dBm: VSWR-2 max 0.37 V, missing min 0.60 V -> threshold 0.47 V (contrast 4.1 dB); D 15 dB: 0.54 / 0.42 V
+   gap 0.150 x 8.0 mm, 30 dBm: VSWR-2 max 0.29 V, missing min 0.43 V -> threshold 0.36 V (contrast 3.4 dB); D 15 dB: 0.43 / 0.30 V
+   gap 0.150 x 8.0 mm, 35 dBm: VSWR-2 max 0.57 V, missing min 0.97 V -> threshold 0.74 V (contrast 4.7 dB); D 15 dB: 0.82 / 0.72 V
+
+Timing: 1 nF || 100 k decays with tau = 100 us; it charges through the diode (~1 k at these currents) in ~1 us.
+The reading settles within ~0.3 ms of PA_EN; sample at 0.5-1 ms.  The nRF52840 SAADC (tacq 10-40 us) samples a
+100 k source with < 1 LSB error at tacq 40 us (Nordic: 40 us allows up to 800 k).  100 k also keeps the detector
+load ~50 k at RF, far above the ~50 ohm coupled line, so the coupled port stays terminated by the 49.9 R end.

@@ -1,0 +1,52 @@
+[
+ {
+  "part": "R15m 1206 1 W",
+  "ref": "R (sense)",
+  "qty": "energy in a battery short (SCD)",
+  "value": 9.379152349200048,
+  "unit": "W",
+  "rating": 1.0,
+  "kind": "pulse",
+  "case": "peak power for <= 375 us"
+ },
+ {
+  "part": "TPS22950",
+  "ref": "U (cell-to-SYS)",
+  "qty": "current through a VSYS short (its own limit)",
+  "value": 1.0156068786242738,
+  "unit": "A",
+  "rating": 4.1,
+  "kind": "absmax",
+  "case": "vsys_usb_25 (4.1 A pulsed abs max; thermal shutdown then cycles it)"
+ },
+ {
+  "part": "CSD25310Q2",
+  "ref": "Q (reverse FET)",
+  "qty": "dissipation during a short (until the protector or a limit acts)",
+  "value": 10.846378289202415,
+  "unit": "W",
+  "rating": 2.9,
+  "kind": "pulse",
+  "case": "batp_usb_85 (4.1 mJ; fully on, RDS(on) x I^2; 2.9 W continuous)"
+ },
+ {
+  "part": "CSD25310Q2",
+  "ref": "Q (reverse FET)",
+  "qty": "peak drain current in a short (< 0.4 ms)",
+  "value": 25.005535852686766,
+  "unit": "A",
+  "rating": 48.0,
+  "kind": "absmax",
+  "case": "batp_fresh_85 (IDM 48 A pulsed)"
+ },
+ {
+  "part": "L2u2 DFE201610E",
+  "ref": "L (3.3 V buck)",
+  "qty": "current, 3V3 short (a fault: against saturation)",
+  "value": 1.4749999999999999,
+  "unit": "A",
+  "rating": 1.9,
+  "kind": "absmax",
+  "case": "ILIMF 1.4 A max + 50 ns x VIN/L overshoot vs Isat 1.9 A"
+ }
+]

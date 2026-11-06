@@ -1,0 +1,949 @@
+# -*- coding: utf-8 -*-
+"""The floor plan: where every part goes.
+
+Board: 25.4 mm wide (the Heltec V4's), pcb.LEN long, coordinates in mm from
+the board centre, x along the length (USB-C end at -x, antenna end at +x),
+y across it, down the screen (KiCad's).
+
+  An M3 mounting hole in each corner (pcb.HOLES).
+  TOP, left to right
+    USB-C on the short edge, the power slide switch (vertical, lever up)
+    beside the upper-left hole, the LEDs below it;
+    the nRF52840, its Bluetooth chip antenna on the lower long edge beside
+    the lower-left hole (a copper keepout through every layer round it),
+    the user and reset buttons side by side on that edge too;
+    the SX1262 with its TCXO;
+    the transmit chain in one line to the QPA9510 amplifier, the
+    amplifier's output chain down the right end to the antenna switch,
+    the LFCN-1000+ filter and the U.FL connector in the corner; the
+    receive amplifier beside the switch, its 50 ohm line back to the
+    SX1262's receive balun.
+  BOTTOM
+    every cable plug on the upper long edge, their openings at it (owner,
+    2 Nov 2026: the cables all leave one side): solar under the slide
+    switch, battery, drone (JST-GH), GPS (JST-SH), display / I2C (JST-SH);
+    the input protection, charger and battery protection under the left
+    half, the 3.3 V supply in the middle, the amplifier's power (mux,
+    buck-boost, bulk capacitors) under the amplifier.
+
+The RF chains are laid out by place.chain(); every other small part is
+packed beside the pin it serves by place.pack().
+"""
+import os
+import pcbnew
+import pcb, circuit, parts, place
+
+HX, HY = pcb.HX, pcb.HY
+HDR_X0, HDR_Y = -7.0, 0.0         # the expansion header (dropped 2 Nov 2026; kept for an old circuit)
+PACK_GAP_LEFT = float(os.environ.get('PACK_GAP_LEFT', 0.45))   # mm between small parts' courtyards left of PACK_LEFT_X
+PACK_LEFT_X = float(os.environ.get('PACK_LEFT_X', 2.0))   # 3 Nov: -8 left 8-10 nets open, 2 left 3
+NRF_RING = 0.6                     # mm kept free round the nRF52840's courtyard (its dog-bone vias reach 0.55 mm past it)
+BAT_X = 23.0                       # the battery plug (21.2 until 3 Nov, sim/thermal: the amplifier 3 mm away heated the cell); its two pins either side of the output match's ground vias
+# the gap pad (owner, 19 Oct 2026: 10 x 10 mm from the board's bottom to a
+# metal wall) cannot sit under the amplifier since every plug moved to the
+# upper edge (2 Nov 2026): it goes just below the plugs' row, under the
+# amplifier's output end, and the planes carry the heat to it (sim/thermal)
+# (3 Nov: from 9 mm below the amplifier to just under the plugs' row, below
+# the amplifier: sim/thermal found the far spot lost 12 C of the pad's worth)
+GAP_PAD = (12.4, -2.4, 22.4, 7.6)
+PA_TRUNK = 0.6     # mm from the amplifier's output pins' escape to the output line (2.0 until 3 Nov: sim/rf R2)
+NRF_X, SX_X = -12.6, -5.4          # the nRF52840 and the SX1262 (the TX line grows right from the SX1262)
+JST_SH6_ROT = 0     # the GPS plug's turn for its opening at the upper edge (checked by check_plugs)
+JST_SH10_ROT = 0    # KiCad's SM10B footprint on the bottom: nails (and opening) towards -y (checked: plugs face the edge)
+BLE_GAP = 0.1      # mm between the Bluetooth match's parts along the line (0.25 until 3 Nov: sim/rf R4, 10.7 mm of line)
+ANT_DX = 3.63      # the antenna's box from the nRF52840 (6.8 until 3 Nov, before the pi went down the pin's drop)
+ANT_X = NRF_X - ANT_DX              # the Bluetooth chip antenna's box: its right end just past the match's last part
+ANT_BOX = (ANT_X - 7.1, 8.9, ANT_X - 0.6, HY)   # its ground-free box (all layers), off its open end, clear of the lower-left hole's ring; nothing under it on the bottom either
+
+
+def ref(comps, part, note=None):
+    """The one part of this kind (and note): placement names parts by what
+    they are, so a renumbering in circuit.py cannot move the wrong one."""
+    m = [c.ref for c in comps if c.part == part and (note is None or c.note == note)]
+    if len(m) != 1:
+        raise KeyError('%s %r: %d matches' % (part, note, len(m)))
+    return m[0]
+
+
+def anchors(comps):
+    """(ref, x, y, rot, side) for the parts that set the floor plan."""
+    R = lambda p, n=None: ref(comps, p, n)
+    hdr = [(R('HDR_2x10'), HDR_X0, HDR_Y, 0, 'T')] if any(c.part == 'HDR_2x10' for c in comps) else []
+    return hdr + [
+        # ---- left end
+        (R('USBC'), -HX + 5.48, 0.0, 270, 'T'),           # shell front 0.84 mm past the edge (Amphenol drawing)
+        (R('SLIDE'), -HX + 12.6, -HY + 2.6, 0, 'T'),      # vertical: lever up, like the buttons (owner, 2 Nov 2026), beside the upper-left hole
+        # both buttons on top, lying along the lower edge right of the
+        # Bluetooth match, 9 mm apart for a finger each (owner, 2 Nov 2026:
+        # a button underneath is awkward; room between them for an enclosure)
+        (R('SKRP', 'user'), -7.4, HY - 1.85, 0, 'T'),
+        (R('SKRP', 'reset'), 1.0, HY - 1.85, 0, 'T'),
+        # ---- processor and Bluetooth
+        # (y 1.6 since 20 Oct: at 0.3 the battery plug's tails, under it on the
+        # bottom, sat where its top row's escape vias must go)
+        (R('NRF52840'), NRF_X, 1.6, 180, 'T'),              # SPI side towards the SX1262, USB side towards USB-C
+        (R('ANT2450'), ANT_X, HY - 1.35, 180, 'T'),              # feed end towards the nRF52840
+        # ---- LoRa radio: RF pins face +x (top to bottom VR_PA, RFO, RFI_N, RFI_P)
+        (R('SX1262'), SX_X, -4.4, 180, 'T'),
+        (R('TCXO32'), 2.0, -4.5, 0, 'B'),                   # beside the SX1262, underneath (no room on top)
+        # ---- bottom: connectors
+        # JST side-entry plugs: the opening is on the fitting-nail side (JST
+        # PH / SH / GH drawings, "end face of wafer on the mating side"), so
+        # the nails face the edge, their copper 0.35 mm inside it
+        # every plug on the upper long edge (owner, 2 Nov 2026), left to right:
+        # solar, display, GPS, drone, battery.  The display plug sits over the
+        # nRF52840 (until 2 Nov it was at the right end: its ten wires crossed
+        # the whole board, 54 connections crossed x = -5 mm, and every route
+        # ended 11-12 nets short).  The amplifier's nine paddle vias come out
+        # on the bottom 6 mm from the edge, where an SH or GH plug has its pin
+        # row: they landed on the GPS plug's pins 3 and 4 (and before on the
+        # display plug's), which no router could reach.  The battery plug
+        # (PH) has its pins 4.8 mm from the edge and its nails at the edge, so
+        # it goes at the right end with the vias under its body, left of its
+        # pins (pads 0.4 mm clear of them)
+        (R('JST_SH2'), -24.2, -HY + 3.19, 0, 'B'),             # solar, under the power switch
+        (R('JST_SH10'), -14.95, -HY + 3.125, JST_SH10_ROT, 'B'),  # display / I2C: its nails' copper 0.35 mm inside the edge
+        (R('JST_SH6'), -3.55, -HY + 3.29, JST_SH6_ROT, 'B'),  # GPS: its pins clear of the TCXO under the SX1262
+        (R('JST_GH6'), 6.91, -HY + 3.65, 0, 'B'),           # drone port
+        (R('JST_PH2'), BAT_X, -HY + 4.98, 0, 'B'),          # battery
+        # ---- bottom: inputs.  USB: behind the USB-C, under the board's left
+        # end; solar beside its plug; drone beside the drone plug
+        (R('TVS2200', 'USB surge clamp'), -HX + 10.6, 0.6, 0, 'B'),
+        (R('TPS259470A', 'USB eFuse'), -HX + 11.6, 6.6, 0, 'B'),   # behind the USB-C, clear of the lower-left hole (1 Nov: the strip under the nRF52840 was the last jam)
+        (R('RB060MM', 'USB into the charger'), -HX + 8.8, 6.9, 90, 'B'),   # (clear of the antenna box, which moved 3.2 mm right on 3 Nov: until then one pad was 0.14 mm2 inside it, sim/rf R10)
+        (R('TPD4E05U06', 'USB ESD'), -HX + 12.4, -4.0, 90, 'T'),
+        (R('SMF33CA', 'SOL surge clamp'), -HX + 21.6, -10.0, 90, 'T'),    # right of the power switch and its name, on top
+        (R('MAX17608', 'SOL 60 V current limiter'), -HX + 12.0, -4.6, 0, 'B'),
+        (R('MAX17608', 'DRN 60 V current limiter'), 8.6, 1.6, 0, 'B'),
+        # (the drone port's clamp and ESD, the GPS port's switch and ESD and the
+        # battery protection's MOSFETs and shunt are packed by their pins)
+        # ---- bottom: charger; the battery protection is packed by the
+        # battery plug's pins (place_all)
+        # the charger away from the battery plug (sim/thermal: its heat reached
+        # the NTC and the cell); the NTC right by the plug, reading the cell
+        (R('BQ25185'), -HX + 4.7, 0.5, 0, 'B'),             # behind the USB-C, between its shell legs (1 Nov: out of the jam under the nRF52840)
+        (R('TPS22950'), -6.4, -0.6, 180, 'B'),              # clear of the SX1262's pins above (its balls take vias); turned so its BYP_OUT and BYP_ILIM balls face D8 and R35 (5 Nov: facing away, under the SX1262 bus, both stayed open)
+        (R('RB060MM', 'bypass: no charging from SYS'), -3.0, -1.5, 0, 'B'),   # clear of the battery plug's body above
+        # ---- bottom: 3.3 V
+        (R('TPS62840'), -5.6, 3.0, 0, 'B'),
+        (R('L2u2'), -5.6, 5.0, 0, 'B'),
+        # ---- bottom: the amplifier's power, under the amplifier
+        (R('TPS2121'), 9.6, -4.0, 0, 'B'),
+        (R('NMOS', 'mux on with the amplifier'), 11.0, -1.6, 0, 'B'),   # (9.6 until 3 Nov: under the detector's 49.9 R, whose ground via it blocked, sim/rf R8)
+        (R('TPS63810'), 15.6, -3.9, 90, 'B'),               # clear of the drive pad's R68 above (its balls take vias), and of the gap pad below
+        (R('L470n'), 15.6, -6.6, 0, 'B'),                   # (above it, between the drone and battery plugs: until 3 Nov below it, where the gap pad now is)
+        (R('TMP1075'), 13.0, -3.6, 0, 'B'),                 # between the mux and the buck-boost, 6 mm from the amplifier (the battery plug's body is right of it)
+        # ---- top: indicators, the amplifier's control-voltage LDO
+        # LEDs in a row between the slide switch and the USB-C, right of the upper-left hole
+        (R('LED_R'), -HX + 8.2, -5.95, 0, 'T'),
+        (R('LED_G'), -HX + 11.0, -5.95, 0, 'T'),
+        (R('LED_B'), -HX + 13.8, -5.95, 0, 'T'),
+    ]
+
+
+def keepouts():
+    """(polygon, layers, name) copper keepouts the board carries."""
+    x0, y0, x1, y1 = ANT_BOX
+    box = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+    inner = [n for n in pcb.CU_NAMES if n != 'F.Cu']
+    return [(box, inner, 'Bluetooth antenna keepout')]
+
+
+TX = ['LORA_RFO', 'LORA_TXA', 'LORA_TXB', 'LORA_TXC', 'LORA_TX50', 'PA_DRIVE', 'PA_RFIN']
+PA_OUT = ['PA_OUT', 'PA_M1', 'PA_M2', 'PA_M3', 'PA_TX']
+RX_IN = ['RX_SW', 'LNA_INM', 'LNA_AI']
+BLE = ['NRF_ANT', 'BLE_50R', 'BLE_T', 'BLE_FEED']
+RX_Y = 8.1          # the receive line's run along the board
+SW_Y = 6.795        # the antenna switch's row (6.0 until 3 Nov; the filter's row came out at 6.795, kept so the U.FL stays put)
+SW_X = 8.188        # the antenna switch's place along it (as routed on 3 Nov: the filter and the U.FL hang off it)
+
+
+def rx_corridor(B, comps):
+    """The receive line from the LNA output to the balun's series capacitor,
+    as segments: left along RX_Y, then up to the balun."""
+    lna = ref(comps, 'BGA7L1BN6')
+    c = [c for c in comps if c.part == 'RF2.4pF'][0].ref
+    ao = B.pad_xy(lna, '3')
+    cp = B.pad_xy(c, [p for p, n in B.comps[c].pins.items() if n == 'LNA_OUT'][0])
+    xc = cp[0] + 0.9
+    pts = [ao, (ao[0], RX_Y), (xc, RX_Y), (xc, cp[1]), cp]
+    return [(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) for i in range(len(pts) - 1)]
+
+
+NODES = {}           # RF chain node points, saved with the placement (rf_tracks joins pads to them)
+
+
+def place_all(log=print):
+    NODES.clear()
+    comps = circuit.build()
+    place.PATH_NETS = set(TX + PA_OUT + RX_IN + BLE + ['LORA_RFI_N', 'LNA_OUT'])
+    B = place.Board(comps)
+    x0, y0, x1, y1 = ANT_BOX
+    B.keep_out((x0, y0, x1, y1), ('T', 'B'))
+    for (hx, hy) in pcb.HOLES:
+        r = pcb.HOLE_KEEPOUT_R
+        B.keep_out((hx - r, hy - r, hx + r, hy + r))
+    for r_, x, y, rot, side in anchors(comps):
+        B.put(r_, x, y, rot, side, check=False)
+    # header holes block both sides (each hole's pad, not the space between the rows)
+    if any(c.part == 'HDR_2x10' for c in comps):
+        hdr = ref(comps, 'HDR_2x10')
+        hx, hy, hrot, _ = B.pl[hdr]
+        hbox, hp = B.geom(hdr, hx, hy, hrot, 'T')
+        B.taken['T'].remove(hbox)
+        for (px, py) in hp.values():
+            B.keep_out((px - 0.85, py - 0.85, px + 0.85, py + 0.85))     # the 1.5 mm pad + 0.1
+    # the nRF52840's outer ball ring leaves on F.Cu, straight out between
+    # its neighbours' balls: a ring round it on the top stays free of
+    # other parts (and of their ground vias, board.py), or those pins are
+    # walled in (32 of the 130 connections Freerouting could not make)
+    nrf = ref(comps, 'NRF52840')
+    (cx0, cy0, cx1, cy1), _ = B.geom(nrf, *B.pl[nrf])
+    g = NRF_RING
+    # (narrower on the Bluetooth side, +y: the match parts need the room
+    # between it and the antenna's keepout, and that edge has few escapes)
+    gb = 0.25
+    for box in ((cx0 - g, cy0 - g, cx1 + g, cy0), (cx0 - g, cy1, cx1 + g, cy1 + gb),
+                (cx0 - g, cy0, cx0, cy1), (cx1, cy0, cx1 + g, cy1)):
+        B.keep_out(box, ('T',))
+    # and under it on the bottom: its ball and dog-bone vias fill that
+    # area, so a part there cannot be reached (C15, C87, C88 and the
+    # charger's pins were, even on an empty board: 20 Oct)
+    B.keep_out((cx0 - g, cy0 - g, cx1 + g, cy1 + g), ('B',))
+    B.keep_out(GAP_PAD, ('B',))          # the gap pad's bare copper: no parts underneath
+    # a lane on the top from the nRF52840's SPI side to the SX1262's SPI
+    # pins (BUSY, NRESET, MISO, MOSI, SCK along its lower edge): with the
+    # nRF52840's DEC4 and crystal capacitors packed in it, Freerouting and the
+    # maze left the whole bus open (2 Nov 2026, 70 mm board)
+    sx_ = ref(comps, 'SX1262')
+    (sx0, sy0, sx1, sy1), _ = B.geom(sx_, *B.pl[sx_])
+    spi = [B.pad_xy(nrf, p) for p, n in B.comps[nrf].pins.items()
+           if n in ('LORA_BUSY', 'LORA_NRESET', 'LORA_MISO', 'LORA_MOSI', 'LORA_SCK', 'LORA_NSS', 'LORA_DIO1')
+           and B.pad_xy(nrf, p)[0] > cx1 - 1.0]                 # the balls on its edge facing the SX1262
+    B.keep_out((cx1 + g, sy1 + 0.15, sx1 - 0.7, max(q[1] for q in spi) + 0.5), ('T',))
+    # ---- RF chains (top), a U: transmit along the top to the amplifier,
+    # its output down the right end to the antenna switch, the antenna
+    # through the filter to the U.FL, receive back along the bottom
+    sx = ref(comps, 'SX1262')
+    # VDD_IN's 1 uF right off pin 1, on top (until 5 Nov it was packed on the
+    # bottom 5 mm away, and pin 1, boxed in by the SX1262's RF corner, ended
+    # open through every repair; Semtech puts it at the pin)
+    vdd = [c.ref for c in comps if c.note == 'VDD_IN'][0]
+    p1 = B.pad_xy(sx, '1')
+    put_pad(B, vdd, '3V3', (p1[0], p1[1] - 0.9), (0, -0.1), 'GND', (0, -1), tries=20)
+    # the receive balun first: its inductor stands across the RFI_N line just
+    # out of the pins (RFI_N on top, RFI_P below, level with pin 21's escape),
+    # the RFI_P capacitor under it, then the line on through its series cap
+    rfin = B.pad_xy(sx, '22')
+    xe = escape(B, sx, '22')[0]
+    lb = [c.ref for c in comps if c.part == 'L15nH' and set(c.pins.values()) == {'LORA_RFI_N', 'LORA_RFI_P'}][0]
+    put_pad(B, lb, 'LORA_RFI_N', (xe + 0.5, rfin[1]), (0.1, 0), 'LORA_RFI_P', (0, 1))
+    cb = [c.ref for c in comps if c.part == 'RF1.8pF' and 'LORA_RFI_P' in c.pins.values()][0]
+    lp = B.pad_xy(lb, [p for p, n in B.comps[lb].pins.items() if n == 'LORA_RFI_P'][0])
+    put_pad(B, cb, 'LORA_RFI_P', (lp[0], lp[1] + 0.9), (0, 0.1), 'GND', (0, 1))
+    NODES.update(place.chain(B, comps, (B.pad_xy(lb, [p for p, n in B.comps[lb].pins.items()
+                                                      if n == 'LORA_RFI_N'][0])[0], rfin[1]),
+                             ['LORA_RFI_N', 'LNA_OUT'], 0, shunt_side=1))
+    # transmit: out of RFO, up to the line, along the top to the amplifier
+    rfo = B.pad_xy(sx, '23')
+    nodes = place.chain(B, comps, (escape(B, sx, '23')[0], rfo[1] - 1.3), TX, 0, shunt_side=1, pitch_gap=0.25)
+    NODES.update(nodes)
+    pa = ref(comps, 'QPA9510')
+    end = nodes['PA_RFIN']
+    B.put(pa, 0, 0, 0, 'T', check=False)
+    pin3 = B.pad_xy(pa, '3')
+    B.pl.pop(pa); B.taken['T'].pop()
+    B.put(pa, end[0] + 0.7 - pin3[0], end[1] - pin3[1], 0, 'T', check=False)
+    # its nine paddle vias (board.PA_VIAS, made with the board) come out on
+    # the bottom: no part there (3 Nov: with the battery plug moved off them
+    # the packer put FB1 and C66 on them, shorting both to ground)
+    import board as BD
+    px_, py_ = B.pl[pa][0], B.pl[pa][1]
+    r_ = max(max(abs(a), abs(b_)) for a, b_ in BD.PA_VIAS) + 0.25 + 0.3     # (0.5 mm vias)
+    B.keep_out((px_ - r_, py_ - r_, px_ + r_, py_ + r_), ('B',))
+    # the output line runs down the right of the amplifier's four output
+    # pins: they join it square, the choke goes up from its top, the match
+    # starts below the lowest pin
+    outs = [escape(B, pa, p) for p in ('9', '10', '11', '12')]
+    xo = outs[0][0] + PA_TRUNK
+    # the collector choke straight up from the output line's top, its supply
+    # end's 47 pF (the RF ground the choke needs) and 1 nF beside it (the
+    # 4.7 uF bulk goes with the other decoupling, by the supply pins)
+    ck = ref(comps, 'L8.1nH_PA')
+    top = min(e[1] for e in outs)
+    put_pad(B, ck, 'PA_OUT', (xo, top - 0.9), (0, -0.1), 'VPA', (0, -1), tries=30)   # its pad is 2 mm wide (up, clear of the amplifier)
+    vp = B.pad_xy(ck, [p for p, n in B.comps[ck].pins.items() if n == 'VPA'][0])
+    i = [c.ref for c in comps].index(ck)
+    for k, c in enumerate(comps[i + 2:i + 4][::-1]):          # 47 pF nearest
+        assert c.pins.get('1') == 'VPA' or 'VPA' in c.pins.values(), c.ref
+        put_pad(B, c.ref, 'VPA', (vp[0] - 1.9 - 1.1 * k, vp[1]), (-0.1, 0), 'GND', (0, -1))
+    # (from the middle of the four pins: the 15 and 10 pF stand right there,
+    # as on Qorvo's EVB; until 3 Nov the line started 0.9 mm below them;
+    # every shunt on its right, away from the U.FL)
+    down = place.chain(B, comps, (xo, sum(e[1] for e in outs) / len(outs)), PA_OUT[:3], 270, shunt_side=-1,
+                       alternate=True, pitch_gap=0.25)
+    NODES.update(down)
+    # the line turns left below PA_M2's shunts
+    m2 = down['PA_M2']
+    low = max(B.rect(c.ref, *B.pl[c.ref])[3] for c in comps
+              if c.ref in B.pl and set(c.pins.values()) == {'PA_M2', 'GND'})
+    left = place.chain(B, comps, (m2[0] - 0.4, max(low + 0.35, SW_Y)), PA_OUT[2:], 180, shunt_side=-1,
+                       pitch_gap=0.25)
+    NODES['PA_M2b'] = left['PA_M2']
+    NODES.update({k: v for k, v in left.items() if k != 'PA_M2'})
+    sw = ref(comps, 'SKY13330')
+    B.put(sw, 0, 0, 180, 'T', check=False)
+    p11 = B.pad_xy(sw, '11')
+    B.pl.pop(sw); B.taken['T'].pop()
+    tx_end = left['PA_TX']
+    # (at its 3 Nov place, the U.FL with it, owner: "the U.FL stays put";
+    # a shorter filter row just leaves more 50-ohm line before it)
+    put_fit(B, sw, min(tx_end[0] - 1.1 - p11[0], SW_X), tx_end[1] - p11[1], 180, (-0.1, 0))
+    # the antenna: up from the switch through the filter to the U.FL
+    fl = ref(comps, 'LFCG1000')
+    B.put(fl, 0, 0, 90, 'T', check=False)
+    f1 = B.pad_xy(fl, '8')
+    B.pl.pop(fl); B.taken['T'].pop()
+    p2 = B.pad_xy(sw, '2')
+    put_fit(B, fl, p2[0] - f1[0], p2[1] - 2.1 - f1[1], 90, (0, -0.1))
+    fl3 = B.pad_xy(fl, '4')
+    uf = ref(comps, 'UFL')
+    # the antenna line runs straight out of the filter's top end to the U.FL,
+    # its signal pad facing the filter; along it the missing-antenna
+    # detector's coupled line (sim/rf/coupler.py: 5.5 mm, 0.10 mm gap), its
+    # 49.9 R at the filter end, the diode at the U.FL end; the 47 nH ESD
+    # shunt stands on the other side, by the U.FL
+    # (towards +x, into the strip between the amplifier and its harmonic
+    # filter; the receive line's corridor is to the left)
+    ya = fl3[1]
+    xa = fl3[0] + 0.9                                   # the coupled run starts clear of the filter pad
+    xb = xa + CPL_LEN
+    B.put(uf, 0, 0, 270, 'T', check=False)
+    sig = B.pad_xy(uf, '1')
+    B.pl.pop(uf); B.taken['T'].pop()
+    put_fit(B, uf, xb + 1.6 - sig[0], ya - sig[1], 270, (0.1, 0), tries=40)
+    NODES['ANT'] = (fl3[0], ya, 0)
+    yc = ya - RF_PITCH_CPL                               # the coupled line, above the antenna line
+    on = lambda *nets: [c.ref for c in comps if set(nets) <= set(c.pins.values())]
+    def pin(r_, net):
+        # (of two pads on the net, the one farthest from the part's other nets: a diode pair's cathode)
+        ps = [p for p, n in B.comps[r_].pins.items() if n == net]
+        others = [B.pad_xy(r_, p) for p, n in B.comps[r_].pins.items() if n != net]
+        return max((B.pad_xy(r_, p) for p in ps),
+                   key=lambda q: min([(q[0] - o[0]) ** 2 + (q[1] - o[1]) ** 2 for o in others] or [0]))
+    # the two 49.9 R terminations: one at each end of the coupled line
+    # (circuit.py notes; the U.FL-end one since 20 Oct, sim/rf study 8)
+    note = {c.ref: c.note for c in comps}
+    terms = sorted(on('REFL_CPL', 'GND'), key=lambda r_: 'U.FL end' in note[r_])   # filter end first
+    term = terms[0]
+    put_pad(B, term, 'REFL_CPL', (xa, yc - 1.0), (0, -0.1), 'GND', (0, -1), tries=5)
+    det = on('REFL_CPL', 'REFL_DET')[0]
+    if len(terms) > 1:
+        # the line's U.FL end: its 49.9 R (0402) just above the end, lying
+        # back along the line (the U.FL leaves no room beyond it), and the
+        # reflected diode straight above that pad, turned so its anode is its
+        # bottom-most pad (the short link up to it touches no other pad)
+        put_pad(B, terms[1], 'REFL_CPL', (xb, yc - 0.6), (0, -0.1), 'GND', (-1, 0), tries=10)
+        te = pin(terms[1], 'REFL_CPL')
+        an = [p for p, n in B.comps[det].pins.items() if n == 'REFL_CPL'][0]
+        for rot in (0, 90, 180, 270):
+            _, pads = B.geom(det, 0, 0, rot, 'T')
+            if all(pads[an][1] - q[1] > 0.3 for p, q in pads.items() if p != an):
+                break
+        else:
+            raise ValueError('cannot turn %s' % det)
+        put_fit(B, det, te[0] - pads[an][0], te[1] - 1.2 - pads[an][1], rot, (0, -0.1), tries=30)
+        ta, da = pin(term, 'REFL_CPL'), pin(det, 'REFL_CPL')
+        cpl = [ta, (ta[0], yc), (te[0], yc), te, da]
+    else:
+        put_pad(B, det, 'REFL_CPL', (xb, yc - 1.0), (0, -0.1), 'REFL_DET', (0, -1), tries=5)
+        ta, da = pin(term, 'REFL_CPL'), pin(det, 'REFL_CPL')
+        cpl = [ta, (ta[0], yc), (da[0], yc), da]
+    # the forward detector (since 20 Oct): its diode at the 49.9 R end, on
+    # the line's level, its cathode away from it
+    fwd = on('REFL_CPL', 'FWD_DET')
+    if fwd:
+        put_pad(B, fwd[0], 'REFL_CPL', (ta[0] - 1.0, ta[1]), (-0.1, 0), 'FWD_DET', (-1, 0), tries=10)
+        cpl = [pin(fwd[0], 'REFL_CPL')] + cpl
+    NODES['_cpl'] = cpl
+    # each detector's 1 nF and 100 k right at its diode's cathode (until
+    # 20 Oct they were packed 21 mm away: sim/rf)
+    for d_, net, away in ((det, 'REFL_DET', (0, -1)),) + (((fwd[0], 'FWD_DET', (-1, 0)),) if fwd else ()):
+        k = pin(d_, net)
+        for r_ in [c.ref for c in comps if set(c.pins.values()) == {net, 'GND'}]:
+            # the nearest free spot: straight out, then either side, then further out
+            for d, step in ((0.8, (away[1] * 0.1 or -0.1, away[0] * 0.1 or -0.1)), (0.8, (-(away[1] * 0.1) or 0.1, -(away[0] * 0.1) or 0.1)),
+                            (1.6, (away[1] * 0.1 or -0.1, away[0] * 0.1 or -0.1)), (1.6, (-(away[1] * 0.1) or 0.1, -(away[0] * 0.1) or 0.1))):
+                try:
+                    put_pad(B, r_, net, (k[0] + away[0] * d, k[1] + away[1] * d), step, 'GND', away, tries=25)
+                    break
+                except ValueError:
+                    continue
+            else:
+                # the 100 k only bleeds the 1 nF (DC): the packer places it
+                # with the rest; the 1 nF must sit at the diode
+                if B.comps[r_].part.startswith('C'):
+                    raise ValueError('no room for %s by %s' % (r_, d_))
+    esd = [c.ref for c in comps if c.part == 'L47nH' and set(c.pins.values()) == {'ANT', 'GND'}][0]
+    put_pad(B, esd, 'ANT', (xb - 0.6, ya + 0.55), (-0.1, 0), 'GND', (0, 1), tries=10)
+    # receive: from the switch's RX port (down) left along the board, the
+    # LNA there; its output line runs on along the corridor to the balun
+    rx = B.pad_xy(sw, '5')
+    rxn = place.chain(B, comps, (rx[0] - 0.6, rx[1]), RX_IN, 180, shunt_side=1)
+    NODES.update(rxn)
+    lna = ref(comps, 'BGA7L1BN6')
+    ai = rxn['LNA_AI']
+    B.put(lna, 0, 0, 270, 'T', check=False)        # input (pin 5) facing the chain, between its ground pins
+    p5 = B.pad_xy(lna, '5')
+    B.pl.pop(lna); B.taken['T'].pop()
+    put_fit(B, lna, ai[0] - 0.5 - p5[0], ai[1] - p5[1], 270, (-0.1, 0))
+    # the receive balun at the SX1262's RFI pins
+    # keep the receive line's corridor free for its track
+    for (a0, b0, a1, b1) in rx_corridor(B, comps):
+        B.keep_out((min(a0, a1) - 0.6, min(b0, b1) - 0.6, max(a0, a1) + 0.6, max(b0, b1) + 0.6), ('T',))
+    # Bluetooth: Nordic's match then Johanson's tee, down to the antenna
+    nrf = ref(comps, 'NRF52840')
+    # Nordic's pi runs straight down from the ANT pin's escape, then the line
+    # turns left through Johanson's tee to the antenna; the antenna then
+    # moves along so its feed sits square under the line's end.  (Until
+    # 3 Nov the pin dropped 2.6 mm of bare line to a row that held all six
+    # parts one after another: 10.7 mm of line in the match, sim/rf R4)
+    e = escape(B, nrf, 'H23')
+    # (its two shunts on either side of it: the row leaves to the left, past
+    # the first one only)
+    pi = place.chain(B, comps, (e[0], e[1] + BLE_GAP), BLE[:2], 270, shunt_side=1, pitch_gap=BLE_GAP,
+                     alternate=True)
+    NODES.update(pi)
+    m = pi['BLE_50R']
+    low = max(B.rect(c.ref, *B.pl[c.ref])[3] for c in comps
+              if c.ref in B.pl and set(c.pins.values()) & {'NRF_ANT', 'BLE_50R'} and c.part != 'NRF52840'
+              and B.pl[c.ref][0] < m[0] - 0.3)
+    # (the row just above the pi's second shunt when it hangs below the
+    # node: a row under it ran into the antenna)
+    row = m[1] - 0.1 if low > m[1] + 0.6 else max(low + 0.35, m[1])
+    tee = place.chain(B, comps, (m[0] - 0.4, row), BLE[1:], 180, shunt_side=1,
+                      pitch_gap=BLE_GAP)
+    NODES['BLE_50Rb'] = tee['BLE_50R']
+    ble = dict(pi, **{k: v for k, v in tee.items() if k != 'BLE_50R'})
+    NODES.update({k: v for k, v in tee.items() if k != 'BLE_50R'})
+    ae = ref(comps, 'ANT2450')
+    feed = B.pad_xy(ae, '1')
+    x, y, rot, side = B.pl[ae]
+    B.remove(ae)
+    B.put(ae, x + ble['BLE_FEED'][0] - feed[0], y, rot, side, check=False)   # inside its own keepout
+    # ---- the RF lines, kept clear of everything placed from here on
+    track_keepouts(B)
+    # ---- each inner ball of a ball-grid chip takes a via in the ball
+    # (pipeline.ball_escapes): the spot under it on the other side stays free
+    ball_keepouts(B, comps)
+    # ---- every fine-pitch chip (pins 0.65 mm apart or closer) keeps a ring
+    # free of later parts: its pins leave between its neighbours (packed
+    # tight, the TPS62840's and the charger's could not be reached even on
+    # an empty board: 20 Oct)
+    chip_rings(B, comps)
+    # the controls keep a clear ring on top (set here, after the RF chains,
+    # which are placed to the micron: it keeps the packed parts out) for a finger, an enclosure's
+    # cut-out and their framed names in the silk (owner, 2 Nov 2026)
+    for r_, (mx, mtop, mbot) in ((ref(comps, 'SKRP', 'user'), (1.3, 1.9, 1.0)),
+                                 (ref(comps, 'SKRP', 'reset'), (1.3, 1.9, 1.0)),
+                                 (ref(comps, 'SLIDE'), (1.0, 0.6, 0.6))):
+        x0, y0, x1, y1 = B.rect(r_, *B.pl[r_])
+        B.keep_out((x0 - mx, y0 - mtop, x1 + mx, y1 + mbot), ('T',))
+    # ---- everything else, beside the pin it serves
+    todo = [c.ref for c in comps if c.ref not in B.pl]
+    # decoupling first (a capacitor from a supply to ground), then the rest
+    def key(r_):
+        c = B.comps[r_]
+        return (0 if c.ref.startswith('C') and 'GND' in c.pins.values() else 1, r_)
+    # test pads go underneath, where a probe reaches them with the board in a case
+    prefer = {r_: 'B' for r_ in todo if r_.startswith('TP')}
+    gnd_tp = [c.ref for c in comps if c.part == 'TP' and c.pins['1'] == 'GND']
+    for k, r_ in enumerate(gnd_tp):
+        put_fit(B, r_, -HX + 1.4, 1.4 + 1.6 * k, 0, (0, 0.2), side='B')
+    todo = [r_ for r_ in todo if r_ not in gnd_tp]
+    # the left end (USB-C, nRF52840, the power chain under them) is where
+    # every route ended with a dozen or more connections that found no way
+    # through (62 mm and 70 mm, 1-2 Nov 2026): its small parts pack with room
+    # for a track and a via between them; the rest of the board as before
+    # the battery's low side (protection FETs, then the 15 mR current sense)
+    # beside the plug's minus pin, before anything else takes the room: packed
+    # by their own nets they went 14 mm away, past the nRF52840, and the
+    # cell current's path was among the last nets no router could join
+    bat = ref(comps, 'JST_PH2')
+    cm = [B.pad_xy(bat, p) for p, n in B.comps[bat].pins.items() if n == 'CELL_MINUS'][0]
+    bp = [B.pad_xy(bat, p) for p, n in B.comps[bat].pins.items() if n == 'BATT_PLUS'][0]
+    by1 = B.rect(bat, *B.pl[bat])[3]
+    low = [ref(comps, 'CSD25310Q2'), ref(comps, 'SSM10N954L'), ref(comps, 'BQ29700'), ref(comps, 'R15m'),
+           ref(comps, 'NTC10K')]
+    # (since 3 Nov right of the gap pad, under the plug's pins, and the
+    # 15 mR shunt beside the protection FETs on the same side: on top, the
+    # sense loop's vias and 5 mm of In1 put 18 mR in series with it and
+    # halved the over-current trip, sim/shorts)
+    gx1 = GAP_PAD[2]
+    # (the shunt stands right of the FETs' source pins, its sense end up
+    # against them; the NTC just below the plug's pins, reading the cell)
+    # (the input FET low enough to leave the amplifier match's ground vias
+    # above it free)
+    tg = {low[0]: (max(bp[0], gx1 + 1.2), by1 + 4.0, 'B'), low[1]: (cm[0] + 1.8, by1 + 1.75, 'B'),
+          low[2]: (cm[0] + 2.6, by1 + 5.4, 'B'), low[3]: (cm[0] + 3.8, by1 + 2.35, 'B'),
+          low[4]: (gx1 + 1.3, by1 + 1.2, 'B')}
+    left = place.pack(B, low[:2], targets=tg, prefer={r_: 'B' for r_ in low})   # (all on the plug's side)
+    if low[1] in B.pl:
+        q3 = B.rect(low[1], *B.pl[low[1]])
+        _, pp = B.geom(low[3], 0, 0, 270, 'B')
+        sense = [p_ for p_, n in B.comps[low[3]].pins.items() if n == 'PROT_S2'][0]
+        put_fit(B, low[3], q3[2] + 0.75, q3[1] + 0.35 - pp[sense][1] + 0.2, 270, (0.1, 0.05), side='B', tries=40)
+    left += place.pack(B, low[2:], targets=tg, prefer={r_: 'B' for r_ in low})
+    todo = [r_ for r_ in todo if r_ not in low]
+    # ---- each RF shunt's ground pad (and each of the harmonic filter's)
+    # takes a via of its own (pipeline.plane_fanout): the spot under it on
+    # the bottom stays free of the parts packed from here on (3 Nov: R17
+    # under R51 left that pad on a top ground island no via could reach;
+    # set after the battery's low side, whose places the sense loop needs)
+    shunt_keepouts(B, comps)
+    # each port's ESD array right under its plug's pins (TI: as close to the
+    # connector as possible): packed by its nets it went halfway to the
+    # nRF52840, the display's under the 32 kHz crystal on top, where no via
+    # could reach its pins (3 Nov: the last open net)
+    esd = []; tg = {}; rots = {}
+    for c in comps:
+        if c.part != 'TPD4E05U06' or c.ref not in todo:
+            continue
+        sig = set(n for n in c.pins.values() if n and n != 'GND')
+        plug = [p_ for p_ in comps if p_.part.startswith('JST_') and sig & set(p_.pins.values())]
+        if not plug:
+            continue
+        j = plug[0].ref
+        xs = [B.pad_xy(j, pn)[0] for pn, n in B.comps[j].pins.items() if n in sig]
+        if not xs:
+            continue
+        tg[c.ref] = (sum(xs) / len(xs), B.rect(j, *B.pl[j])[3] + 1.0, 'B')
+        esd.append(c.ref)
+        # flow-through: the array's signal row parallel to the plug's pins,
+        # facing them, in the plug's order (3 Nov: the drone port's came out
+        # turned 90 degrees, its four lines crossing, two nets left open)
+        order = lambda pts: [n for n, _ in sorted(pts, key=lambda t: t[1])]
+        want = order([(n, B.pad_xy(j, pn)[0]) for pn, n in B.comps[j].pins.items() if n in sig])
+        for rot in (0, 180):
+            _, pp = B.geom(c.ref, tg[c.ref][0], tg[c.ref][1], rot, 'B')
+            sp = [(n, pp[pn]) for pn, n in c.pins.items() if n in sig and pn in pp]
+            nc = [pp[pn] for pn in pp if not c.pins.get(pn)]
+            facing = not nc or (sum(q[1] for _, q in sp) / len(sp) < sum(q[1] for q in nc) / len(nc))
+            if facing and order([(n, q[0]) for n, q in sp]) == want:
+                rots[c.ref] = (rot,)
+                break
+        else:
+            log('  %s: no rotation puts its pins in %s order facing it' % (c.ref, j))
+    left += place.pack(B, esd, targets=tg, rots=rots)
+    todo = [r_ for r_ in todo if r_ not in esd]
+    # (the nRF52840's two crystals, their load capacitors and its regulator
+    # capacitors (DEC1-6) first, at the usual gap: with the wide one the
+    # crystals were pushed 10 mm from their pins and DEC3 from 1.8 to 5.4 mm)
+    xtal = {c.ref for c in comps if c.ref in todo and any(
+        n in ('XC1', 'XC2', 'XL1', 'XL2') or n.startswith('NRF_DEC') for n in c.pins.values() if n)}
+    left += place.pack(B, sorted(xtal, key=lambda r_: (r_[0] != 'Y', r_)), prefer=prefer)
+    todo = [r_ for r_ in todo if r_ not in xtal]
+    place.PACK_GAP = lambda x, y: PACK_GAP_LEFT if x < PACK_LEFT_X else place.GAP
+    left += place.pack(B, sorted(todo, key=key), prefer=prefer)
+    left = place.pack(B, left, rmax=40.0)      # parts whose anchor was placed after them (and any with no room near it)
+    if left:
+        log('no room for: %s' % left)
+    B.pl['_nodes'] = {k: ([[round(p[0], 3), round(p[1], 3)] for p in v] if k.startswith('_cpl')
+                          else [round(v[0], 3), round(v[1], 3), v[2]]) for k, v in NODES.items()}
+    clashes = overlaps(B)
+    for a_, b_ in clashes:
+        log('overlap: %s %s' % (a_, b_))
+    return B.pl
+
+
+CHIP_RING = 0.4      # mm
+
+
+def chip_rings(B, comps, ring=CHIP_RING):
+    import math
+    n = 0
+    for c in comps:
+        if c.ref not in B.pl or not (c.ref[0] == 'U' or c.ref.startswith('Q')) or c.part == 'NRF52840':
+            continue
+        x, y, rot, side = B.pl[c.ref]
+        _, pads = B.geom(c.ref, x, y, rot, side)
+        pts = list(pads.values())
+        if len(pts) < 5:
+            continue
+        pitch = min(math.hypot(a[0] - b[0], a[1] - b[1]) for i, a in enumerate(pts) for b in pts[i + 1:])
+        if pitch > 0.65:
+            continue
+        x0, y0, x1, y1 = B.rect(c.ref, x, y, rot, side)
+        for box in ((x0 - ring, y0 - ring, x1 + ring, y0), (x0 - ring, y1, x1 + ring, y1 + ring),
+                    (x0 - ring, y0, x0, y1), (x1, y0, x1 + ring, y1)):
+            B.keep_out(box, (side,))
+        n += 1
+    return n
+
+
+def shunt_keepouts(B, comps, half=0.35):
+    """A small box on the bottom under the ground pad of every top
+    resistor that ends an RF line at ground (the attenuator's and the
+    detector's terminations), for its via.  (The RF capacitors' and the
+    harmonic filter's ground pads all found theirs on 3 Nov; a box under
+    each of those too moved the amplifier's 1.6 nH supply choke 3 mm off
+    its pin.)"""
+    import board as BD
+    rf = set(BD.RF_NETS + BD.RF_EXTRA + ['FWD_DET', 'REFL_DET'])
+    n = 0
+    for c in comps:
+        if c.ref not in B.pl or B.pl[c.ref][3] != 'T':
+            continue
+        nets = set(c.pins.values())
+        if 'GND' not in nets or not nets & rf or len(c.pins) != 2 or not c.ref.startswith('R'):
+            continue
+        for pn, net in c.pins.items():
+            if net != 'GND':
+                continue
+            x, y = B.pad_xy(c.ref, pn)
+            B.keep_out((x - half, y - half, x + half, y + half), ('B',))
+            n += 1
+    return n
+
+
+def ball_keepouts(B, comps, half=0.35):
+    """A small box on the far side of the board under every inner signal
+    ball of every placed chip, for its via (pipeline.ball_escapes)."""
+    import board as BD
+    n, bad = 0, []
+    for c in comps:
+        if c.ref not in B.pl or not (c.ref[0] == 'U' or c.ref.startswith('Q')):
+            continue
+        fp = B.footprint_at(c.ref)
+        pads = [p for p in fp.Pads() if p.GetAttribute() == pcbnew.PAD_ATTRIB_SMD]
+        if len(pads) < 4:
+            continue
+        bbs = [p.GetBoundingBox() for p in pads]
+        L_, T_ = min(q.GetLeft() for q in bbs), min(q.GetTop() for q in bbs)
+        R_, B_ = max(q.GetRight() for q in bbs), max(q.GetBottom() for q in bbs)
+        far = 'B' if B.pl[c.ref][3] == 'T' else 'T'
+        # the same rule as pipeline.ball_escapes: a wafer-scale part's every
+        # ball, any chip's inner balls
+        # (balls: round pads, 0.36 mm or less; a QFN's oblong pins leave sideways on their own)
+        wafer = c.part != 'NRF52840' and all(q.GetWidth() / 1e6 <= 0.36 and q.GetHeight() / 1e6 <= 0.36
+                                             and abs(q.GetWidth() - q.GetHeight()) / 1e6 < 0.06 for q in bbs)
+        for p, bb in zip(pads, bbs):
+            net = c.pins.get(p.GetNumber())
+            if not net or bb.GetWidth() * bb.GetHeight() / 1e12 > 0.8:
+                continue
+            outer = lambda b_: min(b_.GetLeft() - L_, R_ - b_.GetRight(), b_.GetTop() - T_, B_ - b_.GetBottom()) / 1e6 < 0.05
+            if net in BD.RF_NETS + BD.RF_EXTRA:
+                continue
+            o_ = outer(bb)
+            if o_ and not wafer:
+                continue
+            q = p.GetPosition()
+            # beside an outer ball of its own net it joins on the surface, no via
+            if not o_ and any(c.pins.get(o.GetNumber()) == net and outer(ob) and (o.GetPosition() - q).EuclideanNorm() / 1e6 < 0.6
+                              for o, ob in zip(pads, bbs) if o is not p):
+                continue
+            x, y = q.x / 1e6 - pcb.CX, q.y / 1e6 - pcb.CY
+            box = (x - half, y - half, x + half, y + half)
+            B.keep_out(box, (far,))
+            # a pad of an anchored part already there, on the far side's copper,
+            # is a floor-plan error (a part body over the via is fine)
+            lay = pcbnew.B_Cu if far == 'B' else pcbnew.F_Cu
+            for r_ in B.pl:
+                if r_.startswith('_') or r_ == c.ref:
+                    continue
+                for q_ in B.footprint_at(r_).Pads():
+                    if not q_.IsOnLayer(lay):
+                        continue
+                    qb = q_.GetBoundingBox()
+                    qq = (qb.GetLeft() / 1e6 - pcb.CX, qb.GetTop() / 1e6 - pcb.CY,
+                          qb.GetRight() / 1e6 - pcb.CX, qb.GetBottom() / 1e6 - pcb.CY)
+                    if place.overlap(qq, (x - 0.3, y - 0.3, x + 0.3, y + 0.3)):
+                        bad.append('%s pad %s under %s ball %s' % (r_, q_.GetNumber(), c.ref, p.GetNumber()))
+            n += 1
+    if bad:
+        raise ValueError('parts sit on ball vias (move them): ' + '; '.join(bad))
+    return n
+
+
+def escape(B, r_, pad):
+    """A chip pin's escape point (see _rf_pads)."""
+    fp = B.footprint_at(r_)
+    pt = B.pad_xy(r_, pad)
+    # (any RF net name marks the one pad wanted)
+    for n, c, e in _rf_pads([(r_, fp)], lambda rr, p: 'ANT' if p.GetNumber() == pad else ''):
+        if e and abs(c[0] - pt[0]) < 1e-3 and abs(c[1] - pt[1]) < 1e-3:
+            return e[-1]
+    raise ValueError('no escape for %s pin %s' % (r_, pad))
+
+
+def put_pad(B, r_, net, at, step, far_net, far_dir, side='T', tries=60):
+    """Place two-pad part r_ with its `net` pad at `at` (or the first free
+    spot stepping by `step`), turned so its `far_net` pad lies toward
+    far_dir (a unit (dx, dy))."""
+    pn = [p for p, n in B.comps[r_].pins.items() if n == net][0]
+    # of several far_net pads (a SOT-323 diode pair with two pins joined) the one farthest from pn
+    _, pads0 = B.geom(r_, 0, 0, 0, side)
+    pf = max([p for p, n in B.comps[r_].pins.items() if n == far_net and p != pn],
+             key=lambda p: (pads0[p][0] - pads0[pn][0]) ** 2 + (pads0[p][1] - pads0[pn][1]) ** 2)
+    for rot in (0, 90, 180, 270):
+        _, pads = B.geom(r_, 0, 0, rot, side)
+        dx, dy = pads[pf][0] - pads[pn][0], pads[pf][1] - pads[pn][1]
+        if dx * far_dir[0] + dy * far_dir[1] > 0.3:
+            break
+    else:
+        raise ValueError('cannot turn %s' % r_)
+    _, pads = B.geom(r_, 0, 0, rot, side)
+    put_fit(B, r_, at[0] - pads[pn][0], at[1] - pads[pn][1], rot, step, side, tries)
+
+
+def put_fit(B, r_, x, y, rot, step, side='T', tries=60):
+    """Place r_ at (x, y), or the first free spot stepping by `step`."""
+    for k in range(tries):
+        if B.fits(r_, x + step[0] * k, y + step[1] * k, rot, side):
+            B.put(r_, x + step[0] * k, y + step[1] * k, rot, side)
+            return
+    r = B.rect(r_, x, y, rot, side)
+    hits = [o for o in B.taken[side] + B.keepouts[side] if place.overlap(r, o, place.GAP)]
+    rl = B.rect(r_, x + step[0] * (tries - 1), y + step[1] * (tries - 1), rot, side)
+    hits += [o for o in B.taken[side] + B.keepouts[side] if place.overlap(rl, o, place.GAP) and o not in hits]
+    edge = r[0] < -pcb.HX + 0.25 or r[2] > pcb.HX - 0.25 or r[1] < -pcb.HY + 0.25 or r[3] > pcb.HY - 0.25
+    raise ValueError('no room for %s near (%.2f, %.2f): %s%s' % (r_, x, y, place.who(B, hits[:4]),
+                                                            ' (and the board edge)' if edge else ''))
+
+
+def overlaps(B):
+    """Pairs of parts on the same side whose courtyards overlap."""
+    out = []
+    items = [(r_, B.rect(r_, *B.pl[r_][:3], B.pl[r_][3]), B.pl[r_][3]) for r_ in B.pl
+             if not r_.startswith(('J7', '_'))]
+    # through-hole pads and holes (the header's, the USB-C's legs, the
+    # amplifier's thermal vias) against parts on either side
+    for r_ in [k for k in B.pl if not k.startswith('_')]:
+        for p in B.footprint_at(r_).Pads():
+            if p.GetAttribute() in (pcbnew.PAD_ATTRIB_PTH, pcbnew.PAD_ATTRIB_NPTH):
+                bb = p.GetBoundingBox()
+                bx = (bb.GetLeft() / 1e6 - pcb.CX, bb.GetTop() / 1e6 - pcb.CY,
+                      bb.GetRight() / 1e6 - pcb.CX, bb.GetBottom() / 1e6 - pcb.CY)
+                for s_ in ('T', 'B'):
+                    items.append(('%s:hole' % r_, bx, s_))
+    for i in range(len(items)):
+        for j in range(i + 1, len(items)):
+            a_, ra, sa = items[i]; b_, rb, sb = items[j]
+            if a_.split(':')[0] == b_.split(':')[0] or (a_.endswith(':hole') and b_.endswith(':hole')):
+                continue
+            if sa == sb and place.overlap(ra, rb, 0.0):
+                # how much: ignore touching boxes
+                w = min(ra[2], rb[2]) - max(ra[0], rb[0]); h = min(ra[3], rb[3]) - max(ra[1], rb[1])
+                if w > 0.02 and h > 0.02:
+                    out.append((a_, b_))
+    return out
+
+
+def plot(pl, path, comps=None):
+    """Both sides of the placement, for checking by eye."""
+    from PIL import Image, ImageDraw
+    import place as P
+    comps = comps or circuit.build()
+    B = P.Board(comps)
+    S = 22
+    W, H = int(pcb.LEN * S) + 40, int(pcb.WID * S) + 40
+    img = Image.new('RGB', (W, 2 * H + 20), 'white')
+    d = ImageDraw.Draw(img)
+    for k, side in enumerate(('T', 'B')):
+        oy = k * (H + 20)
+        X = lambda x: 20 + (x + HX) * S
+        Y = lambda y: oy + 20 + (y + HY) * S
+        d.rectangle([X(-HX), Y(-HY), X(HX), Y(HY)], outline='black', width=2)
+        d.text((24, oy + 2), 'TOP' if side == 'T' else 'BOTTOM (seen from the top)', fill='black')
+        for r_, v in pl.items():
+            if r_.startswith('_'):
+                continue
+            x, y, rot, s = v
+            if s != side and not r_.startswith('H'):
+                continue
+            bx = B.rect(r_, x, y, rot, s)
+            col = {'U': (60, 110, 200), 'J': (40, 150, 60), 'C': (210, 160, 60), 'R': (200, 90, 90),
+                   'L': (150, 90, 200)}.get(r_[0], (120, 120, 120))
+            d.rectangle([X(bx[0]), Y(bx[1]), X(bx[2]), Y(bx[3])], outline=col, width=1)
+            if r_[0] in 'UJYQ' or r_.startswith(('SW', 'AE', 'FL')):
+                d.text((X(bx[0]) + 2, Y(bx[1]) + 1), r_, fill=col)
+        x0, y0, x1, y1 = ANT_BOX
+        d.rectangle([X(x0), Y(y0), X(x1), Y(y1)], outline=(255, 0, 255))
+        for hx, hy in pcb.HOLES:
+            r = pcb.HOLE_KEEPOUT_R
+            d.ellipse([X(hx - 1.6), Y(hy - 1.6), X(hx + 1.6), Y(hy + 1.6)], outline='black')
+            d.ellipse([X(hx - r), Y(hy - r), X(hx + r), Y(hy + r)], outline=(160, 160, 160))
+    img.save(path)
+
+
+ESCAPE = 0.25   # mm past a chip pad's outer end: the line's edge then clears the pin row by ~0.17 mm
+STUB_NETS = ('PA_M2', 'PA_M3', 'PA_TX')   # the harmonic filter's nodes
+STUB_W = 0.45   # mm: its off-line pads join the line this wide (about a 0402 pad's width)
+CPL_LEN = 5.5   # the missing-antenna detector's coupled run (sim/rf/coupler.py)
+RF_PITCH_CPL = 0.27   # centre to centre: 0.17 mm lines, 0.10 mm gap
+
+
+def _rf_pads(fps, net_of):
+    """[(net, centre, escape path or None)] for every top pad on an RF net.
+    fps: (ref, footprint) pairs already at their place; net_of(ref, pad).
+    A chip pin's escape path runs straight out through the nearest side of
+    the chip's pad outline to ESCAPE past it.  An inner ball (the nRF52840's
+    ANT) first steps to the middle of the gap between the two outer-row
+    balls beside it, then runs out through that gap."""
+    import board as BD
+    cx, cy = pcb.CX, pcb.CY
+    out = []
+    mm = lambda v: v / 1e6
+    for ref_, fp in fps:
+        ic = ref_[0] == 'U'
+        if ic:
+            bbs = [p.GetBoundingBox() for p in fp.Pads()]
+            L_, T_ = min(q.GetLeft() for q in bbs), min(q.GetTop() for q in bbs)
+            R_, B_ = max(q.GetRight() for q in bbs), max(q.GetBottom() for q in bbs)
+        for p in fp.Pads():
+            n = net_of(ref_, p)
+            if n not in BD.RF_NETS or not p.IsOnLayer(pcbnew.F_Cu):
+                continue
+            q = p.GetPosition()
+            pt = (round(mm(q.x) - cx, 4), round(mm(q.y) - cy, 4))
+            e = None
+            if ic:
+                bb = p.GetBoundingBox()
+                side = min([(bb.GetLeft() - L_, (-1, 0), q.x - L_),
+                            (R_ - bb.GetRight(), (1, 0), R_ - q.x),
+                            (bb.GetTop() - T_, (0, -1), q.y - T_),
+                            (B_ - bb.GetBottom(), (0, 1), B_ - q.y)])
+                (dx, dy) = side[1]
+                d = mm(side[2]) + ESCAPE
+                e = [(round(pt[0] + dx * d, 4), round(pt[1] + dy * d, 4))]
+                if mm(side[0]) > 0.02:                 # an inner ball: through the outer row's gap
+                    edge = {(-1, 0): lambda b: b.GetLeft() - L_ < 20000, (1, 0): lambda b: R_ - b.GetRight() < 20000,
+                            (0, -1): lambda b: b.GetTop() - T_ < 20000, (0, 1): lambda b: B_ - b.GetBottom() < 20000}
+                    row = [o.GetPosition() for o in fp.Pads() if edge[side[1]](o.GetBoundingBox())]
+                    along = (lambda v: mm(v.y) - cy) if dx else (lambda v: mm(v.x) - cx)
+                    a0 = pt[1] if dx else pt[0]
+                    lo = max(along(v) for v in row if along(v) < a0)
+                    hi = min(along(v) for v in row if along(v) > a0)
+                    m = (lo + hi) / 2
+                    across = mm(row[0].x) - cx if dx else mm(row[0].y) - cy
+                    way = (across, m) if dx else (m, across)
+                    end = (e[0][0], m) if dx else (m, e[0][1])
+                    e = [tuple(round(v, 4) for v in way), end]
+            out.append((n, pt, e))
+    return out
+
+
+def rf_paths(pads, nodes):
+    """(net, points, width) for the RF lines, all square to the chain.
+
+    A chain net (one with a node, place.chain saved it with the chain's
+    direction) is a straight line along the chain through the node; every
+    pad on the net drops square onto it, so a series part's pad sits on the
+    line and a shunt's pad joins it by a short stub.  A net with two nodes
+    (the amplifier output's corner) runs along both lines to their meeting
+    point.  A chip pin first runs ESCAPE straight out of its pin row, 0.2 mm
+    wide, so nothing full width passes a neighbouring pin.  Nets with no
+    node join their pads by a shortest tree.  The receive line runs from
+    the LNA along its corridor to its node."""
+    import board as BD, math
+    out = []
+    by = {}
+    for n, pt, e in pads:
+        by.setdefault(n, []).append((pt, e))
+
+    def add(n, a_, b_, w=None):
+        if math.hypot(b_[0] - a_[0], b_[1] - a_[1]) > 1e-3:
+            out.append((n, [a_, b_], w or BD.RF_W))
+
+    def proj(h, p):
+        ux, uy = math.cos(math.radians(h[2])), -math.sin(math.radians(h[2]))
+        t = (p[0] - h[0]) * ux + (p[1] - h[1]) * uy
+        return t, (round(h[0] + ux * t, 4), round(h[1] + uy * t, 4))
+
+    for k in sorted(nodes):                              # the detector's coupled line (and branch), as drawn
+        if not k.startswith('_cpl'):
+            continue
+        cp = [tuple(p) for p in nodes[k]]
+        for a_, b_ in zip(cp, cp[1:]):
+            add('REFL_CPL', a_, b_)
+    for n, pp in sorted(by.items()):
+        starts = []
+        for pt, e in pp:
+            if e:
+                for a_, b_ in zip([pt] + e, e):          # the narrow escape
+                    add(n, a_, b_, min(0.2, BD.RF_W))
+            starts.append(e[-1] if e else pt)
+        hubs = [tuple(nodes[k]) for k in (n, n + 'b') if k in nodes]
+        if n == 'LNA_OUT' and hubs:
+            hub = hubs[0]
+            for (pt, e), s_ in zip(pp, starts):
+                if e:                                    # the LNA's output: along the corridor
+                    path = [s_, (s_[0], RX_Y), (hub[0], RX_Y), hub[:2]]
+                    for i in range(len(path) - 1):
+                        add(n, path[i], path[i + 1])
+            hubs_pp = [s_ for (pt, e), s_ in zip(pp, starts) if not e]
+            pp, starts = [(None, None)] * len(hubs_pp), hubs_pp
+        if hubs:
+            ts = {h: [0.0] for h in hubs}
+            if len(hubs) == 2:                           # the corner where the two lines meet
+                h1, h2 = hubs
+                a1, a2 = math.radians(h1[2]), math.radians(h2[2])
+                d1, d2 = (math.cos(a1), -math.sin(a1)), (math.cos(a2), -math.sin(a2))
+                den = d1[0] * d2[1] - d1[1] * d2[0]
+                t1 = ((h2[0] - h1[0]) * d2[1] - (h2[1] - h1[1]) * d2[0]) / den
+                corner = (h1[0] + d1[0] * t1, h1[1] + d1[1] * t1)
+                for h in hubs:
+                    ts[h].append(proj(h, corner)[0])
+            for (pt, e), s_ in zip(pp, starts):
+                h = min(hubs, key=lambda h: abs(proj(h, s_)[0]) + 3 * math.hypot(*(
+                    a - b for a, b in zip(proj(h, s_)[1], s_))))
+                t, q = proj(h, s_)
+                # a part's pad off the line in the harmonic filter (its trap
+                # capacitors, its shunts) joins it on wide copper, not a
+                # 50-ohm stub: 1.6 mm of 0.17 mm line put ~1 nH in series with
+                # each trap and moved both notches to 2.14 GHz (sim/rf R3)
+                wide = STUB_W if (n in STUB_NETS and not e and math.hypot(q[0] - s_[0], q[1] - s_[1]) > 0.3) else None
+                add(n, s_, q, wide)
+                ts[h].append(t)
+            for h in hubs:                               # the line itself
+                u = (math.cos(math.radians(h[2])), -math.sin(math.radians(h[2])))
+                end = lambda t: (round(h[0] + u[0] * t, 4), round(h[1] + u[1] * t, 4))
+                add(n, end(min(ts[h])), end(max(ts[h])))
+            continue
+        # no node: a shortest tree over the pads (Prim)
+        done, rest = [starts[0]], starts[1:]
+        while rest:
+            best = min(((d, r) for d in done for r in rest),
+                       key=lambda t: (t[0][0] - t[1][0]) ** 2 + (t[0][1] - t[1][1]) ** 2)
+            add(n, best[0], best[1])
+            done.append(best[1]); rest.remove(best[1])
+    return out
+
+
+def rf_tracks(b, nodes):
+    """The RF lines of a built board (board.py draws them, locked)."""
+    return rf_paths(_rf_pads([(fp.GetReference(), fp) for fp in b.GetFootprints()],
+                             lambda r_, p: p.GetNetname()), nodes)
+
+
+def track_keepouts(B):
+    """Keep the packer's parts off the RF lines: each line's box (they are
+    square to the board) grown by half its width and a clearance."""
+    fps = []
+    for r_, (x, y, rot, side) in B.pl.items():
+        if r_.startswith('_') or side != 'T':
+            continue
+        fps.append((r_, B.footprint_at(r_)))
+    paths = rf_paths(_rf_pads(fps, lambda r_, p: B.comps[r_].pins.get(p.GetNumber()) or ''), NODES)
+    for n, (a_, b_), w in paths:
+        m = w / 2 + 0.12
+        B.keep_out((min(a_[0], b_[0]) - m, min(a_[1], b_[1]) - m, max(a_[0], b_[0]) + m, max(a_[1], b_[1]) + m), ('T',))
+    return paths
+
+
+if __name__ == '__main__':
+    import sys, json
+    pl = place_all()
+    out = sys.argv[1] if len(sys.argv) > 1 else '/w/out/placement.png'
+    plot(pl, out)
+    print('placed %d parts -> %s' % (len(pl), out))

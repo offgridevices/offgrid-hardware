@@ -1,0 +1,149 @@
+Mesh Radio v1 - RF simulation results (sim/rf/run.py)
+Board values from src/circuit.py; part models and sources in sim/rf/README.md and rflib.py.
+Antenna filter FL1 = LFCG-1000+; missing-antenna detector coupler 5.5 mm x 0.10 mm gap (routed.json (mesh-radio.kicad_pcb)).
+RF lines: as routed (routed.json from mesh-radio.kicad_pcb; sim/rf/routed.txt is the audit).
+
+
+====================================================================================================
+STUDY 8  Missing-antenna ratio detector: coupler (5.5 mm, 0.10 mm gap) terminated in 49.9 R at both ends;
+         REFL_DET = BAT15 at the U.FL end, FWD_DET = the same at the filter end, each into 1 nF || 100 k;
+         firmware reads REFL_DET / FWD_DET   [COMPARISON RUN: RF_DIODE=BAT15]
+====================================================================================================
+Inputs.  Board: the antenna section of study 1 (coupler from coupler.py's field solve) inside the real chain: PA,
+  LPF, switch, LFCG-1000+; both PA models, so the PA's own reflection of the returning wave is included.  Antenna at
+  the U.FL: matched; VSWR 2 at every phase; missing (open, every phase = any cable length); 902/915/928 MHz.
+  Power = the matched-antenna power at the U.FL: 27 dBm (the firmware's lowest checked level), 30 (US; the 1 W
+  probe), 33, 35 and 36 dBm (3.6-4.0 V).  Temperatures -40, 0, 25, 60, 85 C.
+  Diode BAT15: IS 1.15e-07 A (typ), N 1.080, RS 6.0 ohm, EG 0.55 eV, XTI 2; corners IS 9.80e-09 / 3.14e-06 A (VF limits at 1 mA),
+  EG 0.50 / 0.69 eV; CJ 0.20 pF (0.24 max as a corner).  The two diodes are separate parts: unmatched pairings are run
+  (7: reflected / forward = typ/typ, VF max/VF min, VF min/VF max, VF max/VF max, VF min/VF min, EG low/EG high, EG high/EG low).  BAT68: IF-VF curves at -40/25/85 C fitted (N 0.932, RS 9.2, EG 0.65, within 4 mV);
+  the table's VF 318 typ / 340 max mV at 1 mA set IS; 296 mV ASSUMED as the low corner.  DC: mean diode current over
+  an RF cycle = V / 100 k + leak (checked against ngspice below).  ADC floor: a reading below 20 mV is not trusted.
+Criteria: a ratio threshold (fixed, or of the form R25 x exp(b (T-25) + c (P-30)) with the board temperature and the
+  firmware's modelled power) must separate every missing case from every VSWR-2 case at every level and temperature,
+  both PA models, every diode pairing: PASS with >= 1 dB of margin each side (and FWD_DET above the ADC floor),
+  MARGINAL if the window is open but narrower, FAIL if it closes.
+
+  Typical diodes (both models, every phase and band): FWD_DET, REFL_DET (V) and REFL / FWD:
+   P       antenna     T      FWD_DET         REFL_DET        ratio
+   27 dBm  matched    -40 C   0.086-0.093 V   0.000-0.000 V   0.000-0.000
+   27 dBm  matched     25 C   0.172-0.179 V   0.001-0.001 V   0.006-0.007
+   27 dBm  matched     85 C   0.222-0.230 V   0.003-0.003 V   0.012-0.013
+   27 dBm  VSWR 2     -40 C   0.052-0.106 V   0.000-0.002 V   0.003-0.015
+   27 dBm  VSWR 2      25 C   0.134-0.194 V   0.015-0.040 V   0.100-0.208
+   27 dBm  VSWR 2      85 C   0.181-0.245 V   0.031-0.069 V   0.156-0.283
+   27 dBm  missing    -40 C   0.013-0.109 V   0.013-0.102 V   0.870-1.051
+   27 dBm  missing     25 C   0.079-0.197 V   0.080-0.189 V   0.952-1.017
+   27 dBm  missing     85 C   0.119-0.248 V   0.119-0.241 V   0.961-1.013
+   30 dBm  matched    -40 C   0.192-0.203 V   0.000-0.000 V   0.000-0.000
+   30 dBm  matched     25 C   0.281-0.292 V   0.002-0.002 V   0.008-0.008
+   30 dBm  matched     85 C   0.336-0.348 V   0.005-0.006 V   0.016-0.017
+   30 dBm  VSWR 2     -40 C   0.135-0.224 V   0.001-0.011 V   0.005-0.047
+   30 dBm  VSWR 2      25 C   0.224-0.314 V   0.029-0.074 V   0.117-0.236
+   30 dBm  VSWR 2      85 C   0.277-0.370 V   0.054-0.112 V   0.177-0.304
+   30 dBm  missing    -40 C   0.055-0.229 V   0.056-0.218 V   0.916-1.032
+   30 dBm  missing     25 C   0.138-0.319 V   0.139-0.307 V   0.956-1.015
+   30 dBm  missing     85 C   0.185-0.375 V   0.186-0.363 V   0.963-1.013
+   35 dBm  matched    -40 C   0.503-0.524 V   0.000-0.000 V   0.000-0.000
+   35 dBm  matched     25 C   0.591-0.612 V   0.007-0.008 V   0.011-0.013
+   35 dBm  matched     85 C   0.651-0.673 V   0.016-0.017 V   0.024-0.026
+   35 dBm  VSWR 2     -40 C   0.393-0.564 V   0.014-0.097 V   0.033-0.171
+   35 dBm  VSWR 2      25 C   0.482-0.653 V   0.082-0.184 V   0.154-0.281
+   35 dBm  VSWR 2      85 C   0.541-0.713 V   0.121-0.234 V   0.205-0.330
+   35 dBm  missing    -40 C   0.226-0.574 V   0.228-0.552 V   0.949-1.019
+   35 dBm  missing     25 C   0.315-0.662 V   0.318-0.641 V   0.961-1.014
+   35 dBm  missing     85 C   0.372-0.722 V   0.374-0.701 V   0.966-1.012
+
+  (1) One fixed ratio over 27-36 dBm and -40..85 C: VSWR 2 up to 0.334, missing down to 0.870 with typical diodes (+8.3 dB); 0.724 / 0.036 over every pairing (-26.1 dB)
+  (2) Threshold compensated for temperature and level, fitted over every pairing, from a lowest level up:
+      from 27 dBm: margin -10.7 dB each side; R(30 dBm, 25 C) 0.271, +1.36 %/C, -3.0 %/dB; FWD_DET >= 0.002 V
+      from 30 dBm: margin  -2.2 dB each side; R(30 dBm, 25 C) 0.512, +1.06 %/C, -1.0 %/dB; FWD_DET >= 0.022 V
+      from 33 dBm: margin  +0.9 dB each side; R(30 dBm, 25 C) 0.553, +0.35 %/C, -2.0 %/dB; FWD_DET >= 0.096 V
+      from 35 dBm: margin  +1.9 dB each side; R(30 dBm, 25 C) 0.557, +0.20 %/C, -1.0 %/dB; FWD_DET >= 0.177 V
+      from 36 dBm: margin  +2.2 dB each side; R(30 dBm, 25 C) 1.405, +0.15 %/C, -14.8 %/dB; FWD_DET >= 0.228 V
+  -> works (>= 1 dB, FWD_DET above the ADC floor) from 35 dBm up
+
+  (3) Two conditions: fault if FWD_DET < Fmin(P, T) (the amplifier is not delivering what the model says - with a
+      saturated PA that is what an open does at some cable lengths) OR REFL/FWD > R(P, T):
+      from 27 dBm: worst margin -10.7 dB (good antenna / missing, every pairing); Fmin(30 dBm, 25 C) 0.046 V, +0.65 %/C, +24.1 %/dB (lowest 0.016 V); R(30, 25) 0.271, +1.36 %/C, -3.0 %/dB
+      from 30 dBm: worst margin  -2.2 dB (good antenna / missing, every pairing); Fmin(30 dBm, 25 C) 0.095 V, +0.42 %/C, +20.9 %/dB (lowest 0.072 V); R(30, 25) 0.512, +1.06 %/C, -1.0 %/dB
+      from 33 dBm: worst margin  +0.9 dB (good antenna / missing, every pairing); Fmin(30 dBm, 25 C) 0.128 V, +0.31 %/C, +18.9 %/dB (lowest 0.176 V); R(30, 25) 0.553, +0.35 %/C, -2.0 %/dB
+      from 35 dBm: worst margin  +1.9 dB (good antenna / missing, every pairing); Fmin(30 dBm, 25 C) 0.142 V, +0.26 %/C, +17.9 %/dB (lowest 0.274 V); R(30, 25) 0.557, +0.20 %/C, -1.0 %/dB
+      from 36 dBm: worst margin  +1.9 dB (good antenna / missing, every pairing); Fmin(30 dBm, 25 C) 0.969 V, +0.24 %/C, -14.1 %/dB (lowest 0.333 V); R(30, 25) 1.405, +0.15 %/C, -14.8 %/dB
+  -> two conditions work (>= 1 dB, Fmin above the ADC floor) from 35 dBm up.  Per level and temperature (margin dB good / missing):
+      35 dBm: -40 C +1.9 / +2.3 (Fmin 0.274 V, R 0.465),  0 C +1.9 / +1.9 (Fmin 0.304 V, R 0.504),  25 C +1.9 / +1.9 (Fmin 0.324 V, R 0.530),  60 C +2.2 / +2.4 (Fmin 0.355 V, R 0.568),  85 C +2.2 / +2.7 (Fmin 0.379 V, R 0.597)
+      36 dBm: -40 C +2.2 / +3.1 (Fmin 0.323 V, R 0.461),  0 C +2.0 / +2.5 (Fmin 0.358 V, R 0.499),  25 C +2.0 / +2.4 (Fmin 0.382 V, R 0.525),  60 C +2.1 / +2.7 (Fmin 0.419 V, R 0.563),  85 C +2.0 / +2.9 (Fmin 0.447 V, R 0.592)
+  -> ratio detector (BAT15), two conditions (FWD_DET low or ratio high): MARGINAL  [works from 35 dBm (every pairing, both PA models, -40..85 C), worst margin +1.9 dB; Fmin(30 dBm, 25 C) 0.142 V +0.26 %/C +17.9 %/dB; R(30 dBm, 25 C) 0.557 +0.20 %/C -1.0 %/dB]
+      real power 1 dB below the firmware model: good antenna +0.1 dB, missing +1.2 dB; 1 dB above: good +2.1 dB, missing +2.3 dB  (worst over every pairing, model, phase, T)
+  -> fitted with +-1 dB of power error built in (good antennas 1 dB low, missing 1 dB high): works from 33 dBm, worst margin +1.1 dB:
+     Fmin(P, T) = 0.100 V x 1.0037^(T-25) x 1.200^(P-30);  R(P, T) = 0.553 x 1.0020^(T-25) x 0.990^(P-30)
+      33 dBm: -40 C +1.9 / +1.2 (Fmin 0.136 V, R 0.472),  0 C +1.1 / +1.1 (Fmin 0.157 V, R 0.511),  25 C +1.3 / +1.3 (Fmin 0.173 V, R 0.537),  60 C +2.9 / +2.0 (Fmin 0.197 V, R 0.576),  85 C +3.3 / +2.4 (Fmin 0.216 V, R 0.606)
+      35 dBm: -40 C +3.0 / +3.0 (Fmin 0.195 V, R 0.462),  0 C +1.6 / +2.5 (Fmin 0.227 V, R 0.501),  25 C +1.6 / +2.4 (Fmin 0.249 V, R 0.526),  60 C +2.9 / +2.7 (Fmin 0.283 V, R 0.565),  85 C +2.7 / +2.9 (Fmin 0.311 V, R 0.594)
+      36 dBm: -40 C +3.3 / +3.7 (Fmin 0.234 V, R 0.458),  0 C +1.7 / +3.0 (Fmin 0.272 V, R 0.496),  25 C +1.7 / +2.8 (Fmin 0.298 V, R 0.521),  60 C +2.6 / +3.0 (Fmin 0.340 V, R 0.559),  85 C +2.3 / +3.1 (Fmin 0.373 V, R 0.588)
+  -> two conditions, fitted with +-1 dB of power-model error: MARGINAL  [from 33 dBm, worst margin +1.1 dB: Fmin 0.100 V x 1.0037^(T-25) x 1.200^(P-30), R 0.553 x 1.0020^(T-25) x 0.990^(P-30)]
+  -> two conditions with +-1 dB between the power model and the real power: PASS  [-1 dB: good antenna +0.1, missing +1.2 dB; +1 dB: good +2.1, missing +2.3 dB (a negative good-antenna margin = a false "antenna missing" and a 1 W retry, not a missed fault)]
+
+  (5) The two-condition rule with the constants committed in firmware/variant/variant.h (fitted on the 20 Oct pre-route model), on this
+      board: worst margin dB (good antenna / missing), every pairing, both models, -40..85 C; also with the real power
+      1 dB under / over the firmware's model:
+      robust   30 dBm: nominal  -2.0 /  -5.3   1 dB under  -2.8 /  -7.1   1 dB over  -1.4 /  -2.0   <- a missing antenna passes
+      robust   33 dBm: nominal  -0.3 /  +1.8   1 dB under  -0.7 /  +0.1   1 dB over  -0.0 /  +2.9   <- false "missing"
+      robust   35 dBm: nominal  +0.4 /  +3.4   1 dB under  +0.1 /  +2.7   1 dB over  +0.6 /  +3.8
+      robust   36 dBm: nominal  +0.6 /  +3.7   1 dB under  +0.5 /  +3.3   1 dB over  +0.8 /  +4.1
+      default  30 dBm: nominal  -8.5 /  +4.0   1 dB under  -9.3 /  -0.4   1 dB over  -7.9 /  +4.6   <- a missing antenna passes
+      default  33 dBm: nominal  -6.0 /  +3.6   1 dB under  -6.2 /  +3.5   1 dB over  -6.2 /  +3.8   <- false "missing"
+      default  35 dBm: nominal  -5.5 /  +3.1   1 dB under  -5.3 /  +2.9   1 dB over  -5.7 /  +3.2   <- false "missing"
+      default  36 dBm: nominal  -5.3 /  +2.8   1 dB under  -5.1 /  +2.6   1 dB over  -5.4 /  +2.9   <- false "missing"
+  -> firmware rule as committed (default constants) on this board, from 30 dBm: FAIL  [nominal power: good -8.5, missing +2.8 dB; with +-1 dB power error: good -9.3, missing -0.4 dB (a negative missing margin = a missing antenna not caught)]
+  -> firmware rule as committed (robust constants) on this board, from 33 dBm: FAIL  [nominal power: good -0.3, missing +1.8 dB; with +-1 dB power error: good -0.7, missing +0.1 dB (a negative missing margin = a missing antenna not caught)]
+
+  Margins with that threshold (dB, + = read correctly; typical pair [worst pairing]):
+   P        T     threshold   VSWR-2 max          missing min         matched max   FWD_DET min (V)
+   27 dBm  -40 C   0.504    0.015 (+30.3) [ +1.5]   0.870 ( +4.7) [-23.0]   0.000        0.002   <- below the ADC floor
+   27 dBm    0 C   0.546    0.121 (+13.1) [ -2.5]   0.936 ( +4.7) [-10.6]   0.002        0.017   <- below the ADC floor
+   27 dBm   25 C   0.574    0.208 ( +8.8) [ -0.7]   0.952 ( +4.4) [ -5.9]   0.007        0.036
+   27 dBm   60 C   0.616    0.275 ( +7.0) [ +2.9]   0.960 ( +3.9) [ -1.4]   0.013        0.068
+   27 dBm   85 C   0.647    0.283 ( +7.2) [ +5.0]   0.961 ( +3.4) [ +0.6]   0.013        0.089
+   30 dBm  -40 C   0.489    0.047 (+20.4) [ +4.8]   0.916 ( +5.4) [ -7.6]   0.000        0.022
+   30 dBm    0 C   0.530    0.166 (+10.1) [ +0.3]   0.946 ( +5.0) [ -3.7]   0.002        0.059
+   30 dBm   25 C   0.557    0.236 ( +7.5) [ +0.8]   0.956 ( +4.7) [ -2.0]   0.008        0.085
+   30 dBm   60 C   0.597    0.294 ( +6.2) [ +3.1]   0.962 ( +4.1) [ +0.3]   0.016        0.123
+   30 dBm   85 C   0.628    0.304 ( +6.3) [ +4.5]   0.963 ( +3.7) [ +1.4]   0.017        0.148
+   33 dBm  -40 C   0.475    0.120 (+11.9) [ +4.1]   0.940 ( +5.9) [ -0.1]   0.000        0.096
+   33 dBm    0 C   0.514    0.215 ( +7.6) [ +1.5]   0.954 ( +5.4) [ +0.2]   0.003        0.142
+   33 dBm   25 C   0.541    0.264 ( +6.2) [ +1.6]   0.959 ( +5.0) [ +0.6]   0.011        0.171
+   33 dBm   60 C   0.580    0.310 ( +5.4) [ +3.1]   0.964 ( +4.4) [ +1.6]   0.021        0.212
+   33 dBm   85 C   0.610    0.321 ( +5.6) [ +4.2]   0.965 ( +4.0) [ +2.2]   0.022        0.238
+   35 dBm  -40 C   0.465    0.171 ( +8.7) [ +3.6]   0.949 ( +6.2) [ +2.3]   0.000        0.177
+   35 dBm    0 C   0.504    0.243 ( +6.3) [ +1.9]   0.957 ( +5.6) [ +1.9]   0.004        0.224
+   35 dBm   25 C   0.530    0.281 ( +5.5) [ +1.9]   0.961 ( +5.2) [ +1.9]   0.013        0.254
+   35 dBm   60 C   0.568    0.320 ( +5.0) [ +3.1]   0.965 ( +4.6) [ +2.4]   0.024        0.295
+   35 dBm   85 C   0.597    0.330 ( +5.2) [ +4.0]   0.966 ( +4.2) [ +2.7]   0.026        0.323
+   36 dBm  -40 C   0.461    0.194 ( +7.5) [ +3.3]   0.952 ( +6.3) [ +3.1]   0.000        0.228
+   36 dBm    0 C   0.499    0.256 ( +5.8) [ +2.0]   0.959 ( +5.7) [ +2.5]   0.004        0.276
+   36 dBm   25 C   0.525    0.290 ( +5.2) [ +2.0]   0.962 ( +5.3) [ +2.4]   0.014        0.305
+   36 dBm   60 C   0.563    0.324 ( +4.8) [ +3.0]   0.965 ( +4.7) [ +2.7]   0.026        0.346
+   36 dBm   85 C   0.592    0.334 ( +5.0) [ +3.9]   0.966 ( +4.3) [ +2.9]   0.028        0.374
+  -> ratio detector (BAT15), compensated threshold: MARGINAL  [works from 35 dBm; at the 30 dBm probe worst margin -7.6 dB, FWD_DET >= 0.022 V; fixed ratio: +4.2 dB (typical), -13.1 dB (every pairing)]
+
+  Sensitivity, with that threshold (typical diodes; worst margin dB from 35 dBm, VSWR 2 / missing):
+   coupler gap 0.08 mm (etch)                  +4.8 /  +4.1
+   coupler gap 0.12 mm (etch)                  +4.4 /  +4.2
+   CJ 0.24 pF (data-sheet max)                 +4.9 /  +4.1
+   1 nF / 100 k along the routed tracks (REFL 2.0, FWD 1.4 mm)  +4.8 /  +4.2
+
+  Timing (30 dBm, -40 C): REFL_DET (missing, worst phase) reaches 99 % of its final value 104 us after the RF is at full power, FWD_DET 26 us; decay 100 k x 1 nF = 100 us.  The 750 us sample (from startTransmit) needs the RF at
+  full power by ~646 us.  Read both channels in one SAADC scan so a still-rising level moves both alike.
+
+  VPA 2.7 V (32.4 dBm), every antenna state, both models: diode reverse peak 1.17 V, 49.9 R (each) 4 mW (0805 0.5 W: 1 % of its 85 C rating)
+  VPA 3.6 V (34.9 dBm), every antenna state, both models: diode reverse peak 1.58 V, 49.9 R (each) 7 mW (0805 0.5 W: 2 % of its 85 C rating)
+  VPA 4.0 V (35.8 dBm), every antenna state, both models: diode reverse peak 1.76 V, 49.9 R (each) 9 mW (0805 0.5 W: 2 % of its 85 C rating)
+  -> detector parts, antenna missing, VPA 4.0 V: PASS  [BAT15 reverse peak 1.76 V = 44 % of 4 V; 49.9 R 9 mW = 2 % of its 85 C rating (continuous, not just the 0.75 ms pulse)]
+
+  ngspice cross-check of the reflected detector (model B, 915 MHz, typical diode as a SPICE model with RS, CJ;
+  Thevenin source at the anode from the board model; 25 us transient from the averaged value):
+   VSWR 2 (worst phase)     30 dBm   85 C  junction 0.174 V peak   averaged model 0.106 V   ngspice 0.119 V   (diff +12 mV)
+   missing (worst phase)    30 dBm  -40 C  junction 0.413 V peak   averaged model 0.173 V   ngspice 0.169 V   (diff -4 mV)
+   VSWR 2 (worst phase)     35 dBm   85 C  junction 0.309 V peak   averaged model 0.223 V   ngspice 0.246 V   (diff +23 mV)
+   missing (worst phase)    35 dBm  -40 C  junction 0.735 V peak   averaged model 0.467 V   ngspice 0.460 V   (diff -7 mV)
+   missing (best phase)     35 dBm   25 C  junction 0.814 V peak   averaged model 0.630 V   ngspice 0.651 V   (diff +21 mV)

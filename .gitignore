@@ -44,5 +44,8 @@ out/
 # at any folder depth
 **/production/gerbers/
 
+# Mesh Radio's scratch placements (the committed one is src/placement.json)
+products/mesh-radio/src/placement_*.json
+
 # Firmware build output (PlatformIO)
 .pio/

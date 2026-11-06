@@ -1,0 +1,38 @@
+Mesh Radio v1 - RF lines on the routed board (sim/rf/routed.py, mesh-radio.kicad_pcb)
+Line 0.17 mm on F.Cu over In1 (0.1164 mm); coplanar gap spec 0.25 mm (src/board.py RF_GAP).
+Per net: length (and outside the parts' own pads), layers, vias on the net, In1 under the line and 0.12 mm beyond its edges, coplanar gap sampled every 0.05 mm each side (open = no copper within 0.8 mm), ground vias within 0.6 / 1 mm.
+
+net             len  outpad layers vias In1min gapmin  open% <spec%   gndvias  closest non-ground copper (mm)
+LORA_RFO       4.08    3.19 F         0  1.000  0.165     47      4    0/1     LORA_VRPA 0.165, BAT_P 0.250, LORA_RFI_N 0.330
+LORA_TXA       2.20    1.00 F         0  1.000  0.282      8      0    0/0     BAT_P 0.282, LORA_TXB 0.790
+LORA_TXB       3.76    2.27 F         0  1.000  0.250     36      0    0/1     BAT_P 0.250, DRONE_5V_CONN 0.413, LORA_TXA 0.790
+LORA_TXC       1.10    0.53 F         0  1.000  0.287      0      0    0/0     BAT_P 0.287
+LORA_TX50      4.50    2.90 F         0  1.000  0.250     68      0    0/1     PA_IN 0.250, BAT_P 0.432
+PA_DRIVE       3.85    2.54 F         0  1.000  0.250     51      0    0/1     VPA 0.402, BAT_P 0.650
+PA_RFIN        0.95    0.35 F         0  1.000  0.417      0      0    0/2     PA_VCC2 0.417, PA_VCC1 0.419
+PA_OUT        11.08    8.14 F         0  1.000  0.250     78      0    0/6     VPA 0.250, PA_VCC2 0.605
+PA_M1          3.45    2.11 F         0  1.000  0.396     47      0    0/0     BATT_PLUS 0.396, BAT_P 0.494
+PA_M2          6.87    4.46 F         0  1.000  0.133     30      4    5/13    BATT_PLUS 0.385, BAT_P 0.493
+PA_M3          7.23    3.91 F         0  1.000  0.250     34      0    0/10    
+PA_TX          6.78    4.74 F         0  1.000  0.250     28      0    0/7     BATT_PLUS 0.544
+ANT_SW         2.10    1.51 F         0  1.000  0.250      0      0    0/9     
+ANT            8.55    7.58 F         0  1.000  0.100     22     42    1/8     REFL_CPL 0.100, BATT_PLUS 0.250, DRN_OV 0.300
+RX_SW          1.05    0.53 F         0  1.000  0.250      0      0    0/6     
+LNA_INM        1.10    0.53 F         0  1.000  0.283      0      0    0/1     
+LNA_AI         0.95    0.55 F         0  1.000  0.250      9      0    0/2     
+LNA_OUT       15.78   15.18 F         0  0.882  0.197      9      1    9/17    BAT_P 0.250, TEMP_ALERT 0.368, DRN_P4 0.392
+LORA_RFI_P     2.44    1.17 F         0  1.000  0.251      0      0    0/2     LORA_RFI_N 0.309
+LORA_RFI_N     2.23    0.98 F         0  1.000  0.315     18      0    0/1     BAT_P 0.315, LORA_RFO 0.330, LORA_RFI_P 0.330
+NRF_ANT        3.48    2.79 F         0  1.000  0.214     35      5    2/5      0.241, NRF_DEC4 0.292, CHG_CE_N 0.693
+BLE_50R        2.75    1.58 F         0  1.000  0.160     30     11    3/8     
+BLE_T          2.75    1.88 F         0  1.000  0.251     41      0    0/0     
+BLE_FEED       3.25    1.96 F         0  0.896  0.251     53      0    0/0     
+REFL_CPL      10.10    7.56 F         0  1.000  0.100     20     40    1/5     ANT 0.100, BAT_P 0.266, DRONE_5V_CONN 0.585
+
+Shunt parts' ground pads (vias in the pad / nearest ground via, mm):
+  C37 1 in pad  C38 1 in pad  C49 1 in pad  C51 1 in pad  C53 1 in pad  C71 1 in pad  C72 1 in pad  C73 1 in pad  C75 1 in pad  C77 1 in pad  C79 1 in pad  C82 1 in pad  C99 0.66  FL1 0.70/0.65/1 in pad/1 in pad/0.65/0.70  J4 2 in pad/2 in pad  L18 1 in pad  L5 0.67  R46 1.05  R48 1 in pad  R51 1 in pad  R52 1 in pad  R74 1 in pad  R75 1 in pad  U10 0.79/0.78/9 in pad  U11 0.59/0.14/0.53/0.59/0.59/0.59/1 in pad  U12 0.45/0.45  U8 25 in pad/1 in pad/1 in pad  U9 1.18/0.94/0.94/0.94/7 in pad
+
+REFL_DET: diode cathode -> 1 nF 3.132 mm (D9.3 -> C82.1), track 0.09/0.1 mm wide; the whole net 39.0 mm on F.Cu, In2.Cu, In3.Cu, 3 vias
+FWD_DET: diode cathode -> 1 nF 1.365 mm (D14.3 -> C99.1), track 0.09/0.1 mm wide; the whole net 20.0 mm on F.Cu, In2.Cu, 2 vias
+Bluetooth antenna ground-free box [-23.33, 8.9, -16.830000000000002, 12.7]: copper inside {'F.Cu BLE_FEED': 0.613, 'F.Cu ': 1.75}
+Ground via types (d, drill, from, to): [(0.3, 0.15, 'F.Cu', 'B.Cu'), (0.4, 0.2, 'F.Cu', 'B.Cu'), (0.5, 0.3, 'F.Cu', 'B.Cu')]
