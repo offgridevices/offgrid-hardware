@@ -62,8 +62,9 @@ All six in order: `tools/kd sh sim/run_all.sh` (about 3 hours on 4 cores, nearly
 **The live-pad sequence, in plain words** (a FAIL until 20 Oct). With USB,
 solar or drone power plugged in, pulling out a right-way battery leaves the
 reverse-protection switch on. If a battery is then plugged in backwards, it
-meets live pads: 12.3 / 11.5 / 10.8 A peak at 25 / 60 / 85 °C (0.07 A at
-−40 to 0 °C) until the cell protector trips,
+meets live pads: 12.3 / 11.5 / 10.8 A peak at 25 / 60 / 85 °C until the
+cell protector trips (at −40 to 0 °C the simulation started with the pads
+already dead, so this sequence was not tested there),
 inside the parts' pulse ratings. The polarity-check transistor's gate saw
 9–11 V (rated 8 V) until a 4.7 V zener was added across it on 20 Oct; the
 study now passes at every temperature. (Until 20 Oct the study read the
