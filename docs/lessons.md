@@ -122,6 +122,44 @@ board's `docs/` keeps its own dated checks).
   part sits at the origin, which on LayerCam is inside the lens window; a
   warning in a long log is not enough.
 
+- **Route the short, boxed-in nets first, alone, and lock them.** On Mesh
+  Radio the same few short nets (a chip's bus to its neighbour, two balls of
+  a 0.4 mm WLCSP, a regulator's soft-start pin) came out open from every
+  full route, whatever the repair passes did: by then other nets had taken
+  every layer round them. One router pass with only those nets, locked,
+  then the full route round them, closed them all. (Mesh Radio v1)
+- **Draw a tiny stub at a crowded RF corner before the ground fan-out.** A
+  pin squeezed between a chip's corner and an RF line's escape had one way
+  out, and a ground via the fan-out dropped there sealed it; no router
+  reached the pin, even routed alone. Drawing its first millimetre with the
+  board, before the fan-out, kept the way open. (Mesh Radio v1)
+- **Give every ground pad its own via, and keep the spot free.** Pads the
+  fan-out skipped had their via spot crossed by inner-layer tracks later,
+  and some ended on outer-layer pour islands, reported as open. Check after
+  routing that every ground pad has a via within reach, and keep the area
+  under an RF termination free of parts on the other face. (Mesh Radio v1)
+- **Turn a part so its pins face the nets they go to.** A WLCSP whose two
+  signal balls faced away from their parts, under a bus, stayed open
+  through five repair passes; turned 180 degrees in the placement, it
+  routed. Check each small chip's pin side against where its nets go before
+  routing. (Mesh Radio v1)
+- **Refill pours before counting opens, and make your count match the
+  DRC's.** A home-made connectivity count read a stale pour fill and saw a
+  net whole that KiCad, after its refill, found in three pieces; the repair
+  never looked at it. Refill first, and take the union of your own open list
+  and KiCad's. (KiCad 10.0.7; Mesh Radio v1)
+- **Re-fit RF values to the routed lines before moving parts.** The routed
+  lines pulled a filter's notches and a chip antenna's match off target
+  (the match at 7 dB return loss, the notches merged). Moving parts would
+  not have fixed it: re-fitting the capacitor and inductor values against a
+  model with the routed lines, within the same part families and stocked
+  values, brought the match to 16 dB and the harmonic margin from 12 to
+  22 dB. The bench tune starts from those values. (Mesh Radio v1)
+- **A router's per-class clearance is not the pair's larger one.**
+  Freerouting kept each net class's own clearance, so other nets ran
+  0.14 mm from 50-ohm lines whose class asks 0.25 mm. Check the RF gap
+  after routing and re-lay what breaks it. (Freerouting 2.4; Mesh Radio v1)
+
 ## Tools
 
 - **Autorouters stall on the last few connections.** Budget for finishing

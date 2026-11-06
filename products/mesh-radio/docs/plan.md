@@ -315,7 +315,8 @@ only once the windowed-listening firmware exists and is proven.
    bottom under the amplifier, so the gap pad sits at the bottom right,
    x 13–23 and y 2.5–12.5 mm from the board centre, about 9 mm from the
    amplifier, joined to it through the ground layers; `sim/thermal` gives
-   the cost.)
+   the cost. 5 Nov: moved to just below the plugs' row, x 12.4–22.4 and
+   y −2.4–7.6 mm, its edge 4.3 mm from the amplifier.)
 2. **6 layers.**
 3. **New parts:** the designer's choice where the simulations needed them
    (60 V current limiters on solar and drone, the Alps SKRP buttons rated
