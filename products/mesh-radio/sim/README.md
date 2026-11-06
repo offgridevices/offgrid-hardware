@@ -13,7 +13,7 @@ folder are separate studies with their own results; `power/` is the
 listening-current budget and battery life, 2 Nov.)
 
 ```
-sim/run_all.sh                         # everything, ~40 min on 4 cores (runs are cached in sim/out/)
+sim/run_all.sh                         # everything, ~3 h on 4 cores (runs are cached in sim/out/)
 tools/kd python3 sim/burst/run.py      # or one study, from products/mesh-radio, in the pinned container
 tools/kd sh sim/run_all.sh             # everything in the container
 ```
@@ -90,8 +90,14 @@ runs 15 mm since the battery plug moved right for the heat).
   cell 3 W at 25-60 C (was 2 W); USB + weak cell with PA_SRC_SYS PASS (was
   FAIL); 85 C hot case 2.5 W PASS (was FAIL).
 - **Shorts:** VSYS and PA_IN MARGINAL -> PASS at every temperature.
-- Unchanged: hotplug, reverse, solar.  Derating 0 FAIL, 11 MARGINAL (9):
-  the now-passing 3 W bursts load the mux and buck-boost to 85-89 %.
+- Unchanged: hotplug, reverse, solar.  Derating (re-run 6 Nov with an
+  OVER verdict for owner-accepted rows above 100 %): 0 FAIL, 2 OVER
+  (owner-accepted), 9 MARGINAL.  The two OVER rows are the TPS63810's
+  dissipation in a 3 W burst at 85 / 60 C (204 / 114 % of its JEDEC
+  rating; sim/thermal: junction 152 / 127 C, over its 125 C): the
+  firmware's temperature cap never runs 3 W there (1 W from 60 C board,
+  amplifier off from 75 C).  The burst study's 3 W at 60-85 C is the
+  electrical limit only.
 - shorts/run.py: a fourth, looser solver option (the worn cell at -40 C
   stopped before the short), tried by the trip-timing runs too.
 

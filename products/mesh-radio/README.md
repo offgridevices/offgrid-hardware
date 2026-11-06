@@ -87,7 +87,7 @@ be checked. The *v1* column is from the re-routed board's checks and simulations
 | # | Requirement | How it is checked | v1 |
 |---|---|---|---|
 | R1 | **LoRa, 902–928 MHz (US)**, Semtech SX1262, compatible with Meshtastic and MeshCore | Firmware variant builds; pins match firmware source | ✅ variant builds (6 Nov, v2.7.26 with the core patch); SX1262 on the RAK4631's pins (`firmware/README.md`). ⏳ on hardware. |
-| R2 | **Transmit power adjustable from about 10 mW to about 3 W (35 dBm) into the antenna**, in bursts | PA datasheet and supply simulation at full battery; measured on built boards | ✅ in simulation on the routed board (5 Nov): 3 W from a fresh cell at 0 to 85 °C, 2.5 W at −20 °C, 2 W at −40 °C (`sim/burst`); 34.7–35.1 dBm at 4.0 V over tolerance (`sim/rf`); about 6 mW at the lowest setting (`firmware/README.md`). Heat limits how often (E2). ⏳ measured. |
+| R2 | **Transmit power adjustable from about 10 mW to about 3 W (35 dBm) into the antenna**, in bursts | PA datasheet and supply simulation at full battery; measured on built boards | ✅ in simulation on the routed board (5 Nov): the supply and a fresh cell carry 3 W bursts at 0 to 85 °C, 2.5 W at −20 °C, 2 W at −40 °C (`sim/burst`); 34.7–35.1 dBm at 4.0 V over tolerance (`sim/rf`); about 6 mW at the lowest setting (`firmware/README.md`). Heat sets the real ceiling: the firmware allows 3 W only below 45 °C on the board (E2, E4, *Limits*). ⏳ measured. |
 | R3 | **1 W (30 dBm) whenever the radio is set to the US region**, the Part 15 limit. Above 1 W only in Meshtastic's licensed (ham) mode or with custom firmware. | Firmware power table (`TX_GAIN_LORA`) from the PA's gain; measured | ⏳ table written from a model: a 30 dBm request gives about 29.0 dBm. Needs the core patch (part 1) and bench measurement (`firmware/README.md`). |
 | R4 | Receive at least as well as the RAK4631 (SX1262 sensitivity, about −131 dBm at LongFast). The amplifier's receive path must not make it worse. | Noise-figure budget; measured side by side with a RAK | ✅ in simulation on the routed board (5 Nov): 4.9 dB better than a RAK4631 with the receive amp on (the default); 2.1 dB worse in battery-saver bypass (`sim/rf`). ⏳ side by side. |
 | R5 | **LoRa antenna on a U.FL connector** at the end of the board, as on the Heltec V4 | Layout | ❌ placed at the amplifier end of the antenna chain, about 12 mm in from the end; the drone and GPS plugs take the very end (`src/placement.json`, owner: "the U.FL stays put", 3 Nov) |
@@ -99,7 +99,7 @@ be checked. The *v1* column is from the re-routed board's checks and simulations
 | # | Requirement | How it is checked | v1 |
 |---|---|---|---|
 | P1 | **Listening (receive, Bluetooth off): 10 mA or less.** The RAK WisBlock idles near 20 mA. Lower is better. | Current budget from datasheets; measured | ❌ met only in battery-saver mode (about 7–9 mA, receive amp off). The default, with the receive amp on, is about 12–14 mA; the owner accepted about 13 mA for the range on 18 Oct (`docs/plan.md`). Power study (`sim/power`, 2 Nov): 12.7 mA as the firmware stood, about 11.9 mA with two firmware fixes now in (no range lost); about 8 mA with full range is possible later (windowed listening plus a small board change, `docs/plan.md`). Datasheet estimates; ⏳ measured. |
-| P2 | Transmit bursts up to about 2 A from the battery at 3 W, without the 3.3 V rail dropping or the board resetting | Supply simulation with a worn battery | ✅ in simulation on the routed board's copper (5 Nov), at the levels the firmware's cap table allows: no brown-out, no reset. A worn 4.2 V cell gets 2.5 W at 25 °C and up; any cell gets nothing at −40 °C below 4.2 V (`sim/burst`). ⏳ bench. |
+| P2 | Transmit bursts up to about 2 A from the battery at 3 W, without the 3.3 V rail dropping or the board resetting | Supply simulation with a worn battery | ✅ in simulation on the routed board's copper (5 Nov), at the levels the firmware's battery cap table allows: no brown-out, no reset. A worn 4.2 V cell gets 2.5 W at 25 °C and up; any cell gets nothing at −40 °C below 4.2 V (`sim/burst`). The temperature cap is lower still above 45 °C (E4). ⏳ bench. |
 | P3 | **One LiPo cell (3.0–4.2 V) on a JST-PH 2.0 connector with standard (Adafruit/SparkFun) polarity**, which is the opposite of RAK's | Footprint and silkscreen | ⏳ wired pad 1 = + from the footprint drawing; check with a meter on a real Adafruit cell before ordering (`docs/plan.md`) |
 | P4 | **USB-C** for power, charging, firmware and the serial console | Layout | ✅ placed at one end (`src/placement.json`) |
 | P5 | **Solar input (5–6 V panel)** on its own connector, charging the cell | Charger simulation | ✅ in simulation on the routed board (5 Nov): a 6 V panel charges at every temperature inside 0–45 °C (`sim/solar`) |
@@ -126,7 +126,7 @@ be checked. The *v1* column is from the re-routed board's checks and simulations
 | E1 | Every part rated −40 to +85 °C or better | BOM audit | ⏳ chips, crystals, buttons and passives pass (`sim/thermal`, 5 Nov). Exceptions: JST plugs −25 °C (owner-accepted); USB-C lower limit and the ratings added since 19 Oct unverified. |
 | E2 | **Works continuously in a sealed box at 60 °C**, including a storm of messages (sustained transmitting) | Thermal simulation on the routed board, 60 °C air, worst-case duty cycle | ❌ in simulation on the routed board (5 Nov): in a 60 °C box the cell area passes its 60 °C limit with the radio only listening, so no transmit duty passes there; at 25 °C, 1 W passes at 25 % duty without the gap pad, 100 % with it (`sim/thermal`, *Limits*). |
 | E3 | 3 W transmitting is held back by firmware before any part overheats | Thermal simulation; temperature sensing in firmware | ⏳ firmware caps power by board temperature and by the cell (the cap table re-fitted to the routed board, 6 Nov). The sensor lags the amplifier by up to 36 °C, so it limits duty; it cannot protect a single burst (`firmware/README.md`). |
-| E4 | Large headroom: every part runs at no more than about 70 % of its rated current, voltage and power in the worst case | Derating table | ⏳ 81 rows on the routed board (5 Nov): 0 fail, 11 over 70 %, the 3 W path the owner chose (amplifier at 2.3 of 2.4 A, buck-boost, power mux, charger input) (`sim/derating/results.txt`) |
+| E4 | Large headroom: every part runs at no more than about 70 % of its rated current, voltage and power in the worst case | Derating table | ⏳ 81 rows on the routed board (6 Nov): 0 fail, 9 over 70 %, and 2 **over 100 % (owner-accepted)**: the TPS63810 buck-boost would dissipate 204 % (85 °C) and 114 % (60 °C) of its rating during a 3 W burst. The firmware never runs 3 W there: its temperature cap allows 2 W above 45 °C, 1 W above 60 °C and turns the amplifier off above 75 °C on the board (*Limits*, `sim/derating/results.txt`) |
 
 ### Connections
 
@@ -329,6 +329,18 @@ probe (J-Link, nRF52-DK or CMSIS-DAP) for the bootloader.
   lose more than 1.3 dB (3 W at 4.0 V needs ≤ 1.3 dB), but that spread is
   the LFCG-1000+ and SKY13330 losses taken as ×1.0–1.5 and typical-to-max;
   with them at typical no board loses more than 1.26 dB. Measure it.
+- **The TPS63810 buck-boost cannot carry a 3 W burst in a hot box.** During
+  a 3 W burst it dissipates about 1 W: 204 % of its rated dissipation at
+  85 °C ambient and 114 % at 60 °C (`sim/derating`, listed as OVER,
+  owner-accepted). The heat model puts its junction at 152 °C (85 °C) and
+  127 °C (60 °C) after a 1 s burst a minute, over its 125 °C rating
+  (`sim/thermal`). It is safe only because the firmware never does that:
+  its temperature cap, read on the board beside the amplifier, allows 2 W
+  above 45 °C, 1 W above 60 °C (0.3 W in the buck-boost, 34–60 % of its
+  rating) and turns the amplifier off above 75 °C. So "3 W at 85 °C" in the
+  burst study is the cell and the supply's limit, not a working mode; 3 W is
+  a below-45 °C mode. At 25 °C, 3 W one message a minute leaves the
+  junction at 93 °C.
 - **Battery to the power mux is 83 mΩ of copper** (BAT_P on inner layers,
   15 mm, since the battery plug moved away from the amplifier for heat).
   3 W bursts still pass from a fresh cell; it costs headroom on a weak one.
@@ -367,7 +379,7 @@ tools/kd python3 sim/rf/routed.py && tools/kd python3 sim/rf/run.py   # radio, ~
 NPROC=2 tools/kd python3 sim/thermal/run.py                          # heat, ~30 min
 NPROC=2 tools/kd python3 sim/thermal/followup.py                     # heat per board option, ~40 min
 tools/kd python3 sim/extract.py     # the routed board's copper -> copy the values into sim/board.py
-tools/kd sh sim/run_all.sh          # power: hotplug, reverse, shorts, burst, solar, derating (~2-3 h)
+tools/kd sh sim/run_all.sh          # power: hotplug, reverse, shorts, burst, solar, derating (~3 h on 4 cores)
 ```
 
 | To change | Edit | Then run |

@@ -62,8 +62,13 @@ def _rows():
     # thermal: dissipation -> Tj at 60 C ambient, against Tj max (125 C) - expressed as power vs (125-60)/RthJA
     eff = 1 - 0.08 * (1 + 0.004 * (TA - 25))
     p_bb = 4.0 * 2.3 / eff - 4.0 * 2.3           # 3 W burst: PIN - POUT, efficiency 92 % at 25 C falling with RDS(on)
+    # (6 Nov: not reachable in the firmware at these ambients: its temperature
+    # cap holds 1 W from 60 C board temperature and turns the amplifier off
+    # from 75 C; sim/thermal puts the junction at 127 / 152 C after a 3 W
+    # burst a minute at 60 / 85 C, over its 125 C rating)
     st.append(s('TPS63810', 'U (buck-boost)', 'dissipation during a 3 W burst', p_bb, 'W', (125 - TA) / 80.5,
-                'owner', 'RthJA 80.5 C/W JEDEC -> Tj %.0f C at 60 C if continuous; bursts only (E2 thermal sim)' % tj(p_bb, 80.5)))
+                'owner', 'RthJA 80.5 C/W JEDEC -> Tj %.0f C at %d C if continuous; sim/thermal Tj %d C after a 1 s burst a '
+                'minute; firmware caps 1 W from 60 C board, off from 75 C' % (tj(p_bb, 80.5), TA, 127 if TA < 70 else 152)))
     p_bb1 = 2.7 * 1.0 / eff - 2.7
     st.append(s('TPS63810', 'U (buck-boost)', 'dissipation at 1 W', p_bb1, 'W', (125 - TA) / 80.5, 'derate',
                 'Tj %.0f C at 60 C, continuous' % tj(p_bb1, 80.5)))
@@ -125,7 +130,10 @@ def main():
         elif k == 'rec':
             v = 'PASS' if pct <= 100 else 'FAIL'
         elif k == 'owner':
-            v = 'PASS' if pct <= 70 else 'MARGINAL'
+            # the owner accepted the 3 W path's stress (19 Oct): over 70 % is
+            # MARGINAL, but over 100 % of the rating is reported as such, not
+            # hidden in MARGINAL (PR #13 review)
+            v = 'PASS' if pct <= 70 else ('MARGINAL' if pct <= 100 else 'OVER (owner-accepted)')
         else:
             v = 'info'
         r['pct'] = pct
@@ -134,21 +142,24 @@ def main():
     out.sort(key=lambda r: (r['part'], -r['pct']))
     L = ['Study 6: derating (E4).  derate: <= 70 % of rating; absmax: < 95 % of the absolute maximum (transients);',
          'rec: steady pin voltage within the recommended maximum; pulse: reported.  Thermal rows at 60 C (the sealed box,',
-         'E2) and 85 C (the top corner); stresses from the studies are the worst over -40 .. 85 C.', '']
+         'E2) and 85 C (the top corner); stresses from the studies are the worst over -40 .. 85 C.',
+         'owner: the 3 W path the owner accepted (19 Oct): over 70 % MARGINAL, over 100 % OVER (owner-accepted).', '']
     L.append(S.table([[r['part'], r['ref'], r['qty'], '%.3g %s' % (r['value'], r['unit']), '%.3g %s' % (r['rating'], r['unit']),
                        '%.0f %%' % r['pct'], r['kind'], r['verdict'], r['study'], r['case']] for r in out],
                      ['part', 'where', 'quantity', 'worst case', 'rating', '%', 'rule', 'verdict', 'from', 'case / note']))
     L.append('')
     nf = sum(1 for r in out if r['verdict'] == 'FAIL')
+    no = sum(1 for r in out if r['verdict'].startswith('OVER'))
     nm = sum(1 for r in out if r['verdict'] == 'MARGINAL')
-    L.append('%d rows: %d FAIL, %d MARGINAL.' % (len(out), nf, nm))
+    L.append('%d rows: %d FAIL, %d OVER (owner-accepted), %d MARGINAL.' % (len(out), nf, no, nm))
+    L.append('owner: the 3 W path the owner chose (19 Oct); PASS <= 70 %, MARGINAL 70-100 %, OVER (owner-accepted) > 100 %.')
     S.write_results(HERE, L)
 
     plt = S.style()
-    sel = [r for r in out if r['kind'] in ('derate', 'absmax', 'rec')]
+    sel = [r for r in out if r['kind'] in ('derate', 'absmax', 'rec', 'owner')]
     fig, ax = plt.subplots(figsize=(11, 0.24 * len(sel) + 1.5))
     y = np.arange(len(sel))
-    col = {'PASS': '#2b8a3e', 'MARGINAL': '#f59f00', 'FAIL': '#c2255c'}
+    col = {'PASS': '#2b8a3e', 'MARGINAL': '#f59f00', 'FAIL': '#c2255c', 'OVER (owner-accepted)': '#7048e8'}
     ax.barh(y, [min(r['pct'], 200) for r in sel], color=[col[r['verdict']] for r in sel])
     ax.axvline(70, color='0.3', lw=0.8, ls='--')
     ax.axvline(100, color='0.3', lw=0.8)
@@ -156,7 +167,7 @@ def main():
     ax.set_yticklabels(['%s - %s' % (r['part'], r['qty'][:48]) for r in sel], fontsize=6)
     ax.invert_yaxis()
     ax.set_xlabel('% of rating (bars clipped at 200 %)')
-    ax.set_title('E4 derating: green pass, amber marginal (abs max), red fail; dashed 70 %')
+    ax.set_title('E4 derating: green pass, amber marginal, purple over (owner-accepted 3 W path), red fail; dashed 70 %')
     fig.tight_layout()
     fig.savefig(os.path.join(HERE, 'derating.png'))
 
