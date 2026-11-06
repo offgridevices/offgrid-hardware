@@ -19,9 +19,10 @@ Rules, fixed before running:
             reported only (pulse ratings are not published); 'info' likewise
   'owner'   stresses set by the owner's decision to keep 3 W (19 Oct: the
             amplifier and its supply chain in 3 W bursts, firmware capping the
-            level by temperature and cell voltage): <= 70 % PASS, else
-            MARGINAL with that reason (dissipation rows are continuous ratings
-            against bursts of <= 1 s: see sim/thermal)
+            level by temperature and cell voltage): <= 70 % PASS, 70-100 %
+            MARGINAL with that reason, > 100 % OVER (owner-accepted)
+            (dissipation rows are continuous ratings against bursts of <= 1 s:
+            see sim/thermal)
 
 Outputs: results.txt, derating.png.   Run: python3 run.py
 """

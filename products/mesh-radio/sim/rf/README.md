@@ -81,7 +81,7 @@ value sets were re-fitted to the routed lines (`results.txt` is this run):
   above it. The packet that finds the antenna missing still runs at its own
   level for the 750 µs before the cut-off. Verified by simulation only.
 
-## The routed board (3 Nov)
+## The routed board (3 Nov; superseded by the 5 Nov section above)
 
 ### How the board is read now
 
@@ -179,7 +179,7 @@ reproduces it to 0.1 dB.
 | Detector parts, open, 4.0 V | BAT68 2.8 V; 49.9 R 21 mW | 1.9 V; 10 mW | **PASS** |
 | REFL_DET settling, 30 dBm, −40 °C | 339 µs | 323 µs | needs the RF at full power by ~427 µs |
 
-## Verdict: the routed board (3 Nov)
+## Verdict: the routed board (3 Nov; superseded by the 5 Nov section above)
 
 | # | Check | Result | Key numbers |
 |---|---|---|---|

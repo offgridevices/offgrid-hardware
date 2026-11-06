@@ -16,3 +16,6 @@ for study in hotplug reverse shorts burst solar derating; do
     (cd "$study" && python3 -W ignore run.py > /dev/null)
     echo "    -> $study/results.txt"
 done
+# The Verdict table in sim/README.md is written from every study's
+# results.txt (rf, thermal and extract included), so it cannot drift.
+python3 verdict.py
